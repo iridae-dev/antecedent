@@ -40,7 +40,7 @@ use antecedent_graph::{
     Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalAdmg,
     TemporalCpdag, TemporalDag, TemporalPag, TieredBackground, WithinTier, ensure_lagged,
 };
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
 #[path = "fixtures_common/mod.rs"]
@@ -2441,7 +2441,7 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
         .encode_contracted_result(&result, &expected, &ctx)
         .map_err(|e| format!("{expected}: encode {e}"))?;
     let consumed =
-        consume_analysis_result(&bytes).map_err(|e| format!("{expected}: consume {e}"))?;
+        replay_analysis_result(&bytes).map_err(|e| format!("{expected}: consume {e}"))?;
     // Compact exports do not carry the source needed to independently replay
     // refutations. Check that limitation separately without upgrading the
     // original consumer's acceptance or ignoring any other dependency.
@@ -2461,7 +2461,7 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
     let has_refutation_replay = other_dependencies.len() != consumed.acceptance.unresolved.len();
     if has_refutation_replay
         && (consumed.body.refutations.is_empty()
-            || consumed.acceptance.accepts_as_verified_program()
+            || consumed.acceptance.accepts_as_replayed_program()
             || !consumed.acceptance.recognized
             || !consumed.acceptance.claim_present
             || consumed.contract.is_none())
@@ -2471,7 +2471,7 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
     // The estimand-criterion check covers the marginal average effect on a DAG only; any
     // other target or graph class leaves it unevaluated by a consumer holding the bytes. The
     // source evidence resolves it by re-running the original estimation, so it never stands
-    // alone as the reason a contract is not a verified program. Every other dependency is
+    // alone as the reason a contract is not a replayed program. Every other dependency is
     // still checked below.
     let had_criterion_dependency = other_dependencies
         .iter()
@@ -2483,7 +2483,7 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
         .filter(|reason| reason.as_ref() != "dependencies.identification_estimand_criterion")
         .collect();
     let other_dependencies_resolved = without_refutation_replay.acceptance.unresolved.is_empty();
-    if !consumed.acceptance.accepts_as_verified_program()
+    if !consumed.acceptance.accepts_as_replayed_program()
         && !((has_refutation_replay || had_criterion_dependency) && other_dependencies_resolved)
         && !sealed_checked_operation_dependency_only(&without_refutation_replay)
         && !functional_effect_replay_dependency_only(&without_refutation_replay)
@@ -2763,7 +2763,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
             let bytes = prepared
                 .encode_contracted_result(&refreshed, &format!("closure-{coordinate}"), &ctx)
                 .map_err(|e| format!("export after refresh: {e}"))?;
-            let consumed = consume_analysis_result(&bytes).map_err(|e| format!("consume: {e}"))?;
+            let consumed = replay_analysis_result(&bytes).map_err(|e| format!("consume: {e}"))?;
             let missing_distribution_laws = consumed
                 .acceptance
                 .unresolved
@@ -2784,7 +2784,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
                 dependency_refusals.push(format!(
                     "{coordinate}: dependencies.distribution_posterior_factor_draws"
                 ));
-            } else if !consumed.acceptance.accepts_as_verified_program() {
+            } else if !consumed.acceptance.accepts_as_replayed_program() {
                 return Err(format!(
                     "consumer refused verified program: {:?}",
                     consumed.acceptance.unresolved
@@ -2915,8 +2915,8 @@ fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
             let bytes = prepared
                 .encode_contracted_result(&refreshed, &coordinate, &ctx)
                 .map_err(|e| format!("export: {e}"))?;
-            let consumed = consume_analysis_result(&bytes).map_err(|e| format!("consume: {e}"))?;
-            if !consumed.acceptance.accepts_as_verified_program() {
+            let consumed = replay_analysis_result(&bytes).map_err(|e| format!("consume: {e}"))?;
+            if !consumed.acceptance.accepts_as_replayed_program() {
                 if consumed
                     .acceptance
                     .unresolved
@@ -3533,7 +3533,7 @@ fn replay_cell(cell: antecedent::SupportCell) -> Result<Replayed, String> {
         .encode_contracted_result(&result, &expected, &ctx)
         .map_err(|e| format!("{expected}: encode {e}"))?;
     let consumed =
-        consume_analysis_result(&bytes).map_err(|e| format!("{expected}: consume {e}"))?;
+        replay_analysis_result(&bytes).map_err(|e| format!("{expected}: consume {e}"))?;
     Ok(Replayed {
         effect: result.effect(),
         wire_estimate: consumed.body.estimate,

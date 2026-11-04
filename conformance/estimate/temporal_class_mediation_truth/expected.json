@@ -63,7 +63,7 @@
             "fn posterior_with_weights",
             "struct MediationPin"
           ],
-          "sha256": "6aa7ccd047f8e9603e83276dfd7c78d6ce89995f40bee2bb0ebe21a2358f8368"
+          "sha256": "485987b2e6931240dbdf180bdb0ed3329b65f8a35f02a3b6108b204c1424192a"
         },
         {
           "role": "assertion_source",

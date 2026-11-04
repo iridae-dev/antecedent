@@ -139,9 +139,11 @@ def _assert_portable_family_fields(member):
     loaded = ant.load(artifact, expected=artifact.expectation)
     restored = require_success(loaded)
     assert loaded.study is None
-    assert loaded.acceptance.status == "sealed"
-    assert not loaded.acceptance.replayable
-    assert "dependencies.checked_batch_family_operation" in loaded.acceptance.unresolved
+    assert loaded.acceptance.status == "loaded"
+    assert not loaded.acceptance.replayed
+    assert (
+        "dependencies.checked_batch_family_operation" in restored.replay().acceptance.not_replayable
+    )
     assert loaded.inspect().claim_id == member.inspect().claim_id
     assert loaded.inspect().contract == member.inspect().contract
     payload = restored.decoded_artifact.payload

@@ -146,7 +146,7 @@ class ConditionalStudyPolicy:
 
 def _conditional_acceptance(result: Any, bound: bool) -> ArtifactAcceptance:
     return ArtifactAcceptance(
-        "verified" if result.source_verified else "sealed",
+        "replayed" if result.source_verified else "loaded",
         bound,
         result.source_verified,
         False,

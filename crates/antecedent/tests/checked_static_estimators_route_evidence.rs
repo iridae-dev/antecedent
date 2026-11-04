@@ -82,7 +82,7 @@ fn checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal() {
                 assert!((refreshed.effect() - result.effect()).abs() < 1e-10);
                 let bytes =
                     prepared.encode_contracted_result(&refreshed, "checked-glm", &ctx).unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
                 assert!(
                     consumed
                         .acceptance
@@ -90,7 +90,7 @@ fn checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal() {
                         .iter()
                         .any(|reason| reason.as_ref() == "dependencies.checked_glm_operation")
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }
@@ -143,7 +143,7 @@ fn checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal() {
             let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             assert!((refreshed.effect() - result.effect()).abs() < 1e-10);
             let bytes = prepared.encode_contracted_result(&refreshed, "checked-rd", &ctx).unwrap();
-            let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
             assert!(
                 consumed
                     .acceptance
@@ -151,7 +151,7 @@ fn checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal() {
                     .iter()
                     .any(|reason| reason.as_ref() == "dependencies.checked_rd_operation")
             );
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
         }
     }
 }

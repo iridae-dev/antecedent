@@ -192,11 +192,11 @@ fn checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates() {
                 let artifact = prepared
                     .encode_contracted_result(&refreshed, "checked-temporal-mediation", &context)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
                     dependency.as_ref() == "dependencies.checked_temporal_mediation_operation"
                 }));
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }

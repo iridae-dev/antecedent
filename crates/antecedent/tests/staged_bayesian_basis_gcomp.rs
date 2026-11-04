@@ -193,13 +193,13 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
     let bytes = prepared
         .encode_contracted_result(&refreshed, "checked-bayesian-basis-ate", &context)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_bayesian_basis_ate_operation"
         })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let reordered = TabularData::from_f64_columns([
         ("y", refreshed_outcome.as_slice()),
@@ -254,13 +254,13 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
     }
 
     let bytes = prepared.encode_contracted_result(&result, "checked-basis-cate", &context).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_bayesian_basis_cate_operation"
         })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let t = data.float64_values(v(0)).unwrap();
     let y = data.float64_values(v(1)).unwrap();

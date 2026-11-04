@@ -36,7 +36,7 @@ pub fn assert_retained_graphless_program(
     let bytes = prepared
         .encode_contracted_result(result, label, ctx)
         .unwrap_or_else(|error| panic!("{label}: {error}"));
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     // The independent consumer recognizes the program and its claim. What it cannot replay from
     // the artifact alone (the fitted operation, the posterior draws) is named as a precise
     // dependency, never left as an opaque unresolved reference.

@@ -15,7 +15,7 @@ use antecedent_core::{
 };
 use antecedent_data::{NetworkData, NetworkEdge, TableView, TabularData};
 use antecedent_graph::Dag;
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 fn query() -> InterferenceQuery {
     InterferenceQuery::new(
@@ -99,7 +99,7 @@ fn cluster_partial_interference_total_effect_passes_public_prepare_estimate_arti
     assert_eq!(result.interference().unwrap().minimum_exposure_probability, 0.5);
     let artifact =
         prepared.encode_contracted_result(&result, "cluster-total-effect", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed
             .acceptance
@@ -255,11 +255,11 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
     let artifact = prepared
         .encode_contracted_result(&result, "checked-interference-design", &context)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
         dependency.as_ref() == "dependencies.checked_interference_operation"
     }));
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let shifted = shifted_outcomes(&data, 0.5);
     let refreshed = rebind_estimate(&mut prepared, shifted, &context).unwrap();
@@ -277,7 +277,7 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
         .encode_contracted_result(&refreshed, "checked-interference-design-refresh", &context)
         .unwrap();
     assert!(
-        consume_analysis_result(&refreshed_artifact)
+        replay_analysis_result(&refreshed_artifact)
             .unwrap()
             .acceptance
             .unresolved
@@ -353,11 +353,11 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
     let artifact = prepared
         .encode_contracted_result(&result, "checked-interference-bayesian", &context)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
         dependency.as_ref() == "dependencies.checked_interference_operation"
     }));
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let refreshed = rebind_estimate(&mut prepared, shifted_outcomes(&data, 0.5), &context).unwrap();
     assert!(
@@ -374,7 +374,7 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
         .encode_contracted_result(&refreshed, "checked-interference-bayesian-refresh", &context)
         .unwrap();
     assert!(
-        consume_analysis_result(&refreshed_artifact)
+        replay_analysis_result(&refreshed_artifact)
             .unwrap()
             .acceptance
             .unresolved

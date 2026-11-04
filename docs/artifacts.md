@@ -227,7 +227,7 @@ import antecedent as ant
 result = ant.analyze(data, graph=graph, query=query)
 encoded = result.export()
 loaded = ant.load(encoded)
-assert loaded.acceptance.verified or loaded.acceptance.sealed
+assert loaded.acceptance.recognized
 assert loaded.answer == result.answer
 report = loaded.inspect().to_dict()
 assert loaded.export() == encoded
@@ -240,25 +240,40 @@ assert result.export() == encoded
 
 The export retains the compiled execution contract and applicable numerical
 payloads, including posterior draws, response functions and structural mixtures.
-Loading verifies semantic consistency; it does not verify causal assumptions or
+Loading checks that the artifact is intact; it does not verify causal assumptions or
 reconstruct a live study. Every reported interval states its calibration on the
 claim. See the [workflow guide](start/first-analysis.md) for retention boundaries.
 
-`loaded.acceptance` reports one of three outcomes:
+Loading is cheap. It checks that the artifact is an intact Antecedent result, with its
+contract section present, understood, and agreeing with its digests, and keeps the recorded
+answer. It recomputes nothing: a result you just produced needs no replay.
 
-- `verified`: the consumer replayed a verified program from the bytes alone.
-  The recorded answer is available and `acceptance.replayable` is `True`.
-- `sealed`: every supported route executes through a sealed checked operation
-  whose proof stays with the live study. Loading its export recognizes the
-  artifact, verifies its contract and identities, keeps the recorded answer,
-  and names the operation it cannot replay in `acceptance.unresolved` (for
-  example `dependencies.checked_conditional_effect_operation`).
-  `acceptance.verified` and `acceptance.replayable` are `False`.
-- `unavailable`: the contract is missing, unrecognized, or unresolved for any
-  other reason. `loaded.answer` is explicitly unavailable and the bytes can
-  still be forwarded unchanged.
+For a result that came from outside your own authoring, ask for a replay. It recomputes the
+published numbers from the evidence the artifact carries, under limits larger than the
+defaults of other paths because it is never a surprise:
 
-`acceptance.status` names the outcome and `repr(loaded)` shows it.
+```python
+loaded = ant.load(encoded, expected=artifact.expectation, replay=True)
+# or, on an existing load:
+replayed = loaded.replay()
+replayed.acceptance.status  # "replayed" when every published part agrees
+```
+
+`loaded.acceptance.status` is one of three outcomes, and `repr(loaded)` shows it:
+
+- `loaded`: the artifact is intact and the recorded answer is available.
+  Nothing was recomputed.
+- `replayed`: a replay recomputed every published part from the bytes and each
+  agreed. `acceptance.replayed` is `True`.
+- `unavailable`: the contract is missing, unrecognized, or fails its digests
+  (`acceptance.integrity` names why). `loaded.answer` is explicitly unavailable
+  and the bytes can still be forwarded unchanged.
+
+A replay that does not reach `replayed` says why, in two separate lists. `acceptance.not_replayable`
+names parts whose evidence the artifact does not carry (for example
+`dependencies.checked_conditional_effect_operation`); that is a limit of the artifact, not a
+finding against it. `acceptance.mismatches` names parts that were recomputed and differ.
+
 
 ### Posterior and query payloads for stage consumers
 

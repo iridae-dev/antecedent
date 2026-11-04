@@ -159,24 +159,46 @@ pub fn decode_analysis_result_artifact(
 ///
 /// # Errors
 /// Invalid artifact, contract, or a pseudo-posterior that fails replay.
-pub fn consume_analysis_result(
+pub fn replay_analysis_result(
     bytes: &[u8],
 ) -> Result<antecedent_io_core::AnalysisResultConsumption, IoError> {
-    consume_analysis_result_within(bytes, &ReplayLimits::default())
+    replay_analysis_result_within(bytes, &ReplayLimits::default())
 }
 
 /// Consume under caller-provided replay bounds.
 ///
 /// # Errors
-/// As [`consume_analysis_result`], or work exceeding the supplied bounds.
-pub fn consume_analysis_result_within(
+/// As [`replay_analysis_result`], or work exceeding the supplied bounds.
+pub fn replay_analysis_result_within(
     bytes: &[u8],
     limits: &ReplayLimits,
 ) -> Result<antecedent_io_core::AnalysisResultConsumption, IoError> {
-    let mut consumed = antecedent_io_core::consume_analysis_result_within(bytes, limits)?;
+    let mut consumed = antecedent_io_core::replay_analysis_result_within(bytes, limits)?;
     verify(&consumed.body, limits)?;
     promote_replayed_ipow(&mut consumed);
     Ok(consumed)
+}
+
+/// Replay a loaded result, including the whole-procedure replay of a randomized-arm IPW
+/// pseudo-posterior, which clears that route's missing-operation finding.
+///
+/// # Errors
+/// A pseudo-posterior that fails replay, or work exceeding the supplied bounds.
+pub fn replay_loaded_result(
+    load: &antecedent_io_core::AnalysisResultLoad,
+    options: &antecedent_io_core::ReplayOptions,
+) -> Result<antecedent_io_core::ReplayReport, IoError> {
+    let mut report = load.replay(options);
+    verify(&load.body, &options.limits)?;
+    if load.body.posterior_row.as_ref().is_some_and(|row| row.randomized_ipow.is_some())
+        && load.contract.is_some()
+    {
+        let missing =
+            antecedent_io_core::ContractReason::DependenciesCheckedBayesianRandomizedOperation
+                .as_str();
+        report.not_replayable.retain(|reason| reason.as_ref() != missing);
+    }
+    Ok(report)
 }
 
 fn promote_replayed_ipow(consumed: &mut antecedent_io_core::AnalysisResultConsumption) {
@@ -195,11 +217,11 @@ fn promote_replayed_ipow(consumed: &mut antecedent_io_core::AnalysisResultConsum
             .cloned()
             .collect();
         if consumed.acceptance.unresolved.is_empty() {
-            consumed.acceptance.verified_references = true;
+            consumed.acceptance.replayed_references = true;
             consumed.acceptance.restriction = if consumed.acceptance.claim_present {
                 None
             } else {
-                Some("verified_program_without_claim".into())
+                Some("replayed_program_without_claim".into())
             };
             let mut operations = vec![
                 "store".into(),

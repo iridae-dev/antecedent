@@ -30,7 +30,7 @@ def test_z_typed_consumer_invokes_the_actual_verifier_once(monkeypatch):
     monkeypatch.setattr(identify_module, "_consume_z_transport_artifact", checked)
     consumed = transport.consume_z_transport_artifact(exported)
     assert calls == [raw]
-    assert consumed.acceptance.verified
+    assert consumed.acceptance.replayed
     assert consumed.acceptance.replayable
     assert not consumed.acceptance.resumable
     assert not consumed.acceptance.identity_bound
@@ -60,14 +60,14 @@ def test_restricted_whole_export_preserves_verified_coordinates_and_every_member
     execution = consume_restricted_artifacts([left.export(), right.export()])
     assert tuple(dict(point["at"]) for point in execution.points) == ({"x": 0.0}, {"x": 1.0})
     assert len(execution.member_acceptance) == 2
-    assert all(receipt.verified for receipt in execution.member_acceptance)
+    assert all(receipt.replayed for receipt in execution.member_acceptance)
     exported = execution.export()
     assert isinstance(exported, ExportedArtifact)
     loaded = require_success(antecedent.load(exported))
     assert tuple(point.to_dict() for point in loaded.points) == tuple(
         point.to_dict() for point in execution.points
     )
-    assert loaded.acceptance.verified
+    assert loaded.acceptance.replayed
     with pytest.raises(CausalSerializationError, match="coordinates"):
         consume_restricted_artifacts([left.export(), right.export()], [{"x": 1.0}, {"x": 0.0}])
 

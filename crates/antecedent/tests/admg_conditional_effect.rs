@@ -477,7 +477,7 @@ fn verify_conditional_coordinate(coordinate: &str, accepted: bool, bayesian: boo
     let artifact = prepared
         .encode_contracted_result(&refreshed, coordinate, &ctx)
         .unwrap_or_else(|error| panic!("{coordinate}: {error}"));
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate} artifact");
 }
 

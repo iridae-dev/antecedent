@@ -25,7 +25,7 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_graph::TemporalAdmg;
 use antecedent_graph::{Admg, Cpdag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 const ROWS: f64 = 100_000.0;
 
@@ -587,7 +587,7 @@ fn contracted_results_round_trip_through_the_consumer() {
             .encode_contracted_result(&refreshed, &format!("path-specific-{name}"), &ctx)
             .unwrap();
         assert_eq!(bytes, again, "{name} encoding is deterministic");
-        let consumed = consume_analysis_result(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let consumed = replay_analysis_result(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{name} artifact result");
     }
 }

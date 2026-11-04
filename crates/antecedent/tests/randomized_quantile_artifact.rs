@@ -50,5 +50,5 @@ fn the_randomized_quantile_result_round_trips_through_the_contracted_artifact() 
     assert!((first.effect() - 2.0).abs() < 1e-9, "effect {}", first.effect());
 
     let bytes = prepared.encode_contracted_result(&first, "randomized-quantile", &ctx).unwrap();
-    antecedent_io::consume_analysis_result(&bytes).expect("the independent consumer reads it");
+    antecedent_io::replay_analysis_result(&bytes).expect("an independent consumer replays it");
 }

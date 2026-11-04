@@ -514,7 +514,7 @@ fn mixed_graph_mediation_and_distribution_publish_an_artifact_a_consumer_reads()
         let artifact = prepared
             .encode_contracted_result(&result, &format!("mixed-graph-{label}"), &ctx)
             .unwrap_or_else(|e| panic!("{label}: {e}"));
-        let consumed = antecedent_io::consume_analysis_result(&artifact)
+        let consumed = antecedent_io::replay_analysis_result(&artifact)
             .unwrap_or_else(|e| panic!("{label}: {e}"));
         if label.ends_with("mediation") {
             assert_eq!(consumed.body.estimate, Some(result.effect()), "{label}");

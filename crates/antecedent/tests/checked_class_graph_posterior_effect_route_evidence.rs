@@ -189,11 +189,11 @@ fn frequentist_cpdag_graph_posterior_effect_body() {
         let artifact = prepared
             .encode_contracted_result(&shifted, "checked-graph-posterior-effect", &ctx)
             .unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_class_graph_posterior_effect_operation"
         }));
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     }
 }
 
@@ -259,11 +259,11 @@ fn frequentist_pag_graph_posterior_effect_body() {
         let artifact = prepared
             .encode_contracted_result(&shifted, "checked-class-graph-posterior-effect", &ctx)
             .unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_class_graph_posterior_effect_operation"
         }));
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     }
 }
 

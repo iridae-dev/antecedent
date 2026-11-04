@@ -11,7 +11,7 @@ use antecedent_contract::SlotAvailability;
 use antecedent_core::{CausalQuery, ExecutionContext, PathSpecificEffectQuery, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use serde_json::Value;
 
 /// Posterior-mean tolerance around the enumerated path-specific truth (observed deviation 7.3e-4).
@@ -195,7 +195,7 @@ fn verify_path_specific_coordinate(
     let artifact = prepared
         .encode_contracted_result(&refreshed, &format!("path-specific-{coordinate}"), &ctx)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     let refuted = validation != "none";
     let replay = "dependencies.refutation_replay";
     if refuted {
@@ -209,7 +209,7 @@ fn verify_path_specific_coordinate(
             vec![replay]
         };
         assert_eq!(reasons, expected, "{coordinate}");
-        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
         assert!(!consumed.body.refutations.is_empty(), "{coordinate}");
     } else if bayesian {
         assert_eq!(consumed.acceptance.unresolved.len(), 1, "{coordinate} precise refusal");
@@ -220,10 +220,10 @@ fn verify_path_specific_coordinate(
             "{coordinate}: {:?}",
             consumed.acceptance.unresolved
         );
-        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
     } else {
         assert!(
-            consumed.acceptance.accepts_as_verified_program(),
+            consumed.acceptance.accepts_as_replayed_program(),
             "{coordinate}: {:?}",
             consumed.acceptance.unresolved
         );

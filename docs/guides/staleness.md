@@ -59,7 +59,7 @@ baseline = require_success(drift.baseline(study, policy=policy))
 artifact = baseline.export()
 loaded = ant.load(artifact, expected=artifact.expectation)
 assert loaded.study is None
-assert loaded.acceptance.status == "sealed" and not loaded.acceptance.replayable
+assert loaded.acceptance.status == "loaded" and not loaded.acceptance.replayable
 restored = require_success(loaded)
 independent = require_success(drift.staleness(restored, new_data, policy=policy, execution=execution))
 assert independent.identity == report.identity

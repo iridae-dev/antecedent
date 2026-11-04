@@ -7,7 +7,7 @@ use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_discovery::{GraphPosterior, SamplingSummary};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
 fn data() -> TabularData {
@@ -126,11 +126,11 @@ fn bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle() {
         let artifact = prepared
             .encode_contracted_result(&refreshed, "bayesian-dag-graph-posterior-ate", &context)
             .unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_bayesian_graph_posterior_ate_operation"
         }));
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     }
 }
 

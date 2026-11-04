@@ -276,11 +276,11 @@ fn static_mediation_plan_executes_every_contrast_and_supported_validation_suite_
                 let artifact = prepared
                     .encode_contracted_result(&refreshed, "checked-mediation", &context)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                     reason.as_ref() == "dependencies.checked_mediation_operation"
                 }));
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }
@@ -369,11 +369,11 @@ fn bayesian_static_mediation_plan_body() {
                 let artifact = prepared
                     .encode_contracted_result(&refreshed, "checked-bayesian-mediation", &context)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                     reason.as_ref() == "dependencies.checked_bayesian_mediation_operation"
                 }));
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }

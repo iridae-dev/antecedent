@@ -12,7 +12,7 @@ use antecedent_core::{
 };
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_graph::{Admg, Cpdag, DenseNodeId, Pag, TemporalAdmg, TemporalCpdag, TemporalPag};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 /// Debug builds of the shared dispatcher carry frames close to the default test-thread stack.
 fn on_large_stack(name: &str, body: fn()) {
@@ -57,7 +57,7 @@ fn round_trip(label: &str, study: &Study) -> antecedent::StudyResult {
     let again =
         prepared.encode_contracted_result(&result, &format!("class-route-{label}"), &ctx).unwrap();
     assert_eq!(bytes, again, "{label}: the encoding is deterministic");
-    let consumed = consume_analysis_result(&bytes).unwrap_or_else(|e| panic!("{label}: {e}"));
+    let consumed = replay_analysis_result(&bytes).unwrap_or_else(|e| panic!("{label}: {e}"));
     // A scalar the route did not publish (an attribution has none) is absent from the artifact.
     match result.estimate().as_effect().map(|effect| effect.ate).filter(|ate| ate.is_finite()) {
         Some(ate) => assert_eq!(consumed.body.estimate, Some(ate), "{label}: artifact estimate"),
@@ -66,7 +66,7 @@ fn round_trip(label: &str, study: &Study) -> antecedent::StudyResult {
     let mut tampered = bytes;
     let middle = tampered.len() / 2;
     tampered[middle] ^= 0x40;
-    let error = consume_analysis_result(&tampered).expect_err("a tampered artifact is refused");
+    let error = replay_analysis_result(&tampered).expect_err("a tampered artifact is refused");
     assert!(
         matches!(&error, antecedent_io::IoError::ChecksumMismatch { .. }),
         "{label}: a flipped byte is a section checksum mismatch, not another failure: {error:?}"

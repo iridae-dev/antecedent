@@ -601,7 +601,7 @@ fn admitted_population_retarget_after_refresh_matches_fresh_preparation() {
     assert_eq!(before, retained.contract().unwrap().identities);
     assert_eq!(before, frozen.contract().unwrap().identities);
     let body = retained.encode_contracted_result(&actual, "retarget-after-refresh", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&body).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&body).unwrap();
     assert_eq!(consumed.body.estimate, Some(actual.effect()));
 }
 

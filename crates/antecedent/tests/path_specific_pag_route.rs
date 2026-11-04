@@ -25,7 +25,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Pag};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 const ROWS: f64 = 100_000.0;
 
@@ -374,7 +374,7 @@ fn contracted_pag_results_round_trip_through_the_consumer() {
             .unwrap_or_else(|e| panic!("{name}: {e}"));
         let again = prepared.encode_contracted_result(&refreshed, &label, &ctx).unwrap();
         assert_eq!(bytes, again, "{name} encoding is deterministic");
-        let consumed = consume_analysis_result(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let consumed = replay_analysis_result(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{name} artifact result");
         assert_eq!(refreshed.effect().to_bits(), result.effect().to_bits(), "{name} refresh");
     }

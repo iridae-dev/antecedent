@@ -160,15 +160,15 @@ def test_nested_counterfactual_stages_shared_draws_artifact_and_refresh():
     result_artifact = artifacts.loads(bytes(outcome.export(quantity="record")))
     assert result_artifact.payload["estimate"] == pytest.approx(result.effect)
     assert prepared.evidence_status == "supported"
-    checked_receipt = artifacts.accept(bytes(result.export()))
-    assert checked_receipt["accepts_as_verified_program"] == "true"
-    assert checked_receipt["unresolved"] == ""
+    checked_receipt = artifacts.accept(bytes(result.export()), replay=True)
+    assert checked_receipt["replayed"] == "true"
+    assert checked_receipt["not_replayable"] == ""
 
     refreshed_data = {"x": x, "m": m + 0.2, "y": y + 0.7}
     refreshed = require_success(ac.estimate(ac.rebind(prepared, data=refreshed_data)))
     assert refreshed.effect == pytest.approx(result.effect, abs=1e-8)
-    refreshed_receipt = artifacts.accept(bytes(refreshed.export()))
-    assert refreshed_receipt["accepts_as_verified_program"] == "true"
+    refreshed_receipt = artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert refreshed_receipt["replayed"] == "true"
     assert refreshed_receipt["program"] == checked_receipt["program"]
 
 

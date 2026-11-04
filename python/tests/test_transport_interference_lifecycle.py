@@ -36,7 +36,7 @@ from antecedent.transport import advanced as transport
 from antecedent.transport.advanced import TransportQuery
 
 from _repo_text import REPO_ROOT, read_text
-from _sealed_loads import assert_answer_kept, assert_refutation_replay_withheld
+from _loaded_results import assert_answer_kept, assert_refutation_replay_withheld
 
 ROOT = REPO_ROOT
 TRANSPORT_PIN = json.loads(
@@ -154,12 +154,11 @@ def _assert_lifecycle(
         assert report[identity], identity
     assert report["support"]["payload"]["matrix_coordinate"] == coordinate
 
-    # export -> load recognizes the artifact and round-trips its identities, but an
-    # independent consumer cannot replay the sealed checked operation without the
-    # retained proof, and the default refutation reports it carries have no checked
-    # replay: it names both and does not report a verified program or keep the answer.
+    # export -> load round-trips the identities and keeps the answer, but a replay cannot
+    # recompute the checked operation without the retained proof, and the default refutation
+    # reports it carries have no checked replay: it names both as not replayable.
     assert_refutation_replay_withheld(loaded)
-    assert dependency in loaded.acceptance.unresolved
+    assert dependency in loaded.replay().acceptance.not_replayable
     assert loaded.decoded_artifact.payload_kind == "analysis_result"
     assert loaded.program_id == result.program_id
     assert loaded.claim_id == result.claim_id
@@ -235,8 +234,8 @@ def test_transport_and_interference_without_refutation_keep_their_answer_on_load
     ):
         loaded = require_success(ant.load(bytes(result.export())))
         assert_answer_kept(loaded)
-        assert not loaded.acceptance.verified
-        assert dependency in loaded.acceptance.unresolved
+        assert not loaded.acceptance.replayed
+        assert dependency in loaded.replay().acceptance.not_replayable
         assert loaded.answer == result.answer
 
 
@@ -691,11 +690,14 @@ def test_transport_catalog_survives_prepared_execution_and_export() -> None:
     assert [r["label"] for r in restored_catalog["regimes"]] == ["randomized-a", "target-x"]
     assert restored_catalog["target_sampling"] == "representative_sample"
     assert restored_catalog["regimes"][0]["interventions"] == [0]
-    # The sealed transport trial operation is not replayable from bytes alone,
+    # The checked transport trial operation is not replayable from bytes alone,
     # but the recorded answer is kept.
     assert_answer_kept(loaded)
-    assert not loaded.acceptance.verified
-    assert "dependencies.checked_transport_trial_operation" in loaded.acceptance.unresolved
+    assert not loaded.acceptance.replayed
+    assert (
+        "dependencies.checked_transport_trial_operation"
+        in loaded.replay().acceptance.not_replayable
+    )
     assert loaded.answer == result.answer
     assert result.as_point() == pytest.approx(result.estimate.ate)
 

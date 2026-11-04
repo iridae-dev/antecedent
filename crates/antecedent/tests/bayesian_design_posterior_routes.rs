@@ -676,7 +676,7 @@ fn quantile_posterior_artifact_round_trips_and_refuses_forgeries() {
         "a posterior row is attached to a query without its Bayesian counterpart",
         "foreign estimator",
     );
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_bayesian_quantile_operation"

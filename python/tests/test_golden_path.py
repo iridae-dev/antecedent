@@ -30,7 +30,7 @@ import pytest
 from antecedent.outcomes import require_success
 from antecedent.transport.advanced import SelectionDiagram, TransportQuery
 
-from _sealed_loads import (
+from _loaded_results import (
     assert_answer_kept,
     assert_loaded_outcome,
     assert_refutation_replay_withheld,

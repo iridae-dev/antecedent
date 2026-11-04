@@ -117,7 +117,7 @@ fn fixed_temporal_contrasts_execute_from_retained_proof_and_procedure() {
                 let artifact = prepared
                     .encode_contracted_result(&scaled, "checked-temporal-effect", &ctx)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(
                     consumed.acceptance.unresolved.iter().any(|reason| {
                         reason.as_ref() == "dependencies.checked_temporal_dag_effect_operation"
@@ -126,7 +126,7 @@ fn fixed_temporal_contrasts_execute_from_retained_proof_and_procedure() {
                     consumed.acceptance.unresolved,
                     consumed.contract.as_ref().map(|c| (&c.target.query, &c.estimator))
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }

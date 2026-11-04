@@ -121,7 +121,34 @@ pub(in crate::contract_section) fn contract_unresolved_with_source(
     limits: &ReplayLimits,
     source: Option<&SourceReplay<'_>>,
 ) -> Vec<ContractReason> {
-    let mut unresolved = verify_stored_payloads(contract);
+    unresolved_after(verify_stored_payloads(contract), header, body, contract, limits, source)
+}
+
+/// The reasons split at the line between load and replay: the integrity reasons (the stored
+/// payloads against their digests, which a load checks) and everything a replay adds.
+pub(in crate::contract_section) fn contract_unresolved_split(
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+    limits: &ReplayLimits,
+    source: Option<&SourceReplay<'_>>,
+) -> (Vec<ContractReason>, Vec<ContractReason>) {
+    let integrity = verify_stored_payloads(contract);
+    let boundary = integrity.len();
+    let mut all = unresolved_after(integrity, header, body, contract, limits, source);
+    let replayed = all.split_off(boundary);
+    (all, replayed)
+}
+
+fn unresolved_after(
+    integrity: Vec<ContractReason>,
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+    limits: &ReplayLimits,
+    source: Option<&SourceReplay<'_>>,
+) -> Vec<ContractReason> {
+    let mut unresolved = integrity;
     // An unscoped historical report and a scoped report with its scope removed
     // are indistinguishable. Neither is proof that the refuter ran.
     if body.refutations.iter().any(|report| report.scope.is_none()) {

@@ -88,9 +88,9 @@ def test_checked_static_dag_response_python_lifecycle(accepted: bool, kind: str)
         refreshed_values = np.asarray([refreshed.effect])
     np.testing.assert_allclose(refreshed_values, observed + 0.3, atol=1e-9, rtol=0)
 
-    consumed = ant.artifacts.accept(bytes(refreshed.export()))
-    assert consumed["accepts_as_verified_program"] == "false"
-    assert dependency in consumed["unresolved"]
+    consumed = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert consumed["replayed"] == "false"
+    assert dependency in consumed["not_replayable"]
     assert prepared.inspect() == original_inspection
     assert first.study.inspect().data_snapshot_id == first.data_snapshot_id
     repeated = require_success(prepared.estimate())

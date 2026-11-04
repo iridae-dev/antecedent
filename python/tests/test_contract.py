@@ -138,8 +138,8 @@ def test_contracted_linear_adjustment_replays_from_fit_statistics() -> None:
     loaded = artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"
     assert loaded.contract is not None
-    accepted = artifacts.accept(encoded)
-    assert accepted["accepts_as_verified_program"] == "true"
+    accepted = artifacts.accept(encoded, replay=True)
+    assert accepted["replayed"] == "true"
     assert accepted["program"] == _hex(contract["identities"]["program"])
     assert accepted["target"] == _hex(contract["identities"]["target"])
     query = outcome.inspect().target["query"]
@@ -168,9 +168,9 @@ def test_conditional_effect_contracted_artifact_names_missing_checked_operation(
     )
     result = require_success(outcome)
     contract = outcome.inspect().contract
-    accepted = artifacts.accept(bytes(outcome.export()))
-    assert accepted["accepts_as_verified_program"] == "false"
-    assert "dependencies.checked_conditional_effect_operation" in accepted["unresolved"]
+    accepted = artifacts.accept(bytes(outcome.export()), replay=True)
+    assert accepted["replayed"] == "false"
+    assert "dependencies.checked_conditional_effect_operation" in accepted["not_replayable"]
     assert accepted["program"] == _hex(contract["identities"]["program"])
     assert accepted["target"] == _hex(contract["identities"]["target"])
     assert accepted["query_kind"] == "conditional_effect"
@@ -201,9 +201,9 @@ def test_mediation_contracted_artifact_names_missing_checked_operation() -> None
     )
     result = require_success(outcome)
     contract = outcome.inspect().contract
-    accepted = artifacts.accept(bytes(outcome.export()))
-    assert accepted["accepts_as_verified_program"] == "false"
-    assert "dependencies.checked_mediation_operation" in accepted["unresolved"]
+    accepted = artifacts.accept(bytes(outcome.export()), replay=True)
+    assert accepted["replayed"] == "false"
+    assert "dependencies.checked_mediation_operation" in accepted["not_replayable"]
     assert accepted["program"] == _hex(contract["identities"]["program"])
     assert accepted["target"] == _hex(contract["identities"]["target"])
     assert accepted["query_kind"] == "mediation"
@@ -242,9 +242,9 @@ def test_response_curve_contracted_artifact_names_missing_checked_grid() -> None
         np.asarray(result.response.values).ravel(), 1.0 + 2.0 * grid + 0.8 * z.mean(), atol=0.05
     )
     contract = outcome.inspect().contract
-    accepted = artifacts.accept(bytes(outcome.export()))
-    assert accepted["accepts_as_verified_program"] == "false"
-    assert "dependencies.checked_response_grid_operation" in accepted["unresolved"]
+    accepted = artifacts.accept(bytes(outcome.export()), replay=True)
+    assert accepted["replayed"] == "false"
+    assert "dependencies.checked_response_grid_operation" in accepted["not_replayable"]
     assert accepted["program"] == _hex(contract["identities"]["program"])
     assert accepted["query_kind"] == "response"
     assert accepted["temporal_coordinates"] == "none"
@@ -274,9 +274,9 @@ def test_intervention_response_contracted_artifact_names_missing_checked_operati
     )
     result = require_success(outcome)
     contract = outcome.inspect().contract
-    accepted = artifacts.accept(bytes(outcome.export()))
-    assert accepted["accepts_as_verified_program"] == "false"
-    assert "dependencies.checked_intervention_response_operation" in accepted["unresolved"]
+    accepted = artifacts.accept(bytes(outcome.export()), replay=True)
+    assert accepted["replayed"] == "false"
+    assert "dependencies.checked_intervention_response_operation" in accepted["not_replayable"]
     assert accepted["program"] == _hex(contract["identities"]["program"])
     assert accepted["query_kind"] == "response"
     assert accepted["temporal_coordinates"] == "none"
@@ -438,9 +438,9 @@ def test_retarget_export_reload_and_reexecute_on_snapshot() -> None:
     encoded = bytes(retargeted.export())
     loaded = artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"
-    acceptance = artifacts.accept(encoded)
-    assert acceptance["accepts_as_verified_program"] == "false"
-    assert "program.checked_aipw_lowering" in acceptance["unresolved"]
+    acceptance = artifacts.accept(encoded, replay=True)
+    assert acceptance["replayed"] == "false"
+    assert "program.checked_aipw_lowering" in acceptance["not_replayable"]
     section = loaded.contract
     carried = section["target_weights"]
     assert np.array_equal(np.asarray(carried["values"], dtype=float), weights)
@@ -460,7 +460,7 @@ def test_constant_retarget_keeps_the_prepared_target() -> None:
     assert constant.inspect().target_id == estimated.inspect().target_id
     from antecedent import artifacts
 
-    assert artifacts.accept(bytes(constant.export()))["accepts_as_verified_program"] == "true"
+    assert artifacts.accept(bytes(constant.export()), replay=True)["replayed"] == "true"
 
 
 def test_retarget_uses_the_scores_of_the_execution_it_follows() -> None:

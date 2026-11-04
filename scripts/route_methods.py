@@ -61,7 +61,7 @@ MARK = (
     "# ---- generated method records (scripts/route_methods.py); do not edit below this line ----"
 )
 ANALYSIS_CONSUME = (
-    "crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"
+    "crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result"
 )
 ANALYSIS_DECODE = (
     "crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact"
@@ -600,7 +600,7 @@ class Sources:
                 continue
             for name, block in split_tests(rel, body):
                 if all(any(lit in block for lit in group) for group in requirement):
-                    score = int("consume_analysis_result" in block) * 2 + int(
+                    score = int("replay_analysis_result" in block) * 2 + int(
                         "encode_contracted_result" in block
                     )
                     found.append((-score, f"{rel}::{name}"))
@@ -615,7 +615,7 @@ class Sources:
                 continue
             for name, block in split_tests(rel, body):
                 if any(lit in block for lit in literals):
-                    score = int("consume_analysis_result" in block) * 2 + int(
+                    score = int("replay_analysis_result" in block) * 2 + int(
                         "encode_contracted_result" in body
                     )
                     found.append((-score, f"{rel}::{name}"))
@@ -717,7 +717,7 @@ def consumer_for(
 
 def _consumer(src: Sources, tests: list[str]) -> list[str]:
     for token in tests:
-        if "consume_analysis_result" in src.ev.text(token.split("::")[0]):
+        if "replay_analysis_result" in src.ev.text(token.split("::")[0]):
             return [ANALYSIS_CONSUME, token]
     for token in tests:
         if "decode_analysis_result_artifact" in src.ev.text(token.split("::")[0]):

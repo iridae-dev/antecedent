@@ -216,9 +216,9 @@ fn codetermined_average_effect_known_truth() {
         assert!((refreshed.estimate().as_effect().unwrap().ate - CODETERMINED_TRUTH).abs() < 0.12);
         let artifact =
             prepared.encode_contracted_result(&refreshed, "codetermined-aipw", &ctx).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert!(
-            consumed.acceptance.accepts_as_verified_program(),
+            consumed.acceptance.accepts_as_replayed_program(),
             "CoDetermined artifact dependencies: {:?}",
             consumed.acceptance.unresolved
         );

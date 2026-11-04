@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
@@ -107,59 +106,29 @@ def prepare(
     )
 
 
-_SEALED_OPERATION_KEY = re.compile(r"^dependencies\.checked_[a-z0-9_]+_operation$")
-# Retained data a sealed checked operation carries and the consumer cannot
-# re-derive from the exported bytes: the checked AIPW lowering and its row
-# binding, the linear-adjustment fit's sufficient statistics and the lowering a
-# linear adjustment run under caller validators does not retain, fitted
-# counterfactual mechanisms, and functional-effect replay draws and grids.
-_SEALED_REPLAY_KEYS = frozenset(
-    {
-        "checked_aipw.row_binding",
-        "dependencies.fitted_counterfactual_mechanisms",
-        "dependencies.functional_effect_posterior_draws",
-        "dependencies.functional_effect_response_posterior_draws",
-        "dependencies.linear_fit_sufficient_statistics",
-        "program.checked_aipw_lowering",
-        "program.checked_linear_adjustment_lowering",
-        "program.functional_effect_response_grid",
-    }
-)
-
-
-def is_sealed_dependency(key: str) -> bool:
-    """Whether an unresolved receipt key names a sealed checked operation or its replay data."""
-    return key in _SEALED_REPLAY_KEYS or _SEALED_OPERATION_KEY.fullmatch(key) is not None
-
-
-def sealed_dependencies_only(
-    *, recognized: bool, contract_present: bool, unresolved: Iterable[str]
-) -> bool:
-    """The consumer recognized the artifact and its contract, and every unresolved
-    reason is a sealed checked operation (or the replay data one carries) that an
-    independent consumer cannot re-execute from bytes alone."""
-    keys = tuple(unresolved)
-    return bool(recognized and contract_present and keys and all(map(is_sealed_dependency, keys)))
-
-
-def _split_unresolved(receipt: Mapping[str, str]) -> tuple[str, ...]:
-    return tuple(key for key in receipt.get("unresolved", "").split(",") if key)
+def _split(receipt: Mapping[str, str], key: str) -> tuple[str, ...]:
+    return tuple(item for item in receipt.get(key, "").split(",") if item)
 
 
 @dataclass(frozen=True, slots=True)
 class Acceptance:
-    """What the consumer verified; does not certify assumptions or execution readiness.
+    """What loading, and replay when it was asked for, established. It does not certify
+    assumptions or execution readiness.
 
-    ``verified`` means the consumer replayed a verified program. ``sealed`` means it
-    recognized the artifact, verified its contract and identities, and could not
-    replay only because every unresolved reason is a sealed checked operation;
-    ``unresolved`` names those reasons. Only a verified load is ``replayable``.
+    Every Antecedent artifact is intact when it loads, so ``recognized`` (the contract
+    section is present, understood, and agrees with its digests) is the whole load check;
+    ``integrity`` names what failed it. ``replayed`` is true only after a replay recomputed
+    every published part and each agreed. A replay that did not get that far says why:
+    ``not_replayable`` names parts whose evidence the artifact does not carry, and
+    ``mismatches`` names parts that were recomputed and differ.
     """
 
-    verified: bool
     recognized: bool
     details: Mapping[str, str]
-    unresolved: tuple[str, ...] = ()
+    replayed: bool = False
+    integrity: tuple[str, ...] = ()
+    not_replayable: tuple[str, ...] = ()
+    mismatches: tuple[str, ...] = ()
     identity_bound: bool = False
     resumable: bool = False
 
@@ -172,47 +141,36 @@ class Acceptance:
     @classmethod
     def from_receipt(cls, receipt: Mapping[str, str]) -> Acceptance:
         return cls(
-            verified=receipt.get("accepts_as_verified_program") == "true",
-            recognized=receipt.get("recognized") == "true",
+            recognized=receipt.get("intact") == "true",
             details=dict(receipt),
-            unresolved=_split_unresolved(receipt),
-        )
-
-    @property
-    def replayable(self) -> bool:
-        """True only when the consumer replayed a verified program."""
-        return self.verified
-
-    @property
-    def sealed(self) -> bool:
-        """Recognized, contract present, and unresolved only by sealed checked operations."""
-        return not self.verified and sealed_dependencies_only(
-            recognized=self.recognized,
-            contract_present="program" in self.details,
-            unresolved=self.unresolved,
+            replayed=receipt.get("replayed") == "true",
+            integrity=_split(receipt, "integrity"),
+            not_replayable=_split(receipt, "not_replayable"),
+            mismatches=_split(receipt, "mismatches"),
         )
 
     @property
     def answer_available(self) -> bool:
-        """Whether the recorded answer is kept on load (verified or sealed)."""
-        return self.verified or self.sealed
+        """Whether the recorded answer is kept on load: the artifact is intact."""
+        return self.recognized
 
     @property
-    def status(self) -> Literal["verified", "sealed", "unavailable"]:
-        if self.verified:
-            return "verified"
-        if self.sealed:
-            return "sealed"
+    def status(self) -> Literal["replayed", "loaded", "unavailable"]:
+        if self.replayed:
+            return "replayed"
+        if self.recognized:
+            return "loaded"
         return "unavailable"
 
 
 @dataclass(frozen=True)
 class LoadedResult(ResultAPI):
-    """Semantic view of a portable execution: verified, sealed, or explicitly unavailable.
+    """Semantic view of a portable execution: loaded, replayed, or explicitly unavailable.
 
-    A verified load replayed the program. A sealed load recognized the artifact,
-    verified its contract and identities, kept the recorded answer, and names the
-    checked operation it cannot replay in ``acceptance.unresolved``.
+    A load checks that the artifact is intact and keeps the recorded answer; it recomputes
+    nothing. :meth:`replay` recomputes the published numbers, for a result that did not come
+    from your own authoring, and reports in ``acceptance`` what could not be replayed or
+    disagreed.
     """
 
     decoded_artifact: Any
@@ -235,7 +193,7 @@ class LoadedResult(ResultAPI):
 
     @property
     def answer(self) -> Answer:
-        """The recorded answer for a verified or sealed load; otherwise unavailable."""
+        """The recorded answer of an intact load; otherwise unavailable."""
         if not self.acceptance.answer_available:
             return Answer("unavailable", detail="semantic_acceptance_unavailable")
         return answer_from_artifact(self.decoded_artifact.contract, self.decoded_artifact.payload)
@@ -318,6 +276,27 @@ class LoadedResult(ResultAPI):
 
         return artifact_from_receipt(self, self._bytes)
 
+    def replay(self) -> LoadedResult:
+        """Recompute the published numbers from the evidence the artifact carries.
+
+        Replay is for a result loaded from outside your own authoring; a result you just
+        produced needs none. It runs under the replay bounds, never changes the recorded
+        answer, and returns this result with ``acceptance`` updated: ``replayed`` when every
+        part was recomputed and agrees, otherwise ``integrity``, ``not_replayable`` and
+        ``mismatches`` say why not.
+        """
+        from . import artifacts
+
+        receipt = Acceptance.from_receipt(artifacts.accept(self._bytes, replay=True))
+        return replace(
+            self,
+            acceptance=replace(
+                receipt,
+                identity_bound=self.acceptance.identity_bound,
+                resumable=self.acceptance.resumable,
+            ),
+        )
+
     def __repr__(self) -> str:
         return f"<LoadedResult {self.answer.kind} acceptance={self.acceptance.status}>"
 
@@ -325,6 +304,8 @@ class LoadedResult(ResultAPI):
 @describe_refusal
 def _load_analysis(
     data: bytes,
+    *,
+    replay: bool = False,
 ) -> (
     LoadedResult
     | AnalysisResult
@@ -338,8 +319,9 @@ def _load_analysis(
 ):
     """Load a contracted result through the Rust semantic consumer.
 
-    Missing/unknown contracts remain explicitly unavailable and can still be
-    forwarded. Loading never creates a live study or upgrades an old artifact.
+    Loading checks the artifact is intact and replays nothing; ``replay=True`` also
+    recomputes its numbers. Missing/unknown contracts remain explicitly unavailable and
+    can still be forwarded. Loading never creates a live study or upgrades an old artifact.
     """
     from . import artifacts
 
@@ -374,7 +356,7 @@ def _load_analysis(
         from .transport.advanced import consume_identification
 
         return consume_identification(encoded)
-    receipt = artifacts.accept(encoded)
+    receipt = artifacts.accept(encoded, replay=replay)
     artifact = artifacts.loads(encoded)
     return LoadedResult(artifact, Acceptance.from_receipt(receipt), encoded)
 
@@ -400,6 +382,7 @@ def load(
     expected: Any = None,
     context: LoadContext | None = None,
     execution: Execution | None = None,
+    replay: bool = False,
 ) -> Outcome[LoadedT]: ...
 
 
@@ -410,6 +393,7 @@ def load(
     expected: Any = None,
     context: LoadContext | None = None,
     execution: Execution | None = None,
+    replay: bool = False,
 ) -> Outcome[Any]: ...
 
 
@@ -421,19 +405,27 @@ def load(
     expected: Any = None,
     context: LoadContext | None = None,
     execution: Execution | None = None,
+    replay: bool = False,
 ) -> Any:
     """Consume independently under the caller's shared execution policy.
 
     Nested consumers inherit that same admission pool, cancellation and cache
     policy. Loading retains no prepared study and never invokes a provider.
+
+    Loading checks that an analysis result is intact and recomputes nothing. ``replay=True``
+    also recomputes its published numbers (see :meth:`LoadedResult.replay`); ask for it when
+    the result came from outside your own authoring. Other artifact families always
+    recompute what they publish, so the flag does not change them.
     """
     from ._artifact_protocol import _load_execution
 
     policy = _load_execution(context, execution)
     return (
-        _load(data, expected=expected, context=context)
+        _load(data, expected=expected, context=context, replay=replay)
         if policy is None
-        else policy._call(_load, data, expected=expected, context=context, execution=policy)
+        else policy._call(
+            _load, data, expected=expected, context=context, execution=policy, replay=replay
+        )
     )
 
 
@@ -443,6 +435,7 @@ def _load(
     expected: Any = None,
     context: LoadContext | None = None,
     execution: Execution | None = None,
+    replay: bool = False,
 ) -> Any:
     """Consume a scientific artifact using its native family consumer.
 
@@ -494,7 +487,7 @@ def _load(
         from .errors import CausalCancelledError
 
         raise CausalCancelledError("cancelled before load")
-    result = _load_analysis(encoded)
+    result = _load_analysis(encoded, replay=replay)
     if isinstance(expected, ArtifactExpectation):
         actual_kind = (
             encoded.split(b"\x01", 1)[0].decode("ascii")

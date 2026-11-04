@@ -524,7 +524,7 @@ def test_joint_sensitivity_full_source_export_replays_the_actual_retained_laws()
     assert artifact.original_source() is not None
     assert restored.source_evidence == artifact.source_evidence
     assert restored.original_source() == artifact.original_source()
-    assert restored.acceptance.verified and restored.acceptance.replayable
+    assert restored.acceptance.replayed and restored.acceptance.replayable
     assert require_success(sd.decide(restored.contract(), restored)).outcome == (
         require_success(sd.decide(artifact.contract(), artifact)).outcome
     )

@@ -517,7 +517,7 @@ fn temporal_conditional_graph_posterior_results_encode_and_are_consumed() {
             let bytes = prepared
                 .encode_contracted_result(&result, "temporal-conditional-graph-posterior", &context)
                 .unwrap_or_else(|error| panic!("{kind:?} {suite:?}: {error}"));
-            let consumed = antecedent_io::consume_analysis_result(&bytes)
+            let consumed = antecedent_io::replay_analysis_result(&bytes)
                 .unwrap_or_else(|error| panic!("{kind:?} {suite:?}: {error}"));
             assert!(consumed.contract.is_some(), "{kind:?} {suite:?}");
         }

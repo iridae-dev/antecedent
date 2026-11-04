@@ -26,7 +26,7 @@ use antecedent_data::{
     TimeSeriesData, ValidityBitmap,
 };
 use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag, ensure_lagged};
-use antecedent_io::{causal_query_to_wire, consume_analysis_result, executed_functional_labels};
+use antecedent_io::{causal_query_to_wire, executed_functional_labels, replay_analysis_result};
 
 #[path = "fixtures_common/mod.rs"]
 mod common;
@@ -462,7 +462,7 @@ fn prepare_accepts_temporal_effect_query_and_reuses_identification() {
     let contract = prepared.contract().unwrap();
     assert!(contract.identities.identification_product.is_some());
     let bytes = prepared.encode_contracted_result(&click, "prepared-pulse", &ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
         &[std::sync::Arc::<str>::from("dependencies.checked_temporal_dag_effect_operation")]
@@ -702,7 +702,7 @@ fn assert_prepared_contract_consume(
     let claim = result.claim(&contract, ctx).unwrap();
     assert_eq!(claim.identities.program, contract.identities.program);
     let bytes = prepared.encode_contracted_result(result, artifact_id, ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     if let Some(dependency) = expected_dependency {
         // A conditional target also leaves the estimand-criterion check unevaluated: the
         // consumer's criterion check covers the marginal average effect only.
@@ -713,7 +713,7 @@ fn assert_prepared_contract_consume(
         assert_eq!(consumed.acceptance.unresolved.as_ref(), expected.as_slice());
     } else {
         assert!(
-            consumed.acceptance.accepts_as_verified_program(),
+            consumed.acceptance.accepts_as_replayed_program(),
             "{query_kind} artifact unresolved: {:?}",
             consumed.acceptance.unresolved
         );
@@ -966,9 +966,9 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
     // factor laws, so the consumer can verify both atom probabilities.
     let bytes =
         prepared.encode_contracted_result(&first, "prepared-dist-independent", &ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );

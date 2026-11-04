@@ -331,7 +331,7 @@ fn identify_source_dag(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Identification, CausalError> {
     // A conditional effect keeps its query variant to the identifier boundary: only the
-    // modifier-aware backdoor identifiers certify it, so a marginal-only identifier or a
+    // modifier-aware backdoor identifiers answer it, so a marginal-only identifier or a
     // collider adjustment is refused instead of answering the average effect.
     let result = if let CausalQuery::ConditionalEffect(conditional) = query {
         conditional.validate()?;

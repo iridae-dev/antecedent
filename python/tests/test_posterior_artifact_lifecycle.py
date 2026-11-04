@@ -42,8 +42,8 @@ def posterior_bytes(*, summaries_only=False, multiple=False):
 def test_historical_summary_only_bytes_load_as_sealed_record():
     data = posterior_bytes(summaries_only=True)
     result = require_success(ac.load(data))
-    assert result.acceptance.status == "sealed"
-    assert result.acceptance.verified is False
+    assert result.acceptance.status == "loaded"
+    assert result.acceptance.replayed is False
     assert result.acceptance.identity_bound is False
     assert result.acceptance.replayable is False
     assert result.acceptance.resumable is False
@@ -64,8 +64,8 @@ def test_explicit_encoding_digest_binds_only_bytes():
     digest = sha256(data).hexdigest()
     consumed = consume_posterior(data, expected_encoding_sha256=digest)
     assert consumed.acceptance.identity_bound
-    assert consumed.acceptance.status == "sealed"
-    assert not consumed.acceptance.verified
+    assert consumed.acceptance.status == "loaded"
+    assert not consumed.acceptance.replayed
     loaded = require_success(ac.load(data, expected={"expected_encoding_sha256": digest}))
     assert loaded.acceptance.identity_bound
     assert bytes(loaded.export()) == data
@@ -129,7 +129,7 @@ def test_repr_and_inspection_do_not_serialize_posterior(monkeypatch):
 
     monkeypatch.setattr(type(result), "to_dict", no_serialization)
     representation = repr(result)
-    assert "sealed" in representation
+    assert "loaded" in representation
     assert "array" not in representation
     assert len(representation) < 400
     assert "mean" not in result.inspect().details
@@ -154,7 +154,7 @@ assert not hasattr(loaded, '_prepared')
 assert not hasattr(loaded, '_data')
 assert loaded.quantity('ate').mean == 2.0
 assert loaded.quantity('ate').draws.tolist() == [1.0, 2.0, 3.0]
-assert loaded.acceptance.status == 'sealed'
+assert loaded.acceptance.status == 'loaded'
 assert not loaded.acceptance.replayable and not loaded.acceptance.resumable
 assert bytes(loaded.export()) == data
 """
@@ -188,7 +188,7 @@ def test_retained_bayesian_result_exports_and_loads_without_refitting(monkeypatc
     loaded = require_success(ac.load(exported, expected=exported.expectation))
     assert loaded.quantity("ate").mean == pytest.approx(result.posterior.effect_mean)
     assert loaded.n_draws == 32
-    assert loaded.acceptance.status == "sealed"
+    assert loaded.acceptance.status == "loaded"
     assert loaded.acceptance.identity_bound
     assert not loaded.acceptance.replayable
     assert not loaded.acceptance.resumable

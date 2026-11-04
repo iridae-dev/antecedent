@@ -9,7 +9,7 @@ use antecedent::{AcceptedGraph, EstimatorId, RefuteSuite, StructureSource, Study
 use antecedent_contract::SlotAvailability;
 use antecedent_core::ExecutionContext;
 use antecedent_data::TableView;
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 #[path = "fixtures_common/mod.rs"]
 mod common;
@@ -190,18 +190,18 @@ fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
 
     let artifact =
         prepared.encode_contracted_result(&refreshed, &format!("aipw-{coordinate}"), &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     // A refutation suite adds only the refutation replay obligation, which a compact artifact
     // cannot discharge; the same coordinate without a suite is a verified program.
     if validation == "none" {
         assert!(
-            consumed.acceptance.accepts_as_verified_program(),
+            consumed.acceptance.accepts_as_replayed_program(),
             "{coordinate} artifact dependencies: {:?}",
             consumed.acceptance.unresolved
         );
         assert!(consumed.body.refutations.is_empty(), "{coordinate}");
     } else {
-        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
         assert_eq!(
             consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
             ["dependencies.refutation_replay"],
@@ -282,10 +282,10 @@ fn dag_explicit_frequentist_trimmed_aipw_lifecycle() {
     );
 
     let artifact = prepared.encode_contracted_result(&refreshed, "aipw-trimmed", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     // The cheap refutation suite adds only the refutation replay obligation, which a compact
     // artifact cannot discharge; the checked lowering itself leaves nothing else unresolved.
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert_eq!(
         consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
         ["dependencies.refutation_replay"]
@@ -439,12 +439,12 @@ fn full_source_export_carries_a_bound_witness_and_leaves_acceptance_unchanged() 
     .unwrap();
     assert_eq!(snapshot.partitions[0].content, oracle.storage().content_digest());
 
-    let compact_consumed = consume_analysis_result(&compact).unwrap();
-    let sourced_consumed = consume_analysis_result(&sourced).unwrap();
+    let compact_consumed = replay_analysis_result(&compact).unwrap();
+    let sourced_consumed = replay_analysis_result(&sourced).unwrap();
     assert_eq!(sourced_consumed.acceptance.unresolved, compact_consumed.acceptance.unresolved);
     assert_eq!(
-        sourced_consumed.acceptance.accepts_as_verified_program(),
-        compact_consumed.acceptance.accepts_as_verified_program()
+        sourced_consumed.acceptance.accepts_as_replayed_program(),
+        compact_consumed.acceptance.accepts_as_replayed_program()
     );
 
     let mut other = table;
@@ -523,7 +523,7 @@ fn aipw_result_and_export_cite_the_executed_route() {
     .unwrap()
     .expect("the export carries method provenance");
     assert_eq!(carried, provenance);
-    assert_eq!(consume_analysis_result(&bytes).unwrap().method_provenance, Some(provenance));
+    assert_eq!(replay_analysis_result(&bytes).unwrap().method_provenance, Some(provenance));
     assert_eq!(contract.estimator.as_deref(), Some("aipw"));
     assert!(decode_method_provenance_section(&artifact, Some("frontdoor"), Some("aipw")).is_err());
     assert!(decode_method_provenance_section(&artifact, None, Some("iv.wald")).is_err());

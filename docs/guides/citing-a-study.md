@@ -66,7 +66,7 @@ Provenance is descriptive. It changes no number, support status or [calibration 
 
 ## Exported artifacts
 
-An exported `analysis_result` artifact with a contract carries the same provenance in its `analysis_result.method_provenance` section. The section is additive, so older readers ignore it. A consumer decodes it with `decode_method_provenance_section`, which checks that it names the identifier and estimator the contract declares. `consume_analysis_result` returns it as `method_provenance`. The section records what the producer's table cited at export; it takes no part in acceptance.
+An exported `analysis_result` artifact with a contract carries the same provenance in its `analysis_result.method_provenance` section. The section is additive, so older readers ignore it. A consumer decodes it with `decode_method_provenance_section`, which checks that it names the identifier and estimator the contract declares. `load_analysis_result` and `replay_analysis_result` return it as `method_provenance`. The section records what the producer's table cited at export; it takes no part in acceptance.
 
 ## Where the table comes from
 

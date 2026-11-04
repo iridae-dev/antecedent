@@ -213,7 +213,7 @@ fn completion_refutations_do_not_certify_the_whole_class_response() {
     assert!(result.structural_response.is_some());
     assert!(!result.refutations.is_empty());
     let artifact = prepared.encode_contracted_result(&result, "class-response", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(!consumed.body.refutations.is_empty());
     assert!(consumed.body.refutations.iter().all(|report| report.scope.is_some()));
     assert!(

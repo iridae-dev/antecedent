@@ -56,8 +56,8 @@ use antecedent_io::query_wire::{
 use antecedent_io::{
     DesignVariableRole, DesignVariableSummary, EstimandFingerprint, PriorCatalog, PriorMapping,
     PriorSourceMeta, PriorSourceRef, TargetDesign, TemporalCoordinates, accept_claim,
-    causal_query_to_wire, consume_analysis_result, executed_functional_labels, project_claim_host,
-    project_lossy_scalar,
+    causal_query_to_wire, executed_functional_labels, project_claim_host, project_lossy_scalar,
+    replay_analysis_result,
 };
 use antecedent_prob::InferenceDiagnostics;
 
@@ -441,10 +441,10 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
     let claim = result.claim(&contract, &ctx).unwrap();
     assert!(claim.value.is_some_and(|value| (value - 2.0).abs() < 0.2));
     let bytes = prepared.encode_contracted_result(&result, "dag-ate", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     // The checked OLS adjustment replays from the portable design moments.
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );
@@ -470,9 +470,9 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
         .unwrap()
         .write_to(&mut legacy)
         .unwrap();
-    let old = antecedent_io::consume_analysis_result(&legacy).unwrap();
+    let old = antecedent_io::replay_analysis_result(&legacy).unwrap();
     assert_eq!(old.body.estimate, consumed.body.estimate);
-    assert!(!old.acceptance.accepts_as_verified_program());
+    assert!(!old.acceptance.accepts_as_replayed_program());
 }
 
 #[test]
@@ -503,8 +503,8 @@ fn dag_average_effect_vertical_path_binds_functional_after_retarget() {
     assert!((retargeted.effect() - 2.0).abs() < 0.1);
     assert!((retargeted.effect() - estimated.effect()).abs() < 1e-10);
     let bytes = prepared.encode_contracted_result(&retargeted, "dag-ate-retarget", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
+    assert!(consumed.acceptance.accepts_as_replayed_program());
     let names: Vec<String> =
         data.schema().variables().iter().map(|variable| variable.name.to_string()).collect();
     let section = consumed.contract.as_ref().expect("verified contract");
@@ -682,9 +682,9 @@ fn consume_rehashes_identification_product_from_stored_payloads() {
     let prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "rehash", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert!(!consumed.body.refutations.is_empty());
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
         &[std::sync::Arc::<str>::from("dependencies.refutation_replay")]
@@ -732,9 +732,9 @@ fn execution_identity_is_advertised_and_bound() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "execution", &ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );
@@ -750,14 +750,14 @@ fn execution_identity_is_advertised_and_bound() {
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let mut tampered = section.clone();
     tampered.identities.execution.as_mut().unwrap()[0] ^= 0xff;
-    let consumed = consume_analysis_result(&rewrite_contract_section(
+    let consumed = replay_analysis_result(&rewrite_contract_section(
         &body,
         header.variable_names.clone(),
         "tampered",
         &tampered,
     ))
     .unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(consumed.acceptance.unresolved.iter().any(|item| &**item == "identities.execution"));
 }
 
@@ -878,7 +878,7 @@ fn consume_supported_family(
     assert_eq!(claim.identities.program, contract.identities.program);
     assert_eq!(claim.identities.target, contract.identities.target);
     let bytes = prepared.encode_contracted_result(&result, artifact_id, ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     let named_nonportable_dependency = |reason: &std::sync::Arc<str>| {
         // Every sealed route executes on a retained checked operation that an
         // independent consumer cannot resolve from the bytes alone.
@@ -899,7 +899,7 @@ fn consume_supported_family(
                     | "dependencies.linear_fit_sufficient_statistics"
                     // Names an identification the consumer cannot re-derive
                     // (non-DAG graph, effect modifiers, or a query outside the
-                    // criterion check), so it stays unverified, not wrong.
+                    // criterion check): not replayable, which limits nothing.
                     | "dependencies.identification_estimand_criterion"
             )
     };
@@ -919,10 +919,10 @@ fn consume_supported_family(
     let known_nonportable_dependency =
         consumed.acceptance.unresolved.iter().any(named_nonportable_dependency);
     if known_nonportable_dependency {
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
         assert!(consumed.acceptance.unresolved.iter().all(named_nonportable_dependency));
     } else {
-        assert!(consumed.acceptance.accepts_as_verified_program());
+        assert!(consumed.acceptance.accepts_as_replayed_program());
     }
     let section = consumed.contract.as_ref().expect("readable contract");
     let expected = executed_functional_labels(&causal_query_to_wire(prepared.query()).unwrap());
@@ -1304,7 +1304,7 @@ fn supported_family_distribution_frequentist_consumes() {
         "dist-f-tampered-program",
         &forged,
     );
-    let forged = consume_analysis_result(&forged_bytes).unwrap();
+    let forged = replay_analysis_result(&forged_bytes).unwrap();
     assert!(
         forged
             .acceptance
@@ -1345,7 +1345,7 @@ fn supported_family_distribution_frequentist_consumes() {
         "dist-f-valid-wrong-program",
         &forged,
     );
-    let forged = consume_analysis_result(&forged_bytes).unwrap();
+    let forged = replay_analysis_result(&forged_bytes).unwrap();
     assert!(
         forged
             .acceptance
@@ -2137,9 +2137,9 @@ fn composition_artifact_reload_in_separate_process() {
     const FLAG: &str = "ANTECEDENT_I6_RELOAD";
     if let Ok(path) = std::env::var(FLAG) {
         let bytes = std::fs::read(path).unwrap();
-        let consumed = consume_analysis_result(&bytes).unwrap();
+        let consumed = replay_analysis_result(&bytes).unwrap();
         assert!(
-            consumed.acceptance.accepts_as_verified_program(),
+            consumed.acceptance.accepts_as_replayed_program(),
             "{:?}",
             consumed.acceptance.unresolved
         );
@@ -2187,7 +2187,7 @@ fn composition_artifact_reload_in_separate_process() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("running 1 test"), "the child selected no test: {stdout}");
     assert!(stdout.contains("I6_RELOAD_OK"), "{stdout}");
-    let consumed = consume_analysis_result(
+    let consumed = replay_analysis_result(
         &prepared.encode_contracted_result(&result, "i6-parent", &ctx).unwrap(),
     )
     .unwrap();
@@ -3397,7 +3397,7 @@ fn consume_gp_series(
     let bytes = prepared
         .encode_contracted_result(&result, artifact_id, &ctx)
         .expect("GP temporal encode must consume lagged-node products through the DBN namespace");
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     // The artifact is readable, but an independent consumer cannot replay the
     // sealed temporal graph-posterior operation without its retained atom proofs.
     let mut expected = vec![std::sync::Arc::<str>::from(
@@ -3413,7 +3413,7 @@ fn consume_gp_series(
     expected.sort();
     unresolved.sort();
     assert_eq!(unresolved, expected);
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert_eq!(consumed.contract.as_ref().unwrap().graph_class.as_str(), "TemporalDag");
     result
 }
@@ -3740,14 +3740,14 @@ fn supported_family_temporal_cpdag_response_curve_consumes() {
     assert!(result.response().is_some());
     match prepared.encode_contracted_result(&result, "tresp-tcpdag", &ctx) {
         Ok(bytes) => {
-            let consumed = consume_analysis_result(&bytes).unwrap();
+            let consumed = replay_analysis_result(&bytes).unwrap();
             // The class response executes from a retained completion proof that
             // the portable artifact does not carry; an independent consumer must
             // name that missing operation rather than accept a program-less replay.
             assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
                 dependency.as_ref() == "dependencies.checked_temporal_class_response_operation"
             }));
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
             assert_eq!(consumed.contract.as_ref().unwrap().graph_class.as_str(), "TemporalCpdag");
         }
         Err(err) => {
@@ -5416,7 +5416,7 @@ fn calibration_validation_requires_the_executed_contract_coordinate() {
     let claim = result.claim(&contract, &ctx).unwrap();
     assert_eq!(claim.calibration.basis.as_ref().unwrap().validation.as_ref(), "none");
     let encoded = prepared.encode_contracted_result(&result, "validation-roundtrip", &ctx).unwrap();
-    let consumed = consume_analysis_result(&encoded).unwrap();
+    let consumed = replay_analysis_result(&encoded).unwrap();
     let slot = &consumed.contract.as_ref().unwrap().claim.as_ref().unwrap().calibration;
     assert_eq!(slot.basis.as_ref().unwrap().key.validation, "none");
 }
@@ -5536,7 +5536,7 @@ fn artifact_analysis_n(
     ctx: &ExecutionContext,
 ) -> u64 {
     let bytes = prepared.encode_contracted_result(result, "r11-n", ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     consumed
         .contract
         .as_ref()
@@ -5855,7 +5855,7 @@ fn calibration_slot_is_covered_by_claim_id() {
     let (prepared, data) = gcomp_measured_study(500, 400, 8);
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "cal-slot", &ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
         &[std::sync::Arc::<str>::from("dependencies.checked_bayesian_dag_ate_operation")]
@@ -5887,13 +5887,13 @@ fn calibration_slot_is_covered_by_claim_id() {
     forged.sections.push(section);
     let mut forged_bytes = Vec::new();
     forged.write_to(&mut forged_bytes).unwrap();
-    match consume_analysis_result(&forged_bytes) {
+    match replay_analysis_result(&forged_bytes) {
         // The claim digest covers the slot, so the edited artifact either fails
         // to decode as a contract at all or is refused as a verified program.
         Err(err) => assert!(format!("{err}").contains("claim"), "{err}"),
         Ok(consumed) => {
             assert!(
-                !consumed.acceptance.accepts_as_verified_program(),
+                !consumed.acceptance.accepts_as_replayed_program(),
                 "an edited calibration status must not verify: {:?}",
                 consumed.acceptance.unresolved
             );
@@ -5948,7 +5948,7 @@ fn producer_and_consumer_agree_on_the_calibration_slot() {
         }),
     ];
     for (label, bytes) in cases {
-        let consumed = consume_analysis_result(&bytes).unwrap();
+        let consumed = replay_analysis_result(&bytes).unwrap();
         let claim = consumed.contract.as_ref().unwrap().claim.as_ref().unwrap();
         assert_eq!(
             antecedent_io::calibration::rederive_calibration(&claim.calibration),
@@ -6139,7 +6139,7 @@ fn aipw_prepared(
 }
 
 fn contract_of(bytes: &[u8]) -> antecedent_io::AnalysisResultContractWire {
-    consume_analysis_result(bytes).unwrap().contract.expect("contract section")
+    replay_analysis_result(bytes).unwrap().contract.expect("contract section")
 }
 
 fn z_weights(data: &TabularData, scale: f64) -> Vec<f64> {
@@ -6207,7 +6207,7 @@ fn encoder_refuses_a_result_computed_on_another_snapshot() {
     let other = prepared.estimate(&small, &ctx).unwrap();
     let err = prepared.encode_contracted_result(&other, "other-data", &ctx).unwrap_err();
     assert!(format!("{err}").contains("data snapshot"), "{err}");
-    let consumed = consume_analysis_result(
+    let consumed = replay_analysis_result(
         &prepared
             .encode_contracted_result(&prepared.estimate(&data, &ctx).unwrap(), "own", &ctx)
             .unwrap(),
@@ -6232,11 +6232,11 @@ fn nonconstant_retarget_exports_with_target_weights_identity() {
     let retargeted = prepared.apply_retarget(&preview, &weights, &z, &ctx).unwrap();
     let binding = retargeted.row_weights().clone().expect("row-weight binding");
     let bytes = prepared.encode_contracted_result(&retargeted, "reweight", &ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     // The row-weight retarget is a separate composition without a checked
     // lowering. The artifact remains readable and its weight
     // identity is verifiable, but consumption must not upgrade the AIPW program.
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(
         consumed
             .acceptance
@@ -6303,9 +6303,9 @@ fn consume_rederives_target_weights_and_refuses_substitutions() {
     let section = contract_of(&bytes);
     let refused = |contract: &antecedent_io::AnalysisResultContractWire, label: &str| {
         let consumed =
-            consume_analysis_result(&rewrite_contract_section(&body, names.clone(), "t", contract))
+            replay_analysis_result(&rewrite_contract_section(&body, names.clone(), "t", contract))
                 .unwrap();
-        assert!(!consumed.acceptance.accepts_as_verified_program(), "{label}");
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{label}");
         assert!(
             consumed.acceptance.unresolved.iter().any(|item| &**item == label),
             "{label}: {:?}",
@@ -6510,7 +6510,7 @@ fn retarget_report_matches_identity_deltas() {
     let estimated = prepared.estimate(&data, &ctx).unwrap();
     let before_bytes =
         prepared.encode_contracted_result(&estimated, "before-retarget", &ctx).unwrap();
-    let before = consume_analysis_result(&before_bytes).unwrap().contract.unwrap();
+    let before = replay_analysis_result(&before_bytes).unwrap().contract.unwrap();
     let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
     assert!(preview.layer(SemanticLayer::Identification).is_some_and(|layer| {
         layer.effects.iter().any(|effect| *effect == TransformEffect::Preserves)
@@ -6526,7 +6526,7 @@ fn retarget_report_matches_identity_deltas() {
     let retargeted =
         prepared.apply_retarget(&preview, &weights, &[VariableId::from_raw(2)], &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&retargeted, "retarget-report", &ctx).unwrap();
-    let after = consume_analysis_result(&bytes).unwrap().contract.unwrap();
+    let after = replay_analysis_result(&bytes).unwrap().contract.unwrap();
     match &after.target.query {
         CausalQueryWire::AverageEffect { target_population, .. } => {
             assert!(matches!(target_population, TargetPopulationWire::RowWeights { .. }));
@@ -6609,8 +6609,8 @@ fn multi_env_prepares_and_exports() {
     .unwrap();
     let result = prepared.estimate_multi_env(&again_multi, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "multi-env", &ctx).unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    let consumed = replay_analysis_result(&bytes).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(
         consumed
             .acceptance
@@ -6721,7 +6721,7 @@ fn graph_posterior_weights_and_atoms_enter_identification() {
     };
     assert_ne!(weights(&first), weights(&second), "reweighting changes the structural result");
     let claim_id = |prepared: &antecedent::PreparedStudy, result: &StudyResult| {
-        let consumed = consume_analysis_result(
+        let consumed = replay_analysis_result(
             &prepared.encode_contracted_result(result, "mix", &ctx).unwrap(),
         )
         .unwrap();
@@ -6758,7 +6758,7 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
             .unwrap();
         let result = prepared.estimate(data, &ctx).unwrap();
         let bytes = prepared.encode_contracted_result(&result, "snapshot", &ctx).unwrap();
-        let consumed = consume_analysis_result(&bytes).unwrap();
+        let consumed = replay_analysis_result(&bytes).unwrap();
         assert_eq!(
             consumed.acceptance.unresolved.as_ref(),
             &[
@@ -6817,7 +6817,7 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
     for edit in edits {
         let mut tampered = body.clone();
         edit(&mut tampered);
-        let consumed = consume_analysis_result(&rewrite_contract_section(
+        let consumed = replay_analysis_result(&rewrite_contract_section(
             &tampered,
             header.variable_names.clone(),
             "tampered",
@@ -6851,7 +6851,7 @@ fn a_tampered_verified_artifact_is_refused() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "orig", &ctx).unwrap();
-    let original = consume_analysis_result(&bytes).unwrap();
+    let original = replay_analysis_result(&bytes).unwrap();
     assert!(original.body.refutations.is_empty());
     assert!(original.acceptance.accepts_as_claim(), "{:?}", original.acceptance.unresolved);
     let section = original.contract.clone().unwrap();
@@ -6877,7 +6877,7 @@ fn a_tampered_verified_artifact_is_refused() {
     for edit in edits {
         let mut tampered = section.clone();
         edit(&mut tampered);
-        let consumed = consume_analysis_result(&rewrite_contract_section(
+        let consumed = replay_analysis_result(&rewrite_contract_section(
             &original.body,
             names.clone(),
             "tampered",
@@ -7243,7 +7243,7 @@ fn resealed_scope_erasure_cannot_promote_a_completion_report_to_checked_support(
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "report-free", &ctx).unwrap();
-    let original = consume_analysis_result(&bytes).unwrap();
+    let original = replay_analysis_result(&bytes).unwrap();
     assert!(original.body.refutations.is_empty());
     assert!(original.acceptance.accepts_as_claim(), "{:?}", original.acceptance.unresolved);
     let names = original.header.variable_names.clone();
@@ -7320,13 +7320,9 @@ fn resealed_scope_erasure_cannot_promote_a_completion_report_to_checked_support(
         .as_bytes();
     };
     reseal(&mut section, &body);
-    let scoped = consume_analysis_result(&rewrite_contract_section(
-        &body,
-        names.clone(),
-        "scoped",
-        &section,
-    ))
-    .unwrap();
+    let scoped =
+        replay_analysis_result(&rewrite_contract_section(&body, names.clone(), "scoped", &section))
+            .unwrap();
     assert!(!scoped.acceptance.accepts_as_claim());
     assert!(
         scoped
@@ -7341,7 +7337,7 @@ fn resealed_scope_erasure_cannot_promote_a_completion_report_to_checked_support(
     body.refutations[0].scope = None;
     reseal(&mut section, &body);
     let legacy_shape = rewrite_contract_section(&body, names, "scope-erased", &section);
-    let consumed = consume_analysis_result(&legacy_shape).unwrap();
+    let consumed = replay_analysis_result(&legacy_shape).unwrap();
     assert!(!consumed.acceptance.accepts_as_claim());
     assert!(
         consumed

@@ -820,7 +820,7 @@ fn static_cross_world_cells_retain_execute_refresh_and_export_their_own_family()
             "{name}"
         );
         let bytes = prepared.encode_contracted_result(&result, name, &ctx).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        let consumed = antecedent_io::load_analysis_result(&bytes).unwrap();
         assert_eq!(consumed.body.estimate, Some(result.effect()), "{name} artifact");
         exercised.insert(name);
     }

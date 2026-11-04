@@ -707,7 +707,7 @@ impl RetainedEffectModel {
     ) -> Result<Self, CohortRefusal> {
         let remedy =
             "supply the exported analysis result of a native DR-learner or causal-forest fit";
-        let consumed = crate::consume_analysis_result(bytes).map_err(|e| io_refusal(&e))?;
+        let consumed = crate::replay_analysis_result(bytes).map_err(|e| io_refusal(&e))?;
         if !consumed.acceptance.accepts_as_claim() {
             return Err(parent_refusal(
                 antecedent_core::reason_details::cohort_decision::PARENT_NOT_VERIFIED,

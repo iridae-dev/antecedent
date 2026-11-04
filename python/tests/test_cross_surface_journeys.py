@@ -209,14 +209,10 @@ def test_every_route_artifact_reloads_in_a_fresh_process_with_its_identities(tmp
         assert seen["recognized"] is True, name
         assert seen["program_id"] == result.program_id, name
         assert seen["claim_id"] == result.claim_id, name
-        if name == "anomaly-attribution":
-            # The default anomaly cell carries refutation reports with no checked replay: the
-            # fresh process recognizes it and binds its identities, but keeps no answer.
-            assert seen["status"] == "unavailable", name
-            assert seen["kind"] == "unavailable", name
-        else:
-            assert seen["status"] in {"verified", "sealed"}, name
-            assert seen["kind"] == result.answer.kind, name
+        # A load recomputes nothing: every intact artifact, the default anomaly cell with its
+        # unreplayable refutation reports included, keeps its answer.
+        assert seen["status"] == "loaded", name
+        assert seen["kind"] == result.answer.kind, name
 
 
 def test_a_changed_byte_is_refused_or_never_a_different_recognized_answer() -> None:
@@ -233,7 +229,7 @@ def test_a_changed_byte_is_refused_or_never_a_different_recognized_answer() -> N
         except Exception:  # noqa: BLE001 - every refusal type is the expected outcome
             refused += 1
             continue
-        if other.acceptance.recognized and other.acceptance.status in {"verified", "sealed"}:
+        if other.acceptance.recognized and other.acceptance.status == "loaded":
             assert other.claim_id == result.claim_id, position
             assert other.answer == result.answer, position
     assert refused, "no flipped byte was ever refused"

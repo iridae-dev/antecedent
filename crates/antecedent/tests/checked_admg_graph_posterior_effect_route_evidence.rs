@@ -9,7 +9,7 @@ use antecedent_discovery::{
     GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg, set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
 fn fixture() -> (TabularData, Admg, AverageEffectQuery, f64) {
@@ -153,9 +153,9 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "admg-graph-posterior-effect", &context)
                 .unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(
-                consumed.acceptance.accepts_as_verified_program()
+                consumed.acceptance.accepts_as_replayed_program()
                     || !consumed.acceptance.unresolved.is_empty(),
                 "independent consumer must verify the effect or explain its dependency refusal"
             );

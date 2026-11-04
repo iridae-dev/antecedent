@@ -375,41 +375,36 @@ fn decode_causal_artifact(bytes: &[u8]) -> PyResult<DecodedCausalArtifact> {
     })
 }
 
+/// Load an analysis result and check it is intact; with `replay`, also recompute its numbers.
+///
+/// Loading is cheap and replays nothing. `replay` is for a result that did not come from this
+/// process, and runs under the requested-replay bounds.
 #[pyfunction]
+#[pyo3(signature = (bytes, replay=false))]
 fn accept_analysis_result_contract(
     bytes: &[u8],
+    replay: bool,
 ) -> PyResult<std::collections::HashMap<String, String>> {
     crate::catch_ffi(|| {
-        let consumed =
-            antecedent::io::consume_analysis_result(bytes).map_err(serialization_error)?;
+        let load = antecedent::io::load_analysis_result(bytes).map_err(serialization_error)?;
+        let join = |reasons: &[std::sync::Arc<str>]| {
+            reasons.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join(",")
+        };
         let mut out = std::collections::HashMap::new();
-        out.insert("recognized".into(), consumed.acceptance.recognized.to_string());
-        out.insert(
-            "verified_references".into(),
-            consumed.acceptance.verified_references.to_string(),
-        );
-        out.insert(
-            "accepts_as_verified_program".into(),
-            consumed.acceptance.accepts_as_verified_program().to_string(),
-        );
-        if let Some(restriction) = &consumed.acceptance.restriction {
-            out.insert("restriction".into(), restriction.to_string());
+        out.insert("intact".into(), load.is_intact().to_string());
+        out.insert("integrity".into(), join(&load.integrity));
+        if replay {
+            let report = antecedent::io::replay_loaded_result(
+                &load,
+                &antecedent::io::ReplayOptions::default(),
+            )
+            .map_err(serialization_error)?;
+            out.insert("replayed".into(), report.replayed().to_string());
+            out.insert("not_replayable".into(), join(&report.not_replayable));
+            out.insert("mismatches".into(), join(&report.mismatches));
         }
-        out.insert(
-            "unresolved".into(),
-            consumed
-                .acceptance
-                .unresolved
-                .iter()
-                .map(std::string::ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(","),
-        );
-        if let Some(contract) = &consumed.contract {
-            out.insert(
-                "program".into(),
-                antecedent::identity::to_hex(&contract.identities.program),
-            );
+        if let Some(contract) = &load.contract {
+            out.insert("program".into(), antecedent::identity::to_hex(&contract.identities.program));
             out.insert("target".into(), antecedent::identity::to_hex(&contract.identities.target));
             out.insert("graph_class".into(), contract.graph_class.clone());
             out.insert("variable_names".into(), contract.target.schema.variable_names().join(","));
@@ -490,7 +485,7 @@ fn checked_feature_names(names: &[String], features: &[u32]) -> Option<Vec<Strin
     features.iter().map(|id| names.get(*id as usize).cloned()).collect()
 }
 
-/// A verified parent claim and its immutable provider-independent predictor.
+/// A replayed parent claim and its immutable provider-independent predictor.
 #[pyclass(frozen, skip_from_py_object)]
 struct FittedEffectModel {
     model: antecedent::estimate::FittedEffect,
@@ -506,25 +501,26 @@ impl FittedEffectModel {
     #[staticmethod]
     fn load(bytes: &[u8]) -> PyResult<Self> {
         crate::catch_ffi(|| {
-            let consumed =
-                antecedent::io::consume_analysis_result(bytes).map_err(serialization_error)?;
-            if !consumed.acceptance.accepts_as_verified_program()
-                || !consumed.acceptance.verified_references
-            {
+            let load = antecedent::io::load_analysis_result(bytes).map_err(serialization_error)?;
+            let report = antecedent::io::replay_loaded_result(
+                &load,
+                &antecedent::io::ReplayOptions::default(),
+            )
+            .map_err(serialization_error)?;
+            if !report.replayed() {
                 return Err(serialization_error(
-                    "fitted prediction requires a verified parent claim",
+                    "fitted prediction requires a parent claim that replays",
                 ));
             }
-            let claim =
-                consumed.contract.as_ref().and_then(|c| c.claim.as_ref()).ok_or_else(|| {
-                    serialization_error("fitted prediction requires an executed claim")
-                })?;
+            let claim = load.contract.as_ref().and_then(|c| c.claim.as_ref()).ok_or_else(|| {
+                serialization_error("fitted prediction requires an executed claim")
+            })?;
             let model =
-                consumed.body.fitted_effect.as_deref().cloned().ok_or_else(|| {
+                load.body.fitted_effect.as_deref().cloned().ok_or_else(|| {
                     serialization_error("this result has no portable fitted effect")
                 })?;
             model.validate().map_err(serialization_error)?;
-            let features = checked_feature_names(&consumed.header.variable_names, &model.features)
+            let features = checked_feature_names(&load.header.variable_names, &model.features)
                 .ok_or_else(|| {
                     serialization_error("fitted effect feature is outside the header name frame")
                 })?;

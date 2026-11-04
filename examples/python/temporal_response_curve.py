@@ -55,7 +55,7 @@ study = result.study
 print("Calibration:", result.calibration.status)
 artifact = result.export()
 loaded = load(artifact, expected=artifact.expectation)
-assert loaded.acceptance.verified or loaded.acceptance.sealed
+assert loaded.acceptance.recognized
 assert require_success(_ant_api.estimate(study)).response.values == result.response.values
 print("dose × horizon surface (mean, pointwise 95% lower, upper):")
 assert curve_result.uncertainty.lower is not None

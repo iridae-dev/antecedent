@@ -95,7 +95,7 @@ def test_an_exported_baseline_is_assessed_without_the_study(study):
     loaded = require_success(loaded_outcome)
     assert isinstance(loaded, StalenessBaseline)
     assert loaded_outcome.study is None
-    assert loaded.acceptance.status == "sealed"
+    assert loaded.acceptance.status == "loaded"
     assert loaded.acceptance.identity_bound
     assert not loaded.acceptance.replayable and not loaded.acceptance.resumable
     assert loaded.identity == baseline.identity
@@ -191,7 +191,7 @@ def test_staleness_baseline_consumes_in_a_fresh_process(study, tmp_path):
     assert result == {
         "baseline": baseline.identity,
         "report": direct.identity,
-        "standing": "sealed",
+        "standing": "loaded",
         "identity_bound": True,
         "replayable": False,
     }

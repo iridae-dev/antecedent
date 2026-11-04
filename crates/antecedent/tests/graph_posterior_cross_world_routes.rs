@@ -934,7 +934,7 @@ fn retained_posterior_programs_survive_clone_refresh_and_refuse_population_retar
             assert_eq!(after, changed.contract().unwrap().identities);
             let bytes =
                 changed.encode_contracted_result(&result, "posterior-refresh", &ctx).unwrap();
-            let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
             assert_eq!(programs_of(&consumed).atoms.len(), 3);
             assert!(program_reasons(&consumed).is_empty());
         }
@@ -967,7 +967,7 @@ fn a_graph_posterior_functional_result_round_trips_through_the_contracted_artifa
                         encode(&built, &ctx)
                     }))
                     .unwrap_or_else(|_| panic!("{case}: the result does not encode"));
-                    let consumed = antecedent_io::consume_analysis_result(&bytes)
+                    let consumed = antecedent_io::replay_analysis_result(&bytes)
                         .unwrap_or_else(|e| panic!("{case}: {e}"));
                     let programs = programs_of(&consumed);
                     assert_eq!(programs.mixing, antecedent_io::GRAPH_POSTERIOR_MIXING_RULE);
@@ -1051,7 +1051,7 @@ fn reseal_and_consume(
     artifact.sections.push(packed);
     let mut bytes = Vec::new();
     artifact.write_to(&mut bytes).unwrap();
-    program_reasons(&antecedent_io::consume_analysis_result(&bytes).unwrap())
+    program_reasons(&antecedent_io::replay_analysis_result(&bytes).unwrap())
 }
 
 /// The consumer recomputes the digest chain over the atoms' programs, weights and mixing rule
@@ -1068,7 +1068,7 @@ fn a_tampered_atom_program_weight_or_mixture_is_refused() {
                 study(contract_posterior(Structures::Dag), query, InferenceMode::Frequentist)
                     .build()
                     .unwrap();
-            let consumed = antecedent_io::consume_analysis_result(&encode(&built, &ctx)).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&encode(&built, &ctx)).unwrap();
             assert!(program_reasons(&consumed).is_empty(), "{label}: the intact artifact verifies");
             let chain = "program.graph_posterior_programs".to_owned();
             let binding = "program.graph_posterior_programs.binding".to_owned();

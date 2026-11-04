@@ -544,7 +544,10 @@ pub mod joint_panel_experiment_artifact;
 pub use antecedent_io_core::randomized_ipow_wire;
 /// Whole-procedure numerical replay of supported randomized-arm IPW results.
 pub mod randomized_ipow_artifact;
+pub use antecedent_io_core::{
+    AnalysisResultLoad, ReplayOptions, ReplayReport, load_analysis_result,
+};
 pub use randomized_ipow_artifact::{
-    accept_claim, consume_analysis_result, consume_analysis_result_within,
-    decode_analysis_result_artifact,
+    accept_claim, decode_analysis_result_artifact, replay_analysis_result,
+    replay_analysis_result_within, replay_loaded_result,
 };

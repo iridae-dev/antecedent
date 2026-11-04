@@ -13,7 +13,7 @@ use antecedent::analysis::recalc_bayesian::{
 };
 use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError, UtilitySpec};
 use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_io::{PriorMapping, consume_analysis_result};
+use antecedent_io::{PriorMapping, replay_analysis_result};
 use antecedent_prob::{GaussianCoefficientPrior, PosteriorQuantityKind, PriorSet, PriorSpec};
 use calibration::{grid_n, grid_seed, map_replicates, n_sim};
 
@@ -178,7 +178,7 @@ fn errors(
             (summary.law.probability_below - truth) / (truth * (1. - truth) / draws as f64).sqrt(),
         );
     }
-    consume_analysis_result(&session.export_result(context).unwrap()).unwrap();
+    replay_analysis_result(&session.export_result(context).unwrap()).unwrap();
     errors
 }
 fn assert_precision(name: &str, results: &[Vec<f64>], n: usize, draws: usize) {

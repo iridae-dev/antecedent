@@ -147,7 +147,7 @@ fn supported_panel_did_interval_round_trips_and_rejects_fabrication() {
     assert_eq!(claim.calibration.basis.as_ref().unwrap().validation.as_ref(), "not_applicable");
     let bytes =
         prepared.encode_contracted_result(&result, "supported-panel-did", &context).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert!(
         !consumed
             .acceptance

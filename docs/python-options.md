@@ -407,8 +407,10 @@ matrix cell does not establish empirical support or validate its assumptions.
 artifact = result.export()
 encoded = bytes(artifact)
 loaded = ant.load(encoded, expected=artifact.expectation)
-loaded.acceptance.status  # "verified", "sealed", or "unavailable"
-loaded.acceptance.unresolved  # sealed checked operations the consumer cannot replay
+loaded.acceptance.status  # "loaded", "replayed", or "unavailable"
+replayed = loaded.replay()  # for a result from outside your own authoring
+replayed.acceptance.not_replayable  # parts whose evidence the artifact does not carry
+replayed.acceptance.mismatches  # parts that were recomputed and differ
 loaded.answer
 loaded.inspect().to_dict()
 assert bytes(loaded.export()) == encoded
@@ -416,11 +418,9 @@ assert bytes(loaded.export()) == encoded
 
 `load` runs the Rust semantic consumer. Malformed contracts fail closed;
 missing or unrecognized contracts yield explicitly unavailable semantic views
-that can still be forwarded. A `verified` load replayed a verified program. A
-`sealed` load recognized the artifact, verified its contract and identities,
-kept the recorded answer, and names the sealed checked operation it cannot
-replay from bytes alone; `acceptance.verified` and `acceptance.replayable`
-stay `False` for it. Acceptance verifies the artifact's semantic
+that can still be forwarded. A load checks that the artifact is intact and recomputes
+nothing; `replay()` (or `load(..., replay=True)`) recomputes the published numbers and
+reports what it could not replay and what disagreed. Acceptance checks the artifact's
 contract, not the truth of causal assumptions. Loading does not reconstruct a
 live study or recover the source dataset. Use the common inspection report to read acceptance and retained scientific standing;
 requested specialized conversions are explicit materialization boundaries.

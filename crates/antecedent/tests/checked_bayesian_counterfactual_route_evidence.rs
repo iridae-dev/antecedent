@@ -90,8 +90,8 @@ fn bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_bo
         let artifact = prepared
             .encode_contracted_result(&refreshed, "checked-bayesian-counterfactual", &ctx)
             .unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
         assert!(
             consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.fitted_counterfactual_mechanisms"

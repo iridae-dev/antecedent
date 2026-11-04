@@ -94,9 +94,9 @@ fn frontdoor_refresh_publishes_the_refreshed_row_count() {
         .unwrap();
         let artifact =
             prepared.encode_contracted_result(&refreshed, "frontdoor", &context).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         // The lowering binds and the carried cross-product moments replay the estimate.
-        assert!(consumed.acceptance.accepts_as_verified_program());
+        assert!(consumed.acceptance.accepts_as_replayed_program());
         let published = consumed
             .contract
             .as_ref()

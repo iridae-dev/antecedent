@@ -173,7 +173,7 @@ def test_native_exact_consumer_replays_the_embedded_law_without_a_producer():
     # _exact_bytes releases its model, catalog, providers and prepared producer.
     artifact = _exact_bytes()
     consumed = transport.consume_exact(artifact)
-    assert consumed.acceptance.verified
+    assert consumed.acceptance.replayed
     assert consumed.acceptance.replayable
     # A consumed read model cannot resume: re-estimation rebinds the original data.
     assert not consumed.acceptance.resumable

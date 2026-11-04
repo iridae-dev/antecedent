@@ -222,11 +222,11 @@ fn reload_gaussian(cell: GaussianCell, gaussian: &Gaussian) {
     }
     let bytes = prepared.encode_contracted_result(&result, cell.label(), &ctx()).unwrap();
     drop(prepared);
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     let acceptance = &consumed.acceptance;
     let unresolved: Vec<&str> = acceptance.unresolved.iter().map(AsRef::as_ref).collect();
     assert_eq!(unresolved, cell.unresolved_reference(), "{} {acceptance:?}", cell.label());
-    assert_eq!(acceptance.accepts_as_verified_program(), unresolved.is_empty());
+    assert_eq!(acceptance.accepts_as_replayed_program(), unresolved.is_empty());
     assert!(
         acceptance.supported_operations.iter().any(|operation| operation.as_ref() == "read_body"),
         "{} {acceptance:?}",

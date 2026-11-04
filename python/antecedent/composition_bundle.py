@@ -950,7 +950,7 @@ def _bundle_acceptance(result: ConsumedBundle, identity_bound: bool) -> Artifact
         if not node.verified
     )
     return ArtifactAcceptance(
-        "verified" if result._all_verified else "unavailable",
+        "replayed" if result._all_verified else "unavailable",
         identity_bound,
         result._all_replayed,
         False,

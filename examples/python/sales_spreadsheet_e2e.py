@@ -126,7 +126,7 @@ def main() -> None:
     assert second.data_snapshot_id == bayes.data_snapshot_id
     artifact = bayes.export()
     acceptance = antecedent.load(artifact, expected=artifact.expectation).acceptance
-    assert acceptance.verified or acceptance.sealed
+    assert acceptance.recognized
     print("Calibration:", bayes.calibration.status)
     assert discovery_calls["n"] == 0, "static estimate clicks must not discover"
     assert accepted.version == 1

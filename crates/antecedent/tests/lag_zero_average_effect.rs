@@ -289,7 +289,7 @@ fn every_lag_zero_average_effect_publishes_an_artifact_a_consumer_reads() {
             let artifact = prepared
                 .encode_contracted_result(&result, "lag-zero-average-effect", &ctx)
                 .unwrap_or_else(|error| panic!("{label}: {error}"));
-            let consumed = antecedent_io::consume_analysis_result(&artifact)
+            let consumed = antecedent_io::replay_analysis_result(&artifact)
                 .unwrap_or_else(|error| panic!("{label}: {error}"));
             assert!(consumed.contract.is_some(), "{label}: the artifact carries the contract");
             // A scalar the artifact carries is the one the route published; a graph that

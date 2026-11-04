@@ -193,7 +193,7 @@ def test_empirical_table_execution_survives_identification_builder_disposal():
     assert consumer.probabilities == pytest.approx(result.probabilities)
     # Raw empirical rows are an explicit dependency for a new estimate: the consumed
     # read model names them and cannot be re-estimated.
-    assert consumer.acceptance.verified
+    assert consumer.acceptance.replayed
     assert not consumer.acceptance.resumable
     assert any("not embedded" in item for item in consumer.acceptance.unresolved)
     replay = require_success(estimate(rebind(prepared, data=data)))

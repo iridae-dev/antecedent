@@ -107,8 +107,10 @@ def _gaussian_cell(horizon: bool, bayesian: bool):
     del result
     loaded = require_success(load(artifact))
     assert loaded.acceptance.recognized
-    assert loaded.acceptance.unresolved == _UNRESOLVED[(horizon, bayesian)], label
-    assert loaded.acceptance.verified == (not loaded.acceptance.unresolved)
+    replayed = loaded.replay().acceptance
+    assert replayed.not_replayable == _UNRESOLVED[(horizon, bayesian)], label
+    assert not replayed.mismatches and not replayed.integrity, label
+    assert replayed.replayed == (not replayed.not_replayable)
     assert loaded.decoded_artifact.payload["estimate"] == pytest.approx(
         gaussian["effect"], abs=tolerance
     )

@@ -161,7 +161,7 @@ def _grid_acceptance(result: Any, bound: bool) -> ArtifactAcceptance:
             "raw statistical samples are not embedded; bind_snapshot before re-estimation",
         )
     return ArtifactAcceptance(
-        "verified",
+        "replayed",
         bound,
         True,
         resumable,

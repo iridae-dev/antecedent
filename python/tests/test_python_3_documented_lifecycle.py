@@ -81,7 +81,7 @@ def test_migration_examples_execute_with_declared_application_inputs():
     execute(examples[4], namespace, "migration:posterior")
     posterior = namespace["posterior_record"]
     assert posterior.study is None
-    assert posterior.acceptance.status == "sealed"
+    assert posterior.acceptance.status == "loaded"
     assert posterior.acceptance.identity_bound
     assert not posterior.acceptance.replayable
     assert posterior.value.n_draws == 32

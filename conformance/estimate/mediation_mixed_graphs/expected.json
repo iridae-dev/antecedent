@@ -110,7 +110,7 @@
             "fn variable_count",
             "fn verify_coordinate"
           ],
-          "sha256": "d54518c2526d835600202f2a04836c9a4e6ee5400114814d3fa857f540e4dd57"
+          "sha256": "079ca163ff0ebbd185261869d28bcd6f5621fab13886b1e230de4d3097ec4b8a"
         }
       ],
       "fixture_payload_sha256": "c982ccdc9f9b66b8e3f73fb50087f8cc52dc26af389d1d66e2f57d3831b376b8"

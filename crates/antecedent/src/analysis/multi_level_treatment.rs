@@ -260,8 +260,8 @@ impl MultiLevelTreatment {
     ///
     /// This is a specialized checked path outside the central compiler. It checks the columns,
     /// the declared levels, the population semantics and overlap, and refuses on sparse
-    /// levels. It does not check the adjustment columns against a graph: they are a declared,
-    /// unverified adjustment, and the report says so in `adjustment_basis`. The cross-fit
+    /// levels. It does not check the adjustment columns against a graph: they are the caller's
+    /// declared adjustment, and the report says so in `adjustment_basis`. The cross-fit
     /// seed, cancellation and admission pool are `ctx`'s.
     ///
     /// # Errors

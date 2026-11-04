@@ -311,7 +311,7 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
                         &ctx,
                     )
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(
                     consumed.acceptance.unresolved.iter().any(|dependency| {
                         dependency.as_ref()
@@ -325,7 +325,7 @@ fn all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_pr
                         c.estimator.clone()
                     ))
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }

@@ -125,7 +125,7 @@ fn the_native_means_and_projected_action_utilities_follow_the_hand_derivation() 
     let source = source();
     let c = source.coordinates().to_vec();
     assert_eq!(c.len(), 2);
-    let original = antecedent_io::consume_analysis_result(source.original_bytes()).unwrap();
+    let original = antecedent_io::replay_analysis_result(source.original_bytes()).unwrap();
     let ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface { mean, .. }) =
         &original.body.response.as_ref().unwrap().estimate
     else {

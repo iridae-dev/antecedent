@@ -412,7 +412,7 @@ fn a_temporal_pag_decomposition_publishes_an_artifact_a_consumer_reads() {
             let artifact = prepared
                 .encode_contracted_result(&result, "temporal-pag-mediation", &ctx)
                 .unwrap_or_else(|e| panic!("{window}: {e}"));
-            let consumed = antecedent_io::consume_analysis_result(&artifact)
+            let consumed = antecedent_io::replay_analysis_result(&artifact)
                 .unwrap_or_else(|e| panic!("{window}: {e}"));
             assert_eq!(consumed.body.estimate, Some(result.effect()), "{window}");
         }
@@ -451,7 +451,7 @@ fn a_two_period_temporal_admg_decomposition_publishes_an_artifact_a_consumer_rea
         assert!((result.effect() - structural_direct()).abs() < 0.05, "{}", result.effect());
         let artifact =
             prepared.encode_contracted_result(&result, "temporal-admg-mediation", &ctx).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(result.effect()));
     }
 }

@@ -5523,10 +5523,10 @@ pub enum antecedent_contract::transport_revalidation::SceneCalibration
 pub enum antecedent_contract::transport_revalidation::SceneClaimKind
 pub field antecedent_contract::AcceptanceReport::claim_present: bool
 pub field antecedent_contract::AcceptanceReport::recognized: bool
+pub field antecedent_contract::AcceptanceReport::replayed_references: bool
 pub field antecedent_contract::AcceptanceReport::restriction: core::option::Option<alloc::sync::Arc<str>>
 pub field antecedent_contract::AcceptanceReport::supported_operations: alloc::sync::Arc<[alloc::sync::Arc<str>]>
 pub field antecedent_contract::AcceptanceReport::unresolved: alloc::sync::Arc<[alloc::sync::Arc<str>]>
-pub field antecedent_contract::AcceptanceReport::verified_references: bool
 pub field antecedent_contract::AssumptionSlot::obligations: alloc::sync::Arc<[antecedent_contract::ObligationRecord]>
 pub field antecedent_contract::AttestedEvidence::comparison: core::option::Option<f64>
 pub field antecedent_contract::AttestedEvidence::config_digest: core::option::Option<alloc::sync::Arc<str>>
@@ -6564,8 +6564,8 @@ pub field antecedent_contract::transport_revalidation::TransportScene::sources: 
 pub field antecedent_contract::transport_revalidation::TransportScene::target: antecedent_contract::transport_revalidation::SceneTarget
 pub fn <antecedent_contract::AcceptanceReport>::const fn with_claim(self, present: bool) -> Self
 pub fn <antecedent_contract::AcceptanceReport>::fn accepts_as_claim(&self) -> bool
-pub fn <antecedent_contract::AcceptanceReport>::fn accepts_as_verified_program(&self) -> bool
-pub fn <antecedent_contract::AcceptanceReport>::fn new(recognized: bool, verified_references: bool, unresolved: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, supported_operations: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, restriction: core::option::Option<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_contract::AcceptanceReport>::fn accepts_as_replayed_program(&self) -> bool
+pub fn <antecedent_contract::AcceptanceReport>::fn new(recognized: bool, replayed_references: bool, unresolved: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, supported_operations: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, restriction: core::option::Option<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_contract::AcceptanceReport>::fn opaque_storage() -> Self
 pub fn <antecedent_contract::AlignedLaw>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::AlignedLaw>::fn from_name(name: &str) -> core::option::Option<Self>

@@ -258,7 +258,7 @@ def test_fresh_process_explicit_raw_native_and_supplied_providers_revalidate_and
     (tmp_path / "callback0.ant").write_bytes(session.export_callback(0))
     (tmp_path / "callback1.ant").write_bytes(session.export_callback(1))
     (tmp_path / "receipt.ant").write_bytes(bytes(out.receipt.export()))
-    script = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nfrom pathlib import Path\nimport sys\nimport antecedent as ac\nfrom test_recalc_composite import fixture\nfrom antecedent.recalc import RecalcReceipt\nfrom antecedent.recalc_static import StaticResponseSession\nfrom antecedent.recalc_composite import CompositeSession\nfrom antecedent.recalc_external import ExternalCallbackSession\np = Path(sys.argv[1])\nassert ac.artifacts.accept((p / 'native.ant').read_bytes())['accepts_as_verified_program'] == 'true'\nassert require_success(RecalcReceipt.consume((p / 'receipt.ant').read_bytes())).totals.external_invocations == 2\n_, _, req, providers, calls = fixture()\nnative = StaticResponseSession()\nproduced = require_success(native.execute(req.native, execution=Execution(seed=7)))\nassert produced.receipt.totals.factor_builds > 0 and produced.receipt.totals.identifications > 0\nfor branch in (0, 1):\n    replay = require_success(ExternalCallbackSession.resume((p / f'callback{branch}.ant').read_bytes(), req.externals[branch]))\n    assert not replay.is_live\n    bound = require_success(replay.execute(req.externals[branch], provider=providers[branch]))\n    assert bound.receipt.totals.external_invocations == 1\n    assert all((abs(a - b) < 1e-12 for a, b in zip(bound.claim.values, [3, 3.5, 4])))\nactual = require_success(CompositeSession(native, req.native).execute(req, providers=providers))\nassert actual.receipt.totals.external_invocations == 2 and actual.receipt.totals.factor_builds == 0\nassert actual.decision.verdict.selected == 'treat'\nassert all((abs(a.expected_utility - b) < 1e-12 for a, b in zip(actual.decision.outcomes, [2.8, 3, 2.2])))\nassert [len(x) for x in calls] == [2, 2]\n"
+    script = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nfrom pathlib import Path\nimport sys\nimport antecedent as ac\nfrom test_recalc_composite import fixture\nfrom antecedent.recalc import RecalcReceipt\nfrom antecedent.recalc_static import StaticResponseSession\nfrom antecedent.recalc_composite import CompositeSession\nfrom antecedent.recalc_external import ExternalCallbackSession\np = Path(sys.argv[1])\nassert ac.artifacts.accept((p / 'native.ant').read_bytes(), replay=True)['replayed'] == 'true'\nassert require_success(RecalcReceipt.consume((p / 'receipt.ant').read_bytes())).totals.external_invocations == 2\n_, _, req, providers, calls = fixture()\nnative = StaticResponseSession()\nproduced = require_success(native.execute(req.native, execution=Execution(seed=7)))\nassert produced.receipt.totals.factor_builds > 0 and produced.receipt.totals.identifications > 0\nfor branch in (0, 1):\n    replay = require_success(ExternalCallbackSession.resume((p / f'callback{branch}.ant').read_bytes(), req.externals[branch]))\n    assert not replay.is_live\n    bound = require_success(replay.execute(req.externals[branch], provider=providers[branch]))\n    assert bound.receipt.totals.external_invocations == 1\n    assert all((abs(a - b) < 1e-12 for a, b in zip(bound.claim.values, [3, 3.5, 4])))\nactual = require_success(CompositeSession(native, req.native).execute(req, providers=providers))\nassert actual.receipt.totals.external_invocations == 2 and actual.receipt.totals.factor_builds == 0\nassert actual.decision.verdict.selected == 'treat'\nassert all((abs(a.expected_utility - b) < 1e-12 for a, b in zip(actual.decision.outcomes, [2.8, 3, 2.2])))\nassert [len(x) for x in calls] == [2, 2]\n"
     env = {
         **os.environ,
         "PYTHONPATH": os.pathsep.join(
@@ -342,7 +342,7 @@ def test_selected_provider_fresh_child_scientifically_replays_actual_sources(tmp
     for branch in (0, 1):
         (tmp_path / f"callback{branch}.ant").write_bytes(session.export_callback(branch))
     (tmp_path / "receipt.ant").write_bytes(bytes(out.receipt.export()))
-    script = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nfrom pathlib import Path\nimport sys\nimport antecedent as ac\nfrom test_recalc_composite import fixture\nfrom antecedent.recalc_static import StaticResponseSession\nfrom antecedent.recalc_composite import CompositeSession\nfrom antecedent.recalc_external import ExternalCallbackSession\np = Path(sys.argv[1])\nassert ac.artifacts.accept((p / 'native.ant').read_bytes())['accepts_as_verified_program'] == 'true'\n_, _, req, providers, calls = fixture(selected_providers=True)\nnative = StaticResponseSession()\nfresh = require_success(native.execute(req.native, execution=Execution(seed=7)))\nassert fresh.receipt.totals.factor_builds > 0\nfor branch in (0, 1):\n    replay = require_success(ExternalCallbackSession.resume((p / f'callback{branch}.ant').read_bytes(), req.externals[branch]))\n    result = require_success(replay.execute(req.externals[branch], provider=providers[branch]))\n    assert result.receipt.totals.external_invocations == 1\nout = require_success(CompositeSession(native, req.native).execute(req, providers=providers))\nassert out.receipt.totals.external_invocations == 2\nassert [x.input_id for x in out.decision.dispositions] == ['native', 'external.0', 'external.1']\nassert all((abs(x.expected_utility - y) < 1e-12 for x, y in zip(out.decision.outcomes, [2.8, 2.5, 1])))\nassert out.decision.verdict.selected == 'wait'\nassert [len(x) for x in calls] == [2, 2]\n"
+    script = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nfrom pathlib import Path\nimport sys\nimport antecedent as ac\nfrom test_recalc_composite import fixture\nfrom antecedent.recalc_static import StaticResponseSession\nfrom antecedent.recalc_composite import CompositeSession\nfrom antecedent.recalc_external import ExternalCallbackSession\np = Path(sys.argv[1])\nassert ac.artifacts.accept((p / 'native.ant').read_bytes(), replay=True)['replayed'] == 'true'\n_, _, req, providers, calls = fixture(selected_providers=True)\nnative = StaticResponseSession()\nfresh = require_success(native.execute(req.native, execution=Execution(seed=7)))\nassert fresh.receipt.totals.factor_builds > 0\nfor branch in (0, 1):\n    replay = require_success(ExternalCallbackSession.resume((p / f'callback{branch}.ant').read_bytes(), req.externals[branch]))\n    result = require_success(replay.execute(req.externals[branch], provider=providers[branch]))\n    assert result.receipt.totals.external_invocations == 1\nout = require_success(CompositeSession(native, req.native).execute(req, providers=providers))\nassert out.receipt.totals.external_invocations == 2\nassert [x.input_id for x in out.decision.dispositions] == ['native', 'external.0', 'external.1']\nassert all((abs(x.expected_utility - y) < 1e-12 for x, y in zip(out.decision.outcomes, [2.8, 2.5, 1])))\nassert out.decision.verdict.selected == 'wait'\nassert [len(x) for x in calls] == [2, 2]\n"
     env = {
         **os.environ,
         "PYTHONPATH": os.pathsep.join(
@@ -492,7 +492,7 @@ def test_canonical_conditional_ranking_load_preserves_sealed_source_obligations(
     retained = require_success(loaded)
     assert retained.entries == actual.entries
     assert loaded.answer == ranked.answer
-    assert retained.acceptance.status == "sealed"
+    assert retained.acceptance.status == "loaded"
     assert not retained.acceptance.replayable
     assert retained.acceptance.unresolved == ("actual_executed_composite_sources",)
     assert not retained.source_verified
@@ -501,7 +501,7 @@ def test_canonical_conditional_ranking_load_preserves_sealed_source_obligations(
         artifact, expected=artifact.expectation, context=LoadContext(composite_source=session)
     )
     assert checked.study is None
-    assert require_success(checked).acceptance.verified
+    assert require_success(checked).acceptance.replayed
     assert require_success(checked).source_verified
     assert require_success(checked).entries == actual.entries
     assert tuple(map(len, calls)) == before  # consumption never invokes providers
@@ -524,7 +524,7 @@ def test_canonical_conditional_ranking_load_preserves_sealed_source_obligations(
     fresh = json.loads(child.stdout)
     assert fresh == {
         "ids": [entry.id for entry in actual.entries],
-        "status": "sealed",
+        "status": "loaded",
         "replayable": False,
         "unresolved": ["actual_executed_composite_sources"],
         "study": None,

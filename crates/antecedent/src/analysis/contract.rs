@@ -1826,10 +1826,10 @@ mod frontdoor_artifact_tests {
         let (record_section, record_body) =
             prepared.execution_record_with_quantity_labels(&result, &context, None).unwrap();
         let bytes = prepared.encode_contracted_result(&result, "frontdoor", &context).unwrap();
-        let intact = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        let intact = antecedent_io::replay_analysis_result(&bytes).unwrap();
         // The checked lowering binds the program and the carried cross-product moments replay
         // the fitted point estimate, so the intact artifact verifies.
-        assert!(intact.acceptance.accepts_as_verified_program());
+        assert!(intact.acceptance.accepts_as_replayed_program());
 
         let (artifact, _header, body) =
             antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
@@ -1879,8 +1879,8 @@ mod frontdoor_artifact_tests {
         tampered.sections[section_index] = section;
         let mut tampered_bytes = Vec::new();
         tampered.write_to(&mut tampered_bytes).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&tampered_bytes).unwrap();
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        let consumed = antecedent_io::replay_analysis_result(&tampered_bytes).unwrap();
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
         assert!(
             consumed
                 .acceptance
@@ -2027,18 +2027,18 @@ mod checked_iv_artifact_tests {
             let prepared = study.prepare(&context).unwrap();
             let result = prepared.estimate(&data, &context).unwrap();
             let bytes = prepared.encode_contracted_result(&result, "iv", &context).unwrap();
-            let intact = antecedent_io::consume_analysis_result(&bytes).unwrap();
+            let intact = antecedent_io::replay_analysis_result(&bytes).unwrap();
             // The checked IV lowering binds the route and the carried cross-product moments
             // replay the published point estimate.
-            assert!(intact.acceptance.accepts_as_verified_program(), "{expected}");
+            assert!(intact.acceptance.accepts_as_replayed_program(), "{expected}");
             let (artifact, _, _) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
             let contract =
                 antecedent_io::decode_analysis_result_contract(&artifact).unwrap().unwrap();
             assert_eq!(contract.program.unwrap().checked_iv_lowering.unwrap().procedure, expected);
             let tampered = tamper_procedure(&bytes);
-            let consumed = antecedent_io::consume_analysis_result(&tampered).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&tampered).unwrap();
             assert!(
-                !consumed.acceptance.accepts_as_verified_program(),
+                !consumed.acceptance.accepts_as_replayed_program(),
                 "{expected}: {:?}",
                 consumed.acceptance.unresolved
             );

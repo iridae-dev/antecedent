@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from antecedent.outcomes import require_success
 
-from _sealed_loads import assert_answer_kept
+from _loaded_results import assert_answer_kept
 
 
 def data():

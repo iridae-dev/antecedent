@@ -177,7 +177,7 @@ fn producer_to_cohort_to_affine_contract_matches_the_hand_calculation() {
 #[test]
 fn a_compact_export_of_the_same_fit_is_not_a_verified_parent() {
     let (compact, _) = fit_exported(2.0, false);
-    let consumed = antecedent_io::consume_analysis_result(&compact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&compact).unwrap();
     assert!(!consumed.acceptance.accepts_as_claim());
     assert!(
         consumed
@@ -197,7 +197,7 @@ fn a_compact_export_of_the_same_fit_is_not_a_verified_parent() {
     }
     // The full-source export of the same fit is.
     let (sourced, _) = fit_exported(2.0, true);
-    let consumed = antecedent_io::consume_analysis_result(&sourced).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&sourced).unwrap();
     assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
     assert!(FittedEffectModel::load(&sourced).is_ok());
 }

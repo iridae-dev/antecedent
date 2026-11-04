@@ -225,7 +225,7 @@ def test_bayesian_artifact_and_receipt_fresh_process_boundary(tmp_path):
         reason_details.recalc.UNAVAILABLE_DATA,
         "data_snapshot",
     )
-    code = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nimport json, pathlib, sys\nimport antecedent as ac\nsys.path.insert(0, sys.argv[3])\nfrom test_recalc_bayesian import request\nfrom antecedent.recalc import RecalcReceipt, ResumeContext\nfrom antecedent.recalc_bayesian import BayesianSession\nartifact = ac.artifacts.accept(pathlib.Path(sys.argv[1]).read_bytes())\nreceipt = require_success(RecalcReceipt.consume(pathlib.Path(sys.argv[2]).read_bytes()))\nsession = require_success(BayesianSession.resume(receipt, ResumeContext(supplied_data=True, portable_fit=True)))\nresult = require_success(session.execute(request(), execution=Execution(seed=41)))\nprint(json.dumps({'verified': artifact['accepts_as_verified_program'], 'mean': result.law.mean, 'fits': result.receipt.totals.model_fits, 'draws': result.receipt.totals.posterior_draws, 'live': session.is_live}))\n"
+    code = "from antecedent.outcomes import require_success\nfrom antecedent.execution import Execution\nimport json, pathlib, sys\nimport antecedent as ac\nsys.path.insert(0, sys.argv[3])\nfrom test_recalc_bayesian import request\nfrom antecedent.recalc import RecalcReceipt, ResumeContext\nfrom antecedent.recalc_bayesian import BayesianSession\nartifact = ac.artifacts.accept(pathlib.Path(sys.argv[1]).read_bytes(), replay=True)\nreceipt = require_success(RecalcReceipt.consume(pathlib.Path(sys.argv[2]).read_bytes()))\nsession = require_success(BayesianSession.resume(receipt, ResumeContext(supplied_data=True, portable_fit=True)))\nresult = require_success(session.execute(request(), execution=Execution(seed=41)))\nprint(json.dumps({'replayed': artifact['replayed'], 'mean': result.law.mean, 'fits': result.receipt.totals.model_fits, 'draws': result.receipt.totals.posterior_draws, 'live': session.is_live}))\n"
     child = subprocess.run(
         [sys.executable, "-c", code, str(artifact), str(receipt), str(Path(__file__).parent)],
         capture_output=True,
@@ -233,7 +233,7 @@ def test_bayesian_artifact_and_receipt_fresh_process_boundary(tmp_path):
         check=True,
     )
     observed = json.loads(child.stdout)
-    assert observed["verified"] and observed["live"]
+    assert observed["replayed"] and observed["live"]
     assert observed["mean"] == result.law.mean
     assert observed["fits"] > 0 and observed["draws"] == 2048
 

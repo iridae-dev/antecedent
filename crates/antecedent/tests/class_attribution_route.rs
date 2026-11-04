@@ -471,7 +471,7 @@ fn prepared_body() {
     assert_eq!(refreshed.lowered_program_identity(), prepared.plan().lowered_program_identity());
     let artifact =
         prepared.encode_contracted_result(&refreshed, "retained-class-attribution", &ctx).unwrap();
-    assert!(antecedent_io::consume_analysis_result(&artifact).is_ok());
+    assert!(antecedent_io::replay_analysis_result(&artifact).is_ok());
 }
 
 /// A series of `x` and `y_t = 0.8 x_{t-1} + noise`, `z_t = noise`.
@@ -534,7 +534,7 @@ fn temporal_cpdag_single_body() {
     let artifact = prepared
         .encode_contracted_result(&refreshed, "retained-temporal-class-attribution", &ctx)
         .unwrap();
-    assert!(antecedent_io::consume_analysis_result(&artifact).is_ok());
+    assert!(antecedent_io::replay_analysis_result(&artifact).is_ok());
     let (artifact, _, _) = antecedent_io::decode_analysis_result_artifact(&artifact).unwrap();
     let contract = antecedent_io::decode_analysis_result_contract(&artifact).unwrap().unwrap();
     assert_eq!(

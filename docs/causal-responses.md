@@ -190,7 +190,7 @@ study = result.study
 report = result.inspect().to_dict()
 response_bytes = result.export()
 loaded = antecedent.load(bytes(response_bytes), expected=response_bytes.expectation)
-assert loaded.acceptance.verified or loaded.acceptance.sealed
+assert loaded.acceptance.recognized
 assert loaded.answer == result.answer
 repeated = antecedent.estimate(study)
 ```

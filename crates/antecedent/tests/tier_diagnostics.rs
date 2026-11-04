@@ -277,9 +277,9 @@ fn diagnostics_are_the_same_off_the_fresh_click_and_refreshed_results_and_the_ar
     // The diagnostics are a view over the result: the result's own artifact is consumed by
     // the independent verifier before the view is trusted.
     let artifact = prepared.encode_contracted_result(&refreshed, "tier-diagnostics", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );

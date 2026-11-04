@@ -8,7 +8,7 @@ use antecedent::analysis::recalc_bayesian::{
 use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError, UtilitySpec};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_identify::execution_counts::count_checked_identifications;
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::fit_counts::count_bayesian_work;
 use antecedent_prob::{GaussianCoefficientPrior, PriorSet, PriorSpec};
 
@@ -99,7 +99,7 @@ fn checked_gaussian_matches_analytic_posterior_and_retains_issued_rows_body() {
     assert_eq!(utility.receipt.totals().decisions, 1);
     assert_eq!(utility.receipt.totals().law_summaries, 0);
     assert!(!utility.decision.treat);
-    consume_analysis_result(&session.export_result(&context).unwrap()).unwrap();
+    replay_analysis_result(&session.export_result(&context).unwrap()).unwrap();
 }
 #[test]
 fn configuration_rebind_preserves_causal_proof_and_errors_are_transactional() {
@@ -123,7 +123,7 @@ fn configuration_rebind_preserves_causal_proof_and_errors_are_transactional_body
     assert_eq!(work.model_fits, 1);
     assert_eq!(work.posterior_draws, 128);
     assert_eq!(out.receipt.totals().identifications, 0);
-    consume_analysis_result(&session.export_result(&context).unwrap()).unwrap();
+    replay_analysis_result(&session.export_result(&context).unwrap()).unwrap();
     let cancelled = ExecutionContext::for_tests(43);
     cancelled.cancellation.cancel();
     request.inference.n_draws = 256;
@@ -228,7 +228,7 @@ fn quadratic_basis_matches_independent_nig_contrast_body() {
     assert_eq!(work.posterior_draws, 16_384);
     assert!((out.law.mean - mean[1]).abs() < expected_sd * 0.06);
     assert!((out.law.standard_deviation / expected_sd - 1.0).abs() < 0.03);
-    consume_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
+    replay_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
     request.inference.prior = Some(PriorSet::weakly_informative(5));
     let (failure, work) =
         count_bayesian_work(|| execute_bayesian_with_receipt(&mut session, &request, &ctx));
@@ -369,7 +369,7 @@ fn independently_bound_prior_transfer_body() {
         out.law.mean,
         target_mean[1]
     );
-    let consumed = consume_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
+    let consumed = replay_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
     let source_wire =
         antecedent_io::bayesian_prior_recalc_artifact::BoundBayesianPriorWire::decode(&bytes)
             .unwrap();
@@ -407,7 +407,7 @@ fn independently_bound_prior_transfer_body() {
     assert_eq!(work.model_fits, 2);
     assert_eq!(work.posterior_draws, 768);
     assert_eq!(replayed.law, out.law);
-    let fresh_consumed = consume_analysis_result(&fresh.export_result(&ctx).unwrap()).unwrap();
+    let fresh_consumed = replay_analysis_result(&fresh.export_result(&ctx).unwrap()).unwrap();
     assert!(
         fresh_consumed
             .contract

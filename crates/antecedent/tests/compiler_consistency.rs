@@ -101,8 +101,8 @@ fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
     };
     assert_eq!(retained.lowering().rows.len(), 512);
     let bytes = prepared.encode_contracted_result(&refreshed, "checked-aipw", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
+    assert!(consumed.acceptance.accepts_as_replayed_program());
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()));
 
     let (data, dag, query) = confounded_scm(512, 73);
@@ -124,10 +124,10 @@ fn checked_aipw_executes_after_builder_discard_and_rebinds_rows() {
     assert!(result.estimate().as_effect().unwrap().se_bootstrap().is_some());
     let bytes = prepared.encode_contracted_result(&result, "checked-aipw-bootstrap", &ctx).unwrap();
     assert!(
-        antecedent_io::consume_analysis_result(&bytes)
+        antecedent_io::replay_analysis_result(&bytes)
             .unwrap()
             .acceptance
-            .accepts_as_verified_program()
+            .accepts_as_replayed_program()
     );
 }
 

@@ -384,7 +384,7 @@ fn every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_term
         artifacts.push(("temporal", result.association().unwrap().estimate.terms.len(), bytes));
     }
     for (modality, terms, bytes) in artifacts {
-        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
         let wire =
             consumed.body.association.as_ref().expect("the artifact carries the association");
         assert_eq!(wire.terms.len(), terms, "{modality}");

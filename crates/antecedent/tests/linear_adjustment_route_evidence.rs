@@ -6,7 +6,7 @@ use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, RefuteSuite, StructureSource, Study};
 use antecedent_contract::SlotAvailability;
 use antecedent_core::ExecutionContext;
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 #[path = "fixtures_common/mod.rs"]
 mod common;
@@ -105,15 +105,15 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
             &ctx,
         )
         .unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     if consumed.body.refutations.is_empty() {
         assert!(
-            consumed.acceptance.accepts_as_verified_program(),
+            consumed.acceptance.accepts_as_replayed_program(),
             "{coordinate} artifact should replay from portable OLS moments: {:?}",
             consumed.acceptance.unresolved
         );
     } else {
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
             matches!(
                 reason.as_ref(),

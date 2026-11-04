@@ -20,7 +20,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, DenseNodeId, Pag};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 fn d(i: u32) -> DenseNodeId {
     DenseNodeId::from_raw(i)
@@ -395,7 +395,7 @@ fn static_class_responses_body() {
                             &context,
                         )
                         .unwrap();
-                    let consumed = consume_analysis_result(&artifact).unwrap();
+                    let consumed = replay_analysis_result(&artifact).unwrap();
                     for expected in ["dependencies.checked_static_class_response_operation", key] {
                         assert!(
                             consumed
@@ -407,7 +407,7 @@ fn static_class_responses_body() {
                             consumed.acceptance.unresolved
                         );
                     }
-                    assert!(!consumed.acceptance.accepts_as_verified_program(), "{label}");
+                    assert!(!consumed.acceptance.accepts_as_replayed_program(), "{label}");
                 }
             }
         }

@@ -151,11 +151,11 @@ fn propensity_estimators_retain_procedure_through_public_lifecycle() {
                 let bytes = prepared
                     .encode_contracted_result(&refreshed, "checked-propensity", &ctx)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
                 assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                     reason.as_ref() == "dependencies.checked_propensity_operation"
                 }));
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }

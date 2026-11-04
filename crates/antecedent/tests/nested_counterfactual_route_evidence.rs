@@ -6,7 +6,7 @@ use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Stud
 use antecedent_core::{CausalQuery, ExecutionContext, NestedCounterfactualQuery, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_io::{consume_analysis_result, verify_contract_against_body};
+use antecedent_io::{replay_analysis_result, verify_contract_against_body};
 
 #[test]
 #[allow(clippy::too_many_lines, reason = "one test walks the whole retained-world lifecycle")]
@@ -81,9 +81,9 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
             < 1e-8
     );
     let artifact = prepared.encode_contracted_result(&refreshed, "nested-checked", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );

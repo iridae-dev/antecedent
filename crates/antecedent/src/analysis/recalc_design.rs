@@ -395,7 +395,7 @@ pub fn consume_design_with_data(
     request: Option<&DesignRequest>,
     ctx: &ExecutionContext,
 ) -> Result<DesignReplay, DesignRunError> {
-    let source = antecedent_io::consume_analysis_result(bytes)
+    let source = antecedent_io::replay_analysis_result(bytes)
         .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidDesignArtifact))?;
     let request =
         request.ok_or(RecalcRunError::Request(RecalcRequestCode::DesignDataUnavailable))?;
@@ -428,7 +428,7 @@ pub fn consume_design_with_data(
     }
     let mut session = DesignSession::new();
     let outcome = execute_design_with_receipt(&mut session, request, ctx)?;
-    let replayed = antecedent_io::consume_analysis_result(&session.export_result()?)
+    let replayed = antecedent_io::replay_analysis_result(&session.export_result()?)
         .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidDesignArtifact))?;
     // Compare the existing canonical wire digest, including unavailable numeric
     // representations, rather than floating-point PartialEq on NaN diagnostics.

@@ -3,7 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::dr_replay::{HeldSource, SourceReplayBounds, hold_source_section};
-use super::verify::contract_unresolved_with_source;
+use super::verify::{
+    contract_unresolved_split, contract_unresolved_with_source, verify_stored_payloads,
+};
 
 use std::sync::Arc;
 
@@ -24,7 +26,7 @@ use crate::contract_wire::{
 };
 use crate::identity::{ClaimIdentityWire, IdentificationProductWire, claim_digest, payload_digest};
 use crate::{
-    AnalysisResultHeader, AnalysisResultWire, IoError, RefutationReportWire,
+    AnalysisResultHeader, AnalysisResultWire, EncodedArtifact, IoError, RefutationReportWire,
     StructuralWeightBasisWire, to_cbor,
 };
 
@@ -539,43 +541,206 @@ pub(in crate::contract_section) fn require_payload_digest<T>(
     }
 }
 
-/// Consume analysis-result bytes without caller context.
+/// An analysis-result artifact read and checked for integrity, with nothing recomputed.
 ///
-/// Decode failures are errors. Missing or unverifiable contracts are
-/// successful consumptions whose [`AcceptanceReport`] refuses verification.
+/// Loading decodes the header, body and contract section and rehashes every stored payload
+/// against its advertised digest. It never replays a number: [`AnalysisResultLoad::replay`] does
+/// that, on request, for a result that did not come from the loading process.
+#[derive(Clone, Debug)]
+pub struct AnalysisResultLoad {
+    /// Decoded header.
+    pub header: AnalysisResultHeader,
+    /// Decoded body.
+    pub body: AnalysisResultWire,
+    /// Contract section, when present and well-formed enough to decode.
+    pub contract: Option<AnalysisResultContractWire>,
+    /// BLAKE3 of the received artifact bytes.
+    pub artifact_digest: [u8; 32],
+    /// Why the artifact is not intact: a missing, unreadable or unrecognized contract section,
+    /// or a stored payload that disagrees with its digest. Empty when it is intact.
+    pub integrity: Vec<Arc<str>>,
+    artifact: EncodedArtifact,
+}
+
+impl AnalysisResultLoad {
+    /// Whether the contract section is present, recognized and agrees with its digests.
+    #[must_use]
+    pub fn is_intact(&self) -> bool {
+        self.integrity.is_empty()
+    }
+
+    /// Recompute the published numbers from the evidence the contract carries.
+    ///
+    /// An artifact that is not intact has nothing to replay and reports its integrity reasons.
+    #[must_use]
+    pub fn replay(&self, options: &ReplayOptions) -> ReplayReport {
+        let Some(contract) =
+            self.contract.as_ref().filter(|contract| contract.format == CONTRACT_SECTION_FORMAT)
+        else {
+            return ReplayReport {
+                integrity: self.integrity.clone(),
+                not_replayable: Vec::new(),
+                mismatches: Vec::new(),
+            };
+        };
+        // The witness is read only for a contract that declares an operation to replay with it.
+        let held: Option<HeldSource> = contract
+            .program
+            .as_ref()
+            .is_some_and(|program| program.checked_dr_lowering.is_some())
+            .then(|| hold_source_section(&self.artifact, &options.source.witness))
+            .flatten();
+        let source = held.as_ref().map(|held| held.replay(&options.source));
+        let (integrity, replayed) = contract_unresolved_split(
+            &self.header,
+            &self.body,
+            contract,
+            &options.limits,
+            source.as_ref(),
+        );
+        let (not_replayable, mismatches): (Vec<_>, Vec<_>) =
+            publish_reasons(replayed).into_iter().partition(is_gap);
+        ReplayReport { integrity: publish_reasons(integrity), not_replayable, mismatches }
+    }
+}
+
+/// Reasons that name a retained lowering or fit the artifact does not carry, besides every
+/// `dependencies.*` reason.
+const MISSING_RETAINED_EVIDENCE: [&str; 4] = [
+    "checked_aipw.row_binding",
+    "program.checked_aipw_lowering",
+    "program.checked_linear_adjustment_lowering",
+    "program.functional_effect_response_grid",
+];
+
+/// A gap names evidence the artifact does not carry; every other replay finding is a number or
+/// binding that was recomputed and does not agree.
+fn is_gap(reason: &Arc<str>) -> bool {
+    reason.starts_with("dependencies.") || MISSING_RETAINED_EVIDENCE.contains(&reason.as_ref())
+}
+
+/// Cells a requested replay admits: ten times the bound the implicit paths keep.
+const REQUESTED_REPLAY_CELLS: usize = 10 * crate::distribution_replay::MAX_REPLAY_CELLS;
+/// Evaluator operations a requested replay performs: ten times the implicit bound.
+const REQUESTED_REPLAY_OPERATIONS: usize = 10 * crate::distribution_replay::MAX_REPLAY_OPERATIONS;
+/// Working memory a requested source replay may admit.
+const REQUESTED_REPLAY_MEMORY_BYTES: u64 = 8 * 1024 * 1024 * 1024;
+
+/// What a replay may spend. A replay is always asked for, so its defaults are larger than the
+/// bounds of the implicit paths: the cost is never a surprise on a result the caller just made.
+#[derive(Clone, Debug)]
+pub struct ReplayOptions {
+    /// Bounds of the finite-discrete replay.
+    pub limits: crate::distribution_replay::ReplayLimits,
+    /// Bounds of the replay of a carried full-source witness.
+    pub source: SourceReplayBounds,
+}
+
+impl Default for ReplayOptions {
+    fn default() -> Self {
+        Self {
+            limits: crate::distribution_replay::ReplayLimits {
+                max_cells: REQUESTED_REPLAY_CELLS,
+                max_operations: REQUESTED_REPLAY_OPERATIONS,
+            },
+            source: SourceReplayBounds {
+                memory_bytes: REQUESTED_REPLAY_MEMORY_BYTES,
+                ..SourceReplayBounds::default()
+            },
+        }
+    }
+}
+
+/// The outcome of replaying a loaded result.
+///
+/// Three kinds of finding, kept apart: the artifact is not intact (`integrity`), a part cannot
+/// be replayed because the evidence is not carried (`not_replayable`), or a recomputed part
+/// does not agree with the published one (`mismatches`). All three empty means every part the
+/// artifact publishes was replayed and agrees.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReplayReport {
+    /// Integrity reasons: see [`AnalysisResultLoad::integrity`].
+    pub integrity: Vec<Arc<str>>,
+    /// Parts with no replay, or whose evidence the artifact does not carry.
+    pub not_replayable: Vec<Arc<str>>,
+    /// Parts that were recomputed and differ, or whose bindings do not hold.
+    pub mismatches: Vec<Arc<str>>,
+}
+
+impl ReplayReport {
+    /// Every published part replayed and agrees.
+    #[must_use]
+    pub fn replayed(&self) -> bool {
+        self.integrity.is_empty() && self.not_replayable.is_empty() && self.mismatches.is_empty()
+    }
+
+    /// Something was recomputed and disagrees, or the artifact is not intact.
+    #[must_use]
+    pub fn failed(&self) -> bool {
+        !self.integrity.is_empty() || !self.mismatches.is_empty()
+    }
+}
+
+/// Read analysis-result bytes and check their integrity, replaying nothing.
 ///
 /// # Errors
 ///
 /// Wrong artifact kind, missing header/body, or invalid CBOR.
-pub fn consume_analysis_result(bytes: &[u8]) -> Result<AnalysisResultConsumption, IoError> {
-    consume_analysis_result_within(bytes, &crate::distribution_replay::ReplayLimits::default())
+pub fn load_analysis_result(bytes: &[u8]) -> Result<AnalysisResultLoad, IoError> {
+    let (artifact, header, body) = crate::decode_analysis_result_artifact(bytes)?;
+    let artifact_digest = payload_digest("analysis_result.bytes", bytes);
+    let (contract, integrity) = match super::decode_analysis_result_contract(&artifact) {
+        Err(_) | Ok(None) => (None, vec![Arc::from(CONTRACT_SECTION)]),
+        Ok(Some(contract)) if contract.format != CONTRACT_SECTION_FORMAT => {
+            (Some(contract), vec![Arc::from("contract_format")])
+        }
+        Ok(Some(contract)) => {
+            let integrity = publish_reasons(verify_stored_payloads(&contract));
+            (Some(contract), integrity)
+        }
+    };
+    Ok(AnalysisResultLoad { header, body, contract, artifact_digest, integrity, artifact })
 }
 
-/// [`consume_analysis_result`] with the finite-discrete replay held to the caller's
+/// Replay analysis-result bytes without caller context.
+///
+/// Decode failures are errors. Missing or unreplayable contracts are
+/// successful consumptions whose [`AcceptanceReport`] does not accept them as a replayed
+/// program. A caller that only reads the result uses [`load_analysis_result`], which replays
+/// nothing.
+///
+/// # Errors
+///
+/// Wrong artifact kind, missing header/body, or invalid CBOR.
+pub fn replay_analysis_result(bytes: &[u8]) -> Result<AnalysisResultConsumption, IoError> {
+    replay_analysis_result_within(bytes, &crate::distribution_replay::ReplayLimits::default())
+}
+
+/// [`replay_analysis_result`] with the finite-discrete replay held to the caller's
 /// [`ReplayLimits`](crate::distribution_replay::ReplayLimits) instead of the defaults.
 ///
 /// # Errors
 ///
-/// As [`consume_analysis_result`].
-pub fn consume_analysis_result_within(
+/// As [`replay_analysis_result`].
+pub fn replay_analysis_result_within(
     bytes: &[u8],
     limits: &crate::distribution_replay::ReplayLimits,
 ) -> Result<AnalysisResultConsumption, IoError> {
     consume_with_source_bounds(bytes, limits, &SourceReplayBounds::default())
 }
 
-/// [`consume_analysis_result`] with the replay of a carried full-source witness held to the
+/// [`replay_analysis_result`] with the replay of a carried full-source witness held to the
 /// caller's [`SourceReplayBounds`] instead of the defaults.
 ///
-/// [`consume_analysis_result`] uses the witness the same way under the default bounds; this
+/// [`replay_analysis_result`] uses the witness the same way under the default bounds; this
 /// entry exists to bound the witness, the replay's working memory and its cancellation. An
 /// artifact without a witness, or whose contract declares no replayable operation, is consumed
 /// exactly as without one.
 ///
 /// # Errors
 ///
-/// As [`consume_analysis_result`].
-pub fn consume_analysis_result_with_source(
+/// As [`replay_analysis_result`].
+pub fn replay_analysis_result_with_source(
     bytes: &[u8],
     bounds: &SourceReplayBounds,
 ) -> Result<AnalysisResultConsumption, IoError> {
@@ -683,9 +848,9 @@ pub(in crate::contract_section) fn accept_contract(
         (false, _) => storage_ops(),
     };
     let restriction = if !verified {
-        Some(Arc::from("unverified_contract_references"))
+        Some(Arc::from("unreplayed_contract_references"))
     } else if !claim_present {
-        Some(Arc::from("verified_program_without_claim"))
+        Some(Arc::from("replayed_program_without_claim"))
     } else {
         None
     };
@@ -718,7 +883,7 @@ pub(in crate::contract_section) fn storage_ops() -> Arc<[Arc<str>]> {
 
 /// Accept / verify a claim from bytes under a consumer profile.
 ///
-/// Reuses [`consume_analysis_result`] / [`super::verify::verify_contract_against_body`]. Unknown
+/// Reuses [`replay_analysis_result`] / [`super::verify::verify_contract_against_body`]. Unknown
 /// required features refuse claim acceptance; storage/forwarding remains allowed.
 ///
 /// # Errors
@@ -728,7 +893,7 @@ pub fn accept_claim(
     bytes: &[u8],
     profile: &ConsumerProfile,
 ) -> Result<(AnalysisResultConsumption, HandoffReceipt), IoError> {
-    let mut consumed = consume_analysis_result(bytes)?;
+    let mut consumed = replay_analysis_result(bytes)?;
     let claim_id = receipt_input(&consumed);
     if !profile.understands(AcceptanceOp::VerifyContract.as_str())
         || !profile.understands(AcceptanceOp::InspectClaim.as_str())
@@ -754,7 +919,7 @@ pub fn accept_claim(
     } else {
         let mut omitted: Vec<Arc<str>> = Vec::new();
         if !consumed.acceptance.unresolved.is_empty() {
-            omitted.push(Arc::from("verified_references"));
+            omitted.push(Arc::from("replayed_references"));
         }
         if !consumed.acceptance.claim_present {
             omitted.push(Arc::from("claim"));
@@ -861,7 +1026,7 @@ pub fn project_claim_host(consumed: &AnalysisResultConsumption) -> ClaimHostProj
     // Domains are re-derived from rehashed reasoning slots; when references do
     // not verify, the stored strings are the sender's say-so and are not shown.
     let domain = |stored: &str| {
-        if consumed.acceptance.verified_references {
+        if consumed.acceptance.replayed_references {
             serde_json::Value::String(stored.to_owned())
         } else {
             serde_json::Value::Null
@@ -907,4 +1072,32 @@ pub fn project_lossy_scalar(
     view.accepts_as_claim = false;
     let claim_id = receipt_input(consumed);
     (view, HandoffReceipt::lossy_scalar(claim_id, "restricted"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn gap(reason: &str) -> bool {
+        is_gap(&Arc::from(reason))
+    }
+
+    #[test]
+    fn missing_evidence_is_not_replayable_and_a_recomputed_difference_is_a_mismatch() {
+        assert!(gap("dependencies.checked_conditional_effect_operation"));
+        assert!(gap("program.checked_aipw_lowering"));
+        assert!(gap("program.functional_effect_response_grid"));
+        assert!(!gap("program.checked_aipw_lowering.target"));
+        assert!(!gap("program.functional_effect_response_grid.member_value"));
+        assert!(!gap("claim.id"));
+    }
+
+    #[test]
+    fn a_requested_replay_may_spend_more_than_the_implicit_paths() {
+        let requested = ReplayOptions::default();
+        let implicit = crate::distribution_replay::ReplayLimits::default();
+        assert!(requested.limits.max_cells > implicit.max_cells);
+        assert!(requested.limits.max_operations > implicit.max_operations);
+        assert!(requested.source.memory_bytes > SourceReplayBounds::default().memory_bytes);
+    }
 }

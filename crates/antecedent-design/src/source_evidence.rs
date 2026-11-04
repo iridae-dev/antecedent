@@ -9,7 +9,7 @@ use antecedent_contract::ScientificQuantity;
 use antecedent_core::{blake3_hex, reason_code, to_hex};
 use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use antecedent_io_core::response_wire::{ResponseIdentificationWire, ResponseValueWire};
-use antecedent_io_core::{AnalysisResultConsumption, consume_analysis_result};
+use antecedent_io_core::{AnalysisResultConsumption, replay_analysis_result};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -82,7 +82,7 @@ impl SourceEvidence {
         if logical_bytes > 16 * 1024 * 1024 {
             return Err(invalid(antecedent_core::reason_details::source_evidence::LIMITS_EXCEEDED));
         }
-        let original = consume_analysis_result(bytes).map_err(|_| {
+        let original = replay_analysis_result(bytes).map_err(|_| {
             invalid(antecedent_core::reason_details::source_evidence::INVALID_SOURCE_ARTIFACT)
         })?;
         if !original.acceptance.recognized
@@ -559,7 +559,7 @@ impl SourceEvidence {
             .unwrap_or_default();
         if let Some(external) = &self.external {
             return json!({"source_artifact_digest":blake3_hex(&self.source),
-                "source_kind":"external_bound_claim", "provenance_id":external.metadata().identity.provider_fingerprint, "source_execution":null, "original_acceptance":{"recognized":true,"claim_present":true,"verified_references":false,"unresolved_dependencies":[],"restriction":"external attestation; original provider verification covers only its exact declared request"},
+                "source_kind":"external_bound_claim", "provenance_id":external.metadata().identity.provider_fingerprint, "source_execution":null, "original_acceptance":{"recognized":true,"claim_present":true,"replayed_references":false,"unresolved_dependencies":[],"restriction":"external attestation; original provider verification covers only its exact declared request"},
                 "source_identities":external.metadata().identity, "lineage":self.lineage().unwrap_or(Value::Null),
                 "coordinates":self.coordinates.iter().map(ScientificQuantityWire::from).collect::<Vec<_>>(),
                 "diagnostics":[],"diagnostic_availability":"not_retained_by_original_external_claim_format", "warnings":[],
@@ -575,7 +575,7 @@ impl SourceEvidence {
             return json!({"detail":antecedent_core::reason_details::source_evidence::RESPONSE_UNAVAILABLE});
         };
         json!({"source_artifact_digest":to_hex(&original.artifact_digest),
-            "original_acceptance": {"recognized":original.acceptance.recognized,"verified_references":original.acceptance.verified_references,"claim_present":original.acceptance.claim_present,"unresolved_dependencies":original.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<_>>(),"restriction":original.acceptance.restriction.as_deref()},
+            "original_acceptance": {"recognized":original.acceptance.recognized,"replayed_references":original.acceptance.replayed_references,"claim_present":original.acceptance.claim_present,"unresolved_dependencies":original.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<_>>(),"restriction":original.acceptance.restriction.as_deref()},
             "source_identities":original.contract.as_ref().map(|contract| &contract.identities),
             "lineage":self.lineage().unwrap_or(Value::Null),
             "source_execution":original.contract.as_ref().and_then(|contract| contract.execution.as_ref()),

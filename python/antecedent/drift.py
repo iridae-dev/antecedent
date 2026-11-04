@@ -290,7 +290,7 @@ class StalenessBaseline(ScientificResult):
             self,
             "acceptance",
             ArtifactAcceptance(
-                status="sealed",
+                status="loaded",
                 identity_bound=expected_identity is not None,
                 replayable=False,
                 resumable=False,

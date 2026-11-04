@@ -663,7 +663,7 @@ def _consume_refusal(artifact: bytes, expected_identity: str | None = None) -> O
         _error=original,
     )
     acceptance = ArtifactAcceptance(
-        "sealed",
+        "loaded",
         expected_identity is not None,
         False,
         False,

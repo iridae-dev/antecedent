@@ -17,7 +17,7 @@ use antecedent_core::{
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::Dag;
 use antecedent_io::{
-    consume_analysis_result, interference_query_from_wire, interference_query_to_wire,
+    interference_query_from_wire, interference_query_to_wire, replay_analysis_result,
 };
 
 fn fixture(
@@ -106,7 +106,7 @@ fn saturation_direct_spillover_total_retain_truth_without_interval() {
         assert!(result.estimate().as_effect().unwrap().provenance.assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.two_stage_saturation")));
         let artifact =
             prepared.encode_contracted_result(&result, "saturation-exact", &ctx).unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.query, antecedent_io::CausalQueryWire::Interference(wire));
         let wire_inference = consumed.body.interference_inference.as_ref().unwrap();
         assert!(wire_inference.interval.is_none());
@@ -117,7 +117,7 @@ fn saturation_direct_spillover_total_retain_truth_without_interval() {
         let mut tampered = artifact.clone();
         let middle = tampered.len() / 2;
         tampered[middle] ^= 0x40;
-        let error = consume_analysis_result(&tampered).err().expect("tampered artifact refused");
+        let error = replay_analysis_result(&tampered).err().expect("tampered artifact refused");
         assert!(format!("{error:?}").contains("ChecksumMismatch"), "{error:?}");
     }
 }
@@ -216,14 +216,14 @@ fn supported_saturation_interval_survives_retained_artifact_round_trip() {
         assert!(interval.lower < result.interference().unwrap().contrast.horvitz_thompson);
         assert!(result.interference().unwrap().contrast.horvitz_thompson < interval.upper);
         let artifact = prepared.encode_contracted_result(&result, name, &ctx).unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         let wire = consumed.body.interference_inference.unwrap();
         assert_eq!(wire.method, "saturation_cluster_neyman_welch", "{name}");
         assert_eq!(wire.interval.unwrap().lower, interval.lower, "{name}");
         let mut tampered = artifact;
         let middle = tampered.len() / 2;
         tampered[middle] ^= 0x40;
-        let error = consume_analysis_result(&tampered).err().expect("tampered artifact refused");
+        let error = replay_analysis_result(&tampered).err().expect("tampered artifact refused");
         assert!(format!("{error:?}").contains("ChecksumMismatch"), "{name}: {error:?}");
     }
 }

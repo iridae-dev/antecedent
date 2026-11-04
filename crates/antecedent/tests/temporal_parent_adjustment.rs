@@ -435,13 +435,13 @@ fn contract_records_the_parent_adjustment_and_round_trips_it() {
     assert_eq!(*own.as_bytes(), *product.as_bytes(), "the contract binds this product");
 
     let bytes = prepared.encode_contracted_result(&result, "parent-adjustment", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_temporal_dag_effect_operation"
         })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     let body = &consumed.body.identification;
     assert!(body.derivation.iter().any(|step| step.rule == PARENT_ADJUSTMENT_RULE));
     let section = consumed.contract.as_ref().expect("contract");

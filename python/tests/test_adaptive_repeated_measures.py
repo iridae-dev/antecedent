@@ -458,7 +458,7 @@ def test_the_posterior_artifact_round_trips_and_refuses_a_forgery():
 
     historical = inspect_artifact(text.encode("utf-8"))
     assert historical.acceptance.unresolved == ("declared_repeated_measures_procedure",)
-    assert not historical.acceptance.verified and not historical.acceptance.replayable
+    assert not historical.acceptance.replayed and not historical.acceptance.replayable
     # An independently re-declared procedure loads and recomputes it.
     again = declare(
         assignment=EVEN,
@@ -518,7 +518,7 @@ def test_self_contained_posterior_exports_replay_in_fresh_process_and_bind_exact
     )
     assert restored.contrast == posterior.contrast
     assert restored.arms == posterior.arms
-    assert restored.acceptance.status == "verified"
+    assert restored.acceptance.status == "replayed"
     assert restored.acceptance.replayable
     assert not restored.supported
     assert restored.calibration == "not_measured"
@@ -534,7 +534,7 @@ def test_self_contained_posterior_exports_replay_in_fresh_process_and_bind_exact
         "from antecedent.adaptive_inference import consume_repeated_measures_posterior_artifact\n"
         "from antecedent.outcomes import require_success\n"
         "r=require_success(consume_repeated_measures_posterior_artifact(open(sys.argv[1],'rb').read(),sys.argv[2]))\n"
-        "print(json.dumps({'contrast':r.contrast,'verified':r.acceptance.status,'replayable':r.acceptance.replayable}))\n"
+        "print(json.dumps({'contrast':r.contrast,'status':r.acceptance.status,'replayable':r.acceptance.replayable}))\n"
     )
     output = subprocess.run(
         [sys.executable, "-c", script, str(path), artifact.expectation.identity],
@@ -546,7 +546,7 @@ def test_self_contained_posterior_exports_replay_in_fresh_process_and_bind_exact
     expected_contrast = dict(posterior.contrast)
     expected_contrast["interval"] = list(expected_contrast["interval"])
     assert fresh["contrast"] == expected_contrast
-    assert fresh["verified"] == "verified"
+    assert fresh["status"] == "replayed"
     assert fresh["replayable"]
 
     from antecedent.errors import CausalSerializationError

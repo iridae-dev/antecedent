@@ -606,7 +606,7 @@ fn posterior_storage_is_quoted_before_admission_and_survives_the_retained_workfl
     );
     let bytes =
         prepared.encode_contracted_result(&refreshed, "statistical-memory-quote", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert!(consumed.contract.is_some());
     assert!(consumed.body.association.is_some());
     assert_eq!(

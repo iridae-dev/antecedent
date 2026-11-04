@@ -447,7 +447,7 @@ fn a_logit_posterior_publishes_an_artifact_a_consumer_recomputes_from() {
         .unwrap();
     let result = prepared.estimate(&table, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "bernoulli-logit", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     assert!(consumed.contract.is_some(), "the Bernoulli-logit posterior is contracted");
 }

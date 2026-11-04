@@ -21,7 +21,7 @@ use antecedent_discovery::{
     GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg, set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
 fn fixture(outcome_shift: f64) -> (TabularData, Admg) {
@@ -207,7 +207,7 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                 ));
                 let artifact =
                     prepared.encode_contracted_result(&refreshed, &coordinate, &context).unwrap();
-                let consumed = consume_analysis_result(&artifact).unwrap();
+                let consumed = replay_analysis_result(&artifact).unwrap();
                 if bayesian {
                     assert!(
                         consumed.acceptance.unresolved.iter().any(|reason| {
@@ -217,7 +217,7 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                         "{coordinate}: {:?}",
                         consumed.acceptance.unresolved
                     );
-                    assert!(!consumed.acceptance.accepts_as_verified_program());
+                    assert!(!consumed.acceptance.accepts_as_replayed_program());
                 } else {
                     assert!(
                         consumed.acceptance.unresolved.iter().any(|reason| {
@@ -226,7 +226,7 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                         "{coordinate}: {:?}",
                         consumed.acceptance.unresolved
                     );
-                    assert!(!consumed.acceptance.accepts_as_verified_program());
+                    assert!(!consumed.acceptance.accepts_as_replayed_program());
                 }
             }
         }
@@ -417,7 +417,7 @@ fn graph_posterior_admg_intervention_response_is_sealed_across_refuters() {
                 let artifact = prepared
                     .encode_contracted_result(&refreshed, "admg-gp-response", &context)
                     .unwrap();
-                let consumed = consume_analysis_result(&artifact).unwrap();
+                let consumed = replay_analysis_result(&artifact).unwrap();
                 assert!(!consumed.body.refutations.is_empty());
                 assert!(consumed.body.refutations.iter().all(|report| report.scope.is_some()));
                 assert!(
@@ -440,14 +440,14 @@ fn graph_posterior_admg_intervention_response_is_sealed_across_refuters() {
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "admg-gp-response", &context)
                 .unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(consumed.body.refutations.is_empty());
             assert!(!consumed.acceptance.unresolved.iter().any(|reason| matches!(
                 reason.as_ref(),
                 "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay"
             )));
             assert!(
-                consumed.acceptance.accepts_as_verified_program()
+                consumed.acceptance.accepts_as_replayed_program()
                     || !consumed.acceptance.unresolved.is_empty(),
                 "independent consumer must verify the route or explain its dependency refusal"
             );

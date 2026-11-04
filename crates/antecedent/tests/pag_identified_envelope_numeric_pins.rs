@@ -148,11 +148,11 @@ fn run_prepared(
     {
         let artifact =
             prepared.encode_contracted_result(&click, "checked-static-class-effect", &ctx).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_static_class_effect_operation"
         }));
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     }
     // The Bayesian average-effect class route executes its retained envelope
     // from the one-shot facade too; every other one-shot still identifies inline.
@@ -308,13 +308,13 @@ fn pag_effect_executes_from_retained_plan_after_builder_is_dropped() {
     let artifact = prepared
         .encode_contracted_result(&result, "checked-static-class-effect", &context)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_static_class_effect_operation"
         })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 }
 
 #[test]

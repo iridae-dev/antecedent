@@ -261,7 +261,7 @@ def consume_restricted_artifacts(
         result,
         "acceptance",
         ArtifactAcceptance(
-            "verified",
+            "replayed",
             False,
             True,
             False,

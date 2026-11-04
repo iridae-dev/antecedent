@@ -198,7 +198,7 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
                 let bytes = prepared
                     .encode_contracted_result(&refreshed, "checked-bayesian-temporal-dag", &ctx)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
                 assert!(
                     consumed.acceptance.unresolved.iter().any(|reason| {
                         reason.as_ref()
@@ -207,7 +207,7 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
                     "unresolved={:?}",
                     consumed.acceptance.unresolved
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }

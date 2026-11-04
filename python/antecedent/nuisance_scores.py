@@ -263,7 +263,7 @@ class NuisanceScoreProduct:
             self,
             "acceptance",
             ArtifactAcceptance(
-                "verified" if consumed else "sealed",
+                "replayed" if consumed else "loaded",
                 metadata["identity_bound"],
                 True,
                 False,

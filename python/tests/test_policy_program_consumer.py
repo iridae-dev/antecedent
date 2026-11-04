@@ -37,7 +37,7 @@ def test_policy_consumer_verifies_declaration_and_preserves_exact_bytes():
     )
     assert consumed.identity == identity
     assert consumed.programs == programs
-    assert consumed.acceptance.verified
+    assert consumed.acceptance.replayed
     assert consumed.acceptance.identity_bound
     assert not consumed.acceptance.replayable
     assert not consumed.acceptance.resumable
@@ -84,5 +84,5 @@ def test_policy_consumer_native_verification_rejects_truncation():
 def test_policy_consumer_without_expectation_makes_no_identity_binding_claim():
     names, _, artifact, _ = artifact_and_identity()
     consumed = consume_policy_program(artifact, supplied=names)
-    assert consumed.acceptance.verified
+    assert consumed.acceptance.replayed
     assert not consumed.acceptance.identity_bound

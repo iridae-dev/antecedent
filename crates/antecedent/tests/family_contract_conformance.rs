@@ -71,7 +71,7 @@ use antecedent_io::cyclic_family_artifact::{
     LinearCyclicWire, consume_cyclic_family, consume_cyclic_family_contract,
 };
 use antecedent_io::{
-    claim_kind_name_of_section, consume_analysis_result, contract_seal, result_digest,
+    claim_kind_name_of_section, contract_seal, replay_analysis_result, result_digest,
 };
 use antecedent_state::{InvalidationTarget, TemporalDisposition, TemporalFactor};
 use antecedent_stats::normal_ppf;
@@ -995,7 +995,7 @@ fn artifact_findings(rep: &mut Rep) -> Vec<String> {
         Ok(again) => found.check(again == bytes, "saving the same result twice differs"),
         Err(error) => found.check(false, format!("second save failed: {error}")),
     }
-    let consumed = match consume_analysis_result(&bytes) {
+    let consumed = match replay_analysis_result(&bytes) {
         Ok(consumed) => consumed,
         Err(error) => {
             found.check(false, format!("the consumer cannot read the saved result: {error}"));
@@ -1078,7 +1078,7 @@ fn artifact_findings(rep: &mut Rep) -> Vec<String> {
     let middle = tampered.len() / 2;
     tampered[middle] ^= 0x40;
     found.check(
-        consume_analysis_result(&tampered).map_or(true, |c| !c.acceptance.accepts_as_claim()),
+        replay_analysis_result(&tampered).map_or(true, |c| !c.acceptance.accepts_as_claim()),
         "a tampered artifact is still accepted as the claim",
     );
     found.items

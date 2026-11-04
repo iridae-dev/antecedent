@@ -17,7 +17,7 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{TieredBackground, WithinTier};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 /// Columns `z, t1, t2, y` on a balanced binary design:
 /// `y = shift + 0.2 + 0.4 t1 + 0.3 t2 + 0.5 t1 t2 + 0.2 z + small noise`.
@@ -170,7 +170,7 @@ fn codetermined_joint_cell_aipw_response_body() {
     let artifact = prepared
         .encode_contracted_result(&refreshed, "checked-codetermined-cell-aipw", &context)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_intervention_response_operation"
@@ -178,7 +178,7 @@ fn codetermined_joint_cell_aipw_response_body() {
         "independent consumption must name the checked operation: {:?}",
         consumed.acceptance.unresolved
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 }
 
 /// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.

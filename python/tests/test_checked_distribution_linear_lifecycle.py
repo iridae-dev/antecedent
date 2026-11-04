@@ -37,14 +37,14 @@ def test_distribution_program_refresh_and_independent_replay() -> None:
     original_inspection = prepared.inspect()
     first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(0.7, abs=1e-12)
-    accepted = ant.artifacts.accept(bytes(first.export()))
-    assert accepted["accepts_as_verified_program"] == "true"
+    accepted = ant.artifacts.accept(bytes(first.export()), replay=True)
+    assert accepted["replayed"] == "true"
 
     changed = {**data, "y": 1.0 - data["y"]}
     refreshed = require_success(prepared.rebind(data=changed).estimate())
     assert refreshed.effect == pytest.approx(0.3, abs=1e-12)
-    accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()))
-    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert accepted_refresh["replayed"] == "true"
     assert accepted_refresh["program"] == accepted["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
     assert prepared.inspect() == original_inspection
@@ -75,8 +75,8 @@ def test_linear_lowering_refresh_replays_portable_ols_moments() -> None:
     changed = {**data, "y": data["y"] + 0.5 * t}
     refreshed = require_success(prepared.rebind(data=changed).estimate())
     assert refreshed.effect == pytest.approx(first.effect + 0.5, abs=1e-10)
-    consumed = ant.artifacts.accept(bytes(refreshed.export()))
-    assert consumed["accepts_as_verified_program"] == "true"
+    consumed = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert consumed["replayed"] == "true"
     assert prepared.inspect() == original_inspection
     assert first.study.inspect().data_snapshot_id == first.data_snapshot_id
     assert require_success(prepared.estimate()).effect == pytest.approx(first.effect)

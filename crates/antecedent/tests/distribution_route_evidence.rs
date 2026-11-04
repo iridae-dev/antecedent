@@ -13,7 +13,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, Dag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 fn distribution_fixture() -> (TabularData, Dag, Admg, InterventionalDistributionQuery) {
     let mut treatment = Vec::new();
@@ -188,7 +188,7 @@ fn verify_distribution_coordinate(
     let artifact = prepared
         .encode_contracted_result(&refreshed, &format!("distribution-{coordinate}"), &ctx)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     let is_replay = |reason: &std::sync::Arc<str>| {
         matches!(
             reason.as_ref(),
@@ -211,7 +211,7 @@ fn verify_distribution_coordinate(
             replay.as_slice(),
             "{coordinate}: replay reasons come first: {unresolved:?}"
         );
-        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
     }
     if bayesian {
         assert!(
@@ -221,13 +221,13 @@ fn verify_distribution_coordinate(
             "{coordinate}: expected precise posterior-factor-draw replay dependency, got {unresolved:?}"
         );
         assert!(
-            !consumed.acceptance.accepts_as_verified_program(),
+            !consumed.acceptance.accepts_as_replayed_program(),
             "{coordinate}: posterior factor draws cannot yet be independently replayed"
         );
     } else {
         assert!(others.is_empty(), "{coordinate}: {unresolved:?}");
         assert_eq!(
-            consumed.acceptance.accepts_as_verified_program(),
+            consumed.acceptance.accepts_as_replayed_program(),
             suite_name == "none",
             "{coordinate}: {unresolved:?}"
         );
@@ -421,7 +421,7 @@ fn resolved_only_distribution_artifact(bayesian: bool) -> antecedent_io::Analysi
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let artifact = prepared.encode_contracted_result(&result, "resolved-only", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     let contract = consumed.contract.as_ref().expect("contracted artifact");
     assert_eq!(contract.estimator, None, "the study never declared an estimator");
     assert_eq!(
@@ -457,7 +457,7 @@ fn rebind_claim(
 fn resolved_only_frequentist_distribution_replays_atoms() {
     let consumed = resolved_only_distribution_artifact(false);
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );
@@ -481,7 +481,7 @@ fn resolved_only_frequentist_distribution_replays_atoms() {
 #[test]
 fn resolved_only_bayesian_distribution_names_posterior_dependency() {
     let consumed = resolved_only_distribution_artifact(true);
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(
         consumed
             .acceptance
@@ -509,7 +509,7 @@ fn conditioned_distribution_refuses_a_forged_scalar_estimate() {
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let artifact = prepared.encode_contracted_result(&result, "conditioned", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert_eq!(consumed.body.estimate, None, "two conditioning strata define no single mean");
 
     let mut body = consumed.body.clone();

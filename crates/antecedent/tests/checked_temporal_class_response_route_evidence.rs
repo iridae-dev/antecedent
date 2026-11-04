@@ -260,7 +260,7 @@ fn all_temporal_class_response_coordinates_execute_from_retained_source_proofs()
                             &ctx,
                         )
                         .unwrap();
-                    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                     assert!(
                         consumed.acceptance.unresolved.iter().any(|dependency| {
                             dependency.as_ref()
@@ -269,7 +269,7 @@ fn all_temporal_class_response_coordinates_execute_from_retained_source_proofs()
                         "{label}: {:?}",
                         consumed.acceptance.unresolved
                     );
-                    assert!(!consumed.acceptance.accepts_as_verified_program());
+                    assert!(!consumed.acceptance.accepts_as_replayed_program());
                 }
             }
         }

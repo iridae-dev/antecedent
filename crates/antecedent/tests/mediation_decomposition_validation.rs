@@ -965,7 +965,7 @@ fn a_pag_decomposition_publishes_an_artifact_a_consumer_reads() {
         let prepared = built.prepare(&ctx).unwrap();
         let result = prepared.estimate_retained(&ctx).unwrap();
         let artifact = prepared.encode_contracted_result(&result, "pag-mediation", &ctx).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(result.effect()));
         // The number published and read back is the structural natural direct effect of the
         // generating law, not merely the producer's own output (cell rounding 6e-3).
@@ -1011,7 +1011,7 @@ fn a_pag_interventional_distribution_publishes_an_artifact_a_consumer_reads() {
         .expect("an atom for Y = 1");
     assert!((one.probability - structural).abs() < 6e-3, "{} vs {structural}", one.probability);
     let artifact = prepared.encode_contracted_result(&result, "pag-distribution", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     let wire = consumed.body.interventional_distribution.expect("a consumed distribution");
     assert_eq!(wire.atoms.len(), distribution.atoms.len());
     for (read, published) in wire.atoms.iter().zip(distribution.atoms.iter()) {

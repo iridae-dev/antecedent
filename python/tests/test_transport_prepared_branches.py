@@ -37,7 +37,7 @@ def test_learned_transport_branches_without_mutating_the_preparation_or_earlier_
     assert bytes(result.export()) == original
     replayed = advanced.consume_learned_continuous(result.export())
     assert replayed.estimate == result.estimate
-    assert replayed.acceptance.verified and replayed.acceptance.replayable
+    assert replayed.acceptance.replayed and replayed.acceptance.replayable
     assert not replayed.acceptance.resumable
     with pytest.raises(FrozenInstanceError):
         study._execution = Execution(seed=9)
@@ -65,4 +65,4 @@ def test_smoothed_transport_branches_preserve_the_entire_grid_and_prior_executio
     assert tuple(point.estimate for point in replayed.grid) == tuple(
         point.estimate for point in result.grid
     )
-    assert replayed.acceptance.verified and replayed.acceptance.replayable
+    assert replayed.acceptance.replayed and replayed.acceptance.replayable

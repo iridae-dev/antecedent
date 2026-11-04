@@ -17,7 +17,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
 /// Balanced confounded blocks with `Y = shift + 2T + slope * Z + eps`.
@@ -427,7 +427,7 @@ fn graph_posterior_conditional_effect_body() {
                         &ctx,
                     )
                     .unwrap();
-                let consumed = consume_analysis_result(&artifact).unwrap();
+                let consumed = replay_analysis_result(&artifact).unwrap();
                 assert!(
                     consumed
                         .acceptance
@@ -437,7 +437,7 @@ fn graph_posterior_conditional_effect_body() {
                     "{coordinate}: independent consumers must report {dependency}; got {:?}",
                     consumed.acceptance.unresolved
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }

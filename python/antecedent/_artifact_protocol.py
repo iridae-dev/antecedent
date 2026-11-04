@@ -53,14 +53,14 @@ class ArtifactAcceptance(ScientificResult):
     unresolved: tuple[str, ...] = ()
 
     @property
-    def verified(self) -> bool:
-        """True when the consumer verified the artifact (``status == "verified"``)."""
-        return self.status == "verified"
+    def replayed(self) -> bool:
+        """True when the consumer recomputed the artifact (``status == "replayed"``)."""
+        return self.status == "replayed"
 
     @property
     def answer_available(self) -> bool:
-        """Whether the recorded answer is kept on load (verified or sealed), as on ``Acceptance``."""
-        return self.status in ("verified", "sealed")
+        """Whether the recorded answer is kept on load (loaded or replayed), as on ``Acceptance``."""
+        return self.status in ("replayed", "loaded")
 
 
 @dataclass(repr=False, frozen=True, slots=True)
@@ -189,7 +189,7 @@ def artifact_consumer(
     proof: str,
     replayable: bool = False,
     resumable: bool = False,
-    status: str = "verified",
+    status: str = "replayed",
     identity: tuple[str, ...] = ("expected_identity",),
     input: str = "artifact",
     unresolved: tuple[str, ...] = (),
@@ -526,18 +526,15 @@ def acceptance_from_consumer(result: Any, *, identity_bound: bool = False) -> Ar
             else getattr(receipt, name, default)
         )
 
-    verified = read("verified", read("accepts_as_verified_program"))
-    replayed_program = read("accepts_as_verified_program") in (True, "true")
-    replayable = read("replayable") is True or replayed_program
-    verified = verified in (True, "true") or read("status") == "verified"
-    sealed = read("sealed") is True or read("status") == "sealed"
-    recognized = read("recognized")
+    replayed = read("replayed") in (True, "true") or read("status") == "replayed"
+    recognized = read("recognized") in (True, "true")
+    replayable = read("replayable") is True or replayed
     return ArtifactAcceptance(
-        "verified" if verified or replayed_program else "sealed" if sealed else "unavailable",
+        "replayed" if replayed else "loaded" if recognized else "unavailable",
         identity_bound,
         replayable,
         read("resumable") is True,
-        recognized is True or recognized == "true",
+        recognized,
     )
 
 

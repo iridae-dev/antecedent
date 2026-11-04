@@ -56,11 +56,11 @@ fn fit_bytes(effect: f64) -> (Vec<u8>, u64) {
 }
 
 fn predict_bytes(bytes: &[u8]) -> (Vec<f64>, String) {
-    let consumed = antecedent_io::consume_analysis_result(bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(bytes).unwrap();
     // The serialized predictor remains usable for model-point inference, but
     // this body does not independently replay the fitted causal estimator.
-    assert!(!consumed.acceptance.accepts_as_verified_program());
-    assert!(!consumed.acceptance.verified_references);
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
+    assert!(!consumed.acceptance.replayed_references);
     assert!(
         consumed
             .acceptance
@@ -129,7 +129,7 @@ fn portable_predictor_zero_refits_and_fresh_process_match_full_run() {
     // Refit requires compatible supplied raw data; changing outcomes cannot reuse this parent.
     let (changed, changed_fits) = fit_bytes(3.0);
     assert!(changed_fits > 1);
-    let changed = antecedent_io::consume_analysis_result(&changed).unwrap();
+    let changed = antecedent_io::replay_analysis_result(&changed).unwrap();
     let changed_parent =
         antecedent_core::to_hex(&changed.contract.unwrap().claim.unwrap().claim_id);
     assert_ne!(changed_parent, one.1);
@@ -161,11 +161,11 @@ mod source_replay {
         AnalysisResultWire, CONTRACT_SECTION, CheckedDrLoweringWire, CheckedLearnerWire,
         ClaimIdentityWire, CompressPolicy, DrReplayRefusal, EstimatorSpecWire,
         SOURCE_WITNESS_SECTION, SourceReplayBounds, SourceWitnessLimits, SourceWitnessWire,
-        claim_digest, consume_analysis_result, consume_analysis_result_with_source, contract_seal,
-        data_snapshot_digest, decode_analysis_result_artifact, decode_analysis_result_contract,
-        decode_source_witness_section, encode_analysis_result_artifact,
-        encode_analysis_result_artifact_with_contract_and_source, inference_binding_digest,
-        pack_section_shared, program_digest, result_digest, score_reuse_digest, to_cbor,
+        claim_digest, contract_seal, data_snapshot_digest, decode_analysis_result_artifact,
+        decode_analysis_result_contract, decode_source_witness_section,
+        encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract_and_source,
+        inference_binding_digest, pack_section_shared, program_digest, replay_analysis_result,
+        replay_analysis_result_with_source, result_digest, score_reuse_digest, to_cbor,
         verify_checked_dr_replay,
     };
     use antecedent_learn::{LearnerSpec, LinearSpec, PredictionMap, RidgeSpec};
@@ -318,7 +318,7 @@ mod source_replay {
         reason = "the bounded reference fixture preserves its exact calculations and local structure"
     )]
     fn unresolved(bytes: &[u8]) -> Vec<String> {
-        consume_analysis_result(bytes)
+        replay_analysis_result(bytes)
             .unwrap()
             .acceptance
             .unresolved
@@ -336,7 +336,7 @@ mod source_replay {
         reason = "the bounded reference fixture preserves its exact calculations and local structure"
     )]
     fn assert_refused_by_replay(bytes: &[u8], verdict: &str) {
-        let consumed = consume_analysis_result(bytes).unwrap();
+        let consumed = replay_analysis_result(bytes).unwrap();
         let reasons: Vec<String> =
             consumed.acceptance.unresolved.iter().map(|reason| reason.to_string()).collect();
         assert!(has(&reasons, verdict), "{reasons:?}");
@@ -358,14 +358,14 @@ mod source_replay {
     )]
     fn a_full_source_export_is_replayed_and_verified_while_the_compact_export_is_not() {
         let export = base();
-        let compact = consume_analysis_result(&export.compact).unwrap();
+        let compact = replay_analysis_result(&export.compact).unwrap();
         assert!(has(
             &compact.acceptance.unresolved.iter().map(|r| r.to_string()).collect::<Vec<_>>(),
             OPERATION
         ));
         assert!(!compact.acceptance.accepts_as_claim());
 
-        let sourced = consume_analysis_result(&export.sourced).unwrap();
+        let sourced = replay_analysis_result(&export.sourced).unwrap();
         assert!(sourced.acceptance.unresolved.is_empty(), "{:?}", sourced.acceptance.unresolved);
         assert!(sourced.acceptance.accepts_as_claim());
         // The body and the contract are those of the compact export; the witness is the only
@@ -418,7 +418,7 @@ mod source_replay {
             .with_outcome(LearnerSpec::Linear(LinearSpec::default()))
             .with_overlap(OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: Some(0.02) });
         let export = export_with(&data, graph, query(), learner);
-        let sourced = consume_analysis_result(&export.sourced).unwrap();
+        let sourced = replay_analysis_result(&export.sourced).unwrap();
         let lowering = declared(&sourced).expect("a configured fit declares its operation");
         assert_eq!(lowering.folds, 3);
         assert_eq!(
@@ -460,7 +460,7 @@ mod source_replay {
             2.0,
         );
         let export = export_with(&coded, graph, levels, DrLearner::new());
-        let sourced = consume_analysis_result(&export.sourced).unwrap();
+        let sourced = replay_analysis_result(&export.sourced).unwrap();
         assert_eq!(declared(&sourced), None);
         let reasons: Vec<String> =
             sourced.acceptance.unresolved.iter().map(|r| r.to_string()).collect();
@@ -545,7 +545,7 @@ mod source_replay {
             graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
         }
         let export = export_with(&wide, graph, query(), DrLearner::new());
-        let consumed = consume_analysis_result(&export.sourced).unwrap();
+        let consumed = replay_analysis_result(&export.sourced).unwrap();
         assert!(consumed.acceptance.unresolved.is_empty(), "{:?}", consumed.acceptance.unresolved);
         let original = parts(&export.sourced);
         assert_eq!(original.witness.columns.len(), 4);
@@ -707,7 +707,7 @@ mod source_replay {
             ..SourceReplayBounds::default()
         };
         let (consumed, fits) =
-            count_resolved_fits(|| consume_analysis_result_with_source(bytes, &bounds).unwrap());
+            count_resolved_fits(|| replay_analysis_result_with_source(bytes, &bounds).unwrap());
         assert_eq!(fits, 0);
         let reasons: Vec<String> =
             consumed.acceptance.unresolved.iter().map(|r| r.to_string()).collect();
@@ -727,7 +727,7 @@ mod source_replay {
         let bounds = SourceReplayBounds { cancellation: token, ..SourceReplayBounds::default() };
         let bytes = &base().sourced;
         let (consumed, fits) =
-            count_resolved_fits(|| consume_analysis_result_with_source(bytes, &bounds).unwrap());
+            count_resolved_fits(|| replay_analysis_result_with_source(bytes, &bounds).unwrap());
         assert_eq!(fits, 0);
         let reasons: Vec<String> =
             consumed.acceptance.unresolved.iter().map(|r| r.to_string()).collect();

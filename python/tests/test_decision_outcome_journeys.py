@@ -45,7 +45,7 @@ def test_native_decision_outcome_retains_joint_source_and_replays_independently(
     restored = require_success(replay)
     assert restored.selected == result.selected
     assert restored.evpi == result.evpi
-    assert restored.acceptance.verified and restored.acceptance.replayable
+    assert restored.acceptance.replayed and restored.acceptance.replayable
     assert restored.acceptance.identity_bound
     assert not restored.acceptance.resumable
 
@@ -77,7 +77,7 @@ def test_robust_decision_keeps_per_structure_claims_and_declared_support():
         decision_robust.replay(result.export(), contract=contract, claims=claims)
     )
     assert restored.verdict == result.verdict
-    assert restored.acceptance.verified and restored.acceptance.identity_bound
+    assert restored.acceptance.replayed and restored.acceptance.identity_bound
 
 
 def test_inverse_outcome_retains_finite_grid_feasibility_and_actual_consumer():
@@ -93,7 +93,7 @@ def test_inverse_outcome_retains_finite_grid_feasibility_and_actual_consumer():
     )
     assert restored.to_dict() == result.to_dict()
     assert restored.answer == result.answer
-    assert restored.acceptance.verified and restored.acceptance.replayable
+    assert restored.acceptance.replayed and restored.acceptance.replayable
     assert restored.acceptance.identity_bound
 
 

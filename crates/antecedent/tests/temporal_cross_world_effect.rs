@@ -299,7 +299,7 @@ fn cross_world_artifacts_are_consumed_with_the_point_they_publish() {
             let bytes = prepared
                 .encode_contracted_result(&result, "temporal-cross-world", &ctx)
                 .unwrap_or_else(|error| panic!("{key} bayesian={bayesian}: {error}"));
-            let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
             assert_eq!(consumed.body.estimate, Some(result.effect()), "{key} bayesian={bayesian}");
             assert!(consumed.contract.is_some(), "{key} bayesian={bayesian}");
         }

@@ -1245,7 +1245,7 @@ class CallbackSession:
     proof="provider_callbacks.consume_callback_result: recompute stored identity and bounds; no callback execution",
     replayable=False,
     resumable=True,
-    status="sealed",
+    status="loaded",
     unresolved=("callback_provider",),
 )
 def consume_callback_result(

@@ -11,7 +11,7 @@ use antecedent_contract::SlotAvailability;
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::BayesLikelihood;
 
 #[path = "fixtures_common/mod.rs"]
@@ -134,11 +134,11 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                     &ctx,
                 )
                 .unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.checked_bayesian_dag_ate_operation"
             }));
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
         }
     }
 }

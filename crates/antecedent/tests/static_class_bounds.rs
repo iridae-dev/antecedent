@@ -19,7 +19,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 fn d(i: u32) -> DenseNodeId {
     DenseNodeId::from_raw(i)
@@ -152,7 +152,7 @@ fn round_trip(prepared: &PreparedStudy, result: &StudyResult, ctx: &ExecutionCon
         .encode_contracted_result(result, id, ctx)
         .unwrap_or_else(|err| panic!("{id}: export failed: {err}"));
     let consumed =
-        consume_analysis_result(&bytes).unwrap_or_else(|err| panic!("{id}: consume failed: {err}"));
+        replay_analysis_result(&bytes).unwrap_or_else(|err| panic!("{id}: consume failed: {err}"));
     // A sealed class route replays through its retained checked operation, which
     // the portable artifact cannot carry; the consumer must name exactly that
     // dependency and nothing else, never a malformed payload.
@@ -163,7 +163,7 @@ fn round_trip(prepared: &PreparedStudy, result: &StudyResult, ctx: &ExecutionCon
                 || reason.as_ref() == "dependencies.identification_estimand_criterion"
         });
     assert!(
-        consumed.acceptance.accepts_as_verified_program() || dependency_only,
+        consumed.acceptance.accepts_as_replayed_program() || dependency_only,
         "{id}: consume did not accept a verified program: {:?}",
         consumed.acceptance.unresolved
     );

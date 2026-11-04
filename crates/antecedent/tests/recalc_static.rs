@@ -14,8 +14,8 @@ use antecedent_expr::{Assignment, ExactEvaluationLimits};
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_identify::MZ_TRANSPORT_DEFAULT_LIMITS;
 use antecedent_identify::execution_counts::count_checked_identifications;
-use antecedent_io::consume_analysis_result;
 use antecedent_io::mz_transport_artifact::MzTransportConsumeLimits;
+use antecedent_io::replay_analysis_result;
 
 fn static_oracle() -> serde_json::Value {
     serde_json::from_str(include_str!(concat!(
@@ -121,7 +121,7 @@ fn frontdoor_actual_components_and_coordinate_reuse() {
                 [..]
         )
     );
-    consume_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
+    replay_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
     let ids = session.factor_identities();
     let same = execute_static_response_with_receipt(&mut session, &request, &ctx).unwrap();
     assert_eq!(same.receipt.totals().total(), 0);
@@ -370,7 +370,7 @@ fn verma_checked_scalar_functionals_match_enumerated_latent_scm() {
         (result.means[1] - static_oracle()["verma_do_means"][1].as_f64().unwrap()).abs() < 1e-12
     );
     assert!((result.contrast - static_oracle()["verma_contrast"].as_f64().unwrap()).abs() < 1e-12);
-    consume_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
+    replay_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
 }
 #[test]
 fn bounded_search_missing_provider_and_shared_evidence_keep_point_only_contract() {
@@ -483,7 +483,7 @@ fn generic_refresh_exports_actual_refreshed_factor_snapshot() {
     };
     assert!((mean[1] - mean[0] + 0.282).abs() < 1e-12);
     let bytes = prepared.encode_contracted_result(&result, "changed-factor-refresh", &ctx).unwrap();
-    consume_analysis_result(&bytes).unwrap();
+    replay_analysis_result(&bytes).unwrap();
 }
 
 #[test]

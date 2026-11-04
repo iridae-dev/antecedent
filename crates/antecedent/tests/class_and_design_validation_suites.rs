@@ -435,7 +435,7 @@ fn a_cpdag_and_a_pag_transport_publish_an_artifact_a_consumer_reads() {
                 let artifact = prepared
                     .encode_contracted_result(&result, &format!("class-transport-{name}"), &ctx)
                     .unwrap_or_else(|e| panic!("{name}: {e}"));
-                antecedent_io::consume_analysis_result(&artifact)
+                antecedent_io::replay_analysis_result(&artifact)
                     .unwrap_or_else(|e| panic!("{name}: {e}"));
             }
         }
@@ -478,7 +478,7 @@ fn every_class_interference_route_publishes_an_artifact_a_consumer_reads() {
             let artifact = prepared
                 .encode_contracted_result(&result, &format!("interference-{class}-{design}"), &ctx)
                 .unwrap_or_else(|e| panic!("{class} {design}: {e}"));
-            let consumed = antecedent_io::consume_analysis_result(&artifact)
+            let consumed = antecedent_io::replay_analysis_result(&artifact)
                 .unwrap_or_else(|e| panic!("{class} {design}: {e}"));
             assert_eq!(consumed.body.estimate, Some(result.effect()), "{class} {design}");
         }

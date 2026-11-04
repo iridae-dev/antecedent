@@ -56,7 +56,7 @@ from antecedent.intervention import Set
 from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, read_text
-from _sealed_loads import assert_answer_kept, assert_refutation_replay_withheld
+from _loaded_results import assert_answer_kept, assert_refutation_replay_withheld
 
 ROOT = REPO_ROOT
 PRODUCTS = tomllib.loads(read_text(ROOT / "parity" / "python_products.toml"))
@@ -383,17 +383,20 @@ def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
     loaded = require_success(ant.load(bytes(artifact), expected=artifact.expectation))
     assert loaded.decoded_artifact.payload_kind == "analysis_result"
     if options == "validators":
-        # Attested validator reports have no checked replay: recognized, not accepted.
+        # Attested validator reports have no checked replay: the answer loads, the replay is withheld.
         assert_refutation_replay_withheld(loaded)
     elif (kind, structure) == ("distribution", "graph_posterior"):
         # The mixture's factor laws and posterior draws are not carried by the artifact, and
-        # no checked operation covers it: the load is recognized and names exactly those two.
-        assert loaded.acceptance.recognized and not loaded.acceptance.verified
-        assert loaded.acceptance.unresolved == (
+        # no checked operation covers it: the load keeps the answer and a replay names exactly
+        # those two as not replayable.
+        assert loaded.acceptance.status == "loaded"
+        assert loaded.answer.kind != "unavailable"
+        replayed = loaded.replay().acceptance
+        assert not replayed.replayed
+        assert replayed.not_replayable == (
             "dependencies.distribution_posterior_factor_draws",
             "dependencies.distribution_factor_laws",
         )
-        assert loaded.answer.kind == "unavailable"
     else:
         assert_answer_kept(loaded)
 

@@ -86,7 +86,7 @@ fn frequentist_static_dag_attribution_plans_body() {
     let artifact = anomaly_prepared
         .encode_contracted_result(&refreshed, "checked-anomaly-attribution", &ctx)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed
             .acceptance
@@ -94,7 +94,7 @@ fn frequentist_static_dag_attribution_plans_body() {
             .iter()
             .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let change = change_data(0.0);
     let change_query = ChangeAttributionQuery::new(
@@ -131,7 +131,7 @@ fn frequentist_static_dag_attribution_plans_body() {
     let artifact = change_prepared
         .encode_contracted_result(&refreshed, "checked-change-attribution", &ctx)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed
             .acceptance
@@ -139,7 +139,7 @@ fn frequentist_static_dag_attribution_plans_body() {
             .iter()
             .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 }
 
 #[test]
@@ -190,7 +190,7 @@ fn bayesian_static_dag_attribution_plans_body() {
     let artifact = anomaly_prepared
         .encode_contracted_result(&refreshed, "checked-bayesian-anomaly-attribution", &ctx)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed
             .acceptance
@@ -198,7 +198,7 @@ fn bayesian_static_dag_attribution_plans_body() {
             .iter()
             .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let change = change_data(0.0);
     let change_query = ChangeAttributionQuery::new(
@@ -233,7 +233,7 @@ fn bayesian_static_dag_attribution_plans_body() {
     let artifact = change_prepared
         .encode_contracted_result(&refreshed, "checked-bayesian-change-attribution", &ctx)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed
             .acceptance
@@ -241,7 +241,7 @@ fn bayesian_static_dag_attribution_plans_body() {
             .iter()
             .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 }
 
 #[test]

@@ -170,12 +170,12 @@ fn frequentist_conditional_effect_keeps_six_dag_choices_sealed_through_refresh()
             assert_eq!(resized.source_rows.len(), 200);
             let artifact =
                 prepared.encode_contracted_result(&smaller, "checked-conditional", &ctx).unwrap();
-            let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
             assert!(consumed.contract.is_some());
             assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
                 dependency.as_ref() == "dependencies.checked_conditional_effect_operation"
             }));
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
         }
     }
 }
@@ -344,12 +344,12 @@ fn fully_identified_class_conditional_effect_is_sealed_across_lifecycle() {
                 let artifact = prepared
                     .encode_contracted_result(&refreshed, "checked-class-conditional", &ctx)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(consumed.contract.is_some());
                 assert!(consumed.acceptance.unresolved.iter().any(|dependency| {
                     dependency.as_ref() == "dependencies.checked_conditional_effect_operation"
                 }));
-                assert!(!consumed.acceptance.accepts_as_verified_program());
+                assert!(!consumed.acceptance.accepts_as_replayed_program());
             }
         }
     }

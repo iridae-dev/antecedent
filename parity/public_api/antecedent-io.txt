@@ -9733,8 +9733,6 @@ pub fn antecedent_io::choice_inference_result_artifact::declaration_to_wire(d: &
 pub fn antecedent_io::choice_inference_result_artifact::retained_choice_source_from_artifact(bytes: &[u8], expected_identity: &str, label: &str, discount: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_contract::adaptive_design::choice::RetainedChoiceSource, antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>
 pub fn antecedent_io::choice_inference_result_artifact::spec_from_wire(w: &antecedent_io::choice_inference_result_artifact::ChoiceSpecWire) -> core::result::Result<antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>
 pub fn antecedent_io::choice_inference_result_artifact::verify_retained_choice_sources(contract: &antecedent_contract::adaptive_design::choice::ChoiceDesignContract, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>
-pub fn antecedent_io::consume_analysis_result(bytes: &[u8]) -> core::result::Result<antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_io_core::error::IoError>
-pub fn antecedent_io::consume_analysis_result_within(bytes: &[u8], limits: &antecedent_io_core::distribution_replay::ReplayLimits) -> core::result::Result<antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_io_core::error::IoError>
 pub fn antecedent_io::counterfactual_transport_artifact::consume_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity, limits: antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
 pub fn antecedent_io::counterfactual_transport_artifact::identified_counterfactual_transport_artifact(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, data: &antecedent_expr::exact::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, variable_names: &[alloc::string::String], point: &antecedent_estimate::counterfactual_transport::CounterfactualTransportPoint) -> core::result::Result<antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
 pub fn antecedent_io::counterfactual_transport_artifact::obstructed_counterfactual_transport_artifact(obstruction: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportObstruction, search: antecedent_core::search::SearchLimits, memory_limit_bytes: u64, variable_names: &[alloc::string::String]) -> core::result::Result<antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
@@ -9805,6 +9803,9 @@ pub fn antecedent_io::mnar_candidate_source::reconstruct(bytes: &[u8], expected:
 pub fn antecedent_io::msm_sensitivity_adapter::msm_sensitivity_artifact(result: &antecedent_validate::msm_sensitivity::MsmSensitivityResult, effect: &antecedent_contract::quantity::ScientificQuantity, point_quantities: &[(antecedent_contract::quantity::ScientificQuantity, alloc::vec::Vec<f64>)], actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>, causal_contract_id: &str) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_io::randomized_ipow_artifact::posterior_row(source: antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire, posterior: &antecedent_estimate::randomized_posterior::RandomizedPosterior, coordinates: alloc::vec::Vec<alloc::string::String>) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire
 pub fn antecedent_io::randomized_ipow_artifact::replay(source: &antecedent_io_core::randomized_ipow_wire::RandomizedIpowWire, draws: usize) -> core::result::Result<antecedent_estimate::randomized_posterior::RandomizedPosterior, antecedent_io_core::error::IoError>
+pub fn antecedent_io::randomized_ipow_artifact::replay_analysis_result(bytes: &[u8]) -> core::result::Result<antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_io_core::error::IoError>
+pub fn antecedent_io::randomized_ipow_artifact::replay_analysis_result_within(bytes: &[u8], limits: &antecedent_io_core::distribution_replay::ReplayLimits) -> core::result::Result<antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_io_core::error::IoError>
+pub fn antecedent_io::randomized_ipow_artifact::replay_loaded_result(load: &antecedent_io_core::contract_section::consume::AnalysisResultLoad, options: &antecedent_io_core::contract_section::consume::ReplayOptions) -> core::result::Result<antecedent_io_core::contract_section::consume::ReplayReport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::release_migration::added_methods<'a>(current: &'a [antecedent_io::release_migration::CurrentMethod], previous_route_ids: &[&str]) -> alloc::vec::Vec<&'a antecedent_io::release_migration::CurrentMethod>
 pub fn antecedent_io::release_migration::adopt_carried_target_digest(retained: &[u8; 32], current: &[u8; 32]) -> core::result::Result<[u8; 32], antecedent_io::release_migration::MigrationError>
 pub fn antecedent_io::release_migration::adopt_retained_score_row_digest(retained: &[u8; 32], row_ids: &[u64]) -> core::result::Result<[u8; 32], antecedent_io::release_migration::MigrationError>
@@ -10379,6 +10380,7 @@ pub use antecedent_io::AdmgWire = antecedent_io_core::AdmgWire
 pub use antecedent_io::AnalysisResultConsumption = antecedent_io_core::AnalysisResultConsumption
 pub use antecedent_io::AnalysisResultContractWire = antecedent_io_core::AnalysisResultContractWire
 pub use antecedent_io::AnalysisResultHeader = antecedent_io_core::AnalysisResultHeader
+pub use antecedent_io::AnalysisResultLoad = antecedent_io_core::AnalysisResultLoad
 pub use antecedent_io::AnalysisResultWire = antecedent_io_core::AnalysisResultWire
 pub use antecedent_io::AnalysisTraceWire = antecedent_io_core::AnalysisTraceWire
 pub use antecedent_io::ArtifactCheckError = antecedent_io_core::ArtifactCheckError
@@ -10572,6 +10574,8 @@ pub use antecedent_io::RdDesignWire = antecedent_io_core::RdDesignWire
 pub use antecedent_io::ReasoningSectionWire = antecedent_io_core::ReasoningSectionWire
 pub use antecedent_io::RecordedContrastWire = antecedent_io_core::RecordedContrastWire
 pub use antecedent_io::RefutationReportWire = antecedent_io_core::RefutationReportWire
+pub use antecedent_io::ReplayOptions = antecedent_io_core::ReplayOptions
+pub use antecedent_io::ReplayReport = antecedent_io_core::ReplayReport
 pub use antecedent_io::ResponseEnvelopeWire = antecedent_io_core::ResponseEnvelopeWire
 pub use antecedent_io::ResponseFunctionalWire = antecedent_io_core::ResponseFunctionalWire
 pub use antecedent_io::ResponseIdentificationWire = antecedent_io_core::ResponseIdentificationWire
@@ -10846,6 +10850,7 @@ pub use antecedent_io::is_supported_source = antecedent_io_core::is_supported_so
 pub use antecedent_io::joint_law_propagation_artifact = antecedent_io_core::joint_law_propagation_artifact
 pub use antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactError = antecedent_io_core::transport_errors::LearnedContinuousArtifactError
 pub use antecedent_io::learned_joint_transport_artifact::LearnedJointConsumeLimits = antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits
+pub use antecedent_io::load_analysis_result = antecedent_io_core::load_analysis_result
 pub use antecedent_io::logical_plan_from_wire = antecedent_io_core::logical_plan_from_wire
 pub use antecedent_io::logical_plan_to_wire = antecedent_io_core::logical_plan_to_wire
 pub use antecedent_io::map_artifact_check = antecedent_io_core::map_artifact_check
@@ -10928,8 +10933,6 @@ pub use antecedent_io::provider_verification_artifact = antecedent_io_core::prov
 pub use antecedent_io::quantity_wire = antecedent_io_core::quantity_wire
 pub use antecedent_io::query_wire = antecedent_io_core::query_wire
 pub use antecedent_io::randomized_ipow_artifact::accept_claim = antecedent_io::accept_claim
-pub use antecedent_io::randomized_ipow_artifact::consume_analysis_result = antecedent_io::consume_analysis_result
-pub use antecedent_io::randomized_ipow_artifact::consume_analysis_result_within = antecedent_io::consume_analysis_result_within
 pub use antecedent_io::randomized_ipow_artifact::decode_analysis_result_artifact = antecedent_io::decode_analysis_result_artifact
 pub use antecedent_io::randomized_ipow_wire = antecedent_io_core::randomized_ipow_wire
 pub use antecedent_io::read_and_migrate = antecedent_io_core::read_and_migrate
@@ -10937,6 +10940,9 @@ pub use antecedent_io::reader = antecedent_io_core::reader
 pub use antecedent_io::recalc_receipt_artifact = antecedent_io_core::recalc_receipt_artifact
 pub use antecedent_io::refutation_from_wire = antecedent_io::analysis_wire::refutation_from_wire
 pub use antecedent_io::refutation_to_wire = antecedent_io::analysis_wire::refutation_to_wire
+pub use antecedent_io::replay_analysis_result = antecedent_io::randomized_ipow_artifact::replay_analysis_result
+pub use antecedent_io::replay_analysis_result_within = antecedent_io::randomized_ipow_artifact::replay_analysis_result_within
+pub use antecedent_io::replay_loaded_result = antecedent_io::randomized_ipow_artifact::replay_loaded_result
 pub use antecedent_io::require_digest = antecedent_io_core::require_digest
 pub use antecedent_io::response_query_from_wire = antecedent_io_core::response_query_from_wire
 pub use antecedent_io::response_query_to_wire = antecedent_io_core::response_query_to_wire

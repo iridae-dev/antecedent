@@ -47,14 +47,14 @@ def test_path_specific_program_refreshes_and_replays_independently() -> None:
         data["y"][treated].mean() - data["y"][~treated].mean(), abs=1e-12
     )
     assert first.effect == pytest.approx(0.3, abs=1e-12)
-    first_replay = ant.artifacts.accept(bytes(first.export()))
-    assert first_replay["accepts_as_verified_program"] == "true"
+    first_replay = ant.artifacts.accept(bytes(first.export()), replay=True)
+    assert first_replay["replayed"] == "true"
 
     changed = {**data, "y": 1.0 - data["y"]}
     refreshed = require_success(prepared.rebind(data=changed).estimate())
     assert refreshed.effect == pytest.approx(-first.effect, abs=1e-12)
-    replay = ant.artifacts.accept(bytes(refreshed.export()))
-    assert replay["accepts_as_verified_program"] == "true"
+    replay = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert replay["replayed"] == "true"
     assert replay["program"] == first_replay["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
     assert prepared.inspect() == original_inspection
@@ -95,9 +95,9 @@ def test_admg_response_grid_replays_each_member_after_refresh() -> None:
     assert np.asarray(refreshed.response.values).flatten() == pytest.approx(
         [0.314, 0.596], abs=1e-12
     )
-    receipt = ant.artifacts.accept(bytes(refreshed.export()))
-    assert receipt["accepts_as_verified_program"] == "true"
-    assert receipt["unresolved"] == ""
+    receipt = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert receipt["replayed"] == "true"
+    assert receipt["not_replayable"] == ""
     assert prepared.inspect() == original_inspection
     assert result.study.inspect().data_snapshot_id == result.data_snapshot_id
     assert require_success(prepared.estimate()).response.values == result.response.values

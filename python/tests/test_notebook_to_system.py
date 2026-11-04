@@ -86,8 +86,8 @@ def test_loaded_verified_values_and_acceptance_are_immutable():
     _, study = _study()
     original = require_success(study.estimate())
     artifact = original.export()
-    loaded = require_success(ant.load(artifact, expected=artifact.expectation))
-    assert loaded.acceptance.verified and loaded.acceptance.identity_bound
+    loaded = require_success(ant.load(artifact, expected=artifact.expectation, replay=True))
+    assert loaded.acceptance.replayed and loaded.acceptance.identity_bound
     with pytest.raises(TypeError, match="does not support item assignment"):
         loaded.decoded_artifact.contract["claim"]["value_bits"] = 0
     with pytest.raises(TypeError, match="does not support item assignment"):

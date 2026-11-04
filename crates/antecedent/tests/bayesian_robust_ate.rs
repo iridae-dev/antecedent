@@ -133,13 +133,13 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
     let (wire, draws) = antecedent_io::decode_causal_posterior_bytes(&bytes).unwrap();
     assert_eq!(wire.n_draws, 80);
     assert_eq!(draws.as_slice(), refreshed.posterior.as_ref().unwrap().draws.values.as_ref());
-    let consumed = antecedent_io::consume_analysis_result(&encoded).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&encoded).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_bayesian_robust_ate_operation"
         })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 }
 
 /// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.

@@ -34,8 +34,8 @@ def test_canonical_load_returns_independent_outcome_with_actual_receipt_and_no_s
     assert loaded.study is None
     assert loaded.answer == produced.answer
     reading = require_success(loaded)
-    assert reading.acceptance.verified
-    assert reading.acceptance.replayable
+    assert reading.acceptance.status == "loaded"
+    assert reading.replay().acceptance.replayed
     assert reading.acceptance.identity_bound
     assert bytes(loaded.export()) == bytes(artifact)
 

@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from antecedent.outcomes import require_success
 
-from _sealed_loads import assert_answer_kept, assert_refutation_replay_withheld
+from _loaded_results import assert_answer_kept, assert_refutation_replay_withheld
 
 
 def sample(seed=7):
@@ -41,7 +41,7 @@ def test_one_call_study_and_frozen_export():
     by_hand = data["y"][data["t"] == 1].mean() - data["y"][data["t"] == 0].mean()
     assert first.effect == pytest.approx(by_hand, abs=1e-9)
     before = bytes(first.export())
-    assert ant.artifacts.accept(before)["accepts_as_verified_program"] == "true"
+    assert ant.artifacts.accept(before, replay=True)["replayed"] == "true"
     assert ant.artifacts.loads(before).contract["execution"]["seed"] == 19
     old = first.inspect()
     changed = {**data, "y": data["y"] + data["t"]}
@@ -51,7 +51,7 @@ def test_one_call_study_and_frozen_export():
     assert bytes(first.export()) == before
     assert first.inspect() == old
     assert second.data_snapshot_id != first.data_snapshot_id
-    assert ant.artifacts.accept(bytes(second.export()))["accepts_as_verified_program"] == "true"
+    assert ant.artifacts.accept(bytes(second.export()), replay=True)["replayed"] == "true"
     assert require_success(first.study.estimate()).effect == pytest.approx(first.effect)
     assert first.study.inspect().data_snapshot_id == first.data_snapshot_id
     via_result = require_success(first.study.rebind(data=changed).estimate())
@@ -76,7 +76,7 @@ def test_estimate_other_data_does_not_rebind_study():
     assert baseline.study.inspect().data_snapshot_id == baseline.data_snapshot_id
     assert other.study.inspect().data_snapshot_id == other.data_snapshot_id
     assert study.inspect().stage == branch.inspect().stage == "prepared"
-    assert ant.artifacts.accept(bytes(other.export()))["accepts_as_verified_program"] == "true"
+    assert ant.artifacts.accept(bytes(other.export()), replay=True)["replayed"] == "true"
     assert require_success(study.estimate()).effect == pytest.approx(baseline.effect)
 
 
@@ -160,6 +160,32 @@ def test_response_retains_study_and_exports_own_execution():
     assert loaded.inspect().uncertainty.available
 
 
+def test_load_replays_nothing_until_replay_is_asked_for():
+    result = require_success(
+        ant.analyze(
+            sample(),
+            graph=GRAPH,
+            query=QUERY,
+            execution=ant.Execution(seed=23),
+            inference=ant.Frequentist(bootstrap=0),
+            refute="none",
+        )
+    )
+    encoded = bytes(result.export())
+    loaded = require_success(ant.load(encoded))
+    assert loaded.acceptance.status == "loaded"
+    assert loaded.acceptance.recognized and not loaded.acceptance.replayed
+    assert loaded.answer.value == result.effect
+    replayed = loaded.replay()
+    assert replayed.acceptance.status == "replayed"
+    assert not replayed.acceptance.integrity
+    assert not replayed.acceptance.not_replayable and not replayed.acceptance.mismatches
+    assert replayed.answer == loaded.answer
+    assert bytes(replayed.export()) == encoded
+    asked = require_success(ant.load(encoded, replay=True))
+    assert asked.acceptance.status == "replayed"
+
+
 def test_refusal_retains_description_without_changing_exception_type():
     with pytest.raises(ant.CausalError, match="graph") as caught:
         ant.prepare(sample(), graph=None, query=QUERY)
@@ -183,8 +209,8 @@ def test_load_verified_execution_and_forward_uncontracted_body():
         )
     )
     encoded = bytes(result.export())
-    loaded = require_success(ant.load(encoded))
-    assert loaded.acceptance.verified
+    loaded = require_success(ant.load(encoded, replay=True))
+    assert loaded.acceptance.replayed
     assert loaded.answer.value == result.effect
     assert loaded.inspect().program_id == result.program_id == loaded.program_id
     assert loaded.inspect().claim_id == result.claim_id == loaded.claim_id
@@ -208,7 +234,7 @@ def test_load_verified_execution_and_forward_uncontracted_body():
         artifact_id="body-only",
     )
     unverified = require_success(ant.load(body_only))
-    assert not unverified.acceptance.verified
+    assert not unverified.acceptance.replayed
     assert not unverified.inspect().identification.available
     assert unverified.answer.kind == "unavailable"
     assert bytes(unverified.export()) == body_only
@@ -231,8 +257,8 @@ def test_load_in_an_independent_python_process(tmp_path):
     path = tmp_path / "result.ant"
     path.write_bytes(bytes(result.export()))
     code = """import antecedent as ant, json, pathlib, sys
-r = ant.load(pathlib.Path(sys.argv[1]).read_bytes())
-assert r.acceptance.verified
+r = ant.load(pathlib.Path(sys.argv[1]).read_bytes(), replay=True)
+assert r.acceptance.replayed
 print(json.dumps(r.inspect().to_dict(), allow_nan=False))
 """
     completed = subprocess.run(

@@ -374,7 +374,8 @@ pub(crate) fn same_target_slice(
 ///
 /// `bytes` is not that artifact, or it carries no scalar contrast.
 pub(crate) fn contrast_of_loaded_artifact(bytes: &[u8]) -> Result<f64, crate::CausalError> {
-    let consumed = antecedent_io::consume_analysis_result(bytes)?;
+    // Only the published contrast is read; nothing is replayed.
+    let consumed = antecedent_io::load_analysis_result(bytes)?;
     consumed.body.estimate.ok_or_else(|| compile("loaded analysis result has no contrast"))
 }
 

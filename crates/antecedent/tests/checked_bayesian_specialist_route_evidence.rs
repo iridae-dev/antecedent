@@ -6,7 +6,7 @@ use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, Refut
 use antecedent_core::{AverageEffectQuery, CausalQuery, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 struct Fixture {
     data: TabularData,
@@ -179,7 +179,7 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
         let bytes = prepared
             .encode_contracted_result(&refreshed, "checked-bayesian-specialist", &ctx)
             .unwrap();
-        let consumed = consume_analysis_result(&bytes).unwrap();
+        let consumed = replay_analysis_result(&bytes).unwrap();
         assert!(
             consumed
                 .acceptance
@@ -189,7 +189,7 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
             "{:?}",
             consumed.acceptance.unresolved
         );
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
 
         let refused =
             rebind_estimate(&mut prepared, widened(&fixture.data), &ctx).unwrap_err().to_string();

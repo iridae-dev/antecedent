@@ -29,7 +29,7 @@ from antecedent.outcomes import require_success
 from antecedent.population import CustomDistribution, PopulationRegistry, Treated
 
 from _repo_text import REPO_ROOT
-from _sealed_loads import assert_loaded_outcome
+from _loaded_results import assert_loaded_outcome
 
 ROOT = REPO_ROOT
 PRODUCTS = tomllib.loads((ROOT / "parity" / "python_products.toml").read_text(encoding="utf-8"))

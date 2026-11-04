@@ -78,8 +78,8 @@ def test_baseline_canonical_export_and_load_preserve_summary_identity_without_li
     loaded = ant.load(artifact, expected=artifact.expectation)
     assert loaded.accepted
     assert loaded.study is None
-    assert loaded.acceptance.status == "sealed"
-    assert not loaded.acceptance.verified
+    assert loaded.acceptance.status == "loaded"
+    assert not loaded.acceptance.replayed
     assert loaded.acceptance.identity_bound
     assert not loaded.acceptance.replayable and not loaded.acceptance.resumable
     retained = require_success(loaded)
@@ -179,7 +179,7 @@ t = (rng.uniform(size=800) < 1 / (1 + np.exp(-0.5*z))).astype(float)
 y = 1 + 2*t + z + rng.normal(size=800)
 loaded = ant.load(Path(sys.argv[1]).read_bytes(), expected=sys.argv[2])
 assert loaded.study is None
-assert loaded.acceptance.status == 'sealed' and loaded.acceptance.identity_bound
+assert loaded.acceptance.status == 'loaded' and loaded.acceptance.identity_bound
 assert not loaded.acceptance.replayable and not loaded.acceptance.resumable
 baseline = require_success(loaded)
 assert not hasattr(baseline, '_prepared') and not hasattr(baseline, '_data')
@@ -303,7 +303,7 @@ def test_independent_baseline_load_honors_execution_limits_and_releases_decode_l
     roomy = ant.Execution(limits=ResourceLimits(memory_bytes=64_000_000))
     before = roomy._handle.available_memory_bytes
     loaded = ant.load(artifact, expected=artifact.expectation, execution=roomy)
-    assert loaded.accepted and loaded.acceptance.status == "sealed"
+    assert loaded.accepted and loaded.acceptance.status == "loaded"
     assert roomy._handle.available_memory_bytes == before
     assert require_success(loaded).identity == artifact.expectation.identity
 

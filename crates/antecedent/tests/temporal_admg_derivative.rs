@@ -471,10 +471,10 @@ fn every_derivative_functional_on_a_temporal_admg_publishes_a_consumable_artifac
             let artifact = prepared
                 .encode_contracted_result(&result, &format!("temporal-admg-{key}"), &ctx)
                 .unwrap_or_else(|e| panic!("{label}: {e}"));
-            let consumed = antecedent_io::consume_analysis_result(&artifact)
+            let consumed = antecedent_io::replay_analysis_result(&artifact)
                 .unwrap_or_else(|e| panic!("{label}: {e}"));
             assert!(
-                consumed.acceptance.accepts_as_verified_program()
+                consumed.acceptance.accepts_as_replayed_program()
                     || !consumed.acceptance.unresolved.is_empty(),
                 "{label}: the consumer must verify or explain"
             );

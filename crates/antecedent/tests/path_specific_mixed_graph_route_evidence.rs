@@ -16,7 +16,7 @@ use antecedent_contract::SlotAvailability;
 use antecedent_core::{CausalQuery, ExecutionContext, PathSpecificEffectQuery, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, Cpdag, DenseNodeId, Pag, TemporalAdmg};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use serde_json::Value;
 
 /// Posterior-mean tolerance around the enumerated truth on the retained tables.
@@ -249,7 +249,7 @@ fn verify_coordinate(
     let artifact = prepared
         .encode_contracted_result(&refreshed, &format!("path-specific-{coordinate}"), &ctx)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate} artifact scalar");
 }
 

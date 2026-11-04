@@ -28,7 +28,7 @@ from antecedent import _reason_details as reason_details
 from antecedent.ids import Estimator
 from antecedent.outcomes import require_success
 
-from _sealed_loads import assert_refutation_replay_withheld
+from _loaded_results import assert_refutation_replay_withheld
 
 REGISTERED = frozenset(_native.runtime_refusal_codes())
 GRAPH = [("z", "treatment"), ("z", "outcome"), ("treatment", "outcome")]
@@ -107,15 +107,15 @@ def test_prepared_aipw_refresh_and_independent_artifact_consumption() -> None:
     original = prepared.inspect()
     first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(1.5, abs=0.3)
-    accepted = ant.artifacts.accept(bytes(first.export()))
-    assert accepted["accepts_as_verified_program"] == "true"
+    accepted = ant.artifacts.accept(bytes(first.export()), replay=True)
+    assert accepted["replayed"] == "true"
 
     changed = {**data, "outcome": data["outcome"] + 0.75 * data["treatment"]}
     refreshed = require_success(prepared.rebind(data=changed).estimate())
     assert prepared.inspect() == original
     assert refreshed.effect == pytest.approx(first.effect + 0.75, abs=0.05)
-    accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()))
-    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert accepted_refresh["replayed"] == "true"
     assert accepted_refresh["program"] == accepted["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
 
@@ -123,8 +123,8 @@ def test_prepared_aipw_refresh_and_independent_artifact_consumption() -> None:
 def _assert_sealed_estimator(accepted: Any) -> None:
     """A checked estimator operation replays from its retained inputs and is verified."""
     assert accepted["recognized"] == "true"
-    assert accepted["accepts_as_verified_program"] == "true"
-    assert accepted["unresolved"] == ""
+    assert accepted["replayed"] == "true"
+    assert accepted["not_replayable"] == ""
 
 
 def test_prepared_frontdoor_refresh_and_independent_artifact_consumption() -> None:
@@ -142,14 +142,14 @@ def test_prepared_frontdoor_refresh_and_independent_artifact_consumption() -> No
     original = prepared.inspect()
     first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(1.0, abs=0.15)
-    accepted = ant.artifacts.accept(bytes(first.export()))
+    accepted = ant.artifacts.accept(bytes(first.export()), replay=True)
     _assert_sealed_estimator(accepted)
 
     changed = {**data, "y": data["y"] + 0.4}
     refreshed = require_success(prepared.rebind(data=changed).estimate())
     assert prepared.inspect() == original
     assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
-    accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()))
+    accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
     _assert_sealed_estimator(accepted_refresh)
     assert accepted_refresh["program"] == accepted["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
@@ -173,14 +173,14 @@ def test_prepared_binary_iv_refresh_and_independent_artifact_consumption(
     original = prepared.inspect()
     first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(1.5, abs=0.35)
-    accepted = ant.artifacts.accept(bytes(first.export()))
+    accepted = ant.artifacts.accept(bytes(first.export()), replay=True)
     _assert_sealed_estimator(accepted)
 
     changed = {**data, "y": data["y"] + 0.5}
     refreshed = require_success(prepared.rebind(data=changed).estimate())
     assert prepared.inspect() == original
     assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
-    accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()))
+    accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
     _assert_sealed_estimator(accepted_refresh)
     assert accepted_refresh["program"] == accepted["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id

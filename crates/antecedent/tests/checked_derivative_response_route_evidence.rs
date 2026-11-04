@@ -273,14 +273,14 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "checked-derivative-response", &context)
                 .unwrap();
-            let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
             assert!(
                 consumed.acceptance.unresolved.iter().any(|reason| {
                     reason.as_ref() == "dependencies.checked_derivative_response_operation"
                 }),
                 "{case}"
             );
-            assert!(!consumed.acceptance.accepts_as_verified_program(), "{case}");
+            assert!(!consumed.acceptance.accepts_as_replayed_program(), "{case}");
         }
     }
 }
@@ -452,11 +452,11 @@ fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() 
             let artifact = prepared
                 .encode_contracted_result(&refreshed, "checked-bayesian-derivative", &context)
                 .unwrap();
-            let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+            let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
             assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.checked_derivative_response_operation"
             }));
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
         }
     }
 }

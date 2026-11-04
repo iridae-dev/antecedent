@@ -7,7 +7,7 @@
 
 use antecedent::{EstimatorId, RefuteSuite, Study, StudyBuilder};
 use antecedent_core::ExecutionContext;
-use antecedent_io::{AnalysisResultConsumption, consume_analysis_result};
+use antecedent_io::{AnalysisResultConsumption, replay_analysis_result};
 
 #[path = "fixtures_common/mod.rs"]
 mod common;
@@ -23,9 +23,9 @@ fn refresh_and_export(
     let mut prepared = builder.build().unwrap().prepare(&context).unwrap();
     let refreshed = rebind_estimate(&mut prepared, replacement, &context).unwrap();
     let artifact = prepared.encode_contracted_result(&refreshed, "refresh", &context).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert_eq!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         expect_verified,
         "rows={rows}: unresolved={:?}",
         consumed.acceptance.unresolved

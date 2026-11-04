@@ -329,7 +329,7 @@ fn draws_and_seed_are_in_the_replay_identity_and_replay_reproduces_the_draws() {
         let prepared = study(3000, controls).prepare(&ctx).unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
         let bytes = prepared.encode_contracted_result(&result, "draws", &ctx).unwrap();
-        let section = antecedent_io::consume_analysis_result(&bytes).unwrap().contract.unwrap();
+        let section = antecedent_io::replay_analysis_result(&bytes).unwrap().contract.unwrap();
         let bayesian = section.inference_binding.unwrap().bayesian.unwrap();
         assert_eq!(bayesian.n_draws, 3000);
         assert_eq!(bayesian.draw_controls.as_deref(), controls.then_some("measured"));

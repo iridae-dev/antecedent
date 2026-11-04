@@ -25,7 +25,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, Cpdag, DenseNodeId, Pag, TemporalAdmg};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use serde_json::Value as Json;
 
 /// The validation states resample the table, so they run on the exact law at more rows: 5 times
@@ -372,7 +372,7 @@ fn verify_coordinate(spec: &Coordinate<'_>) {
     let artifact = prepared
         .encode_contracted_result(&refreshed, &format!("distribution-{coordinate}"), &ctx)
         .unwrap();
-    consume_analysis_result(&artifact).unwrap();
+    replay_analysis_result(&artifact).unwrap();
 }
 
 #[test]

@@ -528,7 +528,7 @@ def consume_policy_program(
         names=names,
         programs=programs,
         acceptance=ArtifactAcceptance(
-            "verified",
+            "loaded",
             expected_identity is not None,
             False,
             False,

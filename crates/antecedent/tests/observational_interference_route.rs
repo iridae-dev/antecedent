@@ -18,7 +18,7 @@ use antecedent_core::{
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::Dag;
 use antecedent_io::{
-    consume_analysis_result, interference_query_from_wire, interference_query_to_wire,
+    interference_query_from_wire, interference_query_to_wire, replay_analysis_result,
 };
 
 fn fixture() -> (TabularData, Vec<bool>, InterferenceQuery, Vec<NetworkEdge>) {
@@ -97,14 +97,14 @@ fn observational_network_contrast_retains_truth_assumptions_and_artifact() {
     }));
     let artifact =
         prepared.encode_contracted_result(&result, "observational-network", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     assert_eq!(consumed.body.query, antecedent_io::CausalQueryWire::Interference(wire));
     assert!(consumed.body.standard_error.is_none());
     assert!(consumed.body.interval_lower.is_none());
     let mut tampered = artifact;
     let middle = tampered.len() / 2;
     tampered[middle] ^= 0x40;
-    assert!(consume_analysis_result(&tampered).is_err());
+    assert!(replay_analysis_result(&tampered).is_err());
 }
 
 #[test]
@@ -167,7 +167,7 @@ fn known_probabilities_retain_pointwise_interval_and_artifact() {
     assert_eq!(interval.degrees_of_freedom, 59.0);
     assert_eq!(interval.first_stage_arm_clusters, [30, 30]);
     let artifact = prepared.encode_contracted_result(&result, "known-network", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     let wire = consumed.body.interference_inference.unwrap();
     assert_eq!(wire.method, "observational_known_exposure_cluster_t");
     assert!(wire.interval.is_some());

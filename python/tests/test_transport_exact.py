@@ -465,7 +465,7 @@ def test_consume_exact_estimates_from_the_embedded_law_after_builder_disposal():
     # Independent conditional-probability calculation: .35 / (.15 + .35) = .7.
     assert consumed.probabilities == pytest.approx((0.3, 0.7))
     assert consumed == result
-    assert consumed.acceptance.verified
+    assert consumed.acceptance.replayed
     assert not consumed.acceptance.resumable
     assert bytes(consumed.export()) == wire
     assert require_success(load(wire)).probabilities == result.probabilities

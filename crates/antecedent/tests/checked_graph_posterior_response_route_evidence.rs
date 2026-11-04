@@ -19,7 +19,7 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
 /// Columns `t, y, z`: `z` and the treatment noise are deterministic waves,
@@ -316,7 +316,7 @@ fn graph_posterior_responses_body() {
                             &context,
                         )
                         .unwrap();
-                    let consumed = consume_analysis_result(&artifact).unwrap();
+                    let consumed = replay_analysis_result(&artifact).unwrap();
                     for expected in ["dependencies.checked_graph_posterior_response_operation", key]
                     {
                         assert!(
@@ -329,7 +329,7 @@ fn graph_posterior_responses_body() {
                             consumed.acceptance.unresolved
                         );
                     }
-                    assert!(!consumed.acceptance.accepts_as_verified_program(), "{label}");
+                    assert!(!consumed.acceptance.accepts_as_replayed_program(), "{label}");
 
                     // Posterior with a reverse-causal atom: its mass is retained, not
                     // renormalized away, through prepare, click and refresh.

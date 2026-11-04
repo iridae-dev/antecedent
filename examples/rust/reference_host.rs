@@ -12,7 +12,7 @@
 //! Source: `examples/rust/reference_host.rs`
 
 use antecedent::host::{HostStatus, claim_response, error_response, host_schema, operation_record};
-use antecedent::io::consume_analysis_result;
+use antecedent::io::replay_analysis_result;
 use antecedent::prelude::*;
 use antecedent::{CausalError, RefuteSuite};
 use serde_json::Value;
@@ -71,7 +71,7 @@ fn serve(request: &Request, ctx: &ExecutionContext) -> Result<(Value, Vec<u8>), 
 /// Accept artifact bytes only as a verified claim. Anything else is a refusal
 /// the host reports; it never uses the numbers inside.
 fn accept(bytes: &[u8]) -> Result<Value, CausalError> {
-    let consumed = consume_analysis_result(bytes)?;
+    let consumed = replay_analysis_result(bytes)?;
     if consumed.acceptance.accepts_as_claim() {
         Ok(serde_json::json!({
             "status": "supported",

@@ -20,7 +20,7 @@ from antecedent.outcomes import require_success
 from antecedent.results import Answer, CalibrationInfo
 from antecedent.results._execution import ANSWER_KINDS, CLAIM_KIND_ANSWERS
 
-from _sealed_loads import assert_answer_kept
+from _loaded_results import assert_answer_kept
 
 GRAPH = [("z", "t"), ("z", "y"), ("t", "y")]
 # z - t undirected: both completions identify the effect with different adjustment sets.

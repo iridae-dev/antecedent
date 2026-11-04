@@ -634,9 +634,9 @@ fn old_artifact_remains_readable_but_is_not_verified() {
     artifact.write_to(&mut bytes).unwrap();
     let (_, _, decoded) = crate::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(decoded, body);
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert!(consumed.contract.is_none());
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert_eq!(consumed.acceptance.restriction.as_deref(), Some("missing_contract_section"));
     assert!(consumed.acceptance.supported_operations.iter().any(|op| &**op == "read_body"));
 }
@@ -645,10 +645,61 @@ fn old_artifact_remains_readable_but_is_not_verified() {
 fn contracted_artifact_without_checked_estimator_is_readable_from_bytes_alone() {
     let (body, target, names) = fixture_body();
     let contract = contract_for(target, &body);
-    let consumed = consume_analysis_result(&to_bytes(&body, names, Some(&contract))).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    let consumed = replay_analysis_result(&to_bytes(&body, names, Some(&contract))).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert_eq!(consumed.contract.as_ref().map(|c| c.graph_class.as_str()), Some("Dag"));
     assert_eq!(consumed.body.estimate, Some(2.0));
+}
+
+/// Every finding of the legacy one-pass consumption, as one set.
+fn legacy_findings(bytes: &[u8]) -> std::collections::BTreeSet<String> {
+    replay_analysis_result(bytes)
+        .unwrap()
+        .acceptance
+        .unresolved
+        .iter()
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn replay_findings(report: &crate::ReplayReport) -> std::collections::BTreeSet<String> {
+    [&report.integrity, &report.not_replayable, &report.mismatches]
+        .into_iter()
+        .flatten()
+        .map(ToString::to_string)
+        .collect()
+}
+
+#[test]
+fn loading_checks_integrity_and_replay_adds_the_rest() {
+    let options = crate::ReplayOptions::default();
+    // No contract section: nothing to replay, and the load says why.
+    let (body, target, names) = fixture_body();
+    let artifact = encode_analysis_result_artifact(&body, names.clone(), "legacy").unwrap();
+    let mut legacy = Vec::new();
+    artifact.write_to(&mut legacy).unwrap();
+    let load = crate::load_analysis_result(&legacy).unwrap();
+    assert!(load.contract.is_none() && !load.is_intact());
+    assert_eq!(load.replay(&options).integrity, load.integrity);
+    assert!(load.replay(&options).not_replayable.is_empty());
+    // An intact contract loads clean; replay finds what the legacy pass finds, split in kinds.
+    let contract = contract_for(target.clone(), &body);
+    let bytes = to_bytes(&body, names.clone(), Some(&contract));
+    let load = crate::load_analysis_result(&bytes).unwrap();
+    assert!(load.is_intact(), "{:?}", load.integrity);
+    let report = load.replay(&options);
+    assert!(!report.replayed());
+    assert!(report.integrity.is_empty());
+    assert_eq!(replay_findings(&report), legacy_findings(&bytes));
+    assert!(report.not_replayable.iter().all(|reason| reason.starts_with("dependencies.")));
+    assert!(report.mismatches.iter().all(|reason| !reason.starts_with("dependencies.")));
+    // A stored payload that disagrees with its digest is an integrity finding at load time.
+    let mut tampered = contract_for(target, &body);
+    tampered.identification.as_mut().expect("identification").target_question = [0u8; 32];
+    let bytes = replace_contract_section(&body, names, &tampered);
+    let load = crate::load_analysis_result(&bytes).unwrap();
+    assert!(load.integrity.iter().any(|item| &**item == "identities.identification"));
+    assert_eq!(replay_findings(&load.replay(&options)), legacy_findings(&bytes));
 }
 
 #[test]
@@ -658,8 +709,8 @@ fn nested_identification_target_must_match_advertised_target() {
     let identification = contract.identification.as_mut().expect("identification");
     identification.target_question = [0u8; 32];
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(
         consumed.acceptance.unresolved.iter().any(|item| &**item == "identities.identification"),
         "{:?}",
@@ -675,8 +726,8 @@ fn invented_reasoning_masses_are_not_verified() {
     slot.identified_mass = 1.0;
     slot.unidentified_mass = 0.3;
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(
         consumed
             .acceptance
@@ -694,8 +745,8 @@ fn tampered_target_identity_is_not_promoted() {
     let mut contract = contract_for(target, &body);
     contract.identities.target[0] ^= 0xff;
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(consumed.acceptance.unresolved.iter().any(|item| &**item == "identities.target"));
 }
 
@@ -713,8 +764,8 @@ fn body_query_must_match_contract_target() {
     body.query = causal_query_to_wire(&changed).unwrap();
     body.identification.query = body.query.clone();
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(consumed.acceptance.unresolved.iter().any(|item| &**item == "body.query"));
 }
 
@@ -730,8 +781,8 @@ fn attested_digests_without_payloads_are_not_verified() {
     contract.data_snapshot = None;
     contract.execution = None;
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(consumed.acceptance.unresolved.iter().any(|item| item.starts_with("identities.")));
 }
 
@@ -743,8 +794,8 @@ fn tampered_identification_product_is_not_promoted() {
         digest[0] ^= 0xff;
     }
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(
         consumed
             .acceptance
@@ -762,7 +813,7 @@ fn unknown_contract_format_needs_a_newer_reader() {
     let refused = validate_contract_section(&contract).unwrap_err().to_string();
     assert_eq!(refused, "convert error: unsupported `analysis_result.contract` format 99");
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(!consumed.acceptance.recognized);
     assert_eq!(consumed.acceptance.restriction.as_deref(), Some("unknown_contract_format"));
 }
@@ -777,7 +828,7 @@ fn claim_host_projection_keeps_null_zero_unknown_distinct() {
     }
     seal_claim(&mut zero, &body);
     let consumed_zero =
-        consume_analysis_result(&to_bytes(&body, names.clone(), Some(&zero))).unwrap();
+        replay_analysis_result(&to_bytes(&body, names.clone(), Some(&zero))).unwrap();
     let proj_zero = project_claim_host(&consumed_zero);
     assert_eq!(proj_zero.value, serde_json::Value::from(0.0));
     assert_ne!(proj_zero.value, serde_json::Value::Null);
@@ -791,11 +842,11 @@ fn claim_host_projection_keeps_null_zero_unknown_distinct() {
     }
     seal_claim(&mut absent, &body);
     let consumed_absent =
-        consume_analysis_result(&to_bytes(&body, names.clone(), Some(&absent))).unwrap();
+        replay_analysis_result(&to_bytes(&body, names.clone(), Some(&absent))).unwrap();
     let proj_absent = project_claim_host(&consumed_absent);
     assert_eq!(proj_absent.value, serde_json::Value::Null);
 
-    let consumed_old = consume_analysis_result(&{
+    let consumed_old = replay_analysis_result(&{
         let artifact = encode_analysis_result_artifact(&body, names, "legacy").unwrap();
         let mut bytes = Vec::new();
         artifact.write_to(&mut bytes).unwrap();
@@ -817,8 +868,8 @@ fn unchecked_program_without_claim_is_not_an_accepted_claim() {
     contract.identities.execution = None;
     seal_claim(&mut contract, &body);
     let bytes = to_bytes(&body, names, Some(&contract));
-    let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    let consumed = replay_analysis_result(&bytes).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert!(!consumed.acceptance.accepts_as_claim());
     assert!(!consumed.acceptance.supported_operations.iter().any(|op| &**op == "inspect_claim"));
     let (accepted, receipt) =
@@ -871,7 +922,7 @@ fn unresolved_after(
     contract: &AnalysisResultContractWire,
 ) -> Vec<String> {
     let consumed =
-        consume_analysis_result(&replace_contract_section(body, names.to_vec(), contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(body, names.to_vec(), contract)).unwrap();
     assert!(!consumed.acceptance.accepts_as_claim(), "tampered artifact was accepted");
     consumed.acceptance.unresolved.iter().map(ToString::to_string).collect()
 }
@@ -895,7 +946,7 @@ fn fixture_without_checked_estimator_is_not_verified() {
     let (body, target, names) = fixture_body();
     let contract = contract_for(target, &body);
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(!consumed.acceptance.accepts_as_claim());
     assert!(
         consumed
@@ -921,7 +972,7 @@ fn resealed_missing_unknown_and_conflicting_estimators_are_unverified() {
         contract.identities.program = *program_digest(program).unwrap().as_bytes();
         seal_claim(&mut contract, &body);
         let bytes = replace_contract_section(&body, names.clone(), &contract);
-        let consumed = consume_analysis_result(&bytes).unwrap();
+        let consumed = replay_analysis_result(&bytes).unwrap();
         assert_eq!(consumed.body.estimate, Some(9.0));
         assert!(!consumed.acceptance.accepts_as_claim());
         assert!(
@@ -963,7 +1014,7 @@ fn rehashed_contract_with_two_checked_execution_products_is_refused() {
     seal_claim(&mut contract, &body);
 
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(
         consumed
             .acceptance
@@ -993,7 +1044,7 @@ fn rehashed_contract_with_one_checked_product_for_wrong_target_is_refused() {
     seal_claim(&mut contract, &body);
 
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(
         consumed
             .acceptance
@@ -1019,7 +1070,7 @@ fn legacy_aipw_contract_is_readable_with_executable_dependency_refusal() {
     seal_claim(&mut contract, &body);
 
     let bytes = to_bytes(&body, names, Some(&contract));
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert_eq!(consumed.body, body);
     assert!(
         consumed
@@ -1053,8 +1104,8 @@ fn resolved_only_aipw_contract_requires_checked_lowering_and_rows() {
     seal_claim(&mut contract, &body);
 
     let bytes = to_bytes(&body, names, Some(&contract));
-    let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    let consumed = replay_analysis_result(&bytes).unwrap();
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     for key in ["program.checked_aipw_lowering", "checked_aipw.row_binding"] {
         assert!(
             consumed.acceptance.unresolved.iter().any(|reason| reason.as_ref() == key),
@@ -1079,7 +1130,7 @@ fn legacy_iv_contract_is_readable_with_precise_checked_lowering_refusal() {
         *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
     seal_claim(&mut contract, &body);
 
-    let consumed = consume_analysis_result(&to_bytes(&body, names, Some(&contract))).unwrap();
+    let consumed = replay_analysis_result(&to_bytes(&body, names, Some(&contract))).unwrap();
     assert!(
         consumed
             .acceptance
@@ -1087,7 +1138,7 @@ fn legacy_iv_contract_is_readable_with_precise_checked_lowering_refusal() {
             .iter()
             .any(|key| { key.as_ref() == "program.checked_iv_lowering" })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 }
 
 #[test]
@@ -1129,7 +1180,7 @@ fn rehashed_checked_aipw_with_invalid_fold_count_is_refused() {
         "convert error: contract payloads do not rehash: program.checked_aipw_lowering,program.checked_aipw_binding"
     );
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(
         consumed
             .acceptance
@@ -1177,7 +1228,7 @@ fn checked_aipw_lowering_procedure_must_agree_with_its_folds_and_trim() {
             *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
         seal_claim(&mut contract, &body);
         let consumed =
-            consume_analysis_result(&replace_contract_section(&body, names.clone(), &contract))
+            replay_analysis_result(&replace_contract_section(&body, names.clone(), &contract))
                 .unwrap();
         assert_eq!(
             consumed
@@ -1238,7 +1289,7 @@ fn checked_aipw_rows_require_the_sealed_snapshot_digest() {
         "convert error: contract payloads do not rehash: program.checked_aipw_binding,checked_aipw.row_binding"
     );
     let consumed =
-        consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        replay_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
     assert!(
         consumed
             .acceptance
@@ -1712,7 +1763,7 @@ fn the_consumer_rederives_an_associational_claim_and_refuses_a_forged_one() {
         claim.evaluated_domain = "evaluated".into();
         mutate(&mut contract);
         seal_claim(&mut contract, &body);
-        consume_analysis_result(&replace_contract_section(&body, names.clone(), &contract))
+        replay_analysis_result(&replace_contract_section(&body, names.clone(), &contract))
             .unwrap()
             .acceptance
             .unresolved
@@ -2009,7 +2060,7 @@ fn an_estimators_own_summary_covariance_is_not_family_evidence() {
     body.joint_covariance = Some(crate::JointCovarianceWire { dim: 1, values: vec![0.04] });
     let contract = contract_for(target, &body);
     let encoded = to_bytes(&body, names, Some(&contract));
-    let consumed = consume_analysis_result(&encoded).unwrap();
+    let consumed = replay_analysis_result(&encoded).unwrap();
     assert_eq!(consumed.body.joint_covariance, body.joint_covariance);
     assert!(
         !consumed
@@ -2027,10 +2078,10 @@ fn portable_family_evidence_is_sealed_without_claiming_scalar_replay_verifies_it
     body.simultaneous_interval = Some((1.6, 2.4, 0.95));
     let contract = contract_for(target, &body);
     let encoded = to_bytes(&body, names.clone(), Some(&contract));
-    let consumed = consume_analysis_result(&encoded).unwrap();
+    let consumed = replay_analysis_result(&encoded).unwrap();
     assert_eq!(consumed.body.joint_covariance, body.joint_covariance);
     assert_eq!(consumed.body.simultaneous_interval, body.simultaneous_interval);
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
         &[std::sync::Arc::<str>::from("dependencies.checked_batch_family_operation")]
@@ -2486,7 +2537,7 @@ mod dr_replay {
         assert_eq!(verify(&ungrounded.contract), unchecked);
         // An estimand of a method with another criterion is not a graph-criterion estimand, but
         // a general-ID estimand is re-derived from the carried graph, so without one it is
-        // unresolved rather than trusted.
+        // not replayable rather than passed as recomputed.
         let mut other = ungrounded;
         for estimand in &mut other.contract.identification_product.as_mut().unwrap().estimands {
             estimand.method = "other.method".into();

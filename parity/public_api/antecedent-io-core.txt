@@ -125,6 +125,7 @@ impl core::clone::Clone for antecedent_io_core::AdmgWire
 impl core::clone::Clone for antecedent_io_core::AnalysisResultConsumption
 impl core::clone::Clone for antecedent_io_core::AnalysisResultContractWire
 impl core::clone::Clone for antecedent_io_core::AnalysisResultHeader
+impl core::clone::Clone for antecedent_io_core::AnalysisResultLoad
 impl core::clone::Clone for antecedent_io_core::AnalysisResultWire
 impl core::clone::Clone for antecedent_io_core::AnalysisTraceWire
 impl core::clone::Clone for antecedent_io_core::ArtifactCheckError
@@ -365,6 +366,8 @@ impl core::clone::Clone for antecedent_io_core::RecordedContrastWire
 impl core::clone::Clone for antecedent_io_core::RedrawPriorWire
 impl core::clone::Clone for antecedent_io_core::RedrawTargetWire
 impl core::clone::Clone for antecedent_io_core::RefutationReportWire
+impl core::clone::Clone for antecedent_io_core::ReplayOptions
+impl core::clone::Clone for antecedent_io_core::ReplayReport
 impl core::clone::Clone for antecedent_io_core::ResponseEnvelopeWire
 impl core::clone::Clone for antecedent_io_core::ResponseFunctionalWire
 impl core::clone::Clone for antecedent_io_core::ResponseIdentificationWire
@@ -1095,6 +1098,7 @@ impl core::cmp::Eq for antecedent_io_core::RandomizationDesignWire
 impl core::cmp::Eq for antecedent_io_core::RandomizedEstimandWire
 impl core::cmp::Eq for antecedent_io_core::RedrawPriorWire
 impl core::cmp::Eq for antecedent_io_core::RedrawTargetWire
+impl core::cmp::Eq for antecedent_io_core::ReplayReport
 impl core::cmp::Eq for antecedent_io_core::ResponseOptionsWire
 impl core::cmp::Eq for antecedent_io_core::RetainedMechanismWire
 impl core::cmp::Eq for antecedent_io_core::SchemaWire
@@ -1665,6 +1669,7 @@ impl core::cmp::PartialEq for antecedent_io_core::RecordedContrastWire
 impl core::cmp::PartialEq for antecedent_io_core::RedrawPriorWire
 impl core::cmp::PartialEq for antecedent_io_core::RedrawTargetWire
 impl core::cmp::PartialEq for antecedent_io_core::RefutationReportWire
+impl core::cmp::PartialEq for antecedent_io_core::ReplayReport
 impl core::cmp::PartialEq for antecedent_io_core::ResponseEnvelopeWire
 impl core::cmp::PartialEq for antecedent_io_core::ResponseFunctionalWire
 impl core::cmp::PartialEq for antecedent_io_core::ResponseIdentificationWire
@@ -2299,6 +2304,7 @@ impl core::default::Default for antecedent_io_core::ContrastBundleWire
 impl core::default::Default for antecedent_io_core::PriorCatalog
 impl core::default::Default for antecedent_io_core::RandomizationDesignWire
 impl core::default::Default for antecedent_io_core::RandomizedEstimandWire
+impl core::default::Default for antecedent_io_core::ReplayOptions
 impl core::default::Default for antecedent_io_core::SectionLoadStats
 impl core::default::Default for antecedent_io_core::SourceReplayBounds
 impl core::default::Default for antecedent_io_core::SourceWitnessLimits
@@ -2391,6 +2397,7 @@ impl core::fmt::Debug for antecedent_io_core::AdmgWire
 impl core::fmt::Debug for antecedent_io_core::AnalysisResultConsumption
 impl core::fmt::Debug for antecedent_io_core::AnalysisResultContractWire
 impl core::fmt::Debug for antecedent_io_core::AnalysisResultHeader
+impl core::fmt::Debug for antecedent_io_core::AnalysisResultLoad
 impl core::fmt::Debug for antecedent_io_core::AnalysisResultWire
 impl core::fmt::Debug for antecedent_io_core::AnalysisTraceWire
 impl core::fmt::Debug for antecedent_io_core::ArtifactCheckError
@@ -2632,6 +2639,8 @@ impl core::fmt::Debug for antecedent_io_core::RecordedContrastWire
 impl core::fmt::Debug for antecedent_io_core::RedrawPriorWire
 impl core::fmt::Debug for antecedent_io_core::RedrawTargetWire
 impl core::fmt::Debug for antecedent_io_core::RefutationReportWire
+impl core::fmt::Debug for antecedent_io_core::ReplayOptions
+impl core::fmt::Debug for antecedent_io_core::ReplayReport
 impl core::fmt::Debug for antecedent_io_core::ResponseEnvelopeWire
 impl core::fmt::Debug for antecedent_io_core::ResponseFunctionalWire
 impl core::fmt::Debug for antecedent_io_core::ResponseIdentificationWire
@@ -3428,6 +3437,7 @@ impl core::marker::Freeze for antecedent_io_core::AdmgWire [auto]
 impl core::marker::Freeze for antecedent_io_core::AnalysisResultConsumption [auto]
 impl core::marker::Freeze for antecedent_io_core::AnalysisResultContractWire [auto]
 impl core::marker::Freeze for antecedent_io_core::AnalysisResultHeader [auto]
+impl core::marker::Freeze for antecedent_io_core::AnalysisResultLoad [auto]
 impl core::marker::Freeze for antecedent_io_core::AnalysisResultWire [auto]
 impl core::marker::Freeze for antecedent_io_core::AnalysisTraceWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ArtifactCheckError [auto]
@@ -3670,6 +3680,8 @@ impl core::marker::Freeze for antecedent_io_core::RecordedContrastWire [auto]
 impl core::marker::Freeze for antecedent_io_core::RedrawPriorWire [auto]
 impl core::marker::Freeze for antecedent_io_core::RedrawTargetWire [auto]
 impl core::marker::Freeze for antecedent_io_core::RefutationReportWire [auto]
+impl core::marker::Freeze for antecedent_io_core::ReplayOptions [auto]
+impl core::marker::Freeze for antecedent_io_core::ReplayReport [auto]
 impl core::marker::Freeze for antecedent_io_core::ResponseEnvelopeWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ResponseFunctionalWire [auto]
 impl core::marker::Freeze for antecedent_io_core::ResponseIdentificationWire [auto]
@@ -4274,6 +4286,7 @@ impl core::marker::Send for antecedent_io_core::AdmgWire [auto]
 impl core::marker::Send for antecedent_io_core::AnalysisResultConsumption [auto]
 impl core::marker::Send for antecedent_io_core::AnalysisResultContractWire [auto]
 impl core::marker::Send for antecedent_io_core::AnalysisResultHeader [auto]
+impl core::marker::Send for antecedent_io_core::AnalysisResultLoad [auto]
 impl core::marker::Send for antecedent_io_core::AnalysisResultWire [auto]
 impl core::marker::Send for antecedent_io_core::AnalysisTraceWire [auto]
 impl core::marker::Send for antecedent_io_core::ArtifactCheckError [auto]
@@ -4516,6 +4529,8 @@ impl core::marker::Send for antecedent_io_core::RecordedContrastWire [auto]
 impl core::marker::Send for antecedent_io_core::RedrawPriorWire [auto]
 impl core::marker::Send for antecedent_io_core::RedrawTargetWire [auto]
 impl core::marker::Send for antecedent_io_core::RefutationReportWire [auto]
+impl core::marker::Send for antecedent_io_core::ReplayOptions [auto]
+impl core::marker::Send for antecedent_io_core::ReplayReport [auto]
 impl core::marker::Send for antecedent_io_core::ResponseEnvelopeWire [auto]
 impl core::marker::Send for antecedent_io_core::ResponseFunctionalWire [auto]
 impl core::marker::Send for antecedent_io_core::ResponseIdentificationWire [auto]
@@ -5363,6 +5378,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::RecordedContrastW
 impl core::marker::StructuralPartialEq for antecedent_io_core::RedrawPriorWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::RedrawTargetWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::RefutationReportWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::ReplayReport
 impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseEnvelopeWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseFunctionalWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::ResponseIdentificationWire
@@ -5919,6 +5935,7 @@ impl core::marker::Sync for antecedent_io_core::AdmgWire [auto]
 impl core::marker::Sync for antecedent_io_core::AnalysisResultConsumption [auto]
 impl core::marker::Sync for antecedent_io_core::AnalysisResultContractWire [auto]
 impl core::marker::Sync for antecedent_io_core::AnalysisResultHeader [auto]
+impl core::marker::Sync for antecedent_io_core::AnalysisResultLoad [auto]
 impl core::marker::Sync for antecedent_io_core::AnalysisResultWire [auto]
 impl core::marker::Sync for antecedent_io_core::AnalysisTraceWire [auto]
 impl core::marker::Sync for antecedent_io_core::ArtifactCheckError [auto]
@@ -6161,6 +6178,8 @@ impl core::marker::Sync for antecedent_io_core::RecordedContrastWire [auto]
 impl core::marker::Sync for antecedent_io_core::RedrawPriorWire [auto]
 impl core::marker::Sync for antecedent_io_core::RedrawTargetWire [auto]
 impl core::marker::Sync for antecedent_io_core::RefutationReportWire [auto]
+impl core::marker::Sync for antecedent_io_core::ReplayOptions [auto]
+impl core::marker::Sync for antecedent_io_core::ReplayReport [auto]
 impl core::marker::Sync for antecedent_io_core::ResponseEnvelopeWire [auto]
 impl core::marker::Sync for antecedent_io_core::ResponseFunctionalWire [auto]
 impl core::marker::Sync for antecedent_io_core::ResponseIdentificationWire [auto]
@@ -6771,6 +6790,7 @@ impl core::marker::Unpin for antecedent_io_core::AdmgWire [auto]
 impl core::marker::Unpin for antecedent_io_core::AnalysisResultConsumption [auto]
 impl core::marker::Unpin for antecedent_io_core::AnalysisResultContractWire [auto]
 impl core::marker::Unpin for antecedent_io_core::AnalysisResultHeader [auto]
+impl core::marker::Unpin for antecedent_io_core::AnalysisResultLoad [auto]
 impl core::marker::Unpin for antecedent_io_core::AnalysisResultWire [auto]
 impl core::marker::Unpin for antecedent_io_core::AnalysisTraceWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ArtifactCheckError [auto]
@@ -7013,6 +7033,8 @@ impl core::marker::Unpin for antecedent_io_core::RecordedContrastWire [auto]
 impl core::marker::Unpin for antecedent_io_core::RedrawPriorWire [auto]
 impl core::marker::Unpin for antecedent_io_core::RedrawTargetWire [auto]
 impl core::marker::Unpin for antecedent_io_core::RefutationReportWire [auto]
+impl core::marker::Unpin for antecedent_io_core::ReplayOptions [auto]
+impl core::marker::Unpin for antecedent_io_core::ReplayReport [auto]
 impl core::marker::Unpin for antecedent_io_core::ResponseEnvelopeWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ResponseFunctionalWire [auto]
 impl core::marker::Unpin for antecedent_io_core::ResponseIdentificationWire [auto]
@@ -7624,6 +7646,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AdmgWire [a
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AnalysisResultConsumption [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AnalysisResultContractWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AnalysisResultHeader [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AnalysisResultLoad [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AnalysisResultWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AnalysisTraceWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ArtifactCheckError [auto]
@@ -7866,6 +7889,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RecordedCon
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RedrawPriorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RedrawTargetWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::RefutationReportWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ReplayOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ReplayReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseEnvelopeWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseFunctionalWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ResponseIdentificationWire [auto]
@@ -8475,6 +8500,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AdmgWire [auto
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AnalysisResultConsumption [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AnalysisResultContractWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AnalysisResultHeader [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AnalysisResultLoad [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AnalysisResultWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AnalysisTraceWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ArtifactCheckError [auto]
@@ -8717,6 +8743,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RecordedContra
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RedrawPriorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RedrawTargetWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::RefutationReportWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ReplayOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ReplayReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseEnvelopeWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseFunctionalWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ResponseIdentificationWire [auto]
@@ -11217,6 +11245,11 @@ pub field antecedent_io_core::AnalysisResultContractWire::structure_source: allo
 pub field antecedent_io_core::AnalysisResultContractWire::target: antecedent_io_core::TargetIdentityWire
 pub field antecedent_io_core::AnalysisResultContractWire::target_weights: core::option::Option<antecedent_io_core::TargetWeightsSectionWire>
 pub field antecedent_io_core::AnalysisResultHeader::variable_names: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::AnalysisResultLoad::artifact_digest: [u8; 32]
+pub field antecedent_io_core::AnalysisResultLoad::body: antecedent_io_core::AnalysisResultWire
+pub field antecedent_io_core::AnalysisResultLoad::contract: core::option::Option<antecedent_io_core::AnalysisResultContractWire>
+pub field antecedent_io_core::AnalysisResultLoad::header: antecedent_io_core::AnalysisResultHeader
+pub field antecedent_io_core::AnalysisResultLoad::integrity: alloc::vec::Vec<alloc::sync::Arc<str>>
 pub field antecedent_io_core::AnalysisResultWire::adjusted_p_values: core::option::Option<(f64, f64)>
 pub field antecedent_io_core::AnalysisResultWire::association: core::option::Option<antecedent_io_core::AssociationWire>
 pub field antecedent_io_core::AnalysisResultWire::assumptions: alloc::vec::Vec<antecedent_io_core::AssumptionRecordWire>
@@ -12375,6 +12408,11 @@ pub field antecedent_io_core::RefutationReportWire::refuted_ate: f64
 pub field antecedent_io_core::RefutationReportWire::refuter: alloc::string::String
 pub field antecedent_io_core::RefutationReportWire::replicates: u32
 pub field antecedent_io_core::RefutationReportWire::scope: core::option::Option<antecedent_io_core::analysis_wire::RefutationScopeWire>
+pub field antecedent_io_core::ReplayOptions::limits: antecedent_io_core::distribution_replay::ReplayLimits
+pub field antecedent_io_core::ReplayOptions::source: antecedent_io_core::SourceReplayBounds
+pub field antecedent_io_core::ReplayReport::integrity: alloc::vec::Vec<alloc::sync::Arc<str>>
+pub field antecedent_io_core::ReplayReport::mismatches: alloc::vec::Vec<alloc::sync::Arc<str>>
+pub field antecedent_io_core::ReplayReport::not_replayable: alloc::vec::Vec<alloc::sync::Arc<str>>
 pub field antecedent_io_core::ResponseEnvelopeWire::dimension: u64
 pub field antecedent_io_core::ResponseEnvelopeWire::grid: alloc::vec::Vec<f64>
 pub field antecedent_io_core::ResponseEnvelopeWire::lower: alloc::vec::Vec<f64>
@@ -14908,6 +14946,8 @@ pub field antecedent_io_core::transported_counterfactual_artifact::UnitContrastW
 pub field antecedent_io_core::wire::GraphCpdagWire::directed: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io_core::wire::GraphCpdagWire::node_count: u32
 pub field antecedent_io_core::wire::GraphCpdagWire::undirected: alloc::vec::Vec<(u32, u32)>
+pub fn <antecedent_io_core::AnalysisResultLoad>::fn is_intact(&self) -> bool
+pub fn <antecedent_io_core::AnalysisResultLoad>::fn replay(&self, options: &antecedent_io_core::ReplayOptions) -> antecedent_io_core::ReplayReport
 pub fn <antecedent_io_core::ArtifactManifest>::fn development_entries(&self) -> alloc::vec::Vec<&str>
 pub fn <antecedent_io_core::ArtifactManifest>::fn is_development_build(&self) -> bool
 pub fn <antecedent_io_core::ArtifactManifest>::fn refuse_development(&self) -> core::result::Result<(), antecedent_io_core::IoError>
@@ -15112,6 +15152,8 @@ pub fn <antecedent_io_core::PropagationResultWire>::fn named_entries(&self) -> a
 pub fn <antecedent_io_core::PropagationResultWire>::fn value(&self, name: &str) -> core::option::Option<f64>
 pub fn <antecedent_io_core::PropagationResultWire>::fn verdict(&self) -> core::option::Option<antecedent_stats::joint_law::DecisionVerdict>
 pub fn <antecedent_io_core::ProvenanceRole>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io_core::ReplayReport>::fn failed(&self) -> bool
+pub fn <antecedent_io_core::ReplayReport>::fn replayed(&self) -> bool
 pub fn <antecedent_io_core::SchemaWire>::fn has_unspecified_value_types(&self) -> bool
 pub fn <antecedent_io_core::SchemaWire>::fn variable_names(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn <antecedent_io_core::ScoreReuseIdentityWire>::fn batch_share(data_snapshot: antecedent_core::identity::SemanticDigest, fold_ids: &[u32], n_folds: u32, adjustment_set: &[antecedent_core::ids::VariableId]) -> Self
@@ -15819,9 +15861,6 @@ pub fn antecedent_io_core::claim_kind(body: &antecedent_io_core::AnalysisResultW
 pub fn antecedent_io_core::claim_kind_name(body: &antecedent_io_core::AnalysisResultWire, identification: core::option::Option<&antecedent_io_core::IdentificationSlotWire>) -> &'static str
 pub fn antecedent_io_core::claim_kind_name_of_section(body: &antecedent_io_core::AnalysisResultWire, identification: &antecedent_io_core::SlotSectionWire<antecedent_io_core::IdentificationSlotWire>) -> &'static str
 pub fn antecedent_io_core::claim_kind_of_section(body: &antecedent_io_core::AnalysisResultWire, identification: &antecedent_io_core::SlotSectionWire<antecedent_io_core::IdentificationSlotWire>) -> antecedent_contract::claim::ClaimKind
-pub fn antecedent_io_core::consume_analysis_result(bytes: &[u8]) -> core::result::Result<antecedent_io_core::AnalysisResultConsumption, antecedent_io_core::IoError>
-pub fn antecedent_io_core::consume_analysis_result_with_source(bytes: &[u8], bounds: &antecedent_io_core::SourceReplayBounds) -> core::result::Result<antecedent_io_core::AnalysisResultConsumption, antecedent_io_core::IoError>
-pub fn antecedent_io_core::consume_analysis_result_within(bytes: &[u8], limits: &antecedent_io_core::distribution_replay::ReplayLimits) -> core::result::Result<antecedent_io_core::AnalysisResultConsumption, antecedent_io_core::IoError>
 pub fn antecedent_io_core::container::describe_streaming(id: impl core::convert::Into<alloc::string::String>, content_type: impl core::convert::Into<alloc::string::String>, source: &dyn antecedent_io_core::container::LogicalSource, policy: antecedent_io_core::CompressPolicy, work: &antecedent_io_core::container::StreamWork<'_>) -> core::result::Result<(antecedent_io_core::SectionDescriptor, antecedent_io_core::container::StreamReceipt), antecedent_io_core::IoError>
 pub fn antecedent_io_core::container::pack_section(id: impl core::convert::Into<alloc::string::String>, content_type: impl core::convert::Into<alloc::string::String>, logical: alloc::vec::Vec<u8>, policy: antecedent_io_core::CompressPolicy) -> (antecedent_io_core::SectionDescriptor, antecedent_io_core::SectionBytes)
 pub fn antecedent_io_core::container::pack_section_shared(id: impl core::convert::Into<alloc::string::String>, content_type: impl core::convert::Into<alloc::string::String>, logical: alloc::sync::Arc<[u8]>, policy: antecedent_io_core::CompressPolicy) -> (antecedent_io_core::SectionDescriptor, antecedent_io_core::SectionBytes)
@@ -15838,8 +15877,12 @@ pub fn antecedent_io_core::contract_section::cyclic::seal_cyclic_contract(payloa
 pub fn antecedent_io_core::contract_section::cyclic::verify_cyclic_contract_against_body(contract: &antecedent_io_core::contract_section::CyclicContractWire, request_bytes: &[u8]) -> alloc::vec::Vec<alloc::sync::Arc<str>>
 pub fn antecedent_io_core::contract_section::decode_analysis_result_contract(artifact: &antecedent_io_core::EncodedArtifact) -> core::result::Result<core::option::Option<antecedent_io_core::AnalysisResultContractWire>, antecedent_io_core::IoError>
 pub fn antecedent_io_core::contract_section::identification_not_claimed(section: &antecedent_io_core::SlotSectionWire<antecedent_io_core::IdentificationSlotWire>) -> bool
+pub fn antecedent_io_core::contract_section::load_analysis_result(bytes: &[u8]) -> core::result::Result<antecedent_io_core::AnalysisResultLoad, antecedent_io_core::IoError>
 pub fn antecedent_io_core::contract_section::project_claim_host(consumed: &antecedent_io_core::AnalysisResultConsumption) -> antecedent_io_core::ClaimHostProjection
 pub fn antecedent_io_core::contract_section::project_lossy_scalar(consumed: &antecedent_io_core::AnalysisResultConsumption) -> (antecedent_io_core::ClaimHostProjection, antecedent_contract::claim::HandoffReceipt)
+pub fn antecedent_io_core::contract_section::replay_analysis_result(bytes: &[u8]) -> core::result::Result<antecedent_io_core::AnalysisResultConsumption, antecedent_io_core::IoError>
+pub fn antecedent_io_core::contract_section::replay_analysis_result_with_source(bytes: &[u8], bounds: &antecedent_io_core::SourceReplayBounds) -> core::result::Result<antecedent_io_core::AnalysisResultConsumption, antecedent_io_core::IoError>
+pub fn antecedent_io_core::contract_section::replay_analysis_result_within(bytes: &[u8], limits: &antecedent_io_core::distribution_replay::ReplayLimits) -> core::result::Result<antecedent_io_core::AnalysisResultConsumption, antecedent_io_core::IoError>
 pub fn antecedent_io_core::contract_section::result_digest(body: &antecedent_io_core::AnalysisResultWire) -> core::result::Result<[u8; 32], antecedent_io_core::IoError>
 pub fn antecedent_io_core::contract_section::support_empirical(refutations: &[antecedent_io_core::RefutationReportWire], diagnostics: &[antecedent_io_core::DiagnosticWire]) -> core::option::Option<alloc::string::String>
 pub fn antecedent_io_core::contract_section::validate_contract_section(contract: &antecedent_io_core::AnalysisResultContractWire) -> core::result::Result<(), antecedent_io_core::IoError>
@@ -16205,6 +16248,8 @@ pub struct antecedent_io_core::AdmgWire
 pub struct antecedent_io_core::AnalysisResultConsumption
 pub struct antecedent_io_core::AnalysisResultContractWire
 pub struct antecedent_io_core::AnalysisResultHeader
+pub struct antecedent_io_core::AnalysisResultLoad
+pub struct antecedent_io_core::AnalysisResultLoad has private fields
 pub struct antecedent_io_core::AnalysisResultWire
 pub struct antecedent_io_core::AnalysisTraceWire
 pub struct antecedent_io_core::ArtifactContainer<'a>
@@ -16385,6 +16430,8 @@ pub struct antecedent_io_core::ReasoningSectionWire
 pub struct antecedent_io_core::RecordedContrastWire
 pub struct antecedent_io_core::RedrawPriorWire
 pub struct antecedent_io_core::RefutationReportWire
+pub struct antecedent_io_core::ReplayOptions
+pub struct antecedent_io_core::ReplayReport
 pub struct antecedent_io_core::ResponseEnvelopeWire
 pub struct antecedent_io_core::ResponseOptionsWire
 pub struct antecedent_io_core::ResponseQueryWire
@@ -17034,6 +17081,7 @@ pub use antecedent_io_core::container::SectionBytes = antecedent_io_core::Sectio
 pub use antecedent_io_core::container_kind = antecedent_io_core::artifact_codec::container_kind
 pub use antecedent_io_core::contract_section::AnalysisResultConsumption = antecedent_io_core::AnalysisResultConsumption
 pub use antecedent_io_core::contract_section::AnalysisResultContractWire = antecedent_io_core::AnalysisResultContractWire
+pub use antecedent_io_core::contract_section::AnalysisResultLoad = antecedent_io_core::AnalysisResultLoad
 pub use antecedent_io_core::contract_section::AssumptionSlotWire = antecedent_io_core::AssumptionSlotWire
 pub use antecedent_io_core::contract_section::AttestedEvidenceWire = antecedent_io_core::AttestedEvidenceWire
 pub use antecedent_io_core::contract_section::BOOTSTRAP_LIMITED_DIAGNOSTIC = antecedent_io_core::BOOTSTRAP_LIMITED_DIAGNOSTIC
@@ -17059,6 +17107,8 @@ pub use antecedent_io_core::contract_section::MCMC_LIMITED_DIAGNOSTIC = antecede
 pub use antecedent_io_core::contract_section::OVERLAP_LIMITED_DIAGNOSTIC = antecedent_io_core::OVERLAP_LIMITED_DIAGNOSTIC
 pub use antecedent_io_core::contract_section::ObligationSectionWire = antecedent_io_core::ObligationSectionWire
 pub use antecedent_io_core::contract_section::ReasoningSectionWire = antecedent_io_core::ReasoningSectionWire
+pub use antecedent_io_core::contract_section::ReplayOptions = antecedent_io_core::ReplayOptions
+pub use antecedent_io_core::contract_section::ReplayReport = antecedent_io_core::ReplayReport
 pub use antecedent_io_core::contract_section::SlotSectionWire = antecedent_io_core::SlotSectionWire
 pub use antecedent_io_core::contract_section::SourceReplayBounds = antecedent_io_core::SourceReplayBounds
 pub use antecedent_io_core::contract_section::SupportSlotWire = antecedent_io_core::SupportSlotWire
@@ -17075,9 +17125,6 @@ pub use antecedent_io_core::contract_section::claim_kind = antecedent_io_core::c
 pub use antecedent_io_core::contract_section::claim_kind_name = antecedent_io_core::claim_kind_name
 pub use antecedent_io_core::contract_section::claim_kind_name_of_section = antecedent_io_core::claim_kind_name_of_section
 pub use antecedent_io_core::contract_section::claim_kind_of_section = antecedent_io_core::claim_kind_of_section
-pub use antecedent_io_core::contract_section::consume_analysis_result = antecedent_io_core::consume_analysis_result
-pub use antecedent_io_core::contract_section::consume_analysis_result_with_source = antecedent_io_core::consume_analysis_result_with_source
-pub use antecedent_io_core::contract_section::consume_analysis_result_within = antecedent_io_core::consume_analysis_result_within
 pub use antecedent_io_core::contract_section::contract_seal = antecedent_io_core::contract_seal
 pub use antecedent_io_core::contract_section::cyclic::CYCLIC_CONTRACT_FORMAT = antecedent_io_core::contract_section::CYCLIC_CONTRACT_FORMAT
 pub use antecedent_io_core::contract_section::cyclic::CYCLIC_CONTRACT_SECTION = antecedent_io_core::contract_section::CYCLIC_CONTRACT_SECTION
@@ -17299,6 +17346,7 @@ pub use antecedent_io_core::joint_law_propagation_artifact::PropagationRuleWire 
 pub use antecedent_io_core::joint_law_propagation_artifact::VerdictWire = antecedent_io_core::VerdictWire
 pub use antecedent_io_core::joint_law_propagation_artifact::float_bits = antecedent_io_core::float_bits
 pub use antecedent_io_core::joint_law_propagation_identity = antecedent_io_core::joint_law_propagation_artifact::joint_law_propagation_identity
+pub use antecedent_io_core::load_analysis_result = antecedent_io_core::contract_section::load_analysis_result
 pub use antecedent_io_core::mechanism_composition_artifact::CompositionQueryWire = antecedent_io_core::CompositionQueryWire
 pub use antecedent_io_core::mechanism_composition_artifact::CompositionResultWire = antecedent_io_core::CompositionResultWire
 pub use antecedent_io_core::mechanism_composition_artifact::ConsumedMechanismComposition = antecedent_io_core::ConsumedMechanismComposition
@@ -17469,6 +17517,9 @@ pub use antecedent_io_core::reader::SectionAccess = antecedent_io_core::SectionA
 pub use antecedent_io_core::reader::SectionIndexEntry = antecedent_io_core::SectionIndexEntry
 pub use antecedent_io_core::reader::SectionLoadStats = antecedent_io_core::SectionLoadStats
 pub use antecedent_io_core::refusals_for_findings = antecedent_io_core::mechanism_composition_artifact::refusals_for_findings
+pub use antecedent_io_core::replay_analysis_result = antecedent_io_core::contract_section::replay_analysis_result
+pub use antecedent_io_core::replay_analysis_result_with_source = antecedent_io_core::contract_section::replay_analysis_result_with_source
+pub use antecedent_io_core::replay_analysis_result_within = antecedent_io_core::contract_section::replay_analysis_result_within
 pub use antecedent_io_core::require_digest = antecedent_io_core::artifact_codec::require_digest
 pub use antecedent_io_core::response_wire::CausalResponseWire = antecedent_io_core::CausalResponseWire
 pub use antecedent_io_core::response_wire::ContinuousDomainWire = antecedent_io_core::ContinuousDomainWire

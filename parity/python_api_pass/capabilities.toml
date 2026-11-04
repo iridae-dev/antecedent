@@ -12466,7 +12466,7 @@ assertion_contract = "A budget or cancellation stop keeps the exact range and re
 
 [[capability]]
 id = "transport.statistical_study.prepare_estimate_load"
-rust = ["export:antecedent::io::CONTRACT_SECTION", "export:antecedent::io::consume_analysis_result", "export:antecedent::io::transport_query_from_wire"]
+rust = ["export:antecedent::io::CONTRACT_SECTION", "export:antecedent::io::replay_analysis_result", "export:antecedent::io::transport_query_from_wire"]
 rust_types = ["antecedent::StatisticalStudyResult"]
 status = "covered"
 owner = "Python API integration: antecedent::analysis::statistical"
@@ -16420,7 +16420,7 @@ status = "plumbing"
 owner = "Python API integration: antecedent::io"
 behavior = "Independent consumption of a composite analysis-result artifact: decoded header and body, contract section, acceptance and artifact digest."
 python = "antecedent.recalc_design.consume_design_result"
-composed_caller = "recalc_design.consume_design_result -> consume_design_with_data -> antecedent_io::consume_analysis_result -> AnalysisResultConsumption{header, body, contract, acceptance}"
+composed_caller = "recalc_design.consume_design_result -> consume_design_with_data -> antecedent_io::replay_analysis_result -> AnalysisResultConsumption{header, body, contract, acceptance}"
 required_dimensions = ["success", "refusal", "artifact"]
 [[capability.evidence]]
 test = "python/tests/test_recalc_design.py::test_design_source_backed_replay_and_mismatch_refusals_fresh_process"

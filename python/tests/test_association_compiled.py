@@ -17,7 +17,7 @@ from antecedent.descriptive import Association, AssociationEstimate
 from antecedent.errors import CausalError, CausalUnsupportedError, CausalValueError
 from antecedent.outcomes import require_success
 
-from _sealed_loads import assert_answer_kept
+from _loaded_results import assert_answer_kept
 
 
 def _line(n: int = 120) -> dict[str, np.ndarray]:

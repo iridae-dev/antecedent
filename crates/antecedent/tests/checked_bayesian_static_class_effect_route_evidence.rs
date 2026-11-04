@@ -350,7 +350,7 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
                             &ctx,
                         )
                         .unwrap();
-                    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                     assert!(consumed.contract.is_some());
                     assert!(
                         consumed.acceptance.unresolved.iter().any(|reason| {
@@ -359,7 +359,7 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
                         "{coordinate}: {:?}",
                         consumed.acceptance.unresolved
                     );
-                    assert!(!consumed.acceptance.accepts_as_verified_program());
+                    assert!(!consumed.acceptance.accepts_as_replayed_program());
                 }
             }
         }

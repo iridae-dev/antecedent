@@ -11,7 +11,7 @@ use antecedent_contract::SlotAvailability;
 use antecedent_core::{AverageEffectQuery, ExecutionContext};
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 fn vid(raw: u32) -> antecedent_core::VariableId {
     antecedent_core::VariableId::from_raw(raw)
@@ -166,7 +166,7 @@ fn verify_functional_effect_coordinate(
     let artifact = prepared
         .encode_contracted_result(&refreshed, &format!("functional-effect-{coordinate}"), &ctx)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     let is_replay = |reason: &std::sync::Arc<str>| {
         matches!(
             reason.as_ref(),
@@ -189,7 +189,7 @@ fn verify_functional_effect_coordinate(
             replay.as_slice(),
             "{coordinate} replay reasons come first: {unresolved:?}"
         );
-        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
     }
     if bayesian {
         assert_eq!(
@@ -203,11 +203,11 @@ fn verify_functional_effect_coordinate(
                 .any(|reason| reason.as_ref() == "dependencies.functional_effect_posterior_draws"),
             "{coordinate} artifact dependencies: {unresolved:?}"
         );
-        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
     } else {
         assert!(others.is_empty(), "{coordinate} artifact dependencies: {unresolved:?}");
         assert_eq!(
-            consumed.acceptance.accepts_as_verified_program(),
+            consumed.acceptance.accepts_as_replayed_program(),
             validation == "none",
             "{coordinate} artifact dependencies: {unresolved:?}"
         );
@@ -239,9 +239,9 @@ fn admg_default_estimator_replay_uses_resolved_commitment() {
     let bytes = prepared
         .encode_contracted_result(&refreshed, "admg-default-functional-effect", &ctx)
         .unwrap();
-    let consumed = consume_analysis_result(&bytes).unwrap();
+    let consumed = replay_analysis_result(&bytes).unwrap();
     assert!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         "{:?}",
         consumed.acceptance.unresolved
     );

@@ -373,7 +373,7 @@ fn both_link_contrast_estimators_publish_artifacts_a_consumer_recomputes_from() 
             .unwrap();
         let result = prepared.estimate_panel(&panel_data, &ctx).unwrap();
         let bytes = prepared.encode_contracted_result(&result, wire_id, &ctx).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
         assert_eq!(consumed.body.estimate, Some(result.effect()), "{wire_id}");
         let contract = consumed.contract.as_ref().expect("a contracted link-contrast artifact");
         assert_eq!(contract.estimator.as_deref(), Some(wire_id));

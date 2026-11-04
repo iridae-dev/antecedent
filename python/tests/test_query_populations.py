@@ -20,7 +20,7 @@ from antecedent import population as P
 from antecedent.errors import CausalUnsupportedError
 from antecedent.outcomes import require_success
 
-from _sealed_loads import assert_answer_kept
+from _loaded_results import assert_answer_kept
 
 
 def _static(n: int = 1200, seed: int = 3) -> dict[str, np.ndarray]:

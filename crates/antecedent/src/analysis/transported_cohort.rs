@@ -350,7 +350,7 @@ pub fn transport_cohort_effect_from_result(
         None => FittedEffectModel::load(artifact),
     }
     .map_err(lift)?;
-    let consumed = antecedent_io::consume_analysis_result(artifact).map_err(|_| {
+    let consumed = antecedent_io::replay_analysis_result(artifact).map_err(|_| {
         invalid(
             DETAIL_MODEL_NOT_PORTABLE,
             "analysis_result",

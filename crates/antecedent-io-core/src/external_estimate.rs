@@ -746,8 +746,8 @@ mod tests {
         let mut attach = attach_with_payload(&[0]);
         attach.scalar_value = Some(1.2);
         let bytes = encode_external_estimate_claim(&attach).unwrap();
-        let consumed = crate::consume_analysis_result(&bytes).unwrap();
-        assert!(!consumed.acceptance.verified_references);
+        let consumed = crate::replay_analysis_result(&bytes).unwrap();
+        assert!(!consumed.acceptance.replayed_references);
         let host = crate::project_claim_host(&consumed);
         assert_eq!(host.identification_domain, serde_json::Value::Null);
         assert_eq!(host.support_domain, serde_json::Value::Null);

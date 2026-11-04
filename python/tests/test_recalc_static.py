@@ -343,7 +343,7 @@ def test_static_original_artifact_fresh_process(kind, tmp_path):
     path = tmp_path / "result.artifact"
     path.write_bytes(bytes(session.export(execution=Execution(seed=3))))
     if kind == "response":
-        script = "import antecedent as a,json,sys; r=a.artifacts.accept(open(sys.argv[1],'rb').read()); print(json.dumps({'verified':r['accepts_as_verified_program'],'unresolved':r['unresolved']}))"
+        script = "import antecedent as a,json,sys; r=a.artifacts.accept(open(sys.argv[1],'rb').read(), replay=True); print(json.dumps({'replayed':r['replayed'],'not_replayable':r['not_replayable']}))"
     else:
         script = "import json,sys; from antecedent.outcomes import require_success; from antecedent.transport.advanced import consume_multi_source_z_transport_artifact as c; r=require_success(c(open(sys.argv[1],'rb').read())); print(json.dumps([entry['means']['y'] for entry in r['requests']]))"
     ran = subprocess.run(
@@ -351,7 +351,7 @@ def test_static_original_artifact_fresh_process(kind, tmp_path):
     )
     consumed = json.loads(ran.stdout)
     if kind == "response":
-        assert consumed == {"verified": "true", "unresolved": ""}
+        assert consumed == {"replayed": "true", "not_replayable": ""}
     else:
         assert consumed == pytest.approx([truth(0), truth(1)], abs=1e-11)
 

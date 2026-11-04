@@ -12,7 +12,7 @@ use antecedent_contract::SlotAvailability;
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
 /// Balanced confounded blocks with `Y = shift + 2T + slope * Z + eps`.
@@ -258,7 +258,7 @@ fn bayesian_class_graph_posterior_effect_body() {
                     &ctx,
                 )
                 .unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(
                 consumed.acceptance.unresolved.iter().any(|reason| {
                     reason.as_ref() == "dependencies.checked_class_graph_posterior_effect_operation"
@@ -266,7 +266,7 @@ fn bayesian_class_graph_posterior_effect_body() {
                 "{coordinate}: {:?}",
                 consumed.acceptance.unresolved
             );
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
         }
     }
 }

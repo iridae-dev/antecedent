@@ -16,7 +16,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, Dag, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 const NAMES: [&str; 5] = ["a", "y", "trial", "s", "e"];
 
@@ -158,7 +158,7 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
 
         let bytes =
             prepared.encode_contracted_result(&result, "checked-transport-trial", &ctx).unwrap();
-        let consumed = consume_analysis_result(&bytes).unwrap();
+        let consumed = replay_analysis_result(&bytes).unwrap();
         assert!(
             consumed.acceptance.unresolved.iter().any(|dependency| {
                 dependency.as_ref() == "dependencies.checked_transport_trial_operation"
@@ -166,7 +166,7 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
             "{:?}",
             consumed.acceptance.unresolved
         );
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
 
         let refreshed = rebind_estimate(&mut prepared, shifted.clone(), &ctx).unwrap();
         assert!(

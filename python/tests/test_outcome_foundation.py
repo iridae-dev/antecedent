@@ -209,14 +209,12 @@ def test_export_receipt_adapter_preserves_receipt_and_does_not_export_twice(monk
 
 
 def test_acceptance_requires_a_real_consumer_receipt_not_a_kind_label():
-    no_receipt = SimpleNamespace(kind="selective_discovery_v1", status="verified")
+    no_receipt = SimpleNamespace(kind="selective_discovery_v1", status="replayed")
     assert acceptance_from_consumer(no_receipt).status == "unavailable"
     assert acceptance_from_consumer(no_receipt).resumable is False
-    receipt = ArtifactAcceptance("sealed", True, False, False)
+    receipt = ArtifactAcceptance("loaded", True, False, False)
     actual = acceptance_from_consumer(SimpleNamespace(acceptance=receipt))
     assert actual == receipt
-    explicit = SimpleNamespace(
-        receipt={"accepts_as_verified_program": "true", "recognized": "true"}
-    )
+    explicit = SimpleNamespace(receipt={"replayed": "true", "recognized": "true"})
     assert acceptance_from_consumer(explicit).verified is True
     assert acceptance_from_consumer(explicit).resumable is False

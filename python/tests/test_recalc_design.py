@@ -304,16 +304,16 @@ def test_design_original_artifact_independent_consumer_fresh_process(kind, tmp_p
     path = tmp_path / "original.artifact"
     path.write_bytes(bytes(session.export(execution=Execution(seed=3))))
     script = """import antecedent as a,json,sys
-r=a.artifacts.accept(open(sys.argv[1],'rb').read())
-if sys.argv[2]=='rd': assert 'dependencies.checked_rd_operation' in r['unresolved']
-print(json.dumps({'verified':r['accepts_as_verified_program'],'unresolved':r['unresolved']}))
+r=a.artifacts.accept(open(sys.argv[1],'rb').read(), replay=True)
+if sys.argv[2]=='rd': assert 'dependencies.checked_rd_operation' in r['not_replayable']
+print(json.dumps({'replayed':r['replayed'],'not_replayable':r['not_replayable']}))
 """
     ran = subprocess.run(
         [sys.executable, "-c", script, str(path), kind], check=True, capture_output=True, text=True
     )
     accepted = json.loads(ran.stdout)
     if kind == "rd":
-        assert "dependencies.checked_rd_operation" in accepted["unresolved"]
+        assert "dependencies.checked_rd_operation" in accepted["not_replayable"]
     else:
-        # A checked estimator operation replays from its retained inputs and is verified.
-        assert accepted == {"verified": "true", "unresolved": ""}
+        # A checked estimator operation replays from its retained inputs.
+        assert accepted == {"replayed": "true", "not_replayable": ""}

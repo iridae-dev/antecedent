@@ -15,7 +15,7 @@ use antecedent_data::{
 };
 use antecedent_estimate::{AnalyticSeKind, FrontDoorTwoStage, TwoStageLeastSquares, WaldIv};
 use antecedent_graph::Dag;
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 
 /// Independent references on the exact fixture columns, computed with numpy (`a * b` with `a` the
 /// slope of the mediator on the treatment and `b` the mediator coefficient of the outcome on the
@@ -204,12 +204,12 @@ fn verify_frontdoor(accepted: bool, validation: &str) {
             &context,
         )
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     // The checked lowering binds the route and the carried cross-product moments replay the
     // fitted point estimate. A refutation suite adds only the refutation replay obligation,
     // which a compact artifact cannot discharge.
     assert_eq!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         validation == "none",
         "{coordinate}"
     );
@@ -300,12 +300,12 @@ fn verify_iv(accepted: bool, validation: &str, wald: bool) {
             &context,
         )
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     // The checked lowering binds the route and the carried cross-product moments replay the
     // fitted point estimate. A refutation suite adds only the refutation replay obligation,
     // which a compact artifact cannot discharge.
     assert_eq!(
-        consumed.acceptance.accepts_as_verified_program(),
+        consumed.acceptance.accepts_as_replayed_program(),
         validation == "none",
         "{coordinate}"
     );

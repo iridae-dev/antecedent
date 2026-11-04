@@ -90,7 +90,7 @@ fn replay(
     assert_eq!(identity, again.lowered_program_identity(), "{wire_id}");
     assert_eq!(first.effect().to_bits(), again.effect().to_bits(), "{wire_id}: rerun differs");
     let bytes = prepared.encode_contracted_result(&first, wire_id, &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     (first, consumed)
 }
 

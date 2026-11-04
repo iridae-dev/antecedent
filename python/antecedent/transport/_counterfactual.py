@@ -673,7 +673,7 @@ def identify_counterfactual(
 def _counterfactual_acceptance(result: Any, bound: bool) -> ArtifactAcceptance:
     numeric = isinstance(result, CounterfactualTransportResult)
     return ArtifactAcceptance(
-        "verified",
+        "replayed",
         bound,
         numeric,
         False,

@@ -675,9 +675,9 @@ def test_supported_graph_posterior_frequentist_prepare_matches_analyze():
     assert any("unidentified_mass=0.2" in diagnostic for diagnostic in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
-    consumed = antecedent.artifacts.accept(bytes(click.export()))
-    assert consumed["accepts_as_verified_program"] == "false"
-    assert "dependencies.checked_graph_posterior_effect_operation" in consumed["unresolved"]
+    consumed = antecedent.artifacts.accept(bytes(click.export()), replay=True)
+    assert consumed["replayed"] == "false"
+    assert "dependencies.checked_graph_posterior_effect_operation" in consumed["not_replayable"]
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
@@ -715,9 +715,9 @@ def test_checked_static_mediation_retains_contrast_and_refresh(accepted: bool):
     refreshed_outcome = antecedent.estimate(antecedent.rebind(prepared, data=changed))
     refreshed = require_success(refreshed_outcome)
     assert refreshed.ate == pytest.approx(0.4, abs=1e-9)
-    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
-    assert consumed["accepts_as_verified_program"] == "false"
-    assert "dependencies.checked_mediation_operation" in consumed["unresolved"]
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert consumed["replayed"] == "false"
+    assert "dependencies.checked_mediation_operation" in consumed["not_replayable"]
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
@@ -761,9 +761,9 @@ def test_checked_bayesian_dag_ate_retains_prior_and_refresh(accepted: bool):
     refreshed = require_success(refreshed_outcome)
     assert _adjusted_ols(changed)[1] == pytest.approx(2.4, abs=1e-9)
     assert refreshed.ate == pytest.approx(2.4, abs=0.02)
-    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
-    assert consumed["accepts_as_verified_program"] == "false"
-    assert "dependencies.checked_bayesian_dag_ate_operation" in consumed["unresolved"]
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert consumed["replayed"] == "false"
+    assert "dependencies.checked_bayesian_dag_ate_operation" in consumed["not_replayable"]
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
@@ -809,9 +809,9 @@ def test_checked_conditional_effect_retains_interaction_target_and_refresh(
     refreshed = require_success(refreshed_outcome)
     assert refreshed.ate == pytest.approx(3.4, abs=1e-8)
     assert refreshed_outcome.study.plan_view().operation["source_rows"] == plan["source_rows"]
-    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
-    assert consumed["accepts_as_verified_program"] == "false"
-    assert "dependencies.checked_conditional_effect_operation" in consumed["unresolved"]
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert consumed["replayed"] == "false"
+    assert "dependencies.checked_conditional_effect_operation" in consumed["not_replayable"]
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
@@ -851,9 +851,9 @@ def test_checked_temporal_effect_retains_policy_and_refresh(accepted, query, pol
     refreshed_outcome = antecedent.estimate(antecedent.rebind(prepared, data=changed))
     refreshed = require_success(refreshed_outcome)
     assert refreshed.ate == pytest.approx(0.6, abs=1e-6)
-    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
-    assert consumed["accepts_as_verified_program"] == "false"
-    assert "dependencies.checked_temporal_dag_effect_operation" in consumed["unresolved"]
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert consumed["replayed"] == "false"
+    assert "dependencies.checked_temporal_dag_effect_operation" in consumed["not_replayable"]
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
@@ -895,9 +895,9 @@ def test_checked_temporal_response_grid_survives_preparation_and_refresh(accepte
         np.asarray(result.response.values).flatten() + 0.3,
         atol=1e-9,
     )
-    consumed = antecedent.artifacts.accept(bytes(refreshed.export()))
-    assert consumed["accepts_as_verified_program"] == "false"
-    assert "dependencies.checked_temporal_response_operation" in consumed["unresolved"]
+    consumed = antecedent.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert consumed["replayed"] == "false"
+    assert "dependencies.checked_temporal_response_operation" in consumed["not_replayable"]
 
 
 def test_supported_dbn_posterior_prepare_matches_analyze():

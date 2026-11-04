@@ -53,7 +53,7 @@ sha256 = "2ac8c422f59a3ac94cd3b8e4e45c589f96458ad8b3f02b2748202bc42f58d5af"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/randomized_ipow_artifact.rs"
-items = ["fn accept_claim", "fn consume_analysis_result", "fn consume_analysis_result_within", "fn decode_analysis_result_artifact", "fn posterior_row", "fn promote_replayed_ipow", "fn replay", "fn verify"]
+items = ["fn accept_claim", "fn replay_analysis_result", "fn replay_analysis_result_within", "fn decode_analysis_result_artifact", "fn posterior_row", "fn promote_replayed_ipow", "fn replay", "fn verify"]
 sha256 = "b98ce400cceefc98147a9d7b4020b1e9605f6c7bc8a4fda367f9d36093ba4fa8"
 
 [[method_review.artifacts]]

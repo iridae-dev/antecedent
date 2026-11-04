@@ -157,11 +157,11 @@ fn unknown_tiered_average_lifecycle_body() {
 
     let artifact =
         prepared.encode_contracted_result(&refreshed, "unknown-tiered-average", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(consumed.acceptance.unresolved.iter().any(|reason| {
         reason.as_ref() == "dependencies.checked_unknown_tiered_average_operation"
     }));
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 }
 
 /// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.

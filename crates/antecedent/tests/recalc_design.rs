@@ -276,12 +276,12 @@ fn design_actual_artifact_consumers_and_fresh_raw_data_refits_are_honest() {
         let first = run(&mut session, &r);
         let bytes = session.export_result().unwrap();
         let (consumed, solves) =
-            count_least_squares_solves(|| antecedent_io::consume_analysis_result(&bytes).unwrap());
+            count_least_squares_solves(|| antecedent_io::replay_analysis_result(&bytes).unwrap());
         assert_eq!(solves, 0);
         // IV and front-door replay their point estimate from carried moments; the RD
         // operation has no portable replay and stays explicitly unresolved.
         if matches!(r.model, DesignModel::Rd { .. }) {
-            assert!(!consumed.acceptance.accepts_as_verified_program());
+            assert!(!consumed.acceptance.accepts_as_replayed_program());
             assert!(
                 consumed
                     .acceptance
@@ -292,10 +292,10 @@ fn design_actual_artifact_consumers_and_fresh_raw_data_refits_are_honest() {
                 consumed.acceptance.unresolved
             );
         } else {
-            assert!(consumed.acceptance.accepts_as_verified_program());
+            assert!(consumed.acceptance.accepts_as_replayed_program());
         }
         close(consumed.body.estimate.unwrap(), first.law.ate);
-        assert!(antecedent_io::consume_analysis_result(&bytes[..bytes.len() / 2]).is_err());
+        assert!(antecedent_io::replay_analysis_result(&bytes[..bytes.len() / 2]).is_err());
         assert_source_backed_replay(&bytes, &r, &first, consumed.artifact_digest);
         let mut absent = DesignSession::resume(
             session.identities().clone(),
@@ -328,7 +328,7 @@ fn design_source_replay_refuses_other_dependencies_and_wrong_operation() {
     let mut session = DesignSession::new();
     run(&mut session, &original);
     let bytes = session.export_result().unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
 
     // Preserve the original sealed contract while changing its published body.
     // The missing numerical replay operation must not mask this separate failure.
@@ -350,7 +350,7 @@ fn design_source_replay_refuses_other_dependencies_and_wrong_operation() {
     artifact.sections.push(section);
     let mut changed = Vec::new();
     artifact.write_to(&mut changed).unwrap();
-    let parsed = antecedent_io::consume_analysis_result(&changed).unwrap();
+    let parsed = antecedent_io::replay_analysis_result(&changed).unwrap();
     assert!(
         parsed
             .acceptance

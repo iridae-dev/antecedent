@@ -308,10 +308,12 @@ def test_identify_proof_executes_through_retained_checked_plan_after_builder_dis
     refreshed = require_success(antecedent.estimate(antecedent.rebind(study, data=data)))
     assert refreshed.estimate.ate == pytest.approx(result.estimate.ate, abs=1e-12)
     assert refreshed.program_id == result.program_id
-    # Independent consumption names the retained operation it cannot replay
-    # instead of accepting a program-less replay as verified.
+    # A replay names the retained operation it cannot replay instead of reporting a
+    # program-less replay as replayed.
     loaded = require_success(antecedent.load(bytes(outcome.export())))
-    assert not loaded.acceptance.verified
+    replayed = loaded.replay()
+    assert not replayed.acceptance.replayed
     assert (
-        "dependencies.checked_transport_trial_operation" in loaded.acceptance.details["unresolved"]
+        "dependencies.checked_transport_trial_operation"
+        in replayed.acceptance.details["not_replayable"]
     )

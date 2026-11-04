@@ -55,7 +55,7 @@ def test_period_export_preserves_historical_native_bytes_and_explicit_expectatio
     assert unbound.accepted and bound.accepted
     assert not unbound.acceptance.identity_bound
     assert bound.acceptance.identity_bound
-    assert bound.acceptance.verified
+    assert bound.acceptance.replayed
     assert bound.acceptance.replayable is (not summary)
     assert not bound.acceptance.resumable
     assert bound.study is None
@@ -148,7 +148,7 @@ summary = sys.argv[2] == 'summary'
 loaded = ac.load(data, expected={'expected_encoding_sha256': sha256(data).hexdigest()})
 assert loaded.accepted
 assert loaded.study is None
-assert loaded.acceptance.verified and loaded.acceptance.identity_bound
+assert loaded.acceptance.replayed and loaded.acceptance.identity_bound
 assert loaded.acceptance.replayable is (not summary)
 assert not loaded.acceptance.resumable
 assert loaded.inspect().stage == 'consumed'
@@ -219,7 +219,7 @@ def test_singular_period_fit_exports_a_summary_without_inventing_coefficients():
     )
     loaded = ac.load(session.export(retention="summary-only"))
     summary = require_success(loaded)
-    assert loaded.acceptance.verified
+    assert loaded.acceptance.replayed
     assert summary.source == "v@flat"
     assert summary.n == 3
     assert summary.row_counts == PeriodRowCounts(rows=3, live_rows=3, effective_n=3)
@@ -379,7 +379,7 @@ def test_period_frame_inspection_is_bounded_and_requires_independent_consumption
         "validation": "requires_consumer",
     }
     assert inspected.acceptance.status == "unavailable"
-    assert not inspected.acceptance.verified
+    assert not inspected.acceptance.replayed
     assert not inspected.acceptance.identity_bound
     assert not inspected.acceptance.replayable
     assert not inspected.acceptance.resumable

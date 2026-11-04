@@ -271,16 +271,16 @@ impl ClaimEnvelope {
 pub struct AcceptanceReport {
     /// Whether required semantic features were recognized.
     pub recognized: bool,
-    /// Whether referenced identities / sections verified.
-    pub verified_references: bool,
+    /// Whether the referenced identities and sections were replayed and agree.
+    pub replayed_references: bool,
     /// Unresolved dependencies.
     pub unresolved: Arc<[Arc<str>]>,
     /// Operations the receiver can perform.
     pub supported_operations: Arc<[Arc<str>]>,
     /// Why acceptance is restricted or refused.
     pub restriction: Option<Arc<str>>,
-    /// Whether the verified artifact carries a claim over an execution.
-    /// A verified program without a claim is not an accepted claim.
+    /// Whether the replayed artifact carries a claim over an execution.
+    /// A replayed program without a claim is not an accepted claim.
     pub claim_present: bool,
 }
 
@@ -289,14 +289,14 @@ impl AcceptanceReport {
     #[must_use]
     pub fn new(
         recognized: bool,
-        verified_references: bool,
+        replayed_references: bool,
         unresolved: impl Into<Arc<[Arc<str>]>>,
         supported_operations: impl Into<Arc<[Arc<str>]>>,
         restriction: Option<Arc<str>>,
     ) -> Self {
         Self {
             recognized,
-            verified_references,
+            replayed_references,
             unresolved: unresolved.into(),
             supported_operations: supported_operations.into(),
             restriction,
@@ -316,7 +316,7 @@ impl AcceptanceReport {
     pub fn opaque_storage() -> Self {
         Self {
             recognized: false,
-            verified_references: false,
+            replayed_references: false,
             unresolved: Arc::from([Arc::from("required_semantics")]),
             supported_operations: Arc::from([Arc::from("store"), Arc::from("forward")]),
             restriction: Some(Arc::from("opaque_envelope")),
@@ -326,19 +326,19 @@ impl AcceptanceReport {
 
     /// Whether this report accepts the claim as a usable causal claim.
     ///
-    /// Requires a verified program that carries a claim.
+    /// Requires a replayed program that carries a claim.
     #[must_use]
     pub fn accepts_as_claim(&self) -> bool {
-        self.accepts_as_verified_program() && self.claim_present
+        self.accepts_as_replayed_program() && self.claim_present
     }
 
-    /// Whether the artifact is a fully verified program, with or without a claim.
+    /// Whether every part of the artifact was replayed and agrees, with or without a claim.
     ///
     /// Distinct from storage/forwarding. Old artifacts without a contract
     /// section remain readable but do not pass this check.
     #[must_use]
-    pub fn accepts_as_verified_program(&self) -> bool {
-        self.recognized && self.verified_references && self.unresolved.is_empty()
+    pub fn accepts_as_replayed_program(&self) -> bool {
+        self.recognized && self.replayed_references && self.unresolved.is_empty()
     }
 }
 

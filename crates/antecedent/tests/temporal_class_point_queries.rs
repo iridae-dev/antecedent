@@ -574,7 +574,7 @@ fn temporal_class_posterior_vector_derivatives_retain_values_and_encode() {
                 let artifact = prepared
                     .encode_contracted_result(&result, "class-vector-derivative", &ctx)
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(consumed.contract.is_some());
                 assert!(consumed.body.response.is_some());
             }
@@ -630,7 +630,7 @@ fn temporal_class_nested_contract_encodes() {
     let encoded = prepared.encode_contracted_result(&result, "nested-class", &ctx);
     let bytes = encoded.unwrap_or_else(|e| panic!("{e:?}"));
     // The sealed artifact is consumable and its verified contract names the nested query.
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     let contract = consumed.contract.as_ref().expect("verified contract");
     let labels: std::collections::HashMap<_, _> =
         antecedent_io::executed_functional_labels(&contract.target.query).into_iter().collect();

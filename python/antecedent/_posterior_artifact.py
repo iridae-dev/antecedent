@@ -244,7 +244,7 @@ def _inspection(
 def consume_posterior(
     data: Any, *, expected_encoding_sha256: str | None = None
 ) -> ConsumedPosterior:
-    """Parse historical posterior bytes natively and retain sealed acceptance.
+    """Parse historical posterior bytes natively and retain loaded acceptance.
 
     An optional independently retained SHA-256 binds the encoding bytes only.
     It does not establish the posterior's identification or scientific validity.
@@ -264,7 +264,7 @@ def consume_posterior(
         native,
         raw,
         ArtifactAcceptance(
-            "sealed",
+            "loaded",
             expected_encoding_sha256 is not None,
             False,
             False,

@@ -19,7 +19,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, DenseNodeId, Pag};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use serde_json::Value as Json;
 
 /// Dirichlet-posterior-mean tolerance around the enumerated truth on the retained table.
@@ -243,7 +243,7 @@ fn verify_coordinate(coordinate: &str, class: &str, accepted: bool, bayesian: bo
     let artifact = prepared
         .encode_contracted_result(&refreshed, &format!("distribution-{coordinate}"), &ctx)
         .unwrap();
-    consume_analysis_result(&artifact).unwrap();
+    replay_analysis_result(&artifact).unwrap();
 }
 
 #[test]

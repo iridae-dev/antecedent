@@ -17,7 +17,7 @@ import pytest
 from antecedent.errors import CausalUnsupportedError
 from antecedent.outcomes import require_success
 
-from _sealed_loads import assert_answer_kept
+from _loaded_results import assert_answer_kept
 
 STATIC_DAG = [("z", "t"), ("z", "y"), ("t", "y")]
 DISCLOSURE = "estimate.bayesian.gaussian_likelihood_discrete_outcome"

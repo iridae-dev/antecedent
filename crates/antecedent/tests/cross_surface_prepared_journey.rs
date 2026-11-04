@@ -145,12 +145,12 @@ fn fact(markdown: &str, key: &str) -> String {
 }
 
 fn claim_id(bytes: &[u8]) -> [u8; 32] {
-    let consumed = antecedent_io::consume_analysis_result(bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(bytes).unwrap();
     consumed.contract.as_ref().and_then(|c| c.claim.as_ref()).expect("an executed claim").claim_id
 }
 
 fn consumed_contrast(bytes: &[u8]) -> f64 {
-    antecedent_io::consume_analysis_result(bytes).unwrap().body.estimate.expect("contrast")
+    antecedent_io::replay_analysis_result(bytes).unwrap().body.estimate.expect("contrast")
 }
 
 #[test]

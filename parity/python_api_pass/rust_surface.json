@@ -37014,6 +37014,11 @@
       "kind": "reexport",
       "target": "antecedent_io::AnalysisResultContractWire"
     },
+    "export:antecedent::io::AnalysisResultLoad": {
+      "declaration": "pub use antecedent::io::AnalysisResultLoad = antecedent_io::AnalysisResultLoad",
+      "kind": "reexport",
+      "target": "antecedent_io::AnalysisResultLoad"
+    },
     "export:antecedent::io::AnalysisResultWire": {
       "declaration": "pub use antecedent::io::AnalysisResultWire = antecedent_io::AnalysisResultWire",
       "kind": "reexport",
@@ -37218,6 +37223,16 @@
       "declaration": "pub use antecedent::io::RandomizationContrastWire = antecedent_io::RandomizationContrastWire",
       "kind": "reexport",
       "target": "antecedent_io::RandomizationContrastWire"
+    },
+    "export:antecedent::io::ReplayOptions": {
+      "declaration": "pub use antecedent::io::ReplayOptions = antecedent_io::ReplayOptions",
+      "kind": "reexport",
+      "target": "antecedent_io::ReplayOptions"
+    },
+    "export:antecedent::io::ReplayReport": {
+      "declaration": "pub use antecedent::io::ReplayReport = antecedent_io::ReplayReport",
+      "kind": "reexport",
+      "target": "antecedent_io::ReplayReport"
     },
     "export:antecedent::io::STABLE_FORMAT": {
       "declaration": "pub use antecedent::io::STABLE_FORMAT = antecedent_io::STABLE_FORMAT",
@@ -37488,11 +37503,6 @@
       "declaration": "pub use antecedent::io::composition_verification_artifact::CompositionVerificationArtifactError = antecedent_io::composition_verification_artifact::CompositionVerificationArtifactError",
       "kind": "reexport",
       "target": "antecedent_io::composition_verification_artifact::CompositionVerificationArtifactError"
-    },
-    "export:antecedent::io::consume_analysis_result": {
-      "declaration": "pub use antecedent::io::consume_analysis_result = antecedent_io::consume_analysis_result",
-      "kind": "reexport",
-      "target": "antecedent_io::consume_analysis_result"
     },
     "export:antecedent::io::container::MAGIC": {
       "declaration": "pub use antecedent::io::container::MAGIC = antecedent_io::container::MAGIC",
@@ -38194,6 +38204,11 @@
       "kind": "reexport",
       "target": "antecedent_io::learned_joint_transport_artifact::LearnedJointExpectation"
     },
+    "export:antecedent::io::load_analysis_result": {
+      "declaration": "pub use antecedent::io::load_analysis_result = antecedent_io::load_analysis_result",
+      "kind": "reexport",
+      "target": "antecedent_io::load_analysis_result"
+    },
     "export:antecedent::io::measured_inference::MAX_MEASURED_ARTIFACT_BYTES": {
       "declaration": "pub use antecedent::io::measured_inference::MAX_MEASURED_ARTIFACT_BYTES = antecedent_io::measured_inference::MAX_MEASURED_ARTIFACT_BYTES",
       "kind": "reexport",
@@ -38633,6 +38648,16 @@
       "declaration": "pub use antecedent::io::release_migration::narrow_score_row_digest = antecedent_io::release_migration::narrow_score_row_digest",
       "kind": "reexport",
       "target": "antecedent_io::release_migration::narrow_score_row_digest"
+    },
+    "export:antecedent::io::replay_analysis_result": {
+      "declaration": "pub use antecedent::io::replay_analysis_result = antecedent_io::replay_analysis_result",
+      "kind": "reexport",
+      "target": "antecedent_io::replay_analysis_result"
+    },
+    "export:antecedent::io::replay_loaded_result": {
+      "declaration": "pub use antecedent::io::replay_loaded_result = antecedent_io::replay_loaded_result",
+      "kind": "reexport",
+      "target": "antecedent_io::replay_loaded_result"
     },
     "export:antecedent::io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire": {
       "declaration": "pub use antecedent::io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire = antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire",

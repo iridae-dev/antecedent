@@ -227,7 +227,7 @@ def test_declared_response_coordinates_survive_a_fresh_checked_artifact_consumer
     assert decoded.to_dict()["payload"]["response"]["coordinates"] == json.loads(
         json.dumps([quantity._wire() for quantity in result.quantities])
     )
-    acceptance = artifacts.accept(encoded)
+    acceptance = artifacts.accept(encoded, replay=True)
     assert result.claim_id == bytes(decoded.contract["claim"]["claim_id"]).hex()
     assert result.inspect().claim_id == result.claim_id
     artifact_path = tmp_path / "response.bin"
@@ -240,7 +240,7 @@ def test_declared_response_coordinates_survive_a_fresh_checked_artifact_consumer
 import json, sys
 from antecedent import artifacts
 payload = open(sys.argv[1], 'rb').read()
-print(json.dumps({'acceptance': artifacts.accept(payload),
+print(json.dumps({'acceptance': artifacts.accept(payload, replay=True),
                   'coordinates': artifacts.loads(payload).to_dict()['payload']['response']['coordinates']}))
 """,
             str(artifact_path),
@@ -263,7 +263,7 @@ print(json.dumps({'acceptance': artifacts.accept(payload),
         artifact_id=decoded.artifact_id,
         contract=decoded.contract,
     )
-    assert artifacts.accept(repacked) == acceptance
+    assert artifacts.accept(repacked, replay=True) == acceptance
     # The native encoder reuses independent contract verification; a valid
     # coordinate with changed units cannot retain the original body-bound claim.
     with pytest.raises(CausalSerializationError, match="claim.id"):

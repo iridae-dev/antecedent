@@ -92,7 +92,7 @@ def test_typed_world_branch_selects_units_population_and_replays_without_live_so
 from antecedent import load
 from antecedent.outcomes import require_success
 value=require_success(load(pathlib.Path({str(path)!r}).read_bytes(),expected={expected!r}))
-assert value.acceptance.verified and value.acceptance.identity_bound
+assert value.acceptance.replayed and value.acceptance.identity_bound
 assert value.acceptance.replayable and not value.acceptance.resumable
 print(json.dumps(value.to_dict()['columns'][0]['samples']))
 """

@@ -464,7 +464,7 @@ fn the_complier_posterior_recovers_the_known_effect_and_is_unsupported() {
     close(posterior.summaries.mean[column], 2.0, 0.3, "complier posterior mean");
     assert!(posterior.summaries.q025[column] < 2.0 && 2.0 < posterior.summaries.q975[column]);
     let bytes = prepared.encode_contracted_result(&result, "bayes-complier", &ctx).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     let acceptance = &consumed.acceptance;
     assert!(
         acceptance.recognized
@@ -934,7 +934,7 @@ fn supported_ipow_posterior_replays_after_the_builder_is_dropped() {
         assert!(claim.calibration.basis.is_none());
         let bytes = prepared.encode_contracted_result(&result, "supported-ipow", &ctx).unwrap();
         drop(prepared);
-        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
         assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance);
         let (accepted, receipt) =
             antecedent_io::accept_claim(&bytes, &antecedent_contract::ConsumerProfile::full())
@@ -952,7 +952,7 @@ fn supported_ipow_posterior_replays_after_the_builder_is_dropped() {
             max_operations: 0,
             ..Default::default()
         };
-        assert!(antecedent_io::consume_analysis_result_within(&bytes, &bounds).is_err());
+        assert!(antecedent_io::replay_analysis_result_within(&bytes, &bounds).is_err());
         let row = consumed.body.posterior_row.as_ref().unwrap();
         assert!(row.supported);
         assert_eq!(row.calibration, "not_measured");
@@ -986,7 +986,7 @@ fn supported_ipow_posterior_replays_after_the_builder_is_dropped() {
             .unwrap();
             let mut forged_bytes = Vec::new();
             forged.write_to(&mut forged_bytes).unwrap();
-            assert!(antecedent_io::consume_analysis_result(&forged_bytes).is_err(), "edit {edit}");
+            assert!(antecedent_io::replay_analysis_result(&forged_bytes).is_err(), "edit {edit}");
         }
     }
 }

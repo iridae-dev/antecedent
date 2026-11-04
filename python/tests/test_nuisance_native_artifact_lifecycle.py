@@ -73,7 +73,7 @@ def test_canonical_native_replay_once_has_no_live_study_and_retains_views(tempor
     assert loaded_attempt.report.operations["posterior_fit"].completed == 1
     assert loaded_attempt.report.operations["posterior_draw"].completed == 32
     assert loaded.to_dict() == product.to_dict()
-    assert loaded.acceptance.verified and loaded.acceptance.identity_bound
+    assert loaded.acceptance.replayed and loaded.acceptance.identity_bound
     assert loaded.acceptance.replayable and not loaded.acceptance.resumable
     assert loaded.inspect().stage == "consumed"
     assert bytes(loaded.export()) == bytes(artifact)
@@ -104,7 +104,7 @@ def test_known_nuisance_mode_and_input_mutation_isolation_through_canonical_repl
     loaded = require_success(ant.load(artifact, expected=artifact.expectation))
     assert loaded.to_dict() == product.to_dict()
     unbound = require_success(ant.load(bytes(artifact)))
-    assert unbound.acceptance.verified and not unbound.acceptance.identity_bound
+    assert unbound.acceptance.replayed and not unbound.acceptance.identity_bound
 
 
 def test_expected_digest_is_checked_before_refitting_and_corruption_is_operational():
@@ -161,7 +161,7 @@ import json, pathlib, sys
 import antecedent as ant
 from antecedent.outcomes import require_success
 p = require_success(ant.load(pathlib.Path(sys.argv[1]).read_bytes(), expected=sys.argv[2]))
-print(json.dumps({'values':dict(p.values.items()),'verified':p.acceptance.verified,'bound':p.acceptance.identity_bound,'stage':p.inspect().stage,'digest':p.request_digest}))
+print(json.dumps({'values':dict(p.values.items()),'verified':p.acceptance.replayed,'bound':p.acceptance.identity_bound,'stage':p.inspect().stage,'digest':p.request_digest}))
 """
     completed = subprocess.run(
         [sys.executable, "-c", script, str(path), product.request_digest],

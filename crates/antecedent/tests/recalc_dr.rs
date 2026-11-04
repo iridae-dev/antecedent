@@ -231,11 +231,11 @@ fn dr_cate_predictions_reuse_portable_final_model_and_validate_feature_schema() 
     close(predicted[1], 2.5);
     assert_eq!(predicted, independent);
     let artifact = session.export_predictor_result(&ctx()).unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     // The serialized predictor remains usable for model-point inference, but
     // this body does not independently replay the fitted causal estimator.
-    assert!(!consumed.acceptance.accepts_as_verified_program());
-    assert!(!consumed.acceptance.verified_references);
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
+    assert!(!consumed.acceptance.replayed_references);
     assert!(
         consumed
             .acceptance
@@ -251,9 +251,9 @@ fn dr_cate_predictions_reuse_portable_final_model_and_validate_feature_schema() 
     )
     .unwrap();
     let sourced = session.export_predictor_result_with_source(&source, &ctx()).unwrap();
-    let verified = antecedent_io::consume_analysis_result(&sourced).unwrap();
-    assert!(verified.acceptance.accepts_as_verified_program(), "{:?}", verified.acceptance);
-    assert!(verified.acceptance.verified_references);
+    let verified = antecedent_io::replay_analysis_result(&sourced).unwrap();
+    assert!(verified.acceptance.accepts_as_replayed_program(), "{:?}", verified.acceptance);
+    assert!(verified.acceptance.replayed_references);
     let mut changed_columns = source_columns.clone();
     changed_columns[1].1[0] += 1.0;
     let changed = antecedent_data::TabularData::from_f64_columns(

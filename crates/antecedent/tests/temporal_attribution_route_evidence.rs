@@ -140,7 +140,7 @@ fn frequentist_body() {
     let artifact = anomaly_prepared
         .encode_contracted_result(&refreshed, "checked-temporal-anomaly-attribution", &ctx)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed
             .acceptance
@@ -148,7 +148,7 @@ fn frequentist_body() {
             .iter()
             .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let change = change_series(0.0);
     let change_query = ChangeAttributionQuery::new(
@@ -198,7 +198,7 @@ fn frequentist_body() {
     let artifact = change_prepared
         .encode_contracted_result(&refreshed, "checked-temporal-change-attribution", &ctx)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed
             .acceptance
@@ -206,7 +206,7 @@ fn frequentist_body() {
             .iter()
             .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let cheap = Study::series(anomaly.clone())
         .graph(temporal_chain())
@@ -410,7 +410,7 @@ fn bayesian_body() {
     let artifact = anomaly_prepared
         .encode_contracted_result(&anomaly_result, "checked-temporal-bayesian-anomaly", &ctx)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed
             .acceptance
@@ -418,7 +418,7 @@ fn bayesian_body() {
             .iter()
             .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let change = change_series(0.0);
     let change_target = CausalQuery::ChangeAttribution(ChangeAttributionQuery::new(
@@ -469,7 +469,7 @@ fn bayesian_body() {
     let artifact = change_prepared
         .encode_contracted_result(&result, "checked-temporal-bayesian-change", &ctx)
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
     assert!(
         consumed
             .acceptance
@@ -477,7 +477,7 @@ fn bayesian_body() {
             .iter()
             .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
     );
-    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.accepts_as_replayed_program());
 
     let mut prior = BayesianConfig::conjugate().n_draws(4);
     prior.prior_artifact = Some(Arc::<[u8]>::from([1u8]));

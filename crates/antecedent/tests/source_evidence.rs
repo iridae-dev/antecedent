@@ -72,7 +72,7 @@ fn produce_source(
             }),
         )
         .unwrap();
-    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
     assert_eq!(
         consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
         vec![
@@ -166,7 +166,7 @@ fn native_inverse_artifact_replays_original_source_diagnostics_and_rejects_chang
     use antecedent_io::response_wire::{ResponseIdentificationWire, ResponseValueWire};
     let source = source();
     let contract = contract(&source);
-    let original = antecedent_io::consume_analysis_result(source.original_bytes()).unwrap();
+    let original = antecedent_io::replay_analysis_result(source.original_bytes()).unwrap();
     let ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface { mean, .. }) =
         &original.body.response.as_ref().unwrap().estimate
     else {

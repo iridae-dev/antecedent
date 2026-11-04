@@ -24,7 +24,7 @@ use antecedent_discovery::{
     GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg, set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId, TemporalAdmg};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
 /// Half-width of the agreement band for a Bayesian-bootstrap posterior mean against the exact
@@ -213,7 +213,7 @@ fn temporal_admg_average_effect_explicit_and_accepted() {
                 assert!((refreshed.effect() - result.effect()).abs() < 1e-9, "{coordinate}");
                 let artifact =
                     prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
-                let consumed = consume_analysis_result(&artifact).unwrap();
+                let consumed = replay_analysis_result(&artifact).unwrap();
                 assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate}");
             }
         }
@@ -276,7 +276,7 @@ fn temporal_admg_average_effect_graph_posterior() {
             );
             let artifact =
                 prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(
                 consumed.acceptance.unresolved.iter().any(|reason| {
                     reason.as_ref() == "dependencies.checked_graph_posterior_effect_operation"
@@ -366,9 +366,9 @@ fn temporal_admg_intervention_response_explicit_and_accepted() {
                     let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
                     let artifact =
                         prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
-                    let consumed = consume_analysis_result(&artifact).unwrap();
+                    let consumed = replay_analysis_result(&artifact).unwrap();
                     assert!(
-                        consumed.acceptance.accepts_as_verified_program()
+                        consumed.acceptance.accepts_as_replayed_program()
                             || !consumed.acceptance.unresolved.is_empty(),
                         "{coordinate}: {:?}",
                         consumed.acceptance.unresolved
@@ -439,7 +439,7 @@ fn temporal_admg_intervention_response_graph_posterior() {
             let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             let artifact =
                 prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.checked_admg_graph_posterior_response_operation"
             }));
@@ -506,9 +506,9 @@ fn temporal_admg_response_curve_explicit_and_accepted() {
             let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
             let artifact =
                 prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
-            let consumed = consume_analysis_result(&artifact).unwrap();
+            let consumed = replay_analysis_result(&artifact).unwrap();
             assert!(
-                consumed.acceptance.accepts_as_verified_program()
+                consumed.acceptance.accepts_as_replayed_program()
                     || !consumed.acceptance.unresolved.is_empty()
             );
         }
@@ -550,7 +550,7 @@ fn temporal_admg_response_curve_graph_posterior() {
         }
         let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
         let artifact = prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert!(consumed.acceptance.unresolved.iter().any(|reason| {
             reason.as_ref() == "dependencies.checked_admg_graph_posterior_response_operation"
         }));
@@ -611,9 +611,9 @@ fn temporal_admg_interventional_distribution_explicit_and_accepted() {
                 );
                 let artifact =
                     prepared.encode_contracted_result(&result, &coordinate, &ctx).unwrap();
-                let consumed = consume_analysis_result(&artifact).unwrap();
+                let consumed = replay_analysis_result(&artifact).unwrap();
                 assert!(
-                    consumed.acceptance.accepts_as_verified_program()
+                    consumed.acceptance.accepts_as_replayed_program()
                         || !consumed.acceptance.unresolved.is_empty(),
                     "{coordinate}: {:?}",
                     consumed.acceptance.unresolved
@@ -699,7 +699,7 @@ fn temporal_admg_transport_explicit() {
             );
         }
         let artifact = prepared.encode_contracted_result(&result, &coordinate, &ctx).unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert!(
             consumed.acceptance.unresolved.iter().any(|reason| {
                 reason.as_ref() == "dependencies.checked_transport_trial_operation"
@@ -1094,7 +1094,7 @@ mod window_contrast {
     };
     use antecedent_data::TimeSeriesData;
     use antecedent_graph::TemporalAdmg;
-    use antecedent_io::consume_analysis_result;
+    use antecedent_io::replay_analysis_result;
 
     const DISCLOSURE: &str = "estimate.temporal_admg.window";
 
@@ -1238,7 +1238,7 @@ mod window_contrast {
         assert!(again.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
         let artifact =
             prepared.encode_contracted_result(&again, "temporal_admg_pulse", &ctx).unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(again.effect()));
         assert!(matches!(
             prepared.retained_operation(),
@@ -1262,7 +1262,7 @@ mod window_contrast {
         let artifact = prepared
             .encode_contracted_result(&refreshed, "retained-temporal-admg-refresh", &ctx)
             .unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(refreshed.effect()));
     }
 
@@ -1354,7 +1354,7 @@ mod window_contrast {
         let artifact = prepared
             .encode_contracted_result(&again, "temporal_admg_conditional_pulse", &ctx)
             .unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(again.effect()));
     }
 
@@ -1381,7 +1381,7 @@ mod window_contrast {
         let artifact = prepared
             .encode_contracted_result(&again, "temporal_admg_conditional_sustained", &ctx)
             .unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(again.effect()));
     }
 
@@ -1410,7 +1410,7 @@ mod window_contrast {
         let again = prepared.estimate_series(&data, &ctx).unwrap();
         let artifact =
             prepared.encode_contracted_result(&again, "temporal_admg_sustained", &ctx).unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.estimate, Some(again.effect()));
     }
 

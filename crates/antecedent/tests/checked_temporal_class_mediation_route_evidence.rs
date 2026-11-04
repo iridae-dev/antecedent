@@ -292,7 +292,7 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                         &context,
                     )
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(
                     consumed
                         .acceptance
@@ -301,7 +301,7 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                         .any(|dependency| dependency.as_ref() == CHECKED_DEPENDENCY),
                     "{case}: independent consumption must report the missing checked operation"
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program(), "{case}");
+                assert!(!consumed.acceptance.accepts_as_replayed_program(), "{case}");
             }
         }
     }
@@ -543,7 +543,7 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                         &context,
                     )
                     .unwrap();
-                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                 assert!(
                     consumed
                         .acceptance
@@ -552,7 +552,7 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                         .any(|dependency| dependency.as_ref() == CHECKED_DEPENDENCY),
                     "{case}: independent consumption must report the missing checked operation"
                 );
-                assert!(!consumed.acceptance.accepts_as_verified_program(), "{case}");
+                assert!(!consumed.acceptance.accepts_as_replayed_program(), "{case}");
             }
         }
     }

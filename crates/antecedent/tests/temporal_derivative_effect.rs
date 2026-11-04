@@ -350,7 +350,7 @@ fn derivative_artifacts_are_consumed_under_the_estimator_the_plan_chose() {
         let bytes = prepared
             .encode_contracted_result(&result, "temporal-derivative", &ctx)
             .unwrap_or_else(|error| panic!("{key} bayesian={bayesian}: {error}"));
-        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
         let contract = consumed.contract.as_ref().expect("a contracted derivative artifact");
         assert_eq!(
             contract.estimator.as_deref(),

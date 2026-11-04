@@ -116,13 +116,14 @@ def main() -> None:
     )
     assert require_success(contract.evaluate(mean)).source.means == (2.0,)
 
-    # A result carrying refutation reports is recognized on load but not accepted: the reports
-    # have no checked replay, so the recorded answer is withheld and the replay is named.
+    # A result carrying refutation reports loads intact and keeps its answer. The reports have
+    # no checked replay, so a replay is withheld and names it.
     checked_envelope = checked.export()
     withheld = require_success(ant.load(checked_envelope, expected=checked_envelope.expectation))
-    assert withheld.acceptance.recognized and not withheld.acceptance.verified
-    assert "dependencies.refutation_replay" in withheld.acceptance.unresolved
-    assert withheld.answer.kind == "unavailable"
+    assert withheld.acceptance.recognized
+    audited = withheld.replay()
+    assert not audited.acceptance.replayed
+    assert "dependencies.refutation_replay" in audited.acceptance.not_replayable
 
     # The refutation-free result keeps its answer through an independent load.
     envelope = result.export()

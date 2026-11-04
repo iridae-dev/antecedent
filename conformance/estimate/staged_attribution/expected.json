@@ -98,7 +98,7 @@
             "fn temporal_rollout_reads_original_tail_when_complete_window_is_shorter_than_history",
             "struct ConstantCallback"
           ],
-          "sha256": "ef794bcb415efea4cdcca20b18f34fcc31cdf53840055ce331bab3d6b7b0e93d"
+          "sha256": "26f1efa5e0dd07e48f4a5006990d2356f497a3029857ae3ac1def28369f489c3"
         }
       ],
       "fixture_payload_sha256": "d762b9058d4e5214260c8d2bdcd4f9c6026f6700e6c2bb476b03bd905416791a"

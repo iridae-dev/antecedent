@@ -283,7 +283,7 @@ fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
                             &ctx,
                         )
                         .unwrap();
-                    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                    let consumed = antecedent_io::replay_analysis_result(&artifact).unwrap();
                     assert!(consumed.contract.is_some());
                     assert!(
                         consumed.acceptance.unresolved.iter().any(|dependency| {
@@ -293,7 +293,7 @@ fn bayesian_class_conditional_effect_is_sealed_across_lifecycle() {
                         "{coordinate}: {:?}",
                         consumed.acceptance.unresolved
                     );
-                    assert!(!consumed.acceptance.accepts_as_verified_program());
+                    assert!(!consumed.acceptance.accepts_as_replayed_program());
                 }
             }
         }

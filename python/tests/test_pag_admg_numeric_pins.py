@@ -235,14 +235,14 @@ def test_admg_functional_effect_refresh_exports_replayable_law() -> None:
         execution=antecedent.Execution(seed=1),
     )
     first = require_success(antecedent.estimate(prepared))
-    first_replay = antecedent.artifacts.accept(bytes(first.export()))
-    assert first_replay["accepts_as_verified_program"] == "true"
+    first_replay = antecedent.artifacts.accept(bytes(first.export()), replay=True)
+    assert first_replay["replayed"] == "true"
 
     changed = {**data, "y": 1.0 - data["y"]}
     refreshed = require_success(antecedent.estimate(antecedent.rebind(prepared, data=changed)))
     assert refreshed.ate == pytest.approx(-first.ate, abs=1e-12)
-    replay = antecedent.artifacts.accept(bytes(refreshed.export()))
-    assert replay["accepts_as_verified_program"] == "true"
+    replay = antecedent.artifacts.accept(bytes(refreshed.export()), replay=True)
+    assert replay["replayed"] == "true"
     assert replay["program"] == first_replay["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
 

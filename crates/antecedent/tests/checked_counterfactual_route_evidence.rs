@@ -53,9 +53,9 @@ fn checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portabl
         assert!((refreshed_mean - 2.5).abs() < 0.001, "mean_ite={refreshed_mean}");
         let bytes =
             prepared.encode_contracted_result(&refreshed, "checked-counterfactual", &ctx).unwrap();
-        let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
         assert!(
-            !consumed.acceptance.accepts_as_verified_program(),
+            !consumed.acceptance.accepts_as_replayed_program(),
             "acceptance={:?}; estimator={:?}",
             consumed.acceptance,
             consumed.contract.as_ref().map(|contract| (

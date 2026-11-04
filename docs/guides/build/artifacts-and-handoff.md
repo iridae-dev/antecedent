@@ -44,7 +44,7 @@ Read the acceptance, not only the absence of an error. It reports four things se
 | Field | Meaning |
 | --- | --- |
 | `identity_bound` | The load was checked against an identity you supplied independently. |
-| `answer_available` | The recorded answer is kept (the load was verified or sealed). |
+| `answer_available` | The recorded answer is kept (the artifact is intact). |
 | `replayable` | The recorded program can be re-executed from what the artifact holds. |
 | `resumable` | A live session can be resumed from it. |
 

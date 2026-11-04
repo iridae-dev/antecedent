@@ -19,7 +19,7 @@ use antecedent_discovery::{
     GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg,
 };
 use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_io::consume_analysis_result;
+use antecedent_io::replay_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
 fn fixture() -> (TabularData, Admg, ResponseQuery) {
@@ -249,10 +249,10 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
     let artifact = prepared
         .encode_contracted_result(&refreshed, &format!("response-curve-{coordinate}"), &ctx)
         .unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
+    let consumed = replay_analysis_result(&artifact).unwrap();
     if bayesian {
         // The posterior draws, plus the identification criterion: a response curve is
-        // not a query the consumer re-derives, so the carried estimands stay unverified.
+        // not a query the consumer re-derives, so its estimands are not replayable.
         assert_eq!(
             consumed.acceptance.unresolved.len(),
             2,
@@ -269,7 +269,7 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
                 consumed.acceptance.unresolved
             );
         }
-        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(!consumed.acceptance.accepts_as_replayed_program());
     } else {
         // The only open item names an identification the consumer cannot re-derive.
         assert_eq!(
@@ -277,7 +277,7 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
             vec!["dependencies.identification_estimand_criterion"],
             "{coordinate}"
         );
-        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+        assert!(!consumed.acceptance.accepts_as_replayed_program(), "{coordinate}");
     }
     let wire_means =
         match &consumed.body.response.as_ref().expect("portable response payload").estimate {
@@ -367,9 +367,9 @@ fn graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes() {
             assert!((actual - expected).abs() < if bayesian { 0.08 } else { 1e-12 });
         }
         let artifact = prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
-        let consumed = consume_analysis_result(&artifact).unwrap();
+        let consumed = replay_analysis_result(&artifact).unwrap();
         assert!(
-            consumed.acceptance.accepts_as_verified_program()
+            consumed.acceptance.accepts_as_replayed_program()
                 || !consumed.acceptance.unresolved.is_empty(),
             "independent consumer must verify the curve or explain its dependency refusal"
         );

@@ -43,18 +43,19 @@ print(result)
 print("Calibration:", result.value.calibration.status, result.value.calibration.reason)
 json.dumps(report, allow_nan=False)
 
-# The default analysis carries refutation reports. A load recognizes the artifact and its
-# identities, but the reports have no checked replay, so it is not a verified program, names
-# the missing replay and does not keep the recorded answer.
-assert loaded.acceptance.recognized and not loaded.acceptance.verified
-assert "dependencies.refutation_replay" in loaded.acceptance.unresolved
-assert loaded.answer.kind == "unavailable"
+# The default analysis carries refutation reports. Loading checks the artifact is intact and
+# keeps the recorded answer. The reports have no checked replay, so a replay names the missing
+# one instead of reporting the result as replayed.
+assert loaded.acceptance.status == "loaded"
+assert loaded.answer.kind == result.answer.kind
+audited = loaded.replay()
+assert not audited.acceptance.replayed
+assert "dependencies.refutation_replay" in audited.acceptance.not_replayable
 assert loaded.value.program_id == result.value.program_id
 assert bytes(loaded.export()) == bytes(artifact)
 
-# Without refutation reports the load keeps the recorded answer. A verified load replayed the
-# program; a sealed load verified the contract and identities and names the checked operation
-# it cannot replay from bytes alone.
+# Without refutation reports the load also keeps the recorded answer. Loading replays nothing;
+# loaded.replay() recomputes the published numbers.
 plain = ant.analyze(
     data,
     graph=graph,
@@ -65,7 +66,7 @@ plain = ant.analyze(
 )
 plain_artifact = plain.export()
 plain_loaded = ant.load(plain_artifact, expected=plain_artifact.expectation)
-assert plain_loaded.acceptance.verified or plain_loaded.acceptance.sealed
+assert plain_loaded.acceptance.recognized
 assert plain_loaded.answer.kind == plain.answer.kind
 assert plain_loaded.answer.value == plain.answer.value
 assert bytes(plain_loaded.export()) == bytes(plain_artifact)
