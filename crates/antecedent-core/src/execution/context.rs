@@ -507,6 +507,7 @@ impl core::fmt::Debug for ExecutionContext {
             .field("temporal_materialization_limits", &self.temporal_materialization_limits)
             .field("randomization_test_limits", &self.randomization_test_limits)
             .field("admission", &self.admission())
+            .field("would_refuse", &self.would_refuse())
             .finish()
     }
 }

@@ -91,10 +91,12 @@ impl NotSupported {
     pub fn message(&self) -> &'static str {
         static INTERNED: OnceLock<Mutex<BTreeSet<&'static str>>> = OnceLock::new();
         let text = self.to_string();
-        let mut set =
-            INTERNED.get_or_init(Mutex::default).lock().unwrap_or_else(|p| p.into_inner());
+        let mut set = INTERNED
+            .get_or_init(Mutex::default)
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(found) = set.get(text.as_str()) {
-            return *found;
+            return found;
         }
         let leaked: &'static str = Box::leak(text.into_boxed_str());
         set.insert(leaked);
