@@ -1855,6 +1855,9 @@ pub const REASON_DETAILS: &[&str] = &[
     "quadratic_posterior.insufficient_weight",
     "quadratic_posterior.mapped_prior",
     "quadratic_posterior.non_positive_scale",
+    "randomized_quantile_effect.adjustment_not_supported",
+    "randomized_quantile_effect.arm_too_small",
+    "randomized_quantile_effect.scope",
     "rank_drop_estimate.estimator_not_supported",
     "rank_drop_estimate.propensity_separates",
     "rank_drop_estimate.shape_not_supported",
@@ -2051,6 +2054,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "repair_artifact.invalid_artifact",
     "repair_artifact.replay_mismatch",
     "repair_artifact.unsupported_version",
+    "response_gam_derivative.shared_complete_case_rows",
     "rollout.artifact_id_missing",
     "rollout.artifact_kind_mismatch",
     "rollout.expected_binding_mismatch",
@@ -4563,6 +4567,9 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("quadratic_posterior.insufficient_weight", &["positivity_violated"]),
     ("quadratic_posterior.mapped_prior", &["route_not_supported"]),
     ("quadratic_posterior.non_positive_scale", &["invalid_argument"]),
+    ("randomized_quantile_effect.adjustment_not_supported", &["route_not_supported"]),
+    ("randomized_quantile_effect.arm_too_small", &["positivity_violated"]),
+    ("randomized_quantile_effect.scope", &["route_not_supported"]),
     ("rank_drop_estimate.estimator_not_supported", &["route_not_supported"]),
     ("rank_drop_estimate.propensity_separates", &["rank_drop_not_supported"]),
     ("rank_drop_estimate.shape_not_supported", &["route_not_supported"]),
@@ -4759,6 +4766,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("repair_artifact.invalid_artifact", &["transport_not_certified"]),
     ("repair_artifact.replay_mismatch", &["transport_not_certified"]),
     ("repair_artifact.unsupported_version", &["transport_not_certified"]),
+    ("response_gam_derivative.shared_complete_case_rows", &["route_not_supported"]),
     ("rollout.artifact_id_missing", &["invalid_argument"]),
     ("rollout.artifact_kind_mismatch", &["invalid_argument"]),
     ("rollout.expected_binding_mismatch", &["invalid_argument"]),
@@ -9639,6 +9647,16 @@ pub mod quadratic_posterior {
     pub const NON_POSITIVE_SCALE: &str = "quadratic_posterior.non_positive_scale";
 }
 
+/// Details in the `randomized_quantile_effect` family.
+pub mod randomized_quantile_effect {
+    /// Detail `randomized_quantile_effect.adjustment_not_supported`.
+    pub const ADJUSTMENT_NOT_SUPPORTED: &str = "randomized_quantile_effect.adjustment_not_supported";
+    /// Detail `randomized_quantile_effect.arm_too_small`.
+    pub const ARM_TOO_SMALL: &str = "randomized_quantile_effect.arm_too_small";
+    /// Detail `randomized_quantile_effect.scope`.
+    pub const SCOPE: &str = "randomized_quantile_effect.scope";
+}
+
 /// Details in the `rank_drop_estimate` family.
 pub mod rank_drop_estimate {
     /// Detail `rank_drop_estimate.estimator_not_supported`.
@@ -10057,6 +10075,12 @@ pub mod repair_artifact {
     pub const REPLAY_MISMATCH: &str = "repair_artifact.replay_mismatch";
     /// Detail `repair_artifact.unsupported_version`.
     pub const UNSUPPORTED_VERSION: &str = "repair_artifact.unsupported_version";
+}
+
+/// Details in the `response_gam_derivative` family.
+pub mod response_gam_derivative {
+    /// Detail `response_gam_derivative.shared_complete_case_rows`.
+    pub const SHARED_COMPLETE_CASE_ROWS: &str = "response_gam_derivative.shared_complete_case_rows";
 }
 
 /// Details in the `rollout` family.

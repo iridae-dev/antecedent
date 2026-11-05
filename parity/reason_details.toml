@@ -11100,6 +11100,24 @@ codes = ["invalid_argument"]
 meaning = "The prior scale is not finite and positive."
 
 [[detail]]
+id = "randomized_quantile_effect.adjustment_not_supported"
+family = "randomized_quantile_effect"
+codes = ["route_not_supported"]
+meaning = "The treatment is confounded (a non-empty adjustment set), so the empirical arm distribution functions are not the potential-outcome quantiles."
+
+[[detail]]
+id = "randomized_quantile_effect.arm_too_small"
+family = "randomized_quantile_effect"
+codes = ["positivity_violated"]
+meaning = "A treatment arm has fewer than ten rows."
+
+[[detail]]
+id = "randomized_quantile_effect.scope"
+family = "randomized_quantile_effect"
+codes = ["route_not_supported"]
+meaning = "The question is not the AllObserved quantile treatment effect of a binary 0/1 treatment without effect modifiers."
+
+[[detail]]
 id = "rank_drop_estimate.estimator_not_supported"
 family = "rank_drop_estimate"
 codes = ["route_not_supported"]
@@ -12274,6 +12292,12 @@ id = "repair_artifact.unsupported_version"
 family = "repair_artifact"
 codes = ["transport_not_certified"]
 meaning = "An artifact carries an unknown version or kind."
+
+[[detail]]
+id = "response_gam_derivative.shared_complete_case_rows"
+family = "response_gam_derivative"
+codes = ["route_not_supported"]
+meaning = "The outcomes of a plug-in Jacobian or directional derivative do not share one complete-case row set."
 
 [[detail]]
 id = "rollout.artifact_id_missing"
@@ -16228,3 +16252,4 @@ id = "vector_treatment.wrong_contract"
 family = "vector_treatment"
 codes = ["route_not_supported"]
 meaning = "A consumer holds an expected identity and a stored or recomputed identity field (snapshot, adjustment set, coefficient order, design, covariance kind, contrasts, null or result) differs."
+

@@ -83,8 +83,9 @@ pub fn randomized_quantile_effect_on_grid(
     let n_control = n - n_treated;
     if n_treated < MIN_RANDOMIZED_QUANTILE_ARM_ROWS || n_control < MIN_RANDOMIZED_QUANTILE_ARM_ROWS
     {
-        return Err(EstimationError::unsupported_coded(
+        return Err(EstimationError::refused_detail(
             antecedent_core::reason_code!("positivity_violated"),
+            antecedent_core::reason_details::randomized_quantile_effect::ARM_TOO_SMALL,
             "the randomized quantile needs at least ten rows in each arm",
         ));
     }

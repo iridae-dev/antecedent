@@ -48,7 +48,9 @@ pub(super) fn read_shared_complete_samples(
     }
     if let Some(first) = samples.first() {
         if samples.iter().any(|sample| sample.keep != first.keep) {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::refused_detail(
+                antecedent_core::reason_code!("route_not_supported"),
+                antecedent_core::reason_details::response_gam_derivative::SHARED_COMPLETE_CASE_ROWS,
                 "plug-in Jacobian and directional derivatives require a shared complete-case row set across outcomes",
             ));
         }

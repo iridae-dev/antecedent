@@ -7639,6 +7639,9 @@ routes = [
 id = "estimate.randomized_quantile"
 status = "supported"
 refusals = [
+  { code = "route_not_supported", detail = "randomized_quantile_effect.scope" },
+  { code = "route_not_supported", detail = "randomized_quantile_effect.adjustment_not_supported" },
+  { code = "positivity_violated", detail = "randomized_quantile_effect.arm_too_small" },
 ]
 routes = [
   { route = "antecedent_estimate.randomized_quantile.interval", stage = "uncertainty", status = "supported", claim = "interval" },
@@ -7648,6 +7651,7 @@ routes = [
 id = "estimate.response_gam_derivative"
 status = "supported"
 refusals = [
+  { code = "route_not_supported", detail = "response_gam_derivative.shared_complete_case_rows" },
 ]
 routes = [
   { route = "antecedent_estimate.response_gam_derivative.pointwise_band", stage = "uncertainty", status = "supported", claim = "interval" },

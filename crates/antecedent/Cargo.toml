@@ -630,6 +630,10 @@ name = "randomized_quantile_interval_calibration"
 path = "tests/randomized_quantile_interval_calibration.rs"
 
 [[test]]
+name = "randomized_quantile_artifact"
+path = "tests/randomized_quantile_artifact.rs"
+
+[[test]]
 name = "mechanism_composition_interval_calibration"
 path = "tests/mechanism_composition_interval_calibration.rs"
 

@@ -49,7 +49,7 @@ impl Study {
         {
             return Err(refuse(
                 antecedent_core::reason_code!("route_not_supported"),
-                "randomized_quantile.scope",
+                antecedent_core::reason_details::randomized_quantile_effect::SCOPE,
                 "the randomized quantile answers the AllObserved quantile treatment effect of a \
                  binary 0/1 treatment without effect modifiers. Next attempt: a quantile outcome \
                  functional on an unmodified binary AverageEffect, or the cross-fitted AIPW \
@@ -67,7 +67,7 @@ impl Study {
         if !estimand.adjustment_set.is_empty() {
             return Err(refuse(
                 antecedent_core::reason_code!("route_not_supported"),
-                "randomized_quantile.adjustment_not_supported",
+                antecedent_core::reason_details::randomized_quantile_effect::ADJUSTMENT_NOT_SUPPORTED,
                 "the empirical arm distribution functions carry no covariates, so they are the \
                  potential-outcome quantiles only when the treatment is unconfounded (an empty \
                  adjustment set). Next attempt: a graph in which the treatment has no \

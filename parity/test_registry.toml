@@ -6543,6 +6543,13 @@ path = "crates/antecedent/tests/randomized_quantile_interval_calibration.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "randomized-quantile-artifact"
+crate = "antecedent"
+cargo_target = "randomized_quantile_artifact"
+path = "crates/antecedent/tests/randomized_quantile_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "typed-transported-mechanism-interval-calibration"
 crate = "antecedent"
 cargo_target = "typed_transported_mechanism_interval_calibration"

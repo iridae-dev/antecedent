@@ -129,31 +129,30 @@ fn execute(n: usize, seed: u64) -> Option<Scored> {
     .ok()?;
     let one = |effect: &str, interval: Option<(f64, f64)>| {
         let basis = estimate.calibration_basis(effect);
-        let key = basis.key;
         Some((
             interval?,
             Construction {
-                query: key.query,
-                graph_class: key.graph_class,
-                structure: key.structure,
-                modality: key.modality,
-                inference: key.inference,
-                estimator: key.estimator,
-                interval_method: key.interval_method,
-                se_kind: key.se_kind,
-                dependence: key.dependence,
-                posterior: key.posterior,
-                functional: key.functional,
-                identification: key.identification,
-                reported_level: key.level,
+                query: basis.query.to_string(),
+                graph_class: basis.graph_class.to_string(),
+                structure: basis.structure.to_string(),
+                modality: basis.modality.to_string(),
+                inference: basis.inference.to_string(),
+                estimator: basis.estimator.to_string(),
+                interval_method: basis.interval_method.to_string(),
+                se_kind: basis.se_kind.to_string(),
+                dependence: basis.dependence.to_string(),
+                posterior: basis.posterior.to_string(),
+                functional: basis.functional.to_string(),
+                identification: basis.identification.to_string(),
+                reported_level: basis.level,
             },
             ScopeFacts {
-                row_count: basis.scope.row_count,
-                replicates_ok: basis.scope.replicates_ok,
-                posterior_draws: basis.scope.posterior_draws,
-                unidentified_mass: basis.scope.unidentified_mass,
+                row_count: basis.row_count,
+                replicates_ok: basis.replicates_ok,
+                posterior_draws: basis.posterior_draws,
+                unidentified_mass: basis.unidentified_mass,
             },
-            key.validation,
+            basis.validation.to_string(),
         ))
     };
     Some([

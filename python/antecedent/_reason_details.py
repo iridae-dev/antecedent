@@ -2359,6 +2359,12 @@ class quadratic_posterior:  # noqa: N801
     NON_POSITIVE_SCALE: Final = "quadratic_posterior.non_positive_scale"
 
 
+class randomized_quantile_effect:  # noqa: N801
+    ADJUSTMENT_NOT_SUPPORTED: Final = "randomized_quantile_effect.adjustment_not_supported"
+    ARM_TOO_SMALL: Final = "randomized_quantile_effect.arm_too_small"
+    SCOPE: Final = "randomized_quantile_effect.scope"
+
+
 class rank_drop_estimate:  # noqa: N801
     ESTIMATOR_NOT_SUPPORTED: Final = "rank_drop_estimate.estimator_not_supported"
     PROPENSITY_SEPARATES: Final = "rank_drop_estimate.propensity_separates"
@@ -2574,6 +2580,10 @@ class repair_artifact:  # noqa: N801
     INVALID_ARTIFACT: Final = "repair_artifact.invalid_artifact"
     REPLAY_MISMATCH: Final = "repair_artifact.replay_mismatch"
     UNSUPPORTED_VERSION: Final = "repair_artifact.unsupported_version"
+
+
+class response_gam_derivative:  # noqa: N801
+    SHARED_COMPLETE_CASE_ROWS: Final = "response_gam_derivative.shared_complete_case_rows"
 
 
 class rollout:  # noqa: N801
@@ -5252,6 +5262,9 @@ ALL: Final[tuple[str, ...]] = (
     "quadratic_posterior.insufficient_weight",
     "quadratic_posterior.mapped_prior",
     "quadratic_posterior.non_positive_scale",
+    "randomized_quantile_effect.adjustment_not_supported",
+    "randomized_quantile_effect.arm_too_small",
+    "randomized_quantile_effect.scope",
     "rank_drop_estimate.estimator_not_supported",
     "rank_drop_estimate.propensity_separates",
     "rank_drop_estimate.shape_not_supported",
@@ -5448,6 +5461,7 @@ ALL: Final[tuple[str, ...]] = (
     "repair_artifact.invalid_artifact",
     "repair_artifact.replay_mismatch",
     "repair_artifact.unsupported_version",
+    "response_gam_derivative.shared_complete_case_rows",
     "rollout.artifact_id_missing",
     "rollout.artifact_kind_mismatch",
     "rollout.expected_binding_mismatch",
@@ -8009,6 +8023,9 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "quadratic_posterior.insufficient_weight": ("positivity_violated",),
     "quadratic_posterior.mapped_prior": ("route_not_supported",),
     "quadratic_posterior.non_positive_scale": ("invalid_argument",),
+    "randomized_quantile_effect.adjustment_not_supported": ("route_not_supported",),
+    "randomized_quantile_effect.arm_too_small": ("positivity_violated",),
+    "randomized_quantile_effect.scope": ("route_not_supported",),
     "rank_drop_estimate.estimator_not_supported": ("route_not_supported",),
     "rank_drop_estimate.propensity_separates": ("rank_drop_not_supported",),
     "rank_drop_estimate.shape_not_supported": ("route_not_supported",),
@@ -8205,6 +8222,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "repair_artifact.invalid_artifact": ("transport_not_certified",),
     "repair_artifact.replay_mismatch": ("transport_not_certified",),
     "repair_artifact.unsupported_version": ("transport_not_certified",),
+    "response_gam_derivative.shared_complete_case_rows": ("route_not_supported",),
     "rollout.artifact_id_missing": ("invalid_argument",),
     "rollout.artifact_kind_mismatch": ("invalid_argument",),
     "rollout.expected_binding_mismatch": ("invalid_argument",),

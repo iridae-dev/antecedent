@@ -229,14 +229,21 @@ pub(super) fn refute_curve(
         let mut fitter = ContinuousResponseEstimator::new(adjustment);
         fitter.options = input.fitter.options.clone();
         let response = match input.bayesian {
-            Some(estimator) => fitter.estimate_bayesian(
-                data,
-                &fixed,
-                input.status,
-                input.assumptions.clone(),
-                estimator,
-                rctx,
-            ),
+            Some(estimator) => {
+                // The estimator carries the seed of the study's context from its construction
+                // and draws from it, so the replicate's own stream is installed on a copy:
+                // otherwise every replicate shares the published fit's draws.
+                let mut estimator = estimator.clone();
+                estimator.seed = rctx.rng.master_seed();
+                fitter.estimate_bayesian(
+                    data,
+                    &fixed,
+                    input.status,
+                    input.assumptions.clone(),
+                    &estimator,
+                    rctx,
+                )
+            }
             None => {
                 fitter.estimate_identified(data, &fixed, input.status, input.assumptions.clone())
             }
