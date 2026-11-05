@@ -58,7 +58,7 @@
           "sha256": "21cf990b0246a718f3d27755cb12b065ea74ac73b9d8baeb8a472bc39aed20d6"
         }
       ],
-      "fixture_payload_sha256": "8ee3a6030d9dd1239da91cf333e31df5685d000667d70e49f9fa3f8c9d0df3e3"
+      "fixture_payload_sha256": "cf0ebfd1074ffbaa95370841663bd79186fdccadbb1f089053b71756ae009ef4"
     }
   },
   "acceptance": {

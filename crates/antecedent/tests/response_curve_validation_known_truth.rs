@@ -323,10 +323,11 @@ fn response_curve_validation_class_known_truth() {
     }
 }
 
-/// A fully oriented PAG `z -> t`, `z -> y`, `t -> y`: one completion adjusting for `z`.
+/// A PAG `z -> t -> y` with `z` not adjacent to `y`: a visible treatment edge, one completion.
+/// `Z` is independent of `T` in the data, so the curve is `1 + 2 x` whatever the adjustment.
 fn oriented_pag() -> Pag {
     let mut g = Pag::with_variables(3);
-    for (source, target) in [(0, 1), (0, 2), (1, 2)] {
+    for (source, target) in [(0, 1), (1, 2)] {
         g.insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target)).unwrap();
     }
     g

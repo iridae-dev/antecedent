@@ -406,4 +406,25 @@ mod graph_imputation_budget_tests {
         assert_eq!(receipt.operations_consumed, Some(1));
         assert!(!receipt.unevaluated.is_empty());
     }
+
+    /// The compiled cell's search budget (depth 1, 25 MiB) refuses one past each bound.
+    ///
+    /// Reference: `SearchBudget::charge(depth, bytes)` compares `depth` against
+    /// `limits.depth` and `bytes` against the memory limit (the smaller of the declared
+    /// 26_214_400 and the context hard limit); the oracle is that integer comparison, with zero
+    /// tolerance. At the bound it admits; one past it stops with `Depth` or `Memory`.
+    #[test]
+    fn search_budget_depth_and_memory_bounds_refuse_one_past_and_admit_the_bound() {
+        let ctx = ExecutionContext::for_tests(8);
+        let declared: u64 = 25 * 1024 * 1024;
+        assert_eq!(declared, 26_214_400);
+        let limit = ctx.memory_limit_bytes().map_or(declared, |h| h.min(declared));
+        let fresh = || {
+            SearchBudget::with_memory(SearchLimits { operations: 100, depth: 1 }, declared, &ctx)
+                .unwrap()
+        };
+        assert_eq!(fresh().charge(1, limit), Ok(()));
+        assert_eq!(fresh().charge(2, limit), Err(SearchStop::Depth));
+        assert_eq!(fresh().charge(1, limit + 1), Err(SearchStop::Memory));
+    }
 }

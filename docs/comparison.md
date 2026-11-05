@@ -114,7 +114,7 @@ Do not edit this block by hand.
 | PathSpecificEffect | 144 | 36 | 0 |
 | PointDerivative | 144 | 36 | 0 |
 | PulseEffect | 72 | 108 | 0 |
-| ResponseCurve | 64 | 116 | 0 |
+| ResponseCurve | 144 | 36 | 0 |
 | ResponseJacobian | 144 | 36 | 0 |
 | SemiElasticity | 144 | 36 | 0 |
 | SustainedEffect | 72 | 108 | 0 |
@@ -124,7 +124,9 @@ Do not edit this block by hand.
 | TransportQuery | 90 | 90 | 0 |
 | InterferenceQuery | 90 | 90 | 0 |
 
-2696 supported cells.
+**Supported units: 3081 (matrix cells 2776, graphless rows 41, capabilities outside the matrix 264); not supported: 1.**
+
+The 2776 matrix cells below are the matrix part of that count; graphless rows (`parity/support_graphless.toml`) and capabilities outside the matrix (`parity/capability_records.toml`) make up the rest. Entry-point routes are not counted.
 
 | Query | Graph class | Structures | Inferences | Validations | Cells |
 |---|---|---|---|---|---:|
@@ -243,22 +245,14 @@ Do not edit this block by hand.
 | PulseEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | PulseEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | PulseEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
-| ResponseCurve | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| ResponseCurve | Admg | explicit | Frequentist, Bayesian | none | 2 |
-| ResponseCurve | Admg | accepted | Frequentist, Bayesian | none | 2 |
-| ResponseCurve | Admg | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
-| ResponseCurve | Cpdag | explicit | Frequentist, Bayesian | none | 2 |
-| ResponseCurve | Cpdag | accepted | Frequentist, Bayesian | none | 2 |
-| ResponseCurve | Cpdag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
-| ResponseCurve | Pag | explicit | Frequentist, Bayesian | none | 2 |
-| ResponseCurve | Pag | accepted | Frequentist, Bayesian | none | 2 |
-| ResponseCurve | Pag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
-| ResponseCurve | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| ResponseCurve | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| ResponseCurve | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| ResponseCurve | TemporalAdmg | explicit | Frequentist, Bayesian | none | 2 |
-| ResponseCurve | TemporalAdmg | accepted | Frequentist, Bayesian | none | 2 |
-| ResponseCurve | TemporalAdmg | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| ResponseCurve | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseCurve | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseCurve | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseCurve | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseCurve | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseCurve | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseCurve | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseCurve | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | ResponseJacobian | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | ResponseJacobian | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | ResponseJacobian | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |

@@ -30,6 +30,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from _repo import WORKSPACE_TEST_FEATURES, cargo_target_feature_args
+import route_behaviour
 from test_evidence import (
     python_test_markers,
     registered_calibration_simulations,
@@ -172,6 +173,17 @@ def python_marker() -> list[str]:
 
 
 rows = tomllib.loads((root / ledger).read_text(encoding="utf-8")).get(table, [])
+if table == "routes" and ledger.name == "transport_stages.toml":
+    # A record-owned route's stage, status and reason code are generated, not in the row.
+    rows = route_behaviour.load_stage_routes(root, root / ledger)
+    # A record-owned route that cites no test of its own is evidenced by its record's executed
+    # fixtures (scripts/check_capability_records.py), as in scripts/gate_support.py.
+    _owned = {
+        r["route"]
+        for entry in (route_behaviour.load(root / route_behaviour.GENERATED) or {}).values()
+        for r in entry["routes"]
+    }
+    rows = [r for r in rows if not (r.get("route") in _owned and not r.get("evidence_test"))]
 if not rows:
     print(f"FAIL: {ledger} has no [[{table}]] rows")
     sys.exit(1)
@@ -201,7 +213,7 @@ for row in rows:
 
     python_simulation = (test_rel.endswith(".py") and (root / test_rel).is_file()
                          and "calibration_simulation" in python_test_markers(root / test_rel).get(assertion, set()))
-    if not run_simulations and ((test_rel, assertion) in simulations or python_simulation):
+    if not run_simulations and not static_only and ((test_rel, assertion) in simulations or python_simulation):
         failures.append(cid)
         print(f"INCOMPLETE: {cid}: cited calibration simulation was not run")
         continue

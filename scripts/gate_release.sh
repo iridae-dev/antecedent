@@ -41,6 +41,9 @@ wanted() { [[ "$section" == all || "$section" == "$1" ]]; }
 section_since=0
 section_start() { section_since=$SECONDS; echo "== $1 started $(date -u +%FT%TZ) =="; }
 section_end() { echo "== $1 finished in $((SECONDS - section_since))s =="; }
+# Static checks run to the end and report every failure together, so one run lists them all.
+failed_steps=()
+step() { "$@" || failed_steps+=("$*"); }
 
 # ---------------------------------------------------------------------------------------
 # Tier 0: static. One job, no build, no test execution.
@@ -49,65 +52,65 @@ if wanted static; then
 section_start static
 
 echo "== format, lint allows, test targets, crate ownership =="
-bash scripts/gate_rustfmt.sh
-bash scripts/gate_lint_allows.sh
-python3 scripts/check_test_targets.py
-python3 scripts/check_architecture.py
-python3 scripts/test_check_architecture.py
-python3 scripts/check_rust_ci_feature_parity.py
+step bash scripts/gate_rustfmt.sh
+step bash scripts/gate_lint_allows.sh
+step python3 scripts/check_test_targets.py
+step python3 scripts/check_architecture.py
+step python3 scripts/test_check_architecture.py
+step python3 scripts/check_rust_ci_feature_parity.py
 
 echo "== test registry, lanes and ignored tests =="
-python3 scripts/check_test_registry.py
-python3 scripts/evidence_audit.py rust-engineering-filter --check
-python3 scripts/check_ignored_tests.py
-python3 scripts/check_child_test_selectors.py
+step python3 scripts/check_test_registry.py
+step python3 scripts/evidence_audit.py rust-engineering-filter --check
+step python3 scripts/check_ignored_tests.py
+step python3 scripts/check_child_test_selectors.py
 
 echo "== parity schema, inventories and provenance =="
-bash scripts/gate_parity_schema.sh
-python3 scripts/check_parity_inventories.py
-bash scripts/gate_provenance_schema.sh
-bash scripts/gate_metadata_consistency.sh
-bash scripts/gate_evidence_reachability.sh
-bash scripts/gate_upstream_names.sh
-bash scripts/gate_hot_path_baselines.sh
-python3 scripts/release_evidence_report.py
+step bash scripts/gate_parity_schema.sh
+step python3 scripts/check_parity_inventories.py
+step bash scripts/gate_provenance_schema.sh
+step bash scripts/gate_metadata_consistency.sh
+step bash scripts/gate_evidence_reachability.sh
+step bash scripts/gate_upstream_names.sh
+step bash scripts/gate_hot_path_baselines.sh
+step python3 scripts/release_evidence_report.py
 
 echo "== capability records, composition, transport, checked execution, conformance =="
-bash scripts/gate_capability_records.sh
-bash scripts/gate_composition.sh --evidence-only
-bash scripts/gate_transport.sh
-bash scripts/gate_checked_execution.sh
-bash scripts/gate_gcm_conformance.sh --tests-only
+step bash scripts/gate_capability_records.sh
+step bash scripts/gate_composition.sh --evidence-only
+step bash scripts/gate_transport.sh
+step bash scripts/gate_checked_execution.sh
+step bash scripts/gate_gcm_conformance.sh --tests-only
 
 echo "== support: the one count, the matrix, the graphless supports, the transport stages =="
-python3 scripts/gate_support.py
-python3 scripts/gate_not_supported_sites.py
-bash scripts/gate_docs_support_matrix.sh
+step python3 scripts/gate_support.py
+step python3 scripts/gate_not_supported_sites.py
+step bash scripts/gate_docs_support_matrix.sh
 
 echo "== release inventory =="
-python3 scripts/check_release_inventory.py
-python3 scripts/check_acceptance_inventory.py
-python3 scripts/check_acceptance_manifest.py --require-bound
-python3 scripts/check_residual_limitations.py
-python3 scripts/check_missing_policy_support.py
+step python3 scripts/check_release_inventory.py
+step python3 scripts/check_acceptance_inventory.py
+step python3 scripts/check_acceptance_manifest.py --require-bound
+step python3 scripts/check_residual_limitations.py
+step python3 scripts/check_missing_policy_support.py
 
 echo "== bounds, release claims, links, conformance references =="
-python3 scripts/generate_reason_details.py --check
-python3 scripts/gate_reason_detail_literals.py
-python3 scripts/gate_python_bindings_use_facade.py
-python3 scripts/check_limits_agreement.py
-python3 scripts/check_release_claims.py
-python3 scripts/check_doc_links.py
-python3 scripts/check_conformance_references.py
+step python3 scripts/generate_reason_details.py --check
+step python3 scripts/gate_reason_detail_literals.py
+step python3 scripts/gate_python_bindings_use_facade.py
+step python3 scripts/check_limits_agreement.py
+step python3 scripts/check_release_claims.py
+step python3 scripts/check_doc_links.py
+step python3 scripts/check_conformance_references.py
 
 echo "== generated files are current =="
-python3 scripts/generate_conformance_docs.py
+step python3 scripts/generate_conformance_docs.py
 if ! git diff --exit-code -- docs/conformance >/dev/null; then
   echo "docs/conformance is stale; commit regenerated output"
   git diff --stat -- docs/conformance
   exit 1
 fi
-python3 scripts/generate_support_matrix_docs.py
+step python3 scripts/generate_support_matrix_docs.py
 VERSION="$(python3 "$ROOT/scripts/release_notes_version.py")"
 generated=(docs/support-matrix.md crates/antecedent/data/support_matrix.json
   crates/antecedent-io-core/data/coverage_records.json crates/antecedent-core/src/reason_codes_data.rs
@@ -122,12 +125,17 @@ if ! git diff --exit-code -- docs/release-notes/ ":!docs/release-notes/v${VERSIO
   git diff --stat -- docs/release-notes/ ":!docs/release-notes/v${VERSION}.md"
   exit 1
 fi
-python3 scripts/generate_host_schema.py --check
+step python3 scripts/generate_host_schema.py --check
 
 echo "== calibration and scientific records (annotations; never fail a change) =="
-python3 scripts/calibration_status.py --check
-python3 scripts/calibration_status.py status || echo "calibration status unavailable"
-python3 scripts/scientific_records.py status || echo "scientific record status unavailable"
+step python3 scripts/calibration_status.py --check
+step python3 scripts/calibration_status.py status || echo "calibration status unavailable"
+step python3 scripts/scientific_records.py status || echo "scientific record status unavailable"
+if (( ${#failed_steps[@]} )); then
+  echo "== static: ${#failed_steps[@]} check(s) failed ==" >&2
+  printf '  FAILED: %s\n' "${failed_steps[@]}" >&2
+  exit 1
+fi
 section_end static
 fi
 

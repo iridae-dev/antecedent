@@ -1047,3 +1047,63 @@ fn finite_tables_that_cannot_compose_are_refused() {
                 == antecedent_core::reason_details::mechanism_composition::FAMILY_MIXED)
     );
 }
+
+/// Each declared composition size bound refuses exactly one past it and admits the bound itself.
+///
+/// Reference: the bounds are the exported `MAX_*` constants (1024 mechanisms, 256 parents per
+/// mechanism, 256 distinct latents). The oracle is the integer comparison itself: a
+/// specification of exactly `MAX` items carries no too-many finding of that kind and `MAX + 1`
+/// carries exactly that finding. Tolerance is zero; no floating point is involved.
+#[test]
+fn composition_size_bounds_refuse_one_past_and_admit_the_bound() {
+    use antecedent_core::reason_details::mechanism_composition as reason;
+    use antecedent_model::compose::{
+        MAX_COMPOSED_LATENTS, MAX_COMPOSED_MECHANISMS, MAX_PARENTS_PER_MECHANISM,
+    };
+    let count = |spec: &ComposedModelSpec, detail: &str| {
+        check_composition(spec).iter().filter(|f| f.detail == detail).count()
+    };
+
+    // Mechanisms: independent roots `m0000`, `m0001`, ...
+    let roots = |n: usize| {
+        spec_of((0..n).map(|i| lg(&format!("m{i:05}"), 0.0, 1.0, &[])).collect())
+    };
+    assert_eq!(MAX_COMPOSED_MECHANISMS, 1024);
+    assert_eq!(count(&roots(MAX_COMPOSED_MECHANISMS), reason::SHAPE_TOO_MANY_MECHANISMS), 0);
+    let over = check_composition(&roots(MAX_COMPOSED_MECHANISMS + 1));
+    let hit: Vec<_> =
+        over.iter().filter(|f| f.detail == reason::SHAPE_TOO_MANY_MECHANISMS).collect();
+    assert_eq!(hit.len(), 1);
+    assert_eq!(hit[0].supplied.as_deref(), Some("1025"));
+
+    // Parents per mechanism: one child with `n` sorted parent names.
+    let parents = |n: usize| {
+        let names: Vec<String> = (0..n).map(|i| format!("p{i:05}")).collect();
+        let refs: Vec<(&str, f64)> = names.iter().map(|p| (p.as_str(), 0.1)).collect();
+        spec_of(vec![lg("child", 0.0, 1.0, &refs)])
+    };
+    assert_eq!(MAX_PARENTS_PER_MECHANISM, 256);
+    assert_eq!(count(&parents(MAX_PARENTS_PER_MECHANISM), reason::SHAPE_TOO_MANY_PARENTS), 0);
+    assert_eq!(count(&parents(MAX_PARENTS_PER_MECHANISM + 1), reason::SHAPE_TOO_MANY_PARENTS), 1);
+
+    // Distinct latents: one latent per mechanism, never shared, so only the distinct-latent
+    // bound (not the per-mechanism shape bound) can trip.
+    let latents = |n: usize| {
+        spec_of(
+            (0..n)
+                .map(|i| {
+                    let mut d = lg(&format!("m{i:05}"), 0.0, 1.0, &[]);
+                    d.latents = vec![LatentDependence {
+                        latent: format!("u{i:05}"),
+                        loading: Some(1.0),
+                        shared_with: Vec::new(),
+                    }];
+                    d
+                })
+                .collect(),
+        )
+    };
+    assert_eq!(MAX_COMPOSED_LATENTS, 256);
+    assert_eq!(count(&latents(MAX_COMPOSED_LATENTS), reason::LATENT_TOO_MANY), 0);
+    assert_eq!(count(&latents(MAX_COMPOSED_LATENTS + 1), reason::LATENT_TOO_MANY), 1);
+}

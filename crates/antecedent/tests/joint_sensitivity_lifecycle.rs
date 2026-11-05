@@ -996,3 +996,76 @@ fn source_backed_sensitivity_replays_full_original_source_and_rejects_changed_su
     assert_eq!(code, "invalid_argument");
     assert_eq!(detail, antecedent_core::reason_details::sensitivity_source::SURFACE_MISMATCH);
 }
+
+/// The source-backed envelope byte bound refuses one byte past it and admits the bound itself.
+///
+/// Reference: `SourceLimits::max_bytes` is compared against the exact byte length of the
+/// original source (checked), of the sealed envelope (export) and of the envelope on intake
+/// (consume). The oracle is that integer comparison: length `n` under `max_bytes = n` succeeds
+/// and under `max_bytes = n - 1` refuses with `sensitivity_source.limits_exceeded`. Tolerance
+/// is zero; no floating point is involved. The default bound is the 16 MiB public constant.
+#[test]
+fn source_backed_sensitivity_byte_bound_refuses_one_past_and_admits_the_bound() {
+    use antecedent::analysis::sensitivity_source::{
+        MAX_BYTES, SourceBackedSensitivity, SourceLimits,
+    };
+    use antecedent_contract::{QuantityRole, ScientificQuantity};
+    use antecedent_io::sensitivity_artifact::{ActionUtility, SensitivityArtifact, UtilityTerm};
+    assert_eq!(MAX_BYTES, 16 * 1024 * 1024);
+    assert_eq!(SourceLimits::default().max_bytes, MAX_BYTES);
+    let original = artifact();
+    let prepared = prepare(&builder());
+    let context = ExecutionContext::for_tests(91);
+    let result = prepared.joint_mechanism_sensitivity(&spec(), &context).unwrap();
+    let effect = ScientificQuantity {
+        variable_id: "effect".into(),
+        variable_name: "Y".into(),
+        role: QuantityRole::Outcome,
+        units: "outcome_units".into(),
+        population_id: "target".into(),
+        regime_id: "do(x=1)".into(),
+        horizon: 0,
+        functional_id: "sensitivity_surface".into(),
+        conditioning: vec![],
+        transform_id: "identity".into(),
+    };
+    let surface = SensitivityArtifact::from_joint_result(
+        &result,
+        &effect,
+        2,
+        vec![
+            ActionUtility { id: "adopt".into(), utility: UtilityTerm::quantity("effect") },
+            ActionUtility { id: "wait".into(), utility: UtilityTerm::Const(0.) },
+        ],
+        "checked-contract",
+    )
+    .unwrap();
+    let source = original.export().unwrap();
+    let limits_exceeded = antecedent_core::reason_details::sensitivity_source::LIMITS_EXCEEDED;
+    let expect_refused = |error: &IoError| {
+        let (code, detail) = refused(error);
+        assert_eq!(code, "invalid_argument");
+        assert_eq!(detail, limits_exceeded);
+    };
+
+    // Source bound: exactly the source length passes, one byte less refuses.
+    let at = SourceLimits { max_bytes: source.len() };
+    let checked =
+        SourceBackedSensitivity::checked_with_limits(&source, &surface, &context, at).unwrap();
+    let below = SourceLimits { max_bytes: source.len() - 1 };
+    expect_refused(
+        &SourceBackedSensitivity::checked_with_limits(&source, &surface, &context, below)
+            .unwrap_err(),
+    );
+
+    // Envelope bound on export and on intake.
+    let envelope = checked.export().unwrap();
+    let at = SourceLimits { max_bytes: envelope.len() };
+    let below = SourceLimits { max_bytes: envelope.len() - 1 };
+    assert_eq!(checked.export_with_limits(at).unwrap(), envelope);
+    expect_refused(&checked.export_with_limits(below).unwrap_err());
+    SourceBackedSensitivity::consume_with_limits(&envelope, &context, at).unwrap();
+    expect_refused(
+        &SourceBackedSensitivity::consume_with_limits(&envelope, &context, below).unwrap_err(),
+    );
+}

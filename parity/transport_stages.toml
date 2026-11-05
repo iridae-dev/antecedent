@@ -3463,7 +3463,7 @@ notes = "Normal measured producer and independent retained-identity consumer res
 execution_contract = "source_bound_replay"
 capability_record = "recovery.sampled_observation"
 [[routes]]
-route = "antecedent.distribution.meaning_check"
+route = "antecedent.joint_distribution.DistributionIdentity"
 graph = "previously_identified_claim_graph_and_proof_checked_outside_this_cell"
 evidence = "typed_distribution_object_with_declared_random_quantity_meaning_and_causal_contract_identity"
 functional = "whether_a_supplied_distribution_can_answer_one_declared_operation_without_changing_its_meaning"
@@ -3507,7 +3507,7 @@ evidence_assertion = "heterogeneous_design_sequential_equals_exact_pooled"
 notes = "Known-variance point transfer with stable-ID bijection, dense covariance, pooled heterogeneous-design truth and fresh-process replay."
 
 [[routes]]
-route = "antecedent.external.law_provider"
+route = "antecedent.provider_callbacks.CallbackDeclaration"
 graph = "independently_identified_fixed_graph_contract_this_cell_identifies_no_graph"
 evidence = "bernoulli_quarter_law_declaring_sample_and_mean_under_do_a_1"
 functional = "typed_external_law_and_posterior_provider_contract_declaration"
@@ -3518,7 +3518,7 @@ evidence_assertion = "bernoulli_law_mean_and_seeded_samples_negotiate"
 notes = "Typed provider object declaration (law, posterior, signal, evidence, utility) with exact-request identity; declaration only, no causal or interval claim."
 
 [[routes]]
-route = "antecedent.external.bind_response"
+route = "antecedent.external.ExternalSpec.bind"
 graph = "independently_identified_binary_do_a_query_under_the_exact_graph"
 evidence = "supplied_response_grid_p_y1_do_a0_quarter_and_p_y1_do_a1_three_quarters"
 functional = "checked_external_response_binding_risk_difference_one_half"
@@ -3529,7 +3529,7 @@ evidence_assertion = "bernoulli_risk_difference_binds_under_exact_identity"
 notes = "Checked binding of an external response grid to an identified contract: point-only, attested or exact-request verified, never native; no interval or calibration claim."
 
 [[routes]]
-route = "antecedent.external.negotiate_capability"
+route = "antecedent.provider_callbacks.CallbackSession.execute"
 graph = "independently_identified_fixed_graph_contract_this_cell_identifies_no_graph"
 evidence = "provider_offering_sample_and_mean_but_no_cdf_quantile_or_intervention_operation"
 functional = "provider_capability_negotiation_at_an_exact_request_fingerprint"
@@ -3540,7 +3540,7 @@ evidence_assertion = "mean_request_accepts_and_threshold_and_quantile_refuse"
 notes = "Exact-operation negotiation at an independently retained request identity; sampling approximation remains unsupported."
 
 [[routes]]
-route = "antecedent.external.verify_object"
+route = "antecedent.provider_callbacks.CallbackDeclaration.verify"
 graph = "independently_identified_fixed_graph_contract_this_cell_identifies_no_graph"
 evidence = "bernoulli_quarter_law_with_independent_probes_normalization_mean_cdf_and_seeded_sampling"
 functional = "object_level_verification_at_the_exact_request_fingerprint"
@@ -3551,7 +3551,7 @@ evidence_assertion = "bernoulli_verification_matches_enumeration_at_exact_finger
 notes = "Object-level verification from independent probes at the complete contract fingerprint; covers that request only and is not general provider trust."
 
 [[routes]]
-route = "antecedent.external.trust_receipt"
+route = "antecedent.extensibility.ProviderVerificationReceipt.load"
 graph = "independently_identified_fixed_graph_contract_this_cell_identifies_no_graph"
 evidence = "one_provider_object_externally_attested_then_independently_verified_for_fingerprint_r1"
 functional = "external_trust_tier_and_provenance_boundary"
@@ -3562,7 +3562,7 @@ evidence_assertion = "attested_stays_attested_and_verified_is_never_native"
 notes = "Trust tier (externally attested or verified extension) preserved through artifacts; never native supported and never upgraded on load."
 
 [[routes]]
-route = "antecedent.support.coordinate_grid"
+route = "antecedent.dose_grid.dose_support_table"
 graph = "independently_identified_fixed_graph_contract_this_cell_identifies_no_graph"
 evidence = "three_ordered_doses_with_support_flags_true_false_true_and_local_ess_40_0_35"
 functional = "per_coordinate_support_labels_with_worst_label_summary"
@@ -3573,7 +3573,7 @@ evidence_assertion = "three_doses_exclude_only_the_middle_and_keep_local_ess_ali
 notes = "Per-coordinate support labels for a static grid with the worst-label summary; missing evidence stays a distinct weakest label; no interval or causal claim."
 
 [[routes]]
-route = "antecedent.provenance.composition_chain"
+route = "antecedent.design.ranking.DesignRankingResult.stages_behind"
 graph = "independently_identified_fixed_graph_contract_this_cell_identifies_no_graph"
 evidence = "response_through_one_external_provider_a_joint_distribution_transform_and_a_decision_score"
 functional = "ordered_composition_provenance_lineage_from_contract_to_decision"
@@ -3595,7 +3595,7 @@ evidence_assertion = "decision_refusal_carries_stage_action_reason_supplied_mean
 notes = "Validated structured refusal envelope (stage, registered code, namespaced detail, offending input, expected and supplied, remedy) preserved across Rust and Python; each family keeps its own details."
 
 [[routes]]
-route = "antecedent.composition.cross_language"
+route = "antecedent.joint_distribution.JointDistributionArtifact.load"
 graph = "independently_identified_fixed_graph_contract_this_cell_identifies_no_graph"
 evidence = "two_coordinate_aligned_finite_law_built_in_python_and_read_in_rust_and_conversely"
 functional = "joint_means_half_and_one_covariance_half_and_product_expectation_one"
@@ -3640,7 +3640,7 @@ evidence_assertion = "positive_expectation_and_variance_identity_on_the_finite_l
 notes = "Typed decision functionals (expectation, variance, probability, quantile by left inverse, fractional-boundary tail mean) on aligned finite laws; a mean-only source answers only an affine expectation; point-only, no interval."
 
 [[routes]]
-route = "antecedent.decision.structural_policy"
+route = "antecedent.decision_robust.finite_scenarios"
 graph = "independently_identified_fixed_graph_contract_this_cell_identifies_no_graph"
 evidence = "two_structural_atoms_preferring_opposite_actions_with_no_atom_probabilities"
 functional = "declared_structural_policy_maximin_bayes_invariant_or_report_only_over_supplied_structures"
@@ -4127,7 +4127,7 @@ evidence_assertion = "bundle_round_trip_verifies_every_node_and_reports_the_hand
 notes = "Composition bundle consumption; point-only."
 
 [[routes]]
-route = "antecedent.bundle.standard_consumer"
+route = "antecedent.composition_bundle.consume_bundle"
 graph = "no_graph_identified_each_verifier_checks_one_artifact_against_its_declared_neighbours"
 evidence = "hand_enumerated_four_row_joint_law_risky_2_safe_3_with_contract_result_sensitivity_ranking_and_relationship_artifacts"
 functional = "one_verifier_per_artifact_kind_decoding_through_the_artifacts_own_consumer_and_publishing_binding_facts_from_decoded_fields"
@@ -4138,7 +4138,7 @@ evidence_assertion = "verifiers_joint_decision_verifies_every_node_and_reads_the
 notes = "Per-kind node verifiers; point-only."
 
 [[routes]]
-route = "antecedent.bundle.mean_decision_bytes"
+route = "antecedent.composition_bundle.mean_decision"
 graph = "no_graph_identified_decision_over_a_supplied_external_mean_claim"
 evidence = "external_mean_claim_finite_response_grid_with_declared_mean_4_25_evaluated_against_direct_contract_evaluation"
 functional = "point_only_attested_decision_result_bytes_evaluated_from_the_claims_finite_response_grid_refusing_what_a_mean_cannot_answer"
@@ -4149,7 +4149,7 @@ evidence_assertion = "verifiers_mean_decision_helper_matches_direct_evaluation_a
 notes = "External mean decision helper; point-only attested."
 
 [[routes]]
-route = "antecedent.acceptance.multi_source_decision"
+route = "antecedent.composition.evaluate_with_support"
 graph = "x_to_a_x_to_y_a_to_y_program_y_under_do_a_for_a_in_0_1_2_each_source_carries_its_own_graph_facts"
 evidence = "hand_derived_three_action_story_native_claim_two_external_studies_two_row_joint_law_ranking_and_composed_bundle_with_one_mutation_per_binding_fact"
 functional = "compose_decision_over_native_and_external_sources_from_supported_routes_only_report_support_per_action_refuse_shared_or_overlapping_evidence_as_independent_rank_designs_and_export_one_bundle"
@@ -4226,7 +4226,7 @@ evidence_assertion = "cell_resume_in_a_fresh_session_retargets_the_exported_scor
 notes = "Portable score resume; point-only."
 
 [[routes]]
-route = "antecedent.recalc.frozen_scores_artifact"
+route = "antecedent.recalc_cell.CellSession.export_frozen_scores"
 graph = "no_graph_identified_artifact_carries_scores_and_stage_identities_only"
 evidence = "deterministic_score_table_with_bit_exact_round_trip_resealed_mutation_and_malformed_table_variants"
 functional = "consume_by_recomputing_the_fit_identity_from_stored_stage_digests_requiring_the_snapshot_digest_and_artifact_identity_to_match"
@@ -4237,7 +4237,7 @@ evidence_assertion = "scores_round_trip_is_bit_exact_and_carries_every_identity"
 notes = "Frozen_scores_v1 artifact; point-only."
 
 [[routes]]
-route = "antecedent.invariance.scenario_invariance_report"
+route = "antecedent.scenario_invariance.invariance_report"
 graph = "static_selection_diagrams_decided_by_the_classical_catalog_transport_route_non_static_nodes_refuse"
 evidence = "a_prepared_and_estimated_transport_scenario_stage_no_data_of_its_own"
 functional = "per_scenario_selection_differences_source_invariances_target_factors_obstruction_or_undecided_status_and_the_scenario_behind_each_envelope_extreme"
@@ -4453,7 +4453,7 @@ evidence_assertion = "test_normal_checked_source_measured_scalar_independent_mat
 notes = "Normal measured producer and independent retained-identity consumer resolve actual method-specific evidence. Historical source candidate bytes/reports remain not_measured; caller metadata or serialized calibrated flags cannot grant authority."
 
 [[routes]]
-route = "antecedent.joint_distribution.JointDistributionArtifact.authority_boundary"
+route = "antecedent.composition.DecisionInput.from_distribution"
 graph = "A previously identified, finite coordinate causal claim; graph identification belongs to its prerequisite record."
 evidence = "An externally supplied or native finite array of aligned joint draws with explicit axes and source identity."
 functional = "A typed joint distribution over named causal quantities, with derived covariance and nonlinear expectations when their required joint law exists."
@@ -9108,7 +9108,7 @@ evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.r
 evidence_assertion = "confidence_set_excludes_the_clearly_worse_candidate_with_the_paired_critical_value"
 
 [[routes]]
-route = "antecedent.python.decision_reliability.DecisionReliability.derive_uncertainty"
+route = "antecedent.decision_reliability.DecisionReliability.derive_uncertainty"
 graph = "not_applicable_to_supplied_utility_draws"
 evidence = "finite_retained_candidate_utility_draws_with_declared_dependence"
 functional = "confidence_set_for_the_best_retained_candidate"
@@ -9344,7 +9344,7 @@ evidence_assertion = "artifact_keeps_the_acting_decision_when_the_range_never_re
 notes = "Uses the existing sensitivity_decision_v1 surface."
 
 [[routes]]
-route = "antecedent.transport_sensitivity.transport_range"
+route = "antecedent.transport.sensitivity.transport_sensitivity"
 graph = "not_applicable_declared_bounded_premise_violation"
 evidence = "transported_response_with_value_quantity_and_receipt"
 functional = "assumption_range_built_from_a_transported_response"
@@ -9354,7 +9354,7 @@ evidence_assertion = "the_range_is_built_from_the_responses_value_quantity_and_r
 notes = "Facade entry; a transported law has no single point and refuses."
 
 [[routes]]
-route = "antecedent.transport_sensitivity.transport_sensitivity_artifact"
+route = "antecedent.transport.sensitivity.TransportSensitivity.decision_source"
 graph = "not_applicable_declared_bounded_premise_violation"
 evidence = "transported_response_and_a_reference_action_value"
 functional = "sealed_sensitivity_decision_artifact_recomputed_by_a_consumer"
@@ -9412,7 +9412,7 @@ evidence_assertion = "a_transported_point_decides_by_the_utility_of_the_mean_and
 notes = "Point value 6.5 / 0 in the hand fixture."
 
 [[routes]]
-route = "antecedent.decision_contract.BoundDecisionContract.evaluate_transported"
+route = "antecedent.decision.Contract.evaluate_transported"
 graph = "not_applicable_receipt_carries_the_transport_identity"
 evidence = "bound_decision_contract_and_a_transported_response"
 functional = "transported_decision_with_declared_exclusions_support_and_uncertainty_rules_applied"
@@ -9520,7 +9520,7 @@ evidence_assertion = "a_transported_policy_value_is_a_supported_inverse_source_w
 notes = "A transported inspection policy value 5.5 keeps the inspect action."
 
 [[routes]]
-route = "antecedent.inverse_sources.transported_source"
+route = "antecedent.inverse_sources.transported_forward_source"
 graph = "not_applicable_receipt_carries_the_transport_identity"
 evidence = "transported_response_facade_with_an_accepting_input_policy"
 functional = "facade_forward_source_with_the_receipt"
@@ -10166,7 +10166,7 @@ evidence_assertion = "equal_study_gaussian_pool_has_a_distinct_conservative_inte
 
 
 [[routes]]
-route = "antecedent.result.PublishedScalarUncertainty.interval"
+route = "antecedent.results.IntervalBindingView"
 graph = "exact_method_record_scope"
 evidence = "published_scalar_uncertainty_selection_and_exact_coverage_records"
 functional = "exact_scalar_endpoint_construction"

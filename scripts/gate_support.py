@@ -1185,7 +1185,13 @@ def transport_problems(registry_path: Path | None = None, *, resolve: bool = Fal
                             root, route, evidence_path.read_text(encoding="utf-8")
                         )
                     )
-                elif not problems and name.startswith("antecedent.transport."):
+                elif (
+                    not problems
+                    and name.startswith("antecedent.transport.")
+                    # The sensitivity module seals a decision artifact a consumer recomputes;
+                    # it has no builder or retained plan to discard.
+                    and not name.startswith("antecedent.transport.sensitivity.")
+                ):
                     errors.extend(
                         f"{name}: {problem}"
                         for problem in checked_execution_body_problems(

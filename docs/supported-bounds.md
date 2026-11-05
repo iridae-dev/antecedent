@@ -230,16 +230,14 @@ markers below and compares it. Prose outside those markers is not read.
 | adaptive_inference.participant_family | max_historical_sources | 16 | `crates/antecedent-stats/src/adaptive_inference/historical_prior.rs` |
 | adaptive_inference.participant_family | max_historical_trials | 100000 | `crates/antecedent-stats/src/adaptive_inference/historical_prior.rs` |
 | adaptive_inference.participant_family | max_replications | 1000000 | `crates/antecedent-stats/src/adaptive_inference/procedure_simulation.rs` |
-| discovery.sample_split_effect | min_variables | 5 | `crates/antecedent-io/src/measured_inference/split_effect.rs` |
-| discovery.sample_split_effect | max_variables | 7 | `crates/antecedent-io/src/measured_inference/split_effect.rs` |
-| discovery.sample_split_parent_set_effect | min_variables | 10 | `crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs` |
-| discovery.sample_split_parent_set_effect | max_variables | 20 | `crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs` |
 | transport.cpdag_class_envelope | max_joint_cells | 33554432 | `crates/antecedent/src/analysis/discovered_transport_estimate.rs` |
 | sensitivity.missing_outcome_departure | max_rows | 67108864 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
 | sensitivity.missing_outcome_departure | max_covariates | 64 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
 | sensitivity.missing_outcome_departure | max_grid_points | 4096 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
 | sensitivity.missing_outcome_departure | max_decisions | 64 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
 | sensitivity.missing_outcome_departure | max_bootstrap_replicates | 5000 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
+| graph_imputation.compiled_candidate | depth_limit | 1 | `crates/antecedent/src/analysis/graph_imputation.rs` |
+| graph_imputation.compiled_candidate | memory_limit | 26214400 | `crates/antecedent/src/analysis/graph_imputation.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

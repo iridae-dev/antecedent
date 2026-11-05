@@ -329,3 +329,59 @@ fn arrival_checked_z_transport_replays_original_proof_and_actual_count_worlds() 
     .unwrap();
     assert_eq!(replay.result, artifact.result);
 }
+
+/// The evaluation operation and depth bounds refuse one below the work the request needs and
+/// admit exactly that work; the recursion ceiling refuses one past it.
+///
+/// Reference: the exact evaluator charges a fixed number of operations and a fixed recursion
+/// depth for this request, so there is a unique smallest `operations` (and smallest `depth`)
+/// that evaluates. The oracle is that threshold, found by bisection over the same entry point:
+/// at the threshold the evaluation succeeds with the pinned mean, one below it the original
+/// evaluator refuses, and the published defaults (100000 operations, depth 128) admit it. The
+/// structural ceiling is `depth <= 256`: 256 passes the structural check, 257 refuses with
+/// `proposal_arrival.bounds_exceeded`. Tolerance is zero on the thresholds and 1e-12 on the mean.
+#[test]
+fn arrival_evaluation_operation_and_depth_bounds_refuse_one_past_and_admit_the_bound() {
+    use antecedent_core::reason_details::proposal_arrival as reason;
+    let request = fixture();
+    assert_eq!((request.operations, request.depth), (100_000, 128));
+    let run = |operations: usize, depth: usize| {
+        let mut r = request.clone();
+        r.operations = operations;
+        r.depth = depth;
+        execute(&r, &ExecutionContext::for_tests(3))
+    };
+    let smallest = |ok: &dyn Fn(usize) -> bool, high: usize| {
+        assert!(ok(high), "the largest probed bound must admit the request");
+        let (mut lo, mut hi) = (1_usize, high);
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if ok(mid) {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        lo
+    };
+
+    let operations = smallest(&|n| run(n, 128).is_ok(), 100_000);
+    let admitted = run(operations, 128).unwrap();
+    assert!((admitted.mean.unwrap() - pin("active_mean").as_f64().unwrap()).abs() < 1e-12);
+    assert!(run(operations - 1, 128).is_err());
+    let message = detail(run(operations - 1, 128).unwrap_err());
+    let expected =
+        if operations == 1 { reason::BOUNDS_EXCEEDED } else { reason::ORIGINAL_CONSUMER_REFUSED };
+    assert!(message.contains(expected), "{message}");
+
+    let depth = smallest(&|n| run(100_000, n).is_ok(), 128);
+    let admitted = run(100_000, depth).unwrap();
+    assert!((admitted.mean.unwrap() - pin("active_mean").as_f64().unwrap()).abs() < 1e-12);
+    let message = detail(run(100_000, depth - 1).unwrap_err());
+    let expected =
+        if depth == 1 { reason::BOUNDS_EXCEEDED } else { reason::ORIGINAL_CONSUMER_REFUSED };
+    assert!(message.contains(expected), "{message}");
+
+    run(100_000, 256).unwrap();
+    assert!(detail(run(100_000, 257).unwrap_err()).contains(reason::BOUNDS_EXCEEDED));
+}

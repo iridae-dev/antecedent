@@ -809,8 +809,8 @@ key = "default_evaluation_operations"
 implementation = [{ path = "python/antecedent/proposal_arrival.py", pattern = "operations: int = (100_000)" }]
 documentation = [{ path = "python/antecedent/proposal_arrival.py", pattern = "operations: int = (100_000)" }]
 guard = { path = "python/antecedent/proposal_arrival.py", pattern = "operations:\\ int\\ =\\ 100_000" }
-refusal = { path = "crates/antecedent/src/analysis/proposal_arrival.rs", pattern = "r.operations == 0[\\s\\S]{0,1000}?proposal_arrival.bounds_exceeded" }
-scope_fixture = { path = "crates/antecedent/tests/proposal_arrival.rs", pattern = "\\barrival_original_artifact_and_raw_provider_replay_refuses_resealed_changes\\b" }
+refusal = { path = "crates/antecedent/src/analysis/proposal_arrival.rs", pattern = "r.operations == 0[\\s\\S]{0,1000}?proposal_arrival::BOUNDS_EXCEEDED" }
+scope_fixture = { path = "crates/antecedent/tests/proposal_arrival.rs", pattern = "\\barrival_evaluation_operation_and_depth_bounds_refuse_one_past_and_admit_the_bound\\b" }
 
 [[bound]]
 record = "design.proposal_arrival"
@@ -818,8 +818,8 @@ key = "default_evaluation_depth"
 implementation = [{ path = "python/antecedent/proposal_arrival.py", pattern = "depth: int = (128)" }]
 documentation = [{ path = "python/antecedent/proposal_arrival.py", pattern = "depth: int = (128)" }]
 guard = { path = "python/antecedent/proposal_arrival.py", pattern = "depth:\\ int\\ =\\ 128" }
-refusal = { path = "crates/antecedent/src/analysis/proposal_arrival.rs", pattern = "r.depth == 0[\\s\\S]{0,1000}?proposal_arrival.bounds_exceeded" }
-scope_fixture = { path = "crates/antecedent/tests/proposal_arrival.rs", pattern = "\\barrival_original_artifact_and_raw_provider_replay_refuses_resealed_changes\\b" }
+refusal = { path = "crates/antecedent/src/analysis/proposal_arrival.rs", pattern = "r.depth == 0[\\s\\S]{0,1000}?proposal_arrival::BOUNDS_EXCEEDED" }
+scope_fixture = { path = "crates/antecedent/tests/proposal_arrival.rs", pattern = "\\barrival_evaluation_operation_and_depth_bounds_refuse_one_past_and_admit_the_bound\\b" }
 
 [[bound]]
 record = "design.proposal_arrival"
@@ -931,8 +931,8 @@ key = "max_artifact_bytes"
 implementation = [{ path = "crates/antecedent/src/analysis/sensitivity_source.rs", constant = "MAX_BYTES" }]
 documentation = [{ path = "crates/antecedent/src/analysis/sensitivity_source.rs", constant = "MAX_BYTES" }]
 guard = { path = "crates/antecedent/src/analysis/sensitivity_source.rs", pattern = "if source\\.len\\(\\) > limits\\.max_bytes \\{" }
-refusal = { path = "crates/antecedent/src/analysis/sensitivity_source.rs", pattern = "if source\\.len\\(\\) > limits\\.max_bytes \\{\\s*return Err\\(sensitivity_invalid\\(\"sensitivity_source\\.limits_exceeded\"\\)\\)" }
-scope_fixture = { path = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs", pattern = "\\bsource_backed_sensitivity_replays_full_original_source_and_rejects_changed_surface\\b" }
+refusal = { path = "crates/antecedent/src/analysis/sensitivity_source.rs", pattern = "if source\\.len\\(\\) > limits\\.max_bytes \\{\\s*return Err\\(sensitivity_invalid\\(\\s*antecedent_core::reason_details::sensitivity_source::LIMITS_EXCEEDED" }
+scope_fixture = { path = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs", pattern = "\\bsource_backed_sensitivity_byte_bound_refuses_one_past_and_admits_the_bound\\b" }
 
 [[bound]]
 record = "design.conditional_study_ranking"
@@ -1095,7 +1095,8 @@ key = "max_mechanisms"
 implementation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_COMPOSED_MECHANISMS" }]
 documentation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_COMPOSED_MECHANISMS" }]
 guard = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'spec\.mechanisms\.len\(\) > MAX_COMPOSED_MECHANISMS' }
-refusal = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'spec\.mechanisms\.len\(\) > MAX_COMPOSED_MECHANISMS[\s\S]{0,700}mechanism_composition\.shape_too_many_mechanisms' }
+refusal = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'spec\.mechanisms\.len\(\) > MAX_COMPOSED_MECHANISMS[\s\S]{0,700}mechanism_composition::SHAPE_TOO_MANY_MECHANISMS' }
+scope_fixture = { path = "crates/antecedent-model/tests/mechanism_composition.rs", pattern = "\\bcomposition_size_bounds_refuse_one_past_and_admit_the_bound\\b" }
 
 [[bound]]
 record = "mechanism_composition.acyclic_joint_model"
@@ -1103,7 +1104,8 @@ key = "max_parents_per_mechanism"
 implementation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_PARENTS_PER_MECHANISM" }]
 documentation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_PARENTS_PER_MECHANISM" }]
 guard = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'd\.parents\.len\(\) > MAX_PARENTS_PER_MECHANISM' }
-refusal = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'd\.parents\.len\(\) > MAX_PARENTS_PER_MECHANISM[\s\S]{0,700}mechanism_composition\.shape_too_many_parents' }
+refusal = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'd\.parents\.len\(\) > MAX_PARENTS_PER_MECHANISM[\s\S]{0,700}mechanism_composition::SHAPE_TOO_MANY_PARENTS' }
+scope_fixture = { path = "crates/antecedent-model/tests/mechanism_composition.rs", pattern = "\\bcomposition_size_bounds_refuse_one_past_and_admit_the_bound\\b" }
 
 [[bound]]
 record = "mechanism_composition.acyclic_joint_model"
@@ -1111,7 +1113,8 @@ key = "max_latents"
 implementation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_COMPOSED_LATENTS" }]
 documentation = [{ path = "crates/antecedent-model/src/compose/descriptor.rs", constant = "MAX_COMPOSED_LATENTS" }]
 guard = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'distinct > MAX_COMPOSED_LATENTS' }
-refusal = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'distinct > MAX_COMPOSED_LATENTS[\s\S]{0,700}mechanism_composition\.latent_too_many' }
+refusal = { path = "crates/antecedent-model/src/compose/coherence.rs", pattern = 'distinct > MAX_COMPOSED_LATENTS[\s\S]{0,700}mechanism_composition::LATENT_TOO_MANY' }
+scope_fixture = { path = "crates/antecedent-model/tests/mechanism_composition.rs", pattern = "\\bcomposition_size_bounds_refuse_one_past_and_admit_the_bound\\b" }
 
 [[bound]]
 record = "mechanism_composition.acyclic_joint_model"
@@ -1687,42 +1690,6 @@ refusal = { path = "crates/antecedent-stats/src/adaptive_inference/participant_p
 scope_fixture = { path = "crates/antecedent-stats/tests/adaptive_procedure_capacity.rs", pattern = "\\breplications_past_the_bound_are_refused_by_every_simulation_route\\b" }
 
 [[bound]]
-record = "discovery.sample_split_effect"
-key = "min_variables"
-implementation = [{ path = "crates/antecedent-io/src/measured_inference/split_effect.rs", constant = "MIN_VARIABLES" }]
-documentation = [{ path = "crates/antecedent-io/src/measured_inference/split_effect.rs", constant = "MIN_VARIABLES" }]
-guard = { path = "crates/antecedent-io/src/measured_inference/split_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{" }
-refusal = { path = "crates/antecedent-io/src/measured_inference/split_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/sample_split_effect_facade.rs", pattern = "split_effect\\.variable_count_not_measured" }
-
-[[bound]]
-record = "discovery.sample_split_effect"
-key = "max_variables"
-implementation = [{ path = "crates/antecedent-io/src/measured_inference/split_effect.rs", constant = "MAX_VARIABLES" }]
-documentation = [{ path = "crates/antecedent-io/src/measured_inference/split_effect.rs", constant = "MAX_VARIABLES" }]
-guard = { path = "crates/antecedent-io/src/measured_inference/split_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{" }
-refusal = { path = "crates/antecedent-io/src/measured_inference/split_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/sample_split_effect_facade.rs", pattern = "split_effect\\.variable_count_not_measured" }
-
-[[bound]]
-record = "discovery.sample_split_parent_set_effect"
-key = "min_variables"
-implementation = [{ path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", constant = "MIN_VARIABLES" }]
-documentation = [{ path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", constant = "MIN_VARIABLES" }]
-guard = { path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{" }
-refusal = { path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", pattern = "parent_set_effect\\.variable_count_not_measured" }
-
-[[bound]]
-record = "discovery.sample_split_parent_set_effect"
-key = "max_variables"
-implementation = [{ path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", constant = "MAX_VARIABLES" }]
-documentation = [{ path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", constant = "MAX_VARIABLES" }]
-guard = { path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{" }
-refusal = { path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs", pattern = "if\\ !\\(MIN_VARIABLES\\.\\.=MAX_VARIABLES\\)\\.contains\\(&k\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs", pattern = "parent_set_effect\\.variable_count_not_measured" }
-
-[[bound]]
 record = "transport.cpdag_class_envelope"
 key = "max_joint_cells"
 implementation = [{ path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", constant = "MAX_JOINT_CELLS" }]
@@ -1775,3 +1742,21 @@ documentation = [{ path = "crates/antecedent-validate/src/mnar_sensitivity.rs", 
 guard = { path = "crates/antecedent-validate/src/mnar_sensitivity.rs", pattern = '&&\s*!\(MNAR_MIN_BOOTSTRAP\.\.=MNAR_MAX_BOOTSTRAP\)\.contains\(&spec\.bootstrap_replicates\)\s*\{' }
 refusal = { path = "crates/antecedent-validate/src/mnar_sensitivity.rs", pattern = '&&\s*!\(MNAR_MIN_BOOTSTRAP\.\.=MNAR_MAX_BOOTSTRAP\)\.contains\(&spec\.bootstrap_replicates\)\s*\{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
 scope_fixture = { path = "crates/antecedent-validate/tests/mnar_sensitivity.rs", pattern = '\bmnar_refuses_malformed_data_and_options\b' }
+
+[[bound]]
+record = "graph_imputation.compiled_candidate"
+key = "depth_limit"
+implementation = [{ path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "most_atoms\\.saturating_add\\(64\\), depth: (1) \\}" }]
+documentation = [{ path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "most_atoms\\.saturating_add\\(64\\), depth: (1) \\}" }]
+guard = { path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "SearchLimits \\{ operations: most_atoms\\.saturating_add\\(64\\), depth: 1 \\}" }
+refusal = { path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "budget\\.charge\\(1, 25 \\* 1024 \\* 1024\\)[\\s\\S]{0,1800}?\\bErr\\s*\\(" }
+scope_fixture = { path = "crates/antecedent-discovery/src/graph_imputation_enumeration.rs", pattern = "\\bsearch_budget_depth_and_memory_bounds_refuse_one_past_and_admit_the_bound\\b" }
+
+[[bound]]
+record = "graph_imputation.compiled_candidate"
+key = "memory_limit"
+implementation = [{ path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "(25 \\* 1024 \\* 1024)" }]
+documentation = [{ path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "(25 \\* 1024 \\* 1024)" }]
+guard = { path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "SearchBudget::with_memory\\(" }
+refusal = { path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "budget\\.charge\\(1, 25 \\* 1024 \\* 1024\\)[\\s\\S]{0,1800}?\\bErr\\s*\\(" }
+scope_fixture = { path = "crates/antecedent-discovery/src/graph_imputation_enumeration.rs", pattern = "\\bsearch_budget_depth_and_memory_bounds_refuse_one_past_and_admit_the_bound\\b" }
