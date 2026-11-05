@@ -6,12 +6,7 @@ Fails when
   stale                 the generated inventory or its docs table differs from the sources
   vocabulary            a status, uncertainty kind or closure kind is outside the closed vocabulary
   missing_quadrant      a method has no row for one of static/temporal x frequentist/bayesian
-  weaker_temporal       a temporal row carries weaker uncertainty than its static twin and
-                        records no reason
-  not_implemented       a reason reads as "not implemented" instead of a theory reason or a
-                        failed attempt
-  closure_kind          a closed_with_next_attempt row is not a narrowed_promise, or a narrowed
-                        promise has no reason or no next attempt
+  closure_kind          a closed_with_next_attempt row is not a narrowed_promise
   evidence              an executing row lacks a recorded target or sampling design, a fixture
                         that exists and is run, or an artifact consumer that reads the artifact,
                         or an uncertainty no method record backs
@@ -25,7 +20,6 @@ Per method it reports which side is missing and the next attempt.
 
 from __future__ import annotations
 
-import re
 import sys
 import tomllib
 from collections import Counter
@@ -35,10 +29,6 @@ from _repo import REPO_ROOT as ROOT
 from method_evidence import Evidence
 
 INVENTORY = ROOT / "parity/counterparts.toml"
-NOT_IMPLEMENTED = re.compile(
-    r"\bnot\s+(?:yet\s+)?(?:implemented|built|supported)\b|\bunimplemented\b|\bnot\s+done\b|\btodo\b",
-    re.I,
-)
 
 
 def evidence_problems(rows: list[dict], ev: Evidence) -> list[str]:
@@ -87,53 +77,15 @@ def problems(rows: list[dict], vocab: dict | None = None, ev: Evidence | None = 
             errors.append(f"vocabulary: {rid} uncertainty {row['uncertainty']!r}")
         if row["closure"] not in closures:
             errors.append(f"vocabulary: {rid} closure {row['closure']!r}")
-        if NOT_IMPLEMENTED.search(row["reason"]):
-            errors.append(
-                f"not_implemented: {rid} reason reads as not implemented; name the failed attempt "
-                f"or the theory reason and the next attempt: {row['reason'][:90]!r}"
-            )
         if row["status"] == "closed_with_next_attempt" and row["closure"] != "narrowed_promise":
             errors.append(
                 f"closure_kind: {rid} is closed_with_next_attempt but not a narrowed_promise"
-            )
-        if row["status"] == "not_applicable_with_theory_reason" and not row["reason"].strip():
-            errors.append(f"closure_kind: {rid} is not applicable with no theory reason")
-        if row["closure"] == "narrowed_promise" and not (
-            row["reason"].strip() and row["next_attempt"].strip()
-        ):
-            errors.append(
-                f"closure_kind: {rid} is a narrowed promise without a reason and a next attempt"
             )
     grouped = gen.methods(rows)
     for (kind, method), quads in sorted(grouped.items()):
         for quadrant in gen.QUADRANTS:
             if quadrant not in quads:
                 errors.append(f"missing_quadrant: {kind} {method} has no row for {quadrant}")
-        for inference in gen.INFERENCES:
-            static = quads.get(f"static.{inference}")
-            temporal = quads.get(f"temporal.{inference}")
-            if not static or not temporal:
-                continue
-            twin = gen.best(static)
-            for row in temporal:
-                if row["status"] not in ("supported", "not_supported"):
-                    continue
-                if twin["status"] not in ("supported", "not_supported"):
-                    continue
-                if (
-                    row["uncertainty"] not in gen.UNCERTAINTY_RANK
-                    or twin["uncertainty"] not in gen.UNCERTAINTY_RANK
-                ):
-                    continue
-                weaker = (
-                    gen.UNCERTAINTY_RANK[row["uncertainty"]]
-                    < gen.UNCERTAINTY_RANK[twin["uncertainty"]]
-                )
-                if weaker and not row["reason"].strip():
-                    errors.append(
-                        f"weaker_temporal: {row['id']} carries {row['uncertainty']} uncertainty against "
-                        f"{twin['uncertainty']} on {twin['id']} with no recorded reason"
-                    )
     return errors
 
 

@@ -10814,20 +10814,6 @@ path = "scripts/test_recover_published_crate.py"
 gates = ["inventory"]
 
 [[test]]
-id = "release-support-delta-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_release_support_delta.py"
-gates = ["inventory"]
-
-[[test]]
-id = "residual-limitations-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_residual_limitations.py"
-gates = ["inventory"]
-
-[[test]]
 id = "route-obligations-script"
 crate = "scripts"
 cargo_target = "script"
@@ -22619,13 +22605,6 @@ id = "scripts-test-scientific-records"
 crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_scientific_records.py"
-gates = ["inventory"]
-
-[[test]]
-id = "scripts-test-gate-docs-vocabulary"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_gate_docs_vocabulary.py"
 gates = ["inventory"]
 
 [[test]]

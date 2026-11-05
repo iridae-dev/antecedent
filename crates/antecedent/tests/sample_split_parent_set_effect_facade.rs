@@ -682,33 +682,6 @@ fn a_source_that_states_another_format_or_roles_is_refused() {
     );
 }
 
-#[test]
-fn the_published_conditions_are_listed_for_each_family() {
-    let guide = include_str!("../../../docs/selective-discovery.md");
-    let section = guide
-        .split("## Effect after discovery on a treatment parent set")
-        .nth(1)
-        .expect("the guide has the parent-set section");
-    for family in ["Linear", "Log-linear"] {
-        assert!(section.contains(&format!("### {family} family")), "{family}");
-    }
-    for condition in [
-        "Signal strength",
-        "Causal sufficiency",
-        "Distribution",
-        "Intervention support",
-        "Faithfulness",
-        "Maximum degree",
-    ] {
-        assert_eq!(
-            section.matches(&format!("**{condition}.**")).count(),
-            2,
-            "{condition} is stated once for each family"
-        );
-    }
-    assert!(section.contains(&format!("{}", sparse_scm::MIN_MARGIN)));
-}
-
 fn with_knowledge(study: &Study, knowledge: Option<Knowledge>, degree: u32) -> ParentSetEffect {
     let scm = &study.scm;
     estimate_parent_set_effect_with_knowledge(

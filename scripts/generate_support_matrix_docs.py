@@ -544,124 +544,6 @@ def render_release_supported(cells: list[dict], axes: dict) -> list[str]:
     return lines
 
 
-def _support_coordinates(block: str, source: Path) -> set[tuple[str, ...]]:
-    """Expand compacted `- query × graph × structure × inference × validation` lines."""
-    found: set[tuple[str, ...]] = set()
-    for line in block.splitlines():
-        if not line.startswith("- "):
-            continue
-        parts = line[2:].split(" × ")
-        if len(parts) != 5 or not parts[-1].startswith("validation "):
-            raise ValueError(f"{source}: invalid support coordinate {line!r}")
-        parts[-1] = parts[-1].removeprefix("validation ")
-        choices = []
-        for part in parts:
-            tokens = part.split(" / ")
-            if any(not re.fullmatch(r"`[A-Za-z_][A-Za-z0-9_]*`", token) for token in tokens):
-                raise ValueError(f"{source}: invalid support axis {part!r}")
-            choices.append([token[1:-1] for token in tokens])
-        coordinates = set(product(*choices))
-        if coordinates & found:
-            raise ValueError(f"{source}: duplicate support coordinates")
-        found.update(coordinates)
-    return found
-
-
-def _frozen_block(path: Path) -> str:
-    text = read_text(path)
-    if text.count(FROZEN_BEGIN) != 1 or text.count(FROZEN_END) != 1:
-        raise ValueError(f"{path}: release delta requires one frozen support inventory")
-    return text.split(FROZEN_BEGIN, 1)[1].split(FROZEN_END, 1)[0]
-
-
-def frozen_support_coordinates(path: Path) -> set[tuple[str, ...]]:
-    """Supported coordinates named by a frozen notes block.
-
-    A full inventory is the ``N supported of`` list. A later cut may freeze a
-    delta (``N added, M removed``) against an older notes file; that delta is
-    applied to the older inventory.
-    """
-    block = _frozen_block(path)
-    count = re.search(r"^(\d+) supported of ", block, re.MULTILINE)
-    if count:
-        previous = _support_coordinates(block, path)
-        if len(previous) != int(count[1]):
-            raise ValueError(f"{path}: frozen support count does not match its coordinates")
-        return previous
-    delta = re.search(
-        r"^Changes to generic analysis support since (\d+\.\d+\.\d+): "
-        r"(\d+) added coordinates, (\d+) removed coordinates\.",
-        block,
-        re.MULTILINE,
-    )
-    if not delta:
-        raise ValueError(f"{path}: frozen support count does not match its coordinates")
-    parent = frozen_support_coordinates(path.parent / f"v{delta[1]}.md")
-    added_text, _, removed_text = block.partition("### Removed analysis coordinates")
-    added_text = added_text.split("### Added analysis coordinates", 1)[-1]
-    added = _support_coordinates(added_text, path)
-    removed = _support_coordinates(removed_text, path)
-    if len(added) != int(delta[2]) or len(removed) != int(delta[3]):
-        raise ValueError(f"{path}: frozen support count does not match its coordinates")
-    if added & parent or not removed <= parent or added & removed:
-        raise ValueError(f"{path}: frozen support delta does not apply to its baseline")
-    return (parent - removed) | added
-
-
-def release_support_delta(cells: list[dict], axes: dict, baseline: Path) -> list[str]:
-    """Compare exact coordinates with a shipped, frozen support inventory."""
-    previous = frozen_support_coordinates(baseline)
-    keys = ("query", "graph_class", "structure", "inference", "validation")
-    current = {tuple(cell[key] for key in keys) for cell in cells}
-    added = [cell for cell in cells if tuple(cell[key] for key in keys) not in previous]
-    removed = [
-        dict(zip(keys, coordinate, strict=True)) for coordinate in sorted(previous - current)
-    ]
-    version = baseline.stem.removeprefix("v")
-    lines = [
-        f"Changes to generic analysis support since {version}: {len(added)} added coordinates, {len(removed)} removed coordinates.",
-        "",
-    ]
-    if added:
-        lines.extend(
-            [
-                "### Added analysis coordinates",
-                "",
-                *render_release_supported(added, axes),
-                "",
-            ]
-        )
-    if removed:
-        removed_axes = dict(axes)
-        for axis, key in zip(
-            ("queries", "graph_classes", "structures", "inferences", "validations"),
-            keys,
-            strict=True,
-        ):
-            removed_axes[axis] = list(axes[axis]) + sorted(
-                {cell[key] for cell in removed} - set(axes[axis])
-            )
-        lines.extend(
-            [
-                "### Removed analysis coordinates",
-                "",
-                *render_release_supported(removed, removed_axes),
-                "",
-            ]
-        )
-    if not added and not removed:
-        lines.append(
-            "The generic analysis grid is unchanged. The new typed workflows and method-specific inference scopes are described above; they do not expand this grid."
-        )
-    lines.extend(
-        [
-            "",
-            "See the [support matrix](../support-matrix.md) for the complete current inventory and interval standing.",
-        ]
-    )
-    return lines
-
-
 def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> None:
     """Replace the marked supported block in the *current* release notes.
 
@@ -678,22 +560,18 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
         raise SystemExit(
             f"{RELEASE_NOTES}: missing generated-block markers {RN_BEGIN!r} / {RN_END!r}"
         )
-    baseline_match = re.search(r"<!-- support-delta-baseline: v(\d+\.\d+\.\d+) -->", text)
-    if baseline_match:
-        body_lines = release_support_delta(cells, axes, release_notes_path(baseline_match[1]))
-    else:
-        body_lines = [
-            f"**{counts['headline']}.** Entry-point routes are not counted.",
-            "",
-            f"{counts['matrix_supported']} supported of "
-            f"{counts['cartesian'] - counts['n_a']} meaningful "
-            f"matrix cells ({counts['n_a']} n/a typed impossibilities are not a coverage gap). "
-            f"{counts['reason_backed_refused']} refused with a reason on file; "
-            f"{counts['unreasoned_refused']} refused without a reason.",
-            "",
-            calibration_summary(cells),
-            "",
-        ] + render_release_supported(cells, axes)
+    body_lines = [
+        f"**{counts['headline']}.** Entry-point routes are not counted.",
+        "",
+        f"{counts['matrix_supported']} supported of "
+        f"{counts['cartesian'] - counts['n_a']} meaningful "
+        f"matrix cells ({counts['n_a']} n/a typed impossibilities are not a coverage gap). "
+        f"{counts['reason_backed_refused']} refused with a reason on file; "
+        f"{counts['unreasoned_refused']} refused without a reason.",
+        "",
+        calibration_summary(cells),
+        "",
+    ] + render_release_supported(cells, axes)
     block = RN_BEGIN + "\n" + "\n".join(body_lines) + "\n" + RN_END
     head, rest = text.split(RN_BEGIN, 1)
     _, tail = rest.split(RN_END, 1)

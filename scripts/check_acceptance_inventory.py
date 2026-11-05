@@ -7,7 +7,7 @@ Fails when
                  child, or a route obligation has no inventory row (or, for an obligation, no row
                  that carries it)
   conflict       the records disagree about a row: a status, a closure kind, a scope list, a child
-                 gap or route, a closure against its residual limitation, or a route in no
+                 gap or route, a closure against its next attempt, or a route in no
                  conformance family. The inventory itself must record no conflict.
   unsupported    a supported row has no explicit support obligation, an obligation lacks its
                  identification evidence, a non-supported row has a support obligation, or a

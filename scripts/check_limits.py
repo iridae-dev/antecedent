@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare exact record bounds to their original guards, docs and refusal evidence.
+"""Compare exact record integer bounds to their code places, guards and refusal sites.
 
 A mapping belongs to a complete record ID. A shared id prefix
 never selects a sibling record's bounds. Missing/stale mappings are errors for every
@@ -130,7 +130,8 @@ def check(root: Path = ROOT) -> tuple[list[str], list[str]]:
     except (OSError, ValueError, KeyError, re.error) as error:
         return [str(error)], checked
     # The shared registry also holds cells whose bounds are compared by
-    # check_limits_agreement.py. Exact-record rows cover the rest.
+    # check_limits_agreement.py. Exact-record rows cover the rest. String-valued bounds are
+    # not read.
     shared_elsewhere = {
         "transport.multi_source_limited_experiment",
         "transport.finite_scenario_envelope",
@@ -176,7 +177,7 @@ def check(root: Path = ROOT) -> tuple[list[str], list[str]]:
                 errors.append(f"{identity}: numeric bound has no exact-record mapping")
                 continue
             failed = False
-            for label in ("implementation", "documentation"):
+            for label in ("implementation", "additional"):
                 for place in row.get(label, []):
                     try:
                         values = read_values(root, place)
@@ -191,7 +192,7 @@ def check(root: Path = ROOT) -> tuple[list[str], list[str]]:
                     ) as error:
                         errors.append(f"{identity}: {label} {place}: {error}")
                         failed = True
-                if not row.get(label):
+                if label == "implementation" and not row.get(label):
                     errors.append(f"{identity}: missing {label} evidence")
                     failed = True
             for label in ("guard", "refusal"):
@@ -220,39 +221,6 @@ def check(root: Path = ROOT) -> tuple[list[str], list[str]]:
                     failed = True
             if not failed:
                 checked.append(f"{identity[0]}.{key}={value}")
-    prose_rows: dict[tuple[str, str], dict] = {}
-    for row in registry.get("noninteger", []):
-        identity = (row["record"], row["key"])
-        if identity in prose_rows:
-            errors.append(f"{identity}: duplicate noninteger bound identity")
-        prose_rows[identity] = row
-    for record in records:
-        bounds = record.get("bounds", {})
-        for key, value in bounds.items():
-            if not isinstance(value, str) or not re.search(r"\d", value):
-                continue
-            identity = (record["id"], key)
-            prose = prose_rows.get(identity)
-            if prose is None:
-                errors.append(f"{identity}: numeric prose requires an exact noninteger mapping")
-                continue
-            have = {
-                int(token.replace("_", "").replace(",", ""))
-                for token in re.findall(r"\d[\d_,]*", value)
-            }
-            expected = {bounds.get(source_key) for source_key in prose.get("numbers_from", [])}
-            if (
-                not expected
-                or any(type(number) is not int for number in expected)
-                or have != expected
-            ):
-                errors.append(
-                    f"{identity}: numeric prose {have} differs from compared bounds {expected}"
-                )
-    for identity in prose_rows:
-        record = records_by_id.get(identity[0])
-        if record is None or not isinstance(record.get("bounds", {}).get(identity[1]), str):
-            errors.append(f"{identity}: stale noninteger bound mapping")
     for identity in rows:
         record = records_by_id.get(identity[0])
         if record is None or type(record.get("bounds", {}).get(identity[1])) is not int:
@@ -276,7 +244,6 @@ def self_test() -> int:
             "if n > ALPHA { return Err(bad); }\nif n > BETA { return Err(bad); }\n",
             encoding="utf-8",
         )
-        (root / "scope.md").write_text("alpha:4\nbeta:8\n", encoding="utf-8")
         records = [
             {"id": "synth.c3.alpha", "bounds": {"max_items": 4}},
             {"id": "synth.c3.beta", "bounds": {"max_items": 8}},
@@ -286,7 +253,6 @@ def self_test() -> int:
                 "record": record["id"],
                 "key": "max_items",
                 "implementation": [{"path": "source.rs", "constant": name.upper()}],
-                "documentation": [{"path": "scope.md", "pattern": name + r":(\d+)"}],
                 "guard": {"path": "source.rs", "pattern": "n > " + name.upper()},
                 "refusal": {
                     "path": "source.rs",
@@ -332,7 +298,6 @@ def self_test() -> int:
             "missing",
             "stale",
             "implementation",
-            "documentation",
             "guard",
             "refusal",
             "changed_record",
@@ -350,8 +315,8 @@ def self_test() -> int:
                 changed.pop()
             elif case == "stale":
                 changed[1]["key"] = "not_declared"
-            elif case in ("implementation", "documentation"):
-                changed[1][case][0] = {"path": "scope.md", "pattern": r"alpha:(\d+)"}
+            elif case == "implementation":
+                changed[1][case][0] = {"path": "source.rs", "constant": "ALPHA"}
             elif case in ("guard", "refusal"):
                 changed[1][case]["pattern"] = "MISSING ACTUAL EVIDENCE"
             elif case == "changed_record":
@@ -365,29 +330,6 @@ def self_test() -> int:
                 changed.pop()
             if not run(changed, declared):
                 failures.append(case + " must fail")
-        prose_records = copy.deepcopy(records)
-        prose_records[0]["bounds"]["operation_limit"] = "declared cap 4"
-        if not run(mappings, prose_records):
-            failures.append("numeric prose without a mapping must fail")
-        prose_mapping = [
-            {
-                "record": records[0]["id"],
-                "key": "operation_limit",
-                "numbers_from": ["max_items"],
-            }
-        ]
-        write_rows(root / "prose.toml", "noninteger", prose_mapping)
-        registry_text = (root / REGISTRY).read_text(encoding="utf-8")
-        (root / REGISTRY).write_text(
-            registry_text + "\n" + (root / "prose.toml").read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
-        if check(root)[0]:
-            failures.append("numeric prose matching an independently compared cap must pass")
-        prose_records[0]["bounds"]["operation_limit"] = "declared cap 5"
-        write_rows(root / RECORDS, "record", prose_records)
-        if not check(root)[0]:
-            failures.append("numeric prose disagreement must fail")
         for bad in ["__import__('os')", "1 << 1000", "BETA", "-1"]:
             try:
                 integer_expression(bad, {"BETA": "BETA"})

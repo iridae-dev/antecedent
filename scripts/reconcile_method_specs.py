@@ -13,9 +13,9 @@ diagnostics, failure policy) and an explicit review decision:
 The decision is derived from the counterpart inventory (itself derived from the route
 manifest's method records and the verified fixtures); an explicit `not_admitted` review is kept
 and never overwritten. A scientific field a hand-written record leaves `unlisted` is filled
-from the sentences the implementing module documents about itself (its `//!` header), so a
-filled field is the module's own statement and the check can find it there. Hand-written
-fields are never replaced.
+when the records are rewritten; hand-written fields are never replaced. `--check` compares only
+the structured fields (parent, gap, route, review decision, provenance links, API review) with
+the derived values and never reads the text of the scientific fields.
 
     python3 scripts/reconcile_method_specs.py            # complete and rewrite the records
     python3 scripts/reconcile_method_specs.py --check    # fail on a stale or inconsistent record
@@ -45,6 +45,15 @@ CHILDREN = "parity/method_children/children.toml"
 MANIFEST = "parity/capabilities/route_manifest.toml"
 REVIEW_STATUSES = ("admitted", "specification_only", "blocked_research", "not_admitted")
 ADMISSIONS = ("supported", "not_supported", "refused", "not_admitted")
+STRUCTURAL = (
+    "parent",
+    "gap",
+    "route",
+    "review_status",
+    "admission",
+    "provenance",
+    "api_review",
+)
 SCIENTIFIC = (
     "identifying_result",
     "assumptions",
@@ -76,8 +85,8 @@ HEADER = """\
 # Method specifications. One record per method child in parity/method_children/children.toml.
 # Maintained by scripts/reconcile_method_specs.py: the review decision (review_status,
 # admission, decision_basis) is derived from the counterpart inventory and the executing
-# evidence; a scientific field the record leaves `unlisted` is filled from the implementing
-# module's own header. Hand-written fields are kept.
+# evidence; a scientific field the record leaves `unlisted` is filled when the records are
+# rewritten. Hand-written fields are kept and the check does not read their text.
 # estimator is the estimator or posterior construction.
 # references are ROADMAP.md section titles.
 # review_status admitted means the method is advertised at the admission it names and no
@@ -503,6 +512,20 @@ def verify(ev: Evidence, specs: list[dict]) -> list[str]:
     return out
 
 
+def stale_structure(committed: list[dict], derived: list[dict]) -> list[str]:
+    """Structured fields of the committed records that differ from the derived ones."""
+    expected = {spec["id"]: spec for spec in derived}
+    out: list[str] = []
+    for spec in committed:
+        want = expected.get(spec["id"])
+        if want is None:
+            continue  # verify() reports an id no child carries
+        for field in STRUCTURAL:
+            if spec.get(field) != want[field]:
+                out.append(f"{spec['id']}: {field} {spec.get(field)!r} is stale; derived {want[field]!r}")
+    return out
+
+
 def review_problems(ev: Evidence, spec: dict) -> list[str]:
     """An admitted method links clean-room provenance and a reviewed public surface."""
     sid = spec["id"]
@@ -589,10 +612,12 @@ def main(argv: list[str]) -> int:
         print(report(specs))
         return 0
     if "--check" in argv:
-        stale = path.read_text(encoding="utf-8") != text
-        if stale:
-            print(f"FAIL: {SPECS} is stale; run python3 scripts/reconcile_method_specs.py")
-        problems = verify(ev, tomllib.loads(path.read_text(encoding="utf-8"))["spec"])
+        committed = tomllib.loads(path.read_text(encoding="utf-8"))["spec"]
+        stale = False
+        for line in stale_structure(committed, specs):
+            stale = True
+            print(f"FAIL: {line}; run python3 scripts/reconcile_method_specs.py")
+        problems = verify(ev, committed)
         for line in problems:
             print(f"FAIL: {line}")
         print(f"method specs: {len(specs)} records, {len(problems)} finding(s)")

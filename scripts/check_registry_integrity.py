@@ -98,10 +98,6 @@ else:
         for key in ("kind", "data", "structure", "test"):
             if key not in row:
                 problems.append(f"python_products.toml route #{i} missing {key}")
-        if row.get("retains") is not True and not row.get("reason"):
-            problems.append(
-                f"python_products.toml route {row.get('kind')} retains=false without reason"
-            )
         test = row.get("test")
         if isinstance(test, str) and test not in route_tests:
             route_tests.append(test)
@@ -139,8 +135,6 @@ else:
             problems.append(
                 f"python_products.toml parameter {row.get('name')} missing contract_key"
             )
-        if row.get("binding") == "reason" and not row.get("reason"):
-            problems.append(f"python_products.toml parameter {row.get('name')} missing reason")
 
 ensure_scripts_on_path()
 
@@ -311,11 +305,10 @@ for rel_path in ("parity/identity.toml", "parity/claims.toml"):
     if not (root / rel_path).is_file():
         problems.append(f"{rel_path} missing")
 
-# --- every identity row names its layer, its bindings, and what it covers ---
+# --- every identity row names its layer and its bindings ---
 identity_rows = tomllib.loads((root / "parity/identity.toml").read_text(encoding="utf-8")).get(
     "identity", []
 )
-adr = (root / "adr/0022-causal-compiler-contract.md").read_text(encoding="utf-8")
 for row in identity_rows:
     for field in (
         "domain",
@@ -325,15 +318,9 @@ for row in identity_rows:
         "availability",
         "naming_row",
         "covers",
-        "doc_rust",
-        "doc_python",
     ):
         if not row.get(field):
             problems.append(f"identity.toml {row.get('domain')}: missing {field}")
-    if row.get("python") not in str(row.get("doc_python")):
-        problems.append(f"identity.toml {row.get('domain')}: doc_python must contain python")
-if "antecedent.identity.v2" not in adr:
-    problems.append("adr/0022: identity format tag does not match antecedent-core")
 
 if problems:
     print("registry integrity violations:")

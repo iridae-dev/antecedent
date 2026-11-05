@@ -36,7 +36,7 @@ record-currency job last. CI executes no scientific assertion and no calibration
 0. **`static`** — source reading only, no build and no test: DCO, rustfmt, lint allows, test
    targets, crate ownership, the test registry and lane filters, parity inventories, provenance,
    capability records, the one support count (`scripts/gate_support.py`), the release inventory
-   (`scripts/check_release_inventory.py`), residual limitations, bounds, release claims, links and
+   (`scripts/check_release_inventory.py`), bounds, release claims, links and
    every generated file being current, and that every scientific and calibration record is current
    (`scientific_records.py status --check`, `calibration_status.py --check`).
 1. **Builds** — compile, list or lint; no test runs. **`features`** (Clippy and the feature

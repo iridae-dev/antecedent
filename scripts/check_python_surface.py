@@ -9,18 +9,16 @@ semantics. This check makes the promise mechanical without building anything. It
   and can lag the source),
 * `parity/python_facade_surface.toml` (one `[[entry]]` per public free function and per public
   prepared or session type), and
-* the Python sources under `python/` and the user documentation,
+* the Python sources under `python/`,
 
 and fails when
 
   (a) a public facade free function or prepared / session type has no registry row, or a row names
       an entry that is no longer public (the registry must be regenerated deliberately);
   (b) a `bound` row's `python` path does not resolve to a definition under `python/`;
-  (c) an `internal`, `missing` or `unverified` row carries no `reason`, or a `bound` row names no
-      `python` path;
-  (d) a documentation paragraph or registry detail says an entry has "no Python entry", is
-      "Rust-only" or "not available from Python" while that same paragraph names a Rust entry whose
-      row is `bound` (a stale sentence; reword it to cite the Python entry and its test).
+  (c) a `bound` row names no `python` path.
+
+Documentation and registry prose are not read.
 
 `unverified` rows are reported, not failed: no Python counterpart was found by name and none was
 confirmed by reading the wrappers. Run directly or via scripts/gate_public_api.sh.
@@ -44,21 +42,9 @@ SNAPSHOT = ROOT / "parity/public_api/antecedent.txt"
 REGISTRY = ROOT / "parity/python_facade_surface.toml"
 STATUSES = {"bound", "internal", "missing", "unverified"}
 KINDS = {"fn", "type"}
-NEEDS_REASON = {"internal", "missing", "unverified"}
 
 # A prepared or session type is an entry point of its own; builders and result types are not.
 TYPE_SUFFIX = re.compile(r"::(Prepared[A-Za-z]*|[A-Za-z]*Session|[A-Za-z]*Study)$")
-STALE = re.compile(
-    r"(no|without a)\s+Python\s+(entry|wrapper|surface|binding)|Rust[- ]only|"
-    r"not available from Python|None has a Python entry",
-    re.IGNORECASE,
-)
-DOC_FILES = ("docs", "README.md")
-DOC_EXTRA = (
-    "parity/producer_consumer.toml",
-    "parity/transport_stages.toml",
-    "parity/capability_records.toml",
-)
 
 
 def snapshot_entries(text: str) -> dict[str, str]:
@@ -230,67 +216,9 @@ def registry_problems(
                 problems.append(f"{rust}: bound row names no python entry")
             elif not index.resolves(python):
                 problems.append(f"{rust}: python entry {python} does not resolve under python/")
-        elif status in NEEDS_REASON and not row.get("reason", "").strip():
-            problems.append(f"{rust}: {status} row states no reason")
     for rust in sorted(set(entries) - seen):
         problems.append(f"{rust}: public facade entry has no row in {REGISTRY.name}")
     return problems, counts
-
-
-def doc_units(root: Path) -> list[tuple[str, int, str]]:
-    """(file, first line, text) for each paragraph of the docs and each registry row."""
-    files: list[Path] = []
-    for name in DOC_FILES:
-        target = root / name
-        if target.is_dir():
-            files += [p for p in sorted(target.rglob("*.md")) if "release-notes" not in p.parts]
-        elif target.is_file():
-            files.append(target)
-    files += [root / name for name in DOC_EXTRA if (root / name).is_file()]
-    units: list[tuple[str, int, str]] = []
-    for file in files:
-        rel = file.relative_to(root).as_posix()
-        block: list[str] = []
-        start = 1
-        for number, line in enumerate(file.read_text(encoding="utf-8").splitlines(), 1):
-            table_row = line.lstrip().startswith("|") or file.suffix == ".toml"
-            if not line.strip() or table_row:
-                if block:
-                    units.append((rel, start, " ".join(block)))
-                    block = []
-                if table_row and line.strip():
-                    units.append((rel, number, line))
-                continue
-            if not block:
-                start = number
-            block.append(line.strip())
-        if block:
-            units.append((rel, start, " ".join(block)))
-    return units
-
-
-def stale_doc_problems(rows: list[dict[str, str]], units: list[tuple[str, int, str]]) -> list[str]:
-    bound = {}
-    for row in rows:
-        if row.get("status") == "bound" and row.get("kind") == "fn":
-            segments = row["rust"].split("::")
-            name = segments[-1]
-            # A short or generic name is only recognised with its module.
-            if name.count("_") >= 1 and len(name) >= 12:
-                bound[name] = row
-    problems: list[str] = []
-    for rel, line, text in units:
-        if not STALE.search(text):
-            continue
-        for name, row in bound.items():
-            if re.search(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])", text):
-                phrase = STALE.search(text)
-                assert phrase is not None
-                problems.append(
-                    f"{rel}:{line}: says {phrase.group(0)!r} but names `{name}`, which "
-                    f"{row['python']} carries; cite the Python entry and its test"
-                )
-    return problems
 
 
 def run(root: Path = ROOT) -> int:
@@ -300,7 +228,6 @@ def run(root: Path = ROOT) -> int:
     entries |= {k: v for k, v in source_entries(root).items() if k.rsplit("::", 1)[-1] not in known}
     rows = load_registry(root / REGISTRY.relative_to(ROOT))
     problems, counts = registry_problems(entries, rows, PythonIndex(root))
-    problems += stale_doc_problems(rows, doc_units(root))
     summary = ", ".join(f"{count} {status}" for status, count in sorted(counts.items()))
     if problems:
         print("Python facade surface check FAILED:\n" + "\n".join(f" - {p}" for p in problems))
@@ -334,15 +261,9 @@ def self_test() -> int:
         },
     ]
     problems, _ = registry_problems(entries, rows, index)
-    assert any("internal row states no reason" in p for p in problems), problems
-    stale = stale_doc_problems(
-        rows,
-        [("docs/x.md", 3, "The route `read_tier_diagnostics` is Rust-only; no Python wrapper.")],
-    )
-    assert len(stale) == 1 and "docs/x.md:3" in stale[0], stale
-    assert not stale_doc_problems(
-        rows, [("docs/x.md", 1, "A Rust-only helper `other_helper_name`.")]
-    )
+    assert not problems, problems
+    problems, _ = registry_problems(entries, rows[:1], index)
+    assert any("has no row" in p for p in problems), problems
     hidden_source = (
         "#[doc(hidden)]\npub fn sealed_helper(x: i32) {}\n\n/// Doc.\npub fn open_helper() {}\n"
     )

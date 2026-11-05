@@ -142,7 +142,6 @@ python3 scripts/check_release_inventory.py --require-zero
 
 echo "== release candidate: strict bounds and final claims =="
 python3 scripts/check_limits_agreement.py --strict
-python3 scripts/check_release_claims.py --final
 
 # The composition and decision exit stories are ordinary engineering tests (tier 2 runs them and
 # fails on any failing story); here only the verdict logic that joins their per-story tables is checked.

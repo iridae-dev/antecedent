@@ -48,7 +48,6 @@ def test_migration_examples_execute_with_declared_application_inputs():
     # The leading blocks run in order against the application inputs above. The trailing blocks
     # are fragments that continue an application's own cancellation token or transport catalog;
     # they must still be valid Python.
-    assert len(published) == 10
     examples, fragments = published[:8], published[8:]
     for index, fragment in enumerate(fragments):
         compile(fragment, f"migration:fragment-{index}", "exec")

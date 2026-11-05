@@ -14,12 +14,10 @@ import pytest
 from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 
-from _repo_text import REPO_ROOT, read_text
 
 N = 3000
 MASKED = 300
 NAMES = [f"v{i}" for i in range(10)]
-GUIDE = REPO_ROOT / "docs/guides/discovery-background-knowledge.md"
 
 
 def survey_weighted_sparse_scm(seed: int, *, cv: float = 0.8):
@@ -165,10 +163,6 @@ def test_filtering_happens_before_the_split_and_the_order_is_declared_and_reprod
     assert again.receipt.identity == receipt.identity
     assert np.array_equal(again.discovery_row_ids, first.discovery_row_ids)
     assert not np.array_equal(split(12).discovery_row_ids, first.discovery_row_ids)
-    # The order is part of the documented method.
-    guide = read_text(GUIDE)
-    assert "`selective_discovery.discover_on_split` filters first and splits second" in guide
-    assert guide.index("rows outside the analysis mask") < guide.index("rows with a missing value")
     # A rule that names an excluded row is refused rather than reassigned.
     with pytest.raises(sd.SelectiveDiscoveryRefusal) as refused:
         sd.discover_on_split(

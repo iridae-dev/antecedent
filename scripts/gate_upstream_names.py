@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Fail when upstream package names appear outside the permitted files.
+"""Fail when a dependency manifest declares an upstream package.
 
-Scans code and TOML only. Hand-written markdown is not read, so rewording
-CONTRIBUTING, ROADMAP, SECURITY, or a file under docs/guides cannot fail
-this gate.
+Reads dependency tables only: `Cargo.toml` dependency sections and
+`pyproject.toml` dependency lists/groups, plus `requirements*.txt` requirement
+names. Comments, docstrings, documentation and free-text fields are not read.
+The banned names live in parity/permitted_upstream_name_files.toml (`names`);
+`exact` lists manifests that may declare them.
 """
 
 import re
@@ -14,31 +16,8 @@ from pathlib import Path
 
 root = Path(".")
 permitted_path = root / "parity/permitted_upstream_name_files.toml"
-# Prose suffixes are refused even if the permitted files list them. This gate must
-# not extract facts from hand-written markdown.
-PROSE_SUFFIXES = {".md", ".markdown", ".rst", ".txt"}
-MATCH_KEYS = {
-    "prefix",
-    "suffix",
-    "contains",
-    "name_contains",
-    "path_contains",
-    "path_contains_any",
-}
-
-skip_dirs = {
-    ".git",
-    "target",
-    ".venv",
-    "venv",
-    "node_modules",
-    "__pycache__",
-    ".cursor",
-    ".claude",
-    ".codeql-db",
-    ".codeql-results",
-    "uv.lock",
-}
+CARGO_TABLES = ("dependencies", "dev-dependencies", "build-dependencies")
+REQ_NAME = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
 
 
 def fail(message: str) -> None:
@@ -46,138 +25,112 @@ def fail(message: str) -> None:
     sys.exit(1)
 
 
-def string_list(data: dict, key: str, *, required: bool) -> list[str]:
-    if key not in data:
-        if required:
-            fail(f"upstream-name permitted files: {permitted_path} missing `{key}`")
-        return []
-    value = data[key]
-    if not isinstance(value, list) or not all(
-        isinstance(item, str) and item.strip() for item in value
-    ):
-        fail(f"upstream-name permitted files: `{key}` must be a list of non-empty strings")
-    return value
+def norm(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def load_permitted_files(path: Path) -> dict:
+def load_spec(path: Path) -> tuple[set[str], set[str]]:
     if not path.is_file():
         fail(f"upstream-name permitted files: missing {path}")
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
         fail(f"upstream-name permitted files: {path} is not valid TOML: {exc}")
-    names = string_list(data, "names", required=True)
-    suffixes = [item.lower() for item in string_list(data, "scan_suffixes", required=True)]
-    prose = sorted(set(suffixes) & PROSE_SUFFIXES)
-    if prose:
-        fail(
-            "upstream-name permitted files: refusing prose scan suffixes "
-            f"{prose}; this gate reads code and TOML only"
-        )
-    rules = data.get("match", [])
-    if not isinstance(rules, list):
-        fail("upstream-name permitted files: `match` must be an array of tables")
-    for i, rule in enumerate(rules, 1):
-        if not isinstance(rule, dict) or not rule:
-            fail(f"upstream-name permitted files: match #{i} must be a non-empty table")
-        unknown = sorted(set(rule) - MATCH_KEYS)
-        if unknown:
-            fail(f"upstream-name permitted files: match #{i} has unknown keys {unknown}")
-        any_of = rule.get("path_contains_any")
-        if any_of is not None and (
-            not isinstance(any_of, list)
-            or not any_of
-            or not all(isinstance(item, str) and item for item in any_of)
-        ):
-            fail(
-                f"upstream-name permitted files: match #{i} path_contains_any must be a non-empty string list"
-            )
-        for key in ("prefix", "suffix", "contains", "name_contains", "path_contains"):
-            if key in rule and (not isinstance(rule[key], str) or not rule[key]):
-                fail(f"upstream-name permitted files: match #{i} `{key}` must be a non-empty string")
-    return {
-        "names": names,
-        "suffixes": set(suffixes),
-        "exact": set(string_list(data, "exact", required=False)),
-        "prefix": string_list(data, "prefix", required=False),
-        "match": rules,
-    }
+    out = []
+    for key in ("names", "exact"):
+        value = data.get(key, [])
+        if not isinstance(value, list) or not all(isinstance(v, str) and v for v in value):
+            fail(f"upstream-name permitted files: `{key}` must be a list of non-empty strings")
+        out.append(set(value))
+    if not out[0]:
+        fail(f"upstream-name permitted files: {path} missing `names`")
+    return {norm(n) for n in out[0]}, out[1]
 
 
-def rule_matches(path: str, name: str, rule: dict) -> bool:
-    if "prefix" in rule and not path.startswith(rule["prefix"]):
-        return False
-    if "suffix" in rule and not path.endswith(rule["suffix"]):
-        return False
-    if "contains" in rule and rule["contains"] not in path:
-        return False
-    if "name_contains" in rule and rule["name_contains"] not in name:
-        return False
-    if "path_contains" in rule and rule["path_contains"].lower() not in path.lower():
-        return False
-    any_of = rule.get("path_contains_any")
-    return any_of is None or any(item.lower() in path.lower() for item in any_of)
+def requirement_name(spec: str) -> str | None:
+    match = REQ_NAME.match(spec)
+    return norm(match.group(1)) if match else None
 
 
-def allowed(path: Path, spec: dict) -> bool:
-    text = path.as_posix()
-    if text in spec["exact"]:
-        return True
-    if any(text.startswith(prefix) for prefix in spec["prefix"]):
-        return True
-    return any(rule_matches(text, path.name, rule) for rule in spec["match"])
+def cargo_dependency_names(data: dict) -> set[str]:
+    names: set[str] = set()
+    tables = [data]
+    tables.extend(t for t in data.get("target", {}).values() if isinstance(t, dict))
+    workspace = data.get("workspace")
+    if isinstance(workspace, dict):
+        tables.append(workspace)
+    for table in tables:
+        for section in CARGO_TABLES:
+            deps = table.get(section, {})
+            if not isinstance(deps, dict):
+                continue
+            for key, value in deps.items():
+                names.add(norm(key))
+                if isinstance(value, dict) and isinstance(value.get("package"), str):
+                    names.add(norm(value["package"]))
+    return names
 
 
-spec = load_permitted_files(permitted_path)
-pat = re.compile("|".join(re.escape(name) for name in spec["names"]), re.IGNORECASE)
+def pyproject_dependency_names(data: dict) -> set[str]:
+    specs: list[str] = []
+    project = data.get("project", {})
+    specs.extend(project.get("dependencies", []))
+    for group in project.get("optional-dependencies", {}).values():
+        specs.extend(group)
+    for group in data.get("dependency-groups", {}).values():
+        specs.extend(item for item in group if isinstance(item, str))
+    build = data.get("build-system", {})
+    specs.extend(build.get("requires", []))
+    return {n for n in map(requirement_name, specs) if n}
+
+
+def manifest_names(path: Path) -> set[str]:
+    if path.name == "Cargo.toml":
+        return cargo_dependency_names(tomllib.loads(path.read_text(encoding="utf-8")))
+    if path.name == "pyproject.toml":
+        return pyproject_dependency_names(tomllib.loads(path.read_text(encoding="utf-8")))
+    if path.name.startswith("requirements") and path.suffix == ".txt":
+        names = set()
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith(("#", "-")):
+                name = requirement_name(line)
+                if name:
+                    names.add(name)
+        return names
+    return set()
+
+
+banned, exact = load_spec(permitted_path)
+tracked = subprocess.run(
+    ["git", "ls-files", "-z"], check=True, capture_output=True
+).stdout.split(b"\0")
 
 hits = []
-tracked = subprocess.run(
-    ["git", "ls-files", "-z"],
-    check=True,
-    capture_output=True,
-).stdout.split(b"\0")
-for raw_path in tracked:
-    if not raw_path:
+for raw in tracked:
+    if not raw:
         continue
-    path = root / raw_path.decode()
-    if not path.is_file():
+    path = root / raw.decode()
+    if not path.is_file() or path.as_posix() in exact:
         continue
-    parts = set(path.parts)
-    if parts & skip_dirs:
-        continue
-    # Skip hidden paths at every depth, except the explicitly scanned .github tree.
     if any(part.startswith(".") and part != ".github" for part in path.parts):
         continue
-    if path.suffix.lower() not in spec["suffixes"]:
-        continue
-    if allowed(path, spec):
+    if not (
+        path.name in ("Cargo.toml", "pyproject.toml")
+        or (path.name.startswith("requirements") and path.suffix == ".txt")
+    ):
         continue
     try:
-        text = path.read_text(errors="ignore", encoding="utf-8")
-    except OSError:
+        found = manifest_names(path) & banned
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        hits.append((path.as_posix(), [f"unreadable manifest: {exc}"]))
         continue
-    if pat.search(text):
-        # Ignore lines that only cite permitted baseline pin paths.
-        lines = []
-        for i, line in enumerate(text.splitlines(), 1):
-            if not pat.search(line):
-                continue
-            if "parity/baselines/" in line:
-                continue
-            lines.append(f"  L{i}: {line.strip()[:160]}")
-            if len(lines) >= 3:
-                break
-        if lines:
-            hits.append((path.as_posix(), lines))
+    if found:
+        hits.append((path.as_posix(), sorted(found)))
 
 if hits:
-    print(f"upstream-name permitted files violations ({len(hits)} files):")
-    for path, lines in hits[:60]:
-        print(f"- {path}")
-        for ln in lines:
-            print(ln)
-    if len(hits) > 60:
-        print(f"... and {len(hits) - 60} more")
+    print(f"upstream-name violations ({len(hits)} manifests):")
+    for path, found in hits:
+        print(f"- {path}: {', '.join(found)}")
     sys.exit(1)
 print("upstream-name permitted files: ok")

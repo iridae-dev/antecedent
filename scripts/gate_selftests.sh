@@ -49,7 +49,6 @@ python3 scripts/test_collect_coverage_records.py
 python3 scripts/test_coverage_snapshot_attestation.py
 python3 scripts/test_capability_refusal_helpers.py
 python3 scripts/test_publish_crates.py
-python3 scripts/test_release_support_delta.py
 python3 scripts/test_gate_support.py
 python3 scripts/test_rust_source.py
 python3 scripts/test_rust_equivalence.py

@@ -34,6 +34,7 @@ own way and accept no declaration.
 
 Support is declared once per route cell (query kind, data modality, inference mode), and this table is checked against that declaration. A cell that is not listed executes no policy.
 
+<!-- generated:missing-policy-routes:begin -->
 | Query | Modality | Inference | Without `missing=` | Policies it executes |
 | --- | --- | --- | --- | --- |
 | `AverageEffect` | tabular | frequentist | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
@@ -48,16 +49,17 @@ Support is declared once per route cell (query kind, data modality, inference mo
 | `Mediation` | tabular | bayesian | `complete_case` | `error`, `complete_case`, `multiple_imputation` |
 | `RandomizedEffect` | tabular | frequentist | `error` | `error`, `complete_case`, `inverse_probability`, `multiple_imputation` |
 | `RandomizedEffect` | tabular | bayesian | `error` | `error`, `complete_case`, `inverse_probability`, `multiple_imputation` |
-| `PanelDid` | tabular | frequentist | `error` | `error`, `balanced_panel`, `available_case` |
-| `PanelDid` | tabular | bayesian | `error` | `error`, `balanced_panel`, `available_case` |
 | `AnomalyAttribution` | tabular | frequentist | `error` | `error`, `complete_case` |
 | `AnomalyAttribution` | tabular | bayesian | `error` | `error`, `complete_case` |
 | `TemporalDesign` | tabular | frequentist | `error` | `error`, `complete_case`, `available_case`, `balanced_panel` |
 | `TemporalDesign` | tabular | bayesian | `error` | `error`, `complete_case`, `available_case`, `balanced_panel` |
+| `PanelDid` | tabular | frequentist | `error` | `error`, `balanced_panel`, `available_case` |
+| `PanelDid` | tabular | bayesian | `error` | `error`, `balanced_panel`, `available_case` |
 | `TemporalEffect` | series | frequentist | `error` | `error`, `complete_case`, `multiple_imputation` |
 | `TemporalEffect` | series | bayesian | `error` | `error`, `complete_case`, `multiple_imputation` |
 | `Mediation` | series | frequentist | `error` | `error`, `complete_case`, `multiple_imputation` |
 | `Mediation` | series | bayesian | `error` | `error`, `complete_case`, `multiple_imputation` |
+<!-- generated:missing-policy-routes:end -->
 
 Multiple imputation pools, per route cell:
 

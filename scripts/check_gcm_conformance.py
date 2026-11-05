@@ -89,7 +89,6 @@ def performance_problems(benches: Any, covered: set[str], root: Path) -> list[st
         return ["registry has no [[performance]] benchmark"]
     errors: list[str] = []
     gate = _read(root, GATE) if (root / GATE).is_file() else ""
-    hot_paths = _read(root, "docs/hot_paths.md") if (root / "docs/hot_paths.md").is_file() else ""
     if '["performance"]' not in gate:
         errors.append(f"{GATE} does not run the registry's [[performance]] benchmarks")
     for bench in benches:
@@ -122,9 +121,6 @@ def performance_problems(benches: Any, covered: set[str], root: Path) -> list[st
         )
         if not any(b.get("name") == name and b.get("harness") is False for b in declared):
             errors.append(f"{bid}: {name} is not a harness = false [[bench]] of {package}")
-        smoke = f"cargo bench -p {package} --bench {name}"
-        if smoke not in hot_paths:
-            errors.append(f"{bid}: docs/hot_paths.md has no smoke command `{smoke} -- --test`")
     return errors
 
 

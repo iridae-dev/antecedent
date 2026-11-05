@@ -1,8 +1,8 @@
 # Method specifications. One record per method child in parity/method_children/children.toml.
 # Maintained by scripts/reconcile_method_specs.py: the review decision (review_status,
 # admission, decision_basis) is derived from the counterpart inventory and the executing
-# evidence; a scientific field the record leaves `unlisted` is filled from the implementing
-# module's own header. Hand-written fields are kept.
+# evidence; a scientific field the record leaves `unlisted` is filled when the records are
+# rewritten. Hand-written fields are kept and the check does not read their text.
 # estimator is the estimator or posterior construction.
 # references are ROADMAP.md section titles.
 # review_status admitted means the method is advertised at the admission it names and no

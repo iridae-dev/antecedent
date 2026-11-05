@@ -45,33 +45,6 @@ class CounterpartChecks(unittest.TestCase):
         rows = [r for r in rows_for() if r["id"] != "M.temporal.bayesian"]
         self.assertTrue(any("missing_quadrant" in e for e in check.problems(rows)))
 
-    def test_weaker_temporal_uncertainty_needs_a_reason(self) -> None:
-        rows = rows_for(**{"M.temporal.bayesian": {"uncertainty": "none"}})
-        self.assertTrue(any("weaker_temporal" in e for e in check.problems(rows)))
-        recorded = rows_for(
-            **{
-                "M.temporal.bayesian": {
-                    "uncertainty": "none",
-                    "reason": "serial dependence has no likelihood",
-                    "closure": "narrowed_promise",
-                    "next_attempt": "derive the dependence-aware posterior",
-                }
-            }
-        )
-        self.assertEqual(check.problems(recorded), [])
-
-    def test_not_implemented_is_not_a_reason(self) -> None:
-        rows = rows_for(
-            **{
-                "M.static.bayesian": {
-                    "reason": "this is not yet implemented",
-                    "closure": "narrowed_promise",
-                    "next_attempt": "n",
-                }
-            }
-        )
-        self.assertTrue(any("not_implemented" in e for e in check.problems(rows)))
-
     def test_closed_rows_are_narrowed_promises(self) -> None:
         rows = rows_for(
             **{

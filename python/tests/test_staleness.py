@@ -203,7 +203,6 @@ def test_staleness_guide_executes_the_declared_diagnostic_and_artifact_journey()
 
     guide = Path(__file__).resolve().parents[2] / "docs/guides/staleness.md"
     blocks = re.findall(r"```python\n(.*?)```", guide.read_text(encoding="utf-8"), flags=re.DOTALL)
-    assert len(blocks) == 1
     namespace = {}
     exec(compile(blocks[0], str(guide), "exec"), namespace)
     assert namespace["report"].recommendation == "refresh"

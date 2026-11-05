@@ -10,9 +10,9 @@ time; this check keeps it honest without building anything. It fails when
   (b) a default or next attempt is not among the row's supported policies, or a row lists
       `imputation_estimators` without supporting multiple imputation (or the reverse);
   (c) two rows cover the same cell;
-  (d) docs/guides/missing-data.md does not carry the row's line in its route-cell table
-      (`| `Query` | modality | inference | `default` | `p1`, `p2` |`), or carries a route-cell
-      line the registry does not have.
+  (d) the generated route-cell table between the `generated:missing-policy-routes` markers of
+      docs/guides/missing-data.md differs from the table rendered from the registry. Text outside
+      the markers is not read.
 
     python3 scripts/check_missing_policy_support.py
     python3 scripts/check_missing_policy_support.py --self-test
@@ -33,7 +33,12 @@ GUIDE = ROOT / "docs/guides/missing-data.md"
 MODALITIES = {"tabular", "series", "event", "multi_env", "panel"}
 INFERENCES = ("frequentist", "bayesian")
 FAMILIES = {"static", "randomized", "panel", "temporal", "temporal_design", "attribution"}
-DOC_LINE = re.compile(r"^\| `([A-Za-z]+)` \| ([a-z_]+) \| ([a-z]+) \|")
+BEGIN = "<!-- generated:missing-policy-routes:begin -->"
+END = "<!-- generated:missing-policy-routes:end -->"
+HEADER = (
+    "| Query | Modality | Inference | Without `missing=` | Policies it executes |\n"
+    "| --- | --- | --- | --- | --- |"
+)
 
 
 def policy_names(source: str) -> set[str]:
@@ -53,12 +58,25 @@ def doc_line(row: dict, inference: str) -> str:
     )
 
 
+def render_table(registry: dict) -> str:
+    lines = [HEADER]
+    for row in registry.get("route", []):
+        for inference in row["inference"]:
+            lines.append(doc_line(row, inference))
+    return "\n".join(lines)
+
+
+def guide_block(guide: str) -> str | None:
+    if BEGIN not in guide or END not in guide:
+        return None
+    return guide.split(BEGIN, 1)[1].split(END, 1)[0].strip("\n")
+
+
 def problems(registry: dict, policies: set[str], kinds: set[str], guide: str) -> list[str]:
     errors: list[str] = []
     if registry.get("schema") != 1:
         errors.append("FAIL: schema must be 1")
     seen: set[tuple[str, str, str]] = set()
-    expected_lines: set[str] = set()
     for index, row in enumerate(registry.get("route", []), start=1):
         where = f"route {index}"
         for key in ("query", "modality", "family", "default", "next_attempt"):
@@ -95,13 +113,15 @@ def problems(registry: dict, policies: set[str], kinds: set[str], guide: str) ->
             if cell in seen:
                 errors.append(f"FAIL: {where}: two rows cover {':'.join(cell)}")
             seen.add(cell)
-            line = doc_line(row, inference)
-            expected_lines.add(line)
-            if line not in guide:
-                errors.append(f"FAIL: {where}: {GUIDE.name} lacks the line `{line}`")
-    for line in guide.splitlines():
-        if DOC_LINE.match(line) and line.strip() not in expected_lines:
-            errors.append(f"FAIL: {GUIDE.name} lists a route cell the registry lacks: `{line}`")
+    if errors:
+        return errors
+    block = guide_block(guide)
+    if block is None:
+        errors.append(f"FAIL: {GUIDE.name} lacks the generated route-cell markers")
+    elif block != render_table(registry):
+        errors.append(
+            f"FAIL: the generated route-cell table in {GUIDE.name} differs from the registry"
+        )
     return errors
 
 
@@ -123,7 +143,7 @@ def self_test() -> int:
     }
     policies = {"error", "complete_case", "multiple_imputation"}
     kinds = {"AverageEffect"}
-    good = doc_line(registry["route"][0], "frequentist") + "\n"
+    good = f"{BEGIN}\n{render_table(registry)}\n{END}\n"
     failures = 0
     if problems(registry, policies, kinds, good):
         print("self-test: a good registry failed")
@@ -135,7 +155,7 @@ def self_test() -> int:
     if not problems({"schema": 1, "route": [bad]}, policies, kinds, good):
         print("self-test: an unknown policy passed")
         failures += 1
-    stray = good + "| `Survival` | tabular | frequentist | `error` | `error` |\n"
+    stray = good.replace(END, "| `Survival` | tabular | frequentist | `error` | `error` |\n" + END)
     if not problems(registry, policies, kinds, stray):
         print("self-test: a stray doc line passed")
         failures += 1

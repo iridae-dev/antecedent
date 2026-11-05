@@ -86,21 +86,24 @@ class SourceScans(unittest.TestCase):
             self.assertIn("cast_sign_loss", result.stdout)
             self.assertNotIn("float_cmp carries no", result.stdout)
 
-    def test_root_hidden_entries_are_excluded_but_github_is_scanned(self):
+    def test_only_dependency_declarations_are_read(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "parity").mkdir()
-            (root / "parity/permitted_upstream_name_files.toml").write_text('names=["distinctiveupstream"]\nscan_suffixes=[".toml"]\n', encoding="utf-8")
-            (root / ".secret.toml").write_text('value="distinctiveupstream"\n', encoding="utf-8")
-            (root / ".github").mkdir()
-            (root / ".github/workflow.toml").write_text('value="distinctiveupstream"\n', encoding="utf-8")
+            (root / "parity/permitted_upstream_name_files.toml").write_text('names=["distinctiveupstream"]\n', encoding="utf-8")
+            (root / "ok").mkdir()
+            (root / "bad").mkdir()
+            # Comments, docs and free-text fields naming the package are not read.
+            (root / "ok/Cargo.toml").write_text('[package]\nname="ok"\ndescription="distinctiveupstream"\n# distinctiveupstream\n[dependencies]\nserde="1"\n', encoding="utf-8")
+            (root / "ok/notes.py").write_text('"""distinctiveupstream"""\n', encoding="utf-8")
+            (root / "bad/pyproject.toml").write_text('[project]\nname="bad"\noptional-dependencies={x=["DistinctiveUpstream>=1"]}\n', encoding="utf-8")
             binary = root / "bin"
             binary.mkdir()
             fake = binary / "git"
-            fake.write_text('#!/bin/sh\nprintf ".secret.toml\\0.github/workflow.toml\\0"\n', encoding="utf-8")
+            fake.write_text('#!/bin/sh\nprintf "ok/Cargo.toml\\0ok/notes.py\\0bad/pyproject.toml\\0"\n', encoding="utf-8")
             fake.chmod(0o755)
             env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ.get("PATH", ""))
             result = subprocess.run([sys.executable, str(SCRIPTS / "gate_upstream_names.py")], cwd=root, env=env, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn(".github/workflow.toml", result.stdout)
-            self.assertNotIn(".secret.toml", result.stdout)
+            self.assertIn("bad/pyproject.toml", result.stdout)
+            self.assertNotIn("ok/", result.stdout)

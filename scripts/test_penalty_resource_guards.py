@@ -52,14 +52,6 @@ class PenaltyGuardMutations(unittest.TestCase):
             RIDGE_RESOURCE_FILES[5]: (
                 "for p in bounded_penalty_list(penalties)",
             ),
-            RIDGE_RESOURCE_FILES[6]: (
-                "65,536 input entries per declaration",
-                "no shared reservation or execution-context admission",
-            ),
-            RIDGE_RESOURCE_FILES[7]: (
-                "65,536 input penalties per declaration",
-                "not a shared reservation or an execution-context admission",
-            ),
         }
         for path, markers in mutations.items():
             for marker in markers:

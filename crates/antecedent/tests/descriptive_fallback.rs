@@ -526,8 +526,6 @@ fn the_association_ranks_no_action_for_either_fixture() {
 fn the_guide_and_the_manifest_rows_for_the_option_are_present() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let read = |path: &str| std::fs::read_to_string(root.join(path)).expect(path);
-    let guide = read("docs/guides/fallback.md");
-    assert!(guide.contains("on_refusal=\"describe\"") && guide.contains("analyze_with_fallback"));
     let surface = read("parity/python_facade_surface.toml");
     for row in [
         "antecedent::report::render_fallback_report",

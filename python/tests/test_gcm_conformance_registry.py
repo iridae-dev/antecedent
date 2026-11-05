@@ -47,13 +47,11 @@ def test_the_conformance_gate_covers_every_capability_and_is_registered():
     # to tests the gate runs.
     assert conformance.problems() == []
 
-    # The gate runs in the release gate and is documented beside its neighbours.
+    # The gate runs in the release gate.
     release = (REPO_ROOT / "scripts" / "gate_release.sh").read_text(encoding="utf-8")
     assert "bash scripts/gate_gcm_conformance.sh" in release
     selftests = (REPO_ROOT / "scripts" / "gate_selftests.sh").read_text(encoding="utf-8")
     assert "scripts/gate_gcm_conformance.sh --self-test" in selftests
-    development = (REPO_ROOT / "docs" / "development.md").read_text(encoding="utf-8")
-    assert "scripts/gate_gcm_conformance.sh" in development
 
 
 def test_the_registry_checker_rejects_a_clause_without_evidence():

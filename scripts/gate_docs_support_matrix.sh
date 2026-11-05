@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Docs vs support-matrix honesty: capabilities/comparison must point at the
-# matrix and must not treat closed/n-a cells as supported public analyze support.
+# Docs vs support-matrix: generated blocks equal their generators' output.
 #
 # Run standalone or via scripts/gate_release.sh.
 set -euo pipefail

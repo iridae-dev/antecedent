@@ -98,13 +98,12 @@ why = "checks the generator and the environment lock each stats fixture names (o
 [[input]]
 source = "crates/antecedent/tests/descriptive_fallback.rs"
 inputs = [
-  "docs/guides/fallback.md",
   "parity/python_facade_surface.toml",
   "parity/python_products.toml",
   "python/antecedent/__init__.py",
 ]
 env = []
-why = "read(path) reads the fallback guide, the facade manifests and the Python package entry point"
+why = "read(path) reads the facade manifests and the Python package entry point"
 
 [[input]]
 source = "crates/antecedent/tests/family_contract_conformance.rs"

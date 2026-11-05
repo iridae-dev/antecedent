@@ -981,16 +981,6 @@ dataset = { generator = "sparse_connected_scm", seed = 9971232, n = 2000, simula
 evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::a_maximum_degree_above_four_is_refused_with_both_degrees_named" }
 
 [[case]]
-id = "discovery_supported_conditions_published"
-area = "discovery_scale"
-workflow = "docs and result claim"
-configuration = { families = ["linear", "log_linear"] }
-expected = { kind = "receipt", outputs = ["signal strength, causal sufficiency, distributional and intervention-support conditions listed per family"] }
-targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "PC with degree <= 4 on <= 20 variables at <= 4,000 rows runs in seconds; budget covers CI tests and held-out estimation." }
-dataset = { generator = "documentation_check", seed = 6162961, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_parent_set_effect_facade.rs::the_published_conditions_are_listed_for_each_family" }
-
-[[case]]
 id = "discovery_parent_adjustment_linear_total_effect"
 area = "discovery_estimation"
 workflow = "antecedent.selective_discovery.discover_on_split"
@@ -4209,16 +4199,6 @@ expected = { kind = "value", outputs = ["same rejected or not-rejected outcome o
 targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Each comparison runs one fitted model in each library at a pinned version on a few thousand rows." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2738613, n = 5000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
 evidence = { status = "bound", test = "python/tests/test_dowhy_comparison.py::test_graph_falsification_on_the_case_dataset_agrees_with_dowhy_and_states_why_neither_rejects" }
-
-[[case]]
-id = "dowhy_comparison_pages_state_semantic_differences"
-area = "dowhy_comparison"
-workflow = "docs conformance: pinned DoWhy comparison"
-configuration = { pages = ["interventions", "mechanism_selection", "attribution"], dowhy_version = "pinned" }
-expected = { kind = "receipt", outputs = ["each page names overlapping semantics and where the libraries differ", "executable examples run in Rust and Python"] }
-targets = { runtime_seconds = 600, memory_bytes = 2147483648, rationale = "Docs examples execute once in CI." }
-dataset = { generator = "documentation_examples", seed = 9507423, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "python/tests/test_dowhy_comparison_pages.py::test_the_page_states_overlap_and_differences_at_the_pinned_version" }
 
 [[case]]
 id = "conformance_gates_cover_every_new_capability"

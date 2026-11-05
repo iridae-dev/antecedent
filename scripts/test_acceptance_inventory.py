@@ -137,7 +137,6 @@ class Fixture:
             ],
             "children": [],
             "obligations": [supported_obligation()],
-            "limitations": [],
             "representatives": {"association_static"},
             "child_findings": {},
         }
@@ -206,7 +205,7 @@ class AcceptanceInventoryTest(unittest.TestCase):
             self.assertEqual(row["acceptance"], "incomplete", artifact)
             self.assertTrue(any(needle in r for r in row["incomplete_reasons"]), row)
 
-    def test_a_narrowed_promise_is_incomplete_with_its_reason_and_limitation(self):
+    def test_a_narrowed_promise_is_incomplete_with_its_reason(self):
         self.fx.sources["counterparts"] = [
             counterpart(
                 closure="narrowed_promise",
@@ -215,19 +214,8 @@ class AcceptanceInventoryTest(unittest.TestCase):
                 next_attempt="derive the interval",
             )
         ]
-        self.fx.sources["limitations"] = [
-            {
-                "id": "lim.1",
-                "kind": "narrowed_promise",
-                "locator": "supported.AverageEffect.Dag#static.frequentist",
-                "owner": "P20",
-                "decision": "",
-                "rationale": "",
-            }
-        ]
         row = self.fx.rows()[0]
         self.assertEqual(row["acceptance"], "incomplete")
-        self.assertEqual(row["limitations"], ["lim.1"])
         self.assertTrue(any("derive the interval" in r for r in row["incomplete_reasons"]))
         self.assertEqual(self.problems(), [])
 
@@ -347,49 +335,6 @@ class AcceptanceInventoryTest(unittest.TestCase):
         self.assertRejected(
             "conflict: supported.AverageEffect.Dag#static.frequentist: closure_kind", rows
         )
-
-    def test_rejects_a_narrowed_promise_without_a_residual_limitation(self):
-        self.fx.sources["counterparts"] = [
-            counterpart(closure="narrowed_promise", reason="r", next_attempt="n")
-        ]
-        self.assertRejected("narrowed_promise has no residual limitation row", None)
-
-    def test_rejects_a_delivered_row_that_carries_a_narrowed_promise_limitation(self):
-        self.fx.sources["limitations"] = [
-            {
-                "id": "lim.1",
-                "kind": "narrowed_promise",
-                "locator": "supported.AverageEffect.Dag#static.frequentist",
-                "owner": "P20",
-                "decision": "",
-                "rationale": "",
-            }
-        ]
-        self.assertRejected("delivered row has a narrowed_promise residual limitation", None)
-
-    def test_rejects_a_not_applicable_row_without_a_scope_decision(self):
-        self.fx.sources["counterparts"] = [
-            counterpart(
-                status="not_applicable_with_theory_reason",
-                route="unlisted",
-                uncertainty="none",
-                uncertainty_basis="no_executing_route",
-            )
-        ]
-        self.fx.sources["obligations"] = []
-        self.fx.sources["scope"] = []
-        self.assertRejected("no theory_reason residual limitation", None)
-        self.fx.sources["limitations"] = [
-            {
-                "id": "t.1",
-                "kind": "theory_reason",
-                "locator": "supported.AverageEffect.Dag#static.frequentist",
-                "owner": "",
-                "decision": "",
-                "rationale": "",
-            }
-        ]
-        self.assertRejected("records no scope decision with a rationale", None)
 
     def test_rejects_a_scope_list_that_conflicts_with_the_row(self):
         self.fx.sources["scope"][0]["list"] = "research"

@@ -26,10 +26,6 @@ from antecedent.discovery import (
 from antecedent.errors import CausalUnsupportedError
 from antecedent.outcomes import require_success
 
-from _repo_text import REPO_ROOT, read_text
-
-GUIDE = REPO_ROOT / "docs/graph_uncertainty.md"
-
 ROWS = 2000
 PUBLISHED = {"n_chains": 4, "n_warmup": 3000, "n_draws": 12_000, "thin": 2, "max_parents": 3}
 # Order MCMC is published at twice the warmup and draws (docs/graph_uncertainty.md).
@@ -212,16 +208,6 @@ def test_a_nine_variable_posterior_is_returned_where_the_eight_variable_word_end
 def test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics(size, kind, seed):
     data, edges = tractable_posterior_scm(kind, size, seed)
     names = list(data)
-    guide = read_text(GUIDE)
-    # The computational and model conditions the posterior is published under.
-    for condition in (
-        "| Parents per node | at most 3",
-        "| Chains | 4; above 8 variables each runs 8 replicas",
-        "| Warmup per chain | structure MCMC 3 000 iterations; order MCMC 6 000",
-        "| Retained draws per chain | structure MCMC 12 000, order MCMC 24 000, thinned by 2",
-        "| Publication gate | split R-hat below 1.2",
-    ):
-        assert condition in guide
     posts = {}
     for sampler, schedule in ((StructureMcmc, PUBLISHED), (OrderMcmc, PUBLISHED_ORDER)):
         post = sampler(**schedule).run(data, execution=ant.Execution(seed=5))

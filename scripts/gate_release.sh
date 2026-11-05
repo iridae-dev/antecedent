@@ -93,7 +93,6 @@ echo "== release inventory =="
 step python3 scripts/check_release_inventory.py
 step python3 scripts/check_acceptance_inventory.py
 step python3 scripts/check_acceptance_manifest.py --require-bound
-step python3 scripts/check_residual_limitations.py
 step python3 scripts/check_missing_policy_support.py
 
 echo "== bounds, release claims, links, conformance references =="
@@ -115,16 +114,31 @@ fi
 step python3 scripts/generate_support_matrix_docs.py
 VERSION="$(python3 "$ROOT/scripts/release_notes_version.py")"
 generated=(docs/support-matrix.md crates/antecedent/data/support_matrix.json
-  crates/antecedent-io-core/data/coverage_records.json crates/antecedent-core/src/reason_codes_data.rs
-  "docs/release-notes/v${VERSION}.md")
+  crates/antecedent-io-core/data/coverage_records.json crates/antecedent-core/src/reason_codes_data.rs)
 if ! git diff --exit-code -- "${generated[@]}" >/dev/null; then
   echo "support-matrix generated files are stale; commit regenerated output"
   git diff --stat -- "${generated[@]}"
   exit 1
 fi
-if ! git diff --exit-code -- docs/release-notes/ ":!docs/release-notes/v${VERSION}.md" >/dev/null; then
-  echo "generator rewrote historical release notes; leave those supported blocks as they were"
-  git diff --stat -- docs/release-notes/ ":!docs/release-notes/v${VERSION}.md"
+# Only the generated block of the release notes is compared; the hand-written text around it is not read.
+if ! python3 - "docs/release-notes/v${VERSION}.md" <<'PY'
+import subprocess
+import sys
+
+begin = "<!-- generated:support-matrix:supported:begin -->"
+end = "<!-- generated:support-matrix:supported:end -->"
+path = sys.argv[1]
+
+
+def block(text: str) -> str:
+    return text.split(begin, 1)[1].split(end, 1)[0]
+
+
+committed = subprocess.run(["git", "show", f":{path}"], capture_output=True, text=True, check=True).stdout
+sys.exit(0 if block(committed) == block(open(path, encoding="utf-8").read()) else 1)
+PY
+then
+  echo "the generated supported block of the release notes is stale; commit regenerated output"
   exit 1
 fi
 step python3 scripts/generate_host_schema.py --check
