@@ -1,0 +1,151 @@
+"""Production manifest integration using disposable engineering workspaces."""
+from pathlib import Path
+from unittest.mock import patch
+import subprocess
+import unittest
+
+from test_scientific_records import Fixture
+from evidence_earning import Snapshot, binding, probe_binding, measurement_binding
+from evidence_manifests import Checker
+from evidence_fingerprint import Fingerprinter
+import scientific_records as scientific
+import calibration_status as calibration
+
+
+class EarningTests(Fixture):
+    def setUp(self):
+        super().setUp()
+        self.write('tools/evidence-analyzer/pin.toml', 'release="1.85.1"\ncommit="abc"\nanalyzer="diagnostic"\n')
+
+    def snapshot(self, kind='scientific', key='top::t::check_top', measurement=None, record_binding=None):
+        row = self.row('top')
+        fp = Fingerprinter(self.root, self.metadata, '', platform=False, environ={})
+        record_binding = record_binding or binding(kind, key, 'recorded-fingerprint', measurement)
+        with patch('subprocess.check_output', return_value='release: 1.85.1\ncommit-hash: abc\n'):
+            return Snapshot(self.root, row, record_binding, fp)
+
+    def test_earned_scientific_manifest_classifies_without_cargo_or_fingerprinting(self):
+        snapshot = self.snapshot()
+        ref = snapshot.publish()
+        scientific.record_passes(self.root, [{**self.row('top'), 'selector':'top::t::check_top',
+            'fingerprint':'recorded-fingerprint', 'dependency_manifest':ref}])
+        with patch.object(scientific, 'Fingerprinter', side_effect=AssertionError('compiler discovery')):
+            owed, current = scientific.classify(self.root, [self.row('top')])
+        self.assertEqual((len(owed),len(current)), (0,1))
+        self.write('crates/leaf/src/lib.rs', 'pub fn leaf()->u8 { 9 }')
+        owed, current = scientific.classify(self.root, [self.row('top')])
+        self.assertEqual((len(owed),len(current)), (1,0))
+
+    def test_changed_input_cannot_be_published_as_a_pass(self):
+        snapshot = self.snapshot()
+        self.write('crates/top/src/lib.rs', 'pub fn top()->u8 { 99 }')
+        with self.assertRaises(RuntimeError):
+            snapshot.publish()
+
+    def test_added_source_input_invalidates_but_unrelated_crate_does_not(self):
+        snapshot = self.snapshot()
+        ref = snapshot.publish()
+        self.write('crates/other/src/lib.rs', 'pub fn other()->u8 { 99 }')
+        self.assertTrue(Checker(self.root).check(snapshot.manifest['record'], ref)['current'])
+        self.write('crates/leaf/src/new.rs', 'pub const V:u8=1;')
+        self.assertFalse(Checker(self.root).check(snapshot.manifest['record'], ref)['current'])
+
+    def test_calibration_and_probe_share_production_checker(self):
+        rec = dict(id='c', fingerprint='recorded-fingerprint', calibration_sha='measured')
+        measurement = self.snapshot(record_binding=measurement_binding(rec))
+        ref = measurement.publish()
+        rec['dependency_manifest']=ref
+        with patch.object(calibration, 'tree_fingerprinter', side_effect=AssertionError('compiler discovery')):
+            now = calibration.tree_fingerprints([rec], root=self.root)
+        self.assertEqual(calibration.classify([rec], [], now)['c'].status, calibration.CURRENT)
+        changed_measurement = {**rec, 'observed':0.01}
+        changed_now = calibration.tree_fingerprints([changed_measurement], root=self.root)
+        self.assertNotEqual(calibration.classify([changed_measurement],[],changed_now)['c'].status,calibration.CURRENT)
+        self.write('crates/top/src/lib.rs', 'pub fn top()->u8 { 99 }')
+        now = calibration.tree_fingerprints([rec], root=self.root)
+        self.assertNotEqual(calibration.classify([rec], [], now)['c'].status, calibration.CURRENT)
+
+    def test_probe_binding_preserves_exact_measurement_and_prefix(self):
+        row = dict(record_id='c',fingerprint='f',calibration_sha='measured',sha='probed',k=100,bound=.03,result='pass')
+        snapshot = self.snapshot(record_binding=probe_binding(row))
+        ref = snapshot.publish()
+        self.assertTrue(Checker(self.root).check(probe_binding(row),ref)['current'])
+        self.assertFalse(Checker(self.root).check(probe_binding({**row,'k':320}),ref)['current'])
+
+    def test_compiler_mismatch_cannot_earn(self):
+        fp = Fingerprinter(self.root,self.metadata,'',environ={})
+        with patch('subprocess.check_output', return_value='release: 9\ncommit-hash: wrong\n'):
+            with self.assertRaises(RuntimeError):
+                Snapshot(self.root,self.row('top'),binding('scientific','t','f'),fp)
+
+    def test_earning_refuses_a_noncanonical_build_environment(self):
+        for env in ({'RUSTFLAGS': '--cfg changed_scientific_path'}, {'CARGO_PROFILE_TEST_OPT_LEVEL': '0'},
+                    {'ANTECEDENT_SCIENTIFIC_FEATURES': 'x'}):
+            with patch.dict('os.environ', env), self.assertRaises(RuntimeError, msg=env):
+                self.snapshot()
+
+    def test_lint_levels_and_the_checking_environment_do_not_change_currency(self):
+        with patch.dict('os.environ', {'RUSTFLAGS': '-D warnings'}):
+            snapshot = self.snapshot()
+            ref = snapshot.publish()
+        with patch.dict('os.environ', {'RUSTFLAGS': '-D warnings --cfg ci'}):
+            self.assertTrue(Checker(self.root).check(snapshot.manifest['record'], ref)['current'])
+
+    def test_a_shared_fingerprinter_keeps_each_rows_inputs_its_own(self):
+        fp = Fingerprinter(self.root, self.metadata, '', platform=False, environ={})
+        with patch('subprocess.check_output', return_value='release: 1.85.1\ncommit-hash: abc\n'):
+            Snapshot(self.root, self.row('other'), binding('scientific', 'o', 'f'), fp)
+            shared = Snapshot(self.root, self.row('leaf'), binding('scientific', 'l', 'f'), fp)
+            alone = Snapshot(self.root, self.row('leaf'), binding('scientific', 'l', 'f'))
+        paths = lambda snap: sorted(i.get('path', i.get('name')) for i in snap.manifest['inputs'])  # noqa: E731
+        self.assertEqual(paths(shared), paths(alone))
+        self.assertFalse(any('crates/other' in p for p in paths(shared)))
+
+    def test_compile_time_code_anywhere_in_the_graph_keeps_complete_source(self):
+        from evidence_earning import project_snapshot
+        import evidence_earning
+        coverage = {str((self.root / 'crates/leaf/src/lib.rs').resolve()): {1}}
+        for graph in (None, {'leaf': {'a_derive'}, 'mid': set(), 'top': set()}, {'top': {'build_script_dep'}}):
+            with patch.dict(evidence_earning._COMPILE_TIME, {self.root: graph}):
+                snapshot = self.snapshot()
+            self.assertTrue(snapshot.opaque, graph)
+            project_snapshot(snapshot, self.root / 'no-inventory', coverage)
+            self.assertFalse(any(i['kind'] == 'guarded_file' for i in snapshot.manifest['inputs']))
+            self.assertTrue(snapshot.manifest['fallbacks'])
+        with patch.dict(evidence_earning._COMPILE_TIME, {self.root: {'leaf': set(), 'mid': set(), 'top': set()}}):
+            self.assertFalse(self.snapshot().opaque)
+
+    def test_earning_refuses_untracked_inputs_and_ignores_ignored_files(self):
+        git = lambda *args: subprocess.run(['git', *args], cwd=self.root, check=True, capture_output=True)  # noqa: E731
+        self.write('.gitignore', '*.so\n')
+        git('init', '-q')
+        git('add', '-A')
+        self.write('crates/leaf/src/native.so', 'build product')
+        ref = self.snapshot().publish()
+        self.write('crates/leaf/src/scratch.rs', 'pub fn scratch() {}')
+        with self.assertRaisesRegex(RuntimeError, 'untracked'):
+            self.snapshot()
+        (self.root / 'crates/leaf/src/scratch.rs').unlink()
+        (self.root / 'crates/leaf/src/native.so').unlink()
+        self.assertTrue(Checker(self.root).check(self.snapshot().manifest['record'], ref)['current'])
+
+    def test_changed_scientific_fixture_declaration_cannot_reuse_old_pass(self):
+        snapshot=self.snapshot()
+        ref=snapshot.publish()
+        scientific.record_passes(self.root,[{**self.row('top'),'selector':'top::t::check_top',
+            'fingerprint':'recorded-fingerprint','dependency_manifest':ref}])
+        owed,current=scientific.classify(self.root,[self.row('top',fixtures=['conformance/new'])])
+        self.assertEqual((len(owed),len(current)),(1,0))
+        self.assertIn('scientific_declarations_changed',owed[0]['manifest_reasons'])
+
+    def test_missing_fixture_becoming_present_invalidates(self):
+        row=self.row('top', fixtures=['conformance/new'])
+        fp=Fingerprinter(self.root,self.metadata,'',environ={})
+        with patch('subprocess.check_output', return_value='release: 1.85.1\ncommit-hash: abc\n'):
+            snapshot=Snapshot(self.root,row,binding('scientific','t','f'),fp)
+        ref=snapshot.publish()
+        self.write('conformance/new.json','{"truth":2}')
+        self.assertFalse(Checker(self.root).check(snapshot.manifest['record'],ref)['current'])
+
+
+if __name__ == '__main__': unittest.main()

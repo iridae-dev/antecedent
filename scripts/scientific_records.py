@@ -1,38 +1,23 @@
 #!/usr/bin/env python3
-"""Recorded passes of the scientific assertions, carried forward while nothing they depend on changed.
+"""Recorded passes of the scientific assertions, current while their dependency manifests match.
 
     scientific_records.py status [--check]   owed versus current records; --check exits 1 when any
                                              is owed and executes nothing (CI and releases)
     scientific_records.py run [--all] [--only PATTERN]
-                                             run the owed assertions, record passes per batch
-    scientific_records.py capture [--all]    run Rust assertions under coverage, record the
-                                             source each executes
+                                             earn the owed assertions and record their passes
 
-`parity/scientific_records.toml` holds one row per scientific assertion that
-passed: its exact selector, roles, the commit it passed at, a fingerprint of
-everything the assertion depends on, and when. A row is current while the
-assertion's fingerprint is unchanged, so a no-change rerun executes nothing and
-a leaf-crate edit owes only the assertions whose dependency closure contains
-that crate. `--all` or ANTECEDENT_SCIENTIFIC_ALL=1 (a release candidate) runs
-and re-records everything.
+`parity/scientific_records.toml` holds one row per assertion that passed, with the
+content-addressed dependency manifest it earned (`scripts/evidence_earning.py`). `status`
+checks manifests with `scripts/evidence_manifests.py` only: no compiler, Cargo or test runs.
+A row without a manifest, or whose manifest no longer matches, is owed.
 
-`run` executes the owed Rust assertions in one `cargo nextest run` (optimized
-test profile, as scripts/test.sh) and the owed Python assertions in one pytest
-batch, through scripts/run_evidence_rows.py, then records the passes. The
-default engineering lanes exclude these assertions, so nothing else runs them.
+`run` earns owed Rust assertions by building each test target once with coverage
+instrumentation and running each assertion exactly; owed Python assertions run in one pytest
+batch. A rerun withdraws the old pass first, so a failed or interrupted run never leaves a
+superseded pass standing. `--all` or ANTECEDENT_SCIENTIFIC_ALL=1 reruns everything.
 
-A recorded pass is evidence for support only. It is not a calibration
-measurement and no coverage or support claim reads it as one.
-
-A Rust assertion that has been captured is fingerprinted over the source files it
-executed (from `cargo llvm-cov`, which needs the `llvm-tools-preview` rustup component), not
-over its crate-dependency closure: the row stores `executed` and `capture_test`, the digest of
-its test-side files at capture time. An edit to a crate the test never reaches leaves the row
-current. A row without a capture, or whose test files changed since it, uses the closure
-fingerprint until `capture` is run again. Python rows always use the closure.
-
-The fingerprint is `scripts/evidence_fingerprint.py`: one implementation shared with the
-calibration flow.
+A recorded pass is evidence for support only. It is not a calibration measurement and no
+coverage or support claim reads it as one.
 """
 
 from __future__ import annotations
@@ -42,6 +27,7 @@ import fnmatch
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -63,7 +49,7 @@ HEADER = """# Recorded passes of the scientific assertions (see scripts/scientif
 #
 # One [[record]] per scientific assertion that passed, written by
 # `python3 scripts/scientific_records.py run`, the one place scientific assertions
-# run. A record is current while its fingerprint matches; an owed
+# run. A record is current while its dependency manifest matches; an owed
 # assertion reruns, a current one carries forward. A recorded pass is evidence for
 # support only. It is never a calibration measurement or a coverage claim.
 #
@@ -73,12 +59,9 @@ HEADER = """# Recorded passes of the scientific assertions (see scripts/scientif
 # passed       always true; failures are reported, never recorded
 # commit       HEAD when the pass was recorded
 # dirty        whether the working tree differed from that commit
-# fingerprint  sha256 over the assertion's dependency closure, or over the source files
-#              it executed when `executed` is present
-# executed     source files the assertion ran under coverage (written by `capture`)
-# capture_test digest of the test-side files when `executed` was captured; a different
-#              digest voids the capture
+# fingerprint  sha256 of the assertion's dependency closure when it passed (identity only)
 # recorded_at  UTC time of the pass
+# dependency_manifest  parity/evidence_manifests/<sha256>.json: what the pass depended on
 """
 
 
@@ -103,12 +86,7 @@ def write_records(root: Path, records: dict[str, dict]) -> None:
             f"dirty = {'true' if r.get('dirty') else 'false'}\n"
             f"fingerprint = {json.dumps(r['fingerprint'])}\n"
             f"recorded_at = {json.dumps(r['recorded_at'])}\n"
-            + (
-                f"capture_test = {json.dumps(r['capture_test'])}\n"
-                f"executed = {json.dumps(list(r['executed']))}\n"
-                if r.get("executed") is not None and r.get("capture_test")
-                else ""
-            )
+            + (f"dependency_manifest = {json.dumps(r['dependency_manifest'])}\n" if r.get("dependency_manifest") else "")
         )
     (root / RECORDS).parent.mkdir(parents=True, exist_ok=True)
     (root / RECORDS).write_text("".join(out), encoding="utf-8", newline="\n")
@@ -120,40 +98,34 @@ def git_state(root: Path) -> tuple[str, bool]:
     return head.stdout.strip() or "unknown", bool(dirty.stdout.strip())
 
 
-def is_current(records: dict[str, dict], selector: str, fingerprint: str) -> bool:
-    rec = records.get(selector)
-    return bool(rec and rec.get("passed") is True and rec.get("fingerprint") == fingerprint)
+def classify(root: Path, rows: list[dict]) -> tuple[list[dict], list[dict]]:
+    """(owed, current) rows, each annotated with its selector. A row is current only when its
+    recorded pass has a dependency manifest whose inputs and declarations still match."""
+    from evidence_earning import binding, declarations
+    from evidence_manifests import Checker
 
-
-def valid_capture(rec: dict | None, fp: Fingerprinter, row: dict) -> list[str] | None:
-    """The executed-source list of a record whose test files are unchanged since its capture."""
-    if not rec or rec.get("executed") is None or not rec.get("capture_test"):
-        return None
-    if fp.test_digest(row) != rec["capture_test"]:
-        return None
-    return list(rec["executed"])
-
-
-def classify(root: Path, rows: list[dict], fp: Fingerprinter) -> tuple[list[dict], list[dict]]:
-    """(owed, current) rows, each annotated with selector and fingerprint."""
     records = load_records(root)
+    checker = None
     owed, current = [], []
     for row in rows:
         info = locate(root, row)
-        executed = valid_capture(records.get(info["selector"]), fp, row)
-        item = {
-            **row,
-            "selector": info["selector"],
-            "fingerprint": fp.fingerprint(row, executed),
-            "executed": executed,
-            "capture_test": fp.test_digest(row) if executed is not None else None,
-        }
-        (current if is_current(records, item["selector"], item["fingerprint"]) else owed).append(item)
+        rec = records.get(info["selector"])
+        item = {**row, "selector": info["selector"], "fingerprint": None, "manifest_reasons": ["no_manifest"]}
+        if rec and rec.get("passed") is True and rec.get("dependency_manifest"):
+            checker = checker or Checker(root)
+            status = checker.check(binding("scientific", info["selector"], rec.get("fingerprint")), rec["dependency_manifest"])
+            if status["current"] and checker.load(rec["dependency_manifest"]).get("declarations") != declarations(row):
+                status["current"] = False
+                status["reasons"].append("scientific_declarations_changed")
+            item.update(fingerprint=rec.get("fingerprint"), manifest_reasons=status["reasons"])
+            if status["current"]:
+                current.append(item)
+                continue
+        owed.append(item)
     return owed, current
 
-
 def record_passes(root: Path, items: list[dict]) -> int:
-    """Merge passing rows (annotated by classify) into the ledger."""
+    """Merge passing rows, each with the dependency manifest it earned, into the ledger."""
     if not items:
         return 0
     commit, dirty = git_state(root)
@@ -166,14 +138,22 @@ def record_passes(root: Path, items: list[dict]) -> int:
             "dirty": dirty,
             "fingerprint": item["fingerprint"],
             "recorded_at": now,
-            **(
-                {"executed": item["executed"], "capture_test": item["capture_test"]}
-                if item.get("executed") is not None and item.get("capture_test")
-                else {}
-            ),
+            "dependency_manifest": item["dependency_manifest"],
         }
     write_records(root, records)
     return len(items)
+
+
+def withdraw_records(root: Path, items: list[dict]) -> None:
+    """A rerun supersedes old passes, including if it fails or is interrupted."""
+    records = load_records(root)
+    changed = False
+    for item in items:
+        if item["selector"] in records:
+            del records[item["selector"]]
+            changed = True
+    if changed:
+        write_records(root, records)
 
 
 def all_scientific_rows(root: Path) -> list[dict]:
@@ -189,24 +169,16 @@ def all_scientific_rows(root: Path) -> list[dict]:
 # --------------------------------------------------------------------------
 
 PASSED_ONE = re.compile(r"test result: ok\. 1 passed")
-NOT_SOURCE = re.compile(r"(^|/)(tests|benches|examples|target)/|/\.cargo/|/rustc/")
 
-
-def executed_files(export: dict, root: Path) -> list[str]:
-    """Repo-relative source files with at least one covered line in an llvm-cov export."""
-    root = root.resolve()
-    found: set[str] = set()
+def line_coverage(export: dict) -> dict[str, set[int]]:
+    """Resolved source path -> lines where a covered region starts, from an llvm-cov export."""
+    coverage: dict[str, set[int]] = {}
     for block in export.get("data", []):
-        for entry in block.get("files", []):
-            if entry.get("summary", {}).get("lines", {}).get("covered", 0) <= 0:
-                continue
-            try:
-                rel = Path(entry["filename"]).resolve().relative_to(root).as_posix()
-            except (ValueError, KeyError, OSError):
-                continue
-            if rel.endswith(".rs") and not NOT_SOURCE.search(rel):
-                found.add(rel)
-    return sorted(found)
+        for item in block.get("files", []):
+            coverage[str(Path(item["filename"]).resolve())] = {
+                s[0] for s in item.get("segments", []) if s[2] > 0 and s[3]
+            }
+    return coverage
 
 
 def llvm_tool(name: str) -> str:
@@ -248,8 +220,8 @@ def built_executable(stdout: str) -> str | None:
     return found
 
 
-def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=subprocess.run) -> list[str] | None:
-    """Run one Rust assertion's instrumented binary; its executed source files, or `None` on failure."""
+def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=subprocess.run) -> dict[str, set[int]] | None:
+    """Run one Rust assertion's instrumented binary; its line coverage, or `None` on failure."""
     libtest = info["selector"].split("::", 2)[2]
     with tempfile.TemporaryDirectory(prefix="antecedent-capture-") as tmp:
         raw, data = Path(tmp) / "run.profraw", Path(tmp) / "run.profdata"
@@ -268,60 +240,79 @@ def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=su
             print(f"FAIL: {info['selector']}: profile merge failed\n{merged.stderr[-400:]}")
             return None
         export = run(
-            [llvm_tool("llvm-cov"), "export", "-summary-only", f"-instr-profile={data}", binary],
+            [llvm_tool("llvm-cov"), "export", f"-instr-profile={data}", binary],
             text=True,
             capture_output=True,
         )
         if export.returncode != 0:
             print(f"FAIL: {info['selector']}: llvm-cov export failed\n{export.stderr[-400:]}")
             return None
-        return executed_files(json.loads(export.stdout), root)
+        data = json.loads(export.stdout)
+        return line_coverage(data)
 
 
-def cmd_capture(root: Path, args: argparse.Namespace, run=subprocess.run) -> int:
-    """Build each test target once with coverage instrumentation, then profile each assertion.
-
-    Records are written after every target, so an interrupted capture keeps what it finished.
-    """
-    fp = Fingerprinter(root)
-    records = load_records(root)
+def earn_rust(root: Path, items: list[dict], run=subprocess.run) -> int:
+    """Earn the given Rust rows: build each test target once with coverage instrumentation
+    (through the compiler inventory driver when `rustc-dev` is installed), run each assertion
+    exactly, and publish its manifest. The ledger is written after every target, so an
+    interrupted run keeps what it finished. Returns the number of failures."""
     groups: dict[tuple[str, tuple[str, ...]], list[tuple[dict, dict]]] = {}
-    for row in all_scientific_rows(root):
+    for row in items:
         info = locate(root, row)
-        if info["lang"] != "rust":
-            continue
-        if force_all(args) or valid_capture(records.get(info["selector"]), fp, row) is None:
-            groups.setdefault((info["crate"], tuple(info["target"])), []).append((row, info))
-    total = sum(len(v) for v in groups.values())
-    print(f"scientific records: capturing {total} Rust assertion(s) in {len(groups)} target(s)", flush=True)
+        groups.setdefault((info["crate"], tuple(info["target"])), []).append((row, info))
+    print(f"scientific records: earning {len(items)} Rust assertion(s) in {len(groups)} target(s)", flush=True)
+    if not groups:
+        return 0
+    from evidence_earning import Snapshot, binding, build_analyzer, compile_time_code, project_snapshot
+
+    fp = Fingerprinter(root)
     env = capture_env(root)
+    # Only this run's compilations describe the code being earned: an inventory from
+    # an earlier compilation cannot say a body is still eligible. A crate Cargo does
+    # not recompile has no inventory and keeps its complete source.
+    inventory_dir = root / "target/evidence-compiler-inventory"
+    shutil.rmtree(inventory_dir, ignore_errors=True)
+    inventory_dir.mkdir(parents=True)
+    # Body projection needs a compilation with no compile-time code (see project_snapshot).
+    compile_time = compile_time_code(root)
+    projectable = compile_time is not None and any(not compile_time.get(crate, {crate}) for crate, _ in groups)
+    driver = build_analyzer(root, root / "target/evidence-analyzer") if projectable else None
+    if driver is not None:
+        env.update(RUSTC_WORKSPACE_WRAPPER=str(driver), ANTECEDENT_ANALYZER_OUTPUT=str(inventory_dir))
     recorded, failed = 0, 0
     for (crate, target), todo in sorted(groups.items()):
+        snapshots = {
+            info["selector"]: Snapshot(root, row, binding("scientific", info["selector"], None), fp)
+            for row, info in todo
+        }
+        withdraw_records(root, [info for _, info in todo])
         built = run(build_command(root, crate, target), cwd=root, env=env, text=True, capture_output=True)
         binary = built_executable(built.stdout or "") if built.returncode == 0 else None
         if binary is None:
             print(f"FAIL: {crate} {' '.join(target)}: instrumented build failed\n{(built.stderr or '')[-400:]}")
             failed += len(todo)
             continue
-        items = []
+        earned = []
         for row, info in todo:
-            executed = capture_one(root, binary, info, env, run)
-            if executed is None:
+            coverage = capture_one(root, binary, info, env, run)
+            if coverage is None:
                 failed += 1
                 continue
-            items.append(
-                {
-                    **row,
-                    "selector": info["selector"],
-                    "executed": executed,
-                    "capture_test": fp.test_digest(row),
-                    "fingerprint": fp.fingerprint(row, executed),
-                }
-            )
-        recorded += record_passes(root, items)
-        print(f"  {crate} {' '.join(target)}: {len(items)}/{len(todo)} captured", flush=True)
-    print(f"scientific records: captured {recorded}; {failed} failed")
-    return int(bool(failed))
+            snapshot = snapshots[info["selector"]]
+            try:
+                if driver is not None:
+                    project_snapshot(snapshot, inventory_dir, coverage)
+                ref = snapshot.publish()
+            except RuntimeError as error:
+                print(f"FAIL: {info['selector']}: {error}")
+                failed += 1
+                continue
+            earned.append({**row, "selector": info["selector"], "dependency_manifest": ref,
+                           "fingerprint": snapshot.manifest["record"]["fingerprint"]})
+        recorded += record_passes(root, earned)
+        print(f"  {crate} {' '.join(target)}: {len(earned)}/{len(todo)} earned", flush=True)
+    print(f"scientific records: earned {recorded} Rust pass(es); {failed} failed")
+    return failed
 
 
 # --------------------------------------------------------------------------
@@ -335,15 +326,10 @@ def force_all(args: argparse.Namespace | None = None) -> bool:
 
 def cmd_status(root: Path, args: argparse.Namespace) -> int:
     rows = all_scientific_rows(root)
-    owed, current = classify(root, rows, Fingerprinter(root))
-    records = load_records(root)
-    captured = sum(1 for i in rows if records.get(locate(root, i)["selector"], {}).get("executed") is not None)
-    print(
-        f"scientific records: {len(current)} current, {len(owed)} owed of {len(rows)} "
-        f"({captured} with an execution capture)"
-    )
+    owed, current = classify(root, rows)
+    print(f"scientific records: {len(current)} current, {len(owed)} owed of {len(rows)}")
     for item in owed:
-        print(f"  owed: {item['selector']}")
+        print(f"  owed: {item['selector']} ({', '.join(item['manifest_reasons'][:3])})")
     return int(args.check and bool(owed))
 
 
@@ -363,21 +349,6 @@ def matches_only(item: dict, patterns: list[str]) -> bool:
     return any(
         pattern in field or fnmatch.fnmatchcase(field, pattern) for pattern in patterns for field in fields
     )
-
-
-def run_batches(items: list[dict], root: Path) -> list[tuple[str, list[dict]]]:
-    """Owed rows split into batches that are each recorded as soon as they finish: one nextest
-    run per Rust crate and one pytest run for every Python row."""
-    rust: dict[str, list[dict]] = {}
-    python: list[dict] = []
-    for item in items:
-        info = locate(root, item)
-        if info["lang"] == "rust":
-            rust.setdefault(info["crate"], []).append(item)
-        else:
-            python.append(item)
-    batches = [(f"rust {crate}", rust[crate]) for crate in sorted(rust)]
-    return batches + ([("python", python)] if python else [])
 
 
 def run_batch(root: Path, batch: list[dict]) -> tuple[int, set[str]]:
@@ -413,7 +384,7 @@ def run_batch(root: Path, batch: list[dict]) -> tuple[int, set[str]]:
 
 def cmd_run(root: Path, args: argparse.Namespace) -> int:
     rows = all_scientific_rows(root)
-    owed, current = classify(root, rows, Fingerprinter(root))
+    owed, current = classify(root, rows)
     only = list(getattr(args, "only", None) or [])
     if only and not any(matches_only(i, only) for i in owed + current):
         print(f"FAIL: --only {only!r} matches no scientific assertion")
@@ -434,10 +405,33 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
     # Each batch is recorded as soon as it finishes, so an interrupted or partly failing
     # run keeps every pass it earned.
     status, recorded = 0, 0
-    for label, batch in run_batches(run_items, root):
-        print(f"scientific records: batch {label} ({len(batch)})", flush=True)
-        code, passed = run_batch(root, batch)
-        recorded += record_passes(root, [i for i in batch if i["selector"] in passed])
+    rust = [i for i in run_items if not i["evidence_test"].endswith(".py")]
+    python = [i for i in run_items if i["evidence_test"].endswith(".py")]
+    if rust:
+        failed = earn_rust(root, rust)
+        recorded += len(rust) - failed
+        status = status or int(bool(failed))
+    if python:
+        print(f"scientific records: batch python ({len(python)})", flush=True)
+        from evidence_earning import Snapshot, binding
+
+        fp = Fingerprinter(root)
+        snapshots = {i["selector"]: Snapshot(root, i, binding("scientific", i["selector"], None), fp) for i in python}
+        withdraw_records(root, python)
+        code, passed = run_batch(root, python)
+        verified = []
+        for item in python:
+            if item["selector"] not in passed:
+                continue
+            snapshot = snapshots[item["selector"]]
+            try:
+                ref = snapshot.publish()
+            except RuntimeError as error:
+                print(f"FAIL: {item['selector']}: {error}")
+                status = 1
+                continue
+            verified.append({**item, "dependency_manifest": ref, "fingerprint": snapshot.manifest["record"]["fingerprint"]})
+        recorded += record_passes(root, verified)
         status = status or code
     print(f"scientific records: recorded {recorded} pass(es); {len(run_items) - recorded} not recorded")
     return status
@@ -459,11 +453,9 @@ def main() -> int:
         metavar="PATTERN",
         help="limit to rows whose selector, test path or id contains PATTERN or matches it as a glob (repeatable)",
     )
-    capture = sub.add_parser("capture")
-    capture.add_argument("--all", action="store_true", help="re-capture every Rust assertion")
     args = parser.parse_args()
     try:
-        return {"status": cmd_status, "run": cmd_run, "capture": cmd_capture}[args.command](REPO_ROOT, args)
+        return {"status": cmd_status, "run": cmd_run}[args.command](REPO_ROOT, args)
     except UnresolvedInput as problem:
         # An input the fingerprint cannot account for owes its record; it is never silently current.
         print(f"FAIL: a scientific assertion has an undeclared input: {problem}")

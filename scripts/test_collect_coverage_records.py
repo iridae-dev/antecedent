@@ -559,16 +559,19 @@ class FingerprintStampTest(unittest.TestCase):
         with (
             patch.object(collector.subprocess, "check_output", return_value="a" * 40 + "\n"),
             patch.object(collector.subprocess, "run") as status,
+            patch('evidence_earning.Snapshot') as snapshot,
             patch.object(collector.calibration_status, "tree_fingerprinter"),
             patch.object(
                 collector.calibration_status,
-                "tree_fingerprints",
+                "identity_fingerprints",
                 return_value={"a": "f" * 64, "b": None},
             ),
         ):
             status.return_value.stdout = ""
+            snapshot.return_value.publish.return_value = 'd' * 64
             collector.stamp_fingerprints(records, "a" * 40)
         self.assertEqual(records["a"]["fingerprint"], "f" * 64)
+        self.assertEqual(records['a']['dependency_manifest'], 'd' * 64)
         self.assertNotIn("fingerprint", records["b"])
 
     def test_logs_stamped_at_another_commit_carry_no_fingerprint(self):

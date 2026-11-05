@@ -156,10 +156,9 @@ class Ledger:
 
     def _load(self) -> None:
         import scientific_records
-        from evidence_fingerprint import Fingerprinter
 
         rows = scientific_records.all_scientific_rows(ROOT)
-        owed, current = scientific_records.classify(ROOT, rows, Fingerprinter(ROOT))
+        owed, current = scientific_records.classify(ROOT, rows)
         key = lambda item: (item["evidence_test"], item["evidence_assertion"])  # noqa: E731
         self._owed = {key(i): i["selector"] for i in owed}
         self._current = {key(i) for i in current}

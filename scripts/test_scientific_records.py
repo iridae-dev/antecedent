@@ -133,6 +133,24 @@ class FingerprintTests(Fixture):
         self.write("Cargo.lock", LOCK.replace('name = "serde"\nversion = "1.0.0"', 'name = "serde"\nversion = "1.0.1"'))
         self.assertEqual(self.changed(before, self.fps()), set(before))
 
+    def test_lock_tracks_which_external_version_a_dependency_edge_uses(self):
+        lock = '''version = 4
+[[package]]
+name = "consumer"
+version = "1.0.0"
+dependencies = ["dep 1.0.0"]
+[[package]]
+name = "dep"
+version = "1.0.0"
+[[package]]
+name = "dep"
+version = "2.0.0"
+'''
+        self.write("Cargo.lock", lock)
+        before = self.fps()
+        self.write("Cargo.lock", lock.replace('"dep 1.0.0"', '"dep 2.0.0"'))
+        self.assertEqual(self.changed(before, self.fps()), set(before))
+
     def test_feature_change_invalidates_all(self):
         self.assertEqual(self.changed(self.fps(), self.fps("--features x")), {"leaf", "mid", "top", "other"})
 
@@ -152,19 +170,38 @@ class FingerprintTests(Fixture):
 
 
 class RecordTests(Fixture):
-    def test_current_owed_and_roundtrip(self):
-        fp = sr.Fingerprinter(self.root, self.metadata, "")
+    def test_withdraw_only_selected_old_passes_before_a_rerun(self):
         rows = [self.row("leaf"), self.row("top")]
-        owed, current = sr.classify(self.root, rows, fp)
+        owed, _ = sr.classify(self.root, rows)
+        sr.record_passes(self.root, [{**o, "fingerprint": "f", "dependency_manifest": "d" * 64} for o in owed])
+        sr.withdraw_records(self.root, owed[:1])
+        self.assertNotIn(owed[0]["selector"], sr.load_records(self.root))
+        self.assertIn(owed[1]["selector"], sr.load_records(self.root))
+
+    def test_a_pass_is_current_only_through_a_matching_manifest(self):
+        rows = [self.row("leaf"), self.row("top")]
+        owed, current = sr.classify(self.root, rows)
         self.assertEqual((len(owed), len(current)), (2, 0))
-        sr.write_records(self.root, {})
-        sr.record_passes(self.root, owed[:1])
-        owed, current = sr.classify(self.root, rows, fp)
-        self.assertEqual([o["selector"] for o in owed], ["top::t::check_top"])
-        self.assertEqual([c["selector"] for c in current], ["leaf::t::check_leaf"])
-        self.write("crates/leaf/src/lib.rs", "pub fn leaf() -> u8 { 5 }\n")
-        owed, current = sr.classify(self.root, rows, sr.Fingerprinter(self.root, self.metadata, ""))
-        self.assertEqual(len(owed), 2)
+        self.assertTrue(all(o["manifest_reasons"] == ["no_manifest"] for o in owed))
+        sr.record_passes(self.root, [{**owed[0], "fingerprint": "f", "dependency_manifest": "a" * 64}])
+        owed, current = sr.classify(self.root, rows)
+        self.assertEqual((len(owed), len(current)), (2, 0))
+        self.assertTrue(any(r.startswith("manifest_owed") for r in owed[0]["manifest_reasons"]))
+        text = (self.root / sr.RECORDS).read_text()
+        self.assertIn("dependency_manifest", text)
+        self.assertNotIn("executed", text)
+
+    def test_a_new_pass_is_saved_beside_records_without_a_manifest(self):
+        rows = [self.row("leaf"), self.row("top")]
+        sr.write_records(self.root, {"leaf::t::check_leaf": {
+            "roles": ["scientific"], "commit": "c", "fingerprint": "f", "recorded_at": "t"}})
+        owed, _ = sr.classify(self.root, rows)
+        sr.record_passes(self.root, [{**owed[1], "fingerprint": "f", "dependency_manifest": "d" * 64}])
+        records = sr.load_records(self.root)
+        self.assertNotIn("dependency_manifest", records["leaf::t::check_leaf"])
+        self.assertEqual(records["top::t::check_top"]["dependency_manifest"], "d" * 64)
+        owed, _ = sr.classify(self.root, rows)
+        self.assertIn("leaf::t::check_leaf", [o["selector"] for o in owed])
 
     def test_native_closure_covers_python_rows(self):
         self.metadata["packages"].append({
@@ -185,6 +222,8 @@ class RecordTests(Fixture):
         fp4 = sr.Fingerprinter(self.root, self.metadata, "").fingerprint(row)
         self.assertEqual(len({fp1, fp2, fp3}), 3)
         self.assertEqual(fp3, fp4)
+        self.write("python/pyproject.toml", '[tool.pytest.ini_options]\naddopts = "-x"\n')
+        self.assertNotEqual(fp4, sr.Fingerprinter(self.root, self.metadata, "").fingerprint(row))
         self.assertEqual(sr.locate(self.root, row)["selector"], "tests/test_a.py::test_a")
 
 
@@ -201,15 +240,12 @@ class ExecutionCaptureTests(Fixture):
             ]
         }
 
-    def test_export_keeps_covered_crate_sources_only(self):
-        export = self.fake_export("crates/top/src/lib.rs", "crates/top/tests/t.rs", "crates/leaf/src/lib.rs")
-        export["data"][0]["files"].append(
-            {"filename": "/home/u/.cargo/registry/serde/src/lib.rs", "summary": {"lines": {"covered": 9}}}
-        )
-        export["data"][0]["files"].append(
-            {"filename": str(self.root / "crates/mid/src/lib.rs"), "summary": {"lines": {"covered": 0}}}
-        )
-        self.assertEqual(sr.executed_files(export, self.root), ["crates/leaf/src/lib.rs", "crates/top/src/lib.rs"])
+    def test_line_coverage_keeps_lines_where_a_covered_region_starts(self):
+        export = {"data": [{"files": [{"filename": str(self.root / "crates/top/src/lib.rs"),
+                                       "segments": [[1, 1, 3, True, True, False], [2, 1, 0, True, True, False],
+                                                    [4, 1, 5, False, False, False]]}]}]}
+        coverage = sr.line_coverage(export)
+        self.assertEqual(coverage[str((self.root / "crates/top/src/lib.rs").resolve())], {1})
 
     def test_the_target_is_built_once_and_each_case_runs_its_binary_exactly(self):
         info = sr.locate(self.root, self.row("top"))
@@ -253,49 +289,6 @@ class ExecutionCaptureTests(Fixture):
 
     def test_a_failing_test_is_not_captured(self):
         self.assertIsNone(self.run_capture(["crates/top/src/lib.rs"], passed=False))
-
-    def captured_item(self, fp, row):
-        executed = self.run_capture(["crates/top/src/lib.rs"])
-        info = sr.locate(self.root, row)
-        return {
-            **row,
-            "selector": info["selector"],
-            "executed": executed,
-            "capture_test": fp.test_digest(row),
-            "fingerprint": fp.fingerprint(row, executed),
-        }
-
-    def test_a_captured_row_ignores_crates_it_never_ran_and_follows_the_ones_it_did(self):
-        fp = sr.Fingerprinter(self.root, self.metadata, "")
-        row = self.row("top")
-        sr.write_records(self.root, {})
-        item = self.captured_item(fp, row)
-        sr.record_passes(self.root, [item])
-        owed, current = sr.classify(self.root, [row], fp)
-        self.assertEqual((len(owed), len(current)), (0, 1))
-        self.write("crates/leaf/src/lib.rs", "pub fn leaf() -> u8 { 9 }\n")  # in the closure, never executed
-        owed, current = sr.classify(self.root, [row], sr.Fingerprinter(self.root, self.metadata, ""))
-        self.assertEqual(len(current), 1)
-        self.write("crates/top/src/lib.rs", "pub fn top() -> u8 { 9 }\n")  # executed
-        owed, current = sr.classify(self.root, [row], sr.Fingerprinter(self.root, self.metadata, ""))
-        self.assertEqual(len(owed), 1)
-
-    def test_a_test_edit_voids_the_capture_and_falls_back_to_the_closure(self):
-        fp = sr.Fingerprinter(self.root, self.metadata, "")
-        row = self.row("top")
-        sr.record_passes(self.root, [self.captured_item(fp, row)])
-        self.write("crates/top/tests/t.rs", "#[test]\nfn check_top() { let _ = 1; }\n")
-        fp2 = sr.Fingerprinter(self.root, self.metadata, "")
-        self.assertIsNone(sr.valid_capture(sr.load_records(self.root)[sr.locate(self.root, row)["selector"]], fp2, row))
-        owed, _ = sr.classify(self.root, [row], fp2)
-        self.assertEqual(owed[0]["fingerprint"], fp2.fingerprint(row))
-
-    def test_a_row_without_a_capture_keeps_the_closure_fingerprint(self):
-        fp = sr.Fingerprinter(self.root, self.metadata, "")
-        row = self.row("top")
-        owed, _ = sr.classify(self.root, [row], fp)
-        self.assertEqual(owed[0]["fingerprint"], fp.fingerprint(row))
-        self.assertNotEqual(fp.fingerprint(row), fp.fingerprint(row, ["crates/top/src/lib.rs"]))
 
 
 class OneScientificEntryPoint(unittest.TestCase):
@@ -359,27 +352,10 @@ class OnlyAndCurrencyGates(unittest.TestCase):
         self.assertTrue(sr.matches_only(item, ["cap.one"]))
         self.assertFalse(sr.matches_only(item, ["other"]))
 
-    def test_batches_split_rust_by_crate_and_python_together(self):
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            for crate in ("a", "b"):
-                (root / f"crates/{crate}/tests").mkdir(parents=True)
-                (root / f"crates/{crate}/tests/t.rs").write_text("", encoding="utf-8")
-                (root / f"crates/{crate}/Cargo.toml").write_text(f'[package]\nname = "{crate}"\n', encoding="utf-8")
-            items = [
-                {"evidence_test": "crates/a/tests/t.rs", "evidence_assertion": "x"},
-                {"evidence_test": "crates/b/tests/t.rs", "evidence_assertion": "y"},
-                {"evidence_test": "python/tests/test_p.py", "evidence_assertion": "test_p"},
-            ]
-            labels = [(label, len(batch)) for label, batch in sr.run_batches(items, root)]
-        self.assertEqual(labels, [("rust a", 1), ("rust b", 1), ("python", 1)])
-
     def test_run_records_after_every_batch(self):
         body = self.read("scripts/scientific_records.py")
-        loop = body[body.index("for label, batch in run_batches"):]
-        self.assertLess(loop.index("record_passes"), loop.index("return status"))
+        loop = body[body.index("for (crate, target), todo in sorted(groups.items())"):]
+        self.assertLess(loop.index("record_passes"), loop.index("return failed"))
 
     def test_ci_checks_records_and_executes_neither_lane(self):
         gate = self.read("scripts/gate_release.sh")

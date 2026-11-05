@@ -104,26 +104,21 @@ class _InputCase(_TreeCase):
     def closure_fp(self, environ=None):
         return self.fp(environ).fingerprint(self.ROW)
 
-    def executed_fp(self, executed=("crates/top/src/lib.rs",), environ=None):
-        return self.fp(environ).fingerprint(self.ROW, list(executed))
-
 
 class EmbeddedAndRuntimeInputTests(_InputCase):
     """Inputs the sources reach without declaring them."""
 
     def test_the_version_salt_owes_every_record(self):
-        before, before_exec = self.closure_fp(), self.executed_fp()
+        before = self.closure_fp()
         with mock.patch.object(ef, "FINGERPRINT_VERSION", ef.FINGERPRINT_VERSION + 1):
             self.assertNotEqual(before, self.closure_fp())
-            self.assertNotEqual(before_exec, self.executed_fp())
 
     def test_editing_an_include_str_target_owes_its_dependents(self):
         self.write("crates/leaf/data/reg.json", '{"a": 1}\n')
         self.write("crates/leaf/src/lib.rs", 'pub const R: &str = include_str!("../data/reg.json");\n')
-        before, before_exec = self.closure_fp(), self.executed_fp(["crates/leaf/src/lib.rs"])
+        before = self.closure_fp()
         self.write("crates/leaf/data/reg.json", '{"a": 2}\n')
         self.assertNotEqual(before, self.closure_fp())
-        self.assertNotEqual(before_exec, self.executed_fp(["crates/leaf/src/lib.rs"]))
 
     def test_concat_manifest_dir_and_include_bytes_and_include_resolve(self):
         self.write("crates/top/data/b.bin", "one")
@@ -159,8 +154,6 @@ class EmbeddedAndRuntimeInputTests(_InputCase):
             self.write("crates/top/src/lib.rs", f"pub const X: &str = {body};\n")
             with self.assertRaises(ef.UnresolvedInput, msg=body):
                 self.closure_fp()
-            with self.assertRaises(ef.UnresolvedInput, msg=body):
-                self.executed_fp()
             # A caller asking for a coverage fingerprint is told loudly, not given None.
             with self.assertRaises(ef.UnresolvedInput, msg=body):
                 self.fingerprint()
@@ -180,10 +173,9 @@ class EmbeddedAndRuntimeInputTests(_InputCase):
             "crates/top/tests/cov.rs",
             '#[test]\nfn cov_case() { let _ = include_str!("oracle_data/ref.json"); }\n',
         )
-        before, before_capture = self.closure_fp(), self.fp().test_digest(self.ROW)
+        before = self.closure_fp()
         self.write("crates/top/tests/oracle_data/ref.json", "[2]")
         self.assertNotEqual(before, self.closure_fp())
-        self.assertNotEqual(before_capture, self.fp().test_digest(self.ROW))
 
     def test_a_runtime_read_parity_file_owes_the_test_that_reads_it(self):
         self.write("parity/read.toml", "a = 1\n")
@@ -259,7 +251,7 @@ class EmbeddedAndRuntimeInputTests(_InputCase):
             'pub fn f() { let _ = std::env::var("ANTECEDENT_KNOB"); let _ = std::env::var_os("HOME"); }\n',
         )
         base = {"ANTECEDENT_KNOB": "a", "HOME": "/h/one"}
-        for fingerprint in (self.closure_fp, lambda environ: self.executed_fp(environ=environ)):
+        for fingerprint in (self.closure_fp,):
             before = fingerprint(base)
             self.assertNotEqual(before, fingerprint({**base, "ANTECEDENT_KNOB": "b"}))
             self.assertNotEqual(before, fingerprint({"HOME": "/h/one"}))  # unset is a value
@@ -288,22 +280,7 @@ class EmbeddedAndRuntimeInputTests(_InputCase):
         before = self.closure_fp()
         self.write("crates/leaf/assets/table.txt", "2")
         self.assertNotEqual(before, self.closure_fp())
-        before = self.executed_fp()
-        self.write("crates/leaf/assets/table.txt", "3")
-        self.assertNotEqual(before, self.executed_fp())
         self.assertNotEqual(self.closure_fp(), self.closure_fp({"ANTECEDENT_BUILD": "x"}))
-
-    def test_executed_mode_ignores_unexecuted_embeds_but_not_executed_ones(self):
-        self.write("crates/leaf/data/skipped.json", "1")
-        self.write("crates/leaf/src/other.rs", 'pub const S: &str = include_str!("../data/skipped.json");\n')
-        self.write("crates/leaf/src/lib.rs", "mod other;\npub fn leaf() {}\n")
-        before = self.executed_fp(["crates/top/src/lib.rs"])
-        self.write("crates/leaf/data/skipped.json", "2")
-        self.assertEqual(before, self.executed_fp(["crates/top/src/lib.rs"]))
-        self.assertNotEqual(before, self.executed_fp(["crates/top/src/lib.rs", "crates/leaf/src/other.rs"]))
-        executed_other = self.executed_fp(["crates/leaf/src/other.rs"])
-        self.write("crates/leaf/data/skipped.json", "3")
-        self.assertNotEqual(executed_other, self.executed_fp(["crates/leaf/src/other.rs"]))
 
     DYNAMIC_SOURCE = (
         'pub fn f(n: &str) { let _ = std::env::var(n); '
@@ -331,7 +308,7 @@ class EmbeddedAndRuntimeInputTests(_InputCase):
 
     def test_an_undeclared_dynamic_site_raises_naming_file_and_line(self):
         self.write("crates/top/src/lib.rs", "// pad\n" + self.DYNAMIC_SOURCE)
-        for fingerprint in (self.closure_fp, self.executed_fp):
+        for fingerprint in (self.closure_fp,):
             with self.assertRaisesRegex(ef.UnresolvedInput, r"crates/top/src/lib\.rs:2"):
                 fingerprint()
         # A declaration for another file does not cover it.
@@ -347,14 +324,11 @@ class EmbeddedAndRuntimeInputTests(_InputCase):
         )
         with self.assertRaisesRegex(ef.UnresolvedInput, r"crates/top/tests/cov\.rs:2"):
             self.closure_fp()
-        with self.assertRaises(ef.UnresolvedInput):
-            self.fp().test_digest(self.ROW)
         self.write("parity/seen.toml", "a = 1\n")
         self.declare({"source": "crates/top/tests/cov.rs", "inputs": ["parity/seen.toml"]})
-        before, before_capture = self.closure_fp(), self.fp().test_digest(self.ROW)
+        before = self.closure_fp()
         self.write("parity/seen.toml", "a = 2\n")
         self.assertNotEqual(before, self.closure_fp())
-        self.assertNotEqual(before_capture, self.fp().test_digest(self.ROW))
 
     def test_declared_inputs_are_hashed_in_both_modes_with_globs_dirs_and_env(self):
         self.write("crates/top/src/lib.rs", self.DYNAMIC_SOURCE)
@@ -369,7 +343,7 @@ class EmbeddedAndRuntimeInputTests(_InputCase):
             }
         )
         for round_, fingerprint in enumerate(
-            (self.closure_fp, lambda environ=None: self.executed_fp(environ=environ)), start=2
+            (self.closure_fp,), start=2
         ):
             before = fingerprint()
             for rel, text in (
@@ -403,21 +377,19 @@ class EmbeddedAndRuntimeInputTests(_InputCase):
             '#[path = "helpers_dir/retained/mod.rs"]\nmod retained;\n'
             '#[path = "../other/shared.rs"]\nmod shared;\n#[test]\nfn cov_case() {}\n',
         )
-        before, capture = self.closure_fp(), self.fp().test_digest(self.ROW)
+        before = self.closure_fp()
         for rel in ("crates/top/tests/helpers_dir/retained/mod.rs", "crates/top/other/shared.rs"):
             self.write(rel, "pub fn h() -> u8 { 2 }\n")
             after = self.closure_fp()
             self.assertNotEqual(before, after, rel)
-            self.assertNotEqual(capture, self.fp().test_digest(self.ROW), rel)
-            before, capture = after, self.fp().test_digest(self.ROW)
+            before = after
 
-    def test_a_path_module_in_crate_source_is_followed_in_both_modes(self):
+    def test_a_path_module_in_crate_source_is_followed(self):
         self.write("crates/leaf/other/mod_a.rs", "pub fn a() -> u8 { 1 }\n")
         self.write("crates/leaf/src/lib.rs", '#[path = "../other/mod_a.rs"]\nmod a;\npub fn leaf() {}\n')
-        before, before_exec = self.closure_fp(), self.executed_fp(["crates/leaf/src/lib.rs"])
+        before = self.closure_fp()
         self.write("crates/leaf/other/mod_a.rs", "pub fn a() -> u8 { 2 }\n")
         self.assertNotEqual(before, self.closure_fp())
-        self.assertNotEqual(before_exec, self.executed_fp(["crates/leaf/src/lib.rs"]))
 
     def test_a_path_inside_an_inline_module_is_followed(self):
         self.write("crates/leaf/src/inner/x.rs", "pub fn x() -> u8 { 1 }\n")
@@ -426,9 +398,9 @@ class EmbeddedAndRuntimeInputTests(_InputCase):
             "crates/leaf/src/lib.rs",
             'mod wrap {\n    #[path = "../../data/y.rs"]\n    mod y;\n}\n',
         )
-        before = self.executed_fp(["crates/leaf/src/lib.rs"])
+        before = self.closure_fp()
         self.write("crates/leaf/data/y.rs", "pub fn y() { let _ = 1; }\n")
-        self.assertNotEqual(before, self.executed_fp(["crates/leaf/src/lib.rs"]))
+        self.assertNotEqual(before, self.closure_fp())
 
     def test_a_path_leaving_the_repository_raises(self):
         self.write("crates/leaf/src/lib.rs", '#[path = "../../../../../outside.rs"]\nmod o;\n')
@@ -501,7 +473,7 @@ class CycleGuardTests(_InputCase):
         self.write(self.UNIT, json.dumps(self.unit, indent=2))
 
     def test_status_only_changes_leave_fingerprints_unchanged(self):
-        before = (self.closure_fp(), self.executed_fp())
+        before = self.closure_fp()
         self.coverage["attesting_record_ids"] = []
         self.support["supported"][0]["status"] = "supported"
         self.support["supported"][0]["missing_evidence"] = []
@@ -509,7 +481,7 @@ class CycleGuardTests(_InputCase):
             self.unit[array][0]["status"] = "supported"
             self.unit[array][0]["missing_evidence"] = []
         self.write_json()
-        self.assertEqual(before, (self.closure_fp(), self.executed_fp()))
+        self.assertEqual(before, self.closure_fp())
 
     def test_evidence_changes_change_fingerprints(self):
         for mutate in (
@@ -520,12 +492,11 @@ class CycleGuardTests(_InputCase):
             lambda: self.unit["graphless"][0].update(id="g2"),
             lambda: self.unit["capabilities"].append({"id": "c2"}),
         ):
-            before = (self.closure_fp(), self.executed_fp())
+            before = self.closure_fp()
             mutate()
             self.write_json()
-            after = (self.closure_fp(), self.executed_fp())
-            self.assertNotEqual(before[0], after[0])
-            self.assertNotEqual(before[1], after[1])
+            after = self.closure_fp()
+            self.assertNotEqual(before, after)
 
     def test_a_ledger_toml_read_is_hashed_without_its_stored_fingerprints(self):
         self.write("parity/coverage_records.toml", '[[record]]\nid = "a"\nobserved = "1"\nfingerprint = "x"\n')

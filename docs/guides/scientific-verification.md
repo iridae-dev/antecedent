@@ -23,35 +23,40 @@ The machinery behind the model:
 - `antecedent_core::support_gate::require_supported` is the only place a `not_supported` refusal is built. `scripts/gate_not_supported_sites.py` enforces that.
 - `scripts/gate_support.py` applies the one support rule to every unit and prints the one support count: supported units, with the not-supported units split into those owed only scientific records and those missing other evidence. It reads the ledger through `scripts/scientific_records.py`; it does not fingerprint or record anything itself. Route counts are never a support count.
 - Estimator declarations (`crates/antecedent/src/strategy_table/targets.rs`) list the estimators valid for a cell. An explicit `estimator=` may choose any estimator listed for the cell, and the listed set equals the declared-valid set (the `parity/estimator_validity.toml` snapshot).
-- Calibration records (`parity/coverage_records.toml`) are measured by a separate calibration flow. A record is current while its dependency fingerprint is unchanged. A changed fingerprint makes it owed, and a probe (`scripts/calibration_probe.py`) decides whether the measured numbers still reproduce. A calibration record never changes support and never refuses a route, but CI fails while one is owed (see [Earning and checking the records](#earning-and-checking-the-records)).
-- Scientific-test records (`parity/scientific_records.toml`, managed by `scripts/scientific_records.py`) record passes of the scientific assertions against a dependency fingerprint. Only owed tests rerun. A recorded pass is evidence for support; it is never a calibration measurement. A unit is supported only while every scientific check it cites has a current record. The embedded support data (`crates/antecedent/data/support_matrix.json`, `crates/antecedent-io-core/data/unit_support_status.json`) carries each unit's `status` and `missing_evidence`, derived from the evidence registries and the ledger by `scripts/generate_support_matrix_docs.py`, so the release build refuses an owed unit like any other `not_supported` route.
+- Calibration records (`parity/coverage_records.toml`) are measured by a separate calibration flow. A record is current while its dependency manifest matches. A changed input makes it owed, and a probe (`scripts/calibration_probe.py`) decides whether the measured numbers still reproduce. A calibration record never changes support and never refuses a route, but CI fails while one is owed (see [Earning and checking the records](#earning-and-checking-the-records)).
+- Scientific-test records (`parity/scientific_records.toml`, managed by `scripts/scientific_records.py`) record passes of the scientific assertions with their dependency manifests. Only owed tests rerun. A recorded pass is evidence for support; it is never a calibration measurement. A unit is supported only while every scientific check it cites has a current record. The embedded support data (`crates/antecedent/data/support_matrix.json`, `crates/antecedent-io-core/data/unit_support_status.json`) carries each unit's `status` and `missing_evidence`, derived from the evidence registries and the ledger by `scripts/generate_support_matrix_docs.py`, so the release build refuses an owed unit like any other `not_supported` route.
 
 ## Earning and checking the records
 
 Supported means provenance plus an independent check with a current passing record. This section is the canonical description of how those records are earned and checked; other pages link here.
 
-### What a fingerprint covers
+### What a record depends on
 
-Every record stores a sha256 fingerprint of everything its test depends on (`scripts/evidence_fingerprint.py`, one implementation for scientific and calibration records). It covers:
+Every scientific pass, calibration measurement and probe attestation references a content-addressed dependency manifest, `parity/evidence_manifests/<sha256>.json`, written when the evidence is earned (`scripts/evidence_earning.py`). A manifest binds the exact record (the assertion, or the measurement and its numbers) and lists everything it depended on:
 
-- For a Rust test, the comment-stripped sources and normalized manifests of every workspace crate in the test crate's dependency closure, plus the test file, its module directory and shared helpers. A test that has been captured under coverage (`scripts/scientific_records.py capture`) is fingerprinted over the source files it executed instead, so an edit to a crate it never reaches leaves it current.
-- For a Python test, `python/antecedent`, the native crate closure, the test file and its `conftest.py` chain, and `python/uv.lock`.
+- For a Rust test, the sources and manifests of every workspace crate in the test crate's dependency closure, plus the test file, its module directory and shared helpers. For a Python test, `python/antecedent`, the native crate closure, the test file and its `conftest.py` chain, and `python/pytest.ini`, `python/pyproject.toml` and `python/uv.lock`.
+- The membership of each source and input directory (every file git does not ignore), so an added, removed or renamed file is a change. Ignored build products and host files are never inputs.
 - Embedded include files (`include_str!`, `include_bytes!`, `include!`) and the files and directories read at run time by literal path.
-- Inputs a site builds at run time, which cannot be followed statically, are declared in `parity/fingerprint_inputs.toml`. A source with an undeclared dynamic input fails fingerprinting; it is never skipped. The same file declares fixtures and oracle files the citing claims name.
+- Inputs a site builds at run time, which cannot be followed statically, declared in `parity/fingerprint_inputs.toml`. A source with an undeclared dynamic input fails; it is never skipped. The same file declares fixtures and oracle files the citing claims name.
 - Build scripts and the paths they declare with `cargo:rerun-if-changed`.
-- The value of every `ANTECEDENT_*` environment variable a hashed source names. Other names are listed by name only.
-- `Cargo.lock`, the workspace manifest (version-only bumps change nothing), `rust-toolchain.toml` and the feature set.
+- `Cargo.lock`, the workspace manifest (version-only bumps change nothing), `rust-toolchain.toml`, `.cargo/config.toml`, the compiler pinned in `tools/evidence-analyzer/pin.toml`, the build configuration and every `ANTECEDENT_*` variable a source reads.
 
-Derived status is not evidence. The status and `missing_evidence` fields of the embedded support data, the attesting record ids, and each ledger's own fingerprint, commit and time columns are removed before hashing, so re-deriving support from the ledgers never invalidates them.
+Evidence is earned in the canonical environment only: the default build configuration (lint levels aside) and no `ANTECEDENT_*` variable a source reads set. Earning also refuses untracked files among its inputs. Together these make a manifest written on a development machine current in a clean checkout.
+
+For a Rust assertion, earning builds the test target with coverage instrumentation through a compiler inventory driver (`tools/evidence-analyzer/driver.rs`, which needs `rustup component add rustc-dev`). A function body the compiler reports as ordinary and the coverage shows unexecuted becomes a hole in an exact template of its file; editing it leaves the record current. Everything else in the file guards: signatures, macros, constants, imports, implementations and new items, and a hole that gains an item, attribute, macro or `unsafe` is a change. Complete source is kept for files with attributes other than built-in ones or standard derives, files read as data, and whenever the driver or coverage is unavailable. A procedural macro or build script can read any file, so while one runs anywhere in the test's resolved dependency graph, its whole compilation keeps complete source; today every workspace crate has one in its graph, so no body is projected and the driver is not built. Each run reads only its own compilations' inventory, since an earlier compilation cannot say a body is still eligible. Python assertions, calibration measurements and probes keep complete source.
+
+`scripts/evidence_manifests.py` checks manifests: it hashes each input once per invocation and uses no compiler, Cargo metadata or network. The policy that writes manifests is named in the manifest (`conservative-source-v1`); changing the policy renames it, which owes every record. Run it directly to see each record's reasons and which inputs each record depends on.
+
+Derived status is not evidence. The status and `missing_evidence` fields of the embedded support data, the attesting record ids, and each ledger's own fingerprint, manifest, commit and time columns are removed before hashing, so re-deriving support from the ledgers never invalidates them.
 
 ### Owed, current and measured_below_nominal
 
-A record is **current** while its stored fingerprint equals the fingerprint of the tree, and **owed** when the fingerprint changed or there is no record. The two kinds of record owe differently:
+A record is **current** while its manifest still matches the tree, and **owed** when an input changed, the record has no manifest, or there is no record. The two kinds of record owe differently:
 
 | Record | Owed means | Effect |
 | --- | --- | --- |
 | Scientific (`parity/scientific_records.toml`) | The assertion changed or something it depends on changed, or it was never recorded. | The unit that cites it is `not_supported` (`owed: <selector>`) until the assertion is rerun and its pass recorded. CI fails. |
-| Calibration (`parity/coverage_records.toml`) | The coverage record's fingerprint changed, or an interval route has no record. | No effect on support and no refusal. CI fails until it is measured. |
+| Calibration (`parity/coverage_records.toml`) | An input of the measurement changed and no current probe covers it, or an interval route has no record. | No effect on support and no refusal. CI fails until it is measured. |
 
 `measured_below_nominal` is a calibration *status*, not an owed state. A record can be current and show that the measured coverage fell below nominal. The result carries that annotation; it changes neither support nor routing.
 
@@ -65,7 +70,7 @@ Scientific tests and calibration are **earned on development machines**, rerunni
 | --- | --- |
 | `bash scripts/test.sh` | Engineering, then the owed scientific assertions, then the owed calibration measurements. Stops at the first failure and prints what it reran. |
 | `bash scripts/test.sh engineering` | Engineering only. |
-| `bash scripts/test.sh scientific` | Only the owed scientific assertions. Passes are recorded as each batch finishes (one per Rust crate and one for Python), so an interrupted run keeps its progress. |
+| `bash scripts/test.sh scientific` | Only the owed scientific assertions. Passes are recorded as each Rust test target and the Python batch finish, so an interrupted run keeps its progress. |
 | `bash scripts/test.sh scientific --only PATTERN` | The owed scientific rows whose selector, test path or id contains `PATTERN` or matches it as a glob. Use it while iterating on one test. |
 | `bash scripts/test.sh calibration` | Only the owed calibration records (`measure_calibration.sh --owed`). It needs a clean committed tree. |
 | `bash scripts/test.sh calibration --only PATTERN` | Owed work whose group label, record id or test, or route matches `PATTERN`. |

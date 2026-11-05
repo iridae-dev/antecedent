@@ -2,21 +2,20 @@
 """Calibration status of the coverage records: an annotation on support, a currency check for CI.
 
 A coverage record in `parity/coverage_records.toml` was measured at some state of
-the code. Its `fingerprint` is the dependency fingerprint of its `test` target
-(`scripts/evidence_fingerprint.py`, the one the scientific records use) taken
-when it was measured. A record is
+the code. Its `dependency_manifest` (`scripts/evidence_earning.py`, the manifests
+the scientific records use) lists what its `test` target depended on when it was
+measured. A record is
 
-* `current`            its stored `fingerprint` equals the fingerprint of the tree
-                       now, or a passing probe attestation
-                       (`parity/calibration_probe_attestations.toml`) covers its
-                       measurement at a tree whose fingerprint equals the one now;
+* `current`            its manifest still matches the tree
+                       (`scripts/evidence_manifests.py`), or a passing probe
+                       attestation (`parity/calibration_probe_attestations.toml`) of
+                       its measurement has a manifest that still matches;
 * `probe_owed`         not current, and its measurement stored replicate digests,
                        so `scripts/calibration_probe.py` can reproduce them;
 * `measurement_owed`   not current and nothing to probe: only a re-measurement
                        (`scripts/measure_calibration.sh`) makes it current.
 
-A record without a stored `fingerprint` is never current through its
-measurement.
+A record without a manifest is never current through its measurement.
 
 What is owed, and why, is the one list the measurement queue runs
 (`bash scripts/measure_calibration.sh --owed`). An owed item has one reason:
@@ -25,8 +24,8 @@ What is owed, and why, is the one list the measurement queue runs
                         interval route with no measured record, whether the record is
                         allocated to it or the group that will measure it is named in
                         `parity/calibration_routes.toml`;
-* `fingerprint_changed` a coverage record whose stored dependency fingerprint is not the
-                        tree's (or was never stored);
+* `inputs_changed`      a coverage record whose manifest no longer matches the tree (or
+                        that has none);
 * `probe_mismatch`      a coverage record with a probe attestation that does not cover the
                         tree (a failing or other-tree probe row).
 
@@ -49,7 +48,7 @@ that nothing is owed.
 
 Every subcommand is informational and exits 0. `--check` is the currency check CI and
 releases run: it exits 1 on a malformed coverage record and on any owed item (a record whose
-fingerprint changed or was never stored, a probe that does not cover the tree, an interval
+inputs changed or that has no manifest, a probe that does not cover the tree, an interval
 route with no record). It executes nothing.
 """
 
@@ -103,8 +102,9 @@ def tree_fingerprinter(
     return Fingerprinter(root, metadata, platform=False)
 
 
-def tree_fingerprints(records: list[dict], fp: Fingerprinter) -> dict[str, str | None]:
-    """record id -> fingerprint of its test target in the tree `fp` reads."""
+def identity_fingerprints(records: list[dict], fp: Fingerprinter) -> dict[str, str | None]:
+    """record id -> dependency-closure fingerprint of its test target: the identity a new
+    measurement or probe is stamped with (currency is decided by manifests)."""
     by_test: dict[tuple[str, str], str | None] = {}
     out: dict[str, str | None] = {}
     for rec in records:
@@ -115,17 +115,42 @@ def tree_fingerprints(records: list[dict], fp: Fingerprinter) -> dict[str, str |
     return out
 
 
+def tree_fingerprints(records: list[dict], root: Path = ROOT) -> dict[str, str | None]:
+    """record id -> `manifest:<ref>` of the manifest that makes it current (its measurement's,
+    else a covering probe's), or `None` when owed."""
+    from evidence_earning import measurement_binding, probe_binding
+    from evidence_manifests import Checker
+
+    checker = Checker(root)
+    attestation_rows = [r for r in load_attestations(root / "parity/calibration_probe_attestations.toml")
+                        if r.get("dependency_manifest")]
+    out: dict[str, str | None] = {}
+    for rec in records:
+        now = None
+        if rec.get("dependency_manifest") and checker.check(measurement_binding(rec), rec["dependency_manifest"])["current"]:
+            now = "manifest:" + rec["dependency_manifest"]
+        else:
+            for row in attestation_rows:
+                if probe.covers(rec, row) and checker.check(probe_binding(row), row["dependency_manifest"])["current"]:
+                    now = "manifest:" + row["dependency_manifest"]
+                    break
+        out[str(rec.get("id"))] = now
+    return out
+
+
 def covered_by_probe(rec: dict, rows: list[dict], now: str | None) -> bool:
-    """A passing probe of exactly this measurement, run at a tree whose fingerprint is `now`."""
+    """A passing probe of exactly this measurement whose manifest is current (`now`)."""
     return bool(now) and any(
-        probe.covers(rec, row) and row.get("fingerprint") == now for row in rows
+        probe.covers(rec, row) and row.get("dependency_manifest") and "manifest:" + row["dependency_manifest"] == now
+        for row in rows
     )
 
 
 def classify(
     records: list[dict], attestations: list[dict], fingerprints: dict[str, str | None]
 ) -> dict[str, Status]:
-    """record id -> status; `fingerprints` holds the fingerprint of each record's test now."""
+    """record id -> status; `fingerprints` holds the `manifest:<ref>` that makes each record
+    current now (`tree_fingerprints`), or `None`."""
     rows: dict[str, list[dict]] = {}
     for row in attestations:
         rows.setdefault(str(row.get("record_id", "")), []).append(row)
@@ -133,7 +158,7 @@ def classify(
     for rec in records:
         rid = str(rec.get("id"))
         now = fingerprints.get(rid)
-        stored = rec.get("fingerprint")
+        stored = "manifest:" + rec["dependency_manifest"] if rec.get("dependency_manifest") else None
         if now and stored == now:
             out[rid] = Status(CURRENT, "measurement")
         elif covered_by_probe(rec, rows.get(rid, []), now):
@@ -151,7 +176,7 @@ def current_ids(root: Path = ROOT) -> list[str]:
     statuses = classify(
         records,
         load_attestations(root / "parity" / "calibration_probe_attestations.toml"),
-        tree_fingerprints(records, tree_fingerprinter(root)),
+        tree_fingerprints(records, root=root),
     )
     return sorted(rid for rid, s in statuses.items() if s.status == CURRENT)
 
@@ -311,18 +336,18 @@ def cmd_intervals(args: argparse.Namespace) -> int:
 
 # ---------------------------------------------------------------- what is owed
 NO_RECORD = "no_record"
-FINGERPRINT_CHANGED = "fingerprint_changed"
+INPUTS_CHANGED = "inputs_changed"
 PROBE_MISMATCH = "probe_mismatch"
-OWED_REASONS = (NO_RECORD, FINGERPRINT_CHANGED, PROBE_MISMATCH)
+OWED_REASONS = (NO_RECORD, INPUTS_CHANGED, PROBE_MISMATCH)
 ROUTE_PREFIX = "route:"
 
 
 def record_reason(rec: dict, rows: list[dict], now: str | None) -> str:
     """Why a record that is not current is owed: a probe attestation that does not cover
-    the tree is `probe_mismatch`; a changed or never stored fingerprint, `fingerprint_changed`."""
+    the tree is `probe_mismatch`; changed inputs or no manifest, `inputs_changed`."""
     if rows and not covered_by_probe(rec, rows, now):
         return PROBE_MISMATCH
-    return FINGERPRINT_CHANGED
+    return INPUTS_CHANGED
 
 
 def owed_items(
@@ -333,7 +358,7 @@ def owed_items(
 ) -> list[dict]:
     """Everything the calibration task owes, each item with exactly one reason.
 
-    * a record not current (`fingerprint_changed`, or `probe_mismatch`);
+    * a record not current (`inputs_changed`, or `probe_mismatch`);
     * an interval route with no measured record (`no_record`): the route itself when the
       group that will measure it (`parity/calibration_routes.toml`) has produced no record,
       or a slot id its capability record allocates and no record exists for. `groups` is
@@ -351,7 +376,7 @@ def owed_items(
                     "kind": "record",
                     "id": rid,
                     "reason": record_reason(rec, by_record.get(rid, []), fingerprints.get(rid)),
-                    "stored_fingerprint": bool(rec.get("fingerprint")),
+                    "has_manifest": bool(rec.get("dependency_manifest")),
                     "groups": [],
                 }
             )
@@ -387,7 +412,7 @@ def owed_counts(items: list[dict]) -> dict[str, int]:
 def current_owed() -> tuple[list[dict], dict[str, Status], dict[str, int]]:
     records = load_records()
     attestations = load_attestations()
-    fingerprints = tree_fingerprints(records, tree_fingerprinter())
+    fingerprints = tree_fingerprints(records)
     statuses = classify(records, attestations, fingerprints)
     capability = tomllib.loads(read_text(CAPABILITY_RECORDS)).get("record", [])
     route_rows = interval_routes(capability, records, load_route_map())
@@ -419,11 +444,11 @@ def cmd_status(args: argparse.Namespace) -> int:
             f"({counts['current_by_probe']} by probe), {counts[PROBE_OWED]} probe owed, "
             f"{counts[MEASUREMENT_OWED]} measurement owed of {len(statuses)}"
         )
-        never = sum(1 for i in items if i["kind"] == "record" and not i["stored_fingerprint"])
+        never = sum(1 for i in items if i["kind"] == "record" and not i["has_manifest"])
         print(
             f"owed: {len(items)} item(s): "
             + ", ".join(f"{reasons[name]} {name}" for name in OWED_REASONS)
-            + f" ({never} record(s) never stored a fingerprint)"
+            + f" ({never} record(s) have no manifest)"
         )
         for item in items:
             print(f"  {item['reason']}: {item['id']}")
@@ -532,7 +557,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
     capability = tomllib.loads(read_text(CAPABILITY_RECORDS)).get("record", [])
     records = load_records()
     statuses = classify(
-        records, load_attestations(), tree_fingerprints(records, tree_fingerprinter())
+        records, load_attestations(), tree_fingerprints(records)
     )
     by_id = {str(rec.get("id")) for rec in records}
     owners = [rec for rec in capability if rec.get("coverage_records")]
@@ -849,7 +874,7 @@ def route_map_problems(root: Path = ROOT) -> list[str]:
 def cmd_check(args: argparse.Namespace) -> int:
     """Currency of the coverage records: well-formed, and none owed. Executes nothing.
 
-    CI and releases run this. An owed record (fingerprint changed or never stored, a probe that
+    CI and releases run this. An owed record (inputs changed or no manifest, a probe that
     does not cover the tree, or an interval route with no record) is measured on a development
     machine (`bash scripts/test.sh calibration`) and committed. Calibration state still never
     changes support or refuses a route; this check only requires the records to be current."""

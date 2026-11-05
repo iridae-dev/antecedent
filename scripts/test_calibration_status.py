@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import calibration_probe as probe  # noqa: E402
 import calibration_status as status  # noqa: E402
+from evidence_earning import measurement_digest  # noqa: E402
 from test_calibration_probe import MEASURED, PROBED, grid_entry, probe_table  # noqa: E402
 
 NOW = "a1" * 32
@@ -32,6 +33,9 @@ def record(rid: str, digests: bool = True, **extra) -> dict:
     }
     if digests:
         rec["probe"] = probe_table()
+    if "fingerprint" in extra:
+        # A stored manifest; the tree "now" is `manifest:<NOW>`.
+        extra["dependency_manifest"] = extra.pop("fingerprint")
     return rec | extra
 
 
@@ -40,22 +44,30 @@ def row(rid: str, **extra) -> dict:
         "record_id": rid,
         "calibration_sha": MEASURED,
         "sha": PROBED,
-        "fingerprint": NOW,
+        "dependency_manifest": NOW,
         "k": 100,
         "bound": 3 / 100,
         "result": "pass",
-    } | extra
+    } | {("dependency_manifest" if k == "fingerprint" else k): v for k, v in extra.items()}
+
+
+def with_digests(records, rows):
+    """Bind each probe row to its record's measurement, as a passing probe does."""
+    by_id = {r["id"]: r for r in records}
+    return [r if "measurement_digest" in r or r["record_id"] not in by_id
+            else {**r, "measurement_digest": measurement_digest(by_id[r["record_id"]])} for r in rows]
 
 
 class ClassifyTests(unittest.TestCase):
     def classify(self, records, rows=(), now=NOW):
-        return status.classify(records, list(rows), {str(r["id"]): now for r in records})
+        now = "manifest:" + now if now else None
+        return status.classify(records, with_digests(records, list(rows)), {str(r["id"]): now for r in records})
 
-    def test_a_stored_fingerprint_equal_to_the_tree_is_current_by_measurement(self):
+    def test_a_matching_manifest_is_current_by_measurement(self):
         (s,) = self.classify([record("a", fingerprint=NOW)]).values()
         self.assertEqual((s.status, s.via), (status.CURRENT, "measurement"))
 
-    def test_a_passing_probe_at_the_tree_fingerprint_is_current_by_probe(self):
+    def test_a_passing_probe_with_a_matching_manifest_is_current_by_probe(self):
         (s,) = self.classify([record("a", fingerprint=OLD)], [row("a")]).values()
         self.assertEqual((s.status, s.via), (status.CURRENT, "probe"))
 
@@ -65,7 +77,7 @@ class ClassifyTests(unittest.TestCase):
 
     def test_failed_and_fingerprintless_probes_do_not_count(self):
         legacy = row("a")
-        del legacy["fingerprint"]
+        del legacy["dependency_manifest"]
         for candidate in (row("a", result="mismatch"), legacy, row("a", calibration_sha="d" * 40)):
             with self.subTest(candidate=candidate):
                 (s,) = self.classify([record("a", fingerprint=OLD)], [candidate]).values()
@@ -79,7 +91,7 @@ class ClassifyTests(unittest.TestCase):
         (s,) = self.classify([record("a", digests=False, fingerprint=OLD)]).values()
         self.assertEqual(s.status, status.MEASUREMENT_OWED)
 
-    def test_a_record_without_a_stored_fingerprint_is_never_current_by_measurement(self):
+    def test_a_record_without_a_manifest_is_never_current_by_measurement(self):
         (s,) = self.classify([record("a", digests=False)]).values()
         self.assertEqual(s.status, status.MEASUREMENT_OWED)
         (s,) = self.classify([record("a")]).values()
@@ -108,7 +120,7 @@ class CommandTests(unittest.TestCase):
             patch.object(status, "load_route_map", return_value={}),
             patch.object(status, "load_attestations", return_value=[]),
             patch.object(status, "tree_fingerprinter"),
-            patch.object(status, "tree_fingerprints", return_value={"a": NOW, "b": NOW}),
+            patch.object(status, "tree_fingerprints", return_value={"a": "manifest:" + NOW, "b": "manifest:" + NOW}),
             redirect_stdout(out),
         ):
             code = status.main(["status", *argv])
@@ -118,7 +130,7 @@ class CommandTests(unittest.TestCase):
         code, text = self.run_status()
         self.assertEqual(code, 0)
         self.assertIn("1 current", text)
-        self.assertIn("fingerprint_changed: b", text)
+        self.assertIn("inputs_changed: b", text)
 
     def test_owed_lists_only_the_ids(self):
         self.assertEqual(self.run_status("--owed")[1].split(), ["b"])
@@ -137,16 +149,16 @@ class CommandTests(unittest.TestCase):
     def test_the_summary_counts_the_owed_items_by_reason(self):
         routes = [route_row("r", "mapped", NOT_MEASURED, groups=["g_file"])]
         text = self.run_status(routes=routes)[1]
-        self.assertIn("owed: 2 item(s): 1 no_record, 1 fingerprint_changed, 0 probe_mismatch", text)
-        self.assertIn("(0 record(s) never stored a fingerprint)", text)
+        self.assertIn("owed: 2 item(s): 1 no_record, 1 inputs_changed, 0 probe_mismatch", text)
+        self.assertIn("(0 record(s) have no manifest)", text)
 
     def test_json_lists_the_owed_items_with_their_reasons(self):
         routes = [route_row("r", "mapped", NOT_MEASURED, groups=["g_file: f"])]
         data = json.loads(self.run_status("--json", routes=routes)[1])
-        self.assertEqual(data["owed_by_reason"], {"no_record": 1, "fingerprint_changed": 1, "probe_mismatch": 0})
+        self.assertEqual(data["owed_by_reason"], {"no_record": 1, "inputs_changed": 1, "probe_mismatch": 0})
         self.assertEqual(
             [(i["id"], i["reason"]) for i in data["owed"]],
-            [("b", "fingerprint_changed"), ("route:r/mapped", "no_record")],
+            [("b", "inputs_changed"), ("route:r/mapped", "no_record")],
         )
         self.assertEqual(data["owed"][1]["groups"], ["g_file: f"])
 
@@ -173,16 +185,16 @@ def route_row(record_id, route, state, groups=(), slots=()):
 
 class OwedItemTests(unittest.TestCase):
     def owed(self, records, rows=(), routes=(), fingerprints=None):
-        fingerprints = fingerprints or {str(r["id"]): NOW for r in records}
-        return status.owed_items(records, list(rows), fingerprints, list(routes))
+        fingerprints = fingerprints or {str(r["id"]): "manifest:" + NOW for r in records}
+        return status.owed_items(records, with_digests(records, list(rows)), fingerprints, list(routes))
 
     def test_a_current_record_is_not_owed(self):
         self.assertEqual(self.owed([record("a", fingerprint=NOW)]), [])
 
-    def test_a_changed_or_never_stored_fingerprint_is_fingerprint_changed(self):
+    def test_changed_inputs_or_no_manifest_is_inputs_changed(self):
         items = self.owed([record("a", fingerprint=OLD), record("b")])
-        self.assertEqual([(i["id"], i["reason"]) for i in items], [("a", "fingerprint_changed"), ("b", "fingerprint_changed")])
-        self.assertEqual([i["stored_fingerprint"] for i in items], [True, False])
+        self.assertEqual([(i["id"], i["reason"]) for i in items], [("a", "inputs_changed"), ("b", "inputs_changed")])
+        self.assertEqual([i["has_manifest"] for i in items], [True, False])
 
     def test_a_probe_that_does_not_cover_the_tree_is_a_probe_mismatch(self):
         items = self.owed([record("a", fingerprint=OLD)], rows=[row("a", result="mismatch")])
@@ -216,7 +228,7 @@ class OwedItemTests(unittest.TestCase):
 
     def test_the_counts_cover_every_reason(self):
         items = self.owed([record("a", fingerprint=OLD)], routes=[route_row("c", "n", NOT_MEASURED, groups=["f"])])
-        self.assertEqual(status.owed_counts(items), {"no_record": 1, "fingerprint_changed": 1, "probe_mismatch": 0})
+        self.assertEqual(status.owed_counts(items), {"no_record": 1, "inputs_changed": 1, "probe_mismatch": 0})
 
 
 class RouteMapTests(unittest.TestCase):

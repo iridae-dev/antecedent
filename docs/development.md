@@ -213,28 +213,28 @@ from fixed seeds, so re-running unchanged code reproduces the same numbers
 (`crates/antecedent-estimate/tests/coverage_determinism.rs` holds that in
 ordinary CI). A record is never re-measured on a timer.
 
-**Fingerprint.** `scripts/evidence_fingerprint.py` computes a sha256 over
-everything a test depends on: the normalized sources and manifests of the
-workspace crates in its dependency closure (comments and workspace version
-lines ignored), the test file with its helpers and the DGP file, `Cargo.lock`
-and the workspace manifest, the toolchain file and the feature set, plus embedded and declared inputs
-(`parity/fingerprint_inputs.toml`), build scripts and `ANTECEDENT_*` values. The
-scientific records (`scripts/scientific_records.py`) and the calibration status
-use this one implementation; the full list is in the canonical page above.
+**Dependency manifest.** When the collector stamps a measurement, and when a
+probe passes, `scripts/evidence_earning.py` writes a content-addressed manifest of
+everything the test depends on: the sources of the workspace crates in its
+dependency closure, the test file with its helpers and the DGP file, `Cargo.lock`
+and the workspace manifest, the toolchain and compiler, embedded and declared
+inputs (`parity/fingerprint_inputs.toml`), build scripts, the build configuration
+and `ANTECEDENT_*` values. The scientific records use the same manifests; the full
+list is in the canonical page above.
 
 **Status.** `python3 scripts/calibration_status.py status` classifies every
 record in `parity/coverage_records.toml`:
 
-- `current` — the record's stored `fingerprint` (written by the collector when it
-  stamps a measurement at HEAD) equals the fingerprint of the tree, or a passing
-  probe attestation made at a tree with that fingerprint covers its measurement
+- `current` — the record's dependency manifest (written by the collector when it
+  stamps a measurement at HEAD) still matches the tree, or a passing probe
+  attestation of its measurement has a manifest that still matches
   (see [Probes](#probes));
 - `probe_owed` — not current, and the measurement stored replicate digests, so a
   probe can reproduce them;
 - `measurement_owed` — not current and nothing to probe; only a re-measurement
   makes it current.
 
-A record without a stored `fingerprint` is never current through its
+A record without a dependency manifest is never current through its
 measurement. `status --owed` prints the ids that are not current, `status --json`
 the counts and per-record status. `status` always exits 0; `calibration_status.py --check`
 exits 1 while any item is owed and is what CI and the release candidate run. The runtime snapshot of attesting record ids is the
@@ -364,14 +364,14 @@ seeds or repeat until a pass. These options do not
 make a record current: only new evidence or a passing probe does. Passing collected records whose numerical outputs changed must be
 remeasured separately; `--missing-only` does not select them.
 
-The fingerprint and probes keep the cost proportional to the change:
+Manifests and probes keep the cost proportional to the change:
 
-- an edit to a crate only the owed tests do not depend on moves no fingerprint;
-- a comment, whitespace or workspace-version edit moves none either;
+- an edit to a crate a record's test does not depend on leaves it current;
+- a workspace-version edit changes nothing;
 - a change that cannot move a number is cleared once a probe reproduces the
-  records' digests at the new fingerprint;
-- a change to a shared crate, the lock file or the toolchain moves every
-  fingerprint that reads it.
+  records' digests and writes a manifest of the new tree;
+- a change to a shared crate, the lock file or the toolchain owes every
+  record that depends on it.
 
 **How long it takes.** Groups run side by side (`measure_calibration.sh
 --jobs`). Independent seeds inside a group run across `map_replicates` workers;
@@ -389,9 +389,9 @@ count. Without a pilot at HEAD, `--dry-run` gives no duration estimate. An old
 forecast that summed wall times of suites competing on the same CPU substantially
 overstated the full-pass time. The measurement runs the longest previously measured grid
 jobs first (falling back to pilot timings) to reduce the final straggler. A change
-costs only the groups behind the records whose fingerprint it moves.
+costs only the groups behind the records it owes.
 
-The collector refuses to stamp HEAD while the sources a fingerprint reads
+The collector refuses to stamp HEAD while the sources a manifest reads
 (`crates/`, `python/`, the manifests and the toolchain file) differ from HEAD. It keeps a rechecked point's more precise run, rewrites the
 `calibration` / `calibration_reason` pair on every supported cell and estimator
 row (a supported cell whose every reported-level record is a boundary also states
@@ -399,7 +399,7 @@ row (a supported cell whose every reported-level record is a boundary also state
 (the snapshot `coverage_records_data` loads).
 `scripts/gate_parity_schema.sh` then checks what those rows claim. To collect
 logs measured at another commit, pass `--sha <commit>`; those records carry no
-fingerprint and stay owed to a probe or a re-measurement.
+manifest and stay owed to a probe or a re-measurement.
 
 ### Probes
 
@@ -426,15 +426,16 @@ the measurement's frozen decision environment, in smoke mode (never gated), on a
 clean commit, with logs in `target/calibration-probe/`. It writes
 `parity/calibration_probe_attestations.toml`, one row per record and
 measurement: `record_id`, `calibration_sha`, `sha` (the probed commit),
-`fingerprint` (the record's fingerprint at that commit), `k`, `bound = 3/k`,
-`result`. A mismatch leaves the record owed. A record whose
+`fingerprint` (the record's dependency-closure identity at that commit), `k`,
+`bound = 3/k`, `result`, and for a pass its `dependency_manifest` and
+`measurement_digest`. A mismatch leaves the record owed. A record whose
 margin needs more replicates than its longest stored prefix, or that stores no
 digests (measured before probes existed), is reported `owed`; only a
 re-measurement makes it current. `quick` is a cheap detector: a record stands on a row
 only when `k` is at least what its margin needs.
 
 `calibration_status.py status` counts a record as current when a passing row
-covers it and the row's `fingerprint` equals the fingerprint of the tree.
+covers its measurement and the row's manifest still matches the tree.
 Commit the attestation file with the change it attests; re-measuring a record
 drops its rows.
 
@@ -544,9 +545,11 @@ python3 scripts/scientific_records.py status --check  # exit 1 if any owed; exec
 
 `scientific_records.py run` is the one entry point that executes scientific assertions. The
 engineering lane excludes them (the nextest default filter and the pytest `scientific` marker are
-both derived from the registries). The owed Rust assertions run in one `cargo nextest run` per
-crate with the optimized test profile and the owed Python assertions in one pytest batch; each
-batch is recorded when it finishes. The capability, transport, composition, checked-execution and
+both derived from the registries). Owed Rust assertions build once per test target with coverage
+instrumentation and run exactly; owed Python assertions run in one pytest batch. A pass is recorded
+with its dependency manifest, after each target and batch, only while its inputs still match (see
+[Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records)).
+The capability, transport, composition, checked-execution and
 GCM conformance gates only resolve their rows to exact tests (`run_evidence_rows.py --static`).
 The runner proves the exact assertion executed and was not ignored; failures are reported and never
 recorded. A recorded pass is evidence for support only; it is never a calibration measurement or

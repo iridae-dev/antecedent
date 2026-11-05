@@ -1,0 +1,5 @@
+# The compiler evidence is earned with (`rustc -vV`). Earning refuses any other,
+# and every manifest records it, so changing it owes every record.
+schema = 1
+release = "1.85.1"
+commit = "4eb161250e340c8f48f66e2b929ef4a5bed7c181"

@@ -908,12 +908,18 @@ def stamp_fingerprints(records: dict[str, dict], sha: str) -> None:
             "the sources a record's fingerprint reads differ from HEAD, so these logs do not "
             "describe a commit; commit first (or pass --sha):\n  " + "\n  ".join(dirty)
         )
-    fingerprints = calibration_status.tree_fingerprints(
-        list(records.values()), calibration_status.tree_fingerprinter()
-    )
+    from evidence_earning import Snapshot, measurement_binding
+    from evidence_fingerprint import coverage_row
+
+    fp = calibration_status.tree_fingerprinter()
+    fingerprints = calibration_status.identity_fingerprints(list(records.values()), fp)
     for rid, rec in records.items():
         if fingerprints.get(rid):
             rec["fingerprint"] = fingerprints[rid]
+            snapshot = Snapshot(ROOT, coverage_row(rec['test'], rec.get('dgp', '')),
+                                measurement_binding(rec), fp)
+            snapshot.verify_commit(sha)
+            rec['dependency_manifest'] = snapshot.publish()
 
 
 def existing_records() -> dict[str, dict]:
@@ -936,6 +942,8 @@ def write_registry(records: dict[str, dict], out: Path = OUT) -> None:
             lines.append(f"{key} = {toml_value(key, rec[key])}")
             if key == "calibration_sha" and rec.get("fingerprint"):
                 lines.append(f"fingerprint = {toml_value('fingerprint', rec['fingerprint'])}")
+                if rec.get('dependency_manifest'):
+                    lines.append(f"dependency_manifest = {toml_value('dependency_manifest', rec['dependency_manifest'])}")
             if key == "role":
                 lines += [
                     f"{opt} = {toml_value(opt, rec[opt])}"

@@ -414,7 +414,7 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
             reasons[group.index] = "no coverage record or complete passed gate ledger"
         return Selection(chosen, 0, reasons)
     verdicts = status.classify(
-        records, status.load_attestations(), status.tree_fingerprints(records, status.tree_fingerprinter())
+        records, status.load_attestations(), status.tree_fingerprints(records)
     )
     wanted = [rec for rec in records if verdicts[str(rec["id"])].status != status.CURRENT]
     reasons: dict[int, str] = {}

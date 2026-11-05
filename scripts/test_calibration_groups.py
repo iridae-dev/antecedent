@@ -87,7 +87,7 @@ class OwedSelectionTest(unittest.TestCase):
 
     def test_only_the_groups_of_owed_records_and_named_routes_run(self):
         items = [
-            {"kind": "record", "id": "stale", "reason": "fingerprint_changed", "groups": []},
+            {"kind": "record", "id": "stale", "reason": "inputs_changed", "groups": []},
             {
                 "kind": "route",
                 "id": "route:cap/new",
@@ -117,7 +117,7 @@ class OwedSelectionTest(unittest.TestCase):
 
     def test_an_owed_item_no_group_can_run_is_reported_not_silently_dropped(self):
         items = [
-            {"kind": "record", "id": "ghost", "reason": "fingerprint_changed", "groups": []},
+            {"kind": "record", "id": "ghost", "reason": "inputs_changed", "groups": []},
             {"kind": "route", "id": "route:cap/lost", "reason": "no_record", "groups": []},
             {"kind": "route", "id": "route:cap/typo", "reason": "no_record", "groups": ["nobody: x"]},
         ]
@@ -197,7 +197,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             load_records=lambda records=records: records,
             load_attestations=lambda: [],
             tree_fingerprinter=lambda: None,
-            tree_fingerprints=lambda rows, fp: {},
+            tree_fingerprints=lambda rows: {},
             classify=lambda rows, att, fps: {
                 str(r["id"]): SimpleNamespace(status="current") for r in rows
             },

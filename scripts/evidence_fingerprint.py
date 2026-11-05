@@ -57,6 +57,7 @@ import re
 import subprocess
 import sys
 import tomllib
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -96,15 +97,14 @@ DERIVED_STATUS_FIELDS: dict[str, tuple[str, ...]] = {
         "capabilities[].missing_evidence",
     ),
     # The coverage registry stores each record's dependency fingerprint.
-    "parity/coverage_records.toml": ("record[].fingerprint",),
+    "parity/coverage_records.toml": ("record[].fingerprint", "record[].dependency_manifest"),
     # The scientific ledger is entirely fingerprint, commit and time of the passes.
     "parity/scientific_records.toml": (
         "record[].fingerprint",
         "record[].commit",
         "record[].dirty",
         "record[].recorded_at",
-        "record[].capture_test",
-        "record[].executed",
+        "record[].dependency_manifest",
     ),
 }
 
@@ -142,10 +142,23 @@ def normalized_manifest(text: str, lock: bool) -> str:
     except tomllib.TOMLDecodeError:
         return text
     if lock:
+        packages = data.get("package", [])
+        counts: dict[str, int] = {}
+        for pkg in packages:
+            name = str(pkg.get("name", ""))
+            if not name.startswith("antecedent"):
+                counts[name] = counts.get(name, 0) + 1
+
+        def dependency(value: str) -> str:
+            name = value.split(" ", 1)[0]
+            # Version/source disambiguates an edge when multiple locked packages
+            # share a name. Workspace version bumps alone remain irrelevant.
+            return value if counts.get(name, 0) > 1 else name
+
         data["package"] = [
             {k: v for k, v in pkg.items() if k != "dependencies"}
-            | {"dependencies": [d.split(" ")[0] for d in pkg.get("dependencies", [])]}
-            for pkg in data.get("package", [])
+            | {"dependencies": [dependency(d) for d in pkg.get("dependencies", [])]}
+            for pkg in packages
             if not str(pkg.get("name", "")).startswith("antecedent")
         ]
         data.pop("version", None)
@@ -336,12 +349,16 @@ class Scan:
     env: set[str] = field(default_factory=set)
     markers: set[str] = field(default_factory=set)
     dynamic: list[str] = field(default_factory=list)
+    directories: set[Path] = field(default_factory=set)
+    data_files: set[Path] = field(default_factory=set)
 
     def merge(self, other: Scan) -> None:
         self.files |= other.files
         self.env |= other.env
         self.markers |= other.markers
         self.dynamic += other.dynamic
+        self.directories |= other.directories
+        self.data_files |= other.data_files
 
 
 _INCLUDE = re.compile(r"\binclude(?:_str|_bytes)?\s*!\s*[(\[{]")
@@ -503,6 +520,8 @@ def scan_rust_text(
         if not target.is_file():
             raise UnresolvedInput(f"{where(m.start())}: include target {target.relative_to(root)} is missing")
         out.files.add(target)
+        if "include_str" in m.group(0) or "include_bytes" in m.group(0):
+            out.data_files.add(target)
         if target.suffix == ".rs":
             nested_rs.append(target)
 
@@ -535,6 +554,9 @@ def scan_rust_text(
                     out.markers.add(f"{rel}: rerun-if-changed outside repo {r.group(2).strip()}")
                 elif target.exists():
                     out.files.update(expand(target))
+                    out.data_files.update(expand(target))
+                    if target.is_dir():
+                        out.directories.add(target)
                 else:
                     out.markers.add(f"missing:{target.relative_to(root).as_posix()}")
 
@@ -550,6 +572,9 @@ def scan_rust_text(
             if "target" in target.relative_to(root).parts[:1]:
                 continue
             out.files.update(expand(target))
+            out.data_files.update(expand(target))
+            if target.is_dir():
+                out.directories.add(target)
             found = True
         return found
 
@@ -612,6 +637,9 @@ def scan_rust_text(
             continue
         if target is not None and target != root and target.exists():
             out.files.update(expand(target))
+            out.data_files.update(expand(target))
+            if target.is_dir():
+                out.directories.add(target)
     # CARGO_MANIFEST_DIR in any other shape cannot be followed.
     for m in re.finditer(_MANIFEST, kept):
         if not any(a <= m.start() < b for a, b in covered):
@@ -673,6 +701,9 @@ def scan_python_file(path: Path, text: str, root: Path) -> tuple[Scan, list[Path
             if target.is_dir() and target == root / "python":
                 continue
             out.files.update(expand(target))
+            out.data_files.update(expand(target))
+            if target.is_dir():
+                out.directories.add(target)
 
     nested: set[int] = set()
     modules: list[Path] = []
@@ -773,6 +804,20 @@ def locate(root: Path, row: dict) -> dict:
     return {"lang": "rust", "selector": selector, "crate": crate, "target": target}
 
 
+@dataclass(eq=False)
+class Usage:
+    """What one row's fingerprint read: hashed files, input directories and source files read as data."""
+
+    files: set[Path] = field(default_factory=set)
+    directories: set[Path] = field(default_factory=set)
+    data_files: set[Path] = field(default_factory=set)
+
+    def merge(self, other: Usage) -> None:
+        self.files |= other.files
+        self.directories |= other.directories
+        self.data_files |= other.data_files
+
+
 class Fingerprinter:
     """Computes assertion fingerprints for one workspace state (memoizing shared parts)."""
 
@@ -789,16 +834,47 @@ class Fingerprinter:
         self.environ = os.environ if environ is None else environ
         self.graph = workspace_graph(metadata if metadata is not None else load_metadata(root), root)
         self.features = features if features is not None else self.environ.get("ANTECEDENT_SCIENTIFIC_FEATURES", "")
-        self._crate: dict[str, str] = {}
         self._scans: dict[str, Scan] = {}
         self._file_scans: dict[tuple[Path, Path], tuple[Scan, list[Path]]] = {}
         self._fd: dict[Path, str] = {}
         self._modules: dict[Path, list[Path]] = {}
         self._declarations: list[dict] | None = None
-        self._shared: str | None = None
+        # Memoized digests replay what they read into every open `tracking()` usage.
+        self._usage: dict[str, Usage] = {}
+        self._tracking: list[Usage] = []
+        self._memo_values: dict[str, object] = {}
 
     # -- hashing with a per-instance file cache ---------------------------
+    @contextmanager
+    def tracking(self):
+        """Collect what the fingerprints computed inside the block read, memoized parts included."""
+        usage = Usage()
+        self._tracking.append(usage)
+        try:
+            yield usage
+        finally:
+            self._tracking.remove(usage)
+
+    def _use(self, usage: Usage) -> None:
+        for active in self._tracking:
+            active.merge(usage)
+
+    def _use_scan(self, scan: Scan) -> Scan:
+        self._use(Usage(set(), set(scan.directories), set(scan.data_files)))
+        return scan
+
+    def _memo(self, key: str, compute):
+        """Run `compute` once, recording what it reads so a later hit replays it."""
+        if key not in self._usage:
+            with self.tracking() as usage:
+                value = compute()
+            self._usage[key] = usage
+            self._memo_values[key] = value
+        self._use(self._usage[key])
+        return self._memo_values[key]
+
     def _digest(self, path: Path) -> str:
+        self._use(Usage({path}))
         if path not in self._fd:
             self._fd[path] = file_digest(path, self.root)
         return self._fd[path]
@@ -838,7 +914,7 @@ class Fingerprinter:
             out.files.update(modules)
             todo.extend(nested)
             todo.extend(modules)
-        return out
+        return self._use_scan(out)
 
     def scan_python(self, test: Path) -> Scan:
         """Env names, repo path literals and local imports reachable from a Python test."""
@@ -852,7 +928,7 @@ class Fingerprinter:
             out.merge(scan)
             out.files.update(modules)
             todo.extend(modules)
-        return out
+        return self._use_scan(out)
 
     def crate_dir(self, name: str) -> Path:
         return self.root / self.graph[name]["dir"]
@@ -864,7 +940,7 @@ class Fingerprinter:
     def crate_scan(self, name: str) -> Scan:
         if name not in self._scans:
             self._scans[name] = self.scan_rust(self.crate_files(name), self.crate_dir(name))
-        return self._scans[name]
+        return self._use_scan(self._scans[name])
 
     def _scan_digest(self, scan: Scan) -> str:
         return _sha(self._tree(scan.files), *sorted(scan.markers))
@@ -927,6 +1003,8 @@ class Fingerprinter:
                     markers.add(f"missing-declared:{pattern}")
                 for hit in hits:
                     files.update(expand(hit))
+                    if hit.is_dir():
+                        self._use(Usage(directories={hit}))
         rows_json = json.dumps(
             [{k: row.get(k) for k in ("source", "inputs", "env", "why")} for row in used], sort_keys=True
         )
@@ -941,35 +1019,28 @@ class Fingerprinter:
 
     # -- shared inputs -----------------------------------------------------
     def shared(self) -> str:
-        if self._shared is None:
-            r = self.root
-            toolchain = [r / "rust-toolchain.toml", r / "rust-toolchain"]
-            self._shared = _sha(
-                f"fingerprint-v{FINGERPRINT_VERSION}",
-                self._digest(r / "Cargo.lock"),
-                self._digest(r / "Cargo.toml"),
-                *[self._digest(p) for p in toolchain],
-                self.features,
-                f"{sys.platform}-{os.uname().machine if hasattr(os, 'uname') else ''}" if self.platform else "",
-            )
-        return self._shared
+        return self._memo("shared", self._compute_shared)
+
+    def _compute_shared(self) -> str:
+        r = self.root
+        toolchain = [r / "rust-toolchain.toml", r / "rust-toolchain"]
+        return _sha(
+            f"fingerprint-v{FINGERPRINT_VERSION}",
+            self._digest(r / "Cargo.lock"),
+            self._digest(r / "Cargo.toml"),
+            *[self._digest(p) for p in toolchain],
+            self.features,
+            f"{sys.platform}-{os.uname().machine if hasattr(os, 'uname') else ''}" if self.platform else "",
+        )
 
     def crate_digest(self, name: str) -> str:
-        if name not in self._crate:
+        def compute() -> str:
             d = self.crate_dir(name)
             files = tree_files(d / "src") + [d / "Cargo.toml", d / "build.rs"]
             base = self._tree([f for f in files if f.is_file()])
-            self._crate[name] = _sha(base, self._scan_digest(self.crate_scan(name)))
-        return self._crate[name]
+            return _sha(base, self._scan_digest(self.crate_scan(name)))
 
-    def build_digest(self, name: str) -> str:
-        """The crate's build script and everything it declares with `rerun-if-changed`."""
-        d = self.crate_dir(name)
-        script = d / "build.rs"
-        if not script.is_file():
-            return "none"
-        scan = self.scan_rust([script], d)
-        return _sha(self._digest(script), self._scan_digest(scan))
+        return self._memo(f"crate:{name}", compute)
 
     def fixtures_digest(self, fixtures: list[str]) -> str:
         files: list[Path] = []
@@ -1001,20 +1072,10 @@ class Fingerprinter:
         files = self.rust_test_files(row["evidence_test"], crate)
         scan = self.scan_rust([f for f in files if f.suffix == ".rs"], self.crate_dir(crate))
         declared, env = self.declared(scan.dynamic)
-        scan = Scan(scan.files, scan.env | env, scan.markers, scan.dynamic)
+        scan = Scan(scan.files, scan.env | env, scan.markers, scan.dynamic, scan.directories, scan.data_files)
         return _sha(self._tree(files), self._scan_digest(scan), declared), scan
 
-    def crate_of(self, rel: str) -> str | None:
-        """The workspace crate owning a repo-relative file (longest directory prefix)."""
-        best = None
-        for name, g in self.graph.items():
-            if (rel == g["dir"] or rel.startswith(g["dir"] + "/")) and (
-                best is None or len(g["dir"]) > len(self.graph[best]["dir"])
-            ):
-                best = name
-        return best
-
-    def parts(self, row: dict, executed: list[str] | None = None) -> dict:
+    def parts(self, row: dict) -> dict:
         info = locate(self.root, row)
         fixtures = list(row.get("fixtures", []))
         parts = {
@@ -1032,40 +1093,17 @@ class Fingerprinter:
                 cargo_target_feature_args(self.root / "crates" / crate / "Cargo.toml", info["target"])
             )
             members = closure(self.graph, crate)
-            if executed is None:
-                parts["crates"] = {c: self.crate_digest(c) for c in members}
-                for c in members:
-                    env |= self.crate_scan(c).env
-                    dynamic += self.crate_scan(c).dynamic
-            else:
-                # The executed sources replace the closure; their embeds, runtime reads and env,
-                # and every closure crate's manifest and build script stay inputs.
-                parts["mode"] = "executed"
-                executed_files = {rel: self.root / rel for rel in sorted(set(executed))}
-                parts["executed"] = {rel: self._digest(f) for rel, f in executed_files.items()}
-                by_crate: dict[str | None, list[Path]] = {}
-                for rel, f in executed_files.items():
-                    if f.suffix == ".rs":
-                        by_crate.setdefault(self.crate_of(rel), []).append(f)
-                scans = Scan()
-                for owner, files in by_crate.items():
-                    scans.merge(self.scan_rust(files, self.crate_dir(owner) if owner else self.root))
-                parts["executed_inputs"] = self._scan_digest(scans)
-                env |= scans.env
-                dynamic += scans.dynamic
-                parts["manifests"] = {c: self._digest(self.crate_dir(c) / "Cargo.toml") for c in members}
-                parts["build"] = {c: self.build_digest(c) for c in members}
-                for c in members:
-                    build = self.scan_rust([self.crate_dir(c) / "build.rs"], self.crate_dir(c))
-                    env |= build.env
-                    dynamic += build.dynamic
+            parts["crates"] = {c: self.crate_digest(c) for c in members}
+            for c in members:
+                env |= self.crate_scan(c).env
+                dynamic += self.crate_scan(c).dynamic
         else:
             r = self.root
             test = r / row["evidence_test"]
             conftests = [
                 d / "conftest.py" for d in [test.parent, *test.parent.parents] if d == r or r in d.parents
             ]
-            config = [r / "python" / n for n in ("pytest.ini", "uv.lock")]
+            config = [r / "python" / n for n in ("pytest.ini", "pyproject.toml", "uv.lock")]
             members = native_crates(self.graph)
             parts["crates"] = {c: self.crate_digest(c) for c in members}
             package = tree_files(r / "python" / "antecedent")
@@ -1089,18 +1127,9 @@ class Fingerprinter:
         parts["env"] = self.env_part(env | declared_env)
         return parts
 
-    def test_digest(self, row: dict) -> str | None:
-        """Digest of the test-side files of a Rust row (`None` for Python), with what they embed
-        or read: what a coverage capture of the row is valid for."""
-        info = locate(self.root, row)
-        if info["lang"] != "rust":
-            return None
-        return self.rust_test_side(row, info["crate"])[0]
-
-    def fingerprint(self, row: dict, executed: list[str] | None = None) -> str:
-        """The row's fingerprint. With `executed` (repo-relative source files a coverage capture
-        saw the Rust test run) the crate closure is replaced by those files' normalized source."""
-        return _sha(json.dumps(self.parts(row, executed), sort_keys=True))
+    def fingerprint(self, row: dict) -> str:
+        """The row's fingerprint."""
+        return _sha(json.dumps(self.parts(row), sort_keys=True))
 
 
 def coverage_row(spec: str, dgp: str = "") -> dict:

@@ -198,6 +198,10 @@ def covers(record: dict, row: dict) -> bool:
         return False
     if row.get("calibration_sha") != record.get("calibration_sha"):
         return False
+    if row.get('dependency_manifest'):
+        from evidence_earning import measurement_digest
+        if row.get('measurement_digest') != measurement_digest(record):
+            return False
     k, bound = row.get("k"), row.get("bound")
     if type(k) is not int or isinstance(bound, bool) or not isinstance(bound, (int, float)):
         return False
@@ -270,6 +274,9 @@ def render_attestations(rows: list[dict]) -> str:
             f"result = {json.dumps(str(row['result']))}",
             "",
         ]
+        if row.get('dependency_manifest'):
+            lines.insert(len(lines)-1, f"dependency_manifest = {json.dumps(row['dependency_manifest'])}")
+            lines.insert(len(lines)-1, f"measurement_digest = {json.dumps(row['measurement_digest'])}")
     return "\n".join(lines)
 
 
@@ -564,7 +571,7 @@ def select_records(ids: list[str]) -> list[dict]:
     verdicts = status.classify(
         records,
         status.load_attestations(),
-        status.tree_fingerprints(records, status.tree_fingerprinter()),
+        status.tree_fingerprints(records),
     )
     return [r for r in records if verdicts[str(r["id"])].status != status.CURRENT]
 
@@ -606,6 +613,20 @@ def main(argv: list[str] | None = None) -> int:
 
     decision_json = decision.canonical_json(family.current_config(ROOT))
     sha = head_sha()
+    from evidence_earning import Snapshot, probe_binding, measurement_digest
+    from evidence_fingerprint import coverage_row
+    import calibration_status as status
+    fp = status.tree_fingerprinter()
+    fingerprints = status.identity_fingerprints(records, fp)
+    snapshots = {}
+    for planned in probes:
+        rec = planned.record
+        if planned.k is not None and fingerprints.get(rec['id']):
+            row = dict(record_id=rec['id'], calibration_sha=rec['calibration_sha'], sha=sha,
+                       fingerprint=fingerprints[rec['id']], k=planned.k,
+                       bound=RULE_OF_THREE/planned.k, result='pass')
+            row['measurement_digest'] = measurement_digest(rec)
+            snapshots[rec['id']] = Snapshot(ROOT, coverage_row(rec['test'], rec.get('dgp', '')), probe_binding(row), fp)
     print(f"== probing {len(probes)} record(s) at {sha} ({len(tasks)} gate job(s)) ==")
     results = run_tasks(tasks, len(groups), args.jobs, decision_json)
     if head_sha() != sha or worktree_dirty():
@@ -613,8 +634,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     import calibration_status as status
 
-    fingerprints = status.tree_fingerprints(records, status.tree_fingerprinter())
     rows, verdicts = judge(probes, tasks, results, sha, fingerprints)
+    for row in rows:
+        if row['result'] == 'pass':
+            row['measurement_digest'] = snapshots[row['record_id']].manifest['record']['measurement_digest']
+            row['dependency_manifest'] = snapshots[row['record_id']].publish()
     existing = (
         tomllib.loads(ATTESTATIONS.read_text(encoding="utf-8")).get("attestation", [])
         if ATTESTATIONS.is_file()
