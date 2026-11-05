@@ -643,6 +643,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "inspect",
         "program_id",
         "quasi_rollout",
+        "replay",
         "temporal_design",
         "refute",
         "study",

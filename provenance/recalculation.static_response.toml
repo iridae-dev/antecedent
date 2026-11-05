@@ -28,4 +28,4 @@ sha256 = "1c72fc20ea8371416314fbcaaade26a13e780e39415e4a2f0f66552d815e70bc"
 role = "assertion"
 path = "crates/antecedent/tests/recalc_static.rs"
 items = ["fn adjacent_dag_and_unsorted_grid_refuse_before_work", "fn bounded_search_missing_provider_and_shared_evidence_keep_point_only_contract", "fn changed_transport_law_reuses_other_population_factors", "fn complementary_sources_actual_counts_and_independent_artifact", "fn dense_factor_workspace_respects_budget_before_provider_construction", "fn empirical_refresh_reuses_only_unchanged_factor_inputs", "fn frontdoor_actual_components_and_coordinate_reuse", "fn generic_refresh_exports_actual_refreshed_factor_snapshot", "fn graph_and_query_substitution_recheck_identification", "fn mz", "fn rebind_estimate", "fn refusal_is_transactional_and_receipts_do_not_grant_live_factors", "fn response", "fn static_oracle", "fn utility", "fn verma_checked_scalar_functionals_match_enumerated_latent_scm"]
-sha256 = "0610330b2a8ccbbd59daf7e7d9e146114e4d02dd3647512d1e755c1738ce2b62"
+sha256 = "beafb17fa72d4774d9738017d18385fd67dfcb8faa6d1875b2686dd57105f836"

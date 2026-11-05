@@ -22,10 +22,10 @@ record_sha256 = "832039b4bf94fc7f807249a343d882dc36299809108528d3c7c34c6ed4e8837
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_design.rs"
 items = ["enum DesignModel", "enum DesignRunError", "fn boundary", "fn check_design", "fn consume_design_with_data", "fn data", "fn default", "fn execute_design_with_receipt", "fn export_result", "fn fields", "fn fit_guard", "fn from", "fn identities", "fn is_live", "fn new", "fn plan", "fn recomputed", "fn result", "fn resume", "fn study", "fn summarize_checked_result", "fn validate", "struct DesignReplay", "struct DesignRequest", "struct DesignSession", "struct Live"]
-sha256 = "e1bcec82e9e93371718ec70da4ef5abb8952a9dd0410eb185a97772e85f4b910"
+sha256 = "838e9969d46ea38c36710b92b5326e3d5dbe03e0f58d1ce6e321acd858ba0b98"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/recalc_design.rs"
 items = ["fn assert_source_backed_replay", "fn close", "fn ctx", "fn design_actual_artifact_consumers_and_fresh_raw_data_refits_are_honest", "fn design_cutoff_mediator_and_resource_refusals_preserve_previous_state", "fn design_first_fits_match_iv_rd_frontdoor_structural_and_covariance_truth", "fn design_new_outcomes_refit_but_reuse_checked_causal_identification", "fn design_receipt_artifact_preserves_real_model_solves_and_summary_without_reweights", "fn design_role_exclusion_and_window_changes_reidentify_actual_checked_engines", "fn design_source_replay_refuses_other_dependencies_and_wrong_operation", "fn design_unchanged_and_utility_reuse_actual_immutable_checked_results", "fn design_weak_iv_exposes_actual_ar_diagnostics_without_an_invented_decision", "fn frontdoor", "fn iv", "fn rd", "fn request", "fn run", "fn same", "fn utility"]
-sha256 = "c104bb11eccaff5845299d6ee9a4dd966dd848383429e0a12f7820d584966fbb"
+sha256 = "6f2bd30a9a1f190046a9f9c8f3e9f368299b2a9b1ce1f9dd305978531d2feaba"

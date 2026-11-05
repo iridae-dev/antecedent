@@ -57,7 +57,10 @@ def test_native_functional_keeps_original_semantic_diagnostics_and_typed_lineage
     loaded = consume_source_projection(
         bytes(artifact.export()), expected_identity=artifact.identity
     )
-    assert loaded.report["unresolved"] == ["dependencies.checked_response_grid_operation"]
+    assert loaded.report["unresolved"] == [
+        "dependencies.checked_response_grid_operation",
+        "dependencies.identification_estimand_criterion",
+    ]
     assert loaded.report["output"]["action_id"] == "B"
     assert loaded.report["output"]["actions"] == [
         {
@@ -466,7 +469,10 @@ def test_inverse_all_original_native_evidence_slots_retain_distinct_source_diagn
     assert all(source.resolution is None for source in loaded.source_evidence)
     assert all(
         source.original_acceptance["unresolved_dependencies"]
-        == ["dependencies.checked_response_grid_operation"]
+        == [
+            "dependencies.checked_response_grid_operation",
+            "dependencies.identification_estimand_criterion",
+        ]
         for source in loaded.source_evidence
     )
     assert loaded.action("product") == result.action("product")
@@ -691,7 +697,8 @@ def test_named_native_mean_adapters_preserve_original_source_and_remain_mean_onl
     assert imported.source_evidence[0].diagnostics == claim.source_evidence.diagnostics
     assert imported.source_evidence[0].resolution is None
     assert imported.source_evidence[0].original_acceptance["unresolved_dependencies"] == [
-        "dependencies.checked_response_grid_operation"
+        "dependencies.checked_response_grid_operation",
+        "dependencies.identification_estimand_criterion",
     ]
     (tmp_path / "native_mean_inverse").write_bytes(bytes(inverse.export()))
     script = """
@@ -715,7 +722,10 @@ print(json.dumps({'selected':result.selected,'identities':evidence.identities,
         "identities": claim.source_evidence.identities,
         "diagnostics": json.loads(json.dumps(claim.source_evidence.diagnostics)),
         "resolution": None,
-        "unresolved": ["dependencies.checked_response_grid_operation"],
+        "unresolved": [
+            "dependencies.checked_response_grid_operation",
+            "dependencies.identification_estimand_criterion",
+        ],
     }
     with pytest.raises(CausalUnsupportedError) as quantile_refusal:
         require_success(

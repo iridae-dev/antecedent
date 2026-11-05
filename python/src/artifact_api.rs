@@ -404,7 +404,10 @@ fn accept_analysis_result_contract(
             out.insert("mismatches".into(), join(&report.mismatches));
         }
         if let Some(contract) = &load.contract {
-            out.insert("program".into(), antecedent::identity::to_hex(&contract.identities.program));
+            out.insert(
+                "program".into(),
+                antecedent::identity::to_hex(&contract.identities.program),
+            );
             out.insert("target".into(), antecedent::identity::to_hex(&contract.identities.target));
             out.insert("graph_class".into(), contract.graph_class.clone());
             out.insert("variable_names".into(), contract.target.schema.variable_names().join(","));

@@ -62,15 +62,25 @@ def serve(data, graph, query, **declarations):
     return response, result.export()
 
 
-def accept(artifact_bytes, expected):
-    """Accept bytes only as a claim bound to the identity the host retained."""
+def accept(artifact_bytes, expected, *, replay=False):
+    """Accept bytes only as a claim bound to the identity the host retained.
+
+    A load checks the artifact is intact and keeps its recorded answer. A host that wants the
+    published numbers recomputed asks for a replay; a replay that does not reach ``replayed``
+    is relayed as partial, with what it could not replay named.
+    """
     try:
         loaded = ant.load(artifact_bytes, expected=expected)
+        if replay:
+            loaded = loaded.replay()
     except ant.CausalError as error:
         return host.refusal_record(error)
-    if loaded.acceptance.identity_bound and loaded.acceptance.answer_available:
-        return {"status": "supported", "value": loaded.answer.value}
-    return {"status": "partial", "restriction": str(loaded.acceptance)}
+    acceptance = loaded.acceptance
+    if not (acceptance.identity_bound and acceptance.answer_available):
+        return {"status": "partial", "restriction": str(acceptance)}
+    if replay and not acceptance.replayed:
+        return {"status": "partial", "restriction": ",".join(acceptance.not_replayable)}
+    return {"status": "supported", "value": loaded.answer.value}
 
 
 def main():
@@ -79,8 +89,7 @@ def main():
 
     data, graph, query = make_request()
 
-    # Supported claim. The host serves it without refutation reports: a body that carries
-    # them has no checked replay, so an independent load relays it as partial (below).
+    # Supported claim, served without refutation reports so that a replay can recompute it.
     response, artifact = serve(data, graph, query, refute="none")
     print("response:", json.dumps({k: v for k, v in response.items() if k != "claim"}))
     assert response["status"] == "supported", response
@@ -93,12 +102,22 @@ def main():
     assert accepted["status"] == "supported", accepted
     assert accepted["value"] == response["value"]
 
-    # The same claim served with the default refutation reports is recognized and bound to
-    # the retained identity, but its reports cannot be replayed from bytes alone: the host
-    # relays it as partial and names the missing replay, never as a supported number.
+    # A host that did not author the artifact asks for a replay. With no refutation reports
+    # the replay recomputes every published number and agrees.
+    replayed = accept(artifact.data, artifact.expectation, replay=True)
+    print("replayed:", replayed["status"])
+    assert replayed["status"] == "supported", replayed
+    assert replayed["value"] == response["value"]
+
+    # The same claim served with the default refutation reports loads intact and keeps its
+    # answer, bound to the retained identity. Their reports have no checked replay, so a
+    # replay names that and the host relays the claim as partial.
     reported, reported_artifact = serve(data, graph, query)
-    partial = accept(reported_artifact.data, reported_artifact.expectation)
-    print("loaded with refutation reports:", partial["status"])
+    loaded_reported = accept(reported_artifact.data, reported_artifact.expectation)
+    print("loaded with refutation reports:", loaded_reported["status"])
+    assert loaded_reported["status"] == "supported", loaded_reported
+    partial = accept(reported_artifact.data, reported_artifact.expectation, replay=True)
+    print("replayed with refutation reports:", partial["status"])
     assert partial["status"] == "partial", partial
     assert "dependencies.refutation_replay" in partial["restriction"], partial
 

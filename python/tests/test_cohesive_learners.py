@@ -56,7 +56,7 @@ def test_structured_learner_parameters_change_identity():
 
 def test_fitted_model_requires_explicit_matching_source_for_replay():
     result = analyze(DRLearner(final_learner=Linear()))
-    with pytest.raises(CausalSerializationError, match="verified parent claim"):
+    with pytest.raises(CausalSerializationError, match="parent claim that replays"):
         _ = result.fitted_model
     source = data_fixture()
     model = result.fitted_model_from_source(source)
@@ -67,7 +67,7 @@ def test_fitted_model_requires_explicit_matching_source_for_replay():
         result.fitted_model_from_source(source)
 
 
-def test_fitted_effect_predicts_after_verified_reload():
+def test_fitted_effect_predicts_after_reload():
     estimator = DRLearner(outcome=Ridge(), treatment=Logistic(), final_learner=Linear())
     result = analyze(estimator)
     model = result.fitted_model_from_source(data_fixture())
@@ -91,11 +91,11 @@ def test_fitted_effect_predicts_after_verified_reload():
         CausalForest(n_trees=20, min_leaf=4),
     ],
 )
-def test_fitted_effect_refuses_reload_without_verified_replay(estimator):
+def test_fitted_effect_refuses_reload_without_replay(estimator):
     # Neither boosted-tree DR nor causal forest has a checked replay declaration;
-    # producing a fitted model alone does not establish a verified parent claim.
+    # producing a fitted model alone does not establish a parent claim that replays.
     result = analyze(estimator)
-    with pytest.raises(Exception, match="verified parent claim"):
+    with pytest.raises(Exception, match="parent claim that replays"):
         result.fitted_model_from_source(data_fixture())
 
 
@@ -120,7 +120,7 @@ def test_model_payload_mutation_cannot_reuse_parent_claim():
     forged = dumps(
         "analysis_result", payload, variable_names=artifact.variable_names, artifact_id="forged"
     )
-    with pytest.raises(Exception, match="verified parent claim"):
+    with pytest.raises(Exception, match="parent claim that replays"):
         FittedEffectModel.load(forged)
 
 

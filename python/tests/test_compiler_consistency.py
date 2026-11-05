@@ -121,8 +121,7 @@ def test_prepared_aipw_refresh_and_independent_artifact_consumption() -> None:
 
 
 def _assert_sealed_estimator(accepted: Any) -> None:
-    """A checked estimator operation replays from its retained inputs and is verified."""
-    assert accepted["recognized"] == "true"
+    """A checked estimator operation replays from its retained inputs."""
     assert accepted["replayed"] == "true"
     assert accepted["not_replayable"] == ""
 

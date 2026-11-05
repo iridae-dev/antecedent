@@ -93,8 +93,14 @@ impl PySourceEvidence {
                     "external evidence cannot be resolved by native authority",
                 ));
             }
+            // The retained response operation and the identification criterion are both
+            // resolved by re-running the original estimation and comparing the whole artifact.
             if self.inner.unresolved().iter().any(|dependency| {
-                dependency.as_ref() != "dependencies.checked_response_grid_operation"
+                !matches!(
+                    dependency.as_ref(),
+                    "dependencies.checked_response_grid_operation"
+                        | "dependencies.identification_estimand_criterion"
+                )
             }) {
                 return Err(invalid(
                     antecedent::reason::reason_details::source_evidence::RESOLUTION_SCOPE_UNSUPPORTED,

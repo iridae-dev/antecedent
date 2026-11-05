@@ -60,7 +60,7 @@ evidence = [
 id = "no_public_bypass"
 claim = "The free search, attribution and simulation engines are hidden; the bindings run the compiled routes."
 evidence = [
-  "crates/antecedent/tests/structure_compiler_routes.rs::the_demoted_engines_are_not_on_the_public_surface",
+  "crates/antecedent/tests/structure_compiler_routes.rs::raw_model_engines_are_not_public",
 ]
 
 [[acceptance]]

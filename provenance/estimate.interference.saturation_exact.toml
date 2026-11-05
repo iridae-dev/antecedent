@@ -52,7 +52,7 @@ sha256 = "e11ff9d4112b7737a9feeea5f06ecf75ed9a8c6fb546258358308a32bfea3af4"
 role = "assertion"
 path = "crates/antecedent/tests/saturation_interference_route.rs"
 items = ["fn fixture", "fn saturation_direct_spillover_total_retain_truth_without_interval", "fn saturation_rejects_cross_cluster_edges_at_prepare", "fn supported_saturation_interval_survives_retained_artifact_round_trip"]
-sha256 = "85364f979ad03b5bf2b5b25f748629fbdb4876767298ec3b401ad9c7b14bf62a"
+sha256 = "dc682ce786a9a7c05fff12ac1f954e02f57935104647270b0cdc885b8c51b205"
 
 [[method_review.artifacts]]
 role = "assertion"

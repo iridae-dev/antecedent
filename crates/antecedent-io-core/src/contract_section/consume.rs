@@ -4,7 +4,8 @@
 
 use super::dr_replay::{HeldSource, SourceReplayBounds, hold_source_section};
 use super::verify::{
-    contract_unresolved_split, contract_unresolved_with_source, verify_stored_payloads,
+    contract_unresolved_split, contract_unresolved_with_source, producer_encoding_unresolved,
+    verify_stored_payloads,
 };
 
 use std::sync::Arc;
@@ -695,7 +696,12 @@ pub fn load_analysis_result(bytes: &[u8]) -> Result<AnalysisResultLoad, IoError>
             (Some(contract), vec![Arc::from("contract_format")])
         }
         Ok(Some(contract)) => {
-            let integrity = publish_reasons(verify_stored_payloads(&contract));
+            // A load checks what the producer sealed: reasons the producer omits by design
+            // (absent lowerings and other replay inputs) are replay findings, not integrity.
+            let integrity = publish_reasons(producer_encoding_unresolved(
+                &contract,
+                verify_stored_payloads(&contract),
+            ));
             (Some(contract), integrity)
         }
     };

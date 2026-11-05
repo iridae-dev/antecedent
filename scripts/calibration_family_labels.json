@@ -1177,11 +1177,11 @@
     },
     {
       "path": "crates/antecedent/tests/mechanism_composition_interval_calibration.rs",
-      "sha256": "fb41f11783fd7a8acea78c8be55342ec1cc211faaf1f010ad5d5a715a5eca631",
+      "sha256": "d2ce70249b8b27bb490f5d96b80f1aa1c34aca277bad1e70fb25b88240b34ddc",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 327,
+          "line": 358,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"delta_method_wald\" },\n        REPORTED_LEVEL,"
         }
@@ -1401,7 +1401,7 @@
     },
     {
       "path": "crates/antecedent/tests/multilevel_interval_calibration.rs",
-      "sha256": "9a4298e9f31fb0b0d66c4eae5a17cc4521cc9126584149c8d2f2ca12d422dbd6",
+      "sha256": "eaf3d4f49299a5b10caf8117fc23c72bb8795426e0a28cc5061a1a5f4242c480",
       "labelled_calls": [],
       "constructor_calls": [
         {

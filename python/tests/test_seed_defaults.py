@@ -166,6 +166,8 @@ SEED_ZERO = (
     "temporal_counterfactual_api.rs::evaluate_temporal_counterfactual",
     "transport_admg_conditional_api.rs::prepare_empirical",
     "transport_admg_conditional_api.rs::prepare_exact",
+    "transport_interference_api.rs::estimate_trial_transport",
+    "transport_interference_api.rs::estimate_transport_response_grid",
     "transport_mixed_api.rs::prepare_empirical",
     "transport_mixed_api.rs::prepare_exact",
     "transport_mz_api.rs::prepare_empirical",

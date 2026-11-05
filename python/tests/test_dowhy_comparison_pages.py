@@ -47,7 +47,7 @@ def _assert_example_is_registered(example):
     assert f'name = "{example}"\npath = "../../examples/rust/{example}.rs"' in cargo
     suite = read_text(REPO_ROOT / "crates" / "antecedent" / "tests" / "examples_run.rs")
     assert f'#[path = "../../../examples/rust/{example}.rs"]' in suite
-    assert f"{example}::run().unwrap();" in suite
+    assert f"{example}::run().unwrap()" in suite
 
     entries = {e["id"]: e for e in load_toml(REPO_ROOT / "examples" / "catalog.toml")["example"]}
     assert entries[example]["rust"] == f"examples/rust/{example}.rs"

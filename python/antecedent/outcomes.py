@@ -352,6 +352,18 @@ class Outcome(Generic[T]):
             else getattr(self.value, "acceptance", None)
         )
 
+    def replay(self) -> Outcome[T]:
+        """Replay a loaded analysis result: recompute its published numbers on request.
+
+        Loading checks that an artifact is intact and recomputes nothing. This returns the
+        same load with its ``acceptance`` updated by the replay: ``replayed`` when every part
+        was recomputed and agrees, otherwise ``integrity``, ``not_replayable`` and
+        ``mismatches`` say why not. A refusal replays to itself.
+        """
+        if self.refusal is not None:
+            return self
+        return capture_outcome(self.value.replay)  # type: ignore[attr-defined]
+
     @property
     def uncertainty(self) -> SlotModel:
         """The retained native uncertainty slot, including unavailable/partial reasons."""

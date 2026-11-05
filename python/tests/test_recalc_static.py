@@ -351,7 +351,12 @@ def test_static_original_artifact_fresh_process(kind, tmp_path):
     )
     consumed = json.loads(ran.stdout)
     if kind == "response":
-        assert consumed == {"replayed": "true", "not_replayable": ""}
+        # A response-grid query has no recomputation of its identification estimand: the replay
+        # names it, and recomputes the rest without a mismatch.
+        assert consumed == {
+            "replayed": "false",
+            "not_replayable": "dependencies.identification_estimand_criterion",
+        }
     else:
         assert consumed == pytest.approx([truth(0), truth(1)], abs=1e-11)
 

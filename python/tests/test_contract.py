@@ -440,7 +440,7 @@ def test_retarget_export_reload_and_reexecute_on_snapshot() -> None:
     assert loaded.payload_kind == "analysis_result"
     acceptance = artifacts.accept(encoded, replay=True)
     assert acceptance["replayed"] == "false"
-    assert "program.checked_aipw_lowering" in acceptance["not_replayable"]
+    assert "dependencies.checked_estimator_operation" in acceptance["not_replayable"]
     section = loaded.contract
     carried = section["target_weights"]
     assert np.array_equal(np.asarray(carried["values"], dtype=float), weights)

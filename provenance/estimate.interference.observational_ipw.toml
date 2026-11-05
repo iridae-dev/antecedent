@@ -43,7 +43,7 @@ sha256 = "c6bb431ea5f00f401e9b2f1ae0181c2690547ed9bf2e71211d098df5dac792c6"
 role = "assertion"
 path = "crates/antecedent/tests/observational_interference_route.rs"
 items = ["fn fixture", "fn known_probabilities_retain_pointwise_interval_and_artifact", "fn observational_network_contrast_retains_truth_assumptions_and_artifact", "fn observational_network_refuses_missing_assumption_and_cross_cluster_edge"]
-sha256 = "d8d2ecadd119906505fe1dc56266a96cae430cdb9d184dd8a9096483ca5d3b82"
+sha256 = "955dae2d8f789a00835fcb80d3ccc26bed69766d7c12cc5e9daef71e03a267cc"
 
 [[method_review.artifacts]]
 role = "assertion"

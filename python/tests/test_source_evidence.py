@@ -28,7 +28,8 @@ def test_source_evidence_preserves_original_scopes_and_semantic_coordinates():
     assert evidence.diagnostics
     assert evidence.resolution is None
     assert evidence.original_acceptance["unresolved_dependencies"] == [
-        "dependencies.checked_response_grid_operation"
+        "dependencies.checked_response_grid_operation",
+        "dependencies.identification_estimand_criterion",
     ]
     for index, quantity in enumerate(evidence.coordinates):
         scoped = evidence.diagnostics_at(quantity)
@@ -109,7 +110,10 @@ print(json.dumps({'means':actual.means,'coordinates':len(resolved.coordinates),'
     report = json.loads(completed.stdout)
     assert report["means"] == pytest.approx([3.0, 5.0], abs=1e-4)
     assert report["coordinates"] == 2
-    assert report["dependencies"] == ["dependencies.checked_response_grid_operation"]
+    assert report["dependencies"] == [
+        "dependencies.checked_response_grid_operation",
+        "dependencies.identification_estimand_criterion",
+    ]
     assert report["native_authority_issued"] is False
 
 

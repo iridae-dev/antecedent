@@ -22774,3 +22774,10 @@ crate = "antecedent-learn"
 cargo_target = "lib"
 path = "crates/antecedent-learn/src/spec.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "consume-contract-section"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/contract_section/consume.rs"
+gates = ["inventory", "named"]

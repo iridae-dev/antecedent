@@ -134,10 +134,12 @@ pub(in crate::contract_section) fn contract_unresolved_split(
     source: Option<&SourceReplay<'_>>,
 ) -> (Vec<ContractReason>, Vec<ContractReason>) {
     let integrity = verify_stored_payloads(contract);
-    let boundary = integrity.len();
-    let mut all = unresolved_after(integrity, header, body, contract, limits, source);
-    let replayed = all.split_off(boundary);
-    (all, replayed)
+    // `unresolved_after` may drop integrity reasons that are absent by design, so the two
+    // lists are separated by origin, not by position.
+    let stored = integrity.clone();
+    unresolved_after(integrity, header, body, contract, limits, source)
+        .into_iter()
+        .partition(|reason| stored.contains(reason))
 }
 
 fn unresolved_after(

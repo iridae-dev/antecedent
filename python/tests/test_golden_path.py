@@ -375,10 +375,8 @@ def test_golden_path(case: Case, refute: str) -> None:
             case.check(updated, new_data)
         if withheld:
             assert_refutation_replay_withheld(loaded)
-            assert loaded.answer != result.answer
-        else:
-            assert loaded.answer == result.answer
-            assert report["answer"] == loaded_report["answer"]
+        assert loaded.answer == result.answer
+        assert report["answer"] == loaded_report["answer"]
         assert loaded.program_id == result.program_id
         assert loaded.claim_id == result.claim_id
         assert loaded_report["data_snapshot_id"] == result.data_snapshot_id

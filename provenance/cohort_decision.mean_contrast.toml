@@ -47,4 +47,4 @@ sha256 = "3e1a3d0415ef9ee632daa904a480d9f1326de21b76715b6b4f39a36603d13ecf"
 role = "assertion"
 path = "crates/antecedent/tests/cohort_decision.rs"
 items = ["fn a_compact_export_of_the_same_fit_is_not_a_verified_parent", "fn a_compact_linear_model_carries_the_uncalibrated_variance_diagnostic_only", "fn affine_contracts_on_the_cohort_source_match_hand_calculated_utilities", "fn changed_rows_weights_cohort_and_parent_are_refused", "fn close", "fn cohort", "fn cohort_of", "fn columns", "fn contract", "fn ctx", "fn fit", "fn fit_exported", "fn linear_utility", "fn negative_gates_are_typed_and_actionable", "fn producer_to_cohort_to_affine_contract_matches_the_hand_calculation", "fn the_source_replays_in_a_fresh_consumer_under_the_retained_identity"]
-sha256 = "cc41daa510c7969b688ab7c675b9b65e0a67da2fa36ef831f343991c0d935fe7"
+sha256 = "355a903036c8310efebbc1396c328e887c2062e6caa2e433d3b7bd5786196ebb"

@@ -73,7 +73,10 @@ def test_source_projection_native_original_engine_affine_truth_and_unresolved_im
     )
     assert all(action["standard_error"] is None for action in report["output"]["actions"])
     assert report["output"]["calibration"] == _truth()["calibration"]
-    assert report["unresolved"] == ["dependencies.checked_response_grid_operation"]
+    assert report["unresolved"] == [
+        "dependencies.checked_response_grid_operation",
+        "dependencies.identification_estimand_criterion",
+    ]
     bundle = _bundle(claim.source_evidence, claim.coordinates)
     imported = require_success(
         consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)

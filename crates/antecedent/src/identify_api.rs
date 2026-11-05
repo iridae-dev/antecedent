@@ -330,22 +330,15 @@ fn identify_source_dag(
     structure_version: u32,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Identification, CausalError> {
-    // A conditional effect keeps its query variant to the identifier boundary: only the
-    // modifier-aware backdoor identifiers answer it, so a marginal-only identifier or a
-    // collider adjustment is refused instead of answering the average effect.
     let result = if let CausalQuery::ConditionalEffect(conditional) = query {
-        conditional.validate()?;
-        if !matches!(
+        // The same guard the compiled conditional route uses: a modifier-aware backdoor
+        // identifier and modifiers measured before treatment, or a refusal.
+        strategy_table::identify_conditional_static_in_context(
             strategy,
-            IdentifierId::BackdoorAdjustment | IdentifierId::BackdoorEfficient | IdentifierId::Auto
-        ) {
-            return Err(CausalError::Unsupported {
-                message: "conditional effects require a modifier-aware backdoor identifier",
-            });
-        }
-        // The identifier receives the conditional query itself, so it checks the modifiers
-        // against the graph rather than answering the marginal effect.
-        identify_static_query_in_context(strategy, dag, query, None, Some(ctx))?
+            dag,
+            conditional,
+            Some(ctx),
+        )?
     } else {
         let id_query = static_identify_query(query);
         identify_static_query_in_context(strategy, dag, &id_query, None, Some(ctx))?

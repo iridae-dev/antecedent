@@ -216,5 +216,9 @@ def test_acceptance_requires_a_real_consumer_receipt_not_a_kind_label():
     actual = acceptance_from_consumer(SimpleNamespace(acceptance=receipt))
     assert actual == receipt
     explicit = SimpleNamespace(receipt={"replayed": "true", "recognized": "true"})
-    assert acceptance_from_consumer(explicit).verified is True
+    assert acceptance_from_consumer(explicit).status == "replayed"
+    assert acceptance_from_consumer(explicit).replayed is True
+    intact = SimpleNamespace(receipt={"recognized": "true"})
+    assert acceptance_from_consumer(intact).status == "loaded"
+    assert acceptance_from_consumer(intact).replayed is False
     assert acceptance_from_consumer(explicit).resumable is False

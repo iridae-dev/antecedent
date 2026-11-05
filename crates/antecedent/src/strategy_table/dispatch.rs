@@ -61,6 +61,7 @@ pub(crate) fn identify_conditional_static_in_context(
             message: "conditional effects require a modifier-aware backdoor identifier",
         });
     }
+    refuse_post_treatment_modifiers(graph, &query.inner)?;
     identify_static_query_in_context(
         identifier,
         graph,
@@ -68,6 +69,33 @@ pub(crate) fn identify_conditional_static_in_context(
         None,
         context,
     )
+}
+
+/// A conditional effect is identified only for modifiers measured before treatment: a modifier
+/// that the treatment causes (a mediator, or a child it shares with another cause) defines a
+/// contrast within strata the treatment itself moves, which the back-door average-effect
+/// identification does not answer.
+fn refuse_post_treatment_modifiers(
+    graph: &Dag,
+    query: &antecedent_core::AverageEffectQuery,
+) -> Result<(), CausalError> {
+    let prepared = antecedent_identify::IdcIdentifier::default().prepare_dag(graph)?;
+    let treatment = prepared.var_to_dense(query.treatment)?;
+    let mut descendants = antecedent_graph::BitSet::with_len(prepared.admg().node_count());
+    let mut ws = antecedent_graph::GraphWorkspace::default();
+    prepared.admg().descendants_of(&[treatment], &mut descendants, &mut ws);
+    for modifier in query.effect_modifiers.iter() {
+        if descendants.contains(prepared.var_to_dense(*modifier)?) {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "conditional effect not identified: effect modifier {} is a descendant of \
+                     the treatment",
+                    modifier.raw()
+                ),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Run a static identifier against an arbitrary [`CausalQuery`].

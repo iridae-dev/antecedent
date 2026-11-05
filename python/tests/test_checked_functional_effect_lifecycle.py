@@ -96,8 +96,12 @@ def test_admg_response_grid_replays_each_member_after_refresh() -> None:
         [0.314, 0.596], abs=1e-12
     )
     receipt = ant.artifacts.accept(bytes(refreshed.export()), replay=True)
-    assert receipt["replayed"] == "true"
-    assert receipt["not_replayable"] == ""
+    # Every grid member is recomputed; only the identification estimand of the ADMG (a
+    # bidirected-edge graph) has no recomputation, so the replay names it and nothing else.
+    assert receipt["integrity"] == ""
+    assert receipt["mismatches"] == ""
+    assert receipt["not_replayable"] == "dependencies.identification_estimand_criterion"
+    assert receipt["replayed"] == "false"
     assert prepared.inspect() == original_inspection
     assert result.study.inspect().data_snapshot_id == result.data_snapshot_id
     assert require_success(prepared.estimate()).response.values == result.response.values

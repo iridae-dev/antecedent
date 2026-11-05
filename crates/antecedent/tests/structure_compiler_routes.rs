@@ -585,12 +585,15 @@ fn a_cancelled_or_unleased_route_refuses_before_allocating() {
     });
 }
 
-/// The hidden engines are off the public surface, and the bindings run the compiled routes.
+/// The raw model engines that compiled routes call are not public, and the bindings run the
+/// compiled routes.
+/// `rank_root_causes` stays public: it reorders an attribution a compiled route returned and
+/// computes nothing itself.
 #[test]
-fn the_demoted_engines_are_not_on_the_public_surface() {
+fn raw_model_engines_are_not_public() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let snapshot = std::fs::read_to_string(root.join("parity/public_api/antecedent.txt")).unwrap();
-    let demoted = [
+    let raw_engines = [
         "antecedent::discovery::discover_",
         "antecedent::gcm::sample_do(",
         "antecedent::gcm::policy_value(",
@@ -599,7 +602,6 @@ fn the_demoted_engines_are_not_on_the_public_surface() {
         "antecedent::gcm::attribute_",
         "antecedent::gcm::mechanism_change_detection(",
         "antecedent::gcm::sample_interventional_distribution(",
-        "antecedent::gcm::rank_root_causes(",
         "antecedent::gcm::sample_with_noise(",
         "antecedent::gcm::noise_table_from_columns(",
         "antecedent::gcm::replay_noise(",
@@ -608,8 +610,8 @@ fn the_demoted_engines_are_not_on_the_public_surface() {
         "antecedent::gcm::counterfactual_temporal_policy(",
     ];
     for line in snapshot.lines().filter(|line| line.starts_with("pub fn ")) {
-        for name in demoted {
-            assert!(!line.contains(name), "a demoted engine is public: {line}");
+        for name in raw_engines {
+            assert!(!line.contains(name), "a raw model engine is public: {line}");
         }
     }
     for binding in ["python/src/discovery_api.rs", "python/src/bayesian.rs"] {

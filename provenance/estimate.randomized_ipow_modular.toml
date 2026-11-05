@@ -54,16 +54,16 @@ sha256 = "2ac8c422f59a3ac94cd3b8e4e45c589f96458ad8b3f02b2748202bc42f58d5af"
 role = "implementation"
 path = "crates/antecedent-io/src/randomized_ipow_artifact.rs"
 items = ["fn accept_claim", "fn replay_analysis_result", "fn replay_analysis_result_within", "fn decode_analysis_result_artifact", "fn posterior_row", "fn promote_replayed_ipow", "fn replay", "fn verify"]
-sha256 = "b98ce400cceefc98147a9d7b4020b1e9605f6c7bc8a4fda367f9d36093ba4fa8"
+sha256 = "ec0f7f83eaa2bdd39624ead222789a87231c136ad05fc626928b99752a4c2011"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/contract_section/verify.rs"
 items = ["module"]
-sha256 = "c50a98808610d626839ca26984b81e58542d3a1e03324a630dd89c2323538368"
+sha256 = "e9e180ff9528a3ac49aa38ba757de30291cc1b72f9faa18c8ca408c8f4fcc683"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/bayesian_randomized_routes.rs"
 items = ["const ASSIGNMENT", "const DOSE", "const IPW_MISSING", "const IPW_OUTCOME", "const OUTCOME", "const ROUTE", "const TRIAL", "fn a_declared_first_order_carryover_adds_the_carryover_and_sustained_effects", "fn a_first_stage_that_reaches_zero_is_refused_not_published_as_a_ratio", "fn a_tampered_bayesian_dose_grid_artifact_is_refused_with_its_exact_typed_error", "fn bayes", "fn close", "fn column", "fn consume", "fn encouragement", "fn four_arm_data", "fn gaussian_arms", "fn inverse_probability", "fn ipw_trial", "fn live", "fn many_arms_report_every_arm_against_the_reference", "fn request", "fn run", "fn run_weighted", "fn supported_ipow_posterior_recovers_the_causal_target_and_declared_prior_update", "fn supported_ipow_posterior_replays_after_the_builder_is_dropped", "fn switchback", "fn switchback_model", "fn the_bayesian_dose_grid_route_replays_to_the_conjugate_reference_through_a_fresh_consumer", "fn the_boundaries_are_refused_with_their_next_attempt", "fn the_complier_posterior_recovers_the_known_effect_and_is_unsupported", "fn the_complier_posterior_refuses_an_arm_contrast_estimator", "fn the_default_bayesian_route_is_the_finite_population_posterior_of_the_design_based_target", "fn the_factorial_main_effects_and_interaction_match_the_exact_moments", "fn the_retained_artifact_carries_the_posterior_and_an_independent_loader_recomputes_it", "fn the_superpopulation_estimator_answers_the_other_estimand", "fn the_switchback_posterior_matches_the_whitened_least_squares_reference", "fn the_weighted_posterior_is_not_the_responder_only_posterior", "fn trial", "fn uniform_arms", "fn units", "fn unrestricted_carryover_and_an_unspecified_dependence_are_typed_refusals", "fn unsupported_multi_arm_and_factorial_ipow_are_typed_refusals", "fn weighted_bayesian_boundaries_are_typed_refusals", "fn weighted_conjugate_update_matches_the_closed_form_pseudo_outcome_posterior"]
-sha256 = "058c43f935d858e02273f657db4c330be73964243b76e730f18bf889b2a29919"
+sha256 = "7cc551e85d26ce1eadbb1c54dae83506fe2c6e4b53c5e8582b3186fd313d43a5"
