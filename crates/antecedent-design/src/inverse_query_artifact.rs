@@ -792,6 +792,9 @@ fn frequentist_estimate() -> crate::decision_eval::MeanEstimate {
 pub enum ClaimWire {
     /// A finite aligned or marginal law.
     Law(Box<LawWire>),
+    /// Analytic conditional Gaussian outcome law.
+    #[serde(rename = "analytic_gaussian_v1")]
+    Gaussian(Box<crate::gaussian_forward_law::GaussianForwardLaw>),
     /// A mean grid, which answers an affine target mean and nothing else.
     Means(MeansWire),
 }
@@ -886,6 +889,10 @@ impl Encoded {
     fn claim(&mut self, claim: &ForwardClaim) -> u64 {
         match claim {
             ForwardClaim::Law(artifact) => self.law(artifact),
+            ForwardClaim::Gaussian(law) => {
+                self.claims.push(ClaimWire::Gaussian(law.clone()));
+                wide(self.claims.len() - 1)
+            }
             ForwardClaim::Means(means) => {
                 self.push_f64s(&means.means);
                 self.claims.push(ClaimWire::Means(MeansWire {
@@ -980,6 +987,12 @@ fn decode_claims(claims: &[ClaimWire], data: &[u8]) -> Result<Vec<ForwardClaim>,
                 let draws = reader.take(count)?;
                 ForwardClaim::Law(Box::new(DistributionArtifact::new(law.metadata.clone(), draws)?))
             }
+            ClaimWire::Gaussian(law) => {
+                if !law.validate() {
+                    return Err(wrong_contract("invalid analytic Gaussian law"));
+                }
+                ForwardClaim::Gaussian(law.clone())
+            }
             ClaimWire::Means(means) => {
                 let values = reader.take(means.coordinates.len())?;
                 let coordinates = means
@@ -1020,6 +1033,11 @@ fn atom_from(claims: &[ForwardClaim], wire: &AtomWire) -> Result<StructuralAtom,
     let evidence = match &wire.state {
         AtomStateWire::Evaluated { claim } => match claim_at(claims, *claim)? {
             ForwardClaim::Law(artifact) => AtomEvidence::Evaluated(artifact),
+            ForwardClaim::Gaussian(_) => {
+                return Err(wrong_contract(
+                    "an analytic univariate Gaussian is not an explicitly joint scenario law",
+                ));
+            }
             ForwardClaim::Means(_) => {
                 return Err(wrong_contract("a scenario or set member needs a law, not means"));
             }
@@ -1271,6 +1289,31 @@ pub struct InverseQueryArtifact {
     forward_origin: Option<ForwardOrigin>,
 }
 
+fn claim_matches_source(
+    claim: &ForwardClaim,
+    source: &crate::source_evidence::SourceEvidence,
+) -> bool {
+    match claim {
+        ForwardClaim::Means(means) => source.require_mean_source(means).is_ok(),
+        ForwardClaim::Gaussian(law) => source
+            .require_quantity_binding(std::slice::from_ref(&law.coordinate), &law.snapshot_id)
+            .is_ok(),
+        ForwardClaim::Law(law) => {
+            let quantities = law
+                .quantities()
+                .iter()
+                .cloned()
+                .map(ScientificQuantity::try_from)
+                .collect::<Result<Vec<_>, _>>();
+            quantities.is_ok_and(|quantities| {
+                source
+                    .require_quantity_binding(&quantities, &law.metadata().identity.snapshot_id)
+                    .is_ok()
+            })
+        }
+    }
+}
+
 impl InverseQueryArtifact {
     /// Evaluate `query` on `evidence` through [`evaluate_inverse_query`] and seal the
     /// query, the evidence, the result and their identity.
@@ -1370,25 +1413,7 @@ impl InverseQueryArtifact {
                     detail: antecedent_core::reason_details::source_evidence::ACTION_MISMATCH,
                 }));
             }
-            let matches_claim = |claim: &ForwardClaim| match claim {
-                ForwardClaim::Means(means) => source.require_mean_source(means).is_ok(),
-                ForwardClaim::Law(law) => {
-                    let quantities = law
-                        .quantities()
-                        .iter()
-                        .cloned()
-                        .map(ScientificQuantity::try_from)
-                        .collect::<Result<Vec<_>, _>>();
-                    quantities.is_ok_and(|quantities| {
-                        source
-                            .require_quantity_binding(
-                                &quantities,
-                                &law.metadata().identity.snapshot_id,
-                            )
-                            .is_ok()
-                    })
-                }
-            };
+            let matches_claim = |claim: &ForwardClaim| claim_matches_source(claim, source);
             let mut matched = self.evidence.point.as_ref().is_some_and(matches_claim);
             if let Some(region) = &self.evidence.interval_region {
                 matched |= matches_claim(&region.lower) || matches_claim(&region.upper);

@@ -10,7 +10,8 @@
 //!   action's composition query, consumes the artifact again (premises digest
 //!   recomputed, premises recompiled, query replayed to identical bits) and
 //!   hands the replayed results to [`composed_forward_source`]. A linear-Gaussian
-//!   composition supplies a point per action; a finite-table composition the
+//!   intervention with outcome coordinates supplies a conditional analytic law; mean
+//!   coordinates and contrasts remain point estimates. A finite-table composition supplies the
 //!   exact finite law of each action under the caller's numeric coding of the
 //!   outcome levels.
 //! * **Cohort contrast.** [`cohort_source`]: the weighted mean contrast of a

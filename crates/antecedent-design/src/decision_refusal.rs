@@ -136,6 +136,12 @@ impl DecisionEvalError {
             .offending(format!("{action}[{input}]"))
             .remedy("supply interventional predictive draws for outcome-law inputs")
             .build(),
+            Self::AnalyticLawUnsupported(why) => at(
+                antecedent_core::reason_code!("route_not_supported"),
+                antecedent_core::reason_details::decision_evaluation::ANALYTIC_LAW_UNSUPPORTED,
+            ).expected(*why)
+            .remedy("use an affine risk functional or quadratic utility on one Gaussian outcome, or supply an explicitly joint law to the draw evaluator")
+            .build(),
             Self::StructureInputsRequired(why) => at(
                 antecedent_core::reason_code!("route_not_supported"),
                 antecedent_core::reason_details::decision_evaluation::STRUCTURE_INPUTS_REQUIRED,

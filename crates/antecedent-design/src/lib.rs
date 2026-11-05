@@ -35,6 +35,7 @@ pub mod evidence_plan_artifact;
 pub mod evsi;
 pub mod failure_routes;
 pub mod functional_source;
+pub mod gaussian_forward_law;
 pub mod identification_repair;
 pub mod inverse_query;
 pub mod inverse_query_artifact;

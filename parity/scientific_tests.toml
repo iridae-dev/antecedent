@@ -483,3 +483,10 @@ evidence_assertion = "test_route_pulse_event_graph_posterior"
 kind = "route_sweep"
 fixtures = ["parity/python_products.toml"]
 why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/inverse_forward_sources_facade.rs"
+evidence_assertion = "composed_gaussian_outcome_law_matches_independent_chain_reference"
+kind = "known_truth"
+fixtures = []
+why = "Gaussian intervention outcome noise, median-tail probability and nonlinear quadratic utility against an independently expanded structural chain; no parameter interval is claimed."

@@ -8174,6 +8174,7 @@ pub const antecedent_core::reason_details::decision_contract::MISSING_SOURCE: &s
 pub const antecedent_core::reason_details::decision_contract::OUTSIDE_DECISION_SCOPE: &str
 pub const antecedent_core::reason_details::decision_contract::UNKNOWN_ACTION: &str
 pub const antecedent_core::reason_details::decision_contract::UNKNOWN_INPUT: &str
+pub const antecedent_core::reason_details::decision_evaluation::ANALYTIC_LAW_UNSUPPORTED: &str
 pub const antecedent_core::reason_details::decision_evaluation::DISTRIBUTION_MEANING: &str
 pub const antecedent_core::reason_details::decision_evaluation::JOINT_LAW_REQUIRED: &str
 pub const antecedent_core::reason_details::decision_evaluation::MEAN_SOURCE_INSUFFICIENT: &str

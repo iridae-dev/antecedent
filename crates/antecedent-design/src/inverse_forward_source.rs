@@ -7,12 +7,9 @@
 //!
 //! - **Composed mechanisms** ([`composed_forward_source`]): the replayed result
 //!   of a mechanism-composition query per action. A linear-Gaussian composition
-//!   supplies the interventional mean of each action (a point); a finite-table
-//!   composition supplies the exact finite law of each action, given the
-//!   caller's numeric coding of the outcome levels. A Gaussian composition does
-//!   not supply a law the engine can integrate, so a quantile or a probability
-//!   on it is refused with [`ForwardSourceRefusal::ComposedLawNotMaterialized`]
-//!   and the remedy of drawing the intervened law. A composition whose
+//!   supplies an analytic conditional outcome law for outcome coordinates, or a
+//!   point for mean coordinates and mean contrasts. A finite-table composition
+//!   supplies an exact finite law under numeric outcome coding. A composition whose
 //!   mechanisms were carried across populations is a transported claim: it is
 //!   refused under `NativeTargetOnly` and, under `AcceptsTransported`
 //!   ([`composed_forward_source_accepting`]), carries the transport receipt and
@@ -28,7 +25,7 @@
 //! # Refusals
 //!
 //! Each source states what it cannot supply before the engine runs.
-//! A point (every composed Gaussian value, every cohort contrast, every
+//! A point (Gaussian mean coordinates and contrasts, every cohort contrast, every
 //! transported mean) is refused a quantile, a probability, a nonlinear utility
 //! and an outcome-law input ([`ForwardSourceRefusal::PointOnlyLawRequested`]).
 //! No source supplies an interval region: it is refused for every source
@@ -36,8 +33,8 @@
 //! `uncertainty_representation_insufficient`), because the forward source is a point
 //! or a declared law, not the sampling uncertainty of producing it: a composition
 //! variance, a cohort model's standard error and a transport step are not carried
-//! as an interval representation here. A source's own variance is retained as a
-//! diagnostic and never becomes a feasibility statement.
+//! as an interval representation here. Parameter variance stays diagnostic;
+//! conditional outcome variance instead belongs to the outcome law.
 //!
 //! # Identity
 //!
@@ -298,6 +295,12 @@ impl ForwardOrigin {
 pub fn forward_claim_digest(claim: &ForwardClaim) -> Result<String, IoError> {
     let mut writer = CanonicalWriter::new(TAG_CLAIM);
     match claim {
+        ForwardClaim::Gaussian(law) => {
+            if !law.validate() {
+                return Err(IoError::Convert("invalid analytic Gaussian law".into()));
+            }
+            writer.text("analytic_gaussian_v1").bytes(&to_cbor(law)?);
+        }
         ForwardClaim::Means(mean) => {
             writer
                 .text("means")
@@ -508,9 +511,8 @@ impl ForwardSourceRefusal {
             Self::ComposedLawNotMaterialized { needed } => build(DETAIL_COMPOSED_LAW)
                 .offending(*needed)
                 .remedy(
-                    "draw the intervened joint law of the composition (the model's sampler) \
-                     and supply the aligned draws as the forward law; the composition's \
-                     closed form here is a mean and a variance",
+                    "request GaussianInterventionLaw with an outcome coordinate for each action, \
+                     or supply explicitly aligned outcome draws; a mean contrast remains an estimate",
                 )
                 .build(),
             Self::PointOnlyLawRequested { kind, needed } => build(DETAIL_POINT_ONLY_LAW)
@@ -606,7 +608,7 @@ pub struct ComposedActionResponse {
     /// The declared action this response answers.
     pub action_id: String,
     /// The coordinate the action's utility reads (the interventional mean of
-    /// the outcome, or the contrast).
+    /// the outcome, the outcome law, or the contrast).
     pub coordinate: ScientificQuantity,
     /// Verified premises digest of the composition artifact.
     pub premises_digest: String,
@@ -773,8 +775,9 @@ fn finite_law(
 
 /// Adapt a composed-mechanism model's response as a forward source.
 ///
-/// A linear-Gaussian response becomes one mean source over every action's
-/// coordinate; a finite-table response becomes one exact finite law per action
+/// A Gaussian intervention response with outcome coordinates becomes an analytic law
+/// per action. Mean coordinates and contrasts stay mean sources. A finite-table
+/// response becomes one exact finite law per action
 /// (each action is its own intervention, so no pairing across actions exists).
 ///
 /// A response whose mechanisms were carried across populations is a
@@ -821,6 +824,48 @@ fn check_composed_actions(response: &ComposedResponse) -> Result<(), ForwardSour
     Ok(())
 }
 
+fn gaussian_laws(
+    response: &ComposedResponse,
+    provider_id: &str,
+    causal_contract_id: &str,
+) -> Result<Vec<(String, ForwardClaim)>, ForwardSourceRefusal> {
+    let mut claims = Vec::with_capacity(response.actions.len());
+    for action in &response.actions {
+        let mean = point_value(action)?;
+        let (
+            CompositionQueryWire::GaussianInterventionLaw { .. },
+            CompositionResultWire::GaussianLaw { variance_bits, .. },
+        ) = (&action.query, &action.result)
+        else {
+            return Err(ForwardSourceRefusal::ComposedQueryResultMismatch(
+                action.action_id.clone(),
+            ));
+        };
+        if let CompositionQueryWire::GaussianInterventionLaw { outcome, .. } = &action.query {
+            if outcome != &action.coordinate.variable_id {
+                return Err(ForwardSourceRefusal::ComposedInvalid(
+                    "outcome coordinate matches the queried outcome",
+                ));
+            }
+        }
+        let law = crate::gaussian_forward_law::GaussianForwardLaw {
+            version: 1,
+            parameter_uncertainty: "not_propagated".into(),
+            coordinate: action.coordinate.clone(),
+            query_identity: CanonicalWriter::new("antecedent.composed_gaussian_action.v1")
+                .bytes(&to_cbor(&(&action.query, &action.result)).map_err(|e| encoding(&e))?)
+                .finish_hex(),
+            mean,
+            variance: bits(*variance_bits),
+            provider_id: provider_id.to_owned(),
+            snapshot_id: action.premises_digest.clone(),
+            causal_contract_id: causal_contract_id.to_owned(),
+        };
+        claims.push((action.action_id.clone(), ForwardClaim::Gaussian(Box::new(law))));
+    }
+    Ok(claims)
+}
+
 /// [`composed_forward_source`] with the consumer's stance on transported
 /// claims stated.
 ///
@@ -856,6 +901,12 @@ pub fn composed_forward_source_accepting(
     let provider_id = format!("composed_mechanisms:{}", response.family.as_str());
     let causal_contract_id = format!("composition:{identity}");
     let (claims, representation) = match response.family {
+        ComposedFamily::LinearGaussian
+            if response.actions.iter().all(|a| a.coordinate.functional_id == "outcome") =>
+        {
+            let claims = gaussian_laws(response, &provider_id, &causal_contract_id)?;
+            (SourceClaims::PerAction(claims), ForwardRepresentation::Law)
+        }
         ComposedFamily::LinearGaussian => {
             let mut coordinates = Vec::with_capacity(response.actions.len());
             let mut means = Vec::with_capacity(response.actions.len());

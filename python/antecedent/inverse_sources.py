@@ -19,7 +19,8 @@ with its own refusals and its identity travels into the result and the sealed ar
 * **Composed mechanisms.** :func:`derive_composed_source` exports each action's composition
   query, consumes the artifact again (premises digest recomputed, premises recompiled, query
   replayed to identical bits) and reads the replayed results. A linear-Gaussian composition
-  supplies a point per action; a finite-table composition the exact law of each action under the
+  supplies an analytic outcome law when the coordinate functional is ``outcome`` (a mean
+  coordinate still supplies a point); a finite-table composition supplies the exact law under the
   caller's numeric coding of the outcome levels. Mechanisms the analyst wrote down are carried
   into the origin as assumed.
 * **Cohort contrast.** :func:`cohort_forward_source`: the weighted mean contrast of a retained
@@ -211,7 +212,7 @@ class ComposedAction:
     """One declared action's composition query and how its outcome is coded.
 
     ``coordinate`` is the scientific coordinate the action's utility reads (the interventional
-    mean of the outcome, or the contrast, in the contract's own regime and population).
+    mean, outcome law (``functional_id="outcome"``), or contrast in the contract's regime and population).
     ``query`` is a mapping of hard interventions with ``outcome`` (a Gaussian intervention law
     for a linear-Gaussian composition, or a finite intervention distribution, with level names,
     for a finite-table one) or a :class:`~antecedent.mechanism_composition.MeanContrast`, whose

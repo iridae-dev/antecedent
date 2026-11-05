@@ -163,6 +163,11 @@ fn atom_from(object: &Bound<'_, PyAny>) -> PyResult<StructuralAtom> {
     let evidence = match (kind.as_str(), payload) {
         ("evaluated", Some(law)) => match claim_from(&law)? {
             ForwardClaim::Law(artifact) => AtomEvidence::Evaluated(artifact),
+            ForwardClaim::Gaussian(_) => {
+                return Err(crate::value_err(
+                    "an analytic univariate Gaussian is not an explicitly joint scenario law",
+                ));
+            }
             ForwardClaim::Means(_) => {
                 return Err(crate::value_err("a scenario or set member needs a law"));
             }

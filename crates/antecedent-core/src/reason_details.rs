@@ -598,6 +598,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "decision_contract.outside_decision_scope",
     "decision_contract.unknown_action",
     "decision_contract.unknown_input",
+    "decision_evaluation.analytic_law_unsupported",
     "decision_evaluation.distribution_meaning",
     "decision_evaluation.joint_law_required",
     "decision_evaluation.mean_source_insufficient",
@@ -3318,6 +3319,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("decision_contract.outside_decision_scope", &["quantity_semantics_mismatch"]),
     ("decision_contract.unknown_action", &["invalid_argument"]),
     ("decision_contract.unknown_input", &["invalid_argument"]),
+    ("decision_evaluation.analytic_law_unsupported", &["route_not_supported"]),
     ("decision_evaluation.distribution_meaning", &["distribution_meaning_mismatch"]),
     ("decision_evaluation.joint_law_required", &["joint_law_required"]),
     ("decision_evaluation.mean_source_insufficient", &["decision_contract_unsatisfied"]),
@@ -6787,6 +6789,8 @@ pub mod decision_contract {
 
 /// Details in the `decision_evaluation` family.
 pub mod decision_evaluation {
+    /// Detail `decision_evaluation.analytic_law_unsupported`.
+    pub const ANALYTIC_LAW_UNSUPPORTED: &str = "decision_evaluation.analytic_law_unsupported";
     /// Detail `decision_evaluation.distribution_meaning`.
     pub const DISTRIBUTION_MEANING: &str = "decision_evaluation.distribution_meaning";
     /// Detail `decision_evaluation.joint_law_required`.

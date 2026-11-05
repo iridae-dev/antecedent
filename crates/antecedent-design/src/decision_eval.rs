@@ -57,6 +57,8 @@ pub enum DecisionEvalError {
     },
     /// The criterion needs structure or identified-set inputs this source lacks.
     StructureInputsRequired(&'static str),
+    /// An analytic law cannot evaluate this expression or functional.
+    AnalyticLawUnsupported(&'static str),
     /// A utility expression produced a non-finite value.
     NonFiniteUtility {
         /// Action whose utility failed.
@@ -87,7 +89,7 @@ impl DecisionEvalError {
             Self::MeaningMismatch { .. } => {
                 antecedent_core::reason_code!("distribution_meaning_mismatch")
             }
-            Self::StructureInputsRequired(_) => {
+            Self::AnalyticLawUnsupported(_) | Self::StructureInputsRequired(_) => {
                 antecedent_core::reason_code!("route_not_supported")
             }
         }
@@ -117,7 +119,9 @@ impl std::fmt::Display for DecisionEvalError {
             Self::MeaningMismatch { action, input } => {
                 write!(formatter, "action {action} input {input} does not match the source meaning")
             }
-            Self::StructureInputsRequired(why) => write!(formatter, "{why}"),
+            Self::AnalyticLawUnsupported(why) | Self::StructureInputsRequired(why) => {
+                write!(formatter, "{why}")
+            }
             Self::NonFiniteUtility { action } => {
                 write!(formatter, "action {action} has a non-finite utility")
             }

@@ -16301,3 +16301,9 @@ family = "vector_treatment"
 codes = ["route_not_supported"]
 meaning = "A consumer holds an expected identity and a stored or recomputed identity field (snapshot, adjustment set, coefficient order, design, covariance kind, contrasts, null or result) differs."
 
+
+[[detail]]
+id = "decision_evaluation.analytic_law_unsupported"
+family = "decision_evaluation"
+codes = ["route_not_supported"]
+meaning = "The analytic law is invalid or cannot evaluate the requested utility or functional without unsupported approximation or an undeclared joint law."

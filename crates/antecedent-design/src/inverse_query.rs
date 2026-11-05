@@ -236,6 +236,8 @@ pub enum GridScope {
 pub enum ForwardClaim {
     /// An aligned joint distribution artifact.
     Law(Box<DistributionArtifact>),
+    /// Analytic conditional Gaussian outcome law, with no parameter posterior.
+    Gaussian(Box<crate::gaussian_forward_law::GaussianForwardLaw>),
     /// Means only: answers an affine target mean and nothing else.
     Means(MeanSource),
 }
@@ -542,6 +544,7 @@ pub fn finite_enumeration_baseline(
 #[derive(Clone, Copy)]
 enum Source<'a> {
     Law(&'a DistributionArtifact),
+    Gaussian(&'a crate::gaussian_forward_law::GaussianForwardLaw),
     Means(&'a MeanSource),
 }
 
@@ -574,6 +577,12 @@ impl Source<'_> {
                     }
                 }
             }
+            Self::Gaussian(law) => {
+                missing = action
+                    .inputs
+                    .iter()
+                    .any(|q| law.coordinate.require_same_coordinate(q).is_err());
+            }
             Self::Means(means) => {
                 for wanted in &action.inputs {
                     if !means.coordinates.iter().any(|c| c.require_same_coordinate(wanted).is_ok())
@@ -603,6 +612,7 @@ impl ForwardClaim {
     fn source(&self) -> Source<'_> {
         match self {
             Self::Law(artifact) => Source::Law(artifact),
+            Self::Gaussian(law) => Source::Gaussian(law),
             Self::Means(means) => Source::Means(means),
         }
     }
@@ -618,6 +628,7 @@ impl ForwardClaim {
                     causal_contract_id: identity.causal_contract_id.clone(),
                 }
             }
+            Self::Gaussian(law) => law.receipt(),
             Self::Means(means) => SourceReceipt {
                 provider_id: means.provider_id.clone(),
                 snapshot_id: means.snapshot_id.clone(),
@@ -689,6 +700,7 @@ enum Prepared {
 impl Prepared {
     fn new(contract: &DecisionContract, action_id: &str, source: Source<'_>) -> Self {
         match source {
+            Source::Gaussian(_) => Self::None,
             Source::Law(artifact) => {
                 ActionLaw::of_action(contract, action_id, artifact).map_or(Self::None, Self::Law)
             }
@@ -740,6 +752,7 @@ fn engine_value(
     prepared: &Prepared,
 ) -> Result<(f64, Option<f64>), DecisionEvalError> {
     match (source, prepared) {
+        (Source::Gaussian(law), _) => law.evaluate(contract, action_id, functional),
         (Source::Law(_), Prepared::Law(law)) => {
             law.functional(contract, functional).map(|value| (value.value, value.standard_error))
         }

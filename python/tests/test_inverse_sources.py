@@ -642,3 +642,21 @@ def test_a_shifted_cohort_is_a_transported_source_only_when_accepted() -> None:
         tr.TransportedResponse.from_shifted_cohort(cohort_source())
     assert_registered_refusal(native.value)
     assert native.value.detail == reason_details.transported_decision.NOT_TRANSPORTED
+
+
+def test_gaussian_outcome_law_roundtrip_preserves_standing() -> None:
+    actions = [
+        src.ComposedAction(f"x{arm}", outcome_under(arm, "outcome"), {"X": float(arm)}, outcome="Y")
+        for arm in ("0", "1", "2")
+    ]
+    source = require_success(src.derive_composed_source(compose(gaussian_chain()), actions))
+    assert source.origin.representation == "law"
+    request = query(("0", "1", "2"), [iq.target_quantile(0.5, 1.0)], functional="outcome")
+    sealed = require_success(source.seal_per_action(request))
+    assert len(sealed) == len(actions)
+    for artifact in sealed.values():
+        replay = require_success(iq.consume(bytes(artifact.export()), expected_identity=artifact.identity))
+        assert replay.origin == artifact.origin
+        assert replay.identity == artifact.identity
+    refused = refusal_of(lambda: require_success(source.evaluate(request, interval_region=True)))
+    assert refused.reason_code == "uncertainty_representation_insufficient"

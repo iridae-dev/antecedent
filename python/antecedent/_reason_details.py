@@ -742,6 +742,7 @@ class decision_contract:  # noqa: N801
 
 
 class decision_evaluation:  # noqa: N801
+    ANALYTIC_LAW_UNSUPPORTED: Final = "decision_evaluation.analytic_law_unsupported"
     DISTRIBUTION_MEANING: Final = "decision_evaluation.distribution_meaning"
     JOINT_LAW_REQUIRED: Final = "decision_evaluation.joint_law_required"
     MEAN_SOURCE_INSUFFICIENT: Final = "decision_evaluation.mean_source_insufficient"
@@ -4013,6 +4014,7 @@ ALL: Final[tuple[str, ...]] = (
     "decision_contract.outside_decision_scope",
     "decision_contract.unknown_action",
     "decision_contract.unknown_input",
+    "decision_evaluation.analytic_law_unsupported",
     "decision_evaluation.distribution_meaning",
     "decision_evaluation.joint_law_required",
     "decision_evaluation.mean_source_insufficient",
@@ -6738,6 +6740,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "decision_contract.outside_decision_scope": ("quantity_semantics_mismatch",),
     "decision_contract.unknown_action": ("invalid_argument",),
     "decision_contract.unknown_input": ("invalid_argument",),
+    "decision_evaluation.analytic_law_unsupported": ("route_not_supported",),
     "decision_evaluation.distribution_meaning": ("distribution_meaning_mismatch",),
     "decision_evaluation.joint_law_required": ("joint_law_required",),
     "decision_evaluation.mean_source_insufficient": ("decision_contract_unsatisfied",),

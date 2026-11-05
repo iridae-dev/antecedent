@@ -10369,6 +10369,8 @@ class ObservationalScenarioHandle:
     def summary_json(self) -> str: ...
     def verify(self, law: JointDistributionArtifact) -> str | None: ...
 
+# Gaussian intervention queries on outcome coordinates retain conditional outcome variance.
+# Mean coordinates and contrasts remain point-only; parameter intervals are unavailable.
 def forward_source_composed(
     handle: PreparedCompositionHandle,
     actions_json: str,

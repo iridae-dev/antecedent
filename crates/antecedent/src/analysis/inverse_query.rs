@@ -75,3 +75,6 @@ pub fn consume(
 ) -> Result<InverseQueryArtifact, IoError> {
     InverseQueryArtifact::from_bytes(bytes, expected)
 }
+
+/// Analytic conditional Gaussian law used by composed intervention sources.
+pub use antecedent_design::gaussian_forward_law::GaussianForwardLaw;

@@ -19633,6 +19633,7 @@ pub use antecedent::analysis::inverse_query::ExistenceClaim = antecedent_design:
 pub use antecedent::analysis::inverse_query::FeasibilityStatus = antecedent_design::inverse_query::FeasibilityStatus
 pub use antecedent::analysis::inverse_query::ForwardClaim = antecedent_design::inverse_query::ForwardClaim
 pub use antecedent::analysis::inverse_query::ForwardEvidence = antecedent_design::inverse_query::ForwardEvidence
+pub use antecedent::analysis::inverse_query::GaussianForwardLaw = antecedent_design::gaussian_forward_law::GaussianForwardLaw
 pub use antecedent::analysis::inverse_query::GridScope = antecedent_design::inverse_query::GridScope
 pub use antecedent::analysis::inverse_query::INVERSE_QUERY_ARTIFACT_FEATURE = antecedent_design::inverse_query_artifact::INVERSE_QUERY_ARTIFACT_FEATURE
 pub use antecedent::analysis::inverse_query::INVERSE_QUERY_ARTIFACT_VERSION = antecedent_design::inverse_query_artifact::INVERSE_QUERY_ARTIFACT_VERSION

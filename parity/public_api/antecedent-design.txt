@@ -565,6 +565,7 @@ impl core::clone::Clone for antecedent_design::evsi::StudyAction
 impl core::clone::Clone for antecedent_design::evsi::StudyCostSpec
 impl core::clone::Clone for antecedent_design::evsi::UpdatedDecision
 impl core::clone::Clone for antecedent_design::functional_source::LawFunctionalArtifact
+impl core::clone::Clone for antecedent_design::gaussian_forward_law::GaussianForwardLaw
 impl core::clone::Clone for antecedent_design::inverse_forward_source::ComposedActionResponse
 impl core::clone::Clone for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::clone::Clone for antecedent_design::inverse_forward_source::ComposedResponse
@@ -1603,6 +1604,7 @@ impl core::cmp::PartialEq for antecedent_design::evsi::SourceOverlapDiagnostics
 impl core::cmp::PartialEq for antecedent_design::evsi::StudyAction
 impl core::cmp::PartialEq for antecedent_design::evsi::StudyCostSpec
 impl core::cmp::PartialEq for antecedent_design::evsi::UpdatedDecision
+impl core::cmp::PartialEq for antecedent_design::gaussian_forward_law::GaussianForwardLaw
 impl core::cmp::PartialEq for antecedent_design::inverse_forward_source::ComposedActionResponse
 impl core::cmp::PartialEq for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::cmp::PartialEq for antecedent_design::inverse_forward_source::ComposedResponse
@@ -2470,6 +2472,7 @@ impl core::fmt::Debug for antecedent_design::evsi::StudyAction
 impl core::fmt::Debug for antecedent_design::evsi::StudyCostSpec
 impl core::fmt::Debug for antecedent_design::evsi::UpdatedDecision
 impl core::fmt::Debug for antecedent_design::functional_source::LawFunctionalArtifact
+impl core::fmt::Debug for antecedent_design::gaussian_forward_law::GaussianForwardLaw
 impl core::fmt::Debug for antecedent_design::inverse_forward_source::ComposedActionResponse
 impl core::fmt::Debug for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::fmt::Debug for antecedent_design::inverse_forward_source::ComposedResponse
@@ -3540,6 +3543,7 @@ impl core::marker::Freeze for antecedent_design::evsi::StudyAction [auto]
 impl core::marker::Freeze for antecedent_design::evsi::StudyCostSpec [auto]
 impl core::marker::Freeze for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::marker::Freeze for antecedent_design::functional_source::LawFunctionalArtifact [auto]
+impl core::marker::Freeze for antecedent_design::gaussian_forward_law::GaussianForwardLaw [auto]
 impl core::marker::Freeze for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::marker::Freeze for antecedent_design::inverse_forward_source::ComposedFamily [auto]
 impl core::marker::Freeze for antecedent_design::inverse_forward_source::ComposedResponse [auto]
@@ -4315,6 +4319,7 @@ impl core::marker::Send for antecedent_design::evsi::StudyAction [auto]
 impl core::marker::Send for antecedent_design::evsi::StudyCostSpec [auto]
 impl core::marker::Send for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::marker::Send for antecedent_design::functional_source::LawFunctionalArtifact [auto]
+impl core::marker::Send for antecedent_design::gaussian_forward_law::GaussianForwardLaw [auto]
 impl core::marker::Send for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::marker::Send for antecedent_design::inverse_forward_source::ComposedFamily [auto]
 impl core::marker::Send for antecedent_design::inverse_forward_source::ComposedResponse [auto]
@@ -5029,6 +5034,7 @@ impl core::marker::StructuralPartialEq for antecedent_design::evsi::SourceOverla
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::StudyAction
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::StudyCostSpec
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::UpdatedDecision
+impl core::marker::StructuralPartialEq for antecedent_design::gaussian_forward_law::GaussianForwardLaw
 impl core::marker::StructuralPartialEq for antecedent_design::inverse_forward_source::ComposedActionResponse
 impl core::marker::StructuralPartialEq for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::marker::StructuralPartialEq for antecedent_design::inverse_forward_source::ComposedResponse
@@ -5764,6 +5770,7 @@ impl core::marker::Sync for antecedent_design::evsi::StudyAction [auto]
 impl core::marker::Sync for antecedent_design::evsi::StudyCostSpec [auto]
 impl core::marker::Sync for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::marker::Sync for antecedent_design::functional_source::LawFunctionalArtifact [auto]
+impl core::marker::Sync for antecedent_design::gaussian_forward_law::GaussianForwardLaw [auto]
 impl core::marker::Sync for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::marker::Sync for antecedent_design::inverse_forward_source::ComposedFamily [auto]
 impl core::marker::Sync for antecedent_design::inverse_forward_source::ComposedResponse [auto]
@@ -6540,6 +6547,7 @@ impl core::marker::Unpin for antecedent_design::evsi::StudyAction [auto]
 impl core::marker::Unpin for antecedent_design::evsi::StudyCostSpec [auto]
 impl core::marker::Unpin for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::marker::Unpin for antecedent_design::functional_source::LawFunctionalArtifact [auto]
+impl core::marker::Unpin for antecedent_design::gaussian_forward_law::GaussianForwardLaw [auto]
 impl core::marker::Unpin for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::marker::Unpin for antecedent_design::inverse_forward_source::ComposedFamily [auto]
 impl core::marker::Unpin for antecedent_design::inverse_forward_source::ComposedResponse [auto]
@@ -7312,6 +7320,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::StudyA
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::StudyCostSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::functional_source::LawFunctionalArtifact [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::gaussian_forward_law::GaussianForwardLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::ComposedFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::ComposedResponse [auto]
@@ -8077,6 +8086,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::StudyActi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::StudyCostSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::functional_source::LawFunctionalArtifact [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::gaussian_forward_law::GaussianForwardLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::ComposedFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::ComposedResponse [auto]
@@ -8488,6 +8498,7 @@ impl serde_core::ser::Serialize for antecedent_design::design_ranking_artifact::
 impl serde_core::ser::Serialize for antecedent_design::evidence_plan_artifact::OptionValueWire
 impl serde_core::ser::Serialize for antecedent_design::evidence_plan_artifact::PlanOptionWire
 impl serde_core::ser::Serialize for antecedent_design::evidence_plan_artifact::UnverifiedRouteWire
+impl serde_core::ser::Serialize for antecedent_design::gaussian_forward_law::GaussianForwardLaw
 impl serde_core::ser::Serialize for antecedent_design::inverse_forward_source::ForwardOrigin
 impl serde_core::ser::Serialize for antecedent_design::inverse_forward_source::ForwardRepresentation
 impl serde_core::ser::Serialize for antecedent_design::inverse_forward_source::ForwardSourceKind
@@ -8812,6 +8823,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::design_ranking
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::evidence_plan_artifact::OptionValueWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::evidence_plan_artifact::PlanOptionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::evidence_plan_artifact::UnverifiedRouteWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::gaussian_forward_law::GaussianForwardLaw
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::inverse_forward_source::ForwardOrigin
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::inverse_forward_source::ForwardRepresentation
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::inverse_forward_source::ForwardSourceKind
@@ -10787,6 +10799,15 @@ pub field antecedent_design::evsi::UpdatedDecision::action_index: usize
 pub field antecedent_design::evsi::UpdatedDecision::expected_utility: f64
 pub field antecedent_design::evsi::UpdatedDecision::posterior_mean: f64
 pub field antecedent_design::evsi::UpdatedDecision::posterior_variance: f64
+pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::causal_contract_id: alloc::string::String
+pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::coordinate: antecedent_contract::quantity::ScientificQuantity
+pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::mean: f64
+pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::parameter_uncertainty: alloc::string::String
+pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::provider_id: alloc::string::String
+pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::query_identity: alloc::string::String
+pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::snapshot_id: alloc::string::String
+pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::variance: f64
+pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::version: u16
 pub field antecedent_design::inverse_forward_source::ComposedActionResponse::action_id: alloc::string::String
 pub field antecedent_design::inverse_forward_source::ComposedActionResponse::coordinate: antecedent_contract::quantity::ScientificQuantity
 pub field antecedent_design::inverse_forward_source::ComposedActionResponse::level_values: alloc::vec::Vec<(alloc::string::String, f64)>
@@ -12332,6 +12353,8 @@ pub fn <antecedent_design::functional_source::LawFunctionalArtifact>::fn result(
 pub fn <antecedent_design::functional_source::LawFunctionalArtifact>::fn source_evidence(&self) -> core::option::Option<&antecedent_design::source_evidence::SourceEvidence>
 pub fn <antecedent_design::functional_source::LawFunctionalArtifact>::fn summary(&self) -> core::result::Result<serde_json::value::Value, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::functional_source::LawFunctionalArtifact>::fn with_source_evidence(self, evidence: &antecedent_design::source_evidence::SourceEvidence) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_design::gaussian_forward_law::GaussianForwardLaw>::fn evaluate(&self, contract: &antecedent_design::DecisionContract, action_id: &str, functional: antecedent_design::DecisionFunctional) -> core::result::Result<(f64, core::option::Option<f64>), antecedent_design::decision_eval::DecisionEvalError>
+pub fn <antecedent_design::gaussian_forward_law::GaussianForwardLaw>::fn validate(&self) -> bool
 pub fn <antecedent_design::inverse_forward_source::ForwardOrigin>::fn bound_to(&self, claim: &antecedent_design::inverse_query::ForwardClaim) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::inverse_forward_source::ForwardOrigin>::fn canonical_identity(&self) -> alloc::string::String
 pub fn <antecedent_design::inverse_forward_source::ForwardOrigin>::fn validate(&self) -> core::result::Result<(), &'static str>
@@ -12812,6 +12835,7 @@ pub mod antecedent_design::evidence_plan_artifact
 pub mod antecedent_design::evsi
 pub mod antecedent_design::failure_routes
 pub mod antecedent_design::functional_source
+pub mod antecedent_design::gaussian_forward_law
 pub mod antecedent_design::identification_repair
 pub mod antecedent_design::inverse_forward_source
 pub mod antecedent_design::inverse_observational_scenarios
@@ -13230,6 +13254,7 @@ pub struct antecedent_design::evsi::StudyCostSpec
 pub struct antecedent_design::evsi::UpdatedDecision
 pub struct antecedent_design::functional_source::LawFunctionalArtifact
 pub struct antecedent_design::functional_source::LawFunctionalArtifact has private fields
+pub struct antecedent_design::gaussian_forward_law::GaussianForwardLaw
 pub struct antecedent_design::inverse_forward_source::ComposedActionResponse
 pub struct antecedent_design::inverse_forward_source::ComposedResponse
 pub struct antecedent_design::inverse_forward_source::ForwardOrigin
@@ -14184,6 +14209,7 @@ pub variant antecedent_design::decision_contract::UncertaintyRequirement::Credib
 pub variant antecedent_design::decision_contract::UncertaintyRequirement::None
 pub variant antecedent_design::decision_contract::UncertaintyRequirement::PointOnly
 pub variant antecedent_design::decision_contract::UncertaintyRequirement::StructuralEnvelope
+pub variant antecedent_design::decision_eval::DecisionEvalError::AnalyticLawUnsupported(&'static str)
 pub variant antecedent_design::decision_eval::DecisionEvalError::Contract(antecedent_design::DecisionContractError)
 pub variant antecedent_design::decision_eval::DecisionEvalError::JointLawRequired { action: core::option::Option<alloc::string::String>, supplied_alignment: &'static str }
 pub variant antecedent_design::decision_eval::DecisionEvalError::MeanSourceInsufficient { needed: alloc::vec::Vec<antecedent_design::SourceRepresentation> }
@@ -14573,6 +14599,7 @@ pub variant antecedent_design::inverse_query::FeasibilityStatus::StructurallyAmb
 pub variant antecedent_design::inverse_query::FeasibilityStatus::Unevaluated
 pub variant antecedent_design::inverse_query::FeasibilityStatus::Unidentified
 pub variant antecedent_design::inverse_query::FeasibilityStatus::Unsupported
+pub variant antecedent_design::inverse_query::ForwardClaim::Gaussian(alloc::boxed::Box<antecedent_design::gaussian_forward_law::GaussianForwardLaw>)
 pub variant antecedent_design::inverse_query::ForwardClaim::Law(alloc::boxed::Box<antecedent_io_core::distribution_artifact::DistributionArtifact>)
 pub variant antecedent_design::inverse_query::ForwardClaim::Means(antecedent_design::decision_eval::MeanSource)
 pub variant antecedent_design::inverse_query::GridScope::ContinuousSample
@@ -14597,6 +14624,7 @@ pub variant antecedent_design::inverse_query::SelectionRule::RequireUnique
 pub variant antecedent_design::inverse_query_artifact::AtomStateWire::Evaluated { claim: u64 }
 pub variant antecedent_design::inverse_query_artifact::AtomStateWire::Unevaluated { reason: alloc::string::String }
 pub variant antecedent_design::inverse_query_artifact::AtomStateWire::Unidentified
+pub variant antecedent_design::inverse_query_artifact::ClaimWire::Gaussian(alloc::boxed::Box<antecedent_design::gaussian_forward_law::GaussianForwardLaw>)
 pub variant antecedent_design::inverse_query_artifact::ClaimWire::Law(alloc::boxed::Box<antecedent_design::inverse_query_artifact::LawWire>)
 pub variant antecedent_design::inverse_query_artifact::ClaimWire::Means(antecedent_design::inverse_query_artifact::MeansWire)
 pub variant antecedent_design::inverse_query_artifact::ComparisonWire::AtLeast

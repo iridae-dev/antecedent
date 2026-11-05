@@ -7023,7 +7023,7 @@ routes = [
   { route = "antecedent.mechanism_composition.PreparedMechanismComposition.inverse_forward_source", stage = "prepare", status = "supported", claim = "point_only" },
   { route = "antecedent.inverse_sources.evaluate", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.inverse_sources.seal", stage = "representation", status = "supported", claim = "point_only" },
-  { route = "antecedent_design.inverse_forward_source.composed_law", stage = "evaluate", status = "closed", reason_code = "decision_contract_unsatisfied", claim = "point_only" },
+  { route = "antecedent_design.inverse_forward_source.composed_law", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent_design.inverse_forward_source.interval", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", claim = "point_only" },
 ]
 

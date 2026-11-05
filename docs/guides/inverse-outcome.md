@@ -129,12 +129,12 @@ before the engine runs, and its identity travels into the result.
 
 | Source | Rust entry | Supplies |
 | --- | --- | --- |
-| Composed mechanisms | `antecedent_design::inverse_forward_source::composed_forward_source` | Linear-Gaussian: per-action interventional mean (point). Finite table: the exact finite law |
+| Composed mechanisms | `antecedent_design::inverse_forward_source::composed_forward_source` | Linear-Gaussian: conditional analytic law on outcome coordinates; mean coordinates and contrasts remain points. Finite table: exact finite law |
 | Cohort-mean contrast | `cohort_forward_source` | A point; under a declared covariate shift it is a transported response |
 | Transported response | `transported_forward_source`, `decision_transported_source::evaluate_transported_decision` | A point, or a transported law |
 | Observational scenarios | `inverse_observational_scenarios::evaluate_observational_scenarios` | `P(S)`, `P(S and E)`, `P(E | S)`, `P(S | E)`, lift |
 
-Python entries: `antecedent.inverse_sources` (`composed_forward_source`,
+Python entries: `antecedent.inverse_sources` (`derive_composed_source`,
 `cohort_forward_source`, `transported_forward_source`, `ForwardSource.evaluate`,
 `.seal`, `.seal_per_action`, `observational_scenarios`),
 `antecedent.transported_response` (`TransportedResponse`,
@@ -147,9 +147,9 @@ A mean supplies the expectation of an affine utility and nothing else. A
 quantile, a probability, a nonlinear utility, a hard constraint, regret or an
 outcome-law input needs a law and is refused. No source supplies an interval
 region: composition variance, a cohort model's standard error and the transport
-step have no measured coverage. A source's own variance is kept as a diagnostic
-and never becomes a feasibility statement. A Gaussian composition does not
-supply a law the engine can integrate.
+step do not supply an interval-region claim. Parameter variance stays diagnostic.
+A Gaussian intervention outcome law retains residual outcome variance and can
+answer compatible probability, quantile and nonlinear expectation requests.
 
 ### Transported acceptance
 
@@ -207,7 +207,7 @@ The mass of the event no scenario explains is reported, not renormalized away.
 | Refused request | Reason code or detail | Remedy |
 | --- | --- | --- |
 | Quantile, probability or nonlinear utility on a point source | `PointOnlyLawRequested` / `decision_contract_unsatisfied` | Supply a law (draws or a finite table) |
-| Quantile or probability on a Gaussian composition | `ComposedLawNotMaterialized` | Draw the intervened law |
+| Quantile or probability on Gaussian mean coordinates or contrasts | `ComposedLawNotMaterialized` | Request an intervention law on outcome coordinates; contrasts remain estimates |
 | Interval region from any source | `IntervalNotSupported` / `not_supported` | Use the point as labelled |
 | Transported input to a consumer that does not accept one (inverse query, cohort forward claim, decision under the default policy) | `decision_contract_unsatisfied` (`inverse_forward_source.transported_not_accepted`, `transported_decision.transported_not_accepted`) | Accept transported inputs explicitly, naming the weaker support status in the policy |
 | Support rule stronger than the transported label | `transport_support_failure` (`transported_decision.support_rule_unmet`) | Weaken the rule for this input or measure in the target |
@@ -217,3 +217,19 @@ The mass of the event no scenario explains is reported, not renormalized away.
 | Event with no mass | typed refusal | Choose a supported event |
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).
+
+
+### Composed Gaussian outcome laws (3.0)
+
+Use a `GaussianInterventionLaw` query with the action coordinate's `functional_id`
+set to `outcome` to retain the compiler's conditional Gaussian mean and residual
+outcome variance. Mean coordinates and `GaussianMeanContrast` remain estimates.
+An outcome law answers affine probabilities and quantiles, and quadratic expected
+utilities and variances analytically. Other utility forms and joint outcome inputs
+refuse; no coupling of interventions is invented. Its standard error is unavailable:
+outcome noise is distinct from parameter uncertainty and no sampling interval is earned.
+Transport acceptance and receipts remain mandatory for carried mechanisms.
+
+Python uses the same `ComposedAction` and `derive_composed_source` workflow. Sealed
+inverse artifacts embed `analytic_gaussian_v1` parameters and identities and replay
+without sampling. Refreshing mechanisms changes the law and its claim digest.
