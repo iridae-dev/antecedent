@@ -3,7 +3,7 @@
 //! A bounded, checksummed, sectioned container holding one dummy-coded categorical regime fit:
 //!
 //! * `categorical_treatment_meta` (CBOR): version, feature marker, the frozen omnibus null and the
-//!   monotonicity null (when a monotonicity test is declared), the **not_measured** calibration
+//!   monotonicity null (when a monotonicity test is declared), the **`not_measured`** calibration
 //!   coordinate, the declared design (level order or canonical set, scale, reference, minimum
 //!   level rows, requested pairs, monotonicity direction, covariance kind), the snapshot and
 //!   adjustment declaration, the identity digests, the stored result (level counts, dummy
@@ -103,7 +103,7 @@ pub const MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 pub const CATEGORICAL_HC_ROW_CAP: usize = 4096;
 /// Most declared levels an artifact may carry.
 pub const CATEGORICAL_MAX_LEVELS: usize = 256;
-/// Standing caveat: inference is asymptotic and its calibration is not_measured.
+/// Standing caveat: inference is asymptotic and its calibration is `not_measured`.
 pub const CATEGORICAL_INFERENCE_CAVEAT: &str = "every p-value is an asymptotic Wald, Holm or chi-square value whose calibration is not_measured; no coverage claim is made and no interval is produced";
 /// Standing caveat of the monotonicity test.
 pub const CATEGORICAL_MONOTONICITY_CAVEAT: &str = "the monotonicity p-value is a conservative one-sided union-intersection (Bonferroni) bound; rejection is evidence against monotonicity in the declared direction, failing to reject does not prove it, and the test's Type I error and power are not_measured";
@@ -670,7 +670,7 @@ pub struct PosteriorMonotonicityWire {
 /// The optional posterior section: a Bayesian counterpart of the stored fit under a declared
 /// prior, recomputed from the stored design on consumption. Its estimand is the superpopulation
 /// dummy coefficient contrast of the stated linear model; it is unsupported and its calibration is
-/// not_measured.
+/// `not_measured`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CategoricalPosteriorWire {

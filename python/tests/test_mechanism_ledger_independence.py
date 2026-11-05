@@ -69,7 +69,7 @@ def test_disjoint_rows_are_independent_and_the_composition_prepares():
     m = source(ledger, "m study", 50, 100)
     y = source(ledger, "y study", 100, 150)
     prepared = compose(chain(x, m, y), ledger)
-    assert prepared.variables == ("X", "M", "Y")
+    assert prepared.variables == ("M", "X", "Y")
     # The ledger check adds no scientific number: the plan is the one an unchecked call makes.
     assert compose(chain(x, m, y)).plan_identity == prepared.plan_identity
 
@@ -81,7 +81,7 @@ def test_overlapping_rows_refute_the_independence_though_every_identity_differs(
     y = source(ledger, "y study", 50, 100)
     assert len({x, m, y}) == 3
     # The string comparison alone accepts this composition ...
-    assert compose(chain(x, m, y)).variables == ("X", "M", "Y")
+    assert compose(chain(x, m, y)).variables == ("M", "X", "Y")
     # ... the ledger does not: X and M share 25 rows, M and Y share 25 rows.
     error = refusal_of(lambda: compose(chain(x, m, y), ledger))
     assert error.reason_code == "joint_law_required"

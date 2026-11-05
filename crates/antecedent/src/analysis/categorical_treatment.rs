@@ -9,7 +9,7 @@
 //! declared order of an unordered level list does not change a number.
 //!
 //! Every p-value (Wald, Holm, chi-square, monotonicity) is asymptotic and its calibration is
-//! **not_measured**. The monotonicity p-value is a conservative union-intersection bound whose
+//! **`not_measured`**. The monotonicity p-value is a conservative union-intersection bound whose
 //! rejection is evidence against monotonicity; failing to reject does not prove it.
 //!
 //! The fit has no row ceiling, and every covariance kind (HC0 to HC3 included) exports a
@@ -111,7 +111,7 @@ impl CategoricalTreatment {
     /// marginal for each level and requested pair, and the Bonferroni/Frechet bounds of the
     /// declared monotonicity. The estimand is the superpopulation coefficient contrast of the
     /// stated linear model, not the finite-population average of the rows' effects; the section
-    /// is unsupported, its calibration is not_measured, and it is recomputed from the stored design
+    /// is unsupported, its calibration is `not_measured`, and it is recomputed from the stored design
     /// when the artifact is consumed. The covariance kind of the declared design is not read:
     /// the model-based likelihood is the posterior's.
     ///

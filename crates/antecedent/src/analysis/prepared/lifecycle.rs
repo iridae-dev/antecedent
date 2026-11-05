@@ -717,6 +717,7 @@ impl PreparedStudy {
             &DataInput::Tabular(data.clone()),
             &self.plan,
             Some(&self.execution),
+            None,
             ctx,
         )?;
         let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
@@ -947,7 +948,7 @@ impl PreparedStudy {
                 provenance,
             )? {
                 Some(result) => result,
-                None => execution_study.execute_on_with_provenance(
+                None => execution_study.execute_on(
                     &input,
                     &self.plan,
                     Some(&self.execution),
@@ -985,7 +986,7 @@ impl PreparedStudy {
                 let input = series_input(&study.data, table.clone());
                 match self.run_sealed_series(&complete, &input, ctx, entry, provenance)? {
                     Some(result) => Ok(result),
-                    None => complete.execute_on_with_provenance(
+                    None => complete.execute_on(
                         &input,
                         &self.plan,
                         Some(&self.execution),
@@ -1053,7 +1054,8 @@ impl PreparedStudy {
             )?;
             return self.stamp(&input, result, ctx);
         }
-        let result = self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?;
+        let result =
+            self.analysis.execute_on(&input, &self.plan, Some(&self.execution), None, ctx)?;
         self.stamp(&input, result, ctx)
     }
 
@@ -1116,7 +1118,8 @@ impl PreparedStudy {
             )?;
             return self.stamp(&input, result, ctx);
         }
-        let result = self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?;
+        let result =
+            self.analysis.execute_on(&input, &self.plan, Some(&self.execution), None, ctx)?;
         self.stamp(&input, result, ctx)
     }
 

@@ -25,7 +25,7 @@
 //! returns that stored fit. A change to the source or to any key field does not reuse it.
 //!
 //! Known-randomization sequential scores are a different estimator. This module does not call
-//! them and does not build a posterior. The score scale is a not_measured diagnostic, not an
+//! them and does not build a posterior. The score scale is a `not_measured` diagnostic, not an
 //! interval. Horizons beyond two decisions, censoring, and high-dimensional orthogonal
 //! learning are outside this contrast.
 //!
@@ -609,7 +609,7 @@ impl Default for SequentialNuisanceStore {
     }
 }
 
-/// Point contrast and the not_measured scale of its cross-fit scores.
+/// Point contrast and the `not_measured` scale of its cross-fit scores.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SequentialContrast {
     /// Active-regime mean minus control-regime mean.
@@ -620,7 +620,7 @@ pub struct SequentialContrast {
     pub control_mean: f64,
     /// Standard deviation of the contrast scores over `sqrt(n)`.
     ///
-    /// Calibration is not_measured. This is not an interval endpoint.
+    /// Calibration is `not_measured`. This is not an interval endpoint.
     pub not_measured_score_scale: f64,
     /// Subjects scored. Held-out ids in the fold assignment are not subjects.
     pub evaluated_rows: u64,

@@ -150,7 +150,7 @@ fn bayesian_authority(artifact: &Artifact) -> Result<MeasuredInference, IoError>
 }
 impl NestedFisherArtifact {
     /// Execute the original Fisher engine and authorize every reported scalar.
-    /// The original candidate retains its not_measured standing.
+    /// The original candidate retains its `not_measured` standing.
     /// # Errors
     /// Unsupported protocol, native estimation refusal, or missing current calibration.
     pub fn build_measured(

@@ -2,7 +2,7 @@
 //!
 //! Oracles (by construction of the dependency table):
 //!
-//! - the calibration record is declared not_measured and the draws are rows of one aligned joint
+//! - the calibration record is declared `not_measured` and the draws are rows of one aligned joint
 //!   posterior, keyed by the source units, the draw count and the seed;
 //! - both enter the law and the decision only; the fit and everything that reads only data keep
 //!   the identities of the same request with the inputs removed;

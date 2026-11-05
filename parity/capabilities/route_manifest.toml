@@ -1586,6 +1586,21 @@ retained_route_test = "crates/antecedent/tests/randomized_precision_intervals.rs
 notes = "method=ancova_hc0; assignment_unit=unit. Support row in parity/support_graphless.toml. Independent Bernoulli binary ITT with one or two pre-assignment ANCOVA covariates, a common declared probability from 0.2 through 0.8, 30 observed rows per arm, at least 40 expected rows per arm (the row count times the probability, and times one minus it), positive HC0 variance, and a published pointwise 95% interval. No row-count threshold applies: HC0 omits the leverage correction, and the bias that omission leaves is set by how few rows an arm holds. Twenty 2,000-allocation fixtures cover..."
 
 [[route]]
+id = "graphless.randomized_effect.bernoulli.gaussian_ipow_modular_posterior"
+target = "randomized_effect"
+graph_class = "RandomizedTrial"
+design_time_model = "bernoulli"
+inference = "conditional_pseudo_posterior_pointwise_95_quantiles"
+uncertainty = "conditional_pseudo_posterior_pointwise_95_quantiles"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "graphless"
+owning_module = "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"
+retained_operation = "randomized"
+retained_route_test = "crates/antecedent/tests/bayesian_randomized_routes.rs::supported_ipow_posterior_replays_after_the_builder_is_dropped"
+notes = "method=gaussian_ipow_modular_posterior; assignment_unit=unit. Support row in parity/support_graphless.toml. Two-arm bernoulli randomization of independent units, known identical per-unit assignment probabilities, ITT superpopulation contrast, Gaussian working likelihood on score-adjusted inverse-probability-of-observation pseudo-outcomes, and an explicitly declared proper Normal-Inverse-Gamma prior. Every arm needs at least three assigned units and one responder. Outcome observation must be ignorable given arm and the declared complete pre-assignment covariates; the arm-wise linear-logit observation model must be correctly specified and positive (a responder probability at or below 0.02, separation or singularity refuses). The observation-model score correction enters the pseudo-outcome spread, but its coefficients have no posterior. This is a modular pseudo-posterior conditional on that fitted observation model, not a joint Bayesian outcome/missingness posterior. The prior shrinks the arm pseudo-means; an unshrunk pseudo-mean equals the post-stratified responder mean in saturated response strata. The equal-tailed 95% quantiles are pointwise and repeated-sampling calibration is not_measured, not a prerequisite for this execution support. No finite-population, Bernoulli-likelihood, multi-arm, factorial, clustered, weighted-sampling, transferred-prior or simultaneous claim inherits this row. Retained source observations, covariates, assignments and prior replay the observation fit and the whole pseudo-posterior; edited source or posterior values are refused."
+
+[[route]]
 id = "graphless.randomized_effect.bernoulli.fixed_cuped_ht_score"
 target = "randomized_effect"
 graph_class = "RandomizedTrial"
@@ -1764,6 +1779,21 @@ owning_module = "crates/antecedent-estimate/src/policy_value.rs"
 retained_operation = "policy_value"
 retained_route_test = "crates/antecedent/tests/policy_value_route.rs::multi_action_intervals_require_nonbinding_global_constraints"
 notes = "method=fixed_randomized_multi_action_ipw_fixed_group_scores; assignment_unit=unit. Support row in parity/support_graphless.toml. Fixed multi-action policy plus pre-treatment baseline groups declared before outcomes, known action probabilities at least 0.2, at least 300 independent subjects and 50 observed subjects in each compared arm per group, uncoupled constraints, and all scalar and group/action pointwise 95% intervals published. No fitted CATE model or simultaneous group coverage."
+
+[[route]]
+id = "graphless.randomized_effect.complete.gaussian_ipow_modular_posterior"
+target = "randomized_effect"
+graph_class = "RandomizedTrial"
+design_time_model = "complete"
+inference = "conditional_pseudo_posterior_pointwise_95_quantiles"
+uncertainty = "conditional_pseudo_posterior_pointwise_95_quantiles"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "graphless"
+owning_module = "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"
+retained_operation = "randomized"
+retained_route_test = "crates/antecedent/tests/bayesian_randomized_routes.rs::supported_ipow_posterior_replays_after_the_builder_is_dropped"
+notes = "method=gaussian_ipow_modular_posterior; assignment_unit=unit. Support row in parity/support_graphless.toml. Two-arm complete randomization of independent units, known identical per-unit assignment probabilities, ITT superpopulation contrast, Gaussian working likelihood on score-adjusted inverse-probability-of-observation pseudo-outcomes, and an explicitly declared proper Normal-Inverse-Gamma prior. Every arm needs at least three assigned units and one responder. Outcome observation must be ignorable given arm and the declared complete pre-assignment covariates; the arm-wise linear-logit observation model must be correctly specified and positive (a responder probability at or below 0.02, separation or singularity refuses). The observation-model score correction enters the pseudo-outcome spread, but its coefficients have no posterior. This is a modular pseudo-posterior conditional on that fitted observation model, not a joint Bayesian outcome/missingness posterior. The prior shrinks the arm pseudo-means; an unshrunk pseudo-mean equals the post-stratified responder mean in saturated response strata. The equal-tailed 95% quantiles are pointwise and repeated-sampling calibration is not_measured, not a prerequisite for this execution support. No finite-population, Bernoulli-likelihood, multi-arm, factorial, clustered, weighted-sampling, transferred-prior or simultaneous claim inherits this row. Retained source observations, covariates, assignments and prior replay the observation fit and the whole pseudo-posterior; edited source or posterior values are refused."
 
 [[route]]
 id = "graphless.randomized_effect.complete.neyman_difference_in_means"
@@ -6081,6 +6111,34 @@ implementation = ["crates/antecedent/src/analysis/execute/dispatch.rs", "crates/
 provenance = ["estimate.propensity", "estimate.propensity_weighting"]
 evidence = ["crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle"]
+
+[[method]]
+id = "method.AverageEffect.Dag.randomized.quantile.frequentist"
+kind = "supported_estimator"
+route = "supported.AverageEffect.Dag"
+child = ""
+target = "AverageEffect"
+graph_class = "Dag"
+design = "static"
+estimator = "randomized.quantile"
+identifier = []
+lowering = []
+inference = "frequentist"
+design_time_model = "static; structure=explicit,accepted,graph_posterior"
+status = "supported"
+structures = ["explicit", "accepted"]
+validations = ["none"]
+coordinates = 2
+uncertainty = "analytic"
+uncertainty_structure = "explicit"
+uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/supported_static_cells.rs"
+uncertainty_by_structure = ["explicit=analytic,design_aware_resampling|construction_fixture|test:crates/antecedent/tests/supported_static_cells.rs", "accepted=|"]
+decision_ports = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
+implementation = ["crates/antecedent/src/analysis/execute/randomized_quantile_path.rs", "crates/antecedent/src/analysis/execute/static_path.rs", "crates/antecedent/src/analysis/builder.rs"]
+provenance = ["estimate.randomized_quantile", "estimate.randomized_quantile"]
+evidence = ["crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_explicit_frequentist_none", "crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_accepted_frequentist_none"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/randomized_quantile_artifact.rs::the_randomized_quantile_result_round_trips_through_the_contracted_artifact"]
 
 [[method]]
 id = "method.AverageEffect.Dag.rd.bayesian_local_linear.bayesian"
@@ -13266,7 +13324,7 @@ design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
-coordinates = 5
+coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/pag_admg_numeric_pins.rs"
@@ -13294,7 +13352,7 @@ design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
-coordinates = 5
+coordinates = 9
 uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/pag_admg_numeric_pins.rs"
@@ -13349,8 +13407,8 @@ inference = "frequentist"
 design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted"]
-validations = ["none"]
-coordinates = 2
+validations = ["cheap", "full", "none"]
+coordinates = 6
 uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/pag_admg_numeric_pins.rs"
@@ -13359,7 +13417,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.kennedy_dr", "estimate.response.kennedy_dr"]
-evidence = ["crates/antecedent/tests/response_cells_known_truth.rs::kennedy_dr_response_curve_matches_the_closed_form_levels"]
+evidence = ["crates/antecedent/tests/response_cells_known_truth.rs::kennedy_dr_response_curve_matches_the_closed_form_levels", "crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_adjustable_admg_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
 
 [[method]]
@@ -13378,7 +13436,7 @@ design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
-coordinates = 5
+coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/class_explicit_known_truth.rs"
@@ -13387,7 +13445,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_level_refutation.rs", "crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/class_posterior_response.rs"]
 provenance = ["estimate.response.bayesian", "estimate.response.bayesian"]
-evidence = ["crates/antecedent/tests/checked_static_class_response_route_evidence.rs::static_class_responses_are_sealed_for_both_classes_and_inferences", "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference", "crates/antecedent/tests/response_curve_posterior_validation_truth.rs::response_curve_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped"]
+evidence = ["crates/antecedent/tests/checked_static_class_response_route_evidence.rs::static_class_responses_are_sealed_for_both_classes_and_inferences", "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference", "crates/antecedent/tests/response_curve_posterior_validation_truth.rs::response_curve_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped", "crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_static_class_response_route_evidence.rs::static_class_responses_are_sealed_for_both_classes_and_inferences"]
 
 [[method]]
@@ -13406,7 +13464,7 @@ design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
-coordinates = 5
+coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/class_explicit_known_truth.rs"
@@ -13415,7 +13473,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.kennedy_dr", "estimate.response.kennedy_dr"]
-evidence = ["crates/antecedent/tests/checked_static_class_response_route_evidence.rs::static_class_responses_are_sealed_for_both_classes_and_inferences", "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference", "crates/antecedent/tests/response_curve_posterior_validation_truth.rs::response_curve_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped"]
+evidence = ["crates/antecedent/tests/checked_static_class_response_route_evidence.rs::static_class_responses_are_sealed_for_both_classes_and_inferences", "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference", "crates/antecedent/tests/response_curve_posterior_validation_truth.rs::response_curve_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped", "crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_static_class_response_route_evidence.rs::static_class_responses_are_sealed_for_both_classes_and_inferences"]
 
 [[method]]
@@ -13433,8 +13491,8 @@ inference = "bayesian"
 design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
-validations = ["none"]
-coordinates = 3
+validations = ["cheap", "full", "none"]
+coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/response_facade.rs"
@@ -13443,7 +13501,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_level_refutation.rs", "crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/class_posterior_response.rs"]
 provenance = ["estimate.response.bayesian", "estimate.response.bayesian"]
-evidence = ["crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference", "crates/antecedent/tests/checked_bayesian_static_dag_response_route_evidence.rs::bayesian_static_dag_responses_are_sealed_for_explicit_and_accepted_graphs"]
+evidence = ["crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference", "crates/antecedent/tests/checked_bayesian_static_dag_response_route_evidence.rs::bayesian_static_dag_responses_are_sealed_for_explicit_and_accepted_graphs", "crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_bayesian_dag_known_truth", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_dag_posterior_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference"]
 
 [[method]]
@@ -13461,8 +13519,8 @@ inference = "frequentist"
 design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
-validations = ["none"]
-coordinates = 3
+validations = ["cheap", "full", "none"]
+coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/response_facade.rs"
@@ -13471,7 +13529,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.kennedy_dr", "estimate.response.kennedy_dr"]
-evidence = ["crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference", "crates/antecedent/tests/checked_static_dag_response_route_evidence.rs::mean_curve_explicit_and_accepted_keep_ordered_grid_through_refresh_and_export"]
+evidence = ["crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference", "crates/antecedent/tests/checked_static_dag_response_route_evidence.rs::mean_curve_explicit_and_accepted_keep_ordered_grid_through_refresh_and_export", "crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_known_truth", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_dag_posterior_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference"]
 
 [[method]]
@@ -13490,7 +13548,7 @@ design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
-coordinates = 5
+coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/class_explicit_known_truth.rs"
@@ -13499,7 +13557,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_level_refutation.rs", "crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/class_posterior_response.rs"]
 provenance = ["estimate.response.bayesian", "estimate.response.bayesian"]
-evidence = ["crates/antecedent/tests/checked_static_class_response_route_evidence.rs::static_class_responses_are_sealed_for_both_classes_and_inferences", "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference", "crates/antecedent/tests/response_curve_posterior_validation_truth.rs::response_curve_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped"]
+evidence = ["crates/antecedent/tests/checked_static_class_response_route_evidence.rs::static_class_responses_are_sealed_for_both_classes_and_inferences", "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference", "crates/antecedent/tests/response_curve_posterior_validation_truth.rs::response_curve_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped", "crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_static_class_response_route_evidence.rs::static_class_responses_are_sealed_for_both_classes_and_inferences"]
 
 [[method]]
@@ -13518,7 +13576,7 @@ design_time_model = "static; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
-coordinates = 5
+coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/class_explicit_known_truth.rs"
@@ -13527,7 +13585,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.kennedy_dr", "estimate.response.kennedy_dr"]
-evidence = ["crates/antecedent/tests/checked_static_class_response_route_evidence.rs::static_class_responses_are_sealed_for_both_classes_and_inferences", "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference", "crates/antecedent/tests/response_curve_posterior_validation_truth.rs::response_curve_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped"]
+evidence = ["crates/antecedent/tests/checked_static_class_response_route_evidence.rs::static_class_responses_are_sealed_for_both_classes_and_inferences", "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference", "crates/antecedent/tests/response_curve_posterior_validation_truth.rs::response_curve_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped", "crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_static_class_response_route_evidence.rs::static_class_responses_are_sealed_for_both_classes_and_inferences"]
 
 [[method]]
@@ -13546,7 +13604,7 @@ design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
-coordinates = 5
+coordinates = 9
 uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
 uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs"
@@ -13555,7 +13613,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
-evidence = ["crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_graph_posterior", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_explicit_and_accepted", "crates/antecedent/tests/response_curve_posterior_validation_truth.rs::response_curve_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped"]
+evidence = ["crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_graph_posterior", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_explicit_and_accepted", "crates/antecedent/tests/response_curve_posterior_validation_truth.rs::response_curve_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_graph_posterior"]
 
 [[method]]
@@ -13574,7 +13632,7 @@ design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
-coordinates = 5
+coordinates = 9
 uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
 uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/temporal_admg_route_evidence.rs"
@@ -13583,7 +13641,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
-evidence = ["crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_graph_posterior", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_explicit_and_accepted", "crates/antecedent/tests/response_curve_posterior_validation_truth.rs::response_curve_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped"]
+evidence = ["crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_graph_posterior", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_explicit_and_accepted", "crates/antecedent/tests/response_curve_posterior_validation_truth.rs::response_curve_graph_posterior_executes_from_the_retained_plan_with_the_builder_dropped", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_response_curve_graph_posterior"]
 
 [[method]]
@@ -13629,8 +13687,8 @@ inference = "frequentist"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted"]
-validations = ["none"]
-coordinates = 2
+validations = ["cheap", "full", "none"]
+coordinates = 6
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
 uncertainty_basis = "estimator_records|estimator:response.kennedy_dr:Frequentist:static:explicit"
@@ -13639,7 +13697,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.kennedy_dr", "estimate.response.kennedy_dr"]
-evidence = ["crates/antecedent/tests/response_cells_known_truth.rs::kennedy_dr_response_curve_matches_the_closed_form_levels"]
+evidence = ["crates/antecedent/tests/response_cells_known_truth.rs::kennedy_dr_response_curve_matches_the_closed_form_levels", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_adjustable_temporal_admg_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
 
 [[method]]
@@ -13657,8 +13715,8 @@ inference = "bayesian"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
-validations = ["none"]
-coordinates = 3
+validations = ["cheap", "full", "none"]
+coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/temporal_class_bayesian_envelope.rs"
@@ -13667,7 +13725,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
-evidence = ["crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+evidence = ["crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms"]
 
 [[method]]
@@ -13685,8 +13743,8 @@ inference = "frequentist"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
-validations = ["none"]
-coordinates = 3
+validations = ["cheap", "full", "none"]
+coordinates = 9
 uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
@@ -13695,7 +13753,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
-evidence = ["crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs", "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms"]
+evidence = ["crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs", "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
 
 [[method]]
@@ -13713,8 +13771,8 @@ inference = "bayesian"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
-validations = ["none"]
-coordinates = 3
+validations = ["cheap", "full", "none"]
+coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/temporal_response_facade.rs"
@@ -13723,7 +13781,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
-evidence = ["crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms", "crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency"]
+evidence = ["crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms", "crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_dag_known_truth", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms"]
 
 [[method]]
@@ -13741,8 +13799,8 @@ inference = "frequentist"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
-validations = ["none"]
-coordinates = 3
+validations = ["cheap", "full", "none"]
+coordinates = 9
 uncertainty = "analytic"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/temporal_response_facade.rs"
@@ -13751,7 +13809,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
-evidence = ["crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms", "crates/antecedent/tests/checked_temporal_dag_response_route_evidence.rs::temporal_mean_curve_is_sealed_refreshable_and_has_precise_artifact_dependency"]
+evidence = ["crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms", "crates/antecedent/tests/checked_temporal_dag_response_route_evidence.rs::temporal_mean_curve_is_sealed_refreshable_and_has_precise_artifact_dependency", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_dag_known_truth", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms"]
 
 [[method]]
@@ -13769,8 +13827,8 @@ inference = "bayesian"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
-validations = ["none"]
-coordinates = 3
+validations = ["cheap", "full", "none"]
+coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/temporal_class_bayesian_envelope.rs"
@@ -13779,7 +13837,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile_graph_posterior.rs", "crates/antecedent-estimate/src/bayesian/gcomp.rs"]
 provenance = ["estimate.response.temporal.bayesian", "estimate.response.temporal.bayesian"]
-evidence = ["crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
+evidence = ["crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms"]
 
 [[method]]
@@ -13797,8 +13855,8 @@ inference = "frequentist"
 design_time_model = "temporal; structure=explicit,accepted,graph_posterior"
 status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
-validations = ["none"]
-coordinates = 3
+validations = ["cheap", "full", "none"]
+coordinates = 9
 uncertainty = "design_aware_resampling"
 uncertainty_structure = "explicit"
 uncertainty_basis = "construction_fixture|test:crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
@@ -13807,7 +13865,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_path.rs", "crates/antecedent/src/analysis/execute/temporal_response_execution.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.temporal_response.gcomp", "estimate.temporal_response.gcomp"]
-evidence = ["crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs", "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms"]
+evidence = ["crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs", "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth", "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/checked_temporal_class_response_route_evidence.rs::all_temporal_class_response_coordinates_execute_from_retained_source_proofs"]
 
 [[method]]
@@ -16751,6 +16809,34 @@ evidence = ["crates/antecedent/tests/randomized_precision_intervals.rs::supporte
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/randomized_precision_intervals.rs::supported_ancova_and_fixed_cuped_intervals_round_trip_and_refuse_forgery"]
 
 [[method]]
+id = "method.graphless.randomized_effect.bernoulli.gaussian_ipow_modular_posterior"
+kind = "route_method"
+route = "graphless.randomized_effect.bernoulli.gaussian_ipow_modular_posterior"
+child = ""
+target = "randomized_effect"
+graph_class = "RandomizedTrial"
+design = "static"
+estimator = "unlisted"
+identifier = []
+lowering = []
+inference = "unlisted"
+design_time_model = "bernoulli"
+status = "graphless"
+structures = []
+validations = []
+coordinates = 0
+uncertainty = "posterior"
+uncertainty_structure = "none"
+uncertainty_basis = "graphless_claim:conditional_pseudo_posterior_pointwise_95_quantiles"
+uncertainty_by_structure = []
+decision_ports = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"
+implementation = ["crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"]
+provenance = []
+evidence = ["crates/antecedent/tests/bayesian_randomized_routes.rs::supported_ipow_posterior_replays_after_the_builder_is_dropped"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/bayesian_randomized_routes.rs::supported_ipow_posterior_replays_after_the_builder_is_dropped"]
+
+[[method]]
 id = "method.graphless.randomized_effect.bernoulli.fixed_cuped_ht_score"
 kind = "route_method"
 route = "graphless.randomized_effect.bernoulli.fixed_cuped_ht_score"
@@ -17085,6 +17171,34 @@ implementation = ["crates/antecedent-estimate/src/policy_value.rs"]
 provenance = []
 evidence = ["crates/antecedent/tests/policy_value_route.rs::multi_action_intervals_require_nonbinding_global_constraints"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/policy_value_route.rs::multi_action_intervals_require_nonbinding_global_constraints"]
+
+[[method]]
+id = "method.graphless.randomized_effect.complete.gaussian_ipow_modular_posterior"
+kind = "route_method"
+route = "graphless.randomized_effect.complete.gaussian_ipow_modular_posterior"
+child = ""
+target = "randomized_effect"
+graph_class = "RandomizedTrial"
+design = "static"
+estimator = "unlisted"
+identifier = []
+lowering = []
+inference = "unlisted"
+design_time_model = "complete"
+status = "graphless"
+structures = []
+validations = []
+coordinates = 0
+uncertainty = "posterior"
+uncertainty_structure = "none"
+uncertainty_basis = "graphless_claim:conditional_pseudo_posterior_pointwise_95_quantiles"
+uncertainty_by_structure = []
+decision_ports = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"
+implementation = ["crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"]
+provenance = []
+evidence = ["crates/antecedent/tests/bayesian_randomized_routes.rs::supported_ipow_posterior_replays_after_the_builder_is_dropped"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result", "crates/antecedent/tests/bayesian_randomized_routes.rs::supported_ipow_posterior_replays_after_the_builder_is_dropped"]
 
 [[method]]
 id = "method.graphless.randomized_effect.complete.neyman_difference_in_means"

@@ -34,7 +34,7 @@ use crate::util::require_explicit_override;
 /// Remedy named when the frequentist interaction regression, configured with
 /// `joint_modifiers` off, is asked for more than one modifier. Its estimand,
 /// delta-method SE and calibration record are for one modifier; a joint-modifier
-/// frequentist interval would be a not_measured coordinate, so the refusal points at
+/// frequentist interval would be a `not_measured` coordinate, so the refusal points at
 /// the routes that take a modifier set instead. The adjustment handoff is named as a
 /// capability; Python appends the call.
 const MULTI_MODIFIER_REMEDY: &str = "the frequentist interaction regression fits one modifier; \

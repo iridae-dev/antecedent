@@ -295,10 +295,11 @@ def test_sampled_recovery_bounds_and_malformed_rows_carry_their_own_details():
     assert fewer.calibration != "calibrated"
     with pytest.raises(CausalValueError, match="at least 2"):
         transport.sampled_observation_recovery(**sampled_kwargs(replicates=1))
-    # The sealed artifact carries at most 2000 replicates: a larger count is a resource bound of
-    # the export, not a measured-scope refusal.
-    with pytest.raises(CausalValueError, match="export bounds"):
-        transport.sampled_observation_recovery(**sampled_kwargs(replicates=2500))
+    # No fixed replicate count caps the export: a run above 2000 replicates is produced and
+    # annotated like any count the grid did not measure. Its size is bounded by the declared
+    # replay work (replicates times rows) instead.
+    many = transport.sampled_observation_recovery(**sampled_kwargs(replicates=2500))
+    assert many.calibration != "calibrated"
     # A proxy value with no response is a pattern the proxy model excludes.
     error = refusal_of(
         lambda: transport.sampled_observation_recovery(**sampled_kwargs(rows=[(0, 0, 1, 0)])),

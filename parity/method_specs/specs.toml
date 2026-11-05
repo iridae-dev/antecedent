@@ -1420,7 +1420,7 @@ decision_basis = "supported per the counterpart inventory; execution crates/ante
 provenance = [
   "estimate.randomized_quantile",
 ]
-api_review = "internal: no public item of the module reaches the crate's public surface"
+api_review = "parity/public_api/antecedent-estimate.txt: 3 of 3 public items reviewed"
 identifying_result = "QuantileEffect"
 assumptions = "randomized (unconfounded) binary treatment with an empty adjustment set; independent assignment across rows"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"

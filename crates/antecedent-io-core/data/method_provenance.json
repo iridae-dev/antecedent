@@ -541,6 +541,9 @@
   "estimate.randomized_missing_outcomes": [
    "estimate.randomized_missing_outcomes"
   ],
+  "estimate.randomized_quantile": [
+   "estimate.randomized_quantile"
+  ],
   "estimate.sampling_weights": [
    "estimate.sampling_weights"
   ],
@@ -1880,7 +1883,7 @@
    ],
    "digest": "02ce91a91adfdbe5ab10d0f0f4cfa1fc58e47611ab5333effa51a2e87f5a584e",
    "id": "adaptive_inference.participant_family",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the estimated-correlation posterior (its integrand is not a polynomial), the whole-procedure simulation, the replay of a retained history or the confidence-sequence readings, which keep their independent oracles in adaptive_participant_family"
    ],
@@ -1975,7 +1978,7 @@
    ],
    "digest": "61a336d1e667d2802fc8c70ab5fb914c8a1d9d76cbba58337469da5939f4d827",
    "id": "adaptive_inference.procedure_anytime_exclusion",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the theorem that bounds the exclusion by alpha, other boundaries, or contexts (refused)"
    ],
@@ -2005,7 +2008,7 @@
    ],
    "digest": "6c04d91b35528df759e30862943cb48f91db08d7c6f46ad3e42b6230f3d51add",
    "id": "adaptive_inference.procedure_bayesian_martingale_gap",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the credible interval of the whole procedure (not claimed) or contexts"
    ],
@@ -2033,7 +2036,7 @@
    "deviations": [
     "Exact under a hypothesized truth for the declared finite procedure; calibration is derived and not measured and nothing is claimed about an unknown truth."
    ],
-   "digest": "604929689dcb412d16664599a4e2d442e2ea6231ec71b78fee8fc3c6323660fd",
+   "digest": "62a761301f0e84568cf5e3c574d1715b6d544c3222052fe7a4dddfa177075110",
    "id": "adaptive_inference.procedure_decision_report",
    "review": "none",
    "scope_limits": [],
@@ -2071,7 +2074,7 @@
    ],
    "digest": "1309ab239675a1290d1277a1a0f4c69135bb5c3ec4c17391e161b39a3b62b7f8",
    "id": "adaptive_inference.procedure_ordered_p_value",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the normal-theory ordering of the paper, coverage, or adaptive assignment (refused)"
    ],
@@ -2113,7 +2116,7 @@
    ],
    "digest": "6fb2e140fc40f63f61baabc849c3fcbd5d2c5546839984ea1cd0d85b711d51f0",
    "id": "adaptive_inference.procedure_repeated_measures",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the Gaussian simulation of the adaptive procedure, the cluster-robust, pooled and weighted analyses inside it, the premise gates or the cell labels, which stay with the independent oracle tests of adaptive_repeated_measures_oracle"
    ],
@@ -2248,7 +2251,7 @@
     "Every route is point-only with calibration not_measured except the pooled-share interval (capability `choice_inference.interval_candidates`): the equal-tail credible interval from the explicit Beta marginal quantiles of the Dirichlet posterior, reported with its calibration status and never refused for the lack of a coverage record. The study value is the exact expected value of sample information over the Dirichlet-multinomial predictive (Monte Carlo with a standard error beyond 250 000 outcomes) under a linear per-option value, with no calibrated-uncertainty claim.",
     "Stated choices do not identify behavioural or causal outcomes."
    ],
-   "digest": "80d4ce22849336b2fb70b5cdd887785702c94554d1cbd0a97d4022025bd18228",
+   "digest": "5aec735c2374905021bedee5dd206d43f7ec7546a07310a0acb2185b6930b8d7",
    "id": "choice_inference.contract",
    "review": "none",
    "scope_limits": [],
@@ -2272,7 +2275,7 @@
     "Original bounded route under a declared invariance premise; the premise is a declaration and is not tested. The cited literature is the statement of the covariate-shift identification, not an implemented algorithm.",
     "Only the support box is checked as a positivity necessary condition; no density ratio, overlap weight or transported variance is computed, and the result is labelled extrapolative and point-only."
    ],
-   "digest": "66c77128c21238f103659297244a127d0de158be2ae70318143664e1d33a9f46",
+   "digest": "098f0dd234807230a5dd155d11da5047245a6b3edc597b0543c0ca474bcf93df",
    "id": "cohort_decision.declared_shift",
    "review": "none",
    "scope_limits": [],
@@ -2308,7 +2311,7 @@
     "Claim policy: point-only. No standard error, interval or posterior is inherited from the fit; the cohort-mean contrast is issued as an affine expectation of one coordinate and nothing else.",
     "Trust policy: numbers are always recomputed from the retained model and cohort rows; a source built from a verified analysis result is native, one built from a caller-built compact export is a declared model and is never native."
    ],
-   "digest": "52279f7bdc4cc5cd2648f01ca85d3571717c71cc25878ac6b61f83b6e0798c8c",
+   "digest": "4026770b3ba2747957341b23ddaaf1359c184403525d05a63c8ddc1cad437800",
    "id": "cohort_decision.mean_contrast",
    "review": "none",
    "scope_limits": [],
@@ -2328,7 +2331,7 @@
     "Statistical pooling, Bayesian borrowing, causal transport and evidence reuse are separate declared operations and none implies another; an undeclared operation refuses. Conflicting structural atoms are never averaged silently: a weighted combination needs a declared probability on every atom, probabilities must be finite, non-negative and sum to at most one, missing mass is retained and never renormalized, and completion counts are not probabilities.",
     "The Python bridge delegates every identity, trust rule and refusal to the Rust core and cannot assert a native or verified provider by passing a string."
    ],
-   "digest": "dcd47127c0088cce4073b54cdd906bdc85fe192c570f4b5adfad10fd70308588",
+   "digest": "0589ab0e9a8199ca409445e6cf9de9f85afd875fa9a435717c50d6f72d2ec130",
    "id": "composition.boundary",
    "review": "none",
    "scope_limits": [],
@@ -2348,7 +2351,7 @@
     "A consumer holding no retained expected bundle identity checks only internal consistency; a resealed forgery passes only under the forger's own identity, so the consumer passes the identity it retained independently of the bytes. Container, version, size and count bounds are checked before any decode allocation.",
     "A node-level failure does not refuse the bundle: the node is reported failed at a named stage and the rest of the bundle keeps its inspected result. Graph defects (blank or repeated node, dangling or repeated edge, self-dependency, cycle) and a digest that differs from its recomputation share the edge_digest_mismatch stage."
    ],
-   "digest": "0eb05bdb47943d4bcc76a6eb03a743b4e23462610857ee0c3a79ba713b09a360",
+   "digest": "3504f398774438ac510dad215a23ae6db6e807e1e4cb0b8ca3682b64951a9c1c",
    "id": "composition.bundle",
    "review": "none",
    "scope_limits": [],
@@ -2358,7 +2361,7 @@
    "deviations": [
     "Checks that the aligned joint law built on either surface is read on the other with identical values and identities and the same refusal details. It adds no numerics and grants no interval, calibration or causal claim."
    ],
-   "digest": "215f2c9a72d3cdfb1afb5fb5cc88553c278e60f0be0e018874bcc58ee62f4f96",
+   "digest": "faa9c07ecc07a0cc626635918aa08962d7a6936defbe7f64fb71f9668fff5526",
    "id": "composition.language_parity",
    "review": "none",
    "scope_limits": [],
@@ -2379,7 +2382,7 @@
     "The design ranking is bound to the joint law only by its source digest; the acceptance checks the digest binding and the hand-derived EVPI 1/8, EVSI 1/16 and net values 0.0425 and 0.0125, not any deeper link between the two artifacts.",
     "Independence is declared, not inferred: E1 and E2 are declared independent, N and E2 share data (registry 7), and unknown dependence is never read as independence."
    ],
-   "digest": "9ddb7624b28a1301a4f3a21a6300d005c0c865a40e15f9b64b3bb8f8536704b0",
+   "digest": "b897947e7dbdb3292573ae0adf9d50cdbde3aa092d989adb9be0d9464ee6d688",
    "id": "composition.multi_source",
    "review": "none",
    "scope_limits": [],
@@ -2389,7 +2392,7 @@
    "deviations": [
     "Native execution authority is minted only by a native producer; generic constructors and metadata-only artifacts are stored unverified and refuse native use."
    ],
-   "digest": "94eaca2727068fb9702789cb3c7e8a7de893dfc305afe419b8e61804281aeb94",
+   "digest": "687d8a782ab1b77900364731b74f9323b43d2547b9daa93d0b7bc0c786872a02",
    "id": "composition.native_authority",
    "review": "none",
    "scope_limits": [],
@@ -2407,7 +2410,7 @@
     "Only a point-identified static mean curve is accepted. An envelope, graph-dependent or unidentified response, a grid that is not the estimand's grid, a missing or unlabeled point support, a variable unknown to the schema and a unit that contradicts the program's outcome units each refuse. A calibration status comes only from the measured record (not_measured or point_only); the caller cannot assert a calibrated status here.",
     "Python NativeClaim requires retained opaque checked producer execution, validates full projection/provenance/scientific premise identity, and preserves original credible aligned rows when present. Mean-only responses cannot produce draws; a causal mean posterior remains distinct from an interventional outcome law. No caller JSON, snapshot/RNG label or reconstructed DTO creates native authority."
    ],
-   "digest": "515d91d1a9a61d6643352a35686af0592e4b573435ea550be1abe7778badbead",
+   "digest": "5436270cc345a24803c3435c0f7c1b9685d761ce0b85aa90a1c1c1585465a7f2",
    "id": "composition.native_response_claims",
    "review": "none",
    "scope_limits": [],
@@ -2465,7 +2468,7 @@
     "The fixture introduces no estimator. Every expected value is a closed form written in the test or the consumer from the declared inputs, so it evidences the composition and its refusals, not the statistical performance of any component.",
     "The scenario is point-only: the standard error of the corrected prevalence and the variance of a pooled estimate are uncalibrated point quantities, and no interval, posterior decision or ranking guarantee is produced or measured."
    ],
-   "digest": "8d4d6177d4322da21270cf4a3cc2200772bcb17dc7cbfe3b47d8f44bfa38d5b1",
+   "digest": "f23254e0c6f70d5d81f1af601a8239bea69d441bd1536d700e86c915819b7bd2",
    "id": "composition.release_boundary_fixture",
    "review": "none",
    "scope_limits": [],
@@ -2480,7 +2483,7 @@
     "Semantic binding over the original distribution and study-ranking consumers, not a new inference method. A bounded unweighted aligned source explicitly interpreted as a parameter/causal-functional posterior state, or an interventional predictive scalar explicitly named state, projects to exactly the ordered finite prior used by the original terminal decision. Full terminal actions, utilities, admissibility and units and the original ranking identity are retained. Fresh consumption reads the original source and ranking artifacts and recomputes the scalar projection and full binding; no mean-only, weighted-law, marginal pairing or independent ordering can substitute. The rollout bundle node checks the complete source identity upstream and full terminal decision on its ranking edge. Structural identification, native execution and inferential calibration are never upgraded by binding.",
     "Original engineering of identity/scientific-state binding; numerical integration and its citations belong to the original study-ranking engine. No posterior/sampling, regret or ranking guarantee is inferred from exact conditional finite arithmetic."
    ],
-   "digest": "a6427e7a91e8e33a82460257eb82299f968f0ae2eef8402d2a3aa49623304236",
+   "digest": "2222c4201e8b81fb8846836e39e57bdc1e984caaa177d1b85da2538a199821ad",
    "id": "composition.rollout_state",
    "review": "none",
    "scope_limits": [],
@@ -2521,7 +2524,7 @@
     "Original artifact consumers reconstruct each projection from retained full original bytes. Affine utilities use the original contract engine at exact semantic quantities. A selected AffineFunctional retains the full original contract and evaluates only its named action; unrelated unsupported coordinates do not become supported. Native bundle resolution requires an opaque receipt from actual original checked estimation; standalone decoding cannot import execution authority.",
     "Reuses original source artifact decoders and original contract evaluation; no new statistical method, nonlinear transform or native authority import."
    ],
-   "digest": "363b166426e1dfbd35cd2a9898c812f2f88d4fedcd0ec53b9a2b9633ad440e01",
+   "digest": "aae2d6c55d9f824d53a020c968973e778c3fa9bb016174d13fe45d5560f58d0a",
    "id": "composition.source_projection",
    "review": "none",
    "scope_limits": [],
@@ -3103,7 +3106,7 @@
     "Expected utility is the weighted mean of a declared utility expression over aligned joint rows of the supplied distribution; a hard constraint excludes an action from the admissible set and never adds a penalty, and an empty admissible set is reported explicitly.",
     "The contract grants no causal identification, interval or calibration claim; supplied distribution sources remain unverified inputs. Decision functionals and structural policies are separately scoped records."
    ],
-   "digest": "aae083760e1e42eb7ca05bc8893be867056866f5e759de697871dacaf4b0b6fd",
+   "digest": "9109d0da9da0f6122b08f5f0fcba8885908a97a3a9ce7d9b89f2a2f60b780ae2",
    "id": "decision.contract",
    "review": "none",
    "scope_limits": [],
@@ -3124,7 +3127,7 @@
     "The finite-action inverse uses the Dirichlet posterior mean of the law it already reads. No new action. No interval.",
     "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported)."
    ],
-   "digest": "7d54bccd4cf2793b772bf255af24731f426f1717bdd597de8c282091b41edc66",
+   "digest": "ebf2e7b8ab000c844d7830e64ee2aee62e49617f5846bb7a193461cf65685982",
    "id": "decision.finite_action_inverse.bayesian",
    "review": "none",
    "scope_limits": [],
@@ -3149,7 +3152,7 @@
     "The inverse reads the Dirichlet posterior mean of the finite law the functional already evaluates. No new functional. No interval.",
     "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported)."
    ],
-   "digest": "ebef936a617a3a2d0ed18cc2db6aea99aab86596ce0a669e2b1376cb43d6401c",
+   "digest": "a4522106b0c1e53956e380c39141694c04c51466626a81f35d91b7bb1daf609a",
    "id": "decision.functional_inverse.bayesian",
    "review": "none",
    "scope_limits": [],
@@ -3160,7 +3163,7 @@
     "Computes expectation, population variance, threshold probability, the left-inverse quantile and a fractional-boundary tail mean on the draws of a supplied law. The variance is that of the finite law, not an unbiased sample variance, and the tail mean splits the boundary atom; both conventions are stated in the rustdoc.",
     "An exact finite law has no sampling error. Sampled sources report finite-law point values only; they carry no certified draw-dependence contract and therefore report no Monte Carlo standard error or ranking guarantee."
    ],
-   "digest": "aaae53844359e43e8e09dd001b5419011bd921e8892197108b15750c24622cf4",
+   "digest": "9ae1223cdec67022aa22657e39e218a8acda5ffc93eb714ccc42d533f0086b14",
    "id": "decision.functionals",
    "review": "none",
    "scope_limits": [],
@@ -3171,7 +3174,7 @@
     "A Dirichlet posterior on the finite law the decision functional already reads. The published number is the functional of the posterior mean. A wide concentration stays at the finite-law expectation 1.5. No interval.",
     "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported)."
    ],
-   "digest": "09ed12d03a2462d4735ebe33168540c596333f5b1e73a054d2ac8e2dd802f473",
+   "digest": "1068a616b1bc3d97136459e170aab9d0b5d7fa68058e2b53ef315879d31e369c",
    "id": "decision.functionals.bayesian",
    "review": "none",
    "scope_limits": [],
@@ -3255,7 +3258,7 @@
    "deviations": [
     "Point-only export: the consumer re-evaluates the decision and compares identity and action values; a law is not exportable."
    ],
-   "digest": "3001b6cc89af67bdee36a6422274814f53ce0f8d23c41be005010685a0996edc",
+   "digest": "e81e4480f58fac7ae2e3213cca78099a2014d9977493390c1b607eccafb86104",
    "id": "decision.transported_decision_artifact",
    "review": "none",
    "scope_limits": [],
@@ -3271,7 +3274,7 @@
     "Labelled at best extrapolative; the default support policy admits only supported coordinates, so a consumer must name the weaker status. No interval is supported from the transport step.",
     "The source model's standard error is retained as an uncalibrated diagnostic and never becomes a decision, interval or feasibility statement. The inverse origin is a declaration; replay re-checks that the embedded numbers match it, not that the producing route re-executes."
    ],
-   "digest": "f1396aafa172d1b3d81bbc39da35eed95b5e578e070577dba449e988e4608b21",
+   "digest": "cd8e2b501728596b63f57d340434b146b7e4c303d5395c91409443405551fe69",
    "id": "decision.transported_source",
    "review": "none",
    "scope_limits": [],
@@ -3336,7 +3339,7 @@
     "Planning reuses the existing Normal-Normal FutureStudyProgram; the belief is centered on the current contrast with the delta-method variance, a declared planning model and not a calibrated posterior. Assumption-narrowing candidates re-run the classification and are best cases, not expectations.",
     "Stage digests chain so that a decision-rule change reuses the derived quantity and an estimate-identity or premise change invalidates it."
    ],
-   "digest": "757682f5aaf0f4f03428c4a9fa2370424a88fef79ce8f3a7307ee705f12a1b90",
+   "digest": "7aaecab9e5226c1d09d806d3095cf79eab27eb91f2185598f100dcf648f7a0a5",
    "id": "decision_evidence.decision_classification",
    "review": "none",
    "scope_limits": [],
@@ -3426,7 +3429,7 @@
    "deviations": [
     "Intentionally implements nothing: source spread, Monte Carlo error and selection-induced uncertainty are never summed into one number."
    ],
-   "digest": "aa587e135e64b1e1842ab56b0410612749366e9ef76a46797af818b3d027bbd3",
+   "digest": "a40f8b56b325182e45cc0f96b89b67b13899afc9ed3935788e33676c856db3c1",
    "id": "decision_reliability.combined_uncertainty",
    "review": "none",
    "scope_limits": [],
@@ -3437,7 +3440,7 @@
     "Derived and not measured: normal Monte Carlo error at the effective sample size; never summed with source-evidence spread.",
     "Wald intervals are derived only at n_eff >= 30."
    ],
-   "digest": "9d415d94e5341440ef99cc7416b2893ebedb9fdff7d6a16bb9ed07790dc1699b",
+   "digest": "33ec06b9f464df0f9d74d3370b835d43b50e86f8bbbf53af99c470dfb5bd1f5c",
    "id": "decision_reliability.derived_numerical_interval",
    "review": "none",
    "scope_limits": [],
@@ -3453,7 +3456,7 @@
    ],
    "digest": "5e05eee3f89045bce4e3f49805f70ac1a39a75d4be373fe6ef914c6b6aef0413",
    "id": "decision_reliability.derived_uncertainty",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the report assembly, the draw carrier, the coverage calibration or the publication support beyond the simultaneous-multiplicity refusal"
    ],
@@ -3502,7 +3505,7 @@
     "Marginal Bonferroni critical values replace Hsu's exact multiple-comparisons-with-the-best constants; the set is conservative, derived and not measured.",
     "Paired construction is used for at most 64 candidates, the dependence-free marginal construction otherwise."
    ],
-   "digest": "7a35e997ad290241f7e2af495fa8aef9d5aceb4a1ca388842c3bc7a791d8228c",
+   "digest": "169e456f0c6e59bc3d636bca09b8dc646a5d1e99a25d40a6ac8f08d5e8ffaa06",
    "id": "decision_reliability.optimality_confidence_set",
    "review": "none",
    "scope_limits": [],
@@ -3689,7 +3692,7 @@
     "Bonferroni over the considered candidates is conservative; the winner's-curse bound is a derived bound, not a measured one.",
     "Derived and not measured."
    ],
-   "digest": "b6734782dd737f83e7c360b61405b97fff63bc3a89970aaf048bfcbf79f8b23e",
+   "digest": "bd4cd55a75539a3d44497cf5dd715ee4c1bf288f2c0b44908ce9982dfb90c646",
    "id": "decision_reliability.selection_corrected_interval",
    "review": "none",
    "scope_limits": [],
@@ -3864,7 +3867,7 @@
     "The ordering is a point ordering conditional on the declared decision, prior, signals and cost map; its calibration is not measured and no rank confidence or realized-study guarantee is claimed. A budget stop is reported as a budget, never as an impossibility.",
     "No causal, interval or calibration claim is made."
    ],
-   "digest": "0525271ee1882ac224ce46087ff56ccb7c42d49f0c0ef34beeb61c18ac880906",
+   "digest": "c3a581fb1c5fbb73cd59c4355b7c9090b4e0bf3eff4fe23bb99eafa51851963a",
    "id": "design.evidence_plan",
    "review": "none",
    "scope_limits": [],
@@ -3880,7 +3883,7 @@
    ],
    "digest": "25c3baac081acbf486f01bda7f02f3d946ae1ffeb70b84a073e330dc34ede572",
    "id": "design.evsi",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the finite-enumeration route, the externally supplied decision-value route, the Monte Carlo route, the cost-to-utility map, source-overlap diagnostics or the ranking artifact"
    ],
@@ -3992,7 +3995,7 @@
     "Original engineering of actual study-arrival execution over existing independently checked repair/ranking consumers, catalog SID and frozen z-transport verifiers/binders, exact finite expression compiler and provider evaluator. Every algorithm and its scientific scope retain the original implementation/provenance; this adapter is not a parallel estimator. The raw cell counts, declared Available physical binding, original planned sample total and complete checked program are reexecuted by fresh consumption.",
     "Scope is one independent unweighted jointly observed delivered regime with explicitly disjoint count tables per concrete intervention world. Count-law arithmetic is an empirical point estimate; finite structural and arithmetic verification do not validate interval calibration, authenticate raw physical observations or grant live provider authority. Existing descriptor-only arrival remains a structural receipt check."
    ],
-   "digest": "2c0868992395874268e9797eb73bb7f7d40e16863874ef61374e7d18abc3bb9f",
+   "digest": "a85cf029bf887ba681ca6aefe7cbed499a5e3439701ae216dd36a264f2863275",
    "id": "design.proposal_arrival",
    "review": "none",
    "scope_limits": [],
@@ -4027,7 +4030,7 @@
    ],
    "digest": "284bd9e69be1aa478d70fecb4f0bf44d2986ae6e811a9789f19d249d9871f838",
    "id": "design.ranking_artifact",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the canonical encoding and digest, the graded replay of externally attested laws and decision values, the rank and search receipts, the cost mapping, or the corruption and version handling, which the existing hand-constant tests cover"
    ],
@@ -4341,7 +4344,7 @@
    ],
    "digest": "1be0aa534060e2e13581b929d78dc05f4a51fb45fb9725986a58a99cfde46166",
    "id": "discovery.sample_split_analysis",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [],
    "sources": [
     {
@@ -4484,7 +4487,7 @@
    "deviations": [
     "The joint artifact preserves supplied finite draws and performs descriptive finite-draw operations. It does not make a calibrated posterior or sampling claim by itself."
    ],
-   "digest": "26af59e569a6bdcf3dc746cd14eb947e7d583e553c39fb2bc68dd739d571aea3",
+   "digest": "6daa03225ec5bfc825c2a0ecbc7927803399c3547a205527137499a382c81338",
    "id": "distribution.aligned_joint_draws",
    "review": "none",
    "scope_limits": [],
@@ -4496,7 +4499,7 @@
     "Quantity comparison checks declared semantic coordinates exactly; it does not prove identification, convert units, or infer observational/interventional equivalence.",
     "Distribution meanings are descriptive tags; numerical methods and calibration require separate capability cells."
    ],
-   "digest": "a58e971e7966c4c6ff421bb78933102d8fbe71e6082b1361d1510a331cb214ad",
+   "digest": "a29a8f213280dccf93797eceec10b647ba4a403518d37a27a441bffd09c0560c",
    "id": "distribution.joint_alignment",
    "review": "none",
    "scope_limits": [],
@@ -4519,7 +4522,7 @@
    "deviations": [
     "The enum distinguishes what randomness represents. It grants no causal identification, provider reliability or interval calibration."
    ],
-   "digest": "089a79b4525a6c7d983c92bad616717370cade5403196c40c37fc19b52d7d8c9",
+   "digest": "74bc64a132d74c66d02c68f9b98fbe73a40e2928455a001530d8e3ec29436b10",
    "id": "distribution.meanings",
    "review": "none",
    "scope_limits": [],
@@ -4616,7 +4619,7 @@
     "Independent normal prior on the mean of the cross-fitted score contrast the retarget reads, with the plug-in score variance. A wide scale stays at that score mean. The frequentist covariance interval is not reused. No coverage is claimed.",
     "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported)."
    ],
-   "digest": "386e8d2b06bda70f0edf8ea81ab365de19a4f0d96c66f1c9c34ec92ee1335ab5",
+   "digest": "e8d308e0d60f25d17bffd2a38d41dffe260f9924a7896750eabf01d163a9e63c",
    "id": "estimate.batch_retarget_covariance.bayesian",
    "review": "none",
    "scope_limits": [],
@@ -5297,7 +5300,7 @@
    ],
    "digest": "f1d74bdd9683681642d025d376347cc953208eb5fd52dd3c5475de6b9eb70953",
    "id": "estimate.categorical_treatment",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the summary/replay routes beyond sharing the engine, the posterior form, the artifact encoding or any coverage or size of the tests"
    ],
@@ -5327,7 +5330,7 @@
     "The published number is the posterior mean of the dummy-coded level coefficients under independent normal priors, with the ordinary-least-squares residual variance plugged in. No interval is produced.",
     "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported)."
    ],
-   "digest": "aac4dd0a7192a21b9a3af63bb1fff4427bc72228d101810fa0d0917271f4303e",
+   "digest": "b5369ca0d7f74d2bd10373f74eedea7f2ccaa3003711b078f3bc98a4d29b9b7f",
    "id": "estimate.categorical_treatment.bayesian",
    "review": "none",
    "scope_limits": [],
@@ -5456,7 +5459,7 @@
    ],
    "digest": "7af0ed902f9195dda120cd78ec7a2588e7ea4d1d4a28e469595b5c8eac23fa33",
    "id": "estimate.compact_runtime_export",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: a review of the container, identity, tamper and reseal machinery, of support and mask refusals (covered by hand-valued tests in the same file), or of how a producer obtains the coefficients and covariance"
    ],
@@ -5605,7 +5608,7 @@
    ],
    "digest": "f7b35fb016f020b178c2e4a089b107ad0ea2b2d9f0e518da430c50217b8977cf",
    "id": "estimate.dose_grid_functional",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the antecedent-stats local quadratic kernel itself (reviewed under stats"
    ],
@@ -6373,7 +6376,7 @@
    ],
    "digest": "e23b47e666103425b9c275d551a98c9d4c0561a028726b45cf8cc75c24ebd993",
    "id": "estimate.latent_class_effects",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the seeded initialisation, the label-aligned bootstrap standard errors (their stream and replicate refits are not reproduced), the artifact replay or the Python surface"
    ],
@@ -6397,7 +6400,7 @@
     "The published numbers are the posterior means of the class treatment coefficients under independent normal priors, with the class residual variance plugged in. No interval is produced.",
     "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported)."
    ],
-   "digest": "ce4b4343caf64f0a71091380664968ae68924a9039acac423acf5e419e7d417b",
+   "digest": "49e8e55fee8b159e4422c93f43990742bbae5a90a8e38546a63b8033adfb37da",
    "id": "estimate.latent_class_effects.bayesian",
    "review": "none",
    "scope_limits": [],
@@ -6556,7 +6559,7 @@
    ],
    "digest": "fef0fead4de862dc64cc91e8845824b928c6af51663620ae50cb1b3b02564bf8",
    "id": "estimate.nonlinear_mediation",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the bootstrap standard error, the overlap diagnostic's interpretation, the closed interventional estimand, or the artifact replay"
    ],
@@ -6756,7 +6759,7 @@
     "Independent normal prior on the mean of the cross-fitted score contrast, with the plug-in score variance. A wide scale stays at the score mean, which is the AIPW point. The frequentist interval is not reused. No coverage is claimed.",
     "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported)."
    ],
-   "digest": "62affca3e8dbfe72e80846ea6a7f80470fcc052a84b77dfae692a0ce9a8bc789",
+   "digest": "a17f73a6083a9e8f35c4fcece1c4d50b91fd7fe88690105ce0ed23fd84af9d4a",
    "id": "estimate.penalized_propensity_aipw.bayesian",
    "review": "none",
    "scope_limits": [],
@@ -7062,7 +7065,7 @@
    ],
    "digest": "f886b1e0ad18932b53328d428f23a5147a9a0626bc106d8e70fb5378af1486b1",
    "id": "estimate.quadratic_dose",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the randomisation attestation, the premise that the mean is quadratic (supplied by the caller and not testable from residuals), the residual sandwich's coverage, or simultaneous bands (closed)"
    ],
@@ -7715,7 +7718,7 @@
    ],
    "digest": "130ee13eeff6be95da1bdc46e667bd3cb9dcf6c6ba389f7f06cd164f828fe8dc",
    "id": "estimate.sampling_weights",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the per-estimator weighted constructions (each is checked by tests/sampling_weights"
    ],
@@ -8344,7 +8347,7 @@
    ],
    "digest": "3b753cb4ab2d9c2213786edba6ff8c9ff6345d2fc3159e811b3454185526bd38",
    "id": "estimate.vector_treatment",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the rank and collinearity refusal thresholds, the sealed artifact and its replay, the Python surface, the categorical route that reuses the same solve, or any calibration of the joint tests"
    ],
@@ -8380,7 +8383,7 @@
     "The published number is the posterior mean of the joint treatment coefficients under independent normal priors on every non-intercept column, with the ordinary-least-squares residual variance plugged in. No interval is produced.",
     "A mapped coefficient prior, an external power prior, and a request for a credible band refuse (route_not_supported)."
    ],
-   "digest": "007c5676054d44df33421996ffd2ecb182eb068cffeedb22e9939cc86ca116c8",
+   "digest": "4011451d92a9e01860cf9f9ec3e326190b75598619cf840e784dc27574264ead",
    "id": "estimate.vector_treatment.bayesian",
    "review": "none",
    "scope_limits": [],
@@ -9403,7 +9406,7 @@
     "A calibration label is a declaration naming a record; the contract layer does not verify that the record exists or covers at the consumer's coordinate.",
     "No calibration design is executed; the whole-method design for any composed interval is a recorded decision only and is never measured by this record."
    ],
-   "digest": "36783c391fc93935529a7c67b2b2a6ebfe6898494299dc1e439516f9fe82aa06",
+   "digest": "46466c262a2042939310803e3f0412ee19491fbc55e84fa8c9d20506e69de7b0",
    "id": "interface_contract.calibration_inheritance",
    "review": "none",
    "scope_limits": [],
@@ -9414,7 +9417,7 @@
     "No fact is inferred: support, semantic identity, uncertainty meaning and measurement models come from an explicit interface basis supplied by the caller.",
     "Component-specific support (admission of another context, bridge support, measurement operation support) stays with each component; the shared check never admits a population change."
    ],
-   "digest": "177ca1389224aa9a2b926bea28b786a736c07cb9e46af2346c5deadfa10be5ab",
+   "digest": "659bb973fbde58572e05cbbf2326dcc7e179261af4a7e939a3817c092277585a",
    "id": "interface_contract.component_adapters",
    "review": "none",
    "scope_limits": [],
@@ -9450,7 +9453,7 @@
     "Undeclared observations are unknown, never disjoint; a ledger-free check reports the requirement unchecked rather than skipping it.",
     "No statistic is computed and no calibration is declared."
    ],
-   "digest": "65fd99303d1a2bdb4a9cac83af408d4ac9c88928e73de9fec59fbb90ea5a2fba",
+   "digest": "00f884e38c3bae05325e864d69836e1b597db397a93d131cc3d31a6c63c58f9e",
    "id": "interface_contract.ledger_overlap",
    "review": "none",
    "scope_limits": [],
@@ -9490,7 +9493,7 @@
     "No unit conversion, bridge or transport is inferred: a difference in units, population or regime is a refusal, and the remedy names the declared route that would support it.",
     "No interval, posterior or calibration record is produced or measured; a connection carries the producer's label unchanged."
    ],
-   "digest": "3f6a3d187ec88dc2c0abc654ebf5a2655a1cee1e708650ec75ca52517c3921ba",
+   "digest": "6653f027d8b1dd009f1e788a735e6f72082c7dccbe60ff69200e0321dd179969",
    "id": "interface_contract.scientific_interface",
    "review": "none",
    "scope_limits": [],
@@ -9610,7 +9613,7 @@
    "deviations": [
     "First-order spread only; all three pieces (source sampling, target sampling, transport functional) and a supported dependence are required, otherwise the request is refused."
    ],
-   "digest": "b06f22fced7d0ee9d2757427a5825eadac36074862ac8f20c04d7f11cfc4021a",
+   "digest": "cc454e3c535780f3a04212a69bfd009d1de257a9a30ce3240f7de3367ab0cbb5",
    "id": "joint_law.composed_spread_transported",
    "review": "none",
    "scope_limits": [],
@@ -10267,7 +10270,7 @@
    "deviations": [
     "Intentionally implements nothing: a score is never read as causal validity or as the probability of a claim."
    ],
-   "digest": "fae261fef4667ff181c1aed60596c3900b7ffe939cb8df4c3bf9c11dd1227fc5",
+   "digest": "9eb9d03d3ac65323ff6bd8ccb44a90320916836ea36e1118763b0a0b3c619f49",
    "id": "predictive_assessment.causal_validity",
    "review": "none",
    "scope_limits": [],
@@ -10290,7 +10293,7 @@
    "deviations": [
     "Intentionally implements nothing: callback laws are refused by name; a provider law is accepted only as materialized finite, sample or evaluated values."
    ],
-   "digest": "d3a8b48bfb72d13fa37e5ea28fd5dc60fd2d24718477b53cad275eb19f312c7e",
+   "digest": "f72b2bfe91cb6528a62e698761e2fcce6a863842e9a77ab4888262e76ea6a9c7",
    "id": "predictive_assessment.law_callback",
    "review": "none",
    "scope_limits": [],
@@ -10301,7 +10304,7 @@
     "Overlap is computed over producer-declared row identities; two distinct identities are never merged, and undeclared observations are unknown, never independent.",
     "Statistical dependence between disjoint observations is not represented here; it is the declared dependence's job."
    ],
-   "digest": "0817536495e1d84f94b357c40bd8a9f8cb68017c0c202d703efc8df8e13ced77",
+   "digest": "27cd8fe6739aa3912a082d9d7995e7cc90da5c36d1b74533c83ebf2434af0e45",
    "id": "predictive_assessment.overlap_check",
    "review": "none",
    "scope_limits": [],
@@ -10620,7 +10623,7 @@
    ],
    "digest": "0e9785e23b0ddba1692f8a0a5dfe44773a8086b8cf7a981ef69035fccc7c7010",
    "id": "recalculation.adjusted",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: a review of recalc_adjusted"
    ],
@@ -10713,7 +10716,7 @@
     "Identification is recomputed in a fresh process (the planner never reuses a derived stage there): the declared-adjustment descendant screen runs over the requested graph and is counted once. The retarget support, the declared adjustment set and the declared inputs are caller declarations, recorded and never verified here.",
     "The frozen_scores_v1 artifact carries scores, stage digests and identities and no data and no model; a consumer recomputes the fit identity from the stored stage digests, requires the stored snapshot digest to be the declared one and recomputes the artifact identity. A consumer holding no retained identity checks only internal consistency, so a consistently resealed artifact of another run passes under its own identity."
    ],
-   "digest": "18dd6458b977fec2c8032d5100594c77f3815060a860fd0c8f64424b56c64d35",
+   "digest": "e49d519a19ef2bfe56ccc58a33070048ae9609a301800a0789fc02289ee92d20",
    "id": "recalculation.frozen_scores",
    "review": "none",
    "scope_limits": [],
@@ -10769,7 +10772,7 @@
     "Provider requests and priors depend on the full causal request (graph, query, regime, evidence, populations and treatment grid) and the individual external-study input. An unsupported treatment grid blocks their computation. Both executors share the same decision rule and reject non-finite utilities or net-benefit overflow before publishing a decision.",
     "Stage identities are BLAKE3 (derive-key mode, length-prefixed parts) over the caller's declared own-input bytes. The caller is responsible for the declared bytes representing the input; the planner cannot detect a change a caller did not declare."
    ],
-   "digest": "ec310efeee27bd4bd42d647905011f2f7dca86a8d2c66b3625c0e5af14d0e4fd",
+   "digest": "a0c265deffbc1d7c47a827d80103734a254602173b2b8b057fcccd4a37faab85",
    "id": "recalculation.selective",
    "review": "none",
    "scope_limits": [],
@@ -10799,7 +10802,7 @@
     "Retention is original engineering over existing identified/numerical engines; no imported estimator theorem or coverage guarantee is asserted. Whole-method measurement and public inference activation remain separate gates.",
     "Normal measured envelope is distinct from the original not-measured source candidate. Original method execution is independently replayed, every named scalar uses its actual native basis and current attesting record, and exact method/prior/design guards refuse adjacent protocols. Whole-method candidate measurements completed at5c76724f; final changed-surface evidence and installed normal-wheel acceptance remain release prerequisites. No general-model or simultaneous interval guarantee is inherited."
    ],
-   "digest": "a8aeb23f081796502c78bce565d4a23473f29cad2cb36797437dc082fe3769ba",
+   "digest": "8be1a65125a862042a68619102e2032bcce8f4ee51b96a9ea19146bb235c4d81",
    "id": "recalculation.temporal",
    "review": "none",
    "scope_limits": [],
@@ -10828,7 +10831,7 @@
    ],
    "digest": "8271d50d135b0ee483e51f621863936fde70a4a33507765f87f1cb35d9521957",
    "id": "recovery.chain_observation",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the exact binary recovery row without a response chain, the sampled provider and its intervals (recovery"
    ],
@@ -10929,7 +10932,7 @@
     "Covariate-dependent randomized per-time joint assignment and a latent-confounded, off-diagonal-unsupported design are separate fixtures; production identification and refusal are separately exercised by the retained public workflow tests, not granted by this generator.",
     "Additive and interaction variants share all random draws; the zero-interaction reference isolates the declared main effects."
    ],
-   "digest": "9b35df3556c07b9c321630339dee213b9e151f3157325e1d6f59dbfffcbfaa9b",
+   "digest": "7af647140397bb7118ce847a6297befa3a22d7bdeaa5b29da61e0719e288e881",
    "id": "response.joint_panel_reference",
    "review": "none",
    "scope_limits": [],
@@ -10943,7 +10946,7 @@
     "Spread is uncalibrated: the bridged draws carry the declared mapping uncertainty and dependence but no interval without a measured coverage record.",
     "Delta-method agreement is exact only to first order for a nonlinear map."
    ],
-   "digest": "8279a8b462b24d64e081012325d021b9827351ee02d948610d886d25c425b122",
+   "digest": "7b25370fb95ecab9b63f20ecb83e154faf70cc3a08211c80cff7d20158cffa49",
    "id": "scientific_bridge.distribution_bridges",
    "review": "none",
    "scope_limits": [],
@@ -11151,7 +11154,7 @@
    ],
    "digest": "67a8adbe65ea42253df42c92079504a7932ac28105dcd3f3acf85e9e37045459",
    "id": "sensitivity.mechanism_discrepancy",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the comparability and dependence refusals, the artifact and its recomputing consumer (antecedent-io), the posterior-mean consumers of the summaries, or the finite-sample size and power of the Wald test (declared not measured)"
    ],
@@ -11175,7 +11178,7 @@
     "The published numbers are the posterior means of the mechanism coefficients, intercept included, under independent normal priors on the parent slopes. This is not a posterior of the Wald statistic. No interval is produced.",
     "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse."
    ],
-   "digest": "24b4f1343383629b7fcb5d223ac1b41ffc5bb19e54d49c09eaf58b5d6be393c2",
+   "digest": "6b811e5cde7c6874c7fd6565ee9365f5ebf6e7d152c8275bb88f778c0a4aebf1",
    "id": "sensitivity.mechanism_discrepancy.bayesian",
    "review": "none",
    "scope_limits": [],
@@ -11437,7 +11440,7 @@
    ],
    "digest": "1d7ea307e62092cf4fce5183e8327450aeac72902236df4041eb15d4ed97b527",
    "id": "temporal.dependent_interval",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: the keyed replicate and selection identity words (checked by golden vectors in the module), the percentile, basic and bias-corrected paths of checked_paired_effect_interval, the checked facade estimators and the replay artifact, the measured-envelope authority, or any coverage of the interval"
    ],
@@ -11465,7 +11468,7 @@
    ],
    "digest": "1fa256d43aac0003c334eda50bbddeb44bbe38c3e00892a7f77e18ecff6bbbd8",
    "id": "temporal.effect_constancy",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [
     "not covered by the method review: a review of the null's Type I error or power (not_measured), of non-normal or small-sample behaviour, of the estimand-identity and support refusals beyond their existing tests, or of how the input estimates are produced"
    ],
@@ -11495,7 +11498,7 @@
     "Normal posterior mean of the constancy contrast, using the contrast variance the frequentist test already forms. A wide scale stays at the contrast. This is not a reuse of recalculation.bayesian. No interval.",
     "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse."
    ],
-   "digest": "d714299e9fa04b25f8fc060dc51980361f17aa6e891dbae273361727de1f6b7f",
+   "digest": "28c50e9934d84a60d2d6cd8f390ef50211d2b4a28c919b4320848d836671a5dd",
    "id": "temporal.effect_constancy.bayesian",
    "review": "none",
    "scope_limits": [],
@@ -11509,7 +11512,7 @@
     "Original effect-constancy artifact consumption verifies complete retained evidence identity and recomputes its heterogeneity and covariance-aware multiplicity-adjusted contrasts. The transport consumer returns only an original selected oriented contrast in its original family, requiring separate transport identification. The prior consumer calls the original PriorCatalog compatibility filter and rank, scoring declared source partitions by negative absolute effect distance to a declared target partition; this is explicitly data-dependent advisory preference, never automatic pooling or posterior transfer. The policy consumer supplies each original fully supported partition effect to the original affine mean decision engine using an exact declared common scientific effect coordinate, then intersects all exactly tied admissible leaders. Empty intersection is retained and no optimality/generalization guarantee is issued. Original calibration, point status, evidence identity and caveats are preserved.",
     "Original downstream exposure engineering over existing effect-constancy covariance/heterogeneity and bank/decision engines, whose citations belong to their original owners. No new transport, posterior transfer, sampling or generalization theorem is asserted."
    ],
-   "digest": "0bb29984bd8735b7237f1bf8d0b438f4a8afee3a015b3b3cc0b44b75943cc5f1",
+   "digest": "d265452ba50d1765d2e13ae007b2c6132c3653e8f1c5f3f7c9795c028bae932e",
    "id": "temporal.effect_constancy_consumers",
    "review": "none",
    "scope_limits": [],
@@ -11522,7 +11525,7 @@
     "The artifact re-evaluates from a tally summary of each panel (not the full panel), so a coherently resealed forgery of summaries, law, receipt and values replays. Digests are non-cryptographic FNV-style fingerprints that detect unresealed change, not an adversary.",
     "Horizon 2 only: an appended third slice invalidates and needs its own cell. Point-only."
    ],
-   "digest": "fc319133da3e3824ad29365091001ed99da59eb5db494fd57b21125624b83f25",
+   "digest": "a9d7a40e9a72d532efa02d64bb6a239c4f5d2978aab7913dd1e1debccfbbbd0e",
    "id": "temporal.new_period_refresh",
    "review": "none",
    "scope_limits": [],
@@ -11533,7 +11536,7 @@
     "Normal posterior mean of the refreshed period's outcomes, plug-in variance. A wide scale stays at the refreshed response 6. This is not a reuse of recalculation.bayesian. No interval.",
     "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse."
    ],
-   "digest": "924607e402c64f4c7905f8736c35fb52fbd85a630c4d56ce2169a5a9fa1427d2",
+   "digest": "3a847930f32896fd6f8cf0ee1a275cfe3708e489e01de7c25f4252b22005dac5",
    "id": "temporal.new_period_refresh.bayesian",
    "review": "none",
    "scope_limits": [],
@@ -11613,7 +11616,7 @@
     "Scope, not a withheld interval: the conditional question is answered on supplied exact laws, so the point has no sampling uncertainty to report. Counted laws on the conditional route are refused (not_supported, admg_transport.counted_laws_unsupported) because no conditional-formula sampling construction (delta or bootstrap of the checked conditional formula over counted tables) is implemented; an interval there would need that construction and its own independent check, so the route reports exact-law points only.",
     "A mapped coefficient prior, an external power prior, and a request for a not-measured band refuse."
    ],
-   "digest": "832ea84bd6f8cd2cfbb8823009b88e6af2d00905609722a78bb20897ddd679e6",
+   "digest": "ca506c1f3b51fed67c188a87434db909258fbca57784deec1861f79465bf6c04",
    "id": "transport.admg_conditional.bayesian",
    "review": "none",
    "scope_limits": [],

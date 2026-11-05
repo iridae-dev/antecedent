@@ -17,7 +17,7 @@ use antecedent::{AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, Infer
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
-use support::{GraphKind, Structure, for_each_matching, on_large_stack};
+use support::{GraphKind, Structure, for_each_matching, on_large_stack, run_retained};
 
 const N: usize = 400;
 const BANDWIDTH: f64 = 0.8;
@@ -111,23 +111,23 @@ fn bayesian_rd_posterior_mean_matches_the_exact_ridge_posterior() {
                     && c.suite_label == "none"
             },
             |c| {
-                let result = Study::tabular(data.clone())
-                    .graph(AcceptedGraph::from(graph.clone()))
-                    .query(AverageEffectQuery::binary_ate(
-                        VariableId::from_raw(0),
-                        VariableId::from_raw(1),
-                    ))
-                    .identifier(IdentifierId::RdSharp)
-                    .estimator(EstimatorId::BayesianRdLocalLinear)
-                    .rd_config(VariableId::from_raw(2), 0.0, BANDWIDTH)
-                    .inference(InferenceMode::Bayesian(
-                        BayesianConfig::conjugate().n_draws(DRAWS).prior_scale(PRIOR_SD),
-                    ))
-                    .refute(c.suite)
-                    .build()
-                    .unwrap_or_else(|e| panic!("{}: build: {e}", c.text))
-                    .run(&ExecutionContext::for_tests(9))
-                    .unwrap_or_else(|e| panic!("{}: run: {e}", c.text));
+                let result = run_retained(
+                    Study::tabular(data.clone())
+                        .graph(AcceptedGraph::from(graph.clone()))
+                        .query(AverageEffectQuery::binary_ate(
+                            VariableId::from_raw(0),
+                            VariableId::from_raw(1),
+                        ))
+                        .identifier(IdentifierId::RdSharp)
+                        .estimator(EstimatorId::BayesianRdLocalLinear)
+                        .rd_config(VariableId::from_raw(2), 0.0, BANDWIDTH)
+                        .inference(InferenceMode::Bayesian(
+                            BayesianConfig::conjugate().n_draws(DRAWS).prior_scale(PRIOR_SD),
+                        ))
+                        .refute(c.suite),
+                    &c.text,
+                    &ExecutionContext::for_tests(9),
+                );
                 assert_eq!(
                     result.logical_plan.estimator.as_deref(),
                     Some("rd.bayesian_local_linear"),

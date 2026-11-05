@@ -24,7 +24,7 @@
 //!
 //! Non-rejection does **not** prove constancy ([`ConstancyConclusion::NotRejected`] is the
 //! absence of evidence against the null at the stated level). The test's Type I error and
-//! power are *not_measured* ([`CalibrationStatus::NotMeasured`]); no coverage or false-positive
+//! power are *`not_measured`* ([`CalibrationStatus::NotMeasured`]); no coverage or false-positive
 //! claim is made here, and the result grants no causal or interval support. The per-partition
 //! effects are exposed so transport diagnostics, prior transfer and policy generalization can
 //! consume them directly.
@@ -53,7 +53,7 @@ pub const EFFECT_CONSTANCY_MAX_PARTITIONS: usize = 1024;
 pub const NON_REJECTION_CAVEAT: &str = "failing to reject the null does not prove the effect is \
                                         constant across partitions";
 
-/// Statement attached to every result about the not_measured error rates.
+/// Statement attached to every result about the `not_measured` error rates.
 pub const POWER_CAVEAT: &str = "Type I error and power of this test are not_measured; the test may \
                                 lack power to detect heterogeneity of a size that matters";
 
@@ -213,7 +213,7 @@ pub struct EffectConstancyResult {
     pub non_rejection_caveat: &'static str,
     /// [`POWER_CAVEAT`].
     pub power_caveat: &'static str,
-    /// Calibration state: not_measured.
+    /// Calibration state: `not_measured`.
     pub calibration: CalibrationStatus,
     /// The declared multiplicity family.
     pub family: ContrastFamily,

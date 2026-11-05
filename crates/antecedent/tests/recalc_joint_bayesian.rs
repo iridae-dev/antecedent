@@ -1,4 +1,4 @@
-//! Internal not_measured joint posterior retention; independent Gaussian algebra.
+//! Internal `not_measured` joint posterior retention; independent Gaussian algebra.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_bayesian::PosteriorSummarySpec;
 use antecedent::analysis::recalc_joint_bayesian::{

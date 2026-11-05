@@ -11,7 +11,7 @@
 //! at `t`, outcome `horizon` steps after the treatment. Rows of one series are serially dependent
 //! and the contrast treats them as independent, so its homoskedastic standard error and the
 //! Bayesian reduced-form ratio posterior carry no serial-dependence correction; that premise is
-//! recorded on the result. Neither estimator is supported and calibration is not_measured.
+//! recorded on the result. Neither estimator is supported and calibration is `not_measured`.
 
 use antecedent_estimate::DrawSpec;
 use antecedent_estimate::lagged_instrument::{

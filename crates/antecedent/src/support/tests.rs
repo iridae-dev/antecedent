@@ -225,13 +225,32 @@ fn dag_response_curve_frequentist_none_is_supported() {
 }
 
 #[test]
-fn response_curve_graph_posterior_is_supported_only_for_static_dag_atoms() {
+fn response_curve_graph_posterior_is_supported_for_every_atom_kind() {
     for graph in ["Dag", "Cpdag", "Pag", "Admg", "TemporalDag", "TemporalCpdag", "TemporalPag"] {
         let status =
             classify(cell("ResponseCurve", graph, "graph_posterior", "Frequentist", "none"));
         assert_eq!(status, CellStatus::Supported, "{graph}: {status:?}");
     }
+    // The curve's cheap and full suites refit the whole graph-posterior procedure on perturbed
+    // data and are supported on every atom kind, under both inferences.
     for inference in ["Frequentist", "Bayesian"] {
+        for graph in ["Dag", "Cpdag", "Pag", "Admg", "TemporalDag", "TemporalCpdag", "TemporalPag"]
+        {
+            for validation in ["none", "cheap", "full"] {
+                let status = classify(cell(
+                    "ResponseCurve",
+                    graph,
+                    "graph_posterior",
+                    inference,
+                    validation,
+                ));
+                assert_eq!(
+                    status,
+                    CellStatus::Supported,
+                    "{graph}/{inference}/{validation}: {status:?}"
+                );
+            }
+        }
         for graph in ["TemporalDag", "TemporalCpdag", "TemporalPag"] {
             for validation in ["none", "cheap", "full"] {
                 let status = classify(cell(
@@ -247,30 +266,21 @@ fn response_curve_graph_posterior_is_supported_only_for_static_dag_atoms() {
                     "{graph}/{inference}/{validation}: {status:?}"
                 );
             }
-            let status =
-                classify(cell("ResponseCurve", graph, "graph_posterior", inference, "none"));
-            assert_eq!(status, CellStatus::Supported, "{graph}/{inference}: {status:?}");
-            for validation in ["cheap", "full"] {
-                let status = classify(cell(
-                    "ResponseCurve",
-                    graph,
-                    "graph_posterior",
-                    inference,
-                    validation,
-                ));
-                assert!(
-                    matches!(status, CellStatus::NotApplicable { .. }),
-                    "{graph}/{inference}/{validation}: {status:?}"
-                );
-            }
         }
     }
 }
 
 #[test]
-fn response_curve_cheap_on_dag_is_not_applicable() {
-    let status = classify(cell("ResponseCurve", "Dag", "explicit", "Frequentist", "cheap"));
-    assert!(matches!(status, CellStatus::NotApplicable { .. }), "{status:?}");
+fn response_curve_cheap_and_full_on_dag_are_supported() {
+    for structure in ["explicit", "accepted"] {
+        for inference in ["Frequentist", "Bayesian"] {
+            for validation in ["cheap", "full"] {
+                let status =
+                    classify(cell("ResponseCurve", "Dag", structure, inference, validation));
+                assert_eq!(status, CellStatus::Supported, "{structure}/{inference}/{validation}");
+            }
+        }
+    }
 }
 
 #[test]
@@ -298,16 +308,21 @@ fn dag_intervention_response_cheap_and_full_are_supported() {
 }
 
 #[test]
-fn function_valued_and_class_response_cheap_are_not_applicable() {
-    for graph in ["TemporalCpdag", "TemporalPag", "Admg"] {
+fn response_curve_cheap_and_full_are_supported_and_only_tier_backgrounds_are_not_applicable() {
+    for graph in ["TemporalCpdag", "TemporalPag", "Admg", "TemporalAdmg", "TemporalDag"] {
+        let status = classify(cell("ResponseCurve", graph, "explicit", "Frequentist", "cheap"));
+        assert_eq!(status, CellStatus::Supported, "{graph}: {status:?}");
+    }
+    let status = classify(cell("ResponseCurve", "Dag", "graph_posterior", "Frequentist", "full"));
+    assert_eq!(status, CellStatus::Supported, "{status:?}");
+    let status =
+        classify(cell("ResponseCurve", "TemporalDag", "graph_posterior", "Frequentist", "full"));
+    assert_eq!(status, CellStatus::Supported, "{status:?}");
+    // A tier background (CoDetermined) or an unknown tier has no response curve at all.
+    for graph in ["CoDetermined", "Unknown"] {
         let status = classify(cell("ResponseCurve", graph, "explicit", "Frequentist", "cheap"));
         assert!(matches!(status, CellStatus::NotApplicable { .. }), "{graph}: {status:?}");
     }
-    let status = classify(cell("ResponseCurve", "Dag", "graph_posterior", "Frequentist", "full"));
-    assert!(matches!(status, CellStatus::NotApplicable { .. }), "{status:?}");
-    let status =
-        classify(cell("ResponseCurve", "TemporalDag", "graph_posterior", "Frequentist", "full"));
-    assert!(matches!(status, CellStatus::NotApplicable { .. }), "{status:?}");
     // The Bayesian intervention-level refuter state has known-truth evidence: it is supported,
     // not a typed impossibility.
     for structure in ["explicit", "accepted", "graph_posterior"] {
@@ -343,7 +358,7 @@ fn earned_refuter_states_and_genuine_impossibilities_are_distinct() {
         cell("PulseEffect", "Dag", "explicit", "Frequentist", "none"),
         cell("InterventionResponse", "Unknown", "explicit", "Bayesian", "none"),
         cell("InterventionResponse", "CoDetermined", "accepted", "Bayesian", "none"),
-        cell("ResponseCurve", "Dag", "explicit", "Bayesian", "cheap"),
+        cell("ResponseCurve", "CoDetermined", "explicit", "Frequentist", "cheap"),
     ] {
         assert!(matches!(classify(c), CellStatus::NotApplicable { .. }), "{c:?}");
     }

@@ -3,7 +3,7 @@
 //! A bounded, checksummed, sectioned container holding one joint fit of `k >= 2` treatments that
 //! share ONE adjustment set and ONE row snapshot:
 //!
-//! * `vector_treatment_meta` (CBOR): version, feature marker, the frozen null, the **not_measured**
+//! * `vector_treatment_meta` (CBOR): version, feature marker, the frozen null, the **`not_measured`**
 //!   calibration coordinate, the covariance kind, the snapshot and adjustment-set declaration,
 //!   the named coefficient order, the declared contrasts, the identity digests, the stored result
 //!   (named coefficients, the **full** covariance, contrasts with their standard errors and Holm
@@ -82,7 +82,7 @@ pub const MAX_VECTOR_TREATMENT_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 pub const VECTOR_TREATMENT_HC_ROW_CAP: usize = 4096;
 /// Most shared adjustment columns an artifact may declare.
 pub const VECTOR_TREATMENT_MAX_ADJUSTMENT: usize = 1024;
-/// Standing caveat: inference is asymptotic and its calibration is not_measured.
+/// Standing caveat: inference is asymptotic and its calibration is `not_measured`.
 pub const VECTOR_TREATMENT_INFERENCE_CAVEAT: &str = "every p-value is an asymptotic Wald, Holm or chi-square value whose calibration is not_measured; no coverage claim is made and no interval is produced";
 /// Standing caveat: the adjustment set is the caller's.
 pub const VECTOR_TREATMENT_ADJUSTMENT_CAVEAT: &str = "the caller owns that the shared adjustment set is valid; the artifact certifies the arithmetic of one joint regression, not identification";

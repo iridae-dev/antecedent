@@ -18,7 +18,7 @@ use crate::{CausalQueryWire, IoError};
 /// Relative slack of the covariance's symmetry and Cauchy-Schwarz checks.
 const COVARIANCE_SLACK: f64 = 1e-9;
 
-/// A temporal-design result with its uncertainty (unsupported, calibration not_measured).
+/// A temporal-design result with its uncertainty (unsupported, calibration `not_measured`).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct TemporalDesignWire {

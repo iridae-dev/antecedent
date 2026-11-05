@@ -22669,3 +22669,101 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_gate_python_bindings_use_facade.py"
 gates = ["inventory"]
+
+[[test]]
+id = "curve-refutation-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/curve_refutation.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "adaptive-decision-stopping-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_adaptive_decision_stopping.py"
+gates = ["inventory"]
+
+[[test]]
+id = "dml-score-retarget-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_dml_score_retarget.py"
+gates = ["inventory"]
+
+[[test]]
+id = "interface-component-adapters-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_interface_component_adapters.py"
+gates = ["inventory"]
+
+[[test]]
+id = "joint-law-ledger-checks-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_joint_law_ledger_checks.py"
+gates = ["inventory"]
+
+[[test]]
+id = "mechanism-ledger-independence-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_mechanism_ledger_independence.py"
+gates = ["inventory"]
+
+[[test]]
+id = "provider-source-admission-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_provider_source_admission.py"
+gates = ["inventory"]
+
+[[test]]
+id = "randomized-quantile-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_randomized_quantile.py"
+gates = ["inventory"]
+
+[[test]]
+id = "sampled-transport-interval-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_sampled_transport_interval.py"
+gates = ["inventory"]
+
+[[test]]
+id = "temporal-conditional-sustained-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_temporal_conditional_sustained.py"
+gates = ["inventory"]
+
+[[test]]
+id = "temporal-selective-execution-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_temporal_selective_execution.py"
+gates = ["inventory"]
+
+[[test]]
+id = "transported-decision-artifact-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_transported_decision_artifact.py"
+gates = ["inventory"]
+
+[[test]]
+id = "transported-synthesis-routes-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_transported_synthesis_routes.py"
+gates = ["inventory"]
+
+[[test]]
+id = "response-gam-derivative-truth-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_response_gam_derivative_truth.py"
+gates = ["inventory"]

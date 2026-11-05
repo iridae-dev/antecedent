@@ -321,7 +321,7 @@ impl ScoreNamespace {
 ///
 /// # Errors
 ///
-/// The namespace's non-positive scale, mapped prior, external power prior, not_measured
+/// The namespace's non-positive scale, mapped prior, external power prior, `not_measured`
 /// band, or empty score table.
 pub fn score_contrast_posterior(
     control: &[f64],

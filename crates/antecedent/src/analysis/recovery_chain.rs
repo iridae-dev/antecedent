@@ -8,7 +8,7 @@
 //! A recovered plan is then evaluated on an exact nine-cell pattern law with
 //! [`RecoveryChain::recover`]. Edges outside the row are `route_not_supported`, never
 //! nonrecoverable; a missing cell is `transport_support_failure`. Exact laws only: a
-//! sampled provider composed on this row is calibrated separately and is not_measured
+//! sampled provider composed on this row is calibrated separately and is `not_measured`
 //! and closed.
 //!
 //! [`RecoveryChain::consume`] re-decides, re-evaluates and re-verifies the witness

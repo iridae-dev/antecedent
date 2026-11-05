@@ -8,7 +8,7 @@
 //! the fitted propensities and conditional means held at their cross-fit values. Sequential
 //! conditional exchangeability given the measured history, positivity, consistency and no
 //! interference are declared, not derived. The route is unsupported and its calibration is
-//! not_measured.
+//! `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::bayesian_quasi_common::{

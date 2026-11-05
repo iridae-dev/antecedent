@@ -16,6 +16,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[path = "retained_run/mod.rs"]
+mod retained;
+
+use retained::run_retained;
+
 use antecedent::{AcceptedGraph, EstimatorId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
@@ -87,16 +92,15 @@ fn run(estimator: EstimatorId, kind: Kind, accepted: bool, suite: RefuteSuite) -
     } else {
         base.graph(graph(two_lag))
     };
-    let result = base
-        .query(CausalQuery::TemporalEffect(query(kind)))
-        .estimator(estimator)
-        .inference(InferenceMode::Frequentist)
-        .refute(suite)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(415))
-        .unwrap();
+    let result = run_retained(
+        base.query(CausalQuery::TemporalEffect(query(kind)))
+            .estimator(estimator)
+            .inference(InferenceMode::Frequentist)
+            .refute(suite)
+            .bootstrap_replicates(0),
+        "retained run",
+        &ExecutionContext::for_tests(415),
+    );
     result.estimate().as_effect().unwrap().ate
 }
 

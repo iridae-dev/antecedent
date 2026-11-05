@@ -14,7 +14,7 @@
 //!
 //! A policy declared as learned on the rows that score it is refused. The estimator is the
 //! cross-fitted doubly robust score of [`antecedent_estimate::observational_policy`]; its
-//! standard error is an influence-function standard error whose calibration is **not_measured**,
+//! standard error is an influence-function standard error whose calibration is **`not_measured`**,
 //! so no interval is produced.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

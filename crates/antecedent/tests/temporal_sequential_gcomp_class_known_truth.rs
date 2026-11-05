@@ -13,6 +13,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[path = "retained_run/mod.rs"]
+mod retained;
+
+use retained::run_retained;
+
 #[path = "fixtures_common/mod.rs"]
 mod common;
 
@@ -193,16 +198,15 @@ fn sequential_gcomp_recovers_the_sustained_effect_on_time_oriented_cpdag_and_pag
                     (_, false) => base.graph(pag()),
                     (_, true) => base.graph(AcceptedGraph::from(pag())),
                 };
-                let result = base
-                    .query(query())
-                    .estimator(EstimatorId::TemporalSequentialGcomp)
-                    .inference(InferenceMode::Frequentist)
-                    .refute(suite)
-                    .bootstrap_replicates(8)
-                    .build()
-                    .unwrap()
-                    .run(&ctx)
-                    .unwrap_or_else(|error| panic!("{label}: {error}"));
+                let result = run_retained(
+                    base.query(query())
+                        .estimator(EstimatorId::TemporalSequentialGcomp)
+                        .inference(InferenceMode::Frequentist)
+                        .refute(suite)
+                        .bootstrap_replicates(8),
+                    &label,
+                    &ctx,
+                );
                 envelope_is_the_point(&result, truth, &label);
             }
         }
@@ -220,17 +224,17 @@ fn sequential_gcomp_recovers_the_sustained_effect_over_single_identified_atom_po
     for (class, posterior, data, unidentified_mass) in posteriors {
         for suite in SUITES {
             let label = format!("{class} graph_posterior {suite:?}");
-            let result = Study::series(data.clone())
-                .graph_posterior(posterior.clone())
-                .query(query())
-                .estimator(EstimatorId::TemporalSequentialGcomp)
-                .inference(InferenceMode::Frequentist)
-                .refute(suite)
-                .bootstrap_replicates(8)
-                .build()
-                .unwrap()
-                .run(&ctx)
-                .unwrap_or_else(|error| panic!("{label}: {error}"));
+            let result = run_retained(
+                Study::series(data.clone())
+                    .graph_posterior(posterior.clone())
+                    .query(query())
+                    .estimator(EstimatorId::TemporalSequentialGcomp)
+                    .inference(InferenceMode::Frequentist)
+                    .refute(suite)
+                    .bootstrap_replicates(8),
+                &label,
+                &ctx,
+            );
             let value = result.estimate().as_effect().unwrap().ate;
             assert!((value - TRUTH).abs() < TOLERANCE, "{label}: {value}");
             let mass = result

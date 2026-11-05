@@ -247,3 +247,15 @@ fn typed_transported_poisson_mechanism_first_order_interval() {
     }
     tally.assert();
 }
+
+/// One replicate, quickly: the interval is ordered and finite, and its centre sits within a
+/// few half-widths of the closed-form interventional mean.
+#[test]
+fn one_replicate_reports_a_valid_interval_near_the_closed_form_mean() {
+    let truth = (0.5 + 0.2 * AT_X + 0.25 * AT_X * AT_X).exp();
+    let (lower, upper) =
+        interval(BASE_ROWS, grid_seed(SEED_BASE)).expect("the typed transport composes");
+    assert!(lower.is_finite() && upper.is_finite() && lower < upper, "[{lower}, {upper}]");
+    let (centre, half) = (0.5 * (lower + upper), 0.5 * (upper - lower));
+    assert!((centre - truth).abs() < 5.0 * half, "centre {centre} vs truth {truth}, half {half}");
+}

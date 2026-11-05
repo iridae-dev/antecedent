@@ -8,7 +8,7 @@
 //!   the observation accounting);
 //! * the request: which look, which route and its parameters; and
 //! * the stored values, the method name, the point-only claim, the
-//!   **not_measured** calibration status and the unsupported claim (a stopping rule's error rate), if any.
+//!   **`not_measured`** calibration status and the unsupported claim (a stopping rule's error rate), if any.
 //!
 //! A consumer trusts none of the stored values. It replays the embedded
 //! contract through the contract checks (so a missing element, an inconsistent

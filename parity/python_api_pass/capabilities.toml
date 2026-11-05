@@ -17913,3 +17913,46 @@ test = "python/tests/test_temporal_conditional_sustained.py::test_a_conditional_
 assertion_scopes = ["test_a_conditional_sustained_effect_equals_the_counted_stratified_contrast"]
 dimensions = ["success"]
 assertion_contract = "The conditional sustained effect equals the contrast of y between x = 1 and x = 0 within each level of w, counted from the series and averaged over the law of w on the window, to 1e-12; it differs from the unadjusted difference of means and equals the conditional pulse on one step."
+
+[[capability]]
+id = "journey.randomized_quantile_effect"
+status = "covered"
+owner = "Python API integration: randomized quantile treatment effect"
+behavior = "Estimates the randomized quantile treatment effect (the difference of arm quantiles) with its influence-function standard error, and refuses a confounded graph naming the adjusting route."
+python = "antecedent.query.Quantile"
+supports = ["capability:estimate.randomized_quantile"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_randomized_quantile.py::test_randomized_quantile_recovers_the_hand_derived_median_effect"
+assertion_scopes = ["test_randomized_quantile_recovers_the_hand_derived_median_effect"]
+dimensions = ["success"]
+assertion_contract = "On forty rows whose treated outcomes are the control outcomes shifted by two, the median effect is 2 and its standard error is 20 / sqrt(39), both derived on paper, to 1e-9."
+[[capability.evidence]]
+test = "python/tests/test_randomized_quantile.py::test_a_confounded_graph_is_refused_with_the_adjusting_route_named"
+assertion_scopes = ["test_a_confounded_graph_is_refused_with_the_adjusting_route_named"]
+dimensions = ["refusal"]
+assertion_contract = "A graph with a confounder of treatment and outcome is refused with the adjustment-set message naming the adjusting route."
+
+[[capability]]
+id = "journey.response_gam_derivative_truth"
+status = "covered"
+owner = "Python API integration: additive-GAM plug-in derivatives"
+behavior = "Reports the plug-in Jacobian and directional derivative of the outcome with respect to continuous treatments from the additive cubic-spline fit."
+python = "antecedent.query.ResponseJacobian"
+supports = ["capability:estimate.response_gam_derivative"]
+required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_response_gam_derivative_truth.py::test_the_jacobian_recovers_the_analytic_gradient_of_a_quadratic_response"
+assertion_scopes = ["test_the_jacobian_recovers_the_analytic_gradient_of_a_quadratic_response"]
+dimensions = ["success"]
+assertion_contract = "On y = 1 + a^2 + 3b + noise over a 21 by 21 lattice the Jacobian at (0.3, 0.5) equals the analytic gradient (0.6, 3.0) within 0.05."
+[[capability.evidence]]
+test = "python/tests/test_response_gam_derivative_truth.py::test_the_directional_derivative_is_the_gradient_dotted_with_the_direction"
+assertion_scopes = ["test_the_directional_derivative_is_the_gradient_dotted_with_the_direction"]
+dimensions = ["success"]
+assertion_contract = "The derivative along (-2, 1) at (0.3, 0.5) equals the analytic -2 * 0.6 + 3 = 1.8 within 0.05."
+[[capability.evidence]]
+test = "python/tests/test_response_gam_derivative_truth.py::test_a_single_treatment_direction_scales_the_analytic_slope"
+assertion_scopes = ["test_a_single_treatment_direction_scales_the_analytic_slope"]
+dimensions = ["success"]
+assertion_contract = "On one treatment with y = 1 + a^2 + noise the derivative along -2 at 0.3 equals -1.2 within 0.05."

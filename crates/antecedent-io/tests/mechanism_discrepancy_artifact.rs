@@ -1,6 +1,6 @@
 //! Mechanism discrepancy artifact: hand-derived acceptance numbers through the container, a
 //! recomputing consumer, resealed-mutation refusals against a retained identity, unresealed
-//! tampering, unknown versions, the never-certifies-invariance flag and the not_measured
+//! tampering, unknown versions, the never-certifies-invariance flag and the `not_measured`
 //! calibration coordinate.
 //!
 //! Frozen summaries (one parent `x = [0,1,2,3]`, n = 4): `X'X = [[4,6],[6,14]]`; the source has

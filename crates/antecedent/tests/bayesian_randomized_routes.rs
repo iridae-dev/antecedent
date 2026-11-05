@@ -1,6 +1,6 @@
 //! Bayesian arm contrasts and switchback effect of the randomized designs through the public
 //! study facade. The two-arm Gaussian IPW pseudo-posterior is supported with calibration
-//! not_measured; other constructions retain their separate scope. Each posterior is compared
+//! `not_measured`; other constructions retain their separate scope. Each posterior is compared
 //! with a reference computed outside the library (quadrature of the Beta and Student-t densities,
 //! enumeration of the Beta-Binomial missing-count laws, exact conjugate moments, a whitened
 //! least-squares derivation for the switchback), the retained artifact is read with an

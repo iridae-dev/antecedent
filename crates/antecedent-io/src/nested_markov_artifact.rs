@@ -688,7 +688,7 @@ impl NestedMarkovArtifactWire {
     }
 }
 
-/// Original not_measured covariance/interval candidate envelope.
+/// Original `not_measured` covariance/interval candidate envelope.
 /// A distinct measured outer envelope resolves scalar authority without changing
 /// this historical standing. The public point artifact does not accept this marker.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -700,7 +700,7 @@ pub struct NestedFisherArtifact {
     pub method: String,
     /// Declared sampling assumption, not authenticated from the count table.
     pub sampling: String,
-    /// Original candidate standing remains not_measured, including inside a measured envelope.
+    /// Original candidate standing remains `not_measured`, including inside a measured envelope.
     pub calibration: String,
     /// Bound point-fit premises, data and likelihood receipt.
     pub point: NestedMarkovArtifactWire,

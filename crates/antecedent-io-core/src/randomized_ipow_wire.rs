@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub const ESTIMATOR: &str = "bayesian.randomized_superpopulation";
 /// The working likelihood, distinct from a joint model of outcomes and missingness.
 pub const METHOD: &str = "gaussian_ipow_modular_posterior";
-/// A posterior-quantile claim; repeated-sampling coverage remains not_measured.
+/// A posterior-quantile claim; repeated-sampling coverage remains `not_measured`.
 pub const CLAIM: &str = "conditional_pseudo_posterior_pointwise_95_quantiles";
 /// Target marker retained with the posterior row.
 pub const TARGET: &str = "ipow_superpopulation_conditional_on_fitted_observation_model";

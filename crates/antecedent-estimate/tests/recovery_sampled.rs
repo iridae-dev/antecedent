@@ -1,6 +1,6 @@
 //! Sampled observation recovery against an enumerated binary
 //! missingness SCM, its refusals and its replayable receipt. Interval calibration
-//! is not_measured here: nothing below asserts a coverage claim.
+//! is `not_measured` here: nothing below asserts a coverage claim.
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,

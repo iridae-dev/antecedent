@@ -34,7 +34,7 @@
 //! informs only a selection node on `V` itself (the `informs_selection_on` field): a rejection says the mechanism of `V` is not invariant, so such a node
 //! cannot be excluded; non-rejection leaves it open. It is a linear-Gaussian-mean diagnostic: a
 //! shift in a nonlinear or higher-moment feature of the mechanism may go undetected. Type I error
-//! and power are *not_measured* ([`CalibrationStatus::NotMeasured`]); no calibration claim is made.
+//! and power are *`not_measured`* ([`CalibrationStatus::NotMeasured`]); no calibration claim is made.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -69,7 +69,7 @@ pub const MECHANISM_DISCREPANCY_CAVEAT: &str = "failing to reject the null does 
     the mechanism is invariant between source and target; only differences larger than the \
     minimal detectable differences could have been detected";
 
-/// Statement attached to every result about the not_measured error rates.
+/// Statement attached to every result about the `not_measured` error rates.
 pub const MECHANISM_DISCREPANCY_POWER_CAVEAT: &str = "Type I error and power of this test are \
     not_measured; the minimal detectable differences are closed-form normal-theory values at the \
     observed standard errors, not a measured calibration";
@@ -285,7 +285,7 @@ pub struct MechanismDiscrepancyResult {
     pub dependence_assumption: &'static str,
     /// The variables whose selection node this diagnostic informs: the node itself.
     pub informs_selection_on: Vec<String>,
-    /// Calibration state: not_measured.
+    /// Calibration state: `not_measured`.
     pub calibration: CalibrationStatus,
     /// [`MECHANISM_DISCREPANCY_INFERENCE_CLAIM`].
     pub inference_claim: &'static str,

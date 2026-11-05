@@ -27,6 +27,11 @@
 //! pinned beside the implementation in `analysis::execute::curve_refutation` on injected refits.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[path = "retained_run/mod.rs"]
+mod retained;
+
+use retained::run_retained;
+
 use antecedent::analysis::RetainedOperation;
 use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
@@ -201,17 +206,17 @@ fn response_curve_validation_detects_a_grid_beyond_the_observed_treatment_range(
     let mut planted = grid(&pin);
     planted.push(number(&pin, "off_support_at"));
     for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
-        let clean = study(&data, &grid(&pin), false, suite)
-            .build()
-            .unwrap()
-            .run(&ExecutionContext::for_tests(914))
-            .unwrap();
+        let clean = run_retained(
+            study(&data, &grid(&pin), false, suite),
+            "retained run",
+            &ExecutionContext::for_tests(914),
+        );
         assert!(report(&clean, "curve.support").is_some_and(|r| r.passed), "{suite:?}");
-        let broken = study(&data, &planted, false, suite)
-            .build()
-            .unwrap()
-            .run(&ExecutionContext::for_tests(915))
-            .unwrap();
+        let broken = run_retained(
+            study(&data, &planted, false, suite),
+            "retained run",
+            &ExecutionContext::for_tests(915),
+        );
         let support = report(&broken, "curve.support").expect("support report");
         assert!(!support.passed, "{suite:?}: an off-support grid point was not detected");
     }
@@ -258,12 +263,11 @@ fn response_curve_validation_bayesian_dag_known_truth() {
     for accepted in [false, true] {
         for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
             let label = format!("bayesian accepted={accepted} {suite:?}");
-            let result = study(&data, &grid, accepted, suite)
-                .inference(bayesian())
-                .build()
-                .unwrap()
-                .run(&ExecutionContext::for_tests(916))
-                .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+            let result = run_retained(
+                study(&data, &grid, accepted, suite).inference(bayesian()),
+                &label,
+                &ExecutionContext::for_tests(916),
+            );
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("response.bayesian"));
             assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
             for (value, x) in published(&result).iter().zip(&grid) {
@@ -353,11 +357,7 @@ fn class_case(
         .refute(suite)
         .bootstrap_replicates(0);
     let builder = if bayes { builder.inference(bayesian()) } else { builder };
-    let result = builder
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(917))
-        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+    let result = run_retained(builder, &label, &ExecutionContext::for_tests(917));
     assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
     for (value, x) in published(&result).iter().zip(grid) {
         assert!((value - (1.0 + 2.0 * x)).abs() <= 0.25, "{label}: {value} at {x}");
@@ -434,15 +434,15 @@ fn response_curve_validation_adjustable_admg_known_truth() {
             .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
             .unwrap();
     }
-    let result = Study::tabular(data.clone())
-        .graph(graph)
-        .query(curve(&[-0.8, 0.0, 0.8]))
-        .refute(RefuteSuite::Full)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(919))
-        .unwrap();
+    let result = run_retained(
+        Study::tabular(data.clone())
+            .graph(graph)
+            .query(curve(&[-0.8, 0.0, 0.8]))
+            .refute(RefuteSuite::Full)
+            .bootstrap_replicates(0),
+        "retained run",
+        &ExecutionContext::for_tests(919),
+    );
     assert_eq!(result.support_status(), Some(CellStatus::Supported));
     for name in [
         "curve.support",
@@ -480,11 +480,7 @@ fn response_curve_validation_admg_known_truth() {
                 } else {
                     builder
                 };
-                let result = builder
-                    .build()
-                    .unwrap()
-                    .run(&ExecutionContext::for_tests(918))
-                    .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                let result = run_retained(builder, &label, &ExecutionContext::for_tests(918));
                 assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 for name in ["curve.support", "curve.placebo_treatment"] {
                     let found = report(&result, name)

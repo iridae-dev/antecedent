@@ -1041,6 +1041,10 @@ impl core::clone::Clone for antecedent::decision_evidence::JointSwitchbackDesign
 impl core::clone::Clone for antecedent::decision_evidence::MatchedPairDesign
 impl core::clone::Clone for antecedent::decision_evidence::RetainedExperiment
 impl core::clone::Clone for antecedent::decision_evidence::RetainedJointPanelUpdate
+impl core::clone::Clone for antecedent::declared::IidSampling
+impl core::clone::Clone for antecedent::declared::LearnedContinuousTarget
+impl core::clone::Clone for antecedent::declared::MatchedEstimand
+impl core::clone::Clone for antecedent::declared::SmoothedDoseTarget
 impl core::clone::Clone for antecedent::design::DesignRankPreview
 impl core::clone::Clone for antecedent::design::StudyDesignRanking
 impl core::clone::Clone for antecedent::discovery::BayesianDiscoverParams
@@ -1049,6 +1053,9 @@ impl core::clone::Clone for antecedent::discovery::GraphMcmcSchedule
 impl core::clone::Clone for antecedent::discovery::StaticDiscoverParams
 impl core::clone::Clone for antecedent::error::PendingEdge
 impl core::clone::Clone for antecedent::estimate::StaticEstimateWorkspaces
+impl core::clone::Clone for antecedent::execution::AdmissionRefusal
+impl core::clone::Clone for antecedent::execution::FixedBudget
+impl core::clone::Clone for antecedent::execution::ObservationToken
 impl core::clone::Clone for antecedent::gcm::CheckedCounterfactualOperation
 impl core::clone::Clone for antecedent::gcm::ContrastSetResult
 impl core::clone::Clone for antecedent::gcm::ContrastedOutcome
@@ -1328,8 +1335,13 @@ impl core::cmp::Eq for antecedent::analysis::transport_revalidation::TransportRe
 impl core::cmp::Eq for antecedent::analysis::transport_revalidation::TransportRevalidationRefusal
 impl core::cmp::Eq for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::cmp::Eq for antecedent::cross_world::CrossWorldOptions
+impl core::cmp::Eq for antecedent::declared::IidSampling
+impl core::cmp::Eq for antecedent::declared::LearnedContinuousTarget
+impl core::cmp::Eq for antecedent::declared::MatchedEstimand
+impl core::cmp::Eq for antecedent::declared::SmoothedDoseTarget
 impl core::cmp::Eq for antecedent::discovery::GraphMcmcSchedule
 impl core::cmp::Eq for antecedent::error::PendingEdge
+impl core::cmp::Eq for antecedent::execution::AdmissionRefusal
 impl core::cmp::Eq for antecedent::gcm::NestedOutcomeMechanism
 impl core::cmp::Eq for antecedent::host::HostStatus
 impl core::cmp::Eq for antecedent::period_refresh::PeriodRefreshOutcome
@@ -1864,9 +1876,14 @@ impl core::cmp::PartialEq for antecedent::decision_evidence::JointExcursionDesig
 impl core::cmp::PartialEq for antecedent::decision_evidence::JointStaticRegimeDesign
 impl core::cmp::PartialEq for antecedent::decision_evidence::JointSwitchbackDesign
 impl core::cmp::PartialEq for antecedent::decision_evidence::MatchedPairDesign
+impl core::cmp::PartialEq for antecedent::declared::IidSampling
+impl core::cmp::PartialEq for antecedent::declared::LearnedContinuousTarget
+impl core::cmp::PartialEq for antecedent::declared::MatchedEstimand
+impl core::cmp::PartialEq for antecedent::declared::SmoothedDoseTarget
 impl core::cmp::PartialEq for antecedent::design::DesignRankPreview
 impl core::cmp::PartialEq for antecedent::discovery::GraphMcmcSchedule
 impl core::cmp::PartialEq for antecedent::error::PendingEdge
+impl core::cmp::PartialEq for antecedent::execution::AdmissionRefusal
 impl core::cmp::PartialEq for antecedent::gcm::NestedOutcomeMechanism
 impl core::cmp::PartialEq for antecedent::gcm::PolicyValue
 impl core::cmp::PartialEq for antecedent::gcm::StageUtility
@@ -2002,6 +2019,7 @@ impl core::convert::From<antecedent_contract::rewrite_legality::RewriteRefusal> 
 impl core::convert::From<antecedent_contract::rewrite_legality::RewriteRefusal> for antecedent::analysis::file_table::PushdownCheckError
 impl core::convert::From<antecedent_core::error::SchemaError> for antecedent::CausalError
 impl core::convert::From<antecedent_core::error::SchemaError> for antecedent::CompileCause
+impl core::convert::From<antecedent_core::execution::admission::AdmissionError> for antecedent::execution::AdmissionRefusal
 impl core::convert::From<antecedent_core::query::error::QueryError> for antecedent::CausalError
 impl core::convert::From<antecedent_core::query::error::QueryError> for antecedent::CompileCause
 impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::CausalError
@@ -2185,6 +2203,7 @@ impl core::error::Error for antecedent::analysis::recalc_temporal::TemporalRunEr
 impl core::error::Error for antecedent::analysis::transport_handoff::TransportHandoffRefusal
 impl core::error::Error for antecedent::analysis::transport_revalidation::TransportRevalidationRefusal
 impl core::error::Error for antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal
+impl core::error::Error for antecedent::execution::AdmissionRefusal
 impl core::error::Error for antecedent::strategy_table::ScientificRefusal
 impl core::error::Error for antecedent::strategy_table::UnknownStrategy
 impl core::fmt::Debug for antecedent::AcceptedGraph
@@ -2999,6 +3018,10 @@ impl core::fmt::Debug for antecedent::decision_evidence::JointSwitchbackDesign
 impl core::fmt::Debug for antecedent::decision_evidence::MatchedPairDesign
 impl core::fmt::Debug for antecedent::decision_evidence::RetainedExperiment
 impl core::fmt::Debug for antecedent::decision_evidence::RetainedJointPanelUpdate
+impl core::fmt::Debug for antecedent::declared::IidSampling
+impl core::fmt::Debug for antecedent::declared::LearnedContinuousTarget
+impl core::fmt::Debug for antecedent::declared::MatchedEstimand
+impl core::fmt::Debug for antecedent::declared::SmoothedDoseTarget
 impl core::fmt::Debug for antecedent::design::DesignRankPreview
 impl core::fmt::Debug for antecedent::design::StudyDesignRanking
 impl core::fmt::Debug for antecedent::discovery::BayesianDiscoverParams
@@ -3007,6 +3030,8 @@ impl core::fmt::Debug for antecedent::discovery::GraphMcmcSchedule
 impl core::fmt::Debug for antecedent::discovery::StaticDiscoverParams
 impl core::fmt::Debug for antecedent::error::PendingEdge
 impl core::fmt::Debug for antecedent::estimate::StaticEstimateWorkspaces
+impl core::fmt::Debug for antecedent::execution::AdmissionRefusal
+impl core::fmt::Debug for antecedent::execution::ObservationToken
 impl core::fmt::Debug for antecedent::gcm::CheckedCounterfactualOperation
 impl core::fmt::Debug for antecedent::gcm::ContrastSetResult
 impl core::fmt::Debug for antecedent::gcm::ContrastedOutcome
@@ -3185,6 +3210,7 @@ impl core::fmt::Display for antecedent::analysis::recalc_temporal::TemporalRunEr
 impl core::fmt::Display for antecedent::analysis::transport_handoff::TransportHandoffRefusal
 impl core::fmt::Display for antecedent::analysis::transport_revalidation::TransportRevalidationRefusal
 impl core::fmt::Display for antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal
+impl core::fmt::Display for antecedent::execution::AdmissionRefusal
 impl core::fmt::Display for antecedent::strategy_table::ScientificRefusal
 impl core::fmt::Display for antecedent::strategy_table::UnknownStrategy
 impl core::hash::Hash for antecedent::ComputeBudget
@@ -3377,6 +3403,10 @@ impl core::marker::Copy for antecedent::analysis::target_validation::WithinClass
 impl core::marker::Copy for antecedent::counterfactual_id::CounterfactualIdConsumeLimits
 impl core::marker::Copy for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::marker::Copy for antecedent::cross_world::CrossWorldOptions
+impl core::marker::Copy for antecedent::declared::IidSampling
+impl core::marker::Copy for antecedent::declared::LearnedContinuousTarget
+impl core::marker::Copy for antecedent::declared::MatchedEstimand
+impl core::marker::Copy for antecedent::declared::SmoothedDoseTarget
 impl core::marker::Copy for antecedent::discovery::GraphMcmcSchedule
 impl core::marker::Copy for antecedent::gcm::NestedOutcomeMechanism
 impl core::marker::Copy for antecedent::gcm::StageUtility
@@ -4248,6 +4278,10 @@ impl core::marker::Freeze for antecedent::decision_evidence::JointSwitchbackDesi
 impl core::marker::Freeze for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::RetainedExperiment [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::RetainedJointPanelUpdate [auto]
+impl core::marker::Freeze for antecedent::declared::IidSampling [auto]
+impl core::marker::Freeze for antecedent::declared::LearnedContinuousTarget [auto]
+impl core::marker::Freeze for antecedent::declared::MatchedEstimand [auto]
+impl core::marker::Freeze for antecedent::declared::SmoothedDoseTarget [auto]
 impl core::marker::Freeze for antecedent::design::DesignRankPreview [auto]
 impl core::marker::Freeze for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Freeze for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -4256,6 +4290,10 @@ impl core::marker::Freeze for antecedent::discovery::GraphMcmcSchedule [auto]
 impl core::marker::Freeze for antecedent::discovery::StaticDiscoverParams [auto]
 impl core::marker::Freeze for antecedent::error::PendingEdge [auto]
 impl core::marker::Freeze for antecedent::estimate::StaticEstimateWorkspaces [auto]
+impl core::marker::Freeze for antecedent::execution::AdmissionRefusal [auto]
+impl core::marker::Freeze for antecedent::execution::FixedBudget [auto]
+impl core::marker::Freeze for antecedent::execution::ObservationToken [auto]
+impl core::marker::Freeze for antecedent::execution::Retention [auto]
 impl core::marker::Freeze for antecedent::gcm::CheckedCounterfactualOperation [auto]
 impl core::marker::Freeze for antecedent::gcm::ContrastSetResult [auto]
 impl core::marker::Freeze for antecedent::gcm::ContrastedOutcome [auto]
@@ -5215,6 +5253,10 @@ impl core::marker::Send for antecedent::decision_evidence::JointSwitchbackDesign
 impl core::marker::Send for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::marker::Send for antecedent::decision_evidence::RetainedExperiment [auto]
 impl core::marker::Send for antecedent::decision_evidence::RetainedJointPanelUpdate [auto]
+impl core::marker::Send for antecedent::declared::IidSampling [auto]
+impl core::marker::Send for antecedent::declared::LearnedContinuousTarget [auto]
+impl core::marker::Send for antecedent::declared::MatchedEstimand [auto]
+impl core::marker::Send for antecedent::declared::SmoothedDoseTarget [auto]
 impl core::marker::Send for antecedent::design::DesignRankPreview [auto]
 impl core::marker::Send for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Send for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -5223,6 +5265,10 @@ impl core::marker::Send for antecedent::discovery::GraphMcmcSchedule [auto]
 impl core::marker::Send for antecedent::discovery::StaticDiscoverParams [auto]
 impl core::marker::Send for antecedent::error::PendingEdge [auto]
 impl core::marker::Send for antecedent::estimate::StaticEstimateWorkspaces [auto]
+impl core::marker::Send for antecedent::execution::AdmissionRefusal [auto]
+impl core::marker::Send for antecedent::execution::FixedBudget [auto]
+impl core::marker::Send for antecedent::execution::ObservationToken [auto]
+impl core::marker::Send for antecedent::execution::Retention [auto]
 impl core::marker::Send for antecedent::gcm::CheckedCounterfactualOperation [auto]
 impl core::marker::Send for antecedent::gcm::ContrastSetResult [auto]
 impl core::marker::Send for antecedent::gcm::ContrastedOutcome [auto]
@@ -5814,9 +5860,14 @@ impl core::marker::StructuralPartialEq for antecedent::decision_evidence::JointE
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::JointStaticRegimeDesign
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::JointSwitchbackDesign
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::MatchedPairDesign
+impl core::marker::StructuralPartialEq for antecedent::declared::IidSampling
+impl core::marker::StructuralPartialEq for antecedent::declared::LearnedContinuousTarget
+impl core::marker::StructuralPartialEq for antecedent::declared::MatchedEstimand
+impl core::marker::StructuralPartialEq for antecedent::declared::SmoothedDoseTarget
 impl core::marker::StructuralPartialEq for antecedent::design::DesignRankPreview
 impl core::marker::StructuralPartialEq for antecedent::discovery::GraphMcmcSchedule
 impl core::marker::StructuralPartialEq for antecedent::error::PendingEdge
+impl core::marker::StructuralPartialEq for antecedent::execution::AdmissionRefusal
 impl core::marker::StructuralPartialEq for antecedent::gcm::NestedOutcomeMechanism
 impl core::marker::StructuralPartialEq for antecedent::gcm::PolicyValue
 impl core::marker::StructuralPartialEq for antecedent::gcm::StageUtility
@@ -6741,6 +6792,10 @@ impl core::marker::Sync for antecedent::decision_evidence::JointSwitchbackDesign
 impl core::marker::Sync for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::marker::Sync for antecedent::decision_evidence::RetainedExperiment [auto]
 impl core::marker::Sync for antecedent::decision_evidence::RetainedJointPanelUpdate [auto]
+impl core::marker::Sync for antecedent::declared::IidSampling [auto]
+impl core::marker::Sync for antecedent::declared::LearnedContinuousTarget [auto]
+impl core::marker::Sync for antecedent::declared::MatchedEstimand [auto]
+impl core::marker::Sync for antecedent::declared::SmoothedDoseTarget [auto]
 impl core::marker::Sync for antecedent::design::DesignRankPreview [auto]
 impl core::marker::Sync for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Sync for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -6749,6 +6804,10 @@ impl core::marker::Sync for antecedent::discovery::GraphMcmcSchedule [auto]
 impl core::marker::Sync for antecedent::discovery::StaticDiscoverParams [auto]
 impl core::marker::Sync for antecedent::error::PendingEdge [auto]
 impl core::marker::Sync for antecedent::estimate::StaticEstimateWorkspaces [auto]
+impl core::marker::Sync for antecedent::execution::AdmissionRefusal [auto]
+impl core::marker::Sync for antecedent::execution::FixedBudget [auto]
+impl core::marker::Sync for antecedent::execution::ObservationToken [auto]
+impl core::marker::Sync for antecedent::execution::Retention [auto]
 impl core::marker::Sync for antecedent::gcm::CheckedCounterfactualOperation [auto]
 impl core::marker::Sync for antecedent::gcm::ContrastSetResult [auto]
 impl core::marker::Sync for antecedent::gcm::ContrastedOutcome [auto]
@@ -7709,6 +7768,10 @@ impl core::marker::Unpin for antecedent::decision_evidence::JointSwitchbackDesig
 impl core::marker::Unpin for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::RetainedExperiment [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::RetainedJointPanelUpdate [auto]
+impl core::marker::Unpin for antecedent::declared::IidSampling [auto]
+impl core::marker::Unpin for antecedent::declared::LearnedContinuousTarget [auto]
+impl core::marker::Unpin for antecedent::declared::MatchedEstimand [auto]
+impl core::marker::Unpin for antecedent::declared::SmoothedDoseTarget [auto]
 impl core::marker::Unpin for antecedent::design::DesignRankPreview [auto]
 impl core::marker::Unpin for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Unpin for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -7717,6 +7780,10 @@ impl core::marker::Unpin for antecedent::discovery::GraphMcmcSchedule [auto]
 impl core::marker::Unpin for antecedent::discovery::StaticDiscoverParams [auto]
 impl core::marker::Unpin for antecedent::error::PendingEdge [auto]
 impl core::marker::Unpin for antecedent::estimate::StaticEstimateWorkspaces [auto]
+impl core::marker::Unpin for antecedent::execution::AdmissionRefusal [auto]
+impl core::marker::Unpin for antecedent::execution::FixedBudget [auto]
+impl core::marker::Unpin for antecedent::execution::ObservationToken [auto]
+impl core::marker::Unpin for antecedent::execution::Retention [auto]
 impl core::marker::Unpin for antecedent::gcm::CheckedCounterfactualOperation [auto]
 impl core::marker::Unpin for antecedent::gcm::ContrastSetResult [auto]
 impl core::marker::Unpin for antecedent::gcm::ContrastedOutcome [auto]
@@ -8639,12 +8706,20 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::RetainedExperiment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::declared::IidSampling [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::declared::LearnedContinuousTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::declared::MatchedEstimand [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::declared::SmoothedDoseTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::design::DesignRankPreview [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::design::StudyDesignRanking [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::BayesianDiscoverParams [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::GraphMcmcSchedule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::error::PendingEdge [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::estimate::StaticEstimateWorkspaces [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::execution::AdmissionRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::execution::FixedBudget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::execution::ObservationToken [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::execution::Retention [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::CheckedCounterfactualOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::ContrastSetResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::ContrastedOutcome [auto]
@@ -9555,12 +9630,20 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::Joi
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::RetainedExperiment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::declared::IidSampling [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::declared::LearnedContinuousTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::declared::MatchedEstimand [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::declared::SmoothedDoseTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::design::DesignRankPreview [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::design::StudyDesignRanking [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::discovery::BayesianDiscoverParams [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::discovery::GraphMcmcSchedule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::error::PendingEdge [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::estimate::StaticEstimateWorkspaces [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::execution::AdmissionRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::execution::FixedBudget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::execution::ObservationToken [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::execution::Retention [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::CheckedCounterfactualOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::ContrastSetResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::gcm::ContrastedOutcome [auto]
@@ -9690,6 +9773,9 @@ impl core::str::traits::FromStr for antecedent::TargetDirection
 impl core::str::traits::FromStr for antecedent::analysis::cross_world_interval::IntervalScalar
 impl core::str::traits::FromStr for antecedent::analysis::cross_world_interval::RouteClosure
 impl core::str::traits::FromStr for antecedent::analysis::file_table::SummaryMissing
+impl core::str::traits::FromStr for antecedent::declared::LearnedContinuousTarget
+impl core::str::traits::FromStr for antecedent::declared::MatchedEstimand
+impl core::str::traits::FromStr for antecedent::declared::SmoothedDoseTarget
 impl serde_core::ser::Serialize for antecedent::ArmCount
 impl serde_core::ser::Serialize for antecedent::ArmWeightEss
 impl serde_core::ser::Serialize for antecedent::BatchCostEstimate
@@ -10316,6 +10402,11 @@ pub enum antecedent::analysis::recalc_temporal::TemporalRunError
 pub enum antecedent::analysis::target_validation::PreparedTargetData<'a>
 pub enum antecedent::analysis::target_validation::WithinClassDistribution
 pub enum antecedent::decision_evidence::RetainedExperiment
+pub enum antecedent::declared::IidSampling
+pub enum antecedent::declared::LearnedContinuousTarget
+pub enum antecedent::declared::MatchedEstimand
+pub enum antecedent::declared::SmoothedDoseTarget
+pub enum antecedent::execution::AdmissionRefusal
 pub enum antecedent::gcm::NestedOutcomeMechanism
 pub enum antecedent::period_refresh::PeriodRefreshOutcome
 pub enum antecedent::planner::PlanStage
@@ -15836,7 +15927,15 @@ pub fn <antecedent::decision_evidence::RetainedJointPanelUpdate>::fn experiment(
 pub fn <antecedent::decision_evidence::RetainedJointPanelUpdate>::fn law_source(&self, component: usize, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<antecedent::analysis::joint_panel::PanelExperimentDecisionSource, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::decision_evidence::RetainedJointPanelUpdate>::fn likelihood_assumption_id(&self) -> &str
 pub fn <antecedent::decision_evidence::RetainedJointPanelUpdate>::fn result(&self) -> &antecedent::analysis::joint_panel::PanelJointExperimentResult
+pub fn <antecedent::declared::IidSampling>::fn parse_learned_continuous(name: &str) -> core::result::Result<Self, antecedent_estimate::error::EstimationError>
+pub fn <antecedent::declared::IidSampling>::fn parse_smoothed_dose(name: &str) -> core::result::Result<Self, antecedent_estimate::error::EstimationError>
 pub fn <antecedent::error::PendingEdge>::fn new(source: impl core::convert::Into<alloc::string::String>, target: impl core::convert::Into<alloc::string::String>, at_source: impl core::convert::Into<alloc::string::String>, at_target: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent::execution::AdmissionRefusal>::fn is_cancelled(&self) -> bool
+pub fn <antecedent::execution::FixedBudget>::fn apply(&self, ctx: antecedent_core::execution::context::ExecutionContext) -> antecedent_core::execution::context::ExecutionContext
+pub fn <antecedent::execution::FixedBudget>::fn available_bytes(&self) -> u64
+pub fn <antecedent::execution::FixedBudget>::fn new(threads: u32, bytes: u64) -> Self
+pub fn <antecedent::execution::ObservationToken>::fn capture() -> Self
+pub fn <antecedent::execution::ObservationToken>::fn execute<T>(&self, execute: impl core::ops::function::FnOnce() -> T) -> T
 pub fn <antecedent::gcm::CheckedCounterfactualOperation>::const fn query(&self) -> &antecedent_core::query::counterfactual::CounterfactualQuery
 pub fn <antecedent::gcm::CheckedCounterfactualOperation>::fn graph(&self) -> &antecedent_graph::dag::Dag
 pub fn <antecedent::gcm::ContrastSetResult>::fn contrast(&self, outcome: antecedent_core::ids::VariableId) -> core::option::Option<&antecedent::gcm::OutcomeContrast>
@@ -16543,6 +16642,9 @@ pub fn antecedent::cross_world::check(graph: &antecedent_graph::dag::Dag, query:
 pub fn antecedent::cross_world::consume_cross_world_artifact(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent_io_core::cross_world_artifact::CrossWorldArtifactError>
 pub fn antecedent::cross_world::consume_cross_world_artifact_for_data(bytes: &[u8], expected_data_digest: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent_io_core::cross_world_artifact::CrossWorldArtifactError>
 pub fn antecedent::cross_world::evaluate_cross_world_effect(graph: impl antecedent::IntoGraphInput, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::cross_world::CrossWorldQuery, options: antecedent::cross_world::CrossWorldOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent::CausalError>
+pub fn antecedent::data::arrow_c::load_columns(columns: alloc::vec::Vec<antecedent_data::arrow_ffi::ArrowCColumn>) -> core::result::Result<antecedent_data::arrow_adapter::ArrowLoadResult, antecedent_data::error::DataError>
+pub fn antecedent::data::buffer_with_retention(buffer: antecedent_data::buffer::F64Buffer, retention: &antecedent::execution::Retention) -> antecedent_data::buffer::F64Buffer
+pub fn antecedent::data::with_retention(data: antecedent_data::dataset::TabularData, retention: &antecedent::execution::Retention) -> antecedent_data::dataset::TabularData
 pub fn antecedent::decision_evidence::compile_and_evidence_from_adaptive_regime(recipe: antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe, evidence_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::compile_and_evidence_from_cluster(recipe: antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe, evidence_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledClusterEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::compile_and_evidence_from_joint_excursion(design: &antecedent::decision_evidence::CompiledJointExcursion, outcomes: &[&[f64]], assigned: &[bool], evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledExcursionEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
@@ -16587,6 +16689,14 @@ pub fn antecedent::estimate::select_estimand(identification: &antecedent_identif
 pub fn antecedent::estimate::validate_distribution_pair(identifier: antecedent::IdentifierId, estimator: antecedent::EstimatorId) -> core::result::Result<(), antecedent::CausalError>
 pub fn antecedent::estimate::validate_path_specific_pair(identifier: antecedent::IdentifierId, estimator: antecedent::EstimatorId) -> core::result::Result<(), antecedent::CausalError>
 pub fn antecedent::estimate::validate_static_pair(identifier: antecedent::IdentifierId, estimator: antecedent::EstimatorId) -> core::result::Result<(), antecedent::CausalError>
+pub fn antecedent::execution::artifact_io_admission_error(cancelled: bool) -> antecedent_io_core::error::IoError
+pub fn antecedent::execution::is_admission_refusal(error: &dyn core::error::Error + 'static) -> bool
+pub fn antecedent::execution::observe<T, E>(ctx: &antecedent_core::execution::context::ExecutionContext, execute: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E>
+pub fn antecedent::execution::retain(ctx: &antecedent_core::execution::context::ExecutionContext, bytes: u64) -> core::result::Result<antecedent::execution::Retention, antecedent::execution::AdmissionRefusal>
+pub fn antecedent::execution::retain_bounded(ctx: &antecedent_core::execution::context::ExecutionContext, bytes: u64, bound: core::time::Duration) -> core::result::Result<antecedent::execution::Retention, antecedent::execution::AdmissionRefusal>
+pub fn antecedent::execution::retain_product(ctx: &antecedent_core::execution::context::ExecutionContext, count: u64, width: u64) -> core::result::Result<antecedent::execution::Retention, antecedent::execution::AdmissionRefusal>
+pub fn antecedent::execution::run_admitted<T>(ctx: &antecedent_core::execution::context::ExecutionContext, execute: impl core::ops::function::FnOnce() -> T) -> T
+pub fn antecedent::execution::run_admitted_recording_refusal<T>(ctx: &antecedent_core::execution::context::ExecutionContext, execute: impl core::ops::function::FnOnce() -> T) -> (T, core::option::Option<antecedent::execution::AdmissionRefusal>)
 pub fn antecedent::gcm::candidate_families(token: &str) -> core::result::Result<alloc::vec::Vec<antecedent_model::registry::MechanismFamily>, antecedent::CausalError>
 pub fn antecedent::gcm::evaluate_graph(graph: &antecedent_graph::dag::Dag, data: &antecedent_data::dataset::TabularData, config: &antecedent_model::falsify::GraphFalsificationConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::falsify::GraphFalsificationReport, antecedent::CausalError>
 pub fn antecedent::gcm::fit_gcm(graph: antecedent_graph::dag::Dag, data: &antecedent_data::dataset::TabularData) -> core::result::Result<antecedent::gcm::FittedGcm, antecedent::CausalError>
@@ -16606,6 +16716,12 @@ pub fn antecedent::host::operation_record(report: &antecedent_contract::capabili
 pub fn antecedent::host::refusal_code(error: &antecedent::CausalError) -> core::option::Option<&str>
 pub fn antecedent::host::refusal_record(error: &antecedent::CausalError) -> serde_json::value::Value
 pub fn antecedent::host::unmet_obligation_records(obligations: &[antecedent_contract::obligation::ObligationRecord]) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn antecedent::identity::blake3_hex(bytes: &[u8]) -> alloc::string::String
+pub fn antecedent::identity::digest_bytes(tag: &str, bytes: &[u8]) -> antecedent_core::identity::SemanticDigest
+pub fn antecedent::identity::digest_claim_wire<T: serde_core::ser::Serialize>(value: &T) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::error::IoError>
+pub fn antecedent::identity::digest_labels<S: core::convert::AsRef<str>>(tag: &str, labels: &[S]) -> antecedent_core::identity::SemanticDigest
+pub fn antecedent::identity::parse_digest(text: &str) -> core::option::Option<antecedent_core::identity::SemanticDigest>
+pub fn antecedent::identity::to_hex(bytes: &[u8]) -> alloc::string::String
 pub fn antecedent::inference::decode_prior_hydrate_source(cfg: &antecedent::BayesianConfig) -> core::result::Result<core::option::Option<antecedent::inference::DecodedPriorHydrate>, antecedent::CausalError>
 pub fn antecedent::inference::hydrate_mapping_from_io(mapping: &antecedent_io_core::prior_bank::PriorMapping) -> antecedent_estimate::bayesian::hydrate::HydrateMapping
 pub fn antecedent::inference::mapped_posterior_transfer_with(bytes: &[u8], spec: &antecedent::inference::MappedTransferSpec<'_>) -> core::result::Result<antecedent_prob::prior::PriorSet, antecedent::CausalError>
@@ -16614,6 +16730,14 @@ pub fn antecedent::io::decode_model_bundle_bytes(bytes: &[u8]) -> core::result::
 pub fn antecedent::io::encode_model_bundle_bytes(input: &antecedent_io::model_bundle::ModelBundleEncode<'_>) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::CausalError>
 pub fn antecedent::period_refresh::window_factor_changes(old: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, new: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity) -> alloc::collections::btree::set::BTreeSet<antecedent_state::invalidation::TemporalFactor>
 pub fn antecedent::planner::reject_dag_only_on_pag(structure: &antecedent::AcceptedGraph, identifier: antecedent::IdentifierId) -> core::result::Result<(), antecedent::CausalError>
+pub fn antecedent::refusal::column_attribution_unsupported() -> antecedent_estimate::error::EstimationError
+pub fn antecedent::refusal::ensure_not_cancelled(ctx: &antecedent_core::execution::context::ExecutionContext, stage: &str) -> core::result::Result<(), antecedent_estimate::error::EstimationError>
+pub fn antecedent::refusal::evaluation_failure(error: &antecedent_expr::provider::EvalError) -> antecedent_estimate::error::EstimationError
+pub fn antecedent::refusal::flexible_learner_dependence(estimator_id: &str, option: &str) -> antecedent_estimate::error::EstimationError
+pub fn antecedent::refusal::joint_interval_unsupported() -> antecedent_estimate::error::EstimationError
+pub fn antecedent::refusal::joint_learner_interval_unsupported() -> antecedent_estimate::error::EstimationError
+pub fn antecedent::refusal::sampling_weights_invalid(message: &str) -> antecedent_estimate::error::EstimationError
+pub fn antecedent::refusal::sampling_weights_unsupported_route(message: &str) -> antecedent_estimate::error::EstimationError
 pub fn antecedent::refused_message(cell: antecedent::SupportCell) -> &'static str
 pub fn antecedent::report::render_fallback_input(input: &antecedent::report::FallbackReportInput, format: antecedent::report::ReportFormat) -> alloc::string::String
 pub fn antecedent::report::render_fallback_report(fallback: &antecedent::AnalysisWithFallback, format: antecedent::report::ReportFormat) -> alloc::string::String
@@ -16787,14 +16911,16 @@ pub mod antecedent::contract::evidence_ledger
 pub mod antecedent::contract::measurement
 pub mod antecedent::contract::mixed_module
 pub mod antecedent::contract::propagation_chain
+pub mod antecedent::contract::provider_transport
 pub mod antecedent::contract::rewrite_legality
 pub mod antecedent::contract::summary_observation
 pub mod antecedent::counterfactual_id
 pub mod antecedent::cross_world
 pub mod antecedent::data
 pub mod antecedent::data::arrow_adapter
-pub mod antecedent::data::arrow_ffi
+pub mod antecedent::data::arrow_c
 pub mod antecedent::decision_evidence
+pub mod antecedent::declared
 pub mod antecedent::design
 pub mod antecedent::design::composition_boundary
 pub mod antecedent::design::decision_adapters
@@ -16818,6 +16944,7 @@ pub mod antecedent::design::scientific_source
 pub mod antecedent::design::sequential_evaluation_artifact
 pub mod antecedent::design::source_projection_artifact
 pub mod antecedent::design::structure_identification
+pub mod antecedent::design::transported_decision_artifact
 pub mod antecedent::design_posterior_model
 pub mod antecedent::discovery
 pub mod antecedent::discovery::adjacency_mask
@@ -16857,7 +16984,6 @@ pub mod antecedent::estimate::randomized_neyman
 pub mod antecedent::estimate::randomized_posterior
 pub mod antecedent::estimate::randomized_scores
 pub mod antecedent::estimate::rollout_resampling
-pub mod antecedent::estimate::sampling_weights
 pub mod antecedent::estimate::scenario_covariance
 pub mod antecedent::estimate::scenario_invariance_report
 pub mod antecedent::estimate::score_posterior
@@ -16874,9 +17000,7 @@ pub mod antecedent::estimate::temporal_transport
 pub mod antecedent::estimate::transport_scenarios
 pub mod antecedent::estimator_spec
 pub mod antecedent::execution
-pub mod antecedent::execution::execution_attempt
 pub mod antecedent::execution::execution_facts
-pub mod antecedent::execution::numerical_admission
 pub mod antecedent::execution::recalc
 pub mod antecedent::execution::support_gate
 pub mod antecedent::gcm
@@ -16900,6 +17024,7 @@ pub mod antecedent::identify::sid::scenario_invariance
 pub mod antecedent::identify::sid::scenarios
 pub mod antecedent::identify::sid::temporal_sequence
 pub mod antecedent::identify_api
+pub mod antecedent::identity
 pub mod antecedent::inference
 pub mod antecedent::inference::adaptive_inference
 pub mod antecedent::inference::adaptive_inference::group_sequential
@@ -16993,6 +17118,7 @@ pub mod antecedent::planner::statistical
 pub mod antecedent::prelude
 pub mod antecedent::query
 pub mod antecedent::reason
+pub mod antecedent::refusal
 pub mod antecedent::report
 pub mod antecedent::result
 pub mod antecedent::retained_refresh
@@ -17001,7 +17127,6 @@ pub mod antecedent::schema
 pub mod antecedent::schema::categorical_candidate_contract
 pub mod antecedent::schema::diagnostic
 pub mod antecedent::schema::graph_imputation_contract
-pub mod antecedent::schema::identity
 pub mod antecedent::schema::measurement_model
 pub mod antecedent::schema::mnar_fixed_shift
 pub mod antecedent::scientific
@@ -17936,6 +18061,12 @@ pub struct antecedent::discovery::StaticDiscoverParams
 pub struct antecedent::error::PendingEdge
 pub struct antecedent::estimate::StaticEstimateWorkspaces
 pub struct antecedent::estimator_spec::BuildDefaults<'a>
+pub struct antecedent::execution::FixedBudget
+pub struct antecedent::execution::FixedBudget has private fields
+pub struct antecedent::execution::ObservationToken
+pub struct antecedent::execution::ObservationToken has private fields
+pub struct antecedent::execution::Retention
+pub struct antecedent::execution::Retention has private fields
 pub struct antecedent::gcm::CheckedCounterfactualOperation
 pub struct antecedent::gcm::CheckedCounterfactualOperation has private fields
 pub struct antecedent::gcm::ContrastSetResult
@@ -20306,6 +20437,7 @@ pub use antecedent::analysis::temporal_counterfactual::PopulationRole = antecede
 pub use antecedent::analysis::temporal_counterfactual::ReceiptWire = temporal_counterfactual_wire::ReceiptWire
 pub use antecedent::analysis::temporal_counterfactual::RefusalWire = temporal_counterfactual_wire::RefusalWire
 pub use antecedent::analysis::temporal_counterfactual::RegimeFactorKey = antecedent_counterfactual::transported_gate::RegimeFactorKey
+pub use antecedent::analysis::temporal_counterfactual::SelectiveTemporalReport = temporal_counterfactual_wire::SelectiveTemporalReport
 pub use antecedent::analysis::temporal_counterfactual::SharedAbductionReceipt = antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt
 pub use antecedent::analysis::temporal_counterfactual::TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION = temporal_counterfactual_wire::TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION
 pub use antecedent::analysis::temporal_counterfactual::TemporalCounterfactualArtifact = temporal_counterfactual_wire::TemporalCounterfactualArtifact
@@ -20321,6 +20453,7 @@ pub use antecedent::analysis::temporal_counterfactual::TransportedCounterfactual
 pub use antecedent::analysis::temporal_counterfactual::TransportedCounterfactualRefusal = antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal
 pub use antecedent::analysis::temporal_counterfactual::UnitOutcomeWire = temporal_counterfactual_wire::UnitOutcomeWire
 pub use antecedent::analysis::temporal_counterfactual::WitnessWire = temporal_counterfactual_wire::WitnessWire
+pub use antecedent::analysis::temporal_counterfactual::execute_selective = temporal_counterfactual_wire::execute_selective
 pub use antecedent::analysis::temporal_counterfactual::refuse_transported_counterfactual = antecedent_counterfactual::transported_gate::refuse_transported_counterfactual
 pub use antecedent::analysis::temporal_dependent_interval = antecedent::analysis::api::temporal_dependent_interval
 pub use antecedent::analysis::tier_diagnostics = antecedent::analysis::api::tier_diagnostics
@@ -20572,6 +20705,7 @@ pub use antecedent::contract::ClaimDomains = antecedent_contract::ClaimDomains
 pub use antecedent::contract::ClaimEnvelope = antecedent_contract::ClaimEnvelope
 pub use antecedent::contract::ClaimKind = antecedent_contract::ClaimKind
 pub use antecedent::contract::ClaimOperation = antecedent_contract::ClaimOperation
+pub use antecedent::contract::DependenceDeclaration = antecedent_contract::DependenceDeclaration
 pub use antecedent::contract::DistributionMeaning = antecedent_contract::DistributionMeaning
 pub use antecedent::contract::DomainStatus = antecedent_contract::DomainStatus
 pub use antecedent::contract::ExternalCapability = antecedent_contract::ExternalCapability
@@ -20587,7 +20721,9 @@ pub use antecedent::contract::InputRole = antecedent_contract::InputRole
 pub use antecedent::contract::LatentCauseDeclaration = antecedent_contract::LatentCauseDeclaration
 pub use antecedent::contract::LawProviderContract = antecedent_contract::LawProviderContract
 pub use antecedent::contract::MeasuredIndicator = antecedent_contract::MeasuredIndicator
+pub use antecedent::contract::MechanismCompositionDeclaration = antecedent_contract::MechanismCompositionDeclaration
 pub use antecedent::contract::MechanismDeclaration = antecedent_contract::MechanismDeclaration
+pub use antecedent::contract::MechanismInterfaceBasis = antecedent_contract::MechanismInterfaceBasis
 pub use antecedent::contract::MechanismOriginKind = antecedent_contract::MechanismOriginKind
 pub use antecedent::contract::ObligationKind = antecedent_contract::ObligationKind
 pub use antecedent::contract::ObligationRecord = antecedent_contract::ObligationRecord
@@ -20617,6 +20753,7 @@ pub use antecedent::contract::bridge::AssumptionKind = antecedent_contract::brid
 pub use antecedent::contract::bridge::BridgeAssumption = antecedent_contract::bridge::BridgeAssumption
 pub use antecedent::contract::bridge::BridgeContract = antecedent_contract::bridge::BridgeContract
 pub use antecedent::contract::bridge::BridgeEndpoint = antecedent_contract::bridge::BridgeEndpoint
+pub use antecedent::contract::bridge::BridgeInterfaceBasis = antecedent_contract::bridge::BridgeInterfaceBasis
 pub use antecedent::contract::bridge::BridgeKind = antecedent_contract::bridge::BridgeKind
 pub use antecedent::contract::bridge::BridgeMapping = antecedent_contract::bridge::BridgeMapping
 pub use antecedent::contract::bridge::BridgeScope = antecedent_contract::bridge::BridgeScope
@@ -20636,21 +20773,31 @@ pub use antecedent::contract::bridge::ValueKind = antecedent_contract::bridge::V
 pub use antecedent::contract::bridge::point_propagation_unavailable = antecedent_contract::bridge::point_propagation_unavailable
 pub use antecedent::contract::calibration_refusal = antecedent_contract::calibration_refusal
 pub use antecedent::contract::capability_from_name = antecedent_contract::capability_from_name
+pub use antecedent::contract::check_declared_independence_against_ledger = antecedent_contract::check_declared_independence_against_ledger
 pub use antecedent::contract::check_external_against_program = antecedent_contract::check_external_against_program
 pub use antecedent::contract::check_propagation = antecedent_contract::check_propagation
+pub use antecedent::contract::check_propagation_with_ledger = antecedent_contract::check_propagation_with_ledger
+pub use antecedent::contract::check_rows_pairable_across = antecedent_contract::check_rows_pairable_across
 pub use antecedent::contract::claim::ClaimFreshness = antecedent_contract::claim::ClaimFreshness
 pub use antecedent::contract::evidence_ledger::EffectiveObservations = antecedent_contract::evidence_ledger::EffectiveObservations
 pub use antecedent::contract::evidence_ledger::parse_digest_hex = antecedent_contract::evidence_ledger::parse_digest_hex
 pub use antecedent::contract::interval_refusal = antecedent_contract::interval_refusal
 pub use antecedent::contract::label_coordinates = antecedent_contract::label_coordinates
 pub use antecedent::contract::measurement::LatentPosteriorTrust = antecedent_contract::measurement::LatentPosteriorTrust
+pub use antecedent::contract::measurement::MeasurementInterfaceBasis = antecedent_contract::measurement::MeasurementInterfaceBasis
 pub use antecedent::contract::measurement::MeasurementOperation = antecedent_contract::measurement::MeasurementOperation
+pub use antecedent::contract::measurement::measurement_interface_contract = antecedent_contract::measurement::measurement_interface_contract
 pub use antecedent::contract::mixed_module::CutFeedback = antecedent_contract::mixed_module::CutFeedback
 pub use antecedent::contract::mixed_module::GaussianLaw = antecedent_contract::mixed_module::GaussianLaw
 pub use antecedent::contract::mixed_module::MixedModulePolicy = antecedent_contract::mixed_module::MixedModulePolicy
 pub use antecedent::contract::mixed_module::SharedParameterModel = antecedent_contract::mixed_module::SharedParameterModel
 pub use antecedent::contract::probe_from_name = antecedent_contract::probe_from_name
 pub use antecedent::contract::propagation_chain::FIX_CHAIN_DECLARATION = antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION
+pub use antecedent::contract::provider_transport::AdmittedProviderSource = antecedent_contract::provider_transport::AdmittedProviderSource
+pub use antecedent::contract::provider_transport::ProviderTransportSource = antecedent_contract::provider_transport::ProviderTransportSource
+pub use antecedent::contract::provider_transport::SourceTrustRequirement = antecedent_contract::provider_transport::SourceTrustRequirement
+pub use antecedent::contract::provider_transport::connect_bound_provider_source = antecedent_contract::provider_transport::connect_bound_provider_source
+pub use antecedent::contract::provider_transport::connect_provider_source = antecedent_contract::provider_transport::connect_provider_source
 pub use antecedent::contract::response_coordinate_skeleton = antecedent_contract::response_coordinate_skeleton
 pub use antecedent::contract::response_coordinates = antecedent_contract::response_coordinates
 pub use antecedent::contract::rewrite_legality::FrameContents = antecedent_contract::rewrite_legality::FrameContents
@@ -20678,7 +20825,6 @@ pub use antecedent::contract::summary_observation::USE_AS_LIKELIHOOD_UPDATE = an
 pub use antecedent::contract::verify_external_object = antecedent_contract::verify_external_object
 pub use antecedent::coverage_records_data = antecedent_io::coverage_records_data
 pub use antecedent::cross_world::CROSS_WORLD_MAX_ROWS = antecedent_io::cross_world_artifact::CROSS_WORLD_MAX_ROWS
-pub use antecedent::data::ArrowCColumn = antecedent_data::ArrowCColumn
 pub use antecedent::data::BooleanColumn = antecedent_data::BooleanColumn
 pub use antecedent::data::CategoricalColumn = antecedent_data::CategoricalColumn
 pub use antecedent::data::CategoryCode = antecedent_data::CategoryCode
@@ -20687,8 +20833,6 @@ pub use antecedent::data::CategoryLevel = antecedent_data::CategoryLevel
 pub use antecedent::data::DataError = antecedent_data::DataError
 pub use antecedent::data::EnvHoldoutSplit = antecedent_data::EnvHoldoutSplit
 pub use antecedent::data::F64Buffer = antecedent_data::F64Buffer
-pub use antecedent::data::FfiArrowArray = antecedent_data::FfiArrowArray
-pub use antecedent::data::FfiArrowSchema = antecedent_data::FfiArrowSchema
 pub use antecedent::data::Float64Column = antecedent_data::Float64Column
 pub use antecedent::data::GlobalId = antecedent_data::GlobalId
 pub use antecedent::data::ImputationDomain = antecedent_data::ImputationDomain
@@ -20710,9 +20854,12 @@ pub use antecedent::data::TimestampColumn = antecedent_data::TimestampColumn
 pub use antecedent::data::UnknownCategoryPolicy = antecedent_data::UnknownCategoryPolicy
 pub use antecedent::data::ValidityBitmap = antecedent_data::ValidityBitmap
 pub use antecedent::data::arrow_adapter::ArrowFrameView = antecedent_data::arrow_adapter::ArrowFrameView
-pub use antecedent::data::arrow_ffi::ArrowCStream = antecedent_data::arrow_ffi::ArrowCStream
-pub use antecedent::data::arrow_ffi::FfiArrowArrayStream = antecedent_data::arrow_ffi::FfiArrowArrayStream
-pub use antecedent::data::tabular_from_arrow_c_columns = antecedent_data::tabular_from_arrow_c_columns
+pub use antecedent::data::arrow_c::ArrowCColumn = antecedent_data::arrow_ffi::ArrowCColumn
+pub use antecedent::data::arrow_c::ArrowCStream = antecedent_data::arrow_ffi::ArrowCStream
+pub use antecedent::data::arrow_c::ArrowLoadResult = antecedent_data::ArrowLoadResult
+pub use antecedent::data::arrow_c::FfiArrowArray = antecedent_data::FfiArrowArray
+pub use antecedent::data::arrow_c::FfiArrowArrayStream = antecedent_data::arrow_ffi::FfiArrowArrayStream
+pub use antecedent::data::arrow_c::FfiArrowSchema = antecedent_data::FfiArrowSchema
 pub use antecedent::decision_evidence::JointClusterContrast = antecedent_estimate::randomized_joint::JointClusterContrast
 pub use antecedent::decision_evidence::centered_fixed_cuped_totals = antecedent_estimate::randomized_joint::centered_fixed_cuped_totals
 pub use antecedent::decision_evidence::complete_cluster_joint_contrast = antecedent_estimate::randomized_joint::complete_cluster_joint_contrast
@@ -20995,6 +21142,9 @@ pub use antecedent::design::source_projection_artifact::SourceProjectionArtifact
 pub use antecedent::design::structure_identification::GraphIdentFlag = antecedent_design::structure_identification::GraphIdentFlag
 pub use antecedent::design::structure_identification::identifies = antecedent_design::structure_identification::identifies
 pub use antecedent::design::structure_posterior = antecedent_design::structure_posterior
+pub use antecedent::design::transported_decision_artifact::ConsumedTransportedDecision = antecedent_design::transported_decision_artifact::ConsumedTransportedDecision
+pub use antecedent::design::transported_decision_artifact::consume_transported_decision = antecedent_design::transported_decision_artifact::consume_transported_decision
+pub use antecedent::design::transported_decision_artifact::export_transported_decision = antecedent_design::transported_decision_artifact::export_transported_decision
 pub use antecedent::design::verified_unlocks = antecedent_design::verified_unlocks
 pub use antecedent::design_posterior_model::DesignPosteriorModel = antecedent::DesignPosteriorModel
 pub use antecedent::diagnose_data = antecedent::analysis::api::diagnose_data
@@ -21224,7 +21374,6 @@ pub use antecedent::estimate::external_cyclic_fit::ExternalFitPolicy = anteceden
 pub use antecedent::estimate::external_cyclic_fit::fit_external_feedback = antecedent_estimate::external_cyclic_fit::fit_external_feedback
 pub use antecedent::estimate::factorial_bernoulli::estimate_factorial_2x2 = antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2
 pub use antecedent::estimate::fit_counts::count_resolved_fits = antecedent_learn::fit_counts::count_resolved_fits
-pub use antecedent::estimate::flexible_learner_dependence_refusal = antecedent_estimate::flexible_learner_dependence_refusal
 pub use antecedent::estimate::joint_bayesian_transport::DataIdentity = antecedent_estimate::joint_bayesian_transport::DataIdentity
 pub use antecedent::estimate::joint_bayesian_transport::GaussianPrior = antecedent_estimate::joint_bayesian_transport::GaussianPrior
 pub use antecedent::estimate::joint_bayesian_transport::JointPriors = antecedent_estimate::joint_bayesian_transport::JointPriors
@@ -21262,9 +21411,6 @@ pub use antecedent::estimate::nested_markov_binary::RegimeCounts = antecedent_es
 pub use antecedent::estimate::orderings_for = antecedent_estimate::orderings_for
 pub use antecedent::estimate::ou_mechanisms::OuMechanismOutcome = antecedent_estimate::ou_mechanisms::OuMechanismOutcome
 pub use antecedent::estimate::own_treatment_level = antecedent_estimate::own_treatment_level
-pub use antecedent::estimate::parse_learned_continuous_sampling = antecedent_estimate::parse_learned_continuous_sampling
-pub use antecedent::estimate::parse_learned_continuous_target = antecedent_estimate::parse_learned_continuous_target
-pub use antecedent::estimate::parse_matched_estimand = antecedent_estimate::parse_matched_estimand
 pub use antecedent::estimate::parse_matched_sampling = antecedent_estimate::parse_matched_sampling
 pub use antecedent::estimate::plan_from_response_query = antecedent_estimate::plan_from_response_query
 pub use antecedent::estimate::policy_value::BinaryIpwDesign = antecedent_estimate::policy_value::BinaryIpwDesign
@@ -21283,21 +21429,12 @@ pub use antecedent::estimate::randomized_posterior::ArmOutcomeModel = antecedent
 pub use antecedent::estimate::randomized_scores::bernoulli_exact_randomization_test = antecedent_estimate::randomized_scores::bernoulli_exact_randomization_test
 pub use antecedent::estimate::randomized_scores::cuped_ht_effect = antecedent_estimate::randomized_scores::cuped_ht_effect
 pub use antecedent::estimate::raw_contrast = antecedent_estimate::raw_contrast
-pub use antecedent::estimate::refuse_cancelled = antecedent_estimate::refuse_cancelled
-pub use antecedent::estimate::refuse_column_attribution = antecedent_estimate::refuse_column_attribution
-pub use antecedent::estimate::refuse_eval = antecedent_estimate::refuse_eval
-pub use antecedent::estimate::refuse_joint_inference = antecedent_estimate::refuse_joint_inference
-pub use antecedent::estimate::refuse_joint_learner_inference = antecedent_estimate::refuse_joint_learner_inference
 pub use antecedent::estimate::rollout_resampling::DesignEffect = antecedent_estimate::rollout_resampling::DesignEffect
-pub use antecedent::estimate::sampling_weights::invalid = antecedent_estimate::sampling_weights::invalid
-pub use antecedent::estimate::sampling_weights::unsupported_route = antecedent_estimate::sampling_weights::unsupported_route
 pub use antecedent::estimate::scenario_covariance::ScenarioCovariance = antecedent_estimate::scenario_covariance::ScenarioCovariance
 pub use antecedent::estimate::scenario_invariance_report::EnvelopeSide = antecedent_estimate::scenario_invariance_report::EnvelopeSide
 pub use antecedent::estimate::scenario_invariance_report::ScenarioSetInvarianceReport = antecedent_estimate::scenario_invariance_report::ScenarioSetInvarianceReport
 pub use antecedent::estimate::score_posterior::ScorePosteriorOptions = antecedent_estimate::score_posterior::ScorePosteriorOptions
 pub use antecedent::estimate::scores::ScoreInference = antecedent_estimate::scores::ScoreInference
-pub use antecedent::estimate::smoothed_dose::parse_smoothed_dose_sampling = antecedent_estimate::smoothed_dose::parse_smoothed_dose_sampling
-pub use antecedent::estimate::smoothed_dose::parse_smoothed_dose_target = antecedent_estimate::smoothed_dose::parse_smoothed_dose_target
 pub use antecedent::estimate::smoothed_dose::parse_smoothing_kernel = antecedent_estimate::smoothed_dose::parse_smoothing_kernel
 pub use antecedent::estimate::staggered_event_study::group_time_att = antecedent_estimate::staggered_event_study::group_time_att
 pub use antecedent::estimate::survival::KnownCensoring = antecedent_estimate::survival::KnownCensoring
@@ -21327,7 +21464,7 @@ pub use antecedent::estimate::transform_mean_pair = antecedent_estimate::transfo
 pub use antecedent::estimate::transport_augmented_response_grid = antecedent_estimate::transport_augmented_response_grid
 pub use antecedent::estimate::transport_scenarios::PreparedScenarioSet = antecedent_estimate::transport_scenarios::PreparedScenarioSet
 pub use antecedent::estimate::transport_scenarios::ScenarioSetReport = antecedent_estimate::transport_scenarios::ScenarioSetReport
-pub use antecedent::estimate::trial_to_target_effect = antecedent_estimate::trial_to_target_effect
+pub use antecedent::estimate::trial_to_target_effect_with_context = antecedent_estimate::trial_to_target_effect_with_context
 pub use antecedent::estimate_derived_joint_cells = antecedent::analysis::api::estimate_derived_joint_cells
 pub use antecedent::estimate_joint_cell_cost = antecedent::analysis::api::estimate_joint_cell_cost
 pub use antecedent::estimate_with_graph_selection_per_imputation = antecedent::analysis::api::estimate_with_graph_selection_per_imputation
@@ -21336,9 +21473,6 @@ pub use antecedent::estimator_spec::EstimatorSpec = antecedent::EstimatorSpec
 pub use antecedent::evaluate_adapted = super::evaluate_adapted
 pub use antecedent::evaluate_identified_sets = super::evaluate_identified_sets
 pub use antecedent::evaluate_robust = super::evaluate_robust
-pub use antecedent::execution::AdmissionError = antecedent_core::execution::AdmissionError
-pub use antecedent::execution::AdmissionLease = antecedent_core::execution::AdmissionLease
-pub use antecedent::execution::AdmissionPool = antecedent_core::execution::AdmissionPool
 pub use antecedent::execution::BUILD_FLAVOR = antecedent_core::BUILD_FLAVOR
 pub use antecedent::execution::BatchCallback = antecedent_core::BatchCallback
 pub use antecedent::execution::ByteEstimates = antecedent_core::ByteEstimates
@@ -21370,8 +21504,6 @@ pub use antecedent::execution::SourceDependencyId = antecedent_core::SourceDepen
 pub use antecedent::execution::StreamDomain = antecedent_core::StreamDomain
 pub use antecedent::execution::WeakCancellationToken = antecedent_core::WeakCancellationToken
 pub use antecedent::execution::default_user_threads = antecedent_core::default_user_threads
-pub use antecedent::execution::execution_attempt::ObservationToken = antecedent_core::execution_attempt::ObservationToken
-pub use antecedent::execution::execution_attempt::observe_with_context = antecedent_core::execution_attempt::observe_with_context
 pub use antecedent::execution::execution_facts::ExecutionBackend = antecedent_core::execution_facts::ExecutionBackend
 pub use antecedent::execution::execution_facts::ExecutionCounts = antecedent_core::execution_facts::ExecutionCounts
 pub use antecedent::execution::execution_facts::ExecutionFactError = antecedent_core::execution_facts::ExecutionFactError
@@ -21381,8 +21513,6 @@ pub use antecedent::execution::execution_facts::ExecutionResources = antecedent_
 pub use antecedent::execution::execution_facts::MeasuredExecution = antecedent_core::execution_facts::MeasuredExecution
 pub use antecedent::execution::execution_facts::OutputRetention = antecedent_core::execution_facts::OutputRetention
 pub use antecedent::execution::execution_facts::PlannedResources = antecedent_core::execution_facts::PlannedResources
-pub use antecedent::execution::numerical_admission::with_context = antecedent_core::numerical_admission::with_context
-pub use antecedent::execution::numerical_admission::with_context_and_failure = antecedent_core::numerical_admission::with_context_and_failure
 pub use antecedent::execution::recalc::Boundary = antecedent_core::recalc::Boundary
 pub use antecedent::execution::recalc::Branch = antecedent_core::recalc::Branch
 pub use antecedent::execution::recalc::ChangeKind = antecedent_core::recalc::ChangeKind
@@ -21709,6 +21839,8 @@ pub use antecedent::identify::verify_classical_transport = antecedent_identify::
 pub use antecedent::identify::verify_recovery_witness = antecedent_identify::verify_recovery_witness
 pub use antecedent::identify::verify_s_hedge = antecedent_identify::sid::verify_s_hedge
 pub use antecedent::identify_api::Identification = antecedent::Identification
+pub use antecedent::identity::ContractIdentities = antecedent_core::ContractIdentities
+pub use antecedent::identity::SemanticDigest = antecedent_core::SemanticDigest
 pub use antecedent::inference::BayesLikelihood = antecedent_prob::BayesLikelihood
 pub use antecedent::inference::BayesianConfig = antecedent::BayesianConfig
 pub use antecedent::inference::BetaHyperparameters = antecedent_prob::BetaHyperparameters
@@ -22433,10 +22565,8 @@ pub use antecedent::schema::AssumptionSet = antecedent_core::AssumptionSet
 pub use antecedent::schema::AssumptionSource = antecedent_core::AssumptionSource
 pub use antecedent::schema::AssumptionStatus = antecedent_core::AssumptionStatus
 pub use antecedent::schema::CalibrationBasis = antecedent_core::CalibrationBasis
-pub use antecedent::schema::CanonicalWriter = antecedent_core::CanonicalWriter
 pub use antecedent::schema::CategoryDomainId = antecedent_core::CategoryDomainId
 pub use antecedent::schema::ComponentId = antecedent_core::ComponentId
-pub use antecedent::schema::ContractIdentities = antecedent_core::ContractIdentities
 pub use antecedent::schema::DeclaredSamplingDesign = antecedent_core::DeclaredSamplingDesign
 pub use antecedent::schema::Diagnostic = antecedent_core::Diagnostic
 pub use antecedent::schema::DiagnosticKind = antecedent_core::DiagnosticKind
@@ -22444,7 +22574,6 @@ pub use antecedent::schema::DiagnosticSeverity = antecedent_core::DiagnosticSeve
 pub use antecedent::schema::DistributionRef = antecedent_core::DistributionRef
 pub use antecedent::schema::EnvironmentId = antecedent_core::EnvironmentId
 pub use antecedent::schema::IdentificationStatus = antecedent_core::IdentificationStatus
-pub use antecedent::schema::IdentityDomain = antecedent_core::IdentityDomain
 pub use antecedent::schema::MeasurementSpec = antecedent_core::MeasurementSpec
 pub use antecedent::schema::ModelId = antecedent_core::ModelId
 pub use antecedent::schema::PriorAssumption = antecedent_core::PriorAssumption
@@ -22456,19 +22585,15 @@ pub use antecedent::schema::SmallRoleSet = antecedent_core::SmallRoleSet
 pub use antecedent::schema::StateVersion = antecedent_core::StateVersion
 pub use antecedent::schema::VERSION = antecedent_core::VERSION
 pub use antecedent::schema::ValueType = antecedent_core::ValueType
-pub use antecedent::schema::blake3_hex = antecedent_core::blake3_hex
 pub use antecedent::schema::categorical_candidate_contract::CategoricalCandidateSource = antecedent_core::categorical_candidate_contract::CategoricalCandidateSource
 pub use antecedent::schema::diagnostic::RouteNativeDiagnostic = antecedent_core::diagnostic::RouteNativeDiagnostic
-pub use antecedent::schema::digest_from_hex = antecedent_core::digest_from_hex
 pub use antecedent::schema::graph_imputation_contract::MAX_VARIABLES = antecedent_core::graph_imputation_contract::MAX_VARIABLES
 pub use antecedent::schema::graph_imputation_contract::MIN_ROWS = antecedent_core::graph_imputation_contract::MIN_ROWS
-pub use antecedent::schema::identity::to_hex = antecedent_core::identity::to_hex
 pub use antecedent::schema::measurement_model::CorrectedFunctionalRecord = antecedent_core::measurement_model::CorrectedFunctionalRecord
 pub use antecedent::schema::mnar_fixed_shift::FixedShiftSource = antecedent_core::mnar_fixed_shift::FixedShiftSource
 pub use antecedent::schema::mnar_fixed_shift::SamplingPremise = antecedent_core::mnar_fixed_shift::SamplingPremise
 pub use antecedent::schema::mnar_fixed_shift::SourceError = antecedent_core::mnar_fixed_shift::SourceError
 pub use antecedent::schema::mnar_fixed_shift::SourceRow = antecedent_core::mnar_fixed_shift::SourceRow
-pub use antecedent::schema::to_hex = antecedent_core::to_hex
 pub use antecedent::scientific::ArmBinding = antecedent_core::measurement_model::ArmBinding
 pub use antecedent::scientific::BinaryArmRates = antecedent_core::measurement_model::BinaryArmRates
 pub use antecedent::scientific::ComposedFinite = crate::analysis::mechanism_exports::model_crate::compose::ComposedFinite
@@ -22913,6 +23038,7 @@ pub variant antecedent::EstimatorId::RandomizedHt
 pub variant antecedent::EstimatorId::RandomizedIpwPolicy
 pub variant antecedent::EstimatorId::RandomizedMultiActionIpwPolicy
 pub variant antecedent::EstimatorId::RandomizedNeyman
+pub variant antecedent::EstimatorId::RandomizedQuantile
 pub variant antecedent::EstimatorId::RandomizedSurvivalProductLimit
 pub variant antecedent::EstimatorId::RandomizedSwitchbackHt
 pub variant antecedent::EstimatorId::RandomizedWaldCace
@@ -23638,6 +23764,13 @@ pub variant antecedent::decision_evidence::RetainedExperiment::Cluster(anteceden
 pub variant antecedent::decision_evidence::RetainedExperiment::Excursion(antecedent::decision_evidence::CompiledExcursionEvidence)
 pub variant antecedent::decision_evidence::RetainedExperiment::Experiment(antecedent::decision_evidence::CompiledExperimentalEvidence)
 pub variant antecedent::decision_evidence::RetainedExperiment::StaticRegime(antecedent::decision_evidence::CompiledRegimeEvidence)
+pub variant antecedent::declared::IidSampling::IndependentSamples
+pub variant antecedent::declared::IidSampling::NestedCohort
+pub variant antecedent::declared::LearnedContinuousTarget::PopulationMeanContrast
+pub variant antecedent::declared::MatchedEstimand::ConditionalOddsRatio
+pub variant antecedent::declared::SmoothedDoseTarget::SmoothedResponse
+pub variant antecedent::execution::AdmissionRefusal::Cancelled
+pub variant antecedent::execution::AdmissionRefusal::Refused(alloc::string::String)
 pub variant antecedent::gcm::NestedOutcomeMechanism::LinearGaussian
 pub variant antecedent::gcm::NestedOutcomeMechanism::NonSeparableBasis
 pub variant antecedent::host::HostStatus::Partial

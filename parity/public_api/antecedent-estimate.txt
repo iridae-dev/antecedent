@@ -1006,6 +1006,7 @@ impl core::clone::Clone for antecedent_estimate::randomized_posterior::ContrastS
 impl core::clone::Clone for antecedent_estimate::randomized_posterior::RandomizationEvidence
 impl core::clone::Clone for antecedent_estimate::randomized_posterior::RandomizedEstimand
 impl core::clone::Clone for antecedent_estimate::randomized_posterior::RandomizedPosterior
+impl core::clone::Clone for antecedent_estimate::randomized_quantile::RandomizedQuantileEffect
 impl core::clone::Clone for antecedent_estimate::randomized_scores::BernoulliExactTest
 impl core::clone::Clone for antecedent_estimate::randomized_scores::ComplierWaldEffect
 impl core::clone::Clone for antecedent_estimate::randomized_scores::CupedHtEffect
@@ -2243,6 +2244,7 @@ impl core::cmp::PartialEq for antecedent_estimate::randomized_posterior::Contras
 impl core::cmp::PartialEq for antecedent_estimate::randomized_posterior::RandomizationEvidence
 impl core::cmp::PartialEq for antecedent_estimate::randomized_posterior::RandomizedEstimand
 impl core::cmp::PartialEq for antecedent_estimate::randomized_posterior::RandomizedPosterior
+impl core::cmp::PartialEq for antecedent_estimate::randomized_quantile::RandomizedQuantileEffect
 impl core::cmp::PartialEq for antecedent_estimate::randomized_scores::BernoulliExactTest
 impl core::cmp::PartialEq for antecedent_estimate::randomized_scores::ComplierWaldEffect
 impl core::cmp::PartialEq for antecedent_estimate::randomized_scores::CupedHtEffect
@@ -3525,6 +3527,7 @@ impl core::fmt::Debug for antecedent_estimate::randomized_posterior::ContrastSum
 impl core::fmt::Debug for antecedent_estimate::randomized_posterior::RandomizationEvidence
 impl core::fmt::Debug for antecedent_estimate::randomized_posterior::RandomizedEstimand
 impl core::fmt::Debug for antecedent_estimate::randomized_posterior::RandomizedPosterior
+impl core::fmt::Debug for antecedent_estimate::randomized_quantile::RandomizedQuantileEffect
 impl core::fmt::Debug for antecedent_estimate::randomized_scores::BernoulliExactTest
 impl core::fmt::Debug for antecedent_estimate::randomized_scores::ComplierWaldEffect
 impl core::fmt::Debug for antecedent_estimate::randomized_scores::CupedHtEffect
@@ -5051,6 +5054,7 @@ impl core::marker::Freeze for antecedent_estimate::randomized_posterior::Contras
 impl core::marker::Freeze for antecedent_estimate::randomized_posterior::RandomizationEvidence [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_posterior::RandomizedEstimand [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_posterior::RandomizedPosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::randomized_quantile::RandomizedQuantileEffect [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_scores::BernoulliExactTest [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_scores::ComplierWaldEffect [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_scores::CupedHtEffect [auto]
@@ -6158,6 +6162,7 @@ impl core::marker::Send for antecedent_estimate::randomized_posterior::ContrastS
 impl core::marker::Send for antecedent_estimate::randomized_posterior::RandomizationEvidence [auto]
 impl core::marker::Send for antecedent_estimate::randomized_posterior::RandomizedEstimand [auto]
 impl core::marker::Send for antecedent_estimate::randomized_posterior::RandomizedPosterior [auto]
+impl core::marker::Send for antecedent_estimate::randomized_quantile::RandomizedQuantileEffect [auto]
 impl core::marker::Send for antecedent_estimate::randomized_scores::BernoulliExactTest [auto]
 impl core::marker::Send for antecedent_estimate::randomized_scores::ComplierWaldEffect [auto]
 impl core::marker::Send for antecedent_estimate::randomized_scores::CupedHtEffect [auto]
@@ -7114,6 +7119,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_poste
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_posterior::RandomizationEvidence
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_posterior::RandomizedEstimand
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_posterior::RandomizedPosterior
+impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_quantile::RandomizedQuantileEffect
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_scores::BernoulliExactTest
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_scores::ComplierWaldEffect
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_scores::CupedHtEffect
@@ -8185,6 +8191,7 @@ impl core::marker::Sync for antecedent_estimate::randomized_posterior::ContrastS
 impl core::marker::Sync for antecedent_estimate::randomized_posterior::RandomizationEvidence [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_posterior::RandomizedEstimand [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_posterior::RandomizedPosterior [auto]
+impl core::marker::Sync for antecedent_estimate::randomized_quantile::RandomizedQuantileEffect [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_scores::BernoulliExactTest [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_scores::ComplierWaldEffect [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_scores::CupedHtEffect [auto]
@@ -9293,6 +9300,7 @@ impl core::marker::Unpin for antecedent_estimate::randomized_posterior::Contrast
 impl core::marker::Unpin for antecedent_estimate::randomized_posterior::RandomizationEvidence [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_posterior::RandomizedEstimand [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_posterior::RandomizedPosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::randomized_quantile::RandomizedQuantileEffect [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_scores::BernoulliExactTest [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_scores::ComplierWaldEffect [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_scores::CupedHtEffect [auto]
@@ -10404,6 +10412,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_posterior::RandomizationEvidence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_posterior::RandomizedEstimand [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_posterior::RandomizedPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_quantile::RandomizedQuantileEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_scores::BernoulliExactTest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_scores::ComplierWaldEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_scores::CupedHtEffect [auto]
@@ -11511,6 +11520,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_po
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_posterior::RandomizationEvidence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_posterior::RandomizedEstimand [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_posterior::RandomizedPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_quantile::RandomizedQuantileEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_scores::BernoulliExactTest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_scores::ComplierWaldEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_scores::CupedHtEffect [auto]
@@ -13194,6 +13204,8 @@ pub const antecedent_estimate::randomized_missing::OBSERVATION_PROBABILITY_FLOOR
 pub const antecedent_estimate::randomized_posterior::BERNOULLI_ARM_LIKELIHOOD: &str
 pub const antecedent_estimate::randomized_posterior::GAUSSIAN_ARM_LIKELIHOOD: &str
 pub const antecedent_estimate::randomized_posterior::RANDOMIZATION_IGNORABILITY: &str
+pub const antecedent_estimate::randomized_quantile::MIN_RANDOMIZED_QUANTILE_ARM_ROWS: usize
+pub const antecedent_estimate::randomized_quantile::RANDOMIZED_QUANTILE_GRID_POINTS: usize
 pub const antecedent_estimate::randomized_scores::MIN_EXPECTED_ARM_ROWS_FOR_INTERVAL: f64
 pub const antecedent_estimate::rollout_resampling::ROLLOUT_LEVEL: f64
 pub const antecedent_estimate::scenario_covariance::COVARIANCE_INTERPRETATION: &str
@@ -17343,6 +17355,17 @@ pub field antecedent_estimate::randomized_posterior::RandomizedPosterior::contra
 pub field antecedent_estimate::randomized_posterior::RandomizedPosterior::credible_level: f64
 pub field antecedent_estimate::randomized_posterior::RandomizedPosterior::evidence: antecedent_estimate::randomized_posterior::RandomizationEvidence
 pub field antecedent_estimate::randomized_posterior::RandomizedPosterior::likelihood: &'static str
+pub field antecedent_estimate::randomized_quantile::RandomizedQuantileEffect::control_quantile: f64
+pub field antecedent_estimate::randomized_quantile::RandomizedQuantileEffect::densities: [f64; 2]
+pub field antecedent_estimate::randomized_quantile::RandomizedQuantileEffect::difference: f64
+pub field antecedent_estimate::randomized_quantile::RandomizedQuantileEffect::influence: alloc::vec::Vec<f64>
+pub field antecedent_estimate::randomized_quantile::RandomizedQuantileEffect::interval_95: [f64; 2]
+pub field antecedent_estimate::randomized_quantile::RandomizedQuantileEffect::n_control: usize
+pub field antecedent_estimate::randomized_quantile::RandomizedQuantileEffect::n_treated: usize
+pub field antecedent_estimate::randomized_quantile::RandomizedQuantileEffect::se: f64
+pub field antecedent_estimate::randomized_quantile::RandomizedQuantileEffect::tau: f64
+pub field antecedent_estimate::randomized_quantile::RandomizedQuantileEffect::thresholds: alloc::vec::Vec<f64>
+pub field antecedent_estimate::randomized_quantile::RandomizedQuantileEffect::treated_quantile: f64
 pub field antecedent_estimate::randomized_scores::BernoulliExactTest::allocations: usize
 pub field antecedent_estimate::randomized_scores::BernoulliExactTest::observed: f64
 pub field antecedent_estimate::randomized_scores::BernoulliExactTest::p_value: f64
@@ -19860,6 +19883,8 @@ pub fn antecedent_estimate::randomized_posterior::posterior_arm_contrasts(reques
 pub fn antecedent_estimate::randomized_posterior::posterior_arm_contrasts_with_draws(request: &antecedent_estimate::randomized_posterior::ArmContrastRequest<'_>, draws: usize) -> core::result::Result<antecedent_estimate::randomized_posterior::RandomizedPosterior, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::randomized_posterior::posterior_factorial_2x2(outcome: &[f64], factor_a: &[bool], factor_b: &[bool], probability_a: &[f64], probability_b: &[f64], spec: &antecedent_estimate::randomized_posterior::ArmPosteriorSpec) -> core::result::Result<antecedent_estimate::randomized_posterior::RandomizedPosterior, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::randomized_posterior::posterior_two_arm(outcome: &[f64], treated: &[bool], probability_treated: &[f64], spec: &antecedent_estimate::randomized_posterior::ArmPosteriorSpec) -> core::result::Result<antecedent_estimate::randomized_posterior::RandomizedPosterior, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::randomized_quantile::randomized_quantile_effect(outcome: &[f64], treated: &[bool], tau: f64) -> core::result::Result<antecedent_estimate::randomized_quantile::RandomizedQuantileEffect, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::randomized_quantile::randomized_quantile_effect_on_grid(outcome: &[f64], treated: &[bool], thresholds: &[f64], tau: f64) -> core::result::Result<antecedent_estimate::randomized_quantile::RandomizedQuantileEffect, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::randomized_scores::bernoulli_exact_randomization_test(outcome: &[f64], assignment: &[bool], propensity: &[f64]) -> core::result::Result<antecedent_estimate::randomized_scores::BernoulliExactTest, &'static str>
 pub fn antecedent_estimate::randomized_scores::complier_wald_effect(outcomes: &[f64], assignment: &[bool], received: &[bool], probabilities: &[f64]) -> core::option::Option<antecedent_estimate::randomized_scores::ComplierWaldEffect>
 pub fn antecedent_estimate::randomized_scores::cuped_ht_effect(outcome: &[f64], covariate: &[f64], assignment: &[bool], propensity: &[f64]) -> core::result::Result<antecedent_estimate::randomized_scores::CupedHtEffect, &'static str>
@@ -20008,6 +20033,7 @@ pub fn antecedent_estimate::transport::trial_aipw_row_scores(identification: &an
 pub fn antecedent_estimate::transport::trial_to_target_bayesian_bootstrap(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], sampling: antecedent_estimate::DrawSpec) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport::trial_to_target_bayesian_bootstrap_blocks(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], (sampling, block): (antecedent_estimate::DrawSpec, core::option::Option<usize>)) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport::trial_to_target_effect(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], outcome_regressions: core::option::Option<(&[f64], &[f64])>) -> core::result::Result<antecedent_estimate::TransportEffectEstimate, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::transport::trial_to_target_effect_with_context(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], outcome_regressions: core::option::Option<(&[f64], &[f64])>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::TransportEffectEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport::trial_to_target_ipw_hac_se(outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], (ipw, lag): (f64, usize)) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport::trial_to_target_ipw_se(outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], ipw: f64) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport_estimator_menu(id: &antecedent_identify::transport::TransportIdentification, query: &antecedent_core::query::transport::TransportQuery, learners: core::option::Option<(antecedent_learn::spec::LearnerSpec, antecedent_learn::spec::LearnerSpec)>) -> antecedent_estimate::EstimatorMenu
@@ -20155,6 +20181,7 @@ pub mod antecedent_estimate::randomized_joint
 pub mod antecedent_estimate::randomized_missing
 pub mod antecedent_estimate::randomized_neyman
 pub mod antecedent_estimate::randomized_posterior
+pub mod antecedent_estimate::randomized_quantile
 pub mod antecedent_estimate::randomized_scores
 pub mod antecedent_estimate::recovery
 pub mod antecedent_estimate::recovery_sampled
@@ -21057,6 +21084,7 @@ pub struct antecedent_estimate::randomized_posterior::ArmPosteriorSummary
 pub struct antecedent_estimate::randomized_posterior::ContrastSummary
 pub struct antecedent_estimate::randomized_posterior::RandomizationEvidence
 pub struct antecedent_estimate::randomized_posterior::RandomizedPosterior
+pub struct antecedent_estimate::randomized_quantile::RandomizedQuantileEffect
 pub struct antecedent_estimate::randomized_scores::BernoulliExactTest
 pub struct antecedent_estimate::randomized_scores::ComplierWaldEffect
 pub struct antecedent_estimate::randomized_scores::CupedHtEffect
@@ -21675,6 +21703,7 @@ pub use antecedent_estimate::trial_aipw_row_scores = antecedent_estimate::transp
 pub use antecedent_estimate::trial_to_target_bayesian_bootstrap = antecedent_estimate::transport::trial_to_target_bayesian_bootstrap
 pub use antecedent_estimate::trial_to_target_bayesian_bootstrap_blocks = antecedent_estimate::transport::trial_to_target_bayesian_bootstrap_blocks
 pub use antecedent_estimate::trial_to_target_effect = antecedent_estimate::transport::trial_to_target_effect
+pub use antecedent_estimate::trial_to_target_effect_with_context = antecedent_estimate::transport::trial_to_target_effect_with_context
 pub use antecedent_estimate::trial_to_target_ipw_hac_se = antecedent_estimate::transport::trial_to_target_ipw_hac_se
 pub use antecedent_estimate::trial_to_target_ipw_se = antecedent_estimate::transport::trial_to_target_ipw_se
 pub use antecedent_estimate::util::BootstrapSeResult = antecedent_estimate::BootstrapSeResult

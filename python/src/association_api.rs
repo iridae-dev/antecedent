@@ -3,7 +3,7 @@
 //! The description is computed by the compiled `Association` study (`Study.compile` and
 //! `prepare_association`); this module only carries the quantities and the evidence behind them
 //! to Python. An association is never the effect of an intervention and ranks no action: its
-//! standard errors, spreads and posteriors are unsupported and their calibration is not_measured.
+//! standard errors, spreads and posteriors are unsupported and their calibration is `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

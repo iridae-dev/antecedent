@@ -18,7 +18,7 @@
 
 ## Claim
 
-- **Claim id:** 4d62beb5150306affe5da51e19428336674b9b6fdb97a386e2d8a6e340c3209f
+- **Claim id:** 93bb96132df12744bfb2067be0822bba899672cb78817b831ab296ff54f3982c
 - **Kind:** point
 - **Value:** none
 - **Outcome units:** none
@@ -57,7 +57,7 @@
 | no\_interference | declared |
 | positivity | declared |
 | custom:sequential\_conditional\_exchangeability | declared |
-| custom:no\_not_measured\_second\_decision\_confounder | declared |
+| custom:no\_unmeasured\_second\_decision\_confounder | declared |
 | custom:nuisance\_product\_rate | declared |
 
 ## Diagnostics and evidence

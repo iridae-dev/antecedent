@@ -7,7 +7,7 @@
 //! response curve at the single horizon of one step ahead; any other horizon, and the default,
 //! keep the tempered generalized posterior. The reference is the least-squares coefficient and its
 //! standard error of the lag-aligned regression, computed here from the raw series. The route is
-//! an unsupported estimator with calibration not_measured, and every result says so.
+//! an unsupported estimator with calibration `not_measured`, and every result says so.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(

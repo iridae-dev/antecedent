@@ -310,7 +310,7 @@ class RouteMapTests(unittest.TestCase):
 
     def test_the_shipped_route_map_is_well_formed_and_names_real_routes(self):
         self.assertEqual(status.route_map_problems(), [])
-        capability = status.tomllib.loads(status.read_text(status.CAPABILITY_RECORDS))["record"]
+        capability = status.tomllib.loads(status.CAPABILITY_RECORDS.read_bytes().decode("utf-8"))["record"]
         names = {(str(r["id"]), str(x.get("name"))) for r in capability for x in r.get("routes") or []}
         self.assertEqual(sorted(set(status.load_route_map()) - names), [])
 

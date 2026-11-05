@@ -66,7 +66,7 @@
 //! result's `identified` is the `Lambda = 1` value, its grid bounds are an assumption
 //! range, and `uncertainty` withholds any sampling interval
 //! (`sampling interval: not reported`). A requested sampling composition refuses with
-//! `msm_sensitivity.composition_not_supported`. Calibration is not_measured.
+//! `msm_sensitivity.composition_not_supported`. Calibration is `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

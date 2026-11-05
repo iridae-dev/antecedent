@@ -869,6 +869,7 @@ impl core::clone::Clone for antecedent_io_core::temporal_counterfactual_artifact
 impl core::clone::Clone for antecedent_io_core::temporal_counterfactual_artifact::FactualUnitWire
 impl core::clone::Clone for antecedent_io_core::temporal_counterfactual_artifact::FitWire
 impl core::clone::Clone for antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire
+impl core::clone::Clone for antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport
 impl core::clone::Clone for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifact
 impl core::clone::Clone for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifactError
 impl core::clone::Clone for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity
@@ -2133,6 +2134,7 @@ impl core::cmp::PartialEq for antecedent_io_core::temporal_counterfactual_artifa
 impl core::cmp::PartialEq for antecedent_io_core::temporal_counterfactual_artifact::FactualUnitWire
 impl core::cmp::PartialEq for antecedent_io_core::temporal_counterfactual_artifact::FitWire
 impl core::cmp::PartialEq for antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire
+impl core::cmp::PartialEq for antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport
 impl core::cmp::PartialEq for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifact
 impl core::cmp::PartialEq for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifactError
 impl core::cmp::PartialEq for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity
@@ -3142,6 +3144,7 @@ impl core::fmt::Debug for antecedent_io_core::temporal_counterfactual_artifact::
 impl core::fmt::Debug for antecedent_io_core::temporal_counterfactual_artifact::FactualUnitWire
 impl core::fmt::Debug for antecedent_io_core::temporal_counterfactual_artifact::FitWire
 impl core::fmt::Debug for antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire
+impl core::fmt::Debug for antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport
 impl core::fmt::Debug for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifact
 impl core::fmt::Debug for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifactError
 impl core::fmt::Debug for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity
@@ -4175,6 +4178,7 @@ impl core::marker::Freeze for antecedent_io_core::temporal_counterfactual_artifa
 impl core::marker::Freeze for antecedent_io_core::temporal_counterfactual_artifact::FactualUnitWire [auto]
 impl core::marker::Freeze for antecedent_io_core::temporal_counterfactual_artifact::FitWire [auto]
 impl core::marker::Freeze for antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire [auto]
+impl core::marker::Freeze for antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport [auto]
 impl core::marker::Freeze for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifact [auto]
 impl core::marker::Freeze for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifactError [auto]
 impl core::marker::Freeze for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity [auto]
@@ -5026,6 +5030,7 @@ impl core::marker::Send for antecedent_io_core::temporal_counterfactual_artifact
 impl core::marker::Send for antecedent_io_core::temporal_counterfactual_artifact::FactualUnitWire [auto]
 impl core::marker::Send for antecedent_io_core::temporal_counterfactual_artifact::FitWire [auto]
 impl core::marker::Send for antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire [auto]
+impl core::marker::Send for antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport [auto]
 impl core::marker::Send for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifact [auto]
 impl core::marker::Send for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifactError [auto]
 impl core::marker::Send for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity [auto]
@@ -5826,6 +5831,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::temporal_counterf
 impl core::marker::StructuralPartialEq for antecedent_io_core::temporal_counterfactual_artifact::FactualUnitWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::temporal_counterfactual_artifact::FitWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport
 impl core::marker::StructuralPartialEq for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifact
 impl core::marker::StructuralPartialEq for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity
@@ -6669,6 +6675,7 @@ impl core::marker::Sync for antecedent_io_core::temporal_counterfactual_artifact
 impl core::marker::Sync for antecedent_io_core::temporal_counterfactual_artifact::FactualUnitWire [auto]
 impl core::marker::Sync for antecedent_io_core::temporal_counterfactual_artifact::FitWire [auto]
 impl core::marker::Sync for antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire [auto]
+impl core::marker::Sync for antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport [auto]
 impl core::marker::Sync for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifact [auto]
 impl core::marker::Sync for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifactError [auto]
 impl core::marker::Sync for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity [auto]
@@ -7520,6 +7527,7 @@ impl core::marker::Unpin for antecedent_io_core::temporal_counterfactual_artifac
 impl core::marker::Unpin for antecedent_io_core::temporal_counterfactual_artifact::FactualUnitWire [auto]
 impl core::marker::Unpin for antecedent_io_core::temporal_counterfactual_artifact::FitWire [auto]
 impl core::marker::Unpin for antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire [auto]
+impl core::marker::Unpin for antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport [auto]
 impl core::marker::Unpin for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifact [auto]
 impl core::marker::Unpin for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifactError [auto]
 impl core::marker::Unpin for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity [auto]
@@ -8371,6 +8379,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::temporal_co
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::FactualUnitWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::FitWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity [auto]
@@ -9221,6 +9230,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::temporal_count
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::FactualUnitWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::FitWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity [auto]
@@ -14498,6 +14508,8 @@ pub field antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire::plu
 pub field antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire::shared_by_both_worlds: bool
 pub field antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire::snapshot: alloc::string::String
 pub field antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire::unit_draws: alloc::vec::Vec<antecedent_io_core::temporal_counterfactual_artifact::UnitDrawWire>
+pub field antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport::execution: antecedent_counterfactual::temporal_cross_world::staged::TemporalExecution
+pub field antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport::report: antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualReportWire
 pub field antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity::exogenous_digest: alloc::string::String
 pub field antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity::factual_digest: alloc::string::String
 pub field antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity::fit_digest: alloc::string::String
@@ -16072,6 +16084,7 @@ pub fn antecedent_io_core::selective_discovery_artifact::structure_to_wire(struc
 pub fn antecedent_io_core::sensitivity_artifact::classify_decision_points(points: &[antecedent_io_core::sensitivity_artifact::PointLeaders]) -> antecedent_io_core::sensitivity_artifact::SensitivityOutcome
 pub fn antecedent_io_core::source_witness::verify_source_witness(witness: &antecedent_io_core::SourceWitnessWire, variable_names: &[alloc::string::String], snapshot: &antecedent_io_core::DataSnapshotIdentityWire, limits: &antecedent_io_core::SourceWitnessLimits) -> core::result::Result<(), antecedent_io_core::SourceWitnessError>
 pub fn antecedent_io_core::source_witness::verify_source_witness_schema(witness: &antecedent_io_core::SourceWitnessWire, variable_names: &[alloc::string::String], observation: &antecedent_io_core::ObservationIdentityWire) -> core::result::Result<(), antecedent_io_core::SourceWitnessError>
+pub fn antecedent_io_core::temporal_counterfactual_artifact::execute_selective(executor: &mut antecedent_counterfactual::temporal_cross_world::staged::TemporalExecutor, request: &antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport, antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifactError>
 pub fn antecedent_io_core::trace::assumptions_from_wire(records: &[antecedent_io_core::AssumptionRecordWire]) -> core::result::Result<antecedent_core::assumption::AssumptionSet, antecedent_io_core::IoError>
 pub fn antecedent_io_core::transport_certificate::read_bounded_transport_artifact(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::EncodedArtifact, antecedent_io_core::IoError>
 pub fn antecedent_io_core::transport_certificate::structural_reasoning(outcome: &antecedent_io_core::transport_certificate::CertificateOutcome) -> antecedent_io_core::ReasoningSectionWire
@@ -16823,6 +16836,7 @@ pub struct antecedent_io_core::temporal_counterfactual_artifact::CounterfactualT
 pub struct antecedent_io_core::temporal_counterfactual_artifact::FactualUnitWire
 pub struct antecedent_io_core::temporal_counterfactual_artifact::FitWire
 pub struct antecedent_io_core::temporal_counterfactual_artifact::ReceiptWire
+pub struct antecedent_io_core::temporal_counterfactual_artifact::SelectiveTemporalReport
 pub struct antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifact
 pub struct antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualArtifact has private fields
 pub struct antecedent_io_core::temporal_counterfactual_artifact::TemporalCounterfactualIdentity
@@ -18585,8 +18599,8 @@ pub variant antecedent_io_core::dependency_key::ReusableProduct::ScoreTable
 pub variant antecedent_io_core::dependency_key::ReusableProduct::SourceSnapshot
 pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::Exact
 pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::Measured
-pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::PointOnly
 pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::NotMeasured
+pub variant antecedent_io_core::distribution_artifact::DistributionCalibration::PointOnly
 pub variant antecedent_io_core::distribution_artifact::DistributionTrust::ExternalAttested
 pub variant antecedent_io_core::distribution_artifact::DistributionTrust::NativeSupported
 pub variant antecedent_io_core::distribution_artifact::DistributionTrust::Unverified

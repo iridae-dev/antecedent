@@ -119,3 +119,15 @@ fn randomized_quantile_median_effect_analytic_interval() {
     }
     tally.assert();
 }
+
+/// One replicate, quickly: the estimate sits near the known median effect, the standard
+/// error is positive and the normal interval it publishes is ordered and brackets the truth.
+#[test]
+fn one_replicate_reports_a_valid_interval_near_the_known_median_effect() {
+    let (ate, se, reported) = execute(BASE_ROWS, grid_seed(SEED_BASE)).expect("the study runs");
+    assert!(!reported.is_empty(), "the facade reports its construction");
+    assert!(se.is_finite() && se > 0.0, "standard error {se}");
+    let (lower, upper) = normal_interval(ate, Some(se), Z95).expect("a finite interval");
+    assert!(lower < ate && ate < upper, "[{lower}, {upper}] around {ate}");
+    assert!((ate - TRUTH).abs() < 5.0 * se, "estimate {ate} vs truth {TRUTH}, se {se}");
+}

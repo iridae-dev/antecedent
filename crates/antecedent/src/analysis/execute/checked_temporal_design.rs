@@ -10,7 +10,7 @@
 //! Bayesian-bootstrap posterior of the same functional. Regime survival reads observational
 //! trajectories: its frequentist interval refits the treatment and censoring models in every
 //! subject-bootstrap replicate, and its posterior is the joint-likelihood parametric g-formula.
-//! Every route is unsupported and its calibration is not_measured.
+//! Every route is unsupported and its calibration is `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::bayesian_quasi_common::{

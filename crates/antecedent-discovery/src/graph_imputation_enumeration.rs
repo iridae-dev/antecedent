@@ -411,7 +411,7 @@ mod graph_imputation_budget_tests {
     ///
     /// Reference: `SearchBudget::charge(depth, bytes)` compares `depth` against
     /// `limits.depth` and `bytes` against the memory limit (the smaller of the declared
-    /// 26_214_400 and the context hard limit); the oracle is that integer comparison, with zero
+    /// `26_214_400` and the context hard limit); the oracle is that integer comparison, with zero
     /// tolerance. At the bound it admits; one past it stops with `Depth` or `Memory`.
     #[test]
     fn search_budget_depth_and_memory_bounds_refuse_one_past_and_admit_the_bound() {

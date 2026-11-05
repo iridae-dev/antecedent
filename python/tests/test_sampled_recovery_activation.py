@@ -268,8 +268,10 @@ def test_original_recovery_consumer_enforces_identity_bytes_and_work_budgets():
         )
     with pytest.raises(CausalSerializationError):
         transport.SampledRecoveryCandidate.load(b"not-cbor", expected=expected)
-    for limits in ({"max_rows": 1999}, {"max_replicates": 499}):
-        with pytest.raises(CausalValueError, match="count") as caught:
+    # The replay work is replicates times rows (2000 x 2000 here): the row cap alone, or a
+    # replicate cap whose product with the row cap falls below the stored work, refuses.
+    for limits in ({"max_rows": 1999}, {"max_rows": 2000, "max_replicates": 1999}):
+        with pytest.raises(CausalValueError, match="consumer limit exceeded") as caught:
             transport.SampledRecoveryCandidate.load(
                 bytes(result.export()), expected=expected, **limits
             )
@@ -291,7 +293,8 @@ def test_original_recovery_consumer_enforces_identity_bytes_and_work_budgets():
     for limits in (
         {"max_rows": True},
         {"max_rows": 100001},
-        {"max_replicates": 2001},
+        {"max_replicates": 0},
+        {"max_replicates": True},
     ):
         with pytest.raises(CausalValueError):
             transport.SampledRecoveryCandidate.load(

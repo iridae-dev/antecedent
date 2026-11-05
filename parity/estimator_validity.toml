@@ -3911,11 +3911,10 @@ listed = [
   "propensity.matching",
   "propensity.stratification",
   "propensity.weighting",
+  "randomized.quantile",
   "rd.sharp",
 ]
-unlisted_valid = [
-  "randomized.quantile",
-]
+unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
@@ -4086,11 +4085,10 @@ listed = [
   "propensity.matching",
   "propensity.stratification",
   "propensity.weighting",
+  "randomized.quantile",
   "rd.sharp",
 ]
-unlisted_valid = [
-  "randomized.quantile",
-]
+unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
@@ -22684,6 +22682,34 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:Admg:accepted:Bayesian:cheap"
+valid = [
+  "functional.effect",
+  "response.bayesian",
+]
+listed = [
+  "functional.effect",
+]
+unlisted_valid = [
+  "response.bayesian",
+]
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Admg:accepted:Bayesian:full"
+valid = [
+  "functional.effect",
+  "response.bayesian",
+]
+listed = [
+  "functional.effect",
+]
+unlisted_valid = [
+  "response.bayesian",
+]
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:Admg:accepted:Bayesian:none"
 valid = [
   "functional.effect",
@@ -22692,6 +22718,32 @@ valid = [
 listed = [
   "functional.effect",
   "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Admg:accepted:Frequentist:cheap"
+valid = [
+  "functional.effect",
+  "response.kennedy_dr",
+]
+listed = [
+  "functional.effect",
+  "response.kennedy_dr",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Admg:accepted:Frequentist:full"
+valid = [
+  "functional.effect",
+  "response.kennedy_dr",
+]
+listed = [
+  "functional.effect",
+  "response.kennedy_dr",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -22710,6 +22762,34 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:Admg:explicit:Bayesian:cheap"
+valid = [
+  "functional.effect",
+  "response.bayesian",
+]
+listed = [
+  "functional.effect",
+]
+unlisted_valid = [
+  "response.bayesian",
+]
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Admg:explicit:Bayesian:full"
+valid = [
+  "functional.effect",
+  "response.bayesian",
+]
+listed = [
+  "functional.effect",
+]
+unlisted_valid = [
+  "response.bayesian",
+]
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:Admg:explicit:Bayesian:none"
 valid = [
   "functional.effect",
@@ -22718,6 +22798,32 @@ valid = [
 listed = [
   "functional.effect",
   "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Admg:explicit:Frequentist:cheap"
+valid = [
+  "functional.effect",
+  "response.kennedy_dr",
+]
+listed = [
+  "functional.effect",
+  "response.kennedy_dr",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Admg:explicit:Frequentist:full"
+valid = [
+  "functional.effect",
+  "response.kennedy_dr",
+]
+listed = [
+  "functional.effect",
+  "response.kennedy_dr",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -22802,12 +22908,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:Cpdag:accepted:Bayesian:cheap"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Cpdag:accepted:Bayesian:full"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:Cpdag:accepted:Bayesian:none"
 valid = [
   "response.bayesian",
 ]
 listed = [
   "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Cpdag:accepted:Frequentist:cheap"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Cpdag:accepted:Frequentist:full"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -22824,12 +22974,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:Cpdag:explicit:Bayesian:cheap"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Cpdag:explicit:Bayesian:full"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:Cpdag:explicit:Bayesian:none"
 valid = [
   "response.bayesian",
 ]
 listed = [
   "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Cpdag:explicit:Frequentist:cheap"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Cpdag:explicit:Frequentist:full"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -22912,12 +23106,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:Dag:accepted:Bayesian:cheap"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Dag:accepted:Bayesian:full"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:Dag:accepted:Bayesian:none"
 valid = [
   "response.bayesian",
 ]
 listed = [
   "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Dag:accepted:Frequentist:cheap"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Dag:accepted:Frequentist:full"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -22934,12 +23172,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:Dag:explicit:Bayesian:cheap"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Dag:explicit:Bayesian:full"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:Dag:explicit:Bayesian:none"
 valid = [
   "response.bayesian",
 ]
 listed = [
   "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Dag:explicit:Frequentist:cheap"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Dag:explicit:Frequentist:full"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -22956,12 +23238,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:Dag:graph_posterior:Bayesian:cheap"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Dag:graph_posterior:Bayesian:full"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:Dag:graph_posterior:Bayesian:none"
 valid = [
   "response.bayesian",
 ]
 listed = [
   "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Dag:graph_posterior:Frequentist:cheap"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Dag:graph_posterior:Frequentist:full"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -22978,12 +23304,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:Pag:accepted:Bayesian:cheap"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Pag:accepted:Bayesian:full"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:Pag:accepted:Bayesian:none"
 valid = [
   "response.bayesian",
 ]
 listed = [
   "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Pag:accepted:Frequentist:cheap"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Pag:accepted:Frequentist:full"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -23000,12 +23370,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:Pag:explicit:Bayesian:cheap"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Pag:explicit:Bayesian:full"
+valid = [
+  "response.bayesian",
+]
+listed = [
+  "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:Pag:explicit:Bayesian:none"
 valid = [
   "response.bayesian",
 ]
 listed = [
   "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Pag:explicit:Frequentist:cheap"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:Pag:explicit:Frequentist:full"
+valid = [
+  "response.kennedy_dr",
+]
+listed = [
+  "response.kennedy_dr",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -23088,6 +23502,34 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:TemporalAdmg:accepted:Bayesian:cheap"
+valid = [
+  "functional.effect",
+  "response.bayesian",
+]
+listed = [
+  "functional.effect",
+]
+unlisted_valid = [
+  "response.bayesian",
+]
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalAdmg:accepted:Bayesian:full"
+valid = [
+  "functional.effect",
+  "response.bayesian",
+]
+listed = [
+  "functional.effect",
+]
+unlisted_valid = [
+  "response.bayesian",
+]
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:TemporalAdmg:accepted:Bayesian:none"
 valid = [
   "functional.effect",
@@ -23096,6 +23538,32 @@ valid = [
 listed = [
   "functional.effect",
   "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalAdmg:accepted:Frequentist:cheap"
+valid = [
+  "functional.effect",
+  "response.kennedy_dr",
+]
+listed = [
+  "functional.effect",
+  "response.kennedy_dr",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalAdmg:accepted:Frequentist:full"
+valid = [
+  "functional.effect",
+  "response.kennedy_dr",
+]
+listed = [
+  "functional.effect",
+  "response.kennedy_dr",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -23114,6 +23582,34 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:TemporalAdmg:explicit:Bayesian:cheap"
+valid = [
+  "functional.effect",
+  "response.bayesian",
+]
+listed = [
+  "functional.effect",
+]
+unlisted_valid = [
+  "response.bayesian",
+]
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalAdmg:explicit:Bayesian:full"
+valid = [
+  "functional.effect",
+  "response.bayesian",
+]
+listed = [
+  "functional.effect",
+]
+unlisted_valid = [
+  "response.bayesian",
+]
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:TemporalAdmg:explicit:Bayesian:none"
 valid = [
   "functional.effect",
@@ -23122,6 +23618,32 @@ valid = [
 listed = [
   "functional.effect",
   "response.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalAdmg:explicit:Frequentist:cheap"
+valid = [
+  "functional.effect",
+  "response.kennedy_dr",
+]
+listed = [
+  "functional.effect",
+  "response.kennedy_dr",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalAdmg:explicit:Frequentist:full"
+valid = [
+  "functional.effect",
+  "response.kennedy_dr",
+]
+listed = [
+  "functional.effect",
+  "response.kennedy_dr",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -23206,12 +23728,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:TemporalCpdag:accepted:Bayesian:cheap"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalCpdag:accepted:Bayesian:full"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:TemporalCpdag:accepted:Bayesian:none"
 valid = [
   "response.temporal.bayesian",
 ]
 listed = [
   "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalCpdag:accepted:Frequentist:cheap"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalCpdag:accepted:Frequentist:full"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -23228,12 +23794,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:TemporalCpdag:explicit:Bayesian:cheap"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalCpdag:explicit:Bayesian:full"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:TemporalCpdag:explicit:Bayesian:none"
 valid = [
   "response.temporal.bayesian",
 ]
 listed = [
   "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalCpdag:explicit:Frequentist:cheap"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalCpdag:explicit:Frequentist:full"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -23250,12 +23860,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:TemporalCpdag:graph_posterior:Bayesian:cheap"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalCpdag:graph_posterior:Bayesian:full"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:TemporalCpdag:graph_posterior:Bayesian:none"
 valid = [
   "response.temporal.bayesian",
 ]
 listed = [
   "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalCpdag:graph_posterior:Frequentist:cheap"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalCpdag:graph_posterior:Frequentist:full"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -23272,12 +23926,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:TemporalDag:accepted:Bayesian:cheap"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalDag:accepted:Bayesian:full"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:TemporalDag:accepted:Bayesian:none"
 valid = [
   "response.temporal.bayesian",
 ]
 listed = [
   "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalDag:accepted:Frequentist:cheap"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalDag:accepted:Frequentist:full"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -23294,12 +23992,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:TemporalDag:explicit:Bayesian:cheap"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalDag:explicit:Bayesian:full"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:TemporalDag:explicit:Bayesian:none"
 valid = [
   "response.temporal.bayesian",
 ]
 listed = [
   "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalDag:explicit:Frequentist:cheap"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalDag:explicit:Frequentist:full"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -23316,12 +24058,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:TemporalDag:graph_posterior:Bayesian:cheap"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalDag:graph_posterior:Bayesian:full"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:TemporalDag:graph_posterior:Bayesian:none"
 valid = [
   "response.temporal.bayesian",
 ]
 listed = [
   "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalDag:graph_posterior:Frequentist:cheap"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalDag:graph_posterior:Frequentist:full"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -23338,12 +24124,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:TemporalPag:accepted:Bayesian:cheap"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalPag:accepted:Bayesian:full"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:TemporalPag:accepted:Bayesian:none"
 valid = [
   "response.temporal.bayesian",
 ]
 listed = [
   "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalPag:accepted:Frequentist:cheap"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalPag:accepted:Frequentist:full"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -23360,12 +24190,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:TemporalPag:explicit:Bayesian:cheap"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalPag:explicit:Bayesian:full"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:TemporalPag:explicit:Bayesian:none"
 valid = [
   "response.temporal.bayesian",
 ]
 listed = [
   "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalPag:explicit:Frequentist:cheap"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalPag:explicit:Frequentist:full"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
 ]
 unlisted_valid = []
 listed_not_valid = []
@@ -23382,12 +24256,56 @@ unlisted_valid = []
 listed_not_valid = []
 
 [[cell]]
+coordinate = "ResponseCurve:TemporalPag:graph_posterior:Bayesian:cheap"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalPag:graph_posterior:Bayesian:full"
+valid = [
+  "response.temporal.bayesian",
+]
+listed = [
+  "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
 coordinate = "ResponseCurve:TemporalPag:graph_posterior:Bayesian:none"
 valid = [
   "response.temporal.bayesian",
 ]
 listed = [
   "response.temporal.bayesian",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalPag:graph_posterior:Frequentist:cheap"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
+]
+unlisted_valid = []
+listed_not_valid = []
+
+[[cell]]
+coordinate = "ResponseCurve:TemporalPag:graph_posterior:Frequentist:full"
+valid = [
+  "temporal.response.gcomp",
+]
+listed = [
+  "temporal.response.gcomp",
 ]
 unlisted_valid = []
 listed_not_valid = []

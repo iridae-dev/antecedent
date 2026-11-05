@@ -476,7 +476,7 @@ pub trait TemporalEstimator {
 
     /// Checked estimator-specific exact unit scores for a balanced binary panel.
     /// The default declines studentization. Advanced Rust implementations may
-    /// override this hook, but the result remains not_measured; an override does
+    /// override this hook, but the result remains `not_measured`; an override does
     /// not grant the closed checked-adapter or replay-artifact scope.
     /// # Errors
     /// A certified implementation refuses incompatible balance/support.
@@ -997,7 +997,7 @@ fn studentize_replicates(
 
 /// Resample whole units and construct the balanced-unit studentized interval.
 ///
-/// This receipt retains not_measured standing. A separate source-bound measured
+/// This receipt retains `not_measured` standing. A separate source-bound measured
 /// adapter resolves evidence for its exact validated protocol.
 ///
 /// # Errors
@@ -1090,7 +1090,7 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
 }
 
 /// Percentile/basic resampling of a checked paired effect, sharing each unit draw.
-/// This helper returns a not_measured receipt; public authority additionally requires
+/// This helper returns a `not_measured` receipt; public authority additionally requires
 /// the original checked source/proof and the exact calibrated effect protocol.
 /// # Errors
 /// Invalid configuration, unsupported resampled histories or cancellation.

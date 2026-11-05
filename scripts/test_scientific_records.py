@@ -211,25 +211,45 @@ class ExecutionCaptureTests(Fixture):
         )
         self.assertEqual(sr.executed_files(export, self.root), ["crates/leaf/src/lib.rs", "crates/top/src/lib.rs"])
 
-    def test_capture_command_names_one_exact_libtest_case(self):
+    def test_the_target_is_built_once_and_each_case_runs_its_binary_exactly(self):
         info = sr.locate(self.root, self.row("top"))
-        cmd = sr.capture_command(self.root, info, Path("out.json"))
-        self.assertEqual(cmd[:2], ["cargo", "llvm-cov"])
-        self.assertIn("--test", cmd)
-        self.assertEqual(cmd[cmd.index("--exact") + 1], "check_top")
+        build = sr.build_command(self.root, info["crate"], tuple(info["target"]))
+        self.assertEqual(build[:3], ["cargo", "test", "--no-run"])
+        self.assertIn("--test", build)
+        self.assertIn("-C instrument-coverage", sr.capture_env(self.root)["RUSTFLAGS"])
+        seen = []
+        self.run_capture(["crates/top/src/lib.rs"], seen=seen)
+        self.assertEqual(seen[0][:3], ["/bin/top-test", "--exact", "check_top"])
 
-    def run_capture(self, rels, passed=True):
+    def test_the_built_executable_is_read_from_cargo_json(self):
+        import json
+
+        lines = [
+            json.dumps({"reason": "compiler-artifact", "profile": {"test": False}, "executable": None}),
+            json.dumps({"reason": "compiler-artifact", "profile": {"test": True}, "executable": "/t/top-abc"}),
+            json.dumps({"reason": "build-finished", "success": True}),
+        ]
+        self.assertEqual(sr.built_executable("\n".join(lines)), "/t/top-abc")
+
+    def run_capture(self, rels, passed=True, seen=None):
         import json
         import subprocess
+        from unittest import mock
 
         def fake(cmd, **kwargs):
-            out = Path(cmd[cmd.index("--output-path") + 1])
-            if passed:
-                out.write_text(json.dumps(self.fake_export(*rels)), encoding="utf-8")
-            text = "test result: ok. 1 passed; 0 failed" if passed else "test result: FAILED"
-            return subprocess.CompletedProcess(cmd, 0 if passed else 101, text, "")
+            if seen is not None:
+                seen.append(cmd)
+            if cmd[0] == "/bin/top-test":
+                text = "test result: ok. 1 passed; 0 failed" if passed else "test result: FAILED"
+                return subprocess.CompletedProcess(cmd, 0 if passed else 101, text, "")
+            if cmd[1] == "export":
+                return subprocess.CompletedProcess(cmd, 0, json.dumps(self.fake_export(*rels)), "")
+            return subprocess.CompletedProcess(cmd, 0, "", "")
 
-        return sr.capture_one(self.root, sr.locate(self.root, self.row("top")), fake)
+        with mock.patch.object(sr, "llvm_tool", lambda name: name):
+            return sr.capture_one(
+                self.root, "/bin/top-test", sr.locate(self.root, self.row("top")), {}, fake
+            )
 
     def test_a_failing_test_is_not_captured(self):
         self.assertIsNone(self.run_capture(["crates/top/src/lib.rs"], passed=False))

@@ -161,6 +161,7 @@ SEED_ZERO = (
     "recovery_chain_api.rs::recover_recovery_chain",
     "temporal_counterfactual_api.rs::consume_general_temporal_counterfactual_artifact",
     "temporal_counterfactual_api.rs::consume_temporal_counterfactual_artifact",
+    "temporal_counterfactual_api.rs::execute",
     "temporal_counterfactual_api.rs::evaluate_general_temporal_counterfactual",
     "temporal_counterfactual_api.rs::evaluate_temporal_counterfactual",
     "transport_admg_conditional_api.rs::prepare_empirical",

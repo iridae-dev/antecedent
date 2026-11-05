@@ -204,62 +204,117 @@ def executed_files(export: dict, root: Path) -> list[str]:
     return sorted(found)
 
 
-def capture_command(root: Path, info: dict, out: Path) -> list[str]:
-    """`cargo llvm-cov` for exactly one libtest case of the row's crate and target."""
+def llvm_tool(name: str) -> str:
+    """Path of an `llvm-tools-preview` binary for the active toolchain."""
+    sysroot = subprocess.run(["rustc", "--print", "sysroot"], text=True, capture_output=True).stdout.strip()
+    for candidate in sorted(Path(sysroot, "lib", "rustlib").glob(f"*/bin/{name}")):
+        return str(candidate)
+    raise SystemExit(f"{name} not found; run `rustup component add llvm-tools-preview`")
+
+
+def capture_env(root: Path) -> dict[str, str]:
+    """Build environment for coverage-instrumented test binaries in their own target directory."""
+    rustflags = os.environ.get("RUSTFLAGS", "")
+    return {
+        **os.environ,
+        "CARGO_TARGET_DIR": os.environ.get("ANTECEDENT_CAPTURE_TARGET_DIR", str(root / "target/cov")),
+        "RUSTFLAGS": f"{rustflags} -C instrument-coverage".strip(),
+        "CARGO_PROFILE_TEST_OPT_LEVEL": os.environ.get("CARGO_PROFILE_TEST_OPT_LEVEL", "2"),
+        "CARGO_PROFILE_TEST_DEBUG": os.environ.get("CARGO_PROFILE_TEST_DEBUG", "line-tables-only"),
+        "LLVM_PROFILE_FILE": os.devnull,
+    }
+
+
+def build_command(root: Path, crate: str, target: tuple[str, ...]) -> list[str]:
+    """`cargo test --no-run` for one crate target, reporting its test executable as JSON."""
+    features = cargo_target_feature_args(root / "crates" / crate / "Cargo.toml", list(target))
+    return ["cargo", "test", "--no-run", "--message-format=json", "-p", crate, *target, *features]
+
+
+def built_executable(stdout: str) -> str | None:
+    """The test executable a `cargo test --no-run --message-format=json` build produced."""
+    found = None
+    for line in stdout.splitlines():
+        if not line.startswith("{"):
+            continue
+        msg = json.loads(line)
+        if msg.get("reason") == "compiler-artifact" and msg.get("profile", {}).get("test") and msg.get("executable"):
+            found = msg["executable"]
+    return found
+
+
+def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=subprocess.run) -> list[str] | None:
+    """Run one Rust assertion's instrumented binary; its executed source files, or `None` on failure."""
     libtest = info["selector"].split("::", 2)[2]
-    features = cargo_target_feature_args(root / "crates" / info["crate"] / "Cargo.toml", info["target"])
-    return [
-        "cargo", "llvm-cov", "--json", "--output-path", str(out), "-p", info["crate"],
-        *info["target"], *features, "--", "--exact", libtest, "--include-ignored",
-    ]
-
-
-def capture_one(root: Path, info: dict, run=subprocess.run) -> list[str] | None:
-    """Run one Rust assertion under coverage; its executed source files, or `None` on failure."""
     with tempfile.TemporaryDirectory(prefix="antecedent-capture-") as tmp:
-        out = Path(tmp) / "export.json"
-        env = {
-            **os.environ,
-            "CARGO_PROFILE_TEST_OPT_LEVEL": os.environ.get("CARGO_PROFILE_TEST_OPT_LEVEL", "2"),
-            "CARGO_PROFILE_TEST_DEBUG": os.environ.get("CARGO_PROFILE_TEST_DEBUG", "line-tables-only"),
-        }
-        done = run(capture_command(root, info, out), cwd=root, env=env, text=True, capture_output=True)
+        raw, data = Path(tmp) / "run.profraw", Path(tmp) / "run.profdata"
+        done = run(
+            [binary, "--exact", libtest, "--include-ignored", "--test-threads", "1"],
+            cwd=root / "crates" / info["crate"],
+            env={**env, "LLVM_PROFILE_FILE": str(raw)},
+            text=True,
+            capture_output=True,
+        )
         if done.returncode != 0 or not PASSED_ONE.search((done.stdout or "") + (done.stderr or "")):
-            print(f"FAIL: {info['selector']}: not captured\n{(done.stderr or '')[-400:]}")
+            print(f"FAIL: {info['selector']}: not captured\n{((done.stdout or '') + (done.stderr or ''))[-400:]}")
             return None
-        if not out.is_file():
-            print(f"FAIL: {info['selector']}: llvm-cov wrote no export")
+        merged = run([llvm_tool("llvm-profdata"), "merge", "-sparse", str(raw), "-o", str(data)], text=True, capture_output=True)
+        if merged.returncode != 0:
+            print(f"FAIL: {info['selector']}: profile merge failed\n{merged.stderr[-400:]}")
             return None
-        return executed_files(json.loads(out.read_text(encoding="utf-8")), root)
+        export = run(
+            [llvm_tool("llvm-cov"), "export", "-summary-only", f"-instr-profile={data}", binary],
+            text=True,
+            capture_output=True,
+        )
+        if export.returncode != 0:
+            print(f"FAIL: {info['selector']}: llvm-cov export failed\n{export.stderr[-400:]}")
+            return None
+        return executed_files(json.loads(export.stdout), root)
 
 
 def cmd_capture(root: Path, args: argparse.Namespace, run=subprocess.run) -> int:
+    """Build each test target once with coverage instrumentation, then profile each assertion.
+
+    Records are written after every target, so an interrupted capture keeps what it finished.
+    """
     fp = Fingerprinter(root)
     records = load_records(root)
-    todo = []
+    groups: dict[tuple[str, tuple[str, ...]], list[tuple[dict, dict]]] = {}
     for row in all_scientific_rows(root):
         info = locate(root, row)
         if info["lang"] != "rust":
             continue
         if force_all(args) or valid_capture(records.get(info["selector"]), fp, row) is None:
-            todo.append((row, info))
-    print(f"scientific records: capturing {len(todo)} Rust assertion(s)", flush=True)
-    items, failed = [], 0
-    for row, info in todo:
-        executed = capture_one(root, info, run)
-        if executed is None:
-            failed += 1
+            groups.setdefault((info["crate"], tuple(info["target"])), []).append((row, info))
+    total = sum(len(v) for v in groups.values())
+    print(f"scientific records: capturing {total} Rust assertion(s) in {len(groups)} target(s)", flush=True)
+    env = capture_env(root)
+    recorded, failed = 0, 0
+    for (crate, target), todo in sorted(groups.items()):
+        built = run(build_command(root, crate, target), cwd=root, env=env, text=True, capture_output=True)
+        binary = built_executable(built.stdout or "") if built.returncode == 0 else None
+        if binary is None:
+            print(f"FAIL: {crate} {' '.join(target)}: instrumented build failed\n{(built.stderr or '')[-400:]}")
+            failed += len(todo)
             continue
-        items.append(
-            {
-                **row,
-                "selector": info["selector"],
-                "executed": executed,
-                "capture_test": fp.test_digest(row),
-                "fingerprint": fp.fingerprint(row, executed),
-            }
-        )
-    recorded = record_passes(root, items)
+        items = []
+        for row, info in todo:
+            executed = capture_one(root, binary, info, env, run)
+            if executed is None:
+                failed += 1
+                continue
+            items.append(
+                {
+                    **row,
+                    "selector": info["selector"],
+                    "executed": executed,
+                    "capture_test": fp.test_digest(row),
+                    "fingerprint": fp.fingerprint(row, executed),
+                }
+            )
+        recorded += record_passes(root, items)
+        print(f"  {crate} {' '.join(target)}: {len(items)}/{len(todo)} captured", flush=True)
     print(f"scientific records: captured {recorded}; {failed} failed")
     return int(bool(failed))
 

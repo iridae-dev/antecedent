@@ -7,7 +7,7 @@
 //! type.
 //!
 //! The export evaluates a point prediction and a model-based standard error only; the standard
-//! error is labelled `model_based_sqrt_phi_v_phi` with calibration not_measured and is never an
+//! error is labelled `model_based_sqrt_phi_v_phi` with calibration `not_measured` and is never an
 //! interval.
 
 use std::collections::BTreeMap;

@@ -85,8 +85,8 @@ pub use antecedent_estimate::estimate_saturation_interference;
 pub use antecedent_estimate::joint_panel;
 /// Supported temporal intervention plans.
 pub use antecedent_estimate::plan_from_response_query;
-/// Trial-to-target transport estimators.
-pub use antecedent_estimate::trial_to_target_effect;
+/// Trial-to-target transport estimators under the caller's execution policy.
+pub use antecedent_estimate::trial_to_target_effect_with_context;
 /// Descriptive raw-versus-adjusted comparison and declared reporting-scale transforms.
 pub use antecedent_estimate::{
     AdjustedEstimate, ArmSummary, Availability, MeanPair, RawContrast, ReportingScale,

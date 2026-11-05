@@ -104,7 +104,7 @@ pub struct StudyRank {
     pub net_value: f64,
     /// Whether the order against the next candidate is not established by the method.
     pub rank_uncertain: bool,
-    /// Calibration of this study-value estimate; always not_measured.
+    /// Calibration of this study-value estimate; always `not_measured`.
     pub calibration: &'static str,
 }
 

@@ -11,7 +11,7 @@
 //! (covered) or 2.0 (missed), the same way the response-curve simultaneous band is scored.
 //!
 //! `batch_retarget_max_t_simultaneous_band` is registered in `scripts/measure_calibration_groups.sh`
-//! (`run_br`, measured over the sample-size grid); its coverage is not_measured, so the
+//! (`run_br`, measured over the sample-size grid); its coverage is `not_measured`, so the
 //! published interval stays closed (`not_supported`) and no coverage record exists. The evaluator is `BatchRetargetReport::simultaneous_interval`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

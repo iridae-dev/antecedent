@@ -140,9 +140,11 @@ class SampledRecoveryCandidate(ScientificResult):
             raise CausalTypeError("artifact must be bytes")
         if not isinstance(expected, SampledRecoveryIdentity):
             raise CausalTypeError("expected must be a retained SampledRecoveryIdentity")
-        if isinstance(max_rows, bool) or not isinstance(max_rows, int) or not 0 < max_rows <= 100_000:
+        rows_ok = isinstance(max_rows, int) and not isinstance(max_rows, bool)
+        if not rows_ok or not 0 < max_rows <= 100_000:
             raise CausalValueError("max_rows must be an integer in 1..=100000")
-        if isinstance(max_replicates, bool) or not isinstance(max_replicates, int) or max_replicates < 1:
+        replicates_ok = isinstance(max_replicates, int) and not isinstance(max_replicates, bool)
+        if not replicates_ok or max_replicates < 1:
             raise CausalValueError("max_replicates must be a positive integer")
         consume = getattr(_native, "consume_sampled_recovery_candidate", None)
         if consume is None:

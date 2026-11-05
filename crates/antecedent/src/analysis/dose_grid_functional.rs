@@ -17,7 +17,7 @@
 //! exported table and refuses any resealed change of premise, table or value.
 //! A `quadratic_mean` request explicitly attests an exact quadratic conditional mean;
 //! polynomial reproduction accounts for its zero smoothing bias, with sampling
-//! calibration still not_measured. Its artifact binds this additional premise and feature.
+//! calibration still `not_measured`. Its artifact binds this additional premise and feature.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

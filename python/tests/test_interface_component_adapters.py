@@ -57,11 +57,13 @@ def test_a_mechanism_is_one_produced_port_and_one_consumed_port_per_parent():
 
 
 def test_mechanisms_connect_through_the_one_check_and_a_mismatch_is_refused():
-    upstream = ic.mechanism_contract(declaration("X"), origin="fitted")
+    # Parents are consumed with declared evidence, so the producer declares its ledger source.
+    upstream = ic.mechanism_contract(declaration("X"), origin="fitted", evidence=(SOURCE_A,))
     downstream = ic.mechanism_contract(declaration("Y", ["X"]), origin="fitted")
     connection = ic.check_connection(upstream, OUTPUT, downstream, "X")
     assert (connection.producer, connection.consumer) == ("mechanism:X", "mechanism:Y")
     assert connection.calibration.status == "point_only"
+    assert connection.evidence == (SOURCE_A,)
 
     # A parent stated in other units is another quantity: refused, never admitted.
     other_units = ic.mechanism_contract(
@@ -137,7 +139,8 @@ def test_a_bridge_consumes_its_source_and_produces_its_target():
         )
 
     fed = ic.check_connection(surrogate_producer("adults"), "effect", bridge, "source")
-    assert fed.calibration.status == "point_only"
+    # The producer here declared no calibration, and a connection keeps the producer's label.
+    assert fed.calibration.status == "none"
     # A surrogate effect from another population does not feed the bridge.
     refused = refusal_of(
         lambda: ic.check_connection(surrogate_producer("children"), "effect", bridge, "source")

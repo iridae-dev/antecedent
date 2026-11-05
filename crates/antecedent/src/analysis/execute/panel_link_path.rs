@@ -11,7 +11,7 @@
 //!
 //! The frequentist estimate is the unpenalized maximum-likelihood fit with its Fisher delta-method
 //! standard error. The Bayesian estimate is the Laplace posterior of the same contrast under a
-//! Gaussian coefficient prior. Neither is a supported route and their calibration is not_measured.
+//! Gaussian coefficient prior. Neither is a supported route and their calibration is `not_measured`.
 
 use std::collections::BTreeMap;
 

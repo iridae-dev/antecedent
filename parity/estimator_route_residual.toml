@@ -21,7 +21,8 @@ reason = "no cell sealer names this estimator; it runs from the shared static ex
 
 [[estimator]]
 id = "RandomizedQuantile"
-reason = "no cell sealer names this estimator; it runs from the shared static executor under the lowered program of its plan"
+served_by_specialised_sealer_for_other_shapes = true
+reason = "the randomized-effect sealer admits a randomized-trial study (structure source RandomizedTrial) with no graph posterior, tiered background or split; the quantile contrast on a declared or accepted DAG, Frequentist or Bayesian, is no randomized-trial study and falls here, running from the shared static executor under the lowered program of its plan"
 
 [[estimator]]
 id = "BayesianIvJointLinear"

@@ -52,7 +52,7 @@ const OUTSIDE_SUPPORTED_ROUTES: [&str; 23] = [
 ];
 
 /// Supported routes the support matrix executes.
-const SUPPORTED_ROUTE_COUNT: usize = 2696;
+const SUPPORTED_ROUTE_COUNT: usize = 2776;
 
 /// The `lowering` value of every `[[route]]` in the supported-route record, in order.
 fn supported_route_lowerings() -> Vec<Option<String>> {

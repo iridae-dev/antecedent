@@ -202,7 +202,7 @@ pub struct DerivedResult {
     pub standing: Standing,
     /// Support inherited: always none.
     pub support: &'static str,
-    /// Calibration of the interval: always not_measured.
+    /// Calibration of the interval: always `not_measured`.
     pub calibration: &'static str,
     /// Statement about the interval construction.
     pub interval_statement: &'static str,

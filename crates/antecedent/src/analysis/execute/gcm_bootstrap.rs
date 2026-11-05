@@ -10,7 +10,7 @@
 //! from one semantic stream per replicate, so the result does not depend on the thread
 //! count. A replicate whose refit or evaluation fails is kept as failed mass; it is
 //! never redrawn or dropped from the accounting. The interval is the normal interval of
-//! the bootstrap standard error; it is unsupported and its calibration is not_measured.
+//! the bootstrap standard error; it is unsupported and its calibration is `not_measured`.
 
 use super::{CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext};
 use antecedent_estimate::BootstrapAccounting;

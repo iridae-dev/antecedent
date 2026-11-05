@@ -12,7 +12,7 @@
 //! The integral over the cross-world mediator law is a deterministic Gauss-Hermite rule; the
 //! estimate is evaluated at `n` and `2n` nodes and the disagreement is the reported integration
 //! error. Bootstrap standard errors use a fixed seed and replicate ids. Calibration is
-//! **not_measured**: no coverage claim and no public interval; the point estimates and the
+//! **`not_measured`**: no coverage claim and no public interval; the point estimates and the
 //! diagnostics are the claim.
 //!
 //! [`NonlinearMediation::estimate`] runs and seals the estimate; [`NonlinearMediation::consume`]

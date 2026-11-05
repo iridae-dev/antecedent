@@ -98,7 +98,7 @@
 //!   `transport_proven_non_transportable`; otherwise the refusal is
 //!   `route_not_supported` with no witness (the class excludes it, no impossibility
 //!   is claimed).
-//! * The claim is point-only; calibration is not_measured.
+//! * The claim is point-only; calibration is `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

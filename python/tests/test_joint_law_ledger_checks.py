@@ -13,6 +13,8 @@ is involved.
 
 from __future__ import annotations
 
+import dataclasses
+
 import numpy as np
 import pytest
 from antecedent import _reason_details as reason_details
@@ -111,12 +113,12 @@ def test_rows_pair_only_under_one_alignment_identity():
     right = _artifact("snap-right", y, x)
     lx, ly = _draws(left)
     rx, _ = _draws(right)
+    rx = dataclasses.replace(rx, id="right_x")
     marginals = _artifact("snap-marginals", x, y, alignment="independent_marginals")
     mx, my = _draws(marginals)
 
-    # Two columns of one artifact share one identity and pair; one input is trivially pairable.
+    # Two columns of one artifact share one identity and pair.
     assert jl.check_rows_pairable([lx, ly]) is None
-    assert jl.check_rows_pairable([lx]) is None
     plan = jl.check_propagation(
         "nonlinear_functional", [lx, ly], dependence="aligned_joint_law"
     )
@@ -133,7 +135,7 @@ def test_rows_pair_only_under_one_alignment_identity():
         jl.check_propagation("nonlinear_functional", [lx, rx], dependence="aligned_joint_law")
 
     # Independently produced marginals and a summary have nothing to pair.
-    for unpaired in ([mx, my], [lx, mx], [lx, jl.MomentInput("summary", "snap-left", 1.0)]):
+    for unpaired in ([mx, my], [lx, my], [lx, jl.MomentInput("summary", "snap-left", 1.0)]):
         with pytest.raises(R) as refused:
             jl.check_rows_pairable(unpaired)
         assert refused.value.reason_code == "joint_law_required"

@@ -255,10 +255,10 @@ fn weighted_cluster_student_calibration_matches_its_actual_reference() {
     let template = *RECORDS
         .iter()
         .find(|record| {
-            record.test.ends_with("::weighted_aipw_cluster_dml_interval")
+            record.test.ends_with("::cluster_dml_t_wald_interval")
                 && record.interval_method == "analytic_se"
         })
-        .expect("the historical normal record is retained");
+        .expect("the unweighted normal cluster record is retained");
     for estimator in estimators {
         let study = Study::tabular(fx.data.clone())
             .graph(fx.graph.clone())
@@ -291,6 +291,7 @@ fn weighted_cluster_student_calibration_matches_its_actual_reference() {
             "dr.learner" => "dr.learner",
             other => panic!("unexpected estimator {other}"),
         };
+        historical.functional = "all_observed.mean+weights=sampling";
         historical.n_min = 1;
         historical.n_max = u64::MAX;
         historical.grid = &[];
@@ -324,6 +325,7 @@ fn weighted_cluster_student_calibration_matches_its_actual_reference() {
     assert_eq!(basis.key.dependence, "cluster");
     let basis = routing_basis(basis);
     let mut normal = routing_record(template, "cov.fixture.weighted_normal.v2_validation_none");
+    normal.functional = "all_observed.mean+weights=sampling";
     normal.n_min = 1;
     normal.n_max = u64::MAX;
     normal.grid = &[];

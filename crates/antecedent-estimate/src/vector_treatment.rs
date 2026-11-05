@@ -33,7 +33,7 @@
 //! # What a result does not say
 //!
 //! All p-values are asymptotic (standard normal / chi-square). Their calibration (coverage,
-//! Type I error, power) is *not_measured* ([`CalibrationStatus::NotMeasured`]); no coverage claim is
+//! Type I error, power) is *`not_measured`* ([`CalibrationStatus::NotMeasured`]); no coverage claim is
 //! made and no interval is produced. The fit is a regression-coefficient estimate, not an
 //! identification statement: the caller owns that the shared adjustment set is valid.
 //!
@@ -53,7 +53,7 @@ use crate::util::{count, refuse};
 /// The frozen null of the joint Wald test.
 pub const VECTOR_TREATMENT_NULL: &str = "all treatment coefficients are zero";
 
-/// Inference claim of the route: asymptotic Wald p-values with not_measured calibration.
+/// Inference claim of the route: asymptotic Wald p-values with `not_measured` calibration.
 pub const VECTOR_TREATMENT_INFERENCE_CLAIM: &str = "asymptotic_wald_calibration_not_measured";
 
 /// Reference treatment count of a joint fit. Not enforced: the fit's own memory (the `p x p`

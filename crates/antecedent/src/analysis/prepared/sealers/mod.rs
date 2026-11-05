@@ -300,10 +300,7 @@ pub(super) fn seal_deferred_execution(
     if let Some(operation) = bayesian::bayesian_gcomp(cx)? {
         return Ok(operation);
     }
-    Ok(PreparedExecution::EstimatorRoute(crate::analysis::execute::CheckedRouteOperation::lowered(
-        cx.analysis,
-        cx.plan,
-    )?))
+    estimator::estimator_route_operation(cx)
 }
 
 /// Select the sealed operation for `cx`. The estimator-family sealer admits what the

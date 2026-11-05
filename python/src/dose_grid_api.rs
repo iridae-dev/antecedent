@@ -3,7 +3,7 @@
 //! Python declares the request (design, one named functional, grid, bandwidth and its
 //! range, minimum local effective sample size, claims) and passes the dose/outcome table.
 //! Per-dose support, the local-quadratic fit, the pointwise standard errors and intervals
-//! (calibration not_measured), the closed simultaneous band, the digests, the artifact and
+//! (calibration `not_measured`), the closed simultaneous band, the digests, the artifact and
 //! every refusal are Rust's. A refusal comes back as structured JSON for the Python layer
 //! to raise as its own exception type; corruption and unknown versions raise
 //! `CausalSerializationError`.

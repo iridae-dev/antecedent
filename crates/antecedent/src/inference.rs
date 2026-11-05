@@ -815,7 +815,7 @@ fn transfer_refusal(code: &'static str, detail: &str, message: &str) -> CausalEr
 fn map_refuse(message: &str) -> CausalError {
     transfer_refusal(
         antecedent_core::reason_code!("quantity_semantics_mismatch"),
-        "mapped_posterior_transfer.coefficient_map",
+        antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP,
         message,
     )
 }
@@ -823,7 +823,7 @@ fn map_refuse(message: &str) -> CausalError {
 fn meaning_refuse(message: &str) -> CausalError {
     transfer_refusal(
         antecedent_core::reason_code!("distribution_meaning_mismatch"),
-        "mapped_posterior_transfer.parameter_posterior",
+        antecedent_core::reason_details::mapped_posterior_transfer::PARAMETER_POSTERIOR,
         message,
     )
 }
@@ -831,7 +831,7 @@ fn meaning_refuse(message: &str) -> CausalError {
 fn variance_refuse(message: &str) -> CausalError {
     transfer_refusal(
         antecedent_core::reason_code!("prior_transfer_not_hydrated"),
-        "mapped_posterior_transfer.residual_variance",
+        antecedent_core::reason_details::mapped_posterior_transfer::RESIDUAL_VARIANCE,
         message,
     )
 }

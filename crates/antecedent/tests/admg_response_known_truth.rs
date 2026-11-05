@@ -22,7 +22,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, DenseNodeId};
-use support::{Coordinate, GraphKind, Structure, for_each_matching, on_large_stack};
+use support::{Coordinate, GraphKind, Structure, for_each_matching, on_large_stack, run_retained};
 
 const N: usize = 400;
 const LEVEL: f64 = 0.5;
@@ -80,16 +80,16 @@ fn check(family: &'static str, estimator: EstimatorId, id: &'static str, toleran
                 Structure::Explicit => builder.graph(admg()),
                 _ => builder.graph(AcceptedGraph::from(admg())),
             };
-            let result = builder
-                .query(CausalQuery::Response(level()))
-                .estimator(estimator)
-                .inference(inference)
-                .refute(c.suite)
-                .bootstrap_replicates(0)
-                .build()
-                .unwrap_or_else(|e| panic!("{}: build: {e}", c.text))
-                .run(&ExecutionContext::for_tests(52))
-                .unwrap_or_else(|e| panic!("{}: run: {e}", c.text));
+            let result = run_retained(
+                builder
+                    .query(CausalQuery::Response(level()))
+                    .estimator(estimator)
+                    .inference(inference)
+                    .refute(c.suite)
+                    .bootstrap_replicates(0),
+                &c.text,
+                &ExecutionContext::for_tests(52),
+            );
             assert_eq!(result.logical_plan.estimator.as_deref(), Some(id), "{}", c.text);
             let value =
                 result.response().map_or(result.estimate().as_effect().unwrap().ate, |r| match &r

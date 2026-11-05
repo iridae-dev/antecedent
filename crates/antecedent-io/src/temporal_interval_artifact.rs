@@ -3,7 +3,7 @@
 //!
 //! Format version 1 (two steps; version 2 for any other number of steps, under its own
 //! feature marker). **Internal**: the public interval route is not supported while the
-//! interval's calibration is not_measured, so no public producer writes this artifact;
+//! interval's calibration is `not_measured`, so no public producer writes this artifact;
 //! it exists so the interval's whole resampling is reproducible and checkable. The
 //! artifact embeds the unit panel (snapshot id, unit ids, time ids and values), the
 //! estimator, the resampling design, and the interval with every replicate: its
@@ -349,7 +349,7 @@ pub struct IntervalResultWire {
     pub panel_digest: String,
     /// Seed.
     pub seed: u64,
-    /// Always the engine's claim: dependence preserved, calibration not_measured.
+    /// Always the engine's claim: dependence preserved, calibration `not_measured`.
     pub claim: String,
     /// Always `not_measured`.
     pub calibration: String,

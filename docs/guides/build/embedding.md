@@ -223,6 +223,34 @@ Parallelism is a budget on an execution context, not a global setting.
 * Size the budget for the problem: a refusal with family `resource` means the lease or
   memory limit was too small for this request, not that the question has no answer.
 
+### Admission contract
+
+These rules govern which calls are admitted, cancellable and work-bounded.
+
+* **Which calls.** A public entry point that allocates or loops in proportion to its
+  input (rows, variables, draws, grid cells, scenarios, search states, horizon steps,
+  artifact contents) takes an `ExecutionContext`. Under that context it:
+  1. is admitted against the context's memory budget before it allocates the bulk of its
+     working set;
+  2. polls cancellation at least once per unit of work that is proportional to input; and
+  3. charges a finite work cap and refuses with family `resource` once the cap is passed.
+
+  An entry point whose cost is fixed, or bounded by a compile-time constant, is exempt.
+* **Work caps are always finite.** Each kernel declares its own cap and the limit is
+  recorded in `parity/limits.toml`. A context can lower a cap; nothing makes one unbounded.
+* **Retained output stays charged.** Bytes a result keeps after the call returns remain
+  charged to the context's budget for the result's lifetime. They are not released when
+  the computing call returns.
+* **Decoding trusts nothing.** Loading or verifying an artifact costs at most a bound fixed
+  by the format. Every count, dimension and grid length read from the bytes is checked
+  against that bound before it sizes any work, and nested members share one budget.
+* **Third-party code that cannot be interrupted** (a fitting library, BLAS) is admitted
+  before it starts and capped in its inputs. That it cannot be cancelled mid-call is
+  documented at the entry point, not worked around.
+* **Default budget.** `ExecutionContext::production` has an unbounded memory pool and no
+  wall clock: the host owns its machine's budget and sets it with `with_admission`. Work
+  caps still apply, so a default context is never unbounded in work.
+
 ### Cancellation
 
 Cancellation is cooperative. A host holds a `CancellationToken` (`ant.Execution(cancel=token)` in

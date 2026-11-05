@@ -15,6 +15,11 @@
     reason = "deterministic fixture indices are small and exact in f64"
 )]
 
+#[path = "retained_run/mod.rs"]
+mod retained;
+
+use retained::run_retained;
+
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
@@ -112,16 +117,16 @@ fn run(
     } else {
         base.graph(graph())
     };
-    base.query(query(sustained))
-        .identifier(IdentifierId::TemporalIvUnfolded)
-        .estimator(EstimatorId::TemporalLaggedInstrument)
-        .inference(InferenceMode::Frequentist)
-        .refute(suite)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(2))
-        .unwrap()
+    run_retained(
+        base.query(query(sustained))
+            .identifier(IdentifierId::TemporalIvUnfolded)
+            .estimator(EstimatorId::TemporalLaggedInstrument)
+            .inference(InferenceMode::Frequentist)
+            .refute(suite)
+            .bootstrap_replicates(0),
+        "retained run",
+        &ExecutionContext::for_tests(2),
+    )
 }
 
 /// Pulse and one-step sustained, explicit and accepted structure, every validation suite on a

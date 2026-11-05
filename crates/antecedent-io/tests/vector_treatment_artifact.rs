@@ -3,7 +3,7 @@
 //! the row-based fit and checked against an independent sandwich computation), the absence of a
 //! row ceiling, the computation and export budgets, the digest binding of a summary to its rows,
 //! resealed-mutation refusals against a retained identity, unresealed tampering, unknown
-//! versions and the not_measured calibration coordinate.
+//! versions and the `not_measured` calibration coordinate.
 //!
 //! Frozen dataset (n = 6, columns `1, t1, t2`): `t1 = [1,0,1,0,0,1]`, `t2 = [1,1,1,0,0,0]`,
 //! `y = [3,2,5,1,0,4]`. `b = [2.75, 0.75]`, `RSS = 3.25`, `sigma^2 = 3.25 / 3`, and the treatment

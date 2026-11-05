@@ -43,7 +43,7 @@
 //! their coverage.
 //!
 //! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build). The interval stays
-//! labelled not_measured until this design has been measured.
+//! labelled `not_measured` until this design has been measured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

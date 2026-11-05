@@ -593,7 +593,7 @@ impl CallbackDeclaration {
     /// consumed port per input.
     ///
     /// The produced port is point-only when only a mean is offered and
-    /// not_measured otherwise; it is never measured, so no interval or posterior
+    /// `not_measured` otherwise; it is never measured, so no interval or posterior
     /// guarantee is carried.
     #[must_use]
     pub fn interface_contract(&self) -> InterfaceContract {

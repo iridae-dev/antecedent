@@ -419,7 +419,7 @@ impl ObservationRecoveryStage {
 
 #[pymethods]
 impl ObservationRecoveryStage {
-    /// Internal historical candidate; retains not_measured semantics.
+    /// Internal historical candidate; retains `not_measured` semantics.
     #[pyo3(signature=(population, observed_regime, partial, fully, rows, snapshot, replicates, seed, interval_method="bootstrap_bca"))]
     #[allow(clippy::too_many_arguments)]
     fn sampled_candidate(

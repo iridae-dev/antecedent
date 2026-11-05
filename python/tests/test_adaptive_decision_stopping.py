@@ -15,6 +15,7 @@ interval.
 from __future__ import annotations
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import adaptive_inference as ai
 from antecedent.outcomes import require_success
 
@@ -100,4 +101,4 @@ def test_a_cell_without_the_decision_theoretic_paradigm_refuses_the_request():
     with pytest.raises(ai.AdaptiveInferenceRefusal) as caught:
         require_success(session.analyse(ai.PosteriorStopping(look=1)))
     assert caught.value.reason_code == "route_not_supported"
-    assert caught.value.detail == "adaptive_inference.paradigm_not_supported_for_cell"
+    assert caught.value.detail == reason_details.adaptive_inference.PARADIGM_NOT_SUPPORTED_FOR_CELL

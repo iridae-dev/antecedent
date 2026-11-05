@@ -969,7 +969,7 @@ impl PosteriorRowWire {
 /// Retained observational two-decision regime contrast and its uncertainty.
 ///
 /// The cross-fit scores are kept so a loader recomputes the means, the standard error and the
-/// interval. The result is unsupported and its repeated-sampling calibration is not_measured.
+/// interval. The result is unsupported and its repeated-sampling calibration is `not_measured`.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SequentialContrastWire {

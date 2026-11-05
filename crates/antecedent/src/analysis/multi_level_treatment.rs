@@ -17,7 +17,7 @@
 //! is `calibrated` when a current attesting coverage record measured this construction (the
 //! target, the number of declared levels, the folds and the row count are part of the key),
 //! and otherwise `outside_measured_scope`, `measured_below_nominal` or `not_measured`, in
-//! which case the standard error is labelled **not_measured**. Only the full-population target
+//! which case the standard error is labelled **`not_measured`**. Only the full-population target
 //! has a measurement design; the pairwise subpopulation target is reported `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

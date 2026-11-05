@@ -600,7 +600,7 @@ impl BatchStudy {
     /// Dirichlet(1, ..., 1) row weights shared by every member of the family, so the draws
     /// are one aligned joint posterior of the contrast (for the interaction, the complete
     /// non-additivity, not a difference of marginal intervals). Conditional on the cross-fit
-    /// nuisances; calibration is not_measured. `None` publishes no posterior.
+    /// nuisances; calibration is `not_measured`. `None` publishes no posterior.
     #[must_use]
     pub const fn family_posterior(mut self, posterior: Option<ScorePosteriorOptions>) -> Self {
         self.family_posterior = posterior;

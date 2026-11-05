@@ -190,14 +190,14 @@ fn bayesian_glm_link_contrast_matches_the_laplace_posterior_on_every_fixed_dag_c
                     .likelihood(BayesLikelihood::BernoulliLogit)
                     .prior_scale(PRIOR_SD)
                     .n_draws(DRAWS);
-                let study = base
+                let builder = base
                     .query(query(sustained))
                     .estimator(EstimatorId::BayesianTemporalGlmLinkContrast)
                     .inference(InferenceMode::Bayesian(config))
                     .refute(suite)
-                    .bootstrap_replicates(0)
-                    .build()
-                    .unwrap_or_else(|e| panic!("{label}: {e}"));
+                    .bootstrap_replicates(0);
+                let study = builder.clone().build().unwrap_or_else(|e| panic!("{label}: {e}"));
+                drop(builder);
                 let prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
                 drop(study);
                 let result = prepared

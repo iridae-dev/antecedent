@@ -7,7 +7,7 @@
 //!   specifications, the configuration, the NDE / NIE / total effects, the integration error of
 //!   the declared `n` versus `2n` Gauss-Hermite nodes, the overlap diagnostics, the bootstrap
 //!   record (seed and replicate ids, interval status closed), the identity digests, the
-//!   **not_measured** calibration coordinate and the standing caveats;
+//!   **`not_measured`** calibration coordinate and the standing caveats;
 //! * `nonlinear_mediation.data` (little-endian `f64`): the compact analysis dataset
 //!   (treatment, mediator, outcome, then each covariate), or nothing when the record binds its
 //!   dataset by digest.

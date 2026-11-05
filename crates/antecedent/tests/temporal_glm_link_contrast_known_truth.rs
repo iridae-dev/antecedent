@@ -12,6 +12,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[path = "retained_run/mod.rs"]
+mod retained;
+
+use retained::run_retained;
+
 use std::sync::Arc;
 
 use antecedent::{AcceptedGraph, EstimatorId, InferenceMode, RefuteSuite, Study};
@@ -91,16 +96,15 @@ fn glm_link_contrast_returns_the_group_proportion_contrast_on_every_fixed_dag_co
                 } else {
                     base.graph(graph())
                 };
-                let result = base
-                    .query(query(sustained))
-                    .estimator(EstimatorId::TemporalGlmLinkContrast)
-                    .inference(InferenceMode::Frequentist)
-                    .refute(suite)
-                    .bootstrap_replicates(0)
-                    .build()
-                    .unwrap()
-                    .run(&ExecutionContext::for_tests(4))
-                    .unwrap();
+                let result = run_retained(
+                    base.query(query(sustained))
+                        .estimator(EstimatorId::TemporalGlmLinkContrast)
+                        .inference(InferenceMode::Frequentist)
+                        .refute(suite)
+                        .bootstrap_replicates(0),
+                    &label,
+                    &ExecutionContext::for_tests(4),
+                );
                 let estimate = result.estimate().as_effect().unwrap();
                 assert!((estimate.ate - truth).abs() < 1e-8, "{label}: {}", estimate.ate);
                 assert!(

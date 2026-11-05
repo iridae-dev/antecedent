@@ -140,6 +140,7 @@ fn bayesian() -> InferenceMode {
 
 /// Posterior mean for a Bayesian result, else the point estimate, else the identified envelope.
 fn ends(result: &antecedent::StudyResult, inference: &InferenceMode) -> (f64, f64) {
+    assert!(!result.logical_plan.plan_id.is_empty(), "the result names its logical plan");
     if matches!(inference, InferenceMode::Bayesian(_)) {
         if let Some(posterior) = &result.posterior {
             if let Some(column) = posterior.effect_column() {
@@ -197,14 +198,15 @@ fn run_case(case: &Case, ctx: &ExecutionContext) -> Option<String> {
         case.kind.is_some(),
         case.suite
     );
-    let outcome = builder
+    let builder = builder
         .refute(case.suite)
         .query(query(case.conditional))
         .estimator(EstimatorId::TemporalSequentialGcomp)
         .inference(inference.clone())
-        .bootstrap_replicates(0)
-        .build()
-        .and_then(|study| study.run(ctx));
+        .bootstrap_replicates(0);
+    let built = builder.clone().build();
+    drop(builder);
+    let outcome = built.and_then(|study| study.run(ctx));
     match outcome {
         Ok(result) => {
             let (low, high) = ends(&result, &inference);
@@ -320,12 +322,15 @@ fn modifier_run(
     let plain = TemporalEffectQuery::sustained(var(0), var(1), 0, 1.0)
         .with_policy(TemporalPolicy::sustained(-2, -1));
     let query = if modified { plain.with_effect_modifiers([var(2)]) } else { plain };
-    base.query(CausalQuery::TemporalEffect(query))
+    let builder = base
+        .query(CausalQuery::TemporalEffect(query))
         .estimator(EstimatorId::TemporalSequentialGcomp)
         .inference(inference.clone())
         .refute(suite)
-        .bootstrap_replicates(0)
-        .build()
+        .bootstrap_replicates(0);
+    let built = builder.clone().build();
+    drop(builder);
+    built
         .and_then(|study| study.run(ctx))
         .map(|result| ends(&result, inference).0)
         .map_err(|error| error.to_string())

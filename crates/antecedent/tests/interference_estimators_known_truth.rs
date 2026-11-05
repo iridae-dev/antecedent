@@ -40,6 +40,11 @@
     reason = "test fixtures: small exact indices and one coordinate walk per test"
 )]
 
+#[path = "retained_run/mod.rs"]
+mod retained;
+
+use retained::run_retained;
+
 use std::sync::Arc;
 
 use antecedent::{
@@ -191,7 +196,7 @@ impl Design {
         inference: InferenceMode,
         estimator: EstimatorId,
         suite: RefuteSuite,
-    ) -> Study {
+    ) -> StudyBuilder {
         let builder = match structure {
             Structure::Explicit(class) => bind(Study::tabular(self.data.clone()), class, false),
             Structure::Accepted(class) => bind(Study::tabular(self.data.clone()), class, true),
@@ -204,8 +209,6 @@ impl Design {
             .inference(inference)
             .estimator(estimator)
             .refute(suite)
-            .build()
-            .unwrap()
     }
 }
 
@@ -244,10 +247,11 @@ fn walk(
     for structure in structures() {
         for suite in SUITES {
             let label = format!("{estimator:?} {structure:?} {suite:?}");
-            let result = design
-                .study(structure, inference.clone(), estimator, suite)
-                .run(&ctx)
-                .unwrap_or_else(|error| panic!("{label}: {error}"));
+            let result = run_retained(
+                design.study(structure, inference.clone(), estimator, suite),
+                &label,
+                &ctx,
+            );
             assert_eq!(
                 result.logical_plan.estimator.as_deref(),
                 Some(estimator.as_str()),

@@ -2770,9 +2770,16 @@ fn supported_family_temporal_response_curve_consumes() {
     })
     .with_temporal(temporal_spec(&pin));
     let (result, consumed) = consume_temporal_response(&series, graph, query, "tresp-f");
+    // The study keeps its default validation suite, which the curve cell now supports, so the
+    // result carries curve refutation reports and a consumer must replay them besides the
+    // sealed temporal response operation.
+    assert!(result.refutations.iter().any(|report| report.refuter.starts_with("curve.")));
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from("dependencies.checked_temporal_response_operation")]
+        &[
+            std::sync::Arc::<str>::from("dependencies.refutation_replay"),
+            std::sync::Arc::<str>::from("dependencies.checked_temporal_response_operation"),
+        ]
     );
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &result.response().expect("temporal response").estimate

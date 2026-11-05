@@ -10,7 +10,7 @@
 //! simultaneous-band marker.
 //! The optional caller-attested exact quadratic mean premise requires
 //! `dose_grid_quadratic_mean_v1`; polynomial reproduction accounts for zero smoothing
-//! bias under that premise. The sampling calibration remains not_measured. Omitting the
+//! bias under that premise. The sampling calibration remains `not_measured`. Omitting the
 //! premise preserves the historical format and digests.
 //!
 //! A consumer trusts nothing in the result. It re-validates the stored request,
@@ -23,7 +23,7 @@
 //! result then differs.
 //!
 //! Scope. Pointwise intervals are normal intervals around the smoother's level,
-//! derivative or contrast with calibration not_measured: no coverage claim is made.
+//! derivative or contrast with calibration `not_measured`: no coverage claim is made.
 //! Without a declared curvature bound the simultaneous band is not supported and a stored band
 //! marker other than `closed` is refused. A request that declares `bias_aware` (a bound on
 //! the absolute third derivative of the dose response, the multiplier replicates and the
@@ -251,7 +251,7 @@ pub struct DoseGridRequestWire {
     pub design: String,
     /// Caller-attested exact `E[Y|D=d] = beta0 + beta1*d + beta2*d²`.
     /// Under this premise polynomial reproduction implies zero smoothing bias.
-    /// It is not inferred from the observed residuals; sampling calibration stays not_measured.
+    /// It is not inferred from the observed residuals; sampling calibration stays `not_measured`.
     #[serde(default, skip_serializing_if = "is_false")]
     pub quadratic_mean: bool,
     /// The one named functional.

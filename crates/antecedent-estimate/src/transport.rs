@@ -271,6 +271,42 @@ pub fn trial_to_target_effect(
     .0)
 }
 
+/// [`trial_to_target_effect`] under the caller's memory, work and cancellation policy.
+///
+/// The trial-to-target contrast with no study around it: the entry for a caller that supplies
+/// the nuisance probabilities itself and owns the execution policy the numerical kernels
+/// obey.
+///
+/// # Errors
+///
+/// The refusals of [`trial_to_target_effect`].
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the seven inputs of `trial_to_target_effect` and the execution context"
+)]
+pub fn trial_to_target_effect_with_context(
+    identification: &TransportIdentification,
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+    outcome_regressions: Option<(&[f64], &[f64])>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<TransportEffectEstimate, EstimationError> {
+    antecedent_core::numerical_admission::with_context(ctx, || {
+        trial_to_target_effect(
+            identification,
+            outcome,
+            treatment,
+            trial,
+            selection_probability,
+            treatment_probability,
+            outcome_regressions,
+        )
+    })
+}
+
 /// Per-row AIPW contributions from the same execution as [`trial_to_target_effect`].
 ///
 /// Each entry is that row's contribution to the augmented sum, scaled by `n / n_target`,

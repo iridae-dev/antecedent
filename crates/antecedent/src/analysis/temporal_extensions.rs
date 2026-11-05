@@ -449,7 +449,7 @@ fn interval_estimator(
 /// The original panel/estimator is checked and replayed, then current scalar
 /// calibration evidence is resolved by the native consumer.
 /// # Errors
-/// Invalid source/design, a not_measured method/target or absent/stale evidence.
+/// Invalid source/design, a `not_measured` method/target or absent/stale evidence.
 pub fn temporal_dependent_interval(
     snapshot_id: &str,
     units: Option<Vec<UnitHistories>>,

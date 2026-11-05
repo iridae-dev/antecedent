@@ -6,7 +6,7 @@
 //! loader recomputes the Balke-Pearl bounds from the retained observed law and checks that they
 //! are the reported ones, that the law is a law (each instrument arm sums to one), that the
 //! sampling interval, when present, is ordered and covers the identified set when it is a
-//! frequentist Imbens-Manski interval, and that the result claims no support and a not_measured
+//! frequentist Imbens-Manski interval, and that the result claims no support and a `not_measured`
 //! calibration.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -73,7 +73,7 @@ pub struct IvBoundsPosteriorWire {
     pub upper_sd: f64,
 }
 
-/// Sharp bounds on the average effect under a binary instrument (unsupported, not_measured).
+/// Sharp bounds on the average effect under a binary instrument (unsupported, `not_measured`).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct IvBoundsWire {

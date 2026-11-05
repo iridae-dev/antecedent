@@ -447,7 +447,7 @@ fn bridged_reasoning(
 /// and an absent dependence is recorded as omitted rather than as independence.
 ///
 /// A propagated variance is a further recorded component, labelled as an uncalibrated
-/// spread whose calibration is not_measured; it is never an interval.
+/// spread whose calibration is `not_measured`; it is never an interval.
 fn bridged_uncertainty(
     contract: &BridgeContract,
     propagation: Option<&PointPropagation>,

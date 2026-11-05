@@ -8,7 +8,7 @@
 //!   the mixture-average effect, a responsibilities summary (per-class means, hard-assignment
 //!   counts, separation and a digest of the full matrix), the head and digest of the
 //!   log-likelihood trace, the premises with their declared or checked status, the
-//!   configuration, the identity digests and the **not_measured** calibration coordinate;
+//!   configuration, the identity digests and the **`not_measured`** calibration coordinate;
 //! * `latent_class.data` (little-endian `f64`): the compact analysis dataset (outcome,
 //!   treatment, then each covariate), or nothing when the record binds its dataset by digest.
 //!

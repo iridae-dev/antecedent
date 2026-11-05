@@ -3,7 +3,7 @@
 //! Format version 1, kind marker `array_fit_replay_v1`. The request carries the design the
 //! product was fitted on; the stored result is the posterior summary of that nuisance, labelled
 //! with its target, the meaning of its uncertainty and the premises declared. It is unsupported
-//! with calibration not_measured, and a consumer refuses any other value.
+//! with calibration `not_measured`, and a consumer refuses any other value.
 //!
 //! The product is a posterior of the treatment model only. Its scores are in-sample summaries,
 //! not out-of-fold effect scores, so this artifact is a different kind from the cross-fitted

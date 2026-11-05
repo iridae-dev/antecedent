@@ -119,13 +119,13 @@ fn white_innovation_posterior_is_the_least_squares_posterior_on_every_fixed_dag_
                     .n_draws(DRAWS)
                     .prior_scale(1.0e3)
                     .white_innovation(InnovationWhitenessGate { max_lag: 6, level: 0.01 });
-                let study = base
+                let builder = base
                     .query(query(sustained))
                     .inference(InferenceMode::Bayesian(config))
                     .refute(suite)
-                    .bootstrap_replicates(0)
-                    .build()
-                    .unwrap_or_else(|e| panic!("{label}: {e}"));
+                    .bootstrap_replicates(0);
+                let study = builder.clone().build().unwrap_or_else(|e| panic!("{label}: {e}"));
+                drop(builder);
                 let prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
                 drop(study);
                 let result = prepared

@@ -87,6 +87,7 @@ GRAPHLESS_CLAIM_KIND = {
     "all_action_pointwise_95_normal_intervals": "analytic",
     "conditional_q_pointwise_95_normal_interval": "analytic",
     "intercept_and_period_effects_pointwise_95_normal_intervals": "analytic",
+    "conditional_pseudo_posterior_pointwise_95_quantiles": "posterior",
 }
 # Declared procedures of the executing routes that no construction fixture covers. Each is the
 # procedure the owning source implements; `CORROBORATION` names what that source must contain.

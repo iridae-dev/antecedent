@@ -23,8 +23,8 @@
 //! `sampled_recovery.unrecoverable_pattern` with the offending patterns retained.
 //!
 //! The interval is reported with its calibration annotation; whole-method coverage is
-//! NOT_MEASURED outside the measured scope, and no coverage claim is made. The digests are fingerprints (FNV-based),
-//! not cryptographic.
+//! `not_measured` outside the measured scope, and no coverage claim is made. The digests
+//! are fingerprints (FNV-based), not cryptographic.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1118,7 +1118,7 @@ fn covariance(samples: &[Vec<f64>]) -> Vec<f64> {
     out.iter().map(|value| value / divisor).collect()
 }
 
-/// Efron (1987) `BCa` transformation. This is a not_measured candidate, not a
+/// Efron (1987) `BCa` transformation. This is a `not_measured` candidate, not a
 /// finite-sample coverage guarantee. Failures and unresolved tails are refused.
 #[allow(
     clippy::float_cmp,
@@ -1374,7 +1374,10 @@ mod digest_tests {
     fn receipt_digest_matches_the_independent_derivation() {
         // Golden vector derived in Python from the documented framing (tags, length-prefixed
         // text and byte masks, little-endian words and real bit patterns) and a from-scratch
-        // BLAKE3.
+        // BLAKE3 (`tests/oracle_data/sampled_receipt_digest_reference.py`). The interval
+        // calibration text is part of the framing: the status was renamed from `unmeasured`
+        // to `not_measured`, and the reference reproduces the earlier vector for the old text
+        // and this one for the current text.
         let receipt = SampledRecoveryReceipt {
             snapshot_id: "snap".to_string(),
             rows: 4,
@@ -1421,7 +1424,7 @@ mod digest_tests {
         };
         assert_eq!(
             receipt.recompute_digest(),
-            "9703333fd08577d574671f74075f8bb2653412e2200112811a27e040d61e880b"
+            "f431887cf34ec45b0cd19426814494b847d938c617e1e3d014e96136c6cfa9d8"
         );
     }
 }

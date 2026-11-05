@@ -3,7 +3,7 @@
 //! row-based fit), the absence of a row ceiling, the computation and export budgets, the digest
 //! binding of a summary to its rows, Holm multiplicity over the declared family, the declared
 //! monotonicity test and its null, sparse/absent/undeclared-level refusals, resealed-mutation
-//! refusals against a retained identity, unresealed tampering and the not_measured calibration
+//! refusals against a retained identity, unresealed tampering and the `not_measured` calibration
 //! coordinate.
 //!
 //! Frozen dataset A (rows interleaved on purpose): `a = [1,3]`, `b = [4,6,5]`, `c = [9,7,11,9]`;

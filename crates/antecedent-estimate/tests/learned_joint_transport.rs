@@ -5,7 +5,7 @@
 //! posterior precision, polynomial basis written out by hand) and never calls the code under
 //! test. The one exception is `learned_joint_linear_basis_reproduces_joint_bayesian_moments`,
 //! which is a labelled regression cross-check between two Antecedent paths, not independent
-//! truth. Calibration is not_measured; nothing here asserts coverage.
+//! truth. Calibration is `not_measured`; nothing here asserts coverage.
 #![allow(
     clippy::cast_precision_loss,
     clippy::similar_names,

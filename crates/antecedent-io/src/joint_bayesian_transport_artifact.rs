@@ -757,7 +757,7 @@ impl JointBayesianArtifactWire {
 
 impl JointBayesianArtifactWire {
     /// Produce the unchanged original candidate plus a separately record-bound
-    /// measured target-effect scalar. Other posterior quantities remain not_measured.
+    /// measured target-effect scalar. Other posterior quantities remain `not_measured`.
     /// # Errors
     /// Out-of-protocol inputs, original native refusal, or non-attesting evidence.
     pub fn build_measured(

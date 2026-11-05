@@ -4,7 +4,7 @@
 //! and digests are unchanged. An `Association` query requires it. The result describes the
 //! observed law of the columns: the body carries no scalar effect estimate, standard error or
 //! interval beside it, the section states that it is not an intervention effect and ranks no
-//! action, and it claims no support and a not_measured calibration. A loader checks that every
+//! action, and it claims no support and a `not_measured` calibration. A loader checks that every
 //! reported number is finite, that the selected analysis is one the declared selection rule can
 //! name, and that the uncertainty label names only what the section holds.
 //!
@@ -133,7 +133,7 @@ pub struct AssociationPredictionWire {
     pub calibration: String,
 }
 
-/// Noncausal association of the observed data (unsupported, not_measured).
+/// Noncausal association of the observed data (unsupported, `not_measured`).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AssociationWire {

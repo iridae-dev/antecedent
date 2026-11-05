@@ -21,6 +21,11 @@
 //! pinned on injected refits in `analysis::execute::curve_refutation`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[path = "retained_run/mod.rs"]
+mod retained;
+
+use retained::run_retained;
+
 use std::sync::Arc;
 
 use antecedent::{
@@ -223,11 +228,7 @@ fn response_curve_validation_temporal_dag_known_truth() {
                     .refute(suite)
                     .bootstrap_replicates(0);
                 let builder = if bayes { builder.inference(bayesian()) } else { builder };
-                let result = builder
-                    .build()
-                    .unwrap()
-                    .run(&ExecutionContext::for_tests(931))
-                    .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                let result = run_retained(builder, &label, &ExecutionContext::for_tests(931));
                 assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 for (value, x) in published(&result).iter().zip(&grid) {
                     assert!((value - (1.2 + 1.8 * x)).abs() <= band, "{label}: {value} at {x}");
@@ -239,15 +240,15 @@ fn response_curve_validation_temporal_dag_known_truth() {
     // Planted violation: a grid point beyond the observed treatment range.
     let mut planted = grid.clone();
     planted.push(number(&pin["lag_series"], &["off_support_at"]));
-    let broken = Study::series(data.clone())
-        .graph(lag_graph())
-        .query(CausalQuery::Response(curve(&planted, 1, None)))
-        .refute(RefuteSuite::Cheap)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(932))
-        .unwrap();
+    let broken = run_retained(
+        Study::series(data.clone())
+            .graph(lag_graph())
+            .query(CausalQuery::Response(curve(&planted, 1, None)))
+            .refute(RefuteSuite::Cheap)
+            .bootstrap_replicates(0),
+        "retained run",
+        &ExecutionContext::for_tests(932),
+    );
     assert!(
         report(&broken, "curve.support").is_some_and(|r| !r.passed),
         "an off-support grid point was not detected"
@@ -302,11 +303,7 @@ fn response_curve_validation_temporal_class_known_truth() {
                         .refute(suite)
                         .bootstrap_replicates(0);
                     let builder = if bayes { builder.inference(bayesian()) } else { builder };
-                    let result = builder
-                        .build()
-                        .unwrap()
-                        .run(&ExecutionContext::for_tests(933))
-                        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                    let result = run_retained(builder, &label, &ExecutionContext::for_tests(933));
                     assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                     for (value, x) in published(&result).iter().zip(&grid) {
                         let truth = 1.4 * x + 0.6 * mean_z;
@@ -387,11 +384,7 @@ fn response_curve_validation_temporal_posterior_known_truth() {
                 .refute(suite)
                 .bootstrap_replicates(0);
             let builder = if bayes { builder.inference(bayesian()) } else { builder };
-            let result = builder
-                .build()
-                .unwrap()
-                .run(&ExecutionContext::for_tests(934))
-                .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+            let result = run_retained(builder, &label, &ExecutionContext::for_tests(934));
             assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
             for (value, x) in published(&result).iter().zip(&lag_grid) {
                 assert!((value - (1.2 + 1.8 * x)).abs() <= band, "{label}: {value} at {x}");
@@ -406,11 +399,7 @@ fn response_curve_validation_temporal_posterior_known_truth() {
                     .refute(suite)
                     .bootstrap_replicates(0);
                 let builder = if bayes { builder.inference(bayesian()) } else { builder };
-                let result = builder
-                    .build()
-                    .unwrap()
-                    .run(&ExecutionContext::for_tests(935))
-                    .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                let result = run_retained(builder, &label, &ExecutionContext::for_tests(935));
                 assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 for (value, x) in published(&result).iter().zip(&class_grid) {
                     assert!((value - (1.4 * x + 0.6 * mean_z)).abs() <= band, "{label}: {value}");
@@ -487,11 +476,7 @@ fn response_curve_validation_dag_posterior_known_truth() {
                     .refute(suite)
                     .bootstrap_replicates(0);
                 let builder = if bayes { builder.inference(bayesian()) } else { builder };
-                let result = builder
-                    .build()
-                    .unwrap()
-                    .run(&ExecutionContext::for_tests(936))
-                    .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                let result = run_retained(builder, &label, &ExecutionContext::for_tests(936));
                 assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 for (value, x) in published(&result).iter().zip(&grid) {
                     assert!((value - (1.0 + 2.0 * x)).abs() <= band, "{label}: {value} at {x}");
@@ -546,11 +531,7 @@ fn response_curve_validation_panel_known_truth() {
                     .refute(suite)
                     .bootstrap_replicates(0);
                 let builder = if bayes { builder.inference(bayesian()) } else { builder };
-                let result = builder
-                    .build()
-                    .unwrap()
-                    .run(&ExecutionContext::for_tests(937))
-                    .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                let result = run_retained(builder, &label, &ExecutionContext::for_tests(937));
                 assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 for (value, x) in published(&result).iter().zip(&grid) {
                     assert!((value - (1.2 + 1.8 * x)).abs() <= band, "{label}: {value} at {x}");
@@ -625,11 +606,7 @@ fn response_curve_validation_temporal_admg_known_truth() {
                     base.graph(graph.clone())
                 };
                 let builder = if bayes { builder.inference(bayesian()) } else { builder };
-                let result = builder
-                    .build()
-                    .unwrap()
-                    .run(&ExecutionContext::for_tests(938))
-                    .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                let result = run_retained(builder, &label, &ExecutionContext::for_tests(938));
                 assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 for name in ["curve.support", "curve.placebo_treatment"] {
                     let found = report(&result, name)
@@ -663,15 +640,15 @@ fn response_curve_validation_adjustable_temporal_admg_known_truth() {
     let band = number(&pin, &["curve_absolute_tolerance"]);
     for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
         let label = format!("adjustable temporal admg {suite:?}");
-        let result = Study::tabular(data.clone())
-            .graph(graph.clone())
-            .query(CausalQuery::Response(static_curve(&grid)))
-            .refute(suite)
-            .bootstrap_replicates(0)
-            .build()
-            .unwrap()
-            .run(&ExecutionContext::for_tests(939))
-            .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        let result = run_retained(
+            Study::tabular(data.clone())
+                .graph(graph.clone())
+                .query(CausalQuery::Response(static_curve(&grid)))
+                .refute(suite)
+                .bootstrap_replicates(0),
+            &label,
+            &ExecutionContext::for_tests(939),
+        );
         assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
         for (value, x) in published(&result).iter().zip(&grid) {
             assert!((value - (1.0 + 2.0 * x)).abs() <= band, "{label}: {value} at {x}");
@@ -740,11 +717,7 @@ fn response_curve_validation_panel_class_known_truth() {
                         .refute(suite)
                         .bootstrap_replicates(0);
                     let builder = if bayes { builder.inference(bayesian()) } else { builder };
-                    let result = builder
-                        .build()
-                        .unwrap()
-                        .run(&ExecutionContext::for_tests(940))
-                        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+                    let result = run_retained(builder, &label, &ExecutionContext::for_tests(940));
                     assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                     for (value, x) in published(&result).iter().zip(&grid) {
                         let truth = 1.4 * x + 0.6 * mean_z;

@@ -7,7 +7,7 @@
 //! treated means. Static data takes it through Bayesian g-computation with a `Treated` target
 //! population; units with a history and a calendar period take it through the period-and-history
 //! outcome model. Both are labelled as model-based, execute unsupported with calibration
-//! not_measured, and leave the matching posterior refusal in place.
+//! `not_measured`, and leave the matching posterior refusal in place.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(

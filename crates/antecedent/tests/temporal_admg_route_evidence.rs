@@ -787,7 +787,7 @@ fn transport_study(
 /// frequentist standard error is the Newey-West long-run variance of the per-row influence at
 /// the series block length, and the Bayesian interval is the posterior of one Dirichlet weight
 /// per circular block. Both are wider than the same rows read as independent, which a static
-/// ADMG does. Both are unsupported with calibration not_measured.
+/// ADMG does. Both are unsupported with calibration `not_measured`.
 #[test]
 fn temporal_admg_transport_reports_a_serial_dependence_aware_interval() {
     let data = dependent_transport_series(1000);
@@ -894,7 +894,7 @@ fn temporal_admg_temporal_contrasts_are_typed_boundaries() {
 }
 
 #[test]
-fn response_curve_refuters_are_not_applicable_on_temporal_admg() {
+fn response_curve_refuters_are_supported_on_temporal_admg() {
     let status = antecedent::support::classify(
         SupportCell::from_labels(
             "ResponseCurve",
@@ -905,9 +905,10 @@ fn response_curve_refuters_are_not_applicable_on_temporal_admg() {
         )
         .expect("support axis"),
     );
-    assert!(
-        matches!(status, CellStatus::NotApplicable { .. }),
-        "a function-valued curve has no ATE refuter: {status:?}"
+    assert_eq!(
+        status,
+        CellStatus::Supported,
+        "a curve is refuted by refitting the whole curve on perturbed data: {status:?}"
     );
     let static_on_temporal_dag = antecedent::support::classify(
         SupportCell::from_labels(

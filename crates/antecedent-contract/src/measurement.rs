@@ -597,7 +597,7 @@ pub struct MeasurementInterfaceBasis {
     /// What the correction consumes of the indicator estimate and offers of
     /// the construct value.
     pub operations: BTreeSet<ContractOperation>,
-    /// The calibration the corrected value holds; `None` is not_measured when it
+    /// The calibration the corrected value holds; `None` is `not_measured` when it
     /// carries uncertainty and point-only otherwise.
     pub calibration: Option<CalibrationStatus>,
     /// The evidence the corrected value rests on.

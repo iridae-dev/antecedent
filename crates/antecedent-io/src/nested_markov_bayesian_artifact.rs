@@ -82,7 +82,7 @@ pub struct Artifact {
     pub coordinates: Vec<String>,
     /// Declared sampling assumption.
     pub sampling: String,
-    /// Original candidate standing remains not_measured; a distinct outer envelope resolves scalar authority.
+    /// Original candidate standing remains `not_measured`; a distinct outer envelope resolves scalar authority.
     pub calibration: String,
     /// Inferential standing, distinct from nonparametric identification.
     pub inference: String,
@@ -159,7 +159,7 @@ pub enum BayesianFunctional {
 impl Artifact {
     /// Actual candidate construction for its own later calibration suite.
     /// Prior families and frozen numerical settings are read from this receipt;
-    /// not_measured variants cannot borrow a different prior/settings record.
+    /// `not_measured` variants cannot borrow a different prior/settings record.
     #[must_use]
     pub fn calibration_basis(
         &self,

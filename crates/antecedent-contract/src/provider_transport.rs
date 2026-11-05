@@ -445,7 +445,7 @@ impl AdmittedProviderSource {
 
     /// The source as one instance of the interface-contract schema: a produced
     /// port that supplies the `external_provider` provenance stage. The port
-    /// is point-only for a mean alone and not_measured otherwise; it is never
+    /// is point-only for a mean alone and `not_measured` otherwise; it is never
     /// measured, so no interval or calibration is carried.
     #[must_use]
     pub fn interface_contract(&self) -> InterfaceContract {
@@ -671,7 +671,7 @@ impl TransportedClaimOffer {
 
     /// The offer as one instance of the interface-contract schema: a produced
     /// port that supplies the `transformation` and `claim` provenance stages.
-    /// It is point-only for a mean alone and not_measured otherwise; transport
+    /// It is point-only for a mean alone and `not_measured` otherwise; transport
     /// never produces a measured calibration label.
     #[must_use]
     pub fn interface_contract(&self) -> InterfaceContract {

@@ -2572,7 +2572,7 @@ fn every_supported_cell_inspects_as_a_first_class_contract() {
             failures.push(err);
         }
     }
-    assert_eq!(n, 2696, "supported inventory drifted");
+    assert_eq!(n, 2776, "supported inventory drifted");
     assert!(
         failures.is_empty(),
         "{} supported cells are not first-class on inspect:\n{}",
@@ -2661,7 +2661,7 @@ fn every_supported_cell_completes_the_compiler_path() {
     if let Ok(scratch) = std::env::var("SCRATCH_ROUTES") {
         std::fs::write(scratch, render_routes(&routes)).unwrap();
     }
-    assert_eq!(n, 2696, "supported inventory drifted");
+    assert_eq!(n, 2776, "supported inventory drifted");
     assert!(
         failures.is_empty(),
         "{} supported cells did not finish inspect→preview→execute→claim→consume:\n{}",
@@ -2794,7 +2794,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
         not_inspectable.len(),
         not_inspectable.join("\n")
     );
-    assert_eq!(count, 2696, "supported support inventory drifted");
+    assert_eq!(count, 2776, "supported support inventory drifted");
 }
 
 /// Probe for the separately supported alternate estimators. It keeps

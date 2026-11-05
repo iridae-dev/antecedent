@@ -168,7 +168,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "distribution.meanings"
-route = "antecedent.distribution.meaning_check"
+route = "antecedent.joint_distribution.DistributionIdentity"
 algorithm_provenance = ["provenance/distribution.meanings.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "distribution.meanings.meaning_operation.positive"
@@ -228,7 +228,7 @@ exact_request_verification = "external_source_requires_exact_request_and_named_q
 
 [[cell]]
 id = "external.scientific_providers"
-route = "antecedent.external.law_provider"
+route = "antecedent.provider_callbacks.CallbackDeclaration"
 algorithm_provenance = ["provenance/external.scientific_providers.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "external.scientific_providers.known_truth.positive"
@@ -243,7 +243,7 @@ exact_request_verification = "independent probes recomputed natively at the comp
 
 [[cell]]
 id = "external.response_binding"
-route = "antecedent.external.bind_response"
+route = "antecedent.external.ExternalSpec.bind"
 algorithm_provenance = ["provenance/external.response_binding.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "external.response_binding.known_truth.positive"
@@ -258,7 +258,7 @@ exact_request_verification = "optional: independent probes are recomputed native
 
 [[cell]]
 id = "external.capability_negotiation"
-route = "antecedent.external.negotiate_capability"
+route = "antecedent.provider_callbacks.CallbackSession.execute"
 algorithm_provenance = ["provenance/external.capability_negotiation.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "external.capability_negotiation.known_truth.positive"
@@ -273,7 +273,7 @@ exact_request_verification = "independent probes recomputed natively at the comp
 
 [[cell]]
 id = "external.object_verification"
-route = "antecedent.external.verify_object"
+route = "antecedent.provider_callbacks.CallbackDeclaration.verify"
 algorithm_provenance = ["provenance/external.object_verification.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "external.object_verification.known_truth.positive"
@@ -288,7 +288,7 @@ exact_request_verification = "independent probes recomputed natively at the comp
 
 [[cell]]
 id = "external.trust_receipt"
-route = "antecedent.external.trust_receipt"
+route = "antecedent.extensibility.ProviderVerificationReceipt.load"
 algorithm_provenance = ["provenance/external.trust_receipt.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "external.trust_receipt.known_truth.positive"
@@ -303,7 +303,7 @@ exact_request_verification = "independent probes recomputed natively at the comp
 
 [[cell]]
 id = "support.coordinate"
-route = "antecedent.support.coordinate_grid"
+route = "antecedent.dose_grid.dose_support_table"
 algorithm_provenance = ["provenance/support.coordinate.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "support.coordinate.known_truth.positive"
@@ -318,7 +318,7 @@ exact_request_verification = "not_applicable_no_external_provider_in_this_route"
 
 [[cell]]
 id = "composition.provenance"
-route = "antecedent.provenance.composition_chain"
+route = "antecedent.design.ranking.DesignRankingResult.stages_behind"
 algorithm_provenance = ["provenance/composition.provenance.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "composition.provenance.known_truth.positive"
@@ -348,7 +348,7 @@ exact_request_verification = "not_applicable_no_provider_in_this_route"
 
 [[cell]]
 id = "composition.language_parity"
-route = "antecedent.composition.cross_language"
+route = "antecedent.joint_distribution.JointDistributionArtifact.load"
 algorithm_provenance = ["provenance/composition.language_parity.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "composition.language_parity.known_truth.positive"
@@ -408,7 +408,7 @@ exact_request_verification = "not_applicable_no_provider_verification_in_this_ro
 
 [[cell]]
 id = "decision.structural_policy"
-route = "antecedent.decision.structural_policy"
+route = "antecedent.decision_robust.finite_scenarios"
 algorithm_provenance = ["provenance/decision.structural_policy.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "decision.structural_policy.known_truth.positive"
@@ -1098,7 +1098,7 @@ exact_request_verification = "reference_node_provider_request_fingerprint_compar
 
 [[cell]]
 id = "composition.verifiers"
-route = "antecedent.bundle.standard_consumer"
+route = "antecedent.composition_bundle.consume_bundle"
 algorithm_provenance = ["provenance/composition.verifiers.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "composition.verifiers.verifiers_joint_decision.positive"
@@ -1113,7 +1113,7 @@ exact_request_verification = "exact_request_receipt_checked_only_when_the_artifa
 
 [[cell]]
 id = "composition.verifiers"
-route = "antecedent.bundle.mean_decision_bytes"
+route = "antecedent.composition_bundle.mean_decision"
 algorithm_provenance = ["provenance/composition.verifiers.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "composition.verifiers.verifiers_mean_helper.positive"
@@ -1128,7 +1128,7 @@ exact_request_verification = "exact_request_receipt_checked_only_when_the_artifa
 
 [[cell]]
 id = "composition.multi_source"
-route = "antecedent.acceptance.multi_source_decision"
+route = "antecedent.composition.evaluate_with_support"
 algorithm_provenance = ["provenance/composition.multi_source.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "composition.multi_source.joint_law_decision.positive"
@@ -1233,7 +1233,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "recalculation.frozen_scores_artifact"
-route = "antecedent.recalc.frozen_scores_artifact"
+route = "antecedent.recalc_cell.CellSession.export_frozen_scores"
 algorithm_provenance = ["provenance/recalculation.frozen_scores.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "recalculation.frozen_scores_artifact.scores_round_trip.positive"
@@ -1248,7 +1248,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "transport.scenario_invariance"
-route = "antecedent.invariance.scenario_invariance_report"
+route = "antecedent.scenario_invariance.invariance_report"
 algorithm_provenance = ["provenance/transport.scenario_invariance.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "transport.scenario_invariance.invariance_standardize_factors.positive"
@@ -1537,7 +1537,7 @@ exact_request_verification = "not_applicable_native_engine_or_independently_repl
 
 [[cell]]
 id = "composition.native_authority"
-route = "antecedent.joint_distribution.JointDistributionArtifact.authority_boundary"
+route = "antecedent.composition.DecisionInput.from_distribution"
 algorithm_provenance = ["provenance/distribution.joint_alignment.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "composition.native_authority.native_authority.test_composition_boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused.positive"
@@ -8775,7 +8775,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "decision_reliability.optimality_confidence_set"
-route = "antecedent.python.decision_reliability.DecisionReliability.derive_uncertainty"
+route = "antecedent.decision_reliability.DecisionReliability.derive_uncertainty"
 algorithm_provenance = ["provenance/decision_reliability.derived_uncertainty.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "decision_reliability.optimality_confidence_set.paired_critical_value.positive"
@@ -9180,7 +9180,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "transport.assumption_range"
-route = "antecedent.transport_sensitivity.transport_range"
+route = "antecedent.transport.sensitivity.TransportSensitivity.decision_source"
 algorithm_provenance = ["provenance/transport.assumption_range.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "transport.assumption_range.additive_closed_form_band.positive"
@@ -9195,7 +9195,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "transport.assumption_range"
-route = "antecedent.transport_sensitivity.transport_sensitivity_artifact"
+route = "antecedent.transport.sensitivity.transport_sensitivity"
 algorithm_provenance = ["provenance/transport.assumption_range.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "transport.assumption_range.additive_closed_form_band.positive"
@@ -9285,7 +9285,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "decision.transported_source"
-route = "antecedent.decision_contract.BoundDecisionContract.evaluate_transported"
+route = "antecedent.decision.Contract.evaluate_transported"
 algorithm_provenance = ["provenance/decision.transported_source.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "decision.transported_source.point_decision.positive"
@@ -9480,7 +9480,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "inverse.transported_forward_source"
-route = "antecedent.inverse_sources.transported_source"
+route = "antecedent.inverse_sources.transported_forward_source"
 algorithm_provenance = ["provenance/decision.transported_source.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "inverse.transported_forward_source.policy_value_source.positive"
@@ -10546,7 +10546,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "estimate.uncertainty"
-route = "antecedent.result.PublishedScalarUncertainty.interval"
+route = "antecedent.results.IntervalBindingView"
 algorithm_provenance = ["provenance/estimate.uncertainty.toml"]
 parity_registry = "parity/capability_records.toml"
 positive_fixture = "estimate.uncertainty.normal_endpoint.positive"

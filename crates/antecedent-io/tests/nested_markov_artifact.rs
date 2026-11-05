@@ -3,7 +3,7 @@
 //! fields) replays independently.
 //!
 //! The oracle is the enumerated latent-variable SCM of the engine's own tests, summed out
-//! by hand; it calls nothing in the code under test. Calibration is not_measured, the
+//! by hand; it calls nothing in the code under test. Calibration is `not_measured`, the
 //! public interval route is not supported, and nothing here asserts coverage.
 #![allow(clippy::cast_precision_loss, reason = "binary levels and tiny fixed enumerations")]
 

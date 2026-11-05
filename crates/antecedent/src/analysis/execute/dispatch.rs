@@ -703,21 +703,12 @@ impl super::Study {
         execution: Option<&super::super::prepared::PreparedExecution>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.execute_on(&self.data, physical, execution, ctx)
+        self.execute_on(&self.data, physical, execution, None, ctx)
     }
 
     /// Execute against an explicit data slot (prepare/estimate must not clone `Study`).
+    /// `provenance` names the source rows of a temporal slot when the caller holds them.
     pub(crate) fn execute_on(
-        &self,
-        data: &DataInput,
-        physical: &std::sync::Arc<PhysicalExecutionPlan>,
-        execution: Option<&super::super::prepared::PreparedExecution>,
-        ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        self.execute_on_with_provenance(data, physical, execution, None, ctx)
-    }
-
-    pub(crate) fn execute_on_with_provenance(
         &self,
         data: &DataInput,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,

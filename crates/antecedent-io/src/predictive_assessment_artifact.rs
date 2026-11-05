@@ -8,7 +8,7 @@
 //! design, with the scores and diagnostics computed from them.
 //!
 //! * `predictive_assessment_meta` (CBOR): version, feature marker, the
-//!   point-only claim, the **not_measured** calibration status, the closed interval
+//!   point-only claim, the **`not_measured`** calibration status, the closed interval
 //!   status, the target, the validation design and dependence declarations, the
 //!   scoring and diagnostic configuration, each predictor's source and fit
 //!   declaration, the identity digests, the stored result labels and the standing

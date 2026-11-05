@@ -5,6 +5,7 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
+# Provenance of the capability `estimate.response_gam_derivative`.
 # Antecedent fits an identity-link additive cubic B-spline GAM and evaluates
 # the plug-in gradient with the analytic degree-drop derivative of each
 # treatment smooth. Outside the open knot interior [knots[3], knots[len-4])

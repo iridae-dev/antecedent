@@ -6,7 +6,7 @@
 //! treated units, conditional on the period and the history-mean score. The standard error is the
 //! Abadie-Imbens form for one match with replacement; the interval allows serial dependence
 //! between periods (Newey-West over the matched periods, normal at 97.5%) and is absent when
-//! fewer than two periods hold a match. The route is unsupported and its calibration is not_measured. A posterior of this contrast does not exist (a
+//! fewer than two periods hold a match. The route is unsupported and its calibration is `not_measured`. A posterior of this contrast does not exist (a
 //! matching rule has no likelihood): Bayesian inference with the matching estimator is refused
 //! with that premise and the next attempt. That next attempt is the estimator
 //! `bayesian.period_history_outcome_model`: the posterior of a declared Gaussian outcome model

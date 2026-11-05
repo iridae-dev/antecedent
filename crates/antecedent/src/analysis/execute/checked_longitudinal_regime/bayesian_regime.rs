@@ -5,7 +5,7 @@
 //! the Bayesian-bootstrap functional of the backward-recursive subject scores, computed from the
 //! declared sequential probabilities and frozen subject-excluded Q predictions. The declared
 //! probabilities identify the value; the prior on the subject law does not. The route is
-//! unsupported and its calibration is not_measured.
+//! unsupported and its calibration is `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{

@@ -274,10 +274,15 @@ impl ExecutionContext {
 
     /// Production context: optimized kernels allowed, cache enabled, bounded threads.
     ///
-    /// Monte Carlo effort is evaluated in full: the requested bootstrap
-    /// replicates and posterior draws are what the calibration gates certify,
-    /// so no early-stop budget is enabled. Opt in by setting
-    /// [`Self::adaptive_bootstrap`] / [`Self::adaptive_draws`] explicitly.
+    /// The memory pool is unbounded and there is no wall clock: the host owns the
+    /// machine's budget and sets it with [`Self::with_admission`]. Every kernel's work
+    /// cap still applies, so this context is never unbounded in work (see the admission
+    /// contract in `docs/guides/build/embedding.md`).
+    ///
+    /// Monte Carlo effort is evaluated in full: the requested bootstrap replicates and
+    /// posterior draws are the procedure whose calibration is measured, so no early-stop
+    /// budget is enabled. Opt in by setting [`Self::adaptive_bootstrap`] /
+    /// [`Self::adaptive_draws`] explicitly.
     #[must_use]
     pub fn production(seed: u64, max_threads: u32) -> Self {
         let threads =

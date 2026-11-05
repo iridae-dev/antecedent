@@ -645,7 +645,7 @@ def main() -> None:
             (
                 "discrete_resource_refusal",
                 discrete,
-                "a_table_the_pool_cannot_hold_is_refused_before_it_is_built",
+                "a_pool_that_cannot_hold_the_support_enumeration_is_refused_before_planning",
             ),
         ]
     )

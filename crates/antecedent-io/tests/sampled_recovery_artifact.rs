@@ -5,7 +5,7 @@
 //!
 //! The oracle is the enumerated binary missingness SCM of the engine's own tests (the
 //! shared fixture module is included by path), never the code under test. Interval
-//! calibration is not_measured; nothing here asserts a coverage claim.
+//! calibration is `not_measured`; nothing here asserts a coverage claim.
 #![allow(clippy::cast_precision_loss, reason = "test counts and indices are small and nonnegative")]
 
 #[path = "../../antecedent-estimate/tests/support/recovery_scm.rs"]

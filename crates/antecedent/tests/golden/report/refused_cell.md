@@ -98,6 +98,7 @@ A neighbour changes the stated premises; it is not a fallback.
 | NestedCounterfactualEffect:Admg:explicit:Frequentist:full | query: ChangeAttribution to NestedCounterfactualEffect | change the query; do not relabel the graph class |
 | PathSpecificEffect:Admg:explicit:Frequentist:full | query: ChangeAttribution to PathSpecificEffect | change the query; do not relabel the graph class |
 | PointDerivative:Admg:explicit:Frequentist:full | query: ChangeAttribution to PointDerivative | change the query; do not relabel the graph class |
+| ResponseCurve:Admg:explicit:Frequentist:full | query: ChangeAttribution to ResponseCurve | change the query; do not relabel the graph class |
 | ResponseJacobian:Admg:explicit:Frequentist:full | query: ChangeAttribution to ResponseJacobian | change the query; do not relabel the graph class |
 | SemiElasticity:Admg:explicit:Frequentist:full | query: ChangeAttribution to SemiElasticity | change the query; do not relabel the graph class |
 | TransportQuery:Admg:explicit:Frequentist:full | query: ChangeAttribution to TransportQuery | change the query; do not relabel the graph class |
@@ -174,6 +175,9 @@ A neighbour changes the stated premises; it is not a fallback.
 | PointDerivative:Admg:explicit:Frequentist:cheap | query: ChangeAttribution to PointDerivative; validation: full to cheap | change the listed premises; do not relabel the graph class |
 | PointDerivative:Admg:explicit:Frequentist:none | query: ChangeAttribution to PointDerivative; validation: full to none | change the listed premises; do not relabel the graph class |
 | PointDerivative:Admg:graph\_posterior:Frequentist:full | query: ChangeAttribution to PointDerivative; structure: explicit to graph\_posterior | change the listed premises; do not relabel the graph class |
+| ResponseCurve:Admg:accepted:Frequentist:full | query: ChangeAttribution to ResponseCurve; structure: explicit to accepted | change the listed premises; do not relabel the graph class |
+| ResponseCurve:Admg:explicit:Bayesian:full | query: ChangeAttribution to ResponseCurve; inference: Frequentist to Bayesian | change the listed premises; do not relabel the graph class |
+| ResponseCurve:Admg:explicit:Frequentist:cheap | query: ChangeAttribution to ResponseCurve; validation: full to cheap | change the listed premises; do not relabel the graph class |
 | ResponseCurve:Admg:explicit:Frequentist:none | query: ChangeAttribution to ResponseCurve; validation: full to none | change the listed premises; do not relabel the graph class |
 | ResponseCurve:Admg:graph\_posterior:Frequentist:full | query: ChangeAttribution to ResponseCurve; structure: explicit to graph\_posterior | change the listed premises; do not relabel the graph class |
 | ResponseJacobian:Admg:accepted:Frequentist:full | query: ChangeAttribution to ResponseJacobian; structure: explicit to accepted | change the listed premises; do not relabel the graph class |
@@ -305,7 +309,10 @@ A neighbour changes the stated premises; it is not a fallback.
 | PointDerivative:Admg:graph\_posterior:Bayesian:full | query: ChangeAttribution to PointDerivative; structure: explicit to graph\_posterior; inference: Frequentist to Bayesian | change the listed premises; do not relabel the graph class |
 | PointDerivative:Admg:graph\_posterior:Frequentist:cheap | query: ChangeAttribution to PointDerivative; structure: explicit to graph\_posterior; validation: full to cheap | change the listed premises; do not relabel the graph class |
 | PointDerivative:Admg:graph\_posterior:Frequentist:none | query: ChangeAttribution to PointDerivative; structure: explicit to graph\_posterior; validation: full to none | change the listed premises; do not relabel the graph class |
+| ResponseCurve:Admg:accepted:Bayesian:full | query: ChangeAttribution to ResponseCurve; structure: explicit to accepted; inference: Frequentist to Bayesian | change the listed premises; do not relabel the graph class |
+| ResponseCurve:Admg:accepted:Frequentist:cheap | query: ChangeAttribution to ResponseCurve; structure: explicit to accepted; validation: full to cheap | change the listed premises; do not relabel the graph class |
 | ResponseCurve:Admg:accepted:Frequentist:none | query: ChangeAttribution to ResponseCurve; structure: explicit to accepted; validation: full to none | change the listed premises; do not relabel the graph class |
+| ResponseCurve:Admg:explicit:Bayesian:cheap | query: ChangeAttribution to ResponseCurve; inference: Frequentist to Bayesian; validation: full to cheap | change the listed premises; do not relabel the graph class |
 | ResponseCurve:Admg:explicit:Bayesian:none | query: ChangeAttribution to ResponseCurve; inference: Frequentist to Bayesian; validation: full to none | change the listed premises; do not relabel the graph class |
 | ResponseCurve:Admg:graph\_posterior:Bayesian:full | query: ChangeAttribution to ResponseCurve; structure: explicit to graph\_posterior; inference: Frequentist to Bayesian | change the listed premises; do not relabel the graph class |
 | ResponseCurve:Admg:graph\_posterior:Frequentist:cheap | query: ChangeAttribution to ResponseCurve; structure: explicit to graph\_posterior; validation: full to cheap | change the listed premises; do not relabel the graph class |
@@ -390,6 +397,7 @@ A neighbour changes the stated premises; it is not a fallback.
 | PointDerivative:Admg:accepted:Bayesian:none | query: ChangeAttribution to PointDerivative; structure: explicit to accepted; inference: Frequentist to Bayesian; validation: full to none | change the listed premises; do not relabel the graph class |
 | PointDerivative:Admg:graph\_posterior:Bayesian:cheap | query: ChangeAttribution to PointDerivative; structure: explicit to graph\_posterior; inference: Frequentist to Bayesian; validation: full to cheap | change the listed premises; do not relabel the graph class |
 | PointDerivative:Admg:graph\_posterior:Bayesian:none | query: ChangeAttribution to PointDerivative; structure: explicit to graph\_posterior; inference: Frequentist to Bayesian; validation: full to none | change the listed premises; do not relabel the graph class |
+| ResponseCurve:Admg:accepted:Bayesian:cheap | query: ChangeAttribution to ResponseCurve; structure: explicit to accepted; inference: Frequentist to Bayesian; validation: full to cheap | change the listed premises; do not relabel the graph class |
 | ResponseCurve:Admg:accepted:Bayesian:none | query: ChangeAttribution to ResponseCurve; structure: explicit to accepted; inference: Frequentist to Bayesian; validation: full to none | change the listed premises; do not relabel the graph class |
 | ResponseCurve:Admg:graph\_posterior:Bayesian:cheap | query: ChangeAttribution to ResponseCurve; structure: explicit to graph\_posterior; inference: Frequentist to Bayesian; validation: full to cheap | change the listed premises; do not relabel the graph class |
 | ResponseCurve:Admg:graph\_posterior:Bayesian:none | query: ChangeAttribution to ResponseCurve; structure: explicit to graph\_posterior; inference: Frequentist to Bayesian; validation: full to none | change the listed premises; do not relabel the graph class |

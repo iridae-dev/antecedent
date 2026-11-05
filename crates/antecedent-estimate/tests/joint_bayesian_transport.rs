@@ -2,7 +2,7 @@
 //!
 //! The oracle below is written out in closed-form matrix algebra (Gauss-Jordan inverse of
 //! the posterior precision) and never calls the code under test. Calibration is
-//! not_measured in this wave; nothing here asserts coverage.
+//! `not_measured` in this wave; nothing here asserts coverage.
 #![allow(
     clippy::cast_precision_loss,
     clippy::similar_names,

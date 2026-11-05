@@ -433,7 +433,7 @@ pub struct PeriodHistoryEstimate {
     /// conditional on the scores and the treatment, with within-arm nearest-neighbour outcome
     /// variances. `None` when a matched treated unit or a used donor has no other unit of its arm
     /// in its period, or a matched weight is not positive. Its repeated-sampling calibration is
-    /// not_measured.
+    /// `not_measured`.
     pub standard_error: Option<f64>,
     /// Within-arm outcome variance estimate of each matched treated unit, in matched order;
     /// empty when some matched unit or donor has no same-arm neighbour.
@@ -470,7 +470,7 @@ pub struct PeriodHistoryEstimate {
 /// `floor(4 (T / 100)^(2/9))` (periods enter by their labels, so a missing period invents no
 /// adjacency), scaled by `T / (T - 1) / (sum of weights)^2`. This is the estimator the arm
 /// designs use for serially dependent unit-period data. The interval is normal at the 97.5%
-/// point and is conditional on the periods that hold a match; its calibration is not_measured.
+/// point and is conditional on the periods that hold a match; its calibration is `not_measured`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SerialHistoryInterval {
     /// Newey-West standard error.

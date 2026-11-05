@@ -134,3 +134,18 @@ fn learned_trial_aipw_independent_samples_joint_bootstrap_mean_contrast() {
         "learned_continuous_independent_samples_good_overlap_bootstrap",
     );
 }
+
+/// One replicate per design, quickly: the percentile band is ordered and finite, and its
+/// centre sits within a few half-widths of the known target contrast.
+#[test]
+fn one_replicate_reports_a_valid_band_near_the_known_contrast() {
+    let sizes = (300, 200);
+    let truth = Scenario::Good.truth();
+    for design in [Design::NestedCohort, Design::IndependentSamples] {
+        let ((lower, upper), ok) = execute(design, sizes, 1).expect("the estimator runs");
+        assert!(lower.is_finite() && upper.is_finite() && lower < upper, "[{lower}, {upper}]");
+        assert!(ok > 0, "some bootstrap replicates completed");
+        let (centre, half) = (0.5 * (lower + upper), 0.5 * (upper - lower));
+        assert!((centre - truth).abs() < 5.0 * half, "centre {centre} vs {truth}, half {half}");
+    }
+}

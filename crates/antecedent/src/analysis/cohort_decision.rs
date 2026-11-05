@@ -177,7 +177,7 @@ pub fn fit_cohort_effect(
 /// fit, bound to a currently attesting coverage record, or a typed refusal.
 ///
 /// # Errors
-/// A source not built from `native`, a shifted cohort, a not_measured level or fit size
+/// A source not built from `native`, a shifted cohort, a `not_measured` level or fit size
 /// (no attesting record), or a changed artifact.
 pub fn measured_cohort_interval(
     native: &NativeCohortFit,

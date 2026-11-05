@@ -40,7 +40,7 @@
 //!   `m > 1`. Rejection is evidence that the effects are *not* monotone in that direction;
 //!   failing to reject does not prove monotonicity.
 //!
-//! The Type I error and power of the test are *not_measured*
+//! The Type I error and power of the test are *`not_measured`*
 //! ([`CalibrationStatus::NotMeasured`]); every p-value is asymptotic and no coverage claim is
 //! made.
 //!

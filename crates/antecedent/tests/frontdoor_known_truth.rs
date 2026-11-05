@@ -20,7 +20,7 @@ use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, InferenceMode, Study}
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
-use support::{Coordinate, GraphKind, Structure, for_each_matching, on_large_stack};
+use support::{Coordinate, GraphKind, Structure, for_each_matching, on_large_stack, run_retained};
 
 /// Exact equality of two indicator values (the design only holds literal 0/1 levels).
 fn same(a: f64, b: f64) -> bool {
@@ -103,22 +103,22 @@ fn frontdoor_functional_matches_the_enumerated_effect_on_every_dag_coordinate() 
                 Structure::Explicit => builder.graph(frontdoor_dag()),
                 _ => builder.graph(AcceptedGraph::from(frontdoor_dag())),
             };
-            let result = builder
-                .query(AverageEffectQuery::with_levels(
-                    VariableId::from_raw(0),
-                    VariableId::from_raw(1),
-                    0.0,
-                    1.0,
-                ))
-                .identifier(IdentifierId::Frontdoor)
-                .estimator(EstimatorId::FrontDoorFunctional)
-                .inference(InferenceMode::Frequentist)
-                .refute(coordinate.suite)
-                .bootstrap_replicates(0)
-                .build()
-                .unwrap_or_else(|e| panic!("{}: build: {e}", coordinate.text))
-                .run(&ExecutionContext::for_tests(43))
-                .unwrap_or_else(|e| panic!("{}: run: {e}", coordinate.text));
+            let result = run_retained(
+                builder
+                    .query(AverageEffectQuery::with_levels(
+                        VariableId::from_raw(0),
+                        VariableId::from_raw(1),
+                        0.0,
+                        1.0,
+                    ))
+                    .identifier(IdentifierId::Frontdoor)
+                    .estimator(EstimatorId::FrontDoorFunctional)
+                    .inference(InferenceMode::Frequentist)
+                    .refute(coordinate.suite)
+                    .bootstrap_replicates(0),
+                &coordinate.text,
+                &ExecutionContext::for_tests(43),
+            );
             assert_eq!(
                 result.logical_plan.estimator.as_deref(),
                 Some("frontdoor.functional"),

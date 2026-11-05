@@ -25,7 +25,7 @@
 //! The within-unit variance and correlation are declared, not estimated, and the arm-mean priors
 //! are declared, not defaulted: a prior alone never identifies the contrast, and an arm without a
 //! completed unit is refused. The report is unsupported and its repeated-sampling calibration is
-//! not_measured; both facts are retained in the artifact.
+//! `not_measured`; both facts are retained in the artifact.
 //!
 //! The retained report carries the completed units, so the loader recomputes every reported
 //! number from them under the declared procedure and refuses a payload that does not reproduce.
@@ -46,7 +46,7 @@ use super::adaptive_procedure_report::{RepeatedMeasuresProcedure, refusal_of};
 pub const REPEATED_MEASURES_POSTERIOR_ESTIMATOR_ID: &str =
     "bayesian.repeated_measures_arm_contrast";
 
-/// Calibration standing carried by the report: repeated-sampling calibration is not_measured.
+/// Calibration standing carried by the report: repeated-sampling calibration is `not_measured`.
 const UNCALIBRATED_STANDING: &str = "not_measured";
 
 /// Format name of the retained artifact envelope.
@@ -168,7 +168,7 @@ pub struct RepeatedMeasuresPosteriorReport {
     pub unit_measurements: Vec<Vec<f64>>,
     /// Always `false`: no support covers this estimator.
     pub supported: bool,
-    /// Always `false`: repeated-sampling calibration is not_measured.
+    /// Always `false`: repeated-sampling calibration is `not_measured`.
     pub calibration_measured: bool,
     /// Calibration standing; `not_measured`.
     pub calibration: String,

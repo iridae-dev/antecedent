@@ -9592,8 +9592,40 @@
       "declaration": "pub fn <antecedent::decision_evidence::RetainedJointPanelUpdate>::fn result(&self) -> &antecedent::analysis::joint_panel::PanelJointExperimentResult",
       "kind": "method"
     },
+    "<antecedent::declared::IidSampling>::parse_learned_continuous": {
+      "declaration": "pub fn <antecedent::declared::IidSampling>::fn parse_learned_continuous(name: &str) -> core::result::Result<Self, antecedent_estimate::error::EstimationError>",
+      "kind": "method"
+    },
+    "<antecedent::declared::IidSampling>::parse_smoothed_dose": {
+      "declaration": "pub fn <antecedent::declared::IidSampling>::fn parse_smoothed_dose(name: &str) -> core::result::Result<Self, antecedent_estimate::error::EstimationError>",
+      "kind": "method"
+    },
     "<antecedent::error::PendingEdge>::new": {
       "declaration": "pub fn <antecedent::error::PendingEdge>::fn new(source: impl core::convert::Into<alloc::string::String>, target: impl core::convert::Into<alloc::string::String>, at_source: impl core::convert::Into<alloc::string::String>, at_target: impl core::convert::Into<alloc::string::String>) -> Self",
+      "kind": "method"
+    },
+    "<antecedent::execution::AdmissionRefusal>::is_cancelled": {
+      "declaration": "pub fn <antecedent::execution::AdmissionRefusal>::fn is_cancelled(&self) -> bool",
+      "kind": "method"
+    },
+    "<antecedent::execution::FixedBudget>::apply": {
+      "declaration": "pub fn <antecedent::execution::FixedBudget>::fn apply(&self, ctx: antecedent_core::execution::context::ExecutionContext) -> antecedent_core::execution::context::ExecutionContext",
+      "kind": "method"
+    },
+    "<antecedent::execution::FixedBudget>::available_bytes": {
+      "declaration": "pub fn <antecedent::execution::FixedBudget>::fn available_bytes(&self) -> u64",
+      "kind": "method"
+    },
+    "<antecedent::execution::FixedBudget>::new": {
+      "declaration": "pub fn <antecedent::execution::FixedBudget>::fn new(threads: u32, bytes: u64) -> Self",
+      "kind": "method"
+    },
+    "<antecedent::execution::ObservationToken>::capture": {
+      "declaration": "pub fn <antecedent::execution::ObservationToken>::fn capture() -> Self",
+      "kind": "method"
+    },
+    "<antecedent::execution::ObservationToken>::execute": {
+      "declaration": "pub fn <antecedent::execution::ObservationToken>::fn execute<T>(&self, execute: impl core::ops::function::FnOnce() -> T) -> T",
       "kind": "method"
     },
     "<antecedent::gcm::CheckedCounterfactualOperation>::graph": {
@@ -16970,6 +17002,18 @@
       "declaration": "pub fn antecedent::cross_world::evaluate_cross_world_effect(graph: impl antecedent::IntoGraphInput, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::cross_world::CrossWorldQuery, options: antecedent::cross_world::CrossWorldOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent::CausalError>",
       "kind": "function"
     },
+    "antecedent::data::arrow_c::load_columns": {
+      "declaration": "pub fn antecedent::data::arrow_c::load_columns(columns: alloc::vec::Vec<antecedent_data::arrow_ffi::ArrowCColumn>) -> core::result::Result<antecedent_data::arrow_adapter::ArrowLoadResult, antecedent_data::error::DataError>",
+      "kind": "function"
+    },
+    "antecedent::data::buffer_with_retention": {
+      "declaration": "pub fn antecedent::data::buffer_with_retention(buffer: antecedent_data::buffer::F64Buffer, retention: &antecedent::execution::Retention) -> antecedent_data::buffer::F64Buffer",
+      "kind": "function"
+    },
+    "antecedent::data::with_retention": {
+      "declaration": "pub fn antecedent::data::with_retention(data: antecedent_data::dataset::TabularData, retention: &antecedent::execution::Retention) -> antecedent_data::dataset::TabularData",
+      "kind": "function"
+    },
     "antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence": {
       "declaration": "pub struct antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence",
       "kind": "type"
@@ -17174,6 +17218,22 @@
       "declaration": "pub fn antecedent::decision_evidence::joint_contrast_sampling(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, components: &[&str]) -> core::result::Result<antecedent::decision_evidence::JointContrastSampling, antecedent::analysis::joint_panel::JointPanelError>",
       "kind": "function"
     },
+    "antecedent::declared::IidSampling": {
+      "declaration": "pub enum antecedent::declared::IidSampling",
+      "kind": "type"
+    },
+    "antecedent::declared::LearnedContinuousTarget": {
+      "declaration": "pub enum antecedent::declared::LearnedContinuousTarget",
+      "kind": "type"
+    },
+    "antecedent::declared::MatchedEstimand": {
+      "declaration": "pub enum antecedent::declared::MatchedEstimand",
+      "kind": "type"
+    },
+    "antecedent::declared::SmoothedDoseTarget": {
+      "declaration": "pub enum antecedent::declared::SmoothedDoseTarget",
+      "kind": "type"
+    },
     "antecedent::design::DesignRankPreview": {
       "declaration": "pub struct antecedent::design::DesignRankPreview",
       "kind": "type"
@@ -17281,6 +17341,66 @@
     "antecedent::estimator_spec::BuildDefaults": {
       "declaration": "pub struct antecedent::estimator_spec::BuildDefaults<'a>",
       "kind": "type"
+    },
+    "antecedent::execution::AdmissionRefusal": {
+      "declaration": "pub enum antecedent::execution::AdmissionRefusal",
+      "kind": "type"
+    },
+    "antecedent::execution::FixedBudget": {
+      "declaration": "pub struct antecedent::execution::FixedBudget",
+      "kind": "type"
+    },
+    "antecedent::execution::FixedBudget#bac542d58859": {
+      "declaration": "pub struct antecedent::execution::FixedBudget has private fields",
+      "kind": "type"
+    },
+    "antecedent::execution::ObservationToken": {
+      "declaration": "pub struct antecedent::execution::ObservationToken",
+      "kind": "type"
+    },
+    "antecedent::execution::ObservationToken#1ea2b7957750": {
+      "declaration": "pub struct antecedent::execution::ObservationToken has private fields",
+      "kind": "type"
+    },
+    "antecedent::execution::Retention": {
+      "declaration": "pub struct antecedent::execution::Retention",
+      "kind": "type"
+    },
+    "antecedent::execution::Retention#a4500e9b04c8": {
+      "declaration": "pub struct antecedent::execution::Retention has private fields",
+      "kind": "type"
+    },
+    "antecedent::execution::artifact_io_admission_error": {
+      "declaration": "pub fn antecedent::execution::artifact_io_admission_error(cancelled: bool) -> antecedent_io_core::error::IoError",
+      "kind": "function"
+    },
+    "antecedent::execution::is_admission_refusal": {
+      "declaration": "pub fn antecedent::execution::is_admission_refusal(error: &dyn core::error::Error + 'static) -> bool",
+      "kind": "function"
+    },
+    "antecedent::execution::observe": {
+      "declaration": "pub fn antecedent::execution::observe<T, E>(ctx: &antecedent_core::execution::context::ExecutionContext, execute: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E>",
+      "kind": "function"
+    },
+    "antecedent::execution::retain": {
+      "declaration": "pub fn antecedent::execution::retain(ctx: &antecedent_core::execution::context::ExecutionContext, bytes: u64) -> core::result::Result<antecedent::execution::Retention, antecedent::execution::AdmissionRefusal>",
+      "kind": "function"
+    },
+    "antecedent::execution::retain_bounded": {
+      "declaration": "pub fn antecedent::execution::retain_bounded(ctx: &antecedent_core::execution::context::ExecutionContext, bytes: u64, bound: core::time::Duration) -> core::result::Result<antecedent::execution::Retention, antecedent::execution::AdmissionRefusal>",
+      "kind": "function"
+    },
+    "antecedent::execution::retain_product": {
+      "declaration": "pub fn antecedent::execution::retain_product(ctx: &antecedent_core::execution::context::ExecutionContext, count: u64, width: u64) -> core::result::Result<antecedent::execution::Retention, antecedent::execution::AdmissionRefusal>",
+      "kind": "function"
+    },
+    "antecedent::execution::run_admitted": {
+      "declaration": "pub fn antecedent::execution::run_admitted<T>(ctx: &antecedent_core::execution::context::ExecutionContext, execute: impl core::ops::function::FnOnce() -> T) -> T",
+      "kind": "function"
+    },
+    "antecedent::execution::run_admitted_recording_refusal": {
+      "declaration": "pub fn antecedent::execution::run_admitted_recording_refusal<T>(ctx: &antecedent_core::execution::context::ExecutionContext, execute: impl core::ops::function::FnOnce() -> T) -> (T, core::option::Option<antecedent::execution::AdmissionRefusal>)",
+      "kind": "function"
     },
     "antecedent::gcm::CheckedCounterfactualOperation": {
       "declaration": "pub struct antecedent::gcm::CheckedCounterfactualOperation",
@@ -17436,6 +17556,30 @@
     },
     "antecedent::host::unmet_obligation_records": {
       "declaration": "pub fn antecedent::host::unmet_obligation_records(obligations: &[antecedent_contract::obligation::ObligationRecord]) -> alloc::vec::Vec<serde_json::value::Value>",
+      "kind": "function"
+    },
+    "antecedent::identity::blake3_hex": {
+      "declaration": "pub fn antecedent::identity::blake3_hex(bytes: &[u8]) -> alloc::string::String",
+      "kind": "function"
+    },
+    "antecedent::identity::digest_bytes": {
+      "declaration": "pub fn antecedent::identity::digest_bytes(tag: &str, bytes: &[u8]) -> antecedent_core::identity::SemanticDigest",
+      "kind": "function"
+    },
+    "antecedent::identity::digest_claim_wire": {
+      "declaration": "pub fn antecedent::identity::digest_claim_wire<T: serde_core::ser::Serialize>(value: &T) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::error::IoError>",
+      "kind": "function"
+    },
+    "antecedent::identity::digest_labels": {
+      "declaration": "pub fn antecedent::identity::digest_labels<S: core::convert::AsRef<str>>(tag: &str, labels: &[S]) -> antecedent_core::identity::SemanticDigest",
+      "kind": "function"
+    },
+    "antecedent::identity::parse_digest": {
+      "declaration": "pub fn antecedent::identity::parse_digest(text: &str) -> core::option::Option<antecedent_core::identity::SemanticDigest>",
+      "kind": "function"
+    },
+    "antecedent::identity::to_hex": {
+      "declaration": "pub fn antecedent::identity::to_hex(bytes: &[u8]) -> alloc::string::String",
       "kind": "function"
     },
     "antecedent::inference::DecodedPriorHydrate": {
@@ -17861,6 +18005,38 @@
     "antecedent::planner::statistical::StatisticalProgram#51694aee05ef": {
       "declaration": "pub struct antecedent::planner::statistical::StatisticalProgram has private fields",
       "kind": "type"
+    },
+    "antecedent::refusal::column_attribution_unsupported": {
+      "declaration": "pub fn antecedent::refusal::column_attribution_unsupported() -> antecedent_estimate::error::EstimationError",
+      "kind": "function"
+    },
+    "antecedent::refusal::ensure_not_cancelled": {
+      "declaration": "pub fn antecedent::refusal::ensure_not_cancelled(ctx: &antecedent_core::execution::context::ExecutionContext, stage: &str) -> core::result::Result<(), antecedent_estimate::error::EstimationError>",
+      "kind": "function"
+    },
+    "antecedent::refusal::evaluation_failure": {
+      "declaration": "pub fn antecedent::refusal::evaluation_failure(error: &antecedent_expr::provider::EvalError) -> antecedent_estimate::error::EstimationError",
+      "kind": "function"
+    },
+    "antecedent::refusal::flexible_learner_dependence": {
+      "declaration": "pub fn antecedent::refusal::flexible_learner_dependence(estimator_id: &str, option: &str) -> antecedent_estimate::error::EstimationError",
+      "kind": "function"
+    },
+    "antecedent::refusal::joint_interval_unsupported": {
+      "declaration": "pub fn antecedent::refusal::joint_interval_unsupported() -> antecedent_estimate::error::EstimationError",
+      "kind": "function"
+    },
+    "antecedent::refusal::joint_learner_interval_unsupported": {
+      "declaration": "pub fn antecedent::refusal::joint_learner_interval_unsupported() -> antecedent_estimate::error::EstimationError",
+      "kind": "function"
+    },
+    "antecedent::refusal::sampling_weights_invalid": {
+      "declaration": "pub fn antecedent::refusal::sampling_weights_invalid(message: &str) -> antecedent_estimate::error::EstimationError",
+      "kind": "function"
+    },
+    "antecedent::refusal::sampling_weights_unsupported_route": {
+      "declaration": "pub fn antecedent::refusal::sampling_weights_unsupported_route(message: &str) -> antecedent_estimate::error::EstimationError",
+      "kind": "function"
     },
     "antecedent::refused_message": {
       "declaration": "pub fn antecedent::refused_message(cell: antecedent::SupportCell) -> &'static str",
@@ -29372,6 +29548,11 @@
       "kind": "reexport",
       "target": "antecedent_counterfactual::transported_gate::RegimeFactorKey"
     },
+    "export:antecedent::analysis::temporal_counterfactual::SelectiveTemporalReport": {
+      "declaration": "pub use antecedent::analysis::temporal_counterfactual::SelectiveTemporalReport = temporal_counterfactual_wire::SelectiveTemporalReport",
+      "kind": "reexport",
+      "target": "temporal_counterfactual_wire::SelectiveTemporalReport"
+    },
     "export:antecedent::analysis::temporal_counterfactual::SharedAbductionReceipt": {
       "declaration": "pub use antecedent::analysis::temporal_counterfactual::SharedAbductionReceipt = antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt",
       "kind": "reexport",
@@ -29446,6 +29627,11 @@
       "declaration": "pub use antecedent::analysis::temporal_counterfactual::WitnessWire = temporal_counterfactual_wire::WitnessWire",
       "kind": "reexport",
       "target": "temporal_counterfactual_wire::WitnessWire"
+    },
+    "export:antecedent::analysis::temporal_counterfactual::execute_selective": {
+      "declaration": "pub use antecedent::analysis::temporal_counterfactual::execute_selective = temporal_counterfactual_wire::execute_selective",
+      "kind": "reexport",
+      "target": "temporal_counterfactual_wire::execute_selective"
     },
     "export:antecedent::analysis::temporal_counterfactual::refuse_transported_counterfactual": {
       "declaration": "pub use antecedent::analysis::temporal_counterfactual::refuse_transported_counterfactual = antecedent_counterfactual::transported_gate::refuse_transported_counterfactual",
@@ -30702,6 +30888,11 @@
       "kind": "reexport",
       "target": "antecedent_contract::ClaimOperation"
     },
+    "export:antecedent::contract::DependenceDeclaration": {
+      "declaration": "pub use antecedent::contract::DependenceDeclaration = antecedent_contract::DependenceDeclaration",
+      "kind": "reexport",
+      "target": "antecedent_contract::DependenceDeclaration"
+    },
     "export:antecedent::contract::DistributionMeaning": {
       "declaration": "pub use antecedent::contract::DistributionMeaning = antecedent_contract::DistributionMeaning",
       "kind": "reexport",
@@ -30777,10 +30968,20 @@
       "kind": "reexport",
       "target": "antecedent_contract::MeasuredIndicator"
     },
+    "export:antecedent::contract::MechanismCompositionDeclaration": {
+      "declaration": "pub use antecedent::contract::MechanismCompositionDeclaration = antecedent_contract::MechanismCompositionDeclaration",
+      "kind": "reexport",
+      "target": "antecedent_contract::MechanismCompositionDeclaration"
+    },
     "export:antecedent::contract::MechanismDeclaration": {
       "declaration": "pub use antecedent::contract::MechanismDeclaration = antecedent_contract::MechanismDeclaration",
       "kind": "reexport",
       "target": "antecedent_contract::MechanismDeclaration"
+    },
+    "export:antecedent::contract::MechanismInterfaceBasis": {
+      "declaration": "pub use antecedent::contract::MechanismInterfaceBasis = antecedent_contract::MechanismInterfaceBasis",
+      "kind": "reexport",
+      "target": "antecedent_contract::MechanismInterfaceBasis"
     },
     "export:antecedent::contract::MechanismOriginKind": {
       "declaration": "pub use antecedent::contract::MechanismOriginKind = antecedent_contract::MechanismOriginKind",
@@ -30927,6 +31128,11 @@
       "kind": "reexport",
       "target": "antecedent_contract::bridge::BridgeEndpoint"
     },
+    "export:antecedent::contract::bridge::BridgeInterfaceBasis": {
+      "declaration": "pub use antecedent::contract::bridge::BridgeInterfaceBasis = antecedent_contract::bridge::BridgeInterfaceBasis",
+      "kind": "reexport",
+      "target": "antecedent_contract::bridge::BridgeInterfaceBasis"
+    },
     "export:antecedent::contract::bridge::BridgeKind": {
       "declaration": "pub use antecedent::contract::bridge::BridgeKind = antecedent_contract::bridge::BridgeKind",
       "kind": "reexport",
@@ -31022,6 +31228,11 @@
       "kind": "reexport",
       "target": "antecedent_contract::capability_from_name"
     },
+    "export:antecedent::contract::check_declared_independence_against_ledger": {
+      "declaration": "pub use antecedent::contract::check_declared_independence_against_ledger = antecedent_contract::check_declared_independence_against_ledger",
+      "kind": "reexport",
+      "target": "antecedent_contract::check_declared_independence_against_ledger"
+    },
     "export:antecedent::contract::check_external_against_program": {
       "declaration": "pub use antecedent::contract::check_external_against_program = antecedent_contract::check_external_against_program",
       "kind": "reexport",
@@ -31031,6 +31242,16 @@
       "declaration": "pub use antecedent::contract::check_propagation = antecedent_contract::check_propagation",
       "kind": "reexport",
       "target": "antecedent_contract::check_propagation"
+    },
+    "export:antecedent::contract::check_propagation_with_ledger": {
+      "declaration": "pub use antecedent::contract::check_propagation_with_ledger = antecedent_contract::check_propagation_with_ledger",
+      "kind": "reexport",
+      "target": "antecedent_contract::check_propagation_with_ledger"
+    },
+    "export:antecedent::contract::check_rows_pairable_across": {
+      "declaration": "pub use antecedent::contract::check_rows_pairable_across = antecedent_contract::check_rows_pairable_across",
+      "kind": "reexport",
+      "target": "antecedent_contract::check_rows_pairable_across"
     },
     "export:antecedent::contract::claim::ClaimFreshness": {
       "declaration": "pub use antecedent::contract::claim::ClaimFreshness = antecedent_contract::claim::ClaimFreshness",
@@ -31062,10 +31283,20 @@
       "kind": "reexport",
       "target": "antecedent_contract::measurement::LatentPosteriorTrust"
     },
+    "export:antecedent::contract::measurement::MeasurementInterfaceBasis": {
+      "declaration": "pub use antecedent::contract::measurement::MeasurementInterfaceBasis = antecedent_contract::measurement::MeasurementInterfaceBasis",
+      "kind": "reexport",
+      "target": "antecedent_contract::measurement::MeasurementInterfaceBasis"
+    },
     "export:antecedent::contract::measurement::MeasurementOperation": {
       "declaration": "pub use antecedent::contract::measurement::MeasurementOperation = antecedent_contract::measurement::MeasurementOperation",
       "kind": "reexport",
       "target": "antecedent_contract::measurement::MeasurementOperation"
+    },
+    "export:antecedent::contract::measurement::measurement_interface_contract": {
+      "declaration": "pub use antecedent::contract::measurement::measurement_interface_contract = antecedent_contract::measurement::measurement_interface_contract",
+      "kind": "reexport",
+      "target": "antecedent_contract::measurement::measurement_interface_contract"
     },
     "export:antecedent::contract::mixed_module::CutFeedback": {
       "declaration": "pub use antecedent::contract::mixed_module::CutFeedback = antecedent_contract::mixed_module::CutFeedback",
@@ -31096,6 +31327,31 @@
       "declaration": "pub use antecedent::contract::propagation_chain::FIX_CHAIN_DECLARATION = antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION",
       "kind": "reexport",
       "target": "antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION"
+    },
+    "export:antecedent::contract::provider_transport::AdmittedProviderSource": {
+      "declaration": "pub use antecedent::contract::provider_transport::AdmittedProviderSource = antecedent_contract::provider_transport::AdmittedProviderSource",
+      "kind": "reexport",
+      "target": "antecedent_contract::provider_transport::AdmittedProviderSource"
+    },
+    "export:antecedent::contract::provider_transport::ProviderTransportSource": {
+      "declaration": "pub use antecedent::contract::provider_transport::ProviderTransportSource = antecedent_contract::provider_transport::ProviderTransportSource",
+      "kind": "reexport",
+      "target": "antecedent_contract::provider_transport::ProviderTransportSource"
+    },
+    "export:antecedent::contract::provider_transport::SourceTrustRequirement": {
+      "declaration": "pub use antecedent::contract::provider_transport::SourceTrustRequirement = antecedent_contract::provider_transport::SourceTrustRequirement",
+      "kind": "reexport",
+      "target": "antecedent_contract::provider_transport::SourceTrustRequirement"
+    },
+    "export:antecedent::contract::provider_transport::connect_bound_provider_source": {
+      "declaration": "pub use antecedent::contract::provider_transport::connect_bound_provider_source = antecedent_contract::provider_transport::connect_bound_provider_source",
+      "kind": "reexport",
+      "target": "antecedent_contract::provider_transport::connect_bound_provider_source"
+    },
+    "export:antecedent::contract::provider_transport::connect_provider_source": {
+      "declaration": "pub use antecedent::contract::provider_transport::connect_provider_source = antecedent_contract::provider_transport::connect_provider_source",
+      "kind": "reexport",
+      "target": "antecedent_contract::provider_transport::connect_provider_source"
     },
     "export:antecedent::contract::response_coordinate_skeleton": {
       "declaration": "pub use antecedent::contract::response_coordinate_skeleton = antecedent_contract::response_coordinate_skeleton",
@@ -31232,11 +31488,6 @@
       "kind": "reexport",
       "target": "antecedent_io::cross_world_artifact::CROSS_WORLD_MAX_ROWS"
     },
-    "export:antecedent::data::ArrowCColumn": {
-      "declaration": "pub use antecedent::data::ArrowCColumn = antecedent_data::ArrowCColumn",
-      "kind": "reexport",
-      "target": "antecedent_data::ArrowCColumn"
-    },
     "export:antecedent::data::BooleanColumn": {
       "declaration": "pub use antecedent::data::BooleanColumn = antecedent_data::BooleanColumn",
       "kind": "reexport",
@@ -31276,16 +31527,6 @@
       "declaration": "pub use antecedent::data::F64Buffer = antecedent_data::F64Buffer",
       "kind": "reexport",
       "target": "antecedent_data::F64Buffer"
-    },
-    "export:antecedent::data::FfiArrowArray": {
-      "declaration": "pub use antecedent::data::FfiArrowArray = antecedent_data::FfiArrowArray",
-      "kind": "reexport",
-      "target": "antecedent_data::FfiArrowArray"
-    },
-    "export:antecedent::data::FfiArrowSchema": {
-      "declaration": "pub use antecedent::data::FfiArrowSchema = antecedent_data::FfiArrowSchema",
-      "kind": "reexport",
-      "target": "antecedent_data::FfiArrowSchema"
     },
     "export:antecedent::data::Float64Column": {
       "declaration": "pub use antecedent::data::Float64Column = antecedent_data::Float64Column",
@@ -31392,20 +31633,35 @@
       "kind": "reexport",
       "target": "antecedent_data::arrow_adapter::ArrowFrameView"
     },
-    "export:antecedent::data::arrow_ffi::ArrowCStream": {
-      "declaration": "pub use antecedent::data::arrow_ffi::ArrowCStream = antecedent_data::arrow_ffi::ArrowCStream",
+    "export:antecedent::data::arrow_c::ArrowCColumn": {
+      "declaration": "pub use antecedent::data::arrow_c::ArrowCColumn = antecedent_data::arrow_ffi::ArrowCColumn",
+      "kind": "reexport",
+      "target": "antecedent_data::arrow_ffi::ArrowCColumn"
+    },
+    "export:antecedent::data::arrow_c::ArrowCStream": {
+      "declaration": "pub use antecedent::data::arrow_c::ArrowCStream = antecedent_data::arrow_ffi::ArrowCStream",
       "kind": "reexport",
       "target": "antecedent_data::arrow_ffi::ArrowCStream"
     },
-    "export:antecedent::data::arrow_ffi::FfiArrowArrayStream": {
-      "declaration": "pub use antecedent::data::arrow_ffi::FfiArrowArrayStream = antecedent_data::arrow_ffi::FfiArrowArrayStream",
+    "export:antecedent::data::arrow_c::ArrowLoadResult": {
+      "declaration": "pub use antecedent::data::arrow_c::ArrowLoadResult = antecedent_data::ArrowLoadResult",
+      "kind": "reexport",
+      "target": "antecedent_data::ArrowLoadResult"
+    },
+    "export:antecedent::data::arrow_c::FfiArrowArray": {
+      "declaration": "pub use antecedent::data::arrow_c::FfiArrowArray = antecedent_data::FfiArrowArray",
+      "kind": "reexport",
+      "target": "antecedent_data::FfiArrowArray"
+    },
+    "export:antecedent::data::arrow_c::FfiArrowArrayStream": {
+      "declaration": "pub use antecedent::data::arrow_c::FfiArrowArrayStream = antecedent_data::arrow_ffi::FfiArrowArrayStream",
       "kind": "reexport",
       "target": "antecedent_data::arrow_ffi::FfiArrowArrayStream"
     },
-    "export:antecedent::data::tabular_from_arrow_c_columns": {
-      "declaration": "pub use antecedent::data::tabular_from_arrow_c_columns = antecedent_data::tabular_from_arrow_c_columns",
+    "export:antecedent::data::arrow_c::FfiArrowSchema": {
+      "declaration": "pub use antecedent::data::arrow_c::FfiArrowSchema = antecedent_data::FfiArrowSchema",
       "kind": "reexport",
-      "target": "antecedent_data::tabular_from_arrow_c_columns"
+      "target": "antecedent_data::FfiArrowSchema"
     },
     "export:antecedent::decision_evidence::JointClusterContrast": {
       "declaration": "pub use antecedent::decision_evidence::JointClusterContrast = antecedent_estimate::randomized_joint::JointClusterContrast",
@@ -32817,6 +33073,21 @@
       "kind": "reexport",
       "target": "antecedent_design::structure_posterior"
     },
+    "export:antecedent::design::transported_decision_artifact::ConsumedTransportedDecision": {
+      "declaration": "pub use antecedent::design::transported_decision_artifact::ConsumedTransportedDecision = antecedent_design::transported_decision_artifact::ConsumedTransportedDecision",
+      "kind": "reexport",
+      "target": "antecedent_design::transported_decision_artifact::ConsumedTransportedDecision"
+    },
+    "export:antecedent::design::transported_decision_artifact::consume_transported_decision": {
+      "declaration": "pub use antecedent::design::transported_decision_artifact::consume_transported_decision = antecedent_design::transported_decision_artifact::consume_transported_decision",
+      "kind": "reexport",
+      "target": "antecedent_design::transported_decision_artifact::consume_transported_decision"
+    },
+    "export:antecedent::design::transported_decision_artifact::export_transported_decision": {
+      "declaration": "pub use antecedent::design::transported_decision_artifact::export_transported_decision = antecedent_design::transported_decision_artifact::export_transported_decision",
+      "kind": "reexport",
+      "target": "antecedent_design::transported_decision_artifact::export_transported_decision"
+    },
     "export:antecedent::design::verified_unlocks": {
       "declaration": "pub use antecedent::design::verified_unlocks = antecedent_design::verified_unlocks",
       "kind": "reexport",
@@ -33962,11 +34233,6 @@
       "kind": "reexport",
       "target": "antecedent_learn::fit_counts::count_resolved_fits"
     },
-    "export:antecedent::estimate::flexible_learner_dependence_refusal": {
-      "declaration": "pub use antecedent::estimate::flexible_learner_dependence_refusal = antecedent_estimate::flexible_learner_dependence_refusal",
-      "kind": "reexport",
-      "target": "antecedent_estimate::flexible_learner_dependence_refusal"
-    },
     "export:antecedent::estimate::joint_bayesian_transport::DataIdentity": {
       "declaration": "pub use antecedent::estimate::joint_bayesian_transport::DataIdentity = antecedent_estimate::joint_bayesian_transport::DataIdentity",
       "kind": "reexport",
@@ -34152,21 +34418,6 @@
       "kind": "reexport",
       "target": "antecedent_estimate::own_treatment_level"
     },
-    "export:antecedent::estimate::parse_learned_continuous_sampling": {
-      "declaration": "pub use antecedent::estimate::parse_learned_continuous_sampling = antecedent_estimate::parse_learned_continuous_sampling",
-      "kind": "reexport",
-      "target": "antecedent_estimate::parse_learned_continuous_sampling"
-    },
-    "export:antecedent::estimate::parse_learned_continuous_target": {
-      "declaration": "pub use antecedent::estimate::parse_learned_continuous_target = antecedent_estimate::parse_learned_continuous_target",
-      "kind": "reexport",
-      "target": "antecedent_estimate::parse_learned_continuous_target"
-    },
-    "export:antecedent::estimate::parse_matched_estimand": {
-      "declaration": "pub use antecedent::estimate::parse_matched_estimand = antecedent_estimate::parse_matched_estimand",
-      "kind": "reexport",
-      "target": "antecedent_estimate::parse_matched_estimand"
-    },
     "export:antecedent::estimate::parse_matched_sampling": {
       "declaration": "pub use antecedent::estimate::parse_matched_sampling = antecedent_estimate::parse_matched_sampling",
       "kind": "reexport",
@@ -34257,45 +34508,10 @@
       "kind": "reexport",
       "target": "antecedent_estimate::raw_contrast"
     },
-    "export:antecedent::estimate::refuse_cancelled": {
-      "declaration": "pub use antecedent::estimate::refuse_cancelled = antecedent_estimate::refuse_cancelled",
-      "kind": "reexport",
-      "target": "antecedent_estimate::refuse_cancelled"
-    },
-    "export:antecedent::estimate::refuse_column_attribution": {
-      "declaration": "pub use antecedent::estimate::refuse_column_attribution = antecedent_estimate::refuse_column_attribution",
-      "kind": "reexport",
-      "target": "antecedent_estimate::refuse_column_attribution"
-    },
-    "export:antecedent::estimate::refuse_eval": {
-      "declaration": "pub use antecedent::estimate::refuse_eval = antecedent_estimate::refuse_eval",
-      "kind": "reexport",
-      "target": "antecedent_estimate::refuse_eval"
-    },
-    "export:antecedent::estimate::refuse_joint_inference": {
-      "declaration": "pub use antecedent::estimate::refuse_joint_inference = antecedent_estimate::refuse_joint_inference",
-      "kind": "reexport",
-      "target": "antecedent_estimate::refuse_joint_inference"
-    },
-    "export:antecedent::estimate::refuse_joint_learner_inference": {
-      "declaration": "pub use antecedent::estimate::refuse_joint_learner_inference = antecedent_estimate::refuse_joint_learner_inference",
-      "kind": "reexport",
-      "target": "antecedent_estimate::refuse_joint_learner_inference"
-    },
     "export:antecedent::estimate::rollout_resampling::DesignEffect": {
       "declaration": "pub use antecedent::estimate::rollout_resampling::DesignEffect = antecedent_estimate::rollout_resampling::DesignEffect",
       "kind": "reexport",
       "target": "antecedent_estimate::rollout_resampling::DesignEffect"
-    },
-    "export:antecedent::estimate::sampling_weights::invalid": {
-      "declaration": "pub use antecedent::estimate::sampling_weights::invalid = antecedent_estimate::sampling_weights::invalid",
-      "kind": "reexport",
-      "target": "antecedent_estimate::sampling_weights::invalid"
-    },
-    "export:antecedent::estimate::sampling_weights::unsupported_route": {
-      "declaration": "pub use antecedent::estimate::sampling_weights::unsupported_route = antecedent_estimate::sampling_weights::unsupported_route",
-      "kind": "reexport",
-      "target": "antecedent_estimate::sampling_weights::unsupported_route"
     },
     "export:antecedent::estimate::scenario_covariance::ScenarioCovariance": {
       "declaration": "pub use antecedent::estimate::scenario_covariance::ScenarioCovariance = antecedent_estimate::scenario_covariance::ScenarioCovariance",
@@ -34321,16 +34537,6 @@
       "declaration": "pub use antecedent::estimate::scores::ScoreInference = antecedent_estimate::scores::ScoreInference",
       "kind": "reexport",
       "target": "antecedent_estimate::scores::ScoreInference"
-    },
-    "export:antecedent::estimate::smoothed_dose::parse_smoothed_dose_sampling": {
-      "declaration": "pub use antecedent::estimate::smoothed_dose::parse_smoothed_dose_sampling = antecedent_estimate::smoothed_dose::parse_smoothed_dose_sampling",
-      "kind": "reexport",
-      "target": "antecedent_estimate::smoothed_dose::parse_smoothed_dose_sampling"
-    },
-    "export:antecedent::estimate::smoothed_dose::parse_smoothed_dose_target": {
-      "declaration": "pub use antecedent::estimate::smoothed_dose::parse_smoothed_dose_target = antecedent_estimate::smoothed_dose::parse_smoothed_dose_target",
-      "kind": "reexport",
-      "target": "antecedent_estimate::smoothed_dose::parse_smoothed_dose_target"
     },
     "export:antecedent::estimate::smoothed_dose::parse_smoothing_kernel": {
       "declaration": "pub use antecedent::estimate::smoothed_dose::parse_smoothing_kernel = antecedent_estimate::smoothed_dose::parse_smoothing_kernel",
@@ -34477,10 +34683,10 @@
       "kind": "reexport",
       "target": "antecedent_estimate::transport_scenarios::ScenarioSetReport"
     },
-    "export:antecedent::estimate::trial_to_target_effect": {
-      "declaration": "pub use antecedent::estimate::trial_to_target_effect = antecedent_estimate::trial_to_target_effect",
+    "export:antecedent::estimate::trial_to_target_effect_with_context": {
+      "declaration": "pub use antecedent::estimate::trial_to_target_effect_with_context = antecedent_estimate::trial_to_target_effect_with_context",
       "kind": "reexport",
-      "target": "antecedent_estimate::trial_to_target_effect"
+      "target": "antecedent_estimate::trial_to_target_effect_with_context"
     },
     "export:antecedent::estimate_derived_joint_cells": {
       "declaration": "pub use antecedent::estimate_derived_joint_cells = antecedent::analysis::api::estimate_derived_joint_cells",
@@ -34521,21 +34727,6 @@
       "declaration": "pub use antecedent::evaluate_robust = super::evaluate_robust",
       "kind": "reexport",
       "target": "super::evaluate_robust"
-    },
-    "export:antecedent::execution::AdmissionError": {
-      "declaration": "pub use antecedent::execution::AdmissionError = antecedent_core::execution::AdmissionError",
-      "kind": "reexport",
-      "target": "antecedent_core::execution::AdmissionError"
-    },
-    "export:antecedent::execution::AdmissionLease": {
-      "declaration": "pub use antecedent::execution::AdmissionLease = antecedent_core::execution::AdmissionLease",
-      "kind": "reexport",
-      "target": "antecedent_core::execution::AdmissionLease"
-    },
-    "export:antecedent::execution::AdmissionPool": {
-      "declaration": "pub use antecedent::execution::AdmissionPool = antecedent_core::execution::AdmissionPool",
-      "kind": "reexport",
-      "target": "antecedent_core::execution::AdmissionPool"
     },
     "export:antecedent::execution::BUILD_FLAVOR": {
       "declaration": "pub use antecedent::execution::BUILD_FLAVOR = antecedent_core::BUILD_FLAVOR",
@@ -34692,16 +34883,6 @@
       "kind": "reexport",
       "target": "antecedent_core::default_user_threads"
     },
-    "export:antecedent::execution::execution_attempt::ObservationToken": {
-      "declaration": "pub use antecedent::execution::execution_attempt::ObservationToken = antecedent_core::execution_attempt::ObservationToken",
-      "kind": "reexport",
-      "target": "antecedent_core::execution_attempt::ObservationToken"
-    },
-    "export:antecedent::execution::execution_attempt::observe_with_context": {
-      "declaration": "pub use antecedent::execution::execution_attempt::observe_with_context = antecedent_core::execution_attempt::observe_with_context",
-      "kind": "reexport",
-      "target": "antecedent_core::execution_attempt::observe_with_context"
-    },
     "export:antecedent::execution::execution_facts::ExecutionBackend": {
       "declaration": "pub use antecedent::execution::execution_facts::ExecutionBackend = antecedent_core::execution_facts::ExecutionBackend",
       "kind": "reexport",
@@ -34746,16 +34927,6 @@
       "declaration": "pub use antecedent::execution::execution_facts::PlannedResources = antecedent_core::execution_facts::PlannedResources",
       "kind": "reexport",
       "target": "antecedent_core::execution_facts::PlannedResources"
-    },
-    "export:antecedent::execution::numerical_admission::with_context": {
-      "declaration": "pub use antecedent::execution::numerical_admission::with_context = antecedent_core::numerical_admission::with_context",
-      "kind": "reexport",
-      "target": "antecedent_core::numerical_admission::with_context"
-    },
-    "export:antecedent::execution::numerical_admission::with_context_and_failure": {
-      "declaration": "pub use antecedent::execution::numerical_admission::with_context_and_failure = antecedent_core::numerical_admission::with_context_and_failure",
-      "kind": "reexport",
-      "target": "antecedent_core::numerical_admission::with_context_and_failure"
     },
     "export:antecedent::execution::recalc::Boundary": {
       "declaration": "pub use antecedent::execution::recalc::Boundary = antecedent_core::recalc::Boundary",
@@ -36386,6 +36557,16 @@
       "declaration": "pub use antecedent::identify_api::Identification = antecedent::Identification",
       "kind": "reexport",
       "target": "antecedent::Identification"
+    },
+    "export:antecedent::identity::ContractIdentities": {
+      "declaration": "pub use antecedent::identity::ContractIdentities = antecedent_core::ContractIdentities",
+      "kind": "reexport",
+      "target": "antecedent_core::ContractIdentities"
+    },
+    "export:antecedent::identity::SemanticDigest": {
+      "declaration": "pub use antecedent::identity::SemanticDigest = antecedent_core::SemanticDigest",
+      "kind": "reexport",
+      "target": "antecedent_core::SemanticDigest"
     },
     "export:antecedent::inference::BayesLikelihood": {
       "declaration": "pub use antecedent::inference::BayesLikelihood = antecedent_prob::BayesLikelihood",
@@ -40007,11 +40188,6 @@
       "kind": "reexport",
       "target": "antecedent_core::CalibrationBasis"
     },
-    "export:antecedent::schema::CanonicalWriter": {
-      "declaration": "pub use antecedent::schema::CanonicalWriter = antecedent_core::CanonicalWriter",
-      "kind": "reexport",
-      "target": "antecedent_core::CanonicalWriter"
-    },
     "export:antecedent::schema::CategoryDomainId": {
       "declaration": "pub use antecedent::schema::CategoryDomainId = antecedent_core::CategoryDomainId",
       "kind": "reexport",
@@ -40021,11 +40197,6 @@
       "declaration": "pub use antecedent::schema::ComponentId = antecedent_core::ComponentId",
       "kind": "reexport",
       "target": "antecedent_core::ComponentId"
-    },
-    "export:antecedent::schema::ContractIdentities": {
-      "declaration": "pub use antecedent::schema::ContractIdentities = antecedent_core::ContractIdentities",
-      "kind": "reexport",
-      "target": "antecedent_core::ContractIdentities"
     },
     "export:antecedent::schema::DeclaredSamplingDesign": {
       "declaration": "pub use antecedent::schema::DeclaredSamplingDesign = antecedent_core::DeclaredSamplingDesign",
@@ -40061,11 +40232,6 @@
       "declaration": "pub use antecedent::schema::IdentificationStatus = antecedent_core::IdentificationStatus",
       "kind": "reexport",
       "target": "antecedent_core::IdentificationStatus"
-    },
-    "export:antecedent::schema::IdentityDomain": {
-      "declaration": "pub use antecedent::schema::IdentityDomain = antecedent_core::IdentityDomain",
-      "kind": "reexport",
-      "target": "antecedent_core::IdentityDomain"
     },
     "export:antecedent::schema::MeasurementSpec": {
       "declaration": "pub use antecedent::schema::MeasurementSpec = antecedent_core::MeasurementSpec",
@@ -40122,11 +40288,6 @@
       "kind": "reexport",
       "target": "antecedent_core::ValueType"
     },
-    "export:antecedent::schema::blake3_hex": {
-      "declaration": "pub use antecedent::schema::blake3_hex = antecedent_core::blake3_hex",
-      "kind": "reexport",
-      "target": "antecedent_core::blake3_hex"
-    },
     "export:antecedent::schema::categorical_candidate_contract::CategoricalCandidateSource": {
       "declaration": "pub use antecedent::schema::categorical_candidate_contract::CategoricalCandidateSource = antecedent_core::categorical_candidate_contract::CategoricalCandidateSource",
       "kind": "reexport",
@@ -40137,11 +40298,6 @@
       "kind": "reexport",
       "target": "antecedent_core::diagnostic::RouteNativeDiagnostic"
     },
-    "export:antecedent::schema::digest_from_hex": {
-      "declaration": "pub use antecedent::schema::digest_from_hex = antecedent_core::digest_from_hex",
-      "kind": "reexport",
-      "target": "antecedent_core::digest_from_hex"
-    },
     "export:antecedent::schema::graph_imputation_contract::MAX_VARIABLES": {
       "declaration": "pub use antecedent::schema::graph_imputation_contract::MAX_VARIABLES = antecedent_core::graph_imputation_contract::MAX_VARIABLES",
       "kind": "reexport",
@@ -40151,11 +40307,6 @@
       "declaration": "pub use antecedent::schema::graph_imputation_contract::MIN_ROWS = antecedent_core::graph_imputation_contract::MIN_ROWS",
       "kind": "reexport",
       "target": "antecedent_core::graph_imputation_contract::MIN_ROWS"
-    },
-    "export:antecedent::schema::identity::to_hex": {
-      "declaration": "pub use antecedent::schema::identity::to_hex = antecedent_core::identity::to_hex",
-      "kind": "reexport",
-      "target": "antecedent_core::identity::to_hex"
     },
     "export:antecedent::schema::measurement_model::CorrectedFunctionalRecord": {
       "declaration": "pub use antecedent::schema::measurement_model::CorrectedFunctionalRecord = antecedent_core::measurement_model::CorrectedFunctionalRecord",
@@ -40181,11 +40332,6 @@
       "declaration": "pub use antecedent::schema::mnar_fixed_shift::SourceRow = antecedent_core::mnar_fixed_shift::SourceRow",
       "kind": "reexport",
       "target": "antecedent_core::mnar_fixed_shift::SourceRow"
-    },
-    "export:antecedent::schema::to_hex": {
-      "declaration": "pub use antecedent::schema::to_hex = antecedent_core::to_hex",
-      "kind": "reexport",
-      "target": "antecedent_core::to_hex"
     },
     "export:antecedent::scientific::ArmBinding": {
       "declaration": "pub use antecedent::scientific::ArmBinding = antecedent_core::measurement_model::ArmBinding",

@@ -27,7 +27,7 @@
 //! What this does **not** say: the claim is a point under the narrow class (covariate
 //! selection, additive noise, shared noise laws, unit-level cross-world coupling); the
 //! additive-noise, shared-noise-law, cross-world and source-fit premises are declared by the
-//! caller, not checked; no interval is published; calibration is not_measured. Unknown major
+//! caller, not checked; no interval is published; calibration is `not_measured`. Unknown major
 //! versions refuse.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

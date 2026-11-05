@@ -264,7 +264,7 @@ impl CheckedMeasuredTemporal {
     pub const fn report(&self) -> &MeasuredInferenceReport {
         &self.report
     }
-    /// Original source/proof/config/complete interval bundle; standing remains not_measured.
+    /// Original source/proof/config/complete interval bundle; standing remains `not_measured`.
     #[must_use]
     pub fn source_artifact(&self) -> &[u8] {
         &self.source

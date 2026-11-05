@@ -1065,9 +1065,8 @@ fn composition_size_bounds_refuse_one_past_and_admit_the_bound() {
     };
 
     // Mechanisms: independent roots `m0000`, `m0001`, ...
-    let roots = |n: usize| {
-        spec_of((0..n).map(|i| lg(&format!("m{i:05}"), 0.0, 1.0, &[])).collect())
-    };
+    let roots =
+        |n: usize| spec_of((0..n).map(|i| lg(&format!("m{i:05}"), 0.0, 1.0, &[])).collect());
     assert_eq!(MAX_COMPOSED_MECHANISMS, 1024);
     assert_eq!(count(&roots(MAX_COMPOSED_MECHANISMS), reason::SHAPE_TOO_MANY_MECHANISMS), 0);
     let over = check_composition(&roots(MAX_COMPOSED_MECHANISMS + 1));

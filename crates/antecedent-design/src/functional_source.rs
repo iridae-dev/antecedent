@@ -118,7 +118,7 @@ impl LawFunctionalArtifact {
     pub fn source_evidence(&self) -> Option<&crate::source_evidence::SourceEvidence> {
         self.source_evidence.as_ref()
     }
-    /// Actual original-engine value, with sampled uncertainty left not_measured.
+    /// Actual original-engine value, with sampled uncertainty left `not_measured`.
     #[must_use]
     pub fn result(&self) -> &FunctionalValue {
         &self.result

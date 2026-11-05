@@ -124,7 +124,7 @@ pub struct ArrivalPoint {
     pub mean: Option<f64>,
     /// Always `empirical_point_only`.
     pub inference: String,
-    /// Always not_measured.
+    /// Always `not_measured`.
     pub calibration: String,
     /// Engine-observed successful numerical operations.
     pub work: ArrivalWork,

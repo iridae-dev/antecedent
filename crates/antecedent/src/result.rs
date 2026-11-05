@@ -346,7 +346,7 @@ pub struct TemporalDesignEstimate {
 }
 
 /// Effects of a rollout design with the uncertainty of its whole-procedure path
-/// (unsupported; calibration not_measured).
+/// (unsupported; calibration `not_measured`).
 ///
 /// Carries a heterogeneity-robust or covariate-adjusted difference in differences (group-time,
 /// aggregated and pre-trend effects), a conformal or multi-unit synthetic control (per-period

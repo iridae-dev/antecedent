@@ -105,7 +105,7 @@
             "impl Stream",
             "struct Stream"
           ],
-          "sha256": "48b5902aca4239e046e05121aaabfaf556e745e695ce4cbc4fda032adcb38609"
+          "sha256": "c85a64b245cebd3d0e673638d1a353e42895f098301dd2aa4bf9c41c962052cc"
         }
       ],
       "fixture_payload_sha256": "396984a203f68c599b6cc3c3056fcc582d06ac80ffb3a5813053f2e99081f4b3"

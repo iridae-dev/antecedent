@@ -378,20 +378,20 @@ pub enum EstimatorId {
     /// Bayesian g-computation on the lag-aligned temporal adjustment design.
     BayesianTemporalGcomp,
     /// Untempered Gaussian-likelihood posterior of a single-step temporal linear effect, under a
-    /// declared serially independent innovation. Unsupported; calibration not_measured.
+    /// declared serially independent innovation. Unsupported; calibration `not_measured`.
     BayesianTemporalWhiteInnovation,
     /// Mean-scale contrast of a Bernoulli logit temporal model over independent panel subjects:
     /// the unpenalized maximum-likelihood fit with a delta-method standard error. Unsupported;
-    /// calibration not_measured.
+    /// calibration `not_measured`.
     TemporalGlmLinkContrast,
     /// Laplace posterior of the same mean-scale contrast under a Gaussian coefficient prior.
-    /// Unsupported; calibration not_measured.
+    /// Unsupported; calibration `not_measured`.
     BayesianTemporalGlmLinkContrast,
     /// Wald contrast of a lagged instrument on the unfolded window graph: the effect of treatment
-    /// under the declared exclusion and exogeneity of the lag. Unsupported; calibration not_measured.
+    /// under the declared exclusion and exogeneity of the lag. Unsupported; calibration `not_measured`.
     TemporalLaggedInstrument,
     /// Reduced-form ratio posterior of the same lagged-instrument effect. Unsupported; calibration
-    /// not_measured.
+    /// `not_measured`.
     BayesianTemporalLaggedInstrument,
     /// Sequential g-computation of a sustained treatment window.
     TemporalSequentialGcomp,

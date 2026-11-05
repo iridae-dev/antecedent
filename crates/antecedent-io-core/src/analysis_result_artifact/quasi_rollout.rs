@@ -64,7 +64,7 @@ pub struct DesignEffectWire {
 }
 
 /// A rollout design result with its whole-procedure uncertainty (unsupported, calibration
-/// not_measured).
+/// `not_measured`).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct QuasiRolloutWire {

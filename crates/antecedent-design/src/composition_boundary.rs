@@ -464,7 +464,7 @@ impl DecisionInput {
     /// execution record for the same provider and snapshot, an external
     /// attestation, or an exact-request verification receipt for the same
     /// provider and snapshot. An artifact labelled native or exact without that
-    /// evidence is stored as `Unverified` with a not_measured calibration and its
+    /// evidence is stored as `Unverified` with a `not_measured` calibration and its
     /// `exact` claim is not used. Coordinate support comes from the artifact's
     /// mask; an absent mask means every coordinate is supported.
     ///

@@ -380,3 +380,18 @@ fn transported_linear_gaussian_mechanisms_first_order_interval() {
         transported_interval,
     );
 }
+
+/// One replicate of each construction, quickly: the interval is ordered and finite, and its
+/// centre sits within a few half-widths of the closed-form interventional mean.
+#[test]
+fn one_replicate_reports_a_valid_interval_near_the_closed_form_mean() {
+    for (band, truth) in [
+        (composed_interval(BASE_ROWS, grid_seed(SEED_COMPOSED)), COMPOSED_TRUTH),
+        (transported_interval(BASE_ROWS, grid_seed(SEED_TRANSPORTED)), TRANSPORTED_TRUTH),
+    ] {
+        let (lower, upper) = band.expect("the composition runs");
+        assert!(lower.is_finite() && upper.is_finite() && lower < upper, "[{lower}, {upper}]");
+        let (centre, half) = (0.5 * (lower + upper), 0.5 * (upper - lower));
+        assert!((centre - truth).abs() < 5.0 * half, "centre {centre} vs {truth}, half {half}");
+    }
+}

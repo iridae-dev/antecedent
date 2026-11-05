@@ -6,7 +6,7 @@
 //! global test with `route_not_supported` / `effect_constancy.incompatible_partitions`.
 //! Dependence between partition estimates is declared, never assumed from silence.
 //!
-//! The claim is **point only** and the calibration coordinate is **not_measured**: failing to
+//! The claim is **point only** and the calibration coordinate is **`not_measured`**: failing to
 //! reject the null never proves constancy, and the test's Type I error and power have not been
 //! measured. The per-partition effects are part of the result so transport diagnostics, prior
 //! transfer and policy generalization can consume them directly.

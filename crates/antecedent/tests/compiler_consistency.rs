@@ -159,6 +159,7 @@ const REFUSED_UNDER_BAYESIAN: &[&str] = &[
     "causal.forest",
     "policy.triangular_kernel_inverse_density",
     "randomized.survival_product_limit",
+    "randomized.quantile",
     "temporal.glm_link_contrast",
     "temporal.lagged_instrument",
     "temporal_design.excursion",

@@ -158,7 +158,7 @@ pub struct TemporalPanelFit {
     pub uncertainty: String,
     /// Always model conditional; an engine cannot identify an attribution.
     pub claim: String,
-    /// Calibration remains not_measured.
+    /// Calibration remains `not_measured`.
     pub calibration: String,
     /// Frozen data/history/group dependency.
     pub source_identity: SemanticDigest,

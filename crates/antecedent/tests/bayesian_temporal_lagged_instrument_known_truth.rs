@@ -138,7 +138,7 @@ fn bayesian_lagged_instrument_centres_on_the_structural_effect_on_every_fixed_da
                 } else {
                     base.graph(graph())
                 };
-                let study = base
+                let builder = base
                     .query(query(sustained))
                     .identifier(IdentifierId::TemporalIvUnfolded)
                     .estimator(EstimatorId::BayesianTemporalLaggedInstrument)
@@ -146,9 +146,9 @@ fn bayesian_lagged_instrument_centres_on_the_structural_effect_on_every_fixed_da
                         BayesianConfig::conjugate().prior_scale(1.0e3).n_draws(DRAWS),
                     ))
                     .refute(suite)
-                    .bootstrap_replicates(0)
-                    .build()
-                    .unwrap_or_else(|e| panic!("{label}: {e}"));
+                    .bootstrap_replicates(0);
+                let study = builder.clone().build().unwrap_or_else(|e| panic!("{label}: {e}"));
+                drop(builder);
                 let prepared = study.prepare(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
                 drop(study);
                 let result = prepared

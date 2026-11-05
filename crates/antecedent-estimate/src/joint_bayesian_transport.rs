@@ -68,7 +68,7 @@
 //! * Sources must be independent samples with disjoint units; overlapping or unknown
 //!   dependence refuses. Conflicting sources are never silently pooled: pairwise
 //!   posterior disagreement of the per-source target effects is reported.
-//! * Calibration is **not_measured**. No coverage is claimed and the public interval route
+//! * Calibration is **`not_measured`**. No coverage is claimed and the public interval route
 //!   is reported with its calibration annotation, never refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -392,7 +392,7 @@ pub struct IdentificationRecord {
 /// Inferential status of a fit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum JointTransportCalibration {
-    /// Calibration of credible intervals is not_measured; no coverage is claimed.
+    /// Calibration of credible intervals is `not_measured`; no coverage is claimed.
     NotMeasured,
 }
 

@@ -12,7 +12,7 @@
 //! declared support and outside the refusal mask, and nothing else. The only
 //! uncertainty it can report is the model-based standard error
 //! `se = sqrt(phi' V phi)` from the stored covariance. That number is marked as
-//! model-based with calibration not_measured; it is never an interval or a
+//! model-based with calibration `not_measured`; it is never an interval or a
 //! coverage claim, and it carries no extrapolation or misspecification
 //! uncertainty. The verifier evaluates from the stored fields only.
 

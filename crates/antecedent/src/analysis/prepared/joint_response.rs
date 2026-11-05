@@ -700,7 +700,7 @@ impl JointResponseResult {
             .collect()
     }
 
-    /// Scientific calibration remains not_measured for this newly assembled procedure.
+    /// Scientific calibration remains `not_measured` for this newly assembled procedure.
     #[must_use]
     pub const fn calibration(&self) -> &'static str {
         "not_measured"

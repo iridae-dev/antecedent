@@ -1034,7 +1034,7 @@ pub struct CoverageRecord {
     /// The nominal level the record was measured at.
     pub nominal_level: f64,
     /// Whether the record is a completed, attested measurement (as opposed to
-    /// a wired but not_measured placeholder).
+    /// a wired but `not_measured` placeholder).
     pub measured: bool,
 }
 
@@ -1062,7 +1062,7 @@ pub const COMPOSED_DEFAULT_LEVEL: f64 = 0.95;
 /// Check a composed interval: the composition's dependence route must support
 /// its spread. A coverage record for exactly this composed coordinate and
 /// construction annotates the interval (its identity and nominal level); without
-/// one, or with a wired but not_measured one, the interval is still planned at
+/// one, or with a wired but `not_measured` one, the interval is still planned at
 /// [`COMPOSED_DEFAULT_LEVEL`] and the caller reports its calibration slot as
 /// `not_measured` or `outside_measured_scope`. A record for another coordinate
 /// or construction is a mismatched request and is refused.
@@ -1070,7 +1070,7 @@ pub const COMPOSED_DEFAULT_LEVEL: f64 = 0.95;
 /// # Errors
 /// An invalid request, an unsupported dependence route (the refusals of
 /// [`check_propagation`] under the spread reading), a request whose reading is
-/// not an interval, a missing, not_measured or mismatched coverage record, or a
+/// not an interval, a missing, `not_measured` or mismatched coverage record, or a
 /// nominal level outside `(0, 1)`.
 #[allow(
     clippy::result_large_err,

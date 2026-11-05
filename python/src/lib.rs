@@ -881,12 +881,12 @@ pub(crate) struct AteAnalysisResult {
     /// set, never a point.
     #[pyo3(get)]
     iv_bounds: Option<bounds_api::IvBoundsSection>,
-    /// Noncausal association of the observed data (unsupported, calibration not_measured): never
+    /// Noncausal association of the observed data (unsupported, calibration `not_measured`): never
     /// an intervention effect, ranks no action.
     #[pyo3(get)]
     association: Option<association_api::AssociationSection>,
     /// Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic
-    /// panel, or optioned local ratio (unsupported, calibration not_measured).
+    /// panel, or optioned local ratio (unsupported, calibration `not_measured`).
     #[pyo3(get)]
     quasi_rollout: Option<quasi_api::QuasiRolloutSection>,
     /// Per-target GCM anomaly scores (AnomalyAttribution).

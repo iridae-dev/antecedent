@@ -9429,6 +9429,9 @@ pub const antecedent_core::reason_details::quadratic_posterior::EXTERNAL_POWER_P
 pub const antecedent_core::reason_details::quadratic_posterior::INSUFFICIENT_WEIGHT: &str
 pub const antecedent_core::reason_details::quadratic_posterior::MAPPED_PRIOR: &str
 pub const antecedent_core::reason_details::quadratic_posterior::NON_POSITIVE_SCALE: &str
+pub const antecedent_core::reason_details::randomized_quantile_effect::ADJUSTMENT_NOT_SUPPORTED: &str
+pub const antecedent_core::reason_details::randomized_quantile_effect::ARM_TOO_SMALL: &str
+pub const antecedent_core::reason_details::randomized_quantile_effect::SCOPE: &str
 pub const antecedent_core::reason_details::rank_drop_estimate::ESTIMATOR_NOT_SUPPORTED: &str
 pub const antecedent_core::reason_details::rank_drop_estimate::PROPENSITY_SEPARATES: &str
 pub const antecedent_core::reason_details::rank_drop_estimate::SHAPE_NOT_SUPPORTED: &str
@@ -9625,6 +9628,7 @@ pub const antecedent_core::reason_details::repair_artifact::BUDGET: &str
 pub const antecedent_core::reason_details::repair_artifact::INVALID_ARTIFACT: &str
 pub const antecedent_core::reason_details::repair_artifact::REPLAY_MISMATCH: &str
 pub const antecedent_core::reason_details::repair_artifact::UNSUPPORTED_VERSION: &str
+pub const antecedent_core::reason_details::response_gam_derivative::SHARED_COMPLETE_CASE_ROWS: &str
 pub const antecedent_core::reason_details::rollout::ARTIFACT_ID_MISSING: &str
 pub const antecedent_core::reason_details::rollout::ARTIFACT_KIND_MISMATCH: &str
 pub const antecedent_core::reason_details::rollout::EXPECTED_BINDING_MISMATCH: &str
@@ -12951,6 +12955,7 @@ pub mod antecedent_core::reason_details::proposal_receipt
 pub mod antecedent_core::reason_details::provider_capability_negotiation
 pub mod antecedent_core::reason_details::provider_transport
 pub mod antecedent_core::reason_details::quadratic_posterior
+pub mod antecedent_core::reason_details::randomized_quantile_effect
 pub mod antecedent_core::reason_details::rank_drop_estimate
 pub mod antecedent_core::reason_details::recalc
 pub mod antecedent_core::reason_details::recalc_receipt
@@ -12958,6 +12963,7 @@ pub mod antecedent_core::reason_details::recovery
 pub mod antecedent_core::reason_details::recovery_chain
 pub mod antecedent_core::reason_details::refresh_posterior
 pub mod antecedent_core::reason_details::repair_artifact
+pub mod antecedent_core::reason_details::response_gam_derivative
 pub mod antecedent_core::reason_details::rollout
 pub mod antecedent_core::reason_details::sampled_recovery
 pub mod antecedent_core::reason_details::sampling_weights
@@ -15375,8 +15381,8 @@ pub variant antecedent_core::query::TransportQueryScope::TargetInterventionalRes
 pub variant antecedent_core::recalc::Boundary::FreshProcess(antecedent_core::recalc::ResumeContext)
 pub variant antecedent_core::recalc::Boundary::InProcess
 pub variant antecedent_core::recalc::CalibrationInput::Held { record: antecedent_core::recalc::StageIdentity, coordinate: antecedent_core::recalc::StageIdentity }
-pub variant antecedent_core::recalc::CalibrationInput::PointOnly
 pub variant antecedent_core::recalc::CalibrationInput::NotMeasured
+pub variant antecedent_core::recalc::CalibrationInput::PointOnly
 pub variant antecedent_core::recalc::CalibrationInput::Withdrawn { record: antecedent_core::recalc::StageIdentity }
 pub variant antecedent_core::recalc::ChangeKind::Added
 pub variant antecedent_core::recalc::ChangeKind::Modified

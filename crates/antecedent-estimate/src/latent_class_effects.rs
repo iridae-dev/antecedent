@@ -101,7 +101,7 @@
 //!
 //! # What a result does not say
 //!
-//! Point estimates and bootstrap standard errors only; the bootstrap's coverage is not_measured.
+//! Point estimates and bootstrap standard errors only; the bootstrap's coverage is `not_measured`.
 //! Nothing here supports a causal claim beyond the declared premises, and the class labels are
 //! an ordering convenience, not a discovered meaning.
 //!
@@ -304,7 +304,7 @@ pub struct LatentClassResult {
     pub bootstrap: Option<LatentClassBootstrap>,
     /// Identification premises and their status.
     pub premises: Vec<LatentClassPremise>,
-    /// Calibration state: not_measured.
+    /// Calibration state: `not_measured`.
     pub calibration: CalibrationStatus,
     /// [`LATENT_CLASS_INFERENCE_CLAIM`].
     pub inference_claim: &'static str,

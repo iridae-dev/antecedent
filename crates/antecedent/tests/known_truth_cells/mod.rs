@@ -23,6 +23,10 @@ use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSumma
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag, TieredBackground, WithinTier};
 use antecedent_prob::InferenceDiagnostics;
 
+#[path = "../retained_run/mod.rs"]
+mod retained;
+pub use retained::run_retained;
+
 // ------------------------------------------------------------------------ coordinates
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -509,11 +513,7 @@ pub fn run_query(
     } else {
         builder
     };
-    builder
-        .build()
-        .unwrap_or_else(|e| panic!("{}: build: {e}", coordinate.text))
-        .run(&ctx)
-        .unwrap_or_else(|e| panic!("{}: run: {e}", coordinate.text))
+    run_retained(builder, &coordinate.text, &ctx)
 }
 
 fn values_of(value: &ResponseValue) -> Vec<f64> {

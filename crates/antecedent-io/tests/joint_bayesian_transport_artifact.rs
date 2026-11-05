@@ -3,7 +3,7 @@
 //!
 //! Dependency direction verified: `antecedent-io` depends on `antecedent-estimate`
 //! (its Cargo.toml), so this test lives here rather than in `antecedent-estimate`, which
-//! cannot depend on `antecedent-io`. Calibration is not_measured and the artifact says so.
+//! cannot depend on `antecedent-io`. Calibration is `not_measured` and the artifact says so.
 #![allow(clippy::cast_precision_loss, reason = "small deterministic fixtures")]
 
 use antecedent_contract::{QuantityRole, ScientificQuantity};

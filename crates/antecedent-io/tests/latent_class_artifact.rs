@@ -2,7 +2,7 @@
 //! the container, a refitting consumer that checks the canonical output bit for bit, label
 //! handling, resealed-mutation refusals against a retained identity, the premise records, unknown
 //! versions, the computation, export and replay budgets of a fit with no row ceiling, and the
-//! not_measured calibration coordinate.
+//! `not_measured` calibration coordinate.
 //!
 //! Oracle (identical to `antecedent-estimate/tests/latent_class_effects.rs`): class `P` (24
 //! rows, `a in {0, 1}`, `x in {-1, 0, 1}`, `y = a + 0.5 x + e`) and class `Q` (16 rows,

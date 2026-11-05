@@ -6,7 +6,7 @@
 //! * the embedded choice-study declaration (frame, ordered options, respondents' rows, retained
 //!   sources with their discounts and transfer reasons, looks, stopping rule, procedure cell);
 //! * the request: which look, which route and its prior parameters; and
-//! * the stored values, the method, the point-only claim, the **not_measured** calibration status
+//! * the stored values, the method, the point-only claim, the **`not_measured`** calibration status
 //!   and the unsupported claim (a stopping rule's error rate), if any.
 //!
 //! A consumer trusts none of the stored values. It rebuilds the contract from the declaration

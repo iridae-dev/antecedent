@@ -296,7 +296,7 @@ const GP_BAYES_CELL: Cell = Cell {
     n: 500,
 };
 
-/// Coordinate-specific design for the previously not_measured Bayesian
+/// Coordinate-specific design for the previously `not_measured` Bayesian
 /// `InterventionResponse / Dag / graph_posterior` coordinate. This deliberately
 /// uses a single posterior atom: multi-atom Bayesian aggregate intervals are
 /// withheld by the runtime, so treating graph dispersion as a sampling band

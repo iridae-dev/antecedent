@@ -12,7 +12,7 @@
 //! when replicates are requested; Bayesian inference reports the Bayesian-bootstrap posterior of
 //! the endpoints and the same tail rule. Rows are independent subjects, so a declared dependent
 //! series, independent-trajectory or clustered design refuses the row-level draw. The route is
-//! unsupported and its calibration is not_measured.
+//! unsupported and its calibration is `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::bayesian_quasi_common::require_built_in_model;

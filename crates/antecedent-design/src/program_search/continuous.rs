@@ -84,7 +84,7 @@ pub struct ContinuousProgramSearchResult {
     pub gap: Option<f64>,
     /// Always false: local numerical polling does not certify a global optimum.
     pub global_certificate: bool,
-    /// Selected-decision calibration is not_measured.
+    /// Selected-decision calibration is `not_measured`.
     pub reliability: &'static str,
     retention: Arc<antecedent_core::execution::AdmissionLease>,
 }

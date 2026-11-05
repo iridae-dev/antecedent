@@ -108,7 +108,7 @@ pub struct BridgeInterfaceBasis {
     pub source: PortFacts,
     /// Facts of the target quantity the bridge produces.
     pub target: PortFacts,
-    /// The calibration the target holds; `None` is not_measured when the target
+    /// The calibration the target holds; `None` is `not_measured` when the target
     /// value carries uncertainty and point-only otherwise. A bridge never
     /// raises a calibration the source did not hold.
     pub calibration: Option<CalibrationStatus>,

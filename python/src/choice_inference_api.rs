@@ -4,7 +4,7 @@
 //! stopping rule) as the wire declaration, and asks for one route at a time. The contract checks,
 //! the evidence ledger's overlap judgement, the paradigm gate, every number, the exported
 //! artifacts and every refusal are Rust's; a refusal comes back as structured JSON for the Python
-//! layer to raise as a typed exception. Every result is point-only and calibration is not_measured.
+//! layer to raise as a typed exception. Every result is point-only and calibration is `not_measured`.
 
 use antecedent::analysis::choice_inference::{
     ChoiceInferenceRefusal, ChoiceInferenceSession, ChoiceKernel, ChoiceRequest, StudyCandidate,

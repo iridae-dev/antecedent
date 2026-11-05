@@ -49,7 +49,7 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Admg, Dag, DenseNodeId, TemporalAdmg};
-use support::{Coordinate, GraphKind, Structure, for_each_matching, on_large_stack};
+use support::{Coordinate, GraphKind, Structure, for_each_matching, on_large_stack, run_retained};
 
 fn v(i: u32) -> VariableId {
     VariableId::from_raw(i)
@@ -207,11 +207,7 @@ fn run_derivative(
         .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
         .refute(c.suite);
     let study = if c.suite == RefuteSuite::None { study } else { study.bootstrap_replicates(12) };
-    study
-        .build()
-        .unwrap_or_else(|e| panic!("{}: build: {e}", c.text))
-        .run(&ExecutionContext::for_tests(805))
-        .unwrap_or_else(|e| panic!("{}: run: {e}", c.text))
+    run_retained(study, &c.text, &ExecutionContext::for_tests(805))
 }
 
 fn point(scale: DerivativeScale) -> F {
@@ -348,16 +344,16 @@ fn run_curve(c: &Coordinate, design: &DerivativeDesign, estimator: EstimatorId) 
     } else {
         InferenceMode::Frequentist
     };
-    with_graph(c, Study::tabular(design.data.clone()), 4, &DERIVATIVE_EDGES)
-        .query(CausalQuery::Response(curve_query()))
-        .estimator(estimator)
-        .inference(inference)
-        .refute(c.suite)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap_or_else(|e| panic!("{}: build: {e}", c.text))
-        .run(&ExecutionContext::for_tests(806))
-        .unwrap_or_else(|e| panic!("{}: run: {e}", c.text))
+    run_retained(
+        with_graph(c, Study::tabular(design.data.clone()), 4, &DERIVATIVE_EDGES)
+            .query(CausalQuery::Response(curve_query()))
+            .estimator(estimator)
+            .inference(inference)
+            .refute(c.suite)
+            .bootstrap_replicates(0),
+        &c.text,
+        &ExecutionContext::for_tests(806),
+    )
 }
 
 fn on_admg_classes(family: &'static str, body: impl Fn(&Coordinate) + Send + 'static) {
@@ -446,16 +442,16 @@ fn check_level(family: &'static str, estimator: EstimatorId, tolerance: f64) {
                 } else {
                     InferenceMode::Frequentist
                 };
-                let result = with_graph(c, Study::tabular(data.clone()), 3, &LEVEL_EDGES)
-                    .query(CausalQuery::Response(level_query()))
-                    .estimator(estimator)
-                    .inference(inference)
-                    .refute(c.suite)
-                    .bootstrap_replicates(0)
-                    .build()
-                    .unwrap_or_else(|e| panic!("{}: build: {e}", c.text))
-                    .run(&ExecutionContext::for_tests(52))
-                    .unwrap_or_else(|e| panic!("{}: run: {e}", c.text));
+                let result = run_retained(
+                    with_graph(c, Study::tabular(data.clone()), 3, &LEVEL_EDGES)
+                        .query(CausalQuery::Response(level_query()))
+                        .estimator(estimator)
+                        .inference(inference)
+                        .refute(c.suite)
+                        .bootstrap_replicates(0),
+                    &c.text,
+                    &ExecutionContext::for_tests(52),
+                );
                 assert_estimator(c, &result, estimator);
                 assert_values(c, &scalar_or_values(&result, &c.text), &[truth], tolerance);
                 assert_validation(c, &result);
@@ -568,18 +564,18 @@ fn bayesian_joint_linear_iv_matches_the_closed_form_posterior() {
                     Structure::Explicit => study.graph(dag.clone()),
                     _ => study.graph(AcceptedGraph::from(dag.clone())),
                 };
-                let result = study
-                    .query(AverageEffectQuery::with_levels(v(0), v(1), 0.0, 1.0))
-                    .identifier(IdentifierId::Iv)
-                    .estimator(EstimatorId::BayesianIvJointLinear)
-                    .inference(InferenceMode::Bayesian(
-                        BayesianConfig::conjugate().n_draws(IV_DRAWS).prior_scale(IV_PRIOR_SD),
-                    ))
-                    .refute(c.suite)
-                    .build()
-                    .unwrap_or_else(|e| panic!("{}: build: {e}", c.text))
-                    .run(&ExecutionContext::for_tests(81))
-                    .unwrap_or_else(|e| panic!("{}: run: {e}", c.text));
+                let result = run_retained(
+                    study
+                        .query(AverageEffectQuery::with_levels(v(0), v(1), 0.0, 1.0))
+                        .identifier(IdentifierId::Iv)
+                        .estimator(EstimatorId::BayesianIvJointLinear)
+                        .inference(InferenceMode::Bayesian(
+                            BayesianConfig::conjugate().n_draws(IV_DRAWS).prior_scale(IV_PRIOR_SD),
+                        ))
+                        .refute(c.suite),
+                    &c.text,
+                    &ExecutionContext::for_tests(81),
+                );
                 assert_estimator(c, &result, EstimatorId::BayesianIvJointLinear);
                 let ate = result.estimate().as_effect().unwrap().ate;
                 assert!(

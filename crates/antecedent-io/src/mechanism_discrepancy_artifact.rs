@@ -4,7 +4,7 @@
 //! diagnostic:
 //!
 //! * `mechanism_discrepancy_meta` (CBOR): version, feature marker, the frozen null, the
-//!   asymptotic-Wald claim, the **not_measured** calibration coordinate, the level and power, the
+//!   asymptotic-Wald claim, the **`not_measured`** calibration coordinate, the level and power, the
 //!   compared-intercept declaration, the declared dependence, the population / selection
 //!   alignment text, each population's label, measurement contract (node, units, parents,
 //!   protocol id) and row count, the identity digests, the stored result and the standing
@@ -24,7 +24,7 @@
 //! What this does **not** say: non-rejection never certifies invariance
 //! (`non_rejection_certifies_invariance` is `false` and a stored `true` is refused), the
 //! diagnostic informs only a selection node on the compared node, Type I error and power are
-//! not_measured (`calibration = "not_measured"`), and no causal or interval support is granted.
+//! `not_measured` (`calibration = "not_measured"`), and no causal or interval support is granted.
 //! Unknown major versions refuse.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -332,7 +332,7 @@ pub struct MechanismDiscrepancyMeta {
     pub feature: String,
     /// The frozen null.
     pub null: String,
-    /// Always the asymptotic-Wald claim with not_measured calibration.
+    /// Always the asymptotic-Wald claim with `not_measured` calibration.
     pub inference_claim: String,
     /// Always `not_measured`.
     pub calibration: String,
@@ -356,7 +356,7 @@ pub struct MechanismDiscrepancyMeta {
     pub identity: MechanismDiscrepancyIdentity,
     /// The stored result.
     pub result: ResultWire,
-    /// Standing caveats: non-rejection is not invariance, error rates not_measured.
+    /// Standing caveats: non-rejection is not invariance, error rates `not_measured`.
     pub caveats: Vec<String>,
 }
 

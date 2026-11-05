@@ -26,7 +26,7 @@
 //!   every completion together and counted as failed mass.
 //!
 //! Neither construction has a coverage record. Every interval is labelled
-//! not_measured by the calibration lookup like any other unsupported construction.
+//! `not_measured` by the calibration lookup like any other unsupported construction.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

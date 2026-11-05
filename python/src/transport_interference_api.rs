@@ -1201,7 +1201,7 @@ fn estimate_trial_transport(
     // interference path below.
     let estimate = detach_catch(py, move || {
         let regressions = mu0.as_deref().zip(mu1.as_deref());
-        antecedent::estimate::trial_to_target_effect(
+        antecedent::estimate::trial_to_target_effect_with_context(
             &identification,
             &y,
             &treatment,
@@ -1209,6 +1209,7 @@ fn estimate_trial_transport(
             &selection,
             &propensity,
             regressions,
+            &crate::py_execution_context(0, 1),
         )
         .map_err(py_err)
     })?;

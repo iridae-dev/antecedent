@@ -15,6 +15,7 @@
 use super::{SealContext, SealOutcome};
 use crate::analysis::execute::CheckedRouteOperation;
 use crate::analysis::prepared::PreparedExecution;
+use crate::error::CausalError;
 use crate::strategy_table::EstimatorId;
 
 /// Every estimator this sealer admits: the residual no specialised sealer serves, and the
@@ -80,7 +81,7 @@ const FAMILY_ESTIMATORS: &[EstimatorId] = &[
 /// Seal a study no route-cell sealer admits, by the estimator it resolves to; a study naming none runs its route's
 /// default estimator, which a compiled cell always has.
 pub(super) fn estimator_route(cx: &SealContext<'_>) -> SealOutcome {
-    let SealContext { source, analysis, plan, binding, .. } = *cx;
+    let SealContext { source, analysis, binding, .. } = *cx;
     // Only a study no route-cell sealer admits: the table's last two entries are the
     // program-only sealers, this one and the fresh run.
     let specialised = &super::SEALERS[..super::SEALERS.len() - 2];
@@ -103,8 +104,17 @@ pub(super) fn estimator_route(cx: &SealContext<'_>) -> SealOutcome {
     if !admitted {
         return Ok(None);
     }
-    CheckedRouteOperation::lowered(analysis, plan)
-        .map(|operation| Some(PreparedExecution::EstimatorRoute(operation)))
+    estimator_route_operation(cx).map(Some)
+}
+
+/// The sealed operation of a study that runs its plan's lowered program through the shared
+/// route executors. The only place an estimator-route operation is built: the sealer above
+/// and the deferred sealing of a declaration-only operation both come here.
+pub(super) fn estimator_route_operation(
+    cx: &SealContext<'_>,
+) -> Result<PreparedExecution, CausalError> {
+    let operation = CheckedRouteOperation::lowered(cx.analysis, cx.plan)?;
+    Ok(PreparedExecution::EstimatorRoute(operation))
 }
 
 /// A fresh run (`Study::execute`, one-shot `run`) holds no prepared handle, so no

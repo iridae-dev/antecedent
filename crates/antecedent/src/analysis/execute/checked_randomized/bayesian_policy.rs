@@ -5,7 +5,7 @@
 //! paired difference, under the declared assignment probabilities. The posterior is the
 //! Bayesian-bootstrap functional of the per-subject augmented score. The declared probabilities
 //! identify the value; the prior on the subject law does not. The route is unsupported and its
-//! calibration is not_measured.
+//! calibration is `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{

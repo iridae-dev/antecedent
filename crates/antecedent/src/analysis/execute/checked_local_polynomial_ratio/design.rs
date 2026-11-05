@@ -2,7 +2,7 @@
 //! robust bias-corrected interval, a calendar-time running variable with a within-side block
 //! bootstrap, and the density and covariate-balance diagnostics.
 //!
-//! The result is unsupported and its calibration is not_measured; the existing fixed-bandwidth
+//! The result is unsupported and its calibration is `not_measured`; the existing fixed-bandwidth
 //! support row covers only the declared-bandwidth independent-row route.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 

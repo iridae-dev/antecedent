@@ -49,7 +49,7 @@
 //!   declared tolerance.
 //! * The weighted information matrix of the basis design must have full rank: a
 //!   proper prior would otherwise answer a design the data cannot identify.
-//! * Calibration is **not_measured**; no coverage is claimed and the public interval route
+//! * Calibration is **`not_measured`**; no coverage is claimed and the public interval route
 //!   is reported with its calibration annotation, never refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

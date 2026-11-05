@@ -1441,7 +1441,7 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp", "functional.effect", "dml", "dr.learner", "causal.forest", "propensity.stratification", "distance.matching", "frontdoor.functional", "randomized.quantile"]
 route_estimator = "linear.adjustment.ate"
-matrix_digest = "59ed928de356c0bb"
+matrix_digest = "842b363307329f05"
 support_basis = "explicit_support"
 compiler_execution = ["randomized.quantile = crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_explicit_frequentist_none", "frontdoor.functional = crates/antecedent/tests/frontdoor_known_truth.rs::frontdoor_functional_matches_the_enumerated_effect_on_every_dag_coordinate", "distance.matching = crates/antecedent/tests/static_adjustment_known_truth.rs::distance_matching_matches_the_back_door_contrast_on_every_claimed_coordinate", "propensity.stratification = crates/antecedent/tests/static_adjustment_known_truth.rs::propensity_stratification_matches_the_back_door_contrast_on_every_claimed_coordinate", "causal.forest = crates/antecedent/tests/static_adjustment_known_truth.rs::causal_forest_matches_the_back_door_contrast_on_every_claimed_coordinate", "dr.learner = crates/antecedent/tests/static_adjustment_known_truth.rs::dr_learner_matches_the_back_door_contrast_on_every_claimed_coordinate", "dml = crates/antecedent/tests/static_adjustment_known_truth.rs::dml_matches_the_back_door_contrast_on_every_claimed_coordinate", "functional.effect = crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_explicit_frequentist_none", "linear.adjustment.ate = crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate", "aipw = crates/antecedent/tests/aipw_ate_route_evidence.rs::dag_explicit_frequentist_aipw_none", "frontdoor.linear_two_stage = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_frontdoor_none", "glm.adjustment = crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal", "iv.2sls = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_iv_2sls_none", "iv.wald = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_iv_wald_none", "propensity.matching = crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle", "propensity.weighting = crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle", "rd.sharp = crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/supported_static_cells.rs|average_effect_dag_frequentist_known_truth_all_structures_and_suites|conformance/estimate/linear_gaussian_ate"
@@ -1492,7 +1492,7 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp", "functional.effect", "dml", "dr.learner", "causal.forest", "propensity.stratification", "distance.matching", "frontdoor.functional", "randomized.quantile"]
 route_estimator = "linear.adjustment.ate"
-matrix_digest = "efa21018b23c9a00"
+matrix_digest = "e390fbb8637bcbcf"
 support_basis = "explicit_support"
 compiler_execution = ["randomized.quantile = crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_accepted_frequentist_none", "frontdoor.functional = crates/antecedent/tests/frontdoor_known_truth.rs::frontdoor_functional_matches_the_enumerated_effect_on_every_dag_coordinate", "distance.matching = crates/antecedent/tests/static_adjustment_known_truth.rs::distance_matching_matches_the_back_door_contrast_on_every_claimed_coordinate", "propensity.stratification = crates/antecedent/tests/static_adjustment_known_truth.rs::propensity_stratification_matches_the_back_door_contrast_on_every_claimed_coordinate", "causal.forest = crates/antecedent/tests/static_adjustment_known_truth.rs::causal_forest_matches_the_back_door_contrast_on_every_claimed_coordinate", "dr.learner = crates/antecedent/tests/static_adjustment_known_truth.rs::dr_learner_matches_the_back_door_contrast_on_every_claimed_coordinate", "dml = crates/antecedent/tests/static_adjustment_known_truth.rs::dml_matches_the_back_door_contrast_on_every_claimed_coordinate", "functional.effect = crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_accepted_frequentist_none", "linear.adjustment.ate = crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_accepted_frequentist_none_linear_adjustment_coordinate", "aipw = crates/antecedent/tests/aipw_ate_route_evidence.rs::dag_accepted_frequentist_aipw_none", "frontdoor.linear_two_stage = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_accepted_frequentist_frontdoor_none", "glm.adjustment = crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal", "iv.2sls = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_accepted_frequentist_iv_2sls_none", "iv.wald = crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_accepted_frequentist_iv_wald_none", "propensity.matching = crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle", "propensity.weighting = crates/antecedent/tests/checked_propensity_route_evidence.rs::propensity_estimators_retain_procedure_through_public_lifecycle", "rd.sharp = crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_rd_accepted_and_explicit_retain_cutoff_and_dependency_refusal"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/supported_static_cells.rs|average_effect_dag_frequentist_known_truth_all_structures_and_suites|conformance/estimate/linear_gaussian_ate"
@@ -45844,8 +45844,8 @@ structure = "explicit"
 inference = "Frequentist"
 validation = "cheap"
 estimators = ["response.kennedy_dr"]
-route_estimator = ""
-matrix_digest = ""
+route_estimator = "response.kennedy_dr"
+matrix_digest = "aec3e0b177fb7b44"
 support_basis = "explicit_support"
 compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_known_truth"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_known_truth|conformance/response/curve_refuter_states"
@@ -45861,11 +45861,45 @@ structure = "explicit"
 inference = "Frequentist"
 validation = "full"
 estimators = ["response.kennedy_dr"]
-route_estimator = ""
-matrix_digest = ""
+route_estimator = "response.kennedy_dr"
+matrix_digest = "d5aae41620ad5214"
 support_basis = "explicit_support"
 compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_known_truth"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Dag:explicit:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "b4f7a42ab3a5b0af"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_bayesian_dag_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_bayesian_dag_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Dag:explicit:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "358e978c29aa8bc8"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_bayesian_dag_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_bayesian_dag_known_truth|conformance/response/curve_refuter_states"
 uncertainty = "estimator_grid_not_measured"
 evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
 
@@ -45878,8 +45912,8 @@ structure = "accepted"
 inference = "Frequentist"
 validation = "cheap"
 estimators = ["response.kennedy_dr"]
-route_estimator = ""
-matrix_digest = ""
+route_estimator = "response.kennedy_dr"
+matrix_digest = "6044f80730188174"
 support_basis = "explicit_support"
 compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_known_truth"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_known_truth|conformance/response/curve_refuter_states"
@@ -45895,10 +45929,1268 @@ structure = "accepted"
 inference = "Frequentist"
 validation = "full"
 estimators = ["response.kennedy_dr"]
-route_estimator = ""
-matrix_digest = ""
+route_estimator = "response.kennedy_dr"
+matrix_digest = "fd08cd771f3f6d16"
 support_basis = "explicit_support"
 compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_known_truth"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_known_truth|conformance/response/curve_refuter_states"
 uncertainty = "estimator_grid_not_measured"
 evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Dag:accepted:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "f65dcf9134dfc2cf"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_bayesian_dag_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_bayesian_dag_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Dag:accepted:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "708c97bfcde66a33"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_bayesian_dag_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_bayesian_dag_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Admg:explicit:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["functional.effect", "response.kennedy_dr"]
+route_estimator = "functional.effect"
+matrix_digest = "aeea5f87c11e0f70"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_adjustable_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Admg:explicit:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+estimators = ["functional.effect", "response.kennedy_dr"]
+route_estimator = "functional.effect"
+matrix_digest = "89f916b9eed67347"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_adjustable_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Admg:explicit:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["functional.effect"]
+route_estimator = "functional.effect"
+matrix_digest = "8adf6d07048ed60a"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Admg:explicit:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+estimators = ["functional.effect"]
+route_estimator = "functional.effect"
+matrix_digest = "14d28015845aeab4"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Admg:accepted:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["functional.effect", "response.kennedy_dr"]
+route_estimator = "functional.effect"
+matrix_digest = "66cbe46abc54a795"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_adjustable_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Admg:accepted:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+estimators = ["functional.effect", "response.kennedy_dr"]
+route_estimator = "functional.effect"
+matrix_digest = "50a06c188c69e430"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_adjustable_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Admg:accepted:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["functional.effect"]
+route_estimator = "functional.effect"
+matrix_digest = "252574b95c6f51c7"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Admg:accepted:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+estimators = ["functional.effect"]
+route_estimator = "functional.effect"
+matrix_digest = "60ccf944434d3e6c"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Cpdag:explicit:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["response.kennedy_dr"]
+route_estimator = "response.kennedy_dr"
+matrix_digest = "9dcb457d12028406"
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Cpdag:explicit:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+estimators = ["response.kennedy_dr"]
+route_estimator = "response.kennedy_dr"
+matrix_digest = "7ced961bb4940c33"
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Cpdag:explicit:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "e240c27ad6f1fe21"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Cpdag:explicit:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "25c4c3f90e70ac13"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Cpdag:accepted:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["response.kennedy_dr"]
+route_estimator = "response.kennedy_dr"
+matrix_digest = "ff2512b60481c4c8"
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Cpdag:accepted:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+estimators = ["response.kennedy_dr"]
+route_estimator = "response.kennedy_dr"
+matrix_digest = "f4e5ead8161c7afa"
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Cpdag:accepted:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "ce6604dfdcc627ad"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Cpdag:accepted:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "c6c7cc309a9c3a70"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Pag:explicit:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["response.kennedy_dr"]
+route_estimator = "response.kennedy_dr"
+matrix_digest = "7e81fb386dbcc7b9"
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Pag:explicit:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+estimators = ["response.kennedy_dr"]
+route_estimator = "response.kennedy_dr"
+matrix_digest = "13b9281c5d3021a4"
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Pag:explicit:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "71e314d237abbb89"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Pag:explicit:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "fccf1d1f9e537322"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Pag:accepted:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["response.kennedy_dr"]
+route_estimator = "response.kennedy_dr"
+matrix_digest = "2749f72af01f0791"
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Pag:accepted:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+estimators = ["response.kennedy_dr"]
+route_estimator = "response.kennedy_dr"
+matrix_digest = "f20f6f237c37ab98"
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Pag:accepted:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "c73ffb95eb7c98b1"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:Pag:accepted:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "dddefe4f2b200ddb"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_class_known_truth|conformance/response/curve_refuter_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalDag:explicit:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "aa20b3adc8de0dee"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_dag_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_dag_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalDag:explicit:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "dfa4f428934e57af"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_dag_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_dag_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalDag:explicit:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "59d8137e963f7366"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_dag_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_dag_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalDag:explicit:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "00c10be96537073c"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_dag_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_dag_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalDag:accepted:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "0923bbfa6b12239f"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_dag_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_dag_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalDag:accepted:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "36011986ee8f0a28"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_dag_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_dag_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalDag:accepted:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "c68dfa1608d461d4"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_dag_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_dag_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalDag:accepted:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "0c672910b9423c25"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_dag_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_dag_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalCpdag:explicit:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "d98bec878916e3d2"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalCpdag:explicit:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "1e8cb8fe6bf4a540"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalCpdag:explicit:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "3921e8e40293a480"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalCpdag:explicit:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "ddad429809e35154"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalCpdag:accepted:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "5f71008f24daa797"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalCpdag:accepted:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "6084b2e04a15af08"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalCpdag:accepted:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "051e70906cd70aaa"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalCpdag:accepted:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "1c74313a45cf0efc"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalPag:explicit:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "9d5a273c23bd83b8"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalPag:explicit:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "c18d389e1b07e850"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalPag:explicit:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "50c7a3adf02438f6"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalPag:explicit:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "93db7831296df38f"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalPag:accepted:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "f5fa81257d13ba10"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalPag:accepted:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "2419099805ce72f7"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalPag:accepted:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "c826392a2d718420"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalPag:accepted:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "25ead128fc75134d"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_class_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_class_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:Dag:graph_posterior:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["response.kennedy_dr"]
+route_estimator = "response.kennedy_dr"
+matrix_digest = "d53b8356d92dbbc5"
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_dag_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_dag_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:Dag:graph_posterior:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+estimators = ["response.kennedy_dr"]
+route_estimator = "response.kennedy_dr"
+matrix_digest = "a67b1922cdc0dde2"
+support_basis = "explicit_support"
+compiler_execution = ["response.kennedy_dr = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_dag_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_dag_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:Dag:graph_posterior:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "a308a3f43dcb5aba"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_dag_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_dag_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:Dag:graph_posterior:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.bayesian"]
+route_estimator = "response.bayesian"
+matrix_digest = "6e2db34b22694e98"
+support_basis = "explicit_support"
+compiler_execution = ["response.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_dag_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_dag_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalDag:graph_posterior:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "59c6e1c332c642d2"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalDag:graph_posterior:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "22702984edec8803"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalDag:graph_posterior:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "63937f9df1b4b91e"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalDag:graph_posterior:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "0879d94143d1c475"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalCpdag:graph_posterior:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "1f2ab5bebab4c198"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalCpdag:graph_posterior:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "0ed640c8471508b8"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalCpdag:graph_posterior:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "dfc513e3a76ef901"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalCpdag:graph_posterior:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "f37ca37d78c4e07b"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalPag:graph_posterior:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "78165d3c00d2cf4d"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalPag:graph_posterior:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+estimators = ["temporal.response.gcomp"]
+route_estimator = "temporal.response.gcomp"
+matrix_digest = "c814c39b97a4809d"
+support_basis = "explicit_support"
+compiler_execution = ["temporal.response.gcomp = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalPag:graph_posterior:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "331a83124ff25ae5"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalPag:graph_posterior:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+estimators = ["response.temporal.bayesian"]
+route_estimator = "response.temporal.bayesian"
+matrix_digest = "9187225859c2d29e"
+support_basis = "explicit_support"
+compiler_execution = ["response.temporal.bayesian = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_posterior_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_posterior_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalAdmg:explicit:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["functional.effect", "response.kennedy_dr"]
+route_estimator = "functional.effect"
+matrix_digest = "6146e9aae4d23cab"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_adjustable_temporal_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalAdmg:explicit:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+estimators = ["functional.effect", "response.kennedy_dr"]
+route_estimator = "functional.effect"
+matrix_digest = "5830f6a2672d042b"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_adjustable_temporal_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalAdmg:explicit:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["functional.effect"]
+route_estimator = "functional.effect"
+matrix_digest = "156fb9591304e63c"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalAdmg:explicit:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+estimators = ["functional.effect"]
+route_estimator = "functional.effect"
+matrix_digest = "79306122138859f0"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalAdmg:accepted:Frequentist:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["functional.effect", "response.kennedy_dr"]
+route_estimator = "functional.effect"
+matrix_digest = "5faffebff2b690bc"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_adjustable_temporal_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalAdmg:accepted:Frequentist:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+estimators = ["functional.effect", "response.kennedy_dr"]
+route_estimator = "functional.effect"
+matrix_digest = "190e196f4de6d1a3"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_adjustable_temporal_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalAdmg:accepted:Bayesian:cheap"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["functional.effect"]
+route_estimator = "functional.effect"
+matrix_digest = "85e5f60cc91180f0"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+
+[[obligation]]
+id = "ResponseCurve:TemporalAdmg:accepted:Bayesian:full"
+kind = "supported"
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+estimators = ["functional.effect"]
+route_estimator = "functional.effect"
+matrix_digest = "f5bdcef14566f7ee"
+support_basis = "explicit_support"
+compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth"]
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+uncertainty = "estimator_grid_not_measured"
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
