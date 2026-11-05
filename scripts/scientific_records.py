@@ -176,7 +176,9 @@ def record_passes(root: Path, items: list[dict]) -> int:
 def all_scientific_rows(root: Path) -> list[dict]:
     import evidence_audit
 
-    return evidence_audit.scientific_rows(evidence_audit.build_report(root)["claims"])
+    return evidence_audit.scientific_rows(
+        evidence_audit.build_report(root)["claims"], evidence_audit.registered_scientific_tests(root)
+    )
 
 
 # --------------------------------------------------------------------------

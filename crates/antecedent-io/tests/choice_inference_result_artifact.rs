@@ -128,6 +128,26 @@ fn repeated(looks: bool) -> ChoiceDesignDeclaration {
     d
 }
 
+/// A two-option repeated-choice study of four respondents: the smallest contract on which the
+/// hierarchical quadrature is still a real computation, so a route's sealing and replay do not
+/// pay for a production-size fit.
+fn repeated_two_options(looks: bool) -> ChoiceDesignDeclaration {
+    let mut d = repeated(looks);
+    d.option_labels = vec!["a".into(), "b".into()];
+    d.initial_prior = vec![1.0; 2];
+    d.respondents = [[2, 0], [1, 1], [2, 0], [0, 2]]
+        .iter()
+        .enumerate()
+        .map(|(i, c)| ChoiceRespondent { id: format!("r{i}"), counts: c.to_vec() })
+        .collect();
+    d.looks = Some(if looks {
+        vec![ChoiceLook { respondents: 2 }, ChoiceLook { respondents: 4 }]
+    } else {
+        vec![ChoiceLook { respondents: 4 }]
+    });
+    d
+}
+
 fn hierarchical(look: u32) -> ChoiceResultSpec {
     ChoiceResultSpec::Hierarchical {
         look,
@@ -183,12 +203,20 @@ fn every_route_seals_and_a_fresh_consumer_replays_it() {
         (contract(categorical(false)), ChoiceResultSpec::Posterior { look: 0 }),
         (contract(categorical(true)), ChoiceResultSpec::Posterior { look: 1 }),
         (contract(categorical(true)), ChoiceResultSpec::Stopping { look: 0 }),
-        (contract(repeated(false)), hierarchical(0)),
         (
-            contract(repeated(true)),
+            contract(repeated_two_options(false)),
+            ChoiceResultSpec::Hierarchical {
+                look: 0,
+                shapes: vec![1.0; 2],
+                log_concentration_mean: 5f64.ln(),
+                log_concentration_sd: 1.0,
+            },
+        ),
+        (
+            contract(repeated_two_options(true)),
             ChoiceResultSpec::HierarchicalStopping {
                 look: 1,
-                shapes: vec![1.0; 3],
+                shapes: vec![1.0; 2],
                 log_concentration_mean: 5f64.ln(),
                 log_concentration_sd: 1.0,
             },

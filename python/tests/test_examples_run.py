@@ -81,14 +81,21 @@ def test_example_runs(path, monkeypatch, tmp_path):
 
 
 def _notebook_source(path: Path) -> str:
-    """Code cells joined, without shell/magic lines (the kernel-only conveniences)."""
+    """Code cells joined, without shell/magic lines (the kernel-only conveniences).
+
+    A cell may open with ``from __future__`` imports, which a kernel accepts per cell; joined
+    into one module they must lead it, so they are moved to the top.
+    """
     cells = [c for c in load_json(path)["cells"] if c.get("cell_type") == "code"]
-    lines = []
+    future, lines = [], []
     for cell in cells:
         for line in "".join(cell["source"]).splitlines():
+            if line.startswith("from __future__ import"):
+                future.append(line)
+                continue
             lines.append("" if line.lstrip().startswith(("%", "!")) else line)
         lines.append("")
-    return "\n".join(lines)
+    return "\n".join([*dict.fromkeys(future), *lines])
 
 
 @pytest.mark.parametrize("path", _NOTEBOOKS, ids=lambda p: p.name)

@@ -608,6 +608,7 @@ def build_report(root: Path) -> dict:
             and (root / "parity/counterparts.toml").is_file()
             else None
         ),
+        "scientific_test_registry_findings": scientific_test_problems(root),
         "route_evidence_ledger_findings": (
             check_evidence_ledger.problems(
                 tomllib.loads(
@@ -797,10 +798,109 @@ def render(report: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def scientific_rows(claims: list[dict]) -> list[dict]:
-    """Deduplicate assertions, not claims; each claim retains its own audit links."""
+SCIENTIFIC_TESTS = "parity/scientific_tests.toml"
+SCIENTIFIC_TEST_KINDS = ("known_truth", "reference", "posterior", "simulation", "route_sweep")
+
+
+def scientific_test_problems(root: Path) -> list[str]:
+    """Findings in the registry of scientific assertions that no claim cites."""
+    path = root / SCIENTIFIC_TESTS
+    if not path.is_file():
+        return []
+    problems, seen = [], set()
+    for i, row in enumerate(tomllib.loads(path.read_text(encoding="utf-8")).get("test", [])):
+        where = f"{SCIENTIFIC_TESTS}[{i}]"
+        test, name = row.get("evidence_test"), row.get("evidence_assertion")
+        if not isinstance(test, str) or not test or not isinstance(name, str) or not name:
+            problems.append(f"{where}: evidence_test and evidence_assertion are required")
+            continue
+        where = f"{where} {test}::{name}"
+        if (test, name) in seen:
+            problems.append(f"{where}: duplicate row")
+        seen.add((test, name))
+        if row.get("kind") not in SCIENTIFIC_TEST_KINDS:
+            problems.append(f"{where}: kind must be one of {', '.join(SCIENTIFIC_TEST_KINDS)}")
+        if not isinstance(row.get("reason"), str) or not row["reason"].strip():
+            problems.append(f"{where}: reason is required")
+        fixtures = row.get("fixtures", [])
+        if not isinstance(fixtures, list) or not all(isinstance(f, str) and f for f in fixtures):
+            problems.append(f"{where}: fixtures must be a list of paths")
+        else:
+            for fixture in fixtures:
+                located = in_repo(root, fixture)
+                if not located or not (
+                    located.exists() or located.with_name(located.name + ".json").exists()
+                ):
+                    problems.append(f"{where}: fixture {fixture} does not exist")
+        source = in_repo(root, test)
+        if not source or not source.is_file():
+            problems.append(f"{where}: test file does not exist")
+        elif source.suffix == ".rs":
+            problems.extend(f"{where}: {p}" for p in rust_test_declaration_problems(source, name, True))
+        elif source.suffix == ".py":
+            if f"{test}::{name}" not in generated_python_tests(root):
+                problems.extend(f"{where}: {p}" for p in static_python_test(source, name))
+        else:
+            problems.append(f"{where}: only Rust and Python tests can be scientific")
+    return problems
+
+
+GENERATED_PYTHON_TESTS = "parity/python_products.toml"
+
+
+def generated_python_tests(root: Path) -> set[str]:
+    """Python tests installed at import from the product table's rows, keyed `path::name`.
+
+    `python/tests/test_python_products.py` defines one test per route and refusal row under the
+    row's `test` name, so the table, not a `def`, is where those names are declared.
+    """
+    path = root / GENERATED_PYTHON_TESTS
+    if not path.is_file():
+        return set()
+    table = tomllib.loads(path.read_text(encoding="utf-8"))
+    return {
+        row["test"]
+        for kind in ("route", "refusal")
+        for row in table.get(kind, [])
+        if isinstance(row.get("test"), str)
+    }
+
+
+def registered_scientific_tests(root: Path) -> list[dict]:
+    """Scientific rows from parity/scientific_tests.toml; any finding raises."""
+    problems = scientific_test_problems(root)
+    if problems:
+        raise ValueError("invalid scientific test registry:\n" + "\n".join(problems))
+    path = root / SCIENTIFIC_TESTS
+    if not path.is_file():
+        return []
+    return [
+        {
+            "id": f"{SCIENTIFIC_TESTS}::{row['evidence_test']}::{row['evidence_assertion']}",
+            "evidence_test": row["evidence_test"],
+            "evidence_assertion": row["evidence_assertion"],
+            "roles": ["scientific"],
+            "fixtures": sorted(set(row.get("fixtures", []))),
+            "kind": row["kind"],
+        }
+        for row in tomllib.loads(path.read_text(encoding="utf-8")).get("test", [])
+    ]
+
+
+def scientific_rows(claims: list[dict], registered: list[dict] | tuple = ()) -> list[dict]:
+    """Deduplicate assertions, not claims; each claim retains its own audit links.
+
+    `registered` are rows of the scientific test registry: scientific exactly like a cited
+    assertion, with the fixtures the registry declares."""
     found = {}
     incomplete = []
+    for row in registered:
+        entry = found.setdefault(
+            (row["evidence_test"], row["evidence_assertion"]),
+            {**row, "roles": [], "fixtures": []},
+        )
+        entry["roles"] = sorted(set(entry["roles"]) | {"scientific"})
+        entry["fixtures"] = sorted(set(entry["fixtures"]) | set(row.get("fixtures", [])))
     for row in claims:
         if "scientific" not in row["roles"]:
             continue
@@ -862,7 +962,7 @@ def calibration_rows(root: Path) -> list[dict]:
 
 
 def scientific_rust_rows(root: Path) -> list[dict]:
-    rows = scientific_rows(claim_rows(root))
+    rows = scientific_rows(claim_rows(root), registered_scientific_tests(root))
     rust = registered_rust_assertions(
         [(r["evidence_test"], r["evidence_assertion"]) for r in rows if r["evidence_test"].endswith(".rs")],
         root,
@@ -875,7 +975,7 @@ def scientific_rust_rows(root: Path) -> list[dict]:
 def scientific_python_nodes(root: Path) -> list[str]:
     return sorted(
         f"{r['evidence_test']}::{r['evidence_assertion']}"
-        for r in scientific_rows(claim_rows(root))
+        for r in scientific_rows(claim_rows(root), registered_scientific_tests(root))
         if r["evidence_test"].endswith(".py")
     )
 
@@ -997,6 +1097,7 @@ def main() -> int:
                 for p in report["provenance"]
             )
             or bool(report["route_evidence_ledger_findings"])
+            or bool(report["scientific_test_registry_findings"])
             or bool(
                 report.get("scenario_matrix")
                 and (

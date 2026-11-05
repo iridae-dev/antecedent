@@ -874,6 +874,62 @@ class Classification(unittest.TestCase):
             self.assertIn(name, engineering)
         self.assertEqual(audit.scientific_python_nodes(root), sorted(set(audit.scientific_python_nodes(root))))
 
+    def _registry_root(self, tmp: str, registry: str) -> Path:
+        root = Path(tmp)
+        crate = root / "crates/p"
+        (crate / "src").mkdir(parents=True)
+        (root / "parity").mkdir()
+        (root / "conformance/fx").mkdir(parents=True)
+        (root / "conformance/fx/expected.json").write_text("{}", encoding="utf-8")
+        (crate / "Cargo.toml").write_text(
+            '[package]\nname="p"\nversion="0.1.0"\nautotests=false\n', encoding="utf-8")
+        (crate / "src/lib.rs").write_text(
+            "#[cfg(test)] mod tests {\n"
+            "#[test] fn cal() { assert_eq!(a(), 1); }\n"
+            "#[test] fn slow_truth() { assert_eq!(b(), 2); }\n"
+            "#[test] fn plain() { assert_eq!(c(), 3); }\n}\n", encoding="utf-8")
+        (root / "parity/test_registry.toml").write_text(
+            '[[test]]\npath="crates/p/src/lib.rs"\ncrate="p"\ncargo_target="lib"\n'
+            'calibration_acceptance_assertions=["cal"]\n', encoding="utf-8")
+        (root / "parity/scientific_tests.toml").write_text(registry, encoding="utf-8")
+        return root
+
+    ROW = ('[[test]]\nevidence_test="crates/p/src/lib.rs"\nevidence_assertion="{name}"\n'
+           'kind="known_truth"\nfixtures=["conformance/fx"]\nreason="checks b"\n')
+
+    def test_registry_row_is_a_scientific_row_excluded_from_the_engineering_filter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._registry_root(tmp, self.ROW.format(name="slow_truth"))
+            rows = audit.scientific_rows(audit.claim_rows(root), audit.registered_scientific_tests(root))
+            self.assertEqual([(r["evidence_assertion"], r["roles"], r["fixtures"]) for r in rows],
+                             [("slow_truth", ["scientific"], ["conformance/fx"])])
+            self.assertEqual([r["libtest_name"] for r in audit.scientific_rust_rows(root)], ["tests::slow_truth"])
+            engineering = audit.engineering_filter(root)
+            self.assertIn("tests::slow_truth", engineering)
+            self.assertIn("tests::cal", engineering)
+            self.assertNotIn("tests::plain", engineering)
+            # A citing claim and the registry name one assertion: it is one row.
+            claim = {"key": "c", "roles": ["scientific"], "evidence_test": "crates/p/src/lib.rs",
+                     "evidence_assertion": "slow_truth", "known_truth_fixture": "conformance/other"}
+            merged, = audit.scientific_rows([claim], audit.registered_scientific_tests(root))
+            self.assertEqual(merged["fixtures"], ["conformance/fx", "conformance/other"])
+
+    def test_registry_row_with_a_missing_assertion_fixture_or_kind_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = (self.ROW.format(name="removed")
+                   + self.ROW.format(name="slow_truth").replace("conformance/fx", "conformance/gone")
+                   + self.ROW.format(name="plain").replace("known_truth", "vibes"))
+            root = self._registry_root(tmp, bad)
+            problems = "\n".join(audit.scientific_test_problems(root))
+            self.assertIn("removed", problems)
+            self.assertIn("no fn removed", problems)
+            self.assertIn("fixture conformance/gone does not exist", problems)
+            self.assertIn("kind must be one of", problems)
+            self.assertEqual(audit.build_report(root)["scientific_test_registry_findings"],
+                             audit.scientific_test_problems(root))
+            with self.assertRaisesRegex(ValueError, "invalid scientific test registry"):
+                audit.registered_scientific_tests(root)
+
     def test_calibration_simulations_are_distinct_and_explicitly_selectable(self):
         root = Path(__file__).parents[1]
         simulations = evidence.registered_calibration_simulations(root)

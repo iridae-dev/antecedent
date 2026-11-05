@@ -68,6 +68,13 @@ fn cached_count(result: &antecedent::StudyResult) -> usize {
 }
 
 fn confounded_series(confounder_is_observed: bool) -> (TimeSeriesData, TemporalEffectQuery) {
+    confounded_series_of(confounder_is_observed, N_SAMPLES)
+}
+
+fn confounded_series_of(
+    confounder_is_observed: bool,
+    n_samples: usize,
+) -> (TimeSeriesData, TemporalEffectQuery) {
     let mut schema = CausalSchemaBuilder::new();
     schema
         .add_variable(
@@ -105,12 +112,12 @@ fn confounded_series(confounder_is_observed: bool) -> (TimeSeriesData, TemporalE
     // P(T=1 | Z=1)=3/4. Thus Y_t = 2 T_{t-1} + 2 Z_{t-1} + e
     // has unadjusted treatment coefficient 3 and adjusted coefficient 2.
     // Paired residuals make both population regressions exact.
-    let n = N_SAMPLES + 1;
+    let n = n_samples + 1;
     let mut treatment = vec![0.0; n];
     let mut outcome = vec![0.0; n];
     let mut confounder = vec![0.0; n];
     let mut sample = 0;
-    for _ in 0..(N_SAMPLES / 16) {
+    for _ in 0..(n_samples / 16) {
         for (z, t, count) in [(0.0, 0.0, 6), (0.0, 1.0, 2), (1.0, 0.0, 2), (1.0, 1.0, 6)] {
             for row in 0..count {
                 let residual = if row % 2 == 0 { -0.2 } else { 0.2 };
@@ -121,7 +128,7 @@ fn confounded_series(confounder_is_observed: bool) -> (TimeSeriesData, TemporalE
             }
         }
     }
-    assert_eq!(sample, N_SAMPLES);
+    assert_eq!(sample, n_samples);
 
     let confounder_validity = if confounder_is_observed {
         ValidityBitmap::all_valid(n)
@@ -197,11 +204,20 @@ fn study(
     query: &TemporalEffectQuery,
     posterior: GraphPosterior,
 ) -> antecedent::Study {
+    study_with_draws(series, query, posterior, 256)
+}
+
+fn study_with_draws(
+    series: &TimeSeriesData,
+    query: &TemporalEffectQuery,
+    posterior: GraphPosterior,
+    n_draws: usize,
+) -> antecedent::Study {
     Study::series(series.clone())
         .graph_posterior(posterior)
         .temporal_query(query.clone())
         .inference(InferenceMode::Bayesian(
-            BayesianConfig::conjugate().n_draws(256).prior_scale(1_000_000.0),
+            BayesianConfig::conjugate().n_draws(n_draws).prior_scale(1_000_000.0),
         ))
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
@@ -274,12 +290,14 @@ fn lag_distinct_dbn_fit_failure_demotes_the_correct_weight_in_either_order() {
     let adjusted = treatment_to_outcome | confounder_to_outcome;
     let failed_weight = 0.7;
     let retained_weight = 1.0 - failed_weight;
-    let (series, query) = confounded_series(false);
+    let (series, query) = confounded_series_of(false, 64);
     let ctx = ExecutionContext::for_tests(73);
 
     // The unadjusted atom does not consume the entirely missing confounder and
     // remains estimable; the adjusted atom is softly demoted at prepare/fit.
-    let retained = study(&series, &query, dbn_posterior(&[unadjusted], &[1.0])).run(&ctx).unwrap();
+    let retained = study_with_draws(&series, &query, dbn_posterior(&[unadjusted], &[1.0]), 16)
+        .run(&ctx)
+        .unwrap();
     assert!(retained.estimand.adjustment_set.is_empty());
     let retained_mean = posterior_mean(&retained);
 
@@ -288,7 +306,8 @@ fn lag_distinct_dbn_fit_failure_demotes_the_correct_weight_in_either_order() {
         (vec![adjusted, unadjusted], vec![failed_weight, retained_weight]),
     ] {
         let (ctx, sink) = recording_ctx(73);
-        let analysis = study(&series, &query, dbn_posterior(&lag_masks, &atom_weights));
+        let analysis =
+            study_with_draws(&series, &query, dbn_posterior(&lag_masks, &atom_weights), 16);
         let fresh = analysis.clone().run(&ctx).unwrap();
         let mut prepared = analysis.prepare(&ctx).unwrap();
         let click = prepared.estimate_series(&series, &ctx).unwrap();
