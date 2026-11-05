@@ -342,5 +342,56 @@ class OneScientificEntryPoint(unittest.TestCase):
         self.assertNotIn("cargo test", self.read("scripts/gate_gcm_conformance.sh").replace("cargo bench", ""))
 
 
+class OnlyAndCurrencyGates(unittest.TestCase):
+    """`--only` selection, per-batch recording, and CI executing neither lane."""
+
+    root = Path(__file__).resolve().parents[1]
+
+    def read(self, relative: str) -> str:
+        return (self.root / relative).read_text(encoding="utf-8")
+
+    def test_only_matches_substring_or_glob_on_selector_path_and_id(self):
+        item = {"selector": "p::t::mod::name", "evidence_test": "crates/p/tests/t.rs", "id": "cap.one"}
+        self.assertTrue(sr.matches_only(item, []))
+        self.assertTrue(sr.matches_only(item, ["mod::name"]))
+        self.assertTrue(sr.matches_only(item, ["p::t::*::name"]))
+        self.assertTrue(sr.matches_only(item, ["crates/p/tests"]))
+        self.assertTrue(sr.matches_only(item, ["cap.one"]))
+        self.assertFalse(sr.matches_only(item, ["other"]))
+
+    def test_batches_split_rust_by_crate_and_python_together(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for crate in ("a", "b"):
+                (root / f"crates/{crate}/tests").mkdir(parents=True)
+                (root / f"crates/{crate}/tests/t.rs").write_text("", encoding="utf-8")
+                (root / f"crates/{crate}/Cargo.toml").write_text(f'[package]\nname = "{crate}"\n', encoding="utf-8")
+            items = [
+                {"evidence_test": "crates/a/tests/t.rs", "evidence_assertion": "x"},
+                {"evidence_test": "crates/b/tests/t.rs", "evidence_assertion": "y"},
+                {"evidence_test": "python/tests/test_p.py", "evidence_assertion": "test_p"},
+            ]
+            labels = [(label, len(batch)) for label, batch in sr.run_batches(items, root)]
+        self.assertEqual(labels, [("rust a", 1), ("rust b", 1), ("python", 1)])
+
+    def test_run_records_after_every_batch(self):
+        body = self.read("scripts/scientific_records.py")
+        loop = body[body.index("for label, batch in run_batches"):]
+        self.assertLess(loop.index("record_passes"), loop.index("return status"))
+
+    def test_ci_checks_records_and_executes_neither_lane(self):
+        gate = self.read("scripts/gate_release.sh")
+        self.assertIn("step python3 scripts/scientific_records.py status --check", gate)
+        self.assertIn("step python3 scripts/calibration_status.py --check", gate)
+        self.assertNotIn("test.sh scientific", gate)
+        self.assertNotIn("test.sh scientific", self.read("scripts/gate_release_candidate.sh"))
+        workflow = self.read(".github/workflows/ci.yml")
+        job = workflow[workflow.index("\n  scientific:"):workflow.index("\n  python-lint:")]
+        self.assertNotIn("nextest", job)
+        self.assertIn("--section scientific", job)
+
+
 if __name__ == "__main__":
     unittest.main()

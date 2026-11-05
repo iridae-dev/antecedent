@@ -61,7 +61,7 @@
             "fn utility",
             "fn verma_checked_scalar_functionals_match_enumerated_latent_scm"
           ],
-          "sha256": "0610330b2a8ccbbd59daf7e7d9e146114e4d02dd3647512d1e755c1738ce2b62"
+          "sha256": "beafb17fa72d4774d9738017d18385fd67dfcb8faa6d1875b2686dd57105f836"
         }
       ],
       "fixture_payload_sha256": "75806cabb949592c60d26b8994ac9e6f25ed438007431888bc82a9f0d7407cde"

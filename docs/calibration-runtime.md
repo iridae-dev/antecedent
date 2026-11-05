@@ -81,7 +81,7 @@ The rows live in `parity/calibration_probe_attestations.toml`. Each row stores t
 dependency fingerprint of the record's test at the probed commit
 (`scripts/evidence_fingerprint.py`); `scripts/calibration_status.py` counts the
 record as current while a passing row covers it and that fingerprint equals the
-tree's. Calibration status is an annotation: no code change fails CI because of it.
+tree's. Calibration status never changes support or refuses a route, but CI fails while a record is owed (`scripts/calibration_status.py --check`), so owed records are measured here and committed; see [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records).
 
 ## Budget compilation, simulation and collection separately
 

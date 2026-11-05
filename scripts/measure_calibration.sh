@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Measure statistical calibration on this machine, before upload.
 #
-# CI never measures and never fails on calibration state: the status of each
-# committed record (scripts/calibration_status.py) is an annotation. Calibration
-# is measured here, from a clean checkout of the commit being uploaded:
+# CI never measures: it runs `scripts/calibration_status.py --check`, which fails while
+# any record is owed (a changed or missing fingerprint, or a route with no record).
+# Calibration status never changes support. Calibration is measured here, from a clean
+# checkout of the commit being uploaded (`bash scripts/test.sh calibration` runs the owed part):
 #
 #   1. find the records that are not current (`scripts/calibration_status.py
 #      status`, through scripts/calibration_groups.py) and the gate groups that
@@ -25,7 +26,10 @@
 #   bash scripts/measure_calibration.sh --owed         # exactly the list `calibration_status.py status --owed`
 #                                                      # prints (owed records, interval routes with no record),
 #                                                      # and no other group; --dry-run shows it
-#   bash scripts/measure_calibration.sh --all          # every group
+#   bash scripts/measure_calibration.sh --owed --only PATTERN
+#                                                      # iterate: only owed work whose group label, record id/test
+#                                                      # or route contains PATTERN (or matches it as a glob)
+#   bash scripts/measure_calibration.sh --all          # every group (manual)
 #   bash scripts/measure_calibration.sh --missing-only # only missing records/gate evidence; preserve prior evidence
 #   bash scripts/measure_calibration.sh --missing-only --group 'weighted_interval_calibration:*'
 #   bash scripts/measure_calibration.sh --jobs 6       # default: one job per core, one worker thread each
@@ -36,13 +40,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 usage() {
-  sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 ALL=""
 OWED=0
 MISSING_ONLY=0
 FILTERS=()
+ONLY=()
 REPLACEMENTS=()
 HAVE_FILTERS=0
 HAVE_REPLACEMENTS=0
@@ -55,6 +60,12 @@ while [[ $# -gt 0 ]]; do
     --all) ALL="--all" ;;
     --owed) OWED=1 ;;
     --missing-only) MISSING_ONLY=1 ;;
+    --only)
+      [[ $# -ge 2 ]] || { echo "--only needs a pattern" >&2; exit 2; }
+      ONLY+=(--only "$2")
+      shift
+      ;;
+    --only=*) ONLY+=(--only "${1#--only=}") ;;
     --group)
       [[ $# -ge 2 ]] || { echo "--group needs a full-label glob" >&2; exit 2; }
       FILTERS+=(--group "$2")
@@ -92,6 +103,10 @@ if [[ "$MISSING_ONLY" == "1" && -n "$ALL" ]]; then
   echo "--all and --missing-only are mutually exclusive" >&2
   exit 2
 fi
+if [[ ${#ONLY[@]} -gt 0 && "$OWED" != "1" ]]; then
+  echo "--only requires --owed" >&2
+  exit 2
+fi
 if [[ "$OWED" == "1" && ( "$MISSING_ONLY" == "1" || -n "$ALL" ) ]]; then
   echo "--owed excludes --all and --missing-only" >&2
   exit 2
@@ -109,12 +124,18 @@ if [[ -z "$JOBS" ]]; then
 fi
 case "$JOBS" in ''|*[!0-9]*|0) echo "--jobs must be a positive integer, got '$JOBS'" >&2; exit 2 ;; esac
 
-DIRTY="$(git status --porcelain --untracked-files=normal)"
+# The record files are outputs of the lanes, not inputs to a measurement (the fingerprint drops
+# their derived fields), so a just-updated ledger does not make the tree dirty for calibration.
+record_outputs_excluded() {
+  git status --porcelain --untracked-files=normal |
+    grep -vE '^.. (parity/scientific_records\.toml|parity/coverage_records\.toml|crates/antecedent-io-core/data/coverage_records\.json)$' || true
+}
+DIRTY="$(record_outputs_excluded)"
 if [[ "$DRY_RUN" == "1" ]]; then
   if [[ -n "$DIRTY" ]]; then
     echo "note: the working tree is dirty; a real measurement will refuse to run until it is clean."
   fi
-  python3 scripts/calibration_groups.py plan ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} --jobs "$JOBS"
+  python3 scripts/calibration_groups.py plan ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${ONLY[@]+"${ONLY[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} --jobs "$JOBS"
   exit 0
 fi
 
@@ -123,7 +144,7 @@ if [[ "$PILOT" == "1" ]]; then
     echo "FAIL: commit the calibration implementation before timing its pilot." >&2
     exit 1
   fi
-  python3 scripts/calibration_groups.py pilot ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} --jobs "$JOBS"
+  python3 scripts/calibration_groups.py pilot ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${ONLY[@]+"${ONLY[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} --jobs "$JOBS"
   exit $?
 fi
 
@@ -139,13 +160,13 @@ echo "== measuring calibration at ${HEAD_SHA} with ${JOBS} parallel job(s) =="
 # archiving logs, building or starting any measurement; it supplies the decision
 # context to each gate child rather than trusting an inherited caller value.
 RUN_STATUS=0
-python3 scripts/calibration_groups.py run ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} --jobs "$JOBS" || RUN_STATUS=$?
+python3 scripts/calibration_groups.py run ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${ONLY[@]+"${ONLY[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} --jobs "$JOBS" || RUN_STATUS=$?
 if [[ "$RUN_STATUS" != "0" && "$MISSING_ONLY" != "1" && "$HAVE_FILTERS" == 0 ]]; then
   exit "$RUN_STATUS"
 fi
 
 # The logs describe HEAD_SHA only if nothing moved while the measurement ran.
-if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" || -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" || -n "$(record_outputs_excluded)" ]]; then
   echo "FAIL: HEAD or the working tree changed during the measurement; the logs describe"
   echo "${HEAD_SHA}. Check it out cleanly and collect by hand (the logs name their commit,"
   echo "and the collector refuses them at any other):"

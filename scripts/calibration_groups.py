@@ -446,14 +446,22 @@ def route_group_matches(group: Group, spec: tuple[str, str]) -> bool:
     return group.head == head and (not test_filter or test_filter in group.test_filter)
 
 
-def select_owed(groups: list[Group]) -> Selection:
+def only_matches(pattern: str, *names: str) -> bool:
+    """`--only` matching: a substring or a glob of any of the names."""
+    return any(pattern in name or fnmatch.fnmatchcase(name, pattern) for name in names if name)
+
+
+def select_owed(groups: list[Group], only: list[str] | None = None) -> Selection:
     """Exactly the owed work, nothing alongside it.
 
     The owed list is `scripts/calibration_status.py status --owed`: a coverage record whose
     fingerprint is not the tree's (or whose probe does not cover it), and an interval
     route with no measured record. A record selects the groups that measure it; a route
     selects the groups `parity/calibration_routes.toml` names for it. No pass/fail gate and no
-    unrelated group in a record-emitting suite is added."""
+    unrelated group in a record-emitting suite is added.
+
+    `only` (substring or glob patterns) keeps the groups whose label matches, or that
+    measure an owed record (by id or test) or route that matches; no match is an error."""
     ensure_scripts_on_path()
     import calibration_status as status
 
@@ -482,8 +490,16 @@ def select_owed(groups: list[Group]) -> Selection:
         ]
         if routed:
             why.append(f"{len(routed)} interval route(s) with no record")
+        if only:
+            names = [group.label]
+            names += [rid for rid in owing] + [str(records[rid].get("test", "")) for rid in owing]
+            names += [i["id"] for i in routed]
+            if not any(only_matches(pattern, *names) for pattern in only):
+                continue
         if why:
             reasons[group.index] = "; ".join(why)
+    if only and not reasons:
+        raise SystemExit(f"--only {only!r} matches no owed calibration group, record or route")
     for rid in sorted(owed_ids - matched):
         print(f"warning: no gate group measures owed record {rid}", file=sys.stderr)
     for item in items:
@@ -1112,6 +1128,14 @@ def main() -> int:
             help="restrict selected groups by full label glob (repeatable; quote wildcards)",
         )
         p.add_argument(
+            "--only",
+            action="append",
+            default=[],
+            metavar="PATTERN",
+            help="with --owed: only groups whose label, or whose owed record id/test or route, "
+            "contains PATTERN or matches it as a glob (repeatable)",
+        )
+        p.add_argument(
             "--replicates",
             type=int,
             default=FIRST_NSIM,
@@ -1128,11 +1152,13 @@ def main() -> int:
         raise SystemExit("--jobs must be at least 1")
     if args.replicates < 400:
         raise SystemExit("--replicates must be at least 400 for measured calibration")
+    if args.only and not args.owed:
+        raise SystemExit("--only requires --owed")
     FIRST_NSIM = args.replicates
     RECHECK_NSIM = max(2000, FIRST_NSIM + 1)
     groups = gate_groups()
     chosen = (
-        select_owed(groups) if args.owed else select(groups, args.all, args.missing_only)
+        select_owed(groups, args.only) if args.owed else select(groups, args.all, args.missing_only)
     )
     selection = filter_selection(chosen, args.group)
     print_plan(selection, groups, args.jobs)

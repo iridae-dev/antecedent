@@ -238,6 +238,17 @@ markers below and compares it. Prose outside those markers is not read.
 | sensitivity.missing_outcome_departure | max_bootstrap_replicates | 5000 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
 | graph_imputation.compiled_candidate | depth_limit | 1 | `crates/antecedent/src/analysis/graph_imputation.rs` |
 | graph_imputation.compiled_candidate | memory_limit | 26214400 | `crates/antecedent/src/analysis/graph_imputation.rs` |
+| decision.sensitivity_composition | max_utility_nodes | 1024 | `crates/antecedent-io-core/src/sensitivity_artifact.rs` |
+| scientific_bridge.typed_bridges | max_joint_law_dimension | 64 | `crates/antecedent-contract/src/bridge/propagation.rs` |
+| scientific_bridge.typed_bridges | max_simulation_draws | 100000000 | `crates/antecedent-contract/src/bridge/propagation.rs` |
+| scientific_bridge.typed_bridges | max_propagation_work | 17179869184 | `crates/antecedent-contract/src/bridge/propagation.rs` |
+| scientific_bridge.typed_bridges | max_joint_event_variables | 64 | `crates/antecedent-contract/src/joint_event_quantity.rs` |
+| recalculation.doubly_robust | max_gbt_trees | 10000 | `crates/antecedent-learn/src/spec.rs` |
+| recalculation.doubly_robust | max_gbt_depth | 20 | `crates/antecedent-learn/src/spec.rs` |
+| recalculation.doubly_robust | max_gbt_design_cells | 2147483648 | `crates/antecedent-learn/src/gbt.rs` |
+| decision.sensitivity_composition | max_scenario_node_evaluations | 268435456 | `crates/antecedent-io-core/src/sensitivity_artifact.rs` |
+| composition.verifiers | max_family_covariance_dim | 1024 | `crates/antecedent-io-core/src/analysis_result_artifact/validate.rs` |
+| composition.verifiers | max_response_grid_points | 100000 | `crates/antecedent-io-core/src/contract_section/replay.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

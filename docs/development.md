@@ -31,14 +31,14 @@ strategy, see [test performance](guides/test-performance.md).
 
 GitHub Actions CI (`ci.yml`) runs the gate in tiers. Each CI job is one section of
 `scripts/gate_release.sh`, so a local run and CI cannot drift; cheap checks come first and the
-expensive scientific lane last:
+record-currency job last. CI executes no scientific assertion and no calibration measurement:
 
 0. **`static`** — source reading only, no build and no test: DCO, rustfmt, lint allows, test
    targets, crate ownership, the test registry and lane filters, parity inventories, provenance,
    capability records, the one support count (`scripts/gate_support.py`), the release inventory
    (`scripts/check_release_inventory.py`), residual limitations, bounds, release claims, links and
-   every generated file being current. Calibration status is printed as an annotation here and never
-   fails a change.
+   every generated file being current, and that every scientific and calibration record is current
+   (`scientific_records.py status --check`, `calibration_status.py --check`).
 1. **Builds** — compile, list or lint; no test runs. **`features`** (Clippy and the feature
    combinations crates.io users get: default features, each optional feature alone,
    `--no-default-features`), **`public-api`** (public items match `parity/public_api/*.txt`),
@@ -53,18 +53,19 @@ expensive scientific lane last:
    scientific and calibration markers, with an 85% coverage floor) and **`python-wheels`** (builds
    and tests the supported wheel matrix). The optional learner and Gaussian-process feature tests
    run in `features` on every pull request.
-3. **`scientific`** — one job, `bash scripts/test.sh scientific`: only the scientific assertions
-   whose evidence changed since their recorded pass (`parity/scientific_records.toml`). The job
-   fails when the run leaves that ledger changed, so the records a change owes are committed with
-   it.
-4. **Release candidate** — `scripts/gate_release_candidate.sh`, run locally (below): every
-   scientific assertion re-run, scale cases, the installed wheel and the CI-run check.
+3. **`scientific`** — one job, `bash scripts/gate_release.sh --section scientific`: the same two
+   currency checks as `static`, alone and without a build. It fails while any scientific or
+   calibration record is owed; the records a change owes are earned on a development machine
+   (`bash scripts/test.sh`) and committed with it.
+4. **Release candidate** — `scripts/gate_release_candidate.sh`, run locally (below): the CI-run
+   check, the record-currency checks, scale cases and the installed wheel. It re-runs no
+   scientific assertion.
 
 Running `scripts/gate_release.sh` without `--section` executes tiers 0 to 3 locally in order.
 
-**Statistical calibration is measured on a development machine, never on GitHub.** A calibration
-status is an annotation (`python3 scripts/calibration_status.py status`) and never fails a job; only
-its record shape is checked (`calibration_status.py --check`). Criterion benchmark smokes check
+**Scientific tests and statistical calibration are earned on a development machine, never on
+GitHub.** CI only checks that the committed records are current. See [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records) for the
+model and every lane command. Criterion benchmark smokes check
 execution, not timing regressions. `cargo deny` runs inside `gate_release.sh` only when `cargo-deny`
 is on PATH, which it is not in CI's `benches` job (the `deny` job owns it there).
 
@@ -88,6 +89,7 @@ python3 scripts/check_release_inventory.py   # acceptance manifest, counterparts
 bash scripts/gate_checked_execution.sh   # every supported estimator cites a test that executes from its retained checked plan
 bash scripts/gate_docs_support_matrix.sh
 bash scripts/gate_public_api.sh   # published crates' public items match parity/public_api/*.txt
+bash scripts/test.sh                  # engineering, then owed scientific and owed calibration
 bash scripts/measure_calibration.sh   # coverage / CI Type I: measure what is not current, collect, print the status
 bash scripts/gate_release.sh       # tiers 0 to 3 in order
 bash scripts/gate_python_lint.sh   # local equivalent of the CI lint/type checks
@@ -202,10 +204,9 @@ and never touches `parity/`.
 
 ### Two flows: engineering and calibration
 
-Engineering and calibration are separate. No code change fails CI because of
-calibration state, and no measurement runs in CI. A measurement is made on a
-development machine; the status of each committed record is computed from the
-records and printed as information.
+Engineering and calibration are separate flows. A measurement is made on a development machine
+and never in CI; CI fails while a coverage record is owed (`calibration_status.py --check`), but
+calibration status never changes support or refuses a route. See [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records).
 
 The measurement is deterministic: every replicate's data and resamples come
 from fixed seeds, so re-running unchanged code reproduces the same numbers
@@ -216,10 +217,10 @@ ordinary CI). A record is never re-measured on a timer.
 everything a test depends on: the normalized sources and manifests of the
 workspace crates in its dependency closure (comments and workspace version
 lines ignored), the test file with its helpers and the DGP file, `Cargo.lock`
-and the workspace manifest, the toolchain file and the feature set. The
+and the workspace manifest, the toolchain file and the feature set, plus embedded and declared inputs
+(`parity/fingerprint_inputs.toml`), build scripts and `ANTECEDENT_*` values. The
 scientific records (`scripts/scientific_records.py`) and the calibration status
-use this one implementation. The calibration fingerprint leaves the platform
-out, because a record is measured on one machine and read on others.
+use this one implementation; the full list is in the canonical page above.
 
 **Status.** `python3 scripts/calibration_status.py status` classifies every
 record in `parity/coverage_records.toml`:
@@ -235,9 +236,8 @@ record in `parity/coverage_records.toml`:
 
 A record without a stored `fingerprint` is never current through its
 measurement. `status --owed` prints the ids that are not current, `status --json`
-the counts and per-record status. The command always exits 0. `gate_release.sh`
-and the release workflow print it; the release candidate lists what is owed and
-is not blocked by it. The runtime snapshot of attesting record ids is the
+the counts and per-record status. `status` always exits 0; `calibration_status.py --check`
+exits 1 while any item is owed and is what CI and the release candidate run. The runtime snapshot of attesting record ids is the
 `current` set.
 
 ### Measuring
@@ -254,6 +254,7 @@ bash scripts/measure_calibration.sh --pilot     # 8-replicate smoke timings; no 
 bash scripts/measure_calibration.sh --dry-run   # projection from this commit's pilot
 bash scripts/measure_calibration.sh             # measure what is not current, collect, print the status
 bash scripts/measure_calibration.sh --owed      # the same set, spelled out (`calibration_status.py status --owed`)
+bash scripts/measure_calibration.sh --owed --only PATTERN  # owed work whose group, record id/test or route matches
 bash scripts/measure_calibration.sh --all       # re-measure every group
 bash scripts/measure_calibration.sh --missing-only # fill missing evidence; keep prior evidence
 bash scripts/measure_calibration.sh --missing-only --group 'weighted_interval_calibration:*'
@@ -472,10 +473,9 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   together they execute the workspace's tests and doctests.
   `scripts/ci_workflow.py` parses `ci.yml` as YAML and expands every matrix
   combination, so a missing or failed wheel leg fails the cut.
-- The gate then runs every section of `gate_release.sh` except the owed-only scientific lane
-  (the calibration status is printed as an annotation; the records that are not current are
-  listed and do not fail the cut), re-runs and re-records every scientific assertion
-  (`bash scripts/test.sh scientific --all`), runs the release inventory with no unresolved row,
+- The gate then runs every other section of `gate_release.sh` with `cargo-deny` required (its
+  `static` section requires zero owed scientific records and zero owed calibration records;
+  nothing is re-run or re-recorded), runs the release inventory with no unresolved row,
   the composition and decision exit stories, the release-only scale cases and the release-closure
   receipts, and builds one wheel into a fresh directory, installs it into a fresh venv and runs
   the documented examples, the cyclic-systems gate and the full Python test suite against that
@@ -526,44 +526,31 @@ unoptimized (`ANTECEDENT_ALLOW_DEBUG_NATIVE=1` opts out deliberately).
 
 ## Recorded scientific tests
 
-The scientific assertions (those whose claims carry the `scientific` role; calibration
-simulations and acceptance measurements are excluded) are recorded like measurements:
-`parity/scientific_records.toml` keeps, per assertion, its exact selector, roles, the
-commit it passed at, a fingerprint of its dependencies and the time. If the fingerprint
-still matches, the recorded pass carries forward to the latest commit and the assertion
-does not rerun.
-
-The fingerprint is a sha256 over the comment-stripped sources and normalized manifests
-of every workspace crate in the test crate's dependency closure, the test file and its
-shared helper modules, the fixture/oracle files the citing claims declare, `Cargo.lock`
-and the workspace manifest with workspace version lines normalized (a version-only
-bump changes nothing), `rust-toolchain.toml`, the feature set
-(`ANTECEDENT_SCIENTIFIC_FEATURES`) and the platform. A Python test adds
-`python/antecedent`, the native crate closure, its `conftest.py` chain and
-`python/uv.lock`. So a leaf-crate edit owes only the assertions that depend on it, and a
-fixture edit owes only the assertions that cite it.
+The scientific assertions (those whose claims carry the `scientific` role, plus the uncited ones in
+`parity/scientific_tests.toml`; calibration simulations and acceptance measurements are excluded)
+are recorded in `parity/scientific_records.toml`: per assertion, its exact selector, roles, the
+commit it passed at, a fingerprint of its dependencies and the time. While the fingerprint still
+matches, the recorded pass carries forward and the assertion does not rerun. What the fingerprint
+covers, and what owed means for support, is in [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records).
 
 ```bash
+bash scripts/test.sh                                  # engineering, then owed scientific, then owed calibration
+bash scripts/test.sh scientific                       # owed scientific assertions only
+bash scripts/test.sh scientific --only PATTERN        # owed rows matching PATTERN (substring or glob)
+bash scripts/test.sh scientific --all                 # manual: rerun and re-record everything
 python3 scripts/scientific_records.py status          # which assertions are owed
-python3 scripts/scientific_records.py status --check  # same, exit 1 if any owed
-python3 scripts/scientific_records.py run             # run owed ones, record passes
-python3 scripts/scientific_records.py run --all       # rerun and re-record everything
-bash scripts/test.sh scientific                       # same as run
-bash scripts/test.sh scientific --all                 # same as run --all (release)
+python3 scripts/scientific_records.py status --check  # exit 1 if any owed; executes nothing (CI)
 ```
 
-`run` is the one entry point for scientific assertions. The default engineering lanes
-exclude them (the nextest default filter and the pytest `scientific` marker are both
-derived from the registries), so a normal run executes engineering tests plus only the
-scientific tests whose evidence changed. The owed Rust assertions run in a single
-`cargo nextest run` with the optimized test profile and the owed Python assertions in one
-pytest batch. The capability, transport, composition, checked-execution and GCM
-conformance gates only resolve their rows to exact tests (`run_evidence_rows.py --static`).
-Everything that does run keeps the runner's proof that the exact assertion executed and
-was not ignored; failures are reported and never recorded. A release candidate sets
-`ANTECEDENT_SCIENTIFIC_ALL=1` (or passes `--all` to `test.sh scientific`) and
-runs everything. A recorded pass is evidence for support only; it is never a calibration
-measurement or coverage record.
+`scientific_records.py run` is the one entry point that executes scientific assertions. The
+engineering lane excludes them (the nextest default filter and the pytest `scientific` marker are
+both derived from the registries). The owed Rust assertions run in one `cargo nextest run` per
+crate with the optimized test profile and the owed Python assertions in one pytest batch; each
+batch is recorded when it finishes. The capability, transport, composition, checked-execution and
+GCM conformance gates only resolve their rows to exact tests (`run_evidence_rows.py --static`).
+The runner proves the exact assertion executed and was not ignored; failures are reported and never
+recorded. A recorded pass is evidence for support only; it is never a calibration measurement or
+coverage record.
 
 ## Tests that matter
 

@@ -12,19 +12,75 @@ Every reported answer rests on one small model. Five terms carry it; other pages
 
 | Term | Meaning | Effect |
 | --- | --- | --- |
-| **Supported** | A unit has a provenance record and an executed independent scientific check (known truth, an analytic value, or a reference implementation). A unit that reports an interval also has an independent construction check of that interval. A unit is a support-matrix cell, a graphless design-family row, or a capability outside the matrix. | The route runs. |
-| **`not_supported`** | A unit lacks that evidence. | A release build refuses with reason `not_supported`, a detail, and the missing evidence. |
+| **Supported** | A unit has a provenance record and an executed independent scientific check (known truth, an analytic value, or a reference implementation) with a current passing record in the scientific-records ledger. A change to anything a check depends on makes its record owed and the unit `not_supported` until it is re-earned on a development machine (see [Earning and checking the records](#earning-and-checking-the-records)). A unit that reports an interval also has an independent construction check of that interval. A unit is a support-matrix cell, a graphless design-family row, or a capability outside the matrix. | The route runs. |
+| **`not_supported`** | A unit lacks that evidence, including a current passing record of a check it cites (the missing evidence reads `owed: <selector>`). A failing check is never recorded, so it leaves the unit here. | A release build refuses with reason `not_supported`, a detail, and the missing evidence. |
 | **Scientific refusal** | The question is not identified, is a typed n/a, has an invalid declaration or input, names no such method, is numerically impossible, exceeds a resource limit, or is cancelled. | Refuses in every build, with its own reason code, never `not_supported`. |
-| **Calibration status** | `calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`, derived from coverage records. | Attached to every reported interval. It never refuses and never gates. |
+| **Calibration status** | `calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`, derived from coverage records. | Attached to every reported interval. It never refuses and never changes support; `measured_below_nominal` only annotates the result. |
 | **Development build** | Cargo feature `development`. In Python, build with `scripts/dev_python.sh` and read `antecedent.build_flavor()`. | Runs `not_supported` routes. Results carry `would_refuse` (the code, the detail and the missing evidence). Release consumers refuse development-stamped artifacts. |
 
 The machinery behind the model:
 
 - `antecedent_core::support_gate::require_supported` is the only place a `not_supported` refusal is built. `scripts/gate_not_supported_sites.py` enforces that.
-- `scripts/gate_support.py` applies the one support rule to every unit and prints the one support count: supported units. Route counts are never a support count.
+- `scripts/gate_support.py` applies the one support rule to every unit and prints the one support count: supported units, with the not-supported units split into those owed only scientific records and those missing other evidence. It reads the ledger through `scripts/scientific_records.py`; it does not fingerprint or record anything itself. Route counts are never a support count.
 - Estimator declarations (`crates/antecedent/src/strategy_table/targets.rs`) list the estimators valid for a cell. An explicit `estimator=` may choose any estimator listed for the cell, and the listed set equals the declared-valid set (the `parity/estimator_validity.toml` snapshot).
-- Calibration records (`parity/coverage_records.toml`) are measured by a separate calibration flow. A record is current while its dependency fingerprint is unchanged. A changed fingerprint makes it owed, and a probe (`scripts/calibration_probe.py`) decides whether the measured numbers still reproduce. Calibration never fails a code change.
-- Scientific-test records (`parity/scientific_records.toml`, managed by `scripts/scientific_records.py`) record passes of the scientific assertions against a dependency fingerprint. Only owed tests rerun. A recorded pass is evidence for support; it is never a calibration measurement.
+- Calibration records (`parity/coverage_records.toml`) are measured by a separate calibration flow. A record is current while its dependency fingerprint is unchanged. A changed fingerprint makes it owed, and a probe (`scripts/calibration_probe.py`) decides whether the measured numbers still reproduce. A calibration record never changes support and never refuses a route, but CI fails while one is owed (see [Earning and checking the records](#earning-and-checking-the-records)).
+- Scientific-test records (`parity/scientific_records.toml`, managed by `scripts/scientific_records.py`) record passes of the scientific assertions against a dependency fingerprint. Only owed tests rerun. A recorded pass is evidence for support; it is never a calibration measurement. A unit is supported only while every scientific check it cites has a current record. The embedded support data (`crates/antecedent/data/support_matrix.json`, `crates/antecedent-io-core/data/unit_support_status.json`) carries each unit's `status` and `missing_evidence`, derived from the evidence registries and the ledger by `scripts/generate_support_matrix_docs.py`, so the release build refuses an owed unit like any other `not_supported` route.
+
+## Earning and checking the records
+
+Supported means provenance plus an independent check with a current passing record. This section is the canonical description of how those records are earned and checked; other pages link here.
+
+### What a fingerprint covers
+
+Every record stores a sha256 fingerprint of everything its test depends on (`scripts/evidence_fingerprint.py`, one implementation for scientific and calibration records). It covers:
+
+- For a Rust test, the comment-stripped sources and normalized manifests of every workspace crate in the test crate's dependency closure, plus the test file, its module directory and shared helpers. A test that has been captured under coverage (`scripts/scientific_records.py capture`) is fingerprinted over the source files it executed instead, so an edit to a crate it never reaches leaves it current.
+- For a Python test, `python/antecedent`, the native crate closure, the test file and its `conftest.py` chain, and `python/uv.lock`.
+- Embedded include files (`include_str!`, `include_bytes!`, `include!`) and the files and directories read at run time by literal path.
+- Inputs a site builds at run time, which cannot be followed statically, are declared in `parity/fingerprint_inputs.toml`. A source with an undeclared dynamic input fails fingerprinting; it is never skipped. The same file declares fixtures and oracle files the citing claims name.
+- Build scripts and the paths they declare with `cargo:rerun-if-changed`.
+- The value of every `ANTECEDENT_*` environment variable a hashed source names. Other names are listed by name only.
+- `Cargo.lock`, the workspace manifest (version-only bumps change nothing), `rust-toolchain.toml` and the feature set.
+
+Derived status is not evidence. The status and `missing_evidence` fields of the embedded support data, the attesting record ids, and each ledger's own fingerprint, commit and time columns are removed before hashing, so re-deriving support from the ledgers never invalidates them.
+
+### Owed, current and measured_below_nominal
+
+A record is **current** while its stored fingerprint equals the fingerprint of the tree, and **owed** when the fingerprint changed or there is no record. The two kinds of record owe differently:
+
+| Record | Owed means | Effect |
+| --- | --- | --- |
+| Scientific (`parity/scientific_records.toml`) | The assertion changed or something it depends on changed, or it was never recorded. | The unit that cites it is `not_supported` (`owed: <selector>`) until the assertion is rerun and its pass recorded. CI fails. |
+| Calibration (`parity/coverage_records.toml`) | The coverage record's fingerprint changed, or an interval route has no record. | No effect on support and no refusal. CI fails until it is measured. |
+
+`measured_below_nominal` is a calibration *status*, not an owed state. A record can be current and show that the measured coverage fell below nominal. The result carries that annotation; it changes neither support nor routing.
+
+A scientific assertion that no evidence claim cites is still scientific. Such tests are listed in `parity/scientific_tests.toml` with their fixtures; they are excluded from the engineering lane and recorded exactly like cited ones.
+
+### Earning locally, checking in CI
+
+Scientific tests and calibration are **earned on development machines**, rerunning only what is owed. Every run includes engineering.
+
+| Command | What runs |
+| --- | --- |
+| `bash scripts/test.sh` | Engineering, then the owed scientific assertions, then the owed calibration measurements. Stops at the first failure and prints what it reran. |
+| `bash scripts/test.sh engineering` | Engineering only. |
+| `bash scripts/test.sh scientific` | Only the owed scientific assertions. Passes are recorded as each batch finishes (one per Rust crate and one for Python), so an interrupted run keeps its progress. |
+| `bash scripts/test.sh scientific --only PATTERN` | The owed scientific rows whose selector, test path or id contains `PATTERN` or matches it as a glob. Use it while iterating on one test. |
+| `bash scripts/test.sh calibration` | Only the owed calibration records (`measure_calibration.sh --owed`). It needs a clean committed tree. |
+| `bash scripts/test.sh calibration --only PATTERN` | Owed work whose group label, record id or test, or route matches `PATTERN`. |
+| `bash scripts/test.sh scientific --all`, `calibration --all` | Rerun everything. Manual; no CI job or release runs them. |
+
+After a run, commit `parity/scientific_records.toml` and the coverage records (and the files the collector regenerates). `python3 scripts/scientific_records.py status` and `python3 scripts/calibration_status.py status` list what is owed without running anything.
+
+CI and releases **never execute either lane and never record anything**. They only check that every record is current:
+
+```bash
+python3 scripts/scientific_records.py status --check   # exit 1 while any scientific record is owed
+python3 scripts/calibration_status.py --check          # exit 1 while any calibration record is owed
+```
+
+The `static` job runs both, and the `scientific` job runs the same pair alone. The release candidate requires them to pass; it re-runs nothing.
 
 A supported route can report an interval whose calibration status is `not_measured`, and the result says so. A model-conditional response can be useful without a design that identifies the real-world effect; successful execution preserves that status.
 

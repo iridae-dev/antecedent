@@ -17,7 +17,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.linear_adjustment",
 ]
@@ -41,7 +41,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_dag_ate_route_evidence.rs::bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_dag_ate_route_evidence.rs::bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.gcomp",
 ]
@@ -65,7 +65,7 @@ route = "supported.PulseEffect.TemporalDag"
 target = "PulseEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.temporal_linear_adjustment",
   "estimate.temporal_response.gcomp",
@@ -91,7 +91,7 @@ route = "supported.PulseEffect.TemporalDag"
 target = "PulseEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/white_innovation_route.rs::a_declared_premise_gives_the_untempered_least_squares_posterior_with_its_premise_recorded; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/white_innovation_route.rs::a_declared_premise_gives_the_untempered_least_squares_posterior_with_its_premise_recorded; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_temporal_white_innovation",
 ]
@@ -116,7 +116,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_iv_wald_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/frontdoor_iv_route_evidence.rs::dag_explicit_frequentist_iv_wald_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.iv_2sls",
 ]
@@ -140,7 +140,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_specialist_route_evidence.rs::bayesian_specialists_execute_from_retained_plan_after_builder_drop; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_specialist_route_evidence.rs::bayesian_specialists_execute_from_retained_plan_after_builder_drop; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_iv",
 ]
@@ -164,7 +164,7 @@ route = "supported.PulseEffect.TemporalDag"
 target = "lagged instrument Wald ratio"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_frequentist_route_matches_the_wald_ratio_and_certifies_the_instrument_from_the_graph; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_frequentist_route_matches_the_wald_ratio_and_certifies_the_instrument_from_the_graph; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.bayesian_temporal_lagged_instrument",
   "estimate.temporal_lagged_instrument",
@@ -189,7 +189,7 @@ route = "supported.PulseEffect.TemporalDag"
 target = "lagged instrument posterior ratio"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_bayesian_route_is_a_reduced_form_ratio_posterior_not_a_penalized_wald; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_bayesian_route_is_a_reduced_form_ratio_posterior_not_a_penalized_wald; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_temporal_lagged_instrument",
   "estimate.temporal_lagged_instrument",
@@ -214,7 +214,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_estimators_route_evidence.rs::checked_glm_accepted_and_explicit_retain_design_and_dependency_refusal; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.gcomp",
   "estimate.glm",
@@ -239,7 +239,7 @@ route = "supported.AverageEffect.CoDetermined"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_likelihood.rs::a_logit_likelihood_recovers_the_risk_difference_on_a_binary_outcome; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (estimator_records)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_likelihood.rs::a_logit_likelihood_recovers_the_risk_difference_on_a_binary_outcome; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (estimator_records)"
 provenance = [
   "estimate.bayesian_conditional",
   "estimate.bayesian_gcomp",
@@ -268,7 +268,7 @@ route = "supported.PulseEffect.TemporalDag"
 target = "decision-time mean-scale contrast"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/panel_link_contrast_route.rs::the_frequentist_contrast_matches_newton_and_the_delta_method; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/panel_link_contrast_route.rs::the_frequentist_contrast_matches_newton_and_the_delta_method; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.bayesian_temporal_glm_link_contrast",
   "estimate.temporal_glm_link_contrast",
@@ -293,7 +293,7 @@ route = "supported.PulseEffect.TemporalDag"
 target = "decision-time mean-scale contrast"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/panel_link_contrast_route.rs::the_bayesian_contrast_matches_the_mode_and_a_laplace_sample; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/panel_link_contrast_route.rs::the_bayesian_contrast_matches_the_mode_and_a_laplace_sample; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_temporal_glm_link_contrast",
   "estimate.temporal_glm_link_contrast",
@@ -318,7 +318,7 @@ route = "method.penalized.static.frequentist"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-estimate/tests/penalized_aipw.rs::a_penalized_fit_publishes_scores_a_point_and_the_cross_fitted_influence_interval; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-estimate/tests/penalized_aipw.rs::a_penalized_fit_publishes_scores_a_point_and_the_cross_fitted_influence_interval; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (declared_and_corroborated)"
 provenance = [
   "estimate.penalized_propensity_aipw",
 ]
@@ -415,7 +415,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/aipw_ate_route_evidence.rs::dag_explicit_frequentist_aipw_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/aipw_ate_route_evidence.rs::dag_explicit_frequentist_aipw_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.aipw",
 ]
@@ -439,7 +439,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_robust_ate.rs::bayesian_robust_ate_all_observed_staged_known_truth; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_robust_ate.rs::bayesian_robust_ate_all_observed_staged_known_truth; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_robust_ate",
 ]
@@ -817,7 +817,7 @@ route = "supported.AverageEffect.Cpdag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/cpdag_ate_numeric_pins.rs::cpdag_ate_envelope_numeric_pin; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/cpdag_ate_numeric_pins.rs::cpdag_ate_envelope_numeric_pin; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.envelope",
 ]
@@ -841,7 +841,7 @@ route = "supported.AverageEffect.Pag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs::bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs::bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "validate.dbn_posterior",
 ]
@@ -917,7 +917,7 @@ route = "supported.ResponseCurve.Dag"
 target = "ResponseCurve"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/response_facade.rs::response_curve_runs_through_public_study_facade; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/response_facade.rs::response_curve_runs_through_public_study_facade; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.response.intervention_gcomp",
   "estimate.response.kennedy_dr",
@@ -942,7 +942,7 @@ route = "supported.ResponseCurve.Dag"
 target = "ResponseCurve"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_static_dag_response_route_evidence.rs::bayesian_static_dag_responses_are_sealed_for_explicit_and_accepted_graphs; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_static_dag_response_route_evidence.rs::bayesian_static_dag_responses_are_sealed_for_explicit_and_accepted_graphs; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.response.bayesian",
   "estimate.response.point_derivative",
@@ -967,7 +967,7 @@ route = "supported.ResponseCurve.TemporalDag"
 target = "ResponseCurve"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_response_facade.rs::temporal_dose_horizon_surface_matches_fixture_and_prepared_path; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_response_facade.rs::temporal_dose_horizon_surface_matches_fixture_and_prepared_path; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.temporal_response.gcomp",
   "estimate.temporal_response.intervention_gcomp",
@@ -992,7 +992,7 @@ route = "supported.ResponseCurve.TemporalDag"
 target = "ResponseCurve"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/white_innovation_route.rs::a_declared_premise_gives_the_untempered_curve_at_one_step_with_its_premise_recorded; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/white_innovation_route.rs::a_declared_premise_gives_the_untempered_curve_at_one_step_with_its_premise_recorded; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.response.temporal.bayesian",
 ]
@@ -1017,7 +1017,7 @@ route = "supported.AverageDerivative.Dag"
 target = "AverageDerivative"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.response.point_derivative",
   "estimate.response.riesz_ade",
@@ -1042,7 +1042,7 @@ route = "supported.AverageDerivative.Dag"
 target = "AverageDerivative"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.response.point_derivative",
   "estimate.response.riesz_ade",
@@ -1067,7 +1067,7 @@ route = "supported.AverageDerivative.TemporalDag"
 target = "AverageDerivative"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_derivative_effect.rs::temporal_dag_derivatives_publish_the_linear_slope; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_derivative_effect.rs::temporal_dag_derivatives_publish_the_linear_slope; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
 provenance = [
   "estimate.temporal_response.gcomp",
   "estimate.temporal_response.intervention_gcomp",
@@ -1092,7 +1092,7 @@ route = "supported.AverageDerivative.TemporalDag"
 target = "AverageDerivative"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_derivative_effect.rs::temporal_dag_derivatives_publish_the_linear_slope; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_derivative_effect.rs::temporal_dag_derivatives_publish_the_linear_slope; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
 provenance = [
   "estimate.response.temporal.bayesian",
 ]
@@ -1141,7 +1141,7 @@ route = "bayesian.continuous_dose_policy"
 target = "continuous_dose_policy"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_design_posterior_routes.rs::dose_policy_posterior_matches_the_per_group_conjugate_reference; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_design_posterior_routes.rs::dose_policy_posterior_matches_the_per_group_conjugate_reference; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "estimate.policy.continuous_dose.bayesian",
 ]
@@ -1340,7 +1340,7 @@ route = "bayesian.dose_grid"
 target = "DoseResponse"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-estimate/src/dose_grid_posterior.rs::level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-estimate/src/dose_grid_posterior.rs::level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "estimate.dose_grid_functional.bayesian",
 ]
@@ -1416,7 +1416,7 @@ route = "supported.AverageEffect.Dag"
 target = "QuantileEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_explicit_frequentist_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_explicit_frequentist_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.randomized_quantile",
 ]
@@ -1440,7 +1440,7 @@ route = "supported.AverageEffect.Dag"
 target = "QuantileEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_design_posterior_routes.rs::quantile_posterior_matches_the_dirichlet_reference_and_keeps_joint_draws; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_design_posterior_routes.rs::quantile_posterior_matches_the_dirichlet_reference_and_keeps_joint_draws; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_randomized_quantile",
   "estimate.quantile.bayesian",
@@ -1514,7 +1514,7 @@ route = "supported.MediationEffect.Dag"
 target = "MediationEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_mediation_route_evidence.rs::static_mediation_plan_executes_every_contrast_and_supported_validation_suite; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_mediation_route_evidence.rs::static_mediation_plan_executes_every_contrast_and_supported_validation_suite; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (construction_fixture)"
 provenance = [
   "estimate.mediation.linear",
 ]
@@ -1538,7 +1538,7 @@ route = "supported.MediationEffect.Dag"
 target = "MediationEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_mediation_route_evidence.rs::bayesian_static_mediation_plan_survives_builder_refresh_and_artifact_consume; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_mediation_route_evidence.rs::bayesian_static_mediation_plan_survives_builder_refresh_and_artifact_consume; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.mediation.linear",
 ]
@@ -1562,7 +1562,7 @@ route = "supported.TemporalMediationEffect.TemporalDag"
 target = "TemporalMediationEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs::checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs::checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (construction_fixture)"
 provenance = [
   "estimate.temporal_mediation",
 ]
@@ -1586,7 +1586,7 @@ route = "supported.TemporalMediationEffect.TemporalDag"
 target = "TemporalMediationEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs::checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs::checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.bayesian_temporal_mediation",
 ]
@@ -1636,7 +1636,7 @@ route = "bayesian.randomized_finite_population"
 target = "randomized_effect"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_randomized_routes.rs::the_default_bayesian_route_is_the_finite_population_posterior_of_the_design_based_target; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_randomized_routes.rs::the_default_bayesian_route_is_the_finite_population_posterior_of_the_design_based_target; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "estimate.randomized.bayesian",
   "estimate.randomized_ipow_modular",
@@ -1734,7 +1734,7 @@ route = "bayesian.randomized_finite_population"
 target = "randomized_effect"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_randomized_routes.rs::many_arms_report_every_arm_against_the_reference; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_randomized_routes.rs::many_arms_report_every_arm_against_the_reference; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "estimate.randomized.bayesian",
   "estimate.randomized_ipow_modular",
@@ -1930,7 +1930,7 @@ route = "bayesian.randomized_finite_population"
 target = "randomized_effect"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_randomized_routes.rs::the_factorial_main_effects_and_interaction_match_the_exact_moments; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_randomized_routes.rs::the_factorial_main_effects_and_interaction_match_the_exact_moments; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "estimate.randomized.bayesian",
   "estimate.randomized_ipow_modular",
@@ -2079,7 +2079,7 @@ route = "bayesian.switchback_effect"
 target = "randomized_effect"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_randomized_routes.rs::the_switchback_posterior_matches_the_whitened_least_squares_reference; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_randomized_routes.rs::the_switchback_posterior_matches_the_whitened_least_squares_reference; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "estimate.switchback.bayesian",
 ]
@@ -2232,7 +2232,7 @@ route = "supported.InterferenceQuery.Dag"
 target = "InterferenceQuery"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_interference_lifecycle.rs::conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scoped; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_interference_lifecycle.rs::conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scoped; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.interference.cluster_bayesian_bootstrap",
   "estimate.interference.cluster_neyman",
@@ -2333,7 +2333,7 @@ route = "bayesian.piecewise_survival"
 target = "survival"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_design_posterior_routes.rs::survival_posterior_matches_the_gamma_hazard_reference_and_keeps_joint_draws; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_design_posterior_routes.rs::survival_posterior_matches_the_gamma_hazard_reference_and_keeps_joint_draws; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "estimate.survival.bayesian",
 ]
@@ -2800,7 +2800,7 @@ route = "supported.AverageEffect.Dag"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/estimate_conformance.rs::estimate_rd_sharp_recovers_jump; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/estimate_conformance.rs::estimate_rd_sharp_recovers_jump; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.rd",
 ]
@@ -3313,7 +3313,7 @@ route = "supported.InterventionResponse.Dag"
 target = "InterventionResponse"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_dag_response_route_evidence.rs::intervention_gcomp_explicit_and_accepted_cover_each_validation_suite; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_static_dag_response_route_evidence.rs::intervention_gcomp_explicit_and_accepted_cover_each_validation_suite; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "composition.panel_experiment_update",
   "estimate.interference.bayesian_gaussian",
@@ -3363,7 +3363,7 @@ route = "supported.InterventionResponse.Dag"
 target = "InterventionResponse"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_static_dag_response_route_evidence.rs::bayesian_static_dag_responses_are_sealed_for_explicit_and_accepted_graphs; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_static_dag_response_route_evidence.rs::bayesian_static_dag_responses_are_sealed_for_explicit_and_accepted_graphs; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.response.bayesian",
   "estimate.response.point_derivative",
@@ -3388,7 +3388,7 @@ route = "supported.InterventionResponse.TemporalDag"
 target = "InterventionResponse"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_dag_response_route_evidence.rs::temporal_intervention_response_is_sealed_refreshable_and_has_precise_artifact_dependency; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_dag_response_route_evidence.rs::temporal_intervention_response_is_sealed_refreshable_and_has_precise_artifact_dependency; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.temporal_response.gcomp",
   "estimate.temporal_response.intervention_gcomp",
@@ -3413,7 +3413,7 @@ route = "supported.InterventionResponse.TemporalDag"
 target = "InterventionResponse"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "estimate.response.temporal.bayesian",
 ]
@@ -3439,7 +3439,7 @@ route = "supported.Counterfactual.Dag"
 target = "Counterfactual"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_counterfactual_route_evidence.rs::checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portable_replay; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty none (point_only_cell)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_counterfactual_route_evidence.rs::checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portable_replay; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty none (point_only_cell)"
 provenance = [
   "counterfactual.aap",
   "counterfactual.temporal_fixed_population",
@@ -3472,7 +3472,7 @@ route = "supported.Counterfactual.Dag"
 target = "Counterfactual"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/counterfactual_noise_posterior.rs::bayesian_unit_effects_integrate_the_categorical_noise_posterior; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/counterfactual_noise_posterior.rs::bayesian_unit_effects_integrate_the_categorical_noise_posterior; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "attribution.basic",
   "counterfactual.aap",
@@ -3483,7 +3483,7 @@ provenance = [
   "model.lgssm",
   "model.registry",
 ]
-api_review = "parity/public_api/antecedent.txt: 46 of 46 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 33 of 46 public items reviewed"
 identifying_result = "Counterfactual"
 assumptions = "the identification premises of Counterfactual on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -3504,7 +3504,7 @@ route = "supported.Counterfactual.TemporalDag"
 target = "Counterfactual"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_cross_world_effect.rs::temporal_dag_cross_world_points_match_the_linear_mechanism; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_cross_world_effect.rs::temporal_dag_cross_world_points_match_the_linear_mechanism; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
 provenance = [
   "estimate.temporal_linear_adjustment",
   "estimate.temporal_response.gcomp",
@@ -3530,7 +3530,7 @@ route = "supported.Counterfactual.TemporalDag"
 target = "Counterfactual"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_counterfactual_posterior.rs::the_bayesian_temporal_counterfactual_is_the_posterior_of_the_slope_times_the_contrast; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_counterfactual_posterior.rs::the_bayesian_temporal_counterfactual_is_the_posterior_of_the_slope_times_the_contrast; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
 provenance = [
   "estimate.temporal_response.observation_adjusted",
 ]
@@ -3808,7 +3808,7 @@ route = "supported.TransportQuery.Admg"
 target = "TransportQuery"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_transport_trial_route_evidence.rs::transport_trial_executes_from_retained_sid_proof_after_builder_drop; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_transport_trial_route_evidence.rs::transport_trial_executes_from_retained_sid_proof_after_builder_drop; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
   "identify.interference.design",
 ]
@@ -3832,7 +3832,7 @@ route = "supported.TransportQuery.Admg"
 target = "TransportQuery"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_trial_transport.rs::bayesian_trial_transport_matches_two_source_row_dirichlet_moments; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_trial_transport.rs::bayesian_trial_transport_matches_two_source_row_dirichlet_moments; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "identify.interference.design",
 ]
@@ -3856,7 +3856,7 @@ route = "supported.TransportQuery.TemporalAdmg"
 target = "TransportQuery"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_admg_route_evidence.rs; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_admg_route_evidence.rs; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
 provenance = [
   "identify.interference.design",
 ]
@@ -3881,7 +3881,7 @@ route = "supported.TransportQuery.TemporalAdmg"
 target = "TransportQuery"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_admg_route_evidence.rs; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_admg_route_evidence.rs; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
 provenance = [
   "identify.interference.design",
 ]
@@ -3906,7 +3906,7 @@ route = "supported.ConditionalEffect.Admg"
 target = "ConditionalEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/admg_conditional_effect.rs::admg_conditional_effect_coordinates_execute_from_the_retained_plan; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (asserted_in_test)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/admg_conditional_effect.rs::admg_conditional_effect_coordinates_execute_from_the_retained_plan; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (asserted_in_test)"
 provenance = [
   "estimate.functional_effect",
 ]
@@ -3930,7 +3930,7 @@ route = "supported.ConditionalEffect.Admg"
 target = "ConditionalEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/admg_conditional_effect.rs::admg_conditional_effect_coordinates_execute_from_the_retained_plan; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (asserted_in_test)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/admg_conditional_effect.rs::admg_conditional_effect_coordinates_execute_from_the_retained_plan; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (asserted_in_test)"
 provenance = [
   "estimate.functional_effect",
 ]
@@ -3954,7 +3954,7 @@ route = "supported.TemporalConditionalPulse.TemporalAdmg"
 target = "ConditionalEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_pre_treatment_covariate_identifies_the_conditional_contrast_on_the_window; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (estimator_records)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_pre_treatment_covariate_identifies_the_conditional_contrast_on_the_window; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (estimator_records)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -3978,7 +3978,7 @@ route = "supported.TemporalConditionalPulse.TemporalAdmg"
 target = "ConditionalEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_pre_treatment_covariate_identifies_the_conditional_contrast_on_the_window; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (estimator_records)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_pre_treatment_covariate_identifies_the_conditional_contrast_on_the_window; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (estimator_records)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -4002,7 +4002,7 @@ route = "supported.AverageEffect.Admg"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_frequentist_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_frequentist_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (construction_fixture)"
 provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
@@ -4027,7 +4027,7 @@ route = "supported.AverageEffect.Admg"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_bayesian_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_bayesian_none; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
 provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
@@ -4053,7 +4053,7 @@ route = "supported.AverageEffect.TemporalAdmg"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_average_effect_explicit_and_accepted; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_average_effect_explicit_and_accepted; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
 provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
@@ -4078,7 +4078,7 @@ route = "supported.AverageEffect.TemporalAdmg"
 target = "AverageEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_average_effect_explicit_and_accepted; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_average_effect_explicit_and_accepted; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
 provenance = [
   "estimate.bayesian_conditional",
   "estimate.bayesian_gcomp",
@@ -4154,7 +4154,7 @@ route = "supported.PulseEffect.TemporalAdmg"
 target = "PulseEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (estimator_records)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (estimator_records)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -4179,7 +4179,7 @@ route = "supported.PulseEffect.TemporalAdmg"
 target = "PulseEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (estimator_records)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (estimator_records)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -4252,7 +4252,7 @@ route = "supported.SustainedEffect.TemporalAdmg"
 target = "SustainedEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty analytic (estimator_records)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (estimator_records)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]
@@ -4277,7 +4277,7 @@ route = "supported.SustainedEffect.TemporalAdmg"
 target = "SustainedEffect"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result; uncertainty design_aware_resampling (estimator_records)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent-identify/src/temporal_admg.rs::a_multi_lag_template_is_identified_when_history_is_observed; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (estimator_records)"
 provenance = [
   "not_applicable: lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
 ]

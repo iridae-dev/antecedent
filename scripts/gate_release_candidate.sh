@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
 # Release-candidate gate: tier 4, the release-only checks on top of the pull-request gate.
 # `gate_release.sh` is the pull-request gate (static checks, builds, engineering tests, the
-# scientific assertions owed); a green local run of that script alone is not a release candidate.
+# currency of the scientific and calibration records); a green local run of that script alone is not a release candidate.
 #
 # This script:
 #   1. requires CI_RUN_ID: a GitHub Actions `ci` run on this exact HEAD in which every
 #      display-name expansion of every `required_jobs` id (parity/release.toml) concluded
 #      `success`, and a clean working tree
-#   2. runs every section of gate_release.sh except the owed-only scientific lane, with
-#      cargo-deny required
-#   3. re-runs every scientific assertion and records the passes
-#      (`bash scripts/test.sh scientific --all`)
-#   4. runs the release-only checks: the release inventory with no unresolved row, strict bounds
+#   2. runs every section of gate_release.sh, with cargo-deny required; the static section requires zero owed scientific records and zero owed calibration
+#      records (nothing is executed or re-recorded here)
+#   3. runs the release-only checks: the release inventory with no unresolved row, strict bounds
 #      and final claims, the exit-story verdict logic, the release-only scale
 #      cases, the release-closure receipts and the cross-language interchange
-#   5. builds one local wheel into a fresh directory, installs it into a fresh venv, and runs the
+#   4. builds one local wheel into a fresh directory, installs it into a fresh venv, and runs the
 #      documented examples, the cyclic-systems gate and the full Python test suite against the
 #      installed wheel
 #
-# Calibration status stays an annotation (scripts/calibration_status.py status): it is printed by
-# the static section and never fails a candidate.
+# Scientific and calibration records are earned on development machines and committed; a
+# candidate with any record owed fails the checks above. Calibration status (including
+# measured_below_nominal) still never changes support.
 #
 #   CI_RUN_ID=<actions run id for HEAD> bash scripts/gate_release_candidate.sh
 #   bash scripts/gate_release_candidate.sh --self-test
@@ -128,15 +127,12 @@ trap 'rm -f "$RUN_JSON"' EXIT
 gh run view "$CI_RUN_ID" --json headSha,jobs >"$RUN_JSON"
 check_ci_run "$RUN_JSON" "$(git rev-parse HEAD)"
 
-# Every section of the pull-request gate except the owed-only scientific lane, which the next
-# step replaces with a full re-run.
+# Every other section of the pull-request gate; the static section includes the record-currency
+# checks (the scientific section is the same pair as its own CI job).
 for gate_section in static public-api cited-tests benches deny python-lint engineering development; do
   echo "== release candidate: gate_release.sh --section ${gate_section} =="
   bash scripts/gate_release.sh --section "$gate_section"
 done
-
-echo "== release candidate: every scientific assertion, re-run and re-recorded =="
-bash scripts/test.sh scientific --all
 
 echo "== release candidate: cited tests listed by cargo =="
 bash scripts/gate_capability_records.sh --resolve
@@ -156,6 +152,9 @@ bash scripts/gate_decision_exit.sh --self-test
 
 echo "== release candidate: release-only scale cases within their frozen budgets =="
 bash scripts/gate_scale_cases.sh
+
+echo "== release candidate: every supported unit's cited checks have a current passing record (zero owed) =="
+python3 scripts/gate_support.py
 
 echo "== release candidate: release-closure receipts =="
 python3 scripts/check_release_closure.py

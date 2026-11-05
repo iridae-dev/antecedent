@@ -6138,7 +6138,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/randomized_quantile_path.rs", "crates/antecedent/src/analysis/execute/static_path.rs", "crates/antecedent/src/analysis/builder.rs"]
 provenance = ["estimate.randomized_quantile", "estimate.randomized_quantile"]
 evidence = ["crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_explicit_frequentist_none", "crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_accepted_frequentist_none"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/compiler_consistency.rs::checked_aipw_executes_after_builder_discard_and_rebinds_rows"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/randomized_quantile_artifact.rs::the_randomized_quantile_result_round_trips_through_the_contracted_artifact"]
 
 [[method]]
 id = "method.AverageEffect.Dag.rd.bayesian_local_linear.bayesian"
@@ -19942,7 +19942,7 @@ owning_module = "crates/antecedent-estimate/src/propensity/penalized.rs"
 implementation = ["crates/antecedent-estimate/src/propensity/penalized.rs"]
 provenance = []
 evidence = ["crates/antecedent-estimate/tests/penalized_aipw.rs::a_penalized_fit_publishes_scores_a_point_and_the_cross_fitted_influence_interval", "crates/antecedent-estimate/tests/penalized_aipw.rs::scores_match_an_independent_calculation_and_retarget_exactly", "crates/antecedent/tests/aipw_ate_route_evidence.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result"]
 
 [[method]]
 id = "method.penalized_propensity_posterior.static.bayesian"
@@ -20670,7 +20670,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = []
 evidence = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/supported_compiler.rs::every_supported_cell_completes_the_compiler_path", "crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate", "scripts/test_gate_retained_routes.py"]
-artifact_consumer = ["scripts/gate_retained_routes.py", "crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
+artifact_consumer = ["scripts/gate_retained_routes.py", "crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result"]
 
 [[method]]
 id = "method.compile.static.bayesian"
@@ -20698,7 +20698,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = []
 evidence = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/supported_compiler.rs::every_supported_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_dag_ate_route_evidence.rs::bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh", "scripts/test_gate_retained_routes.py"]
-artifact_consumer = ["scripts/gate_retained_routes.py", "crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
+artifact_consumer = ["scripts/gate_retained_routes.py", "crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result"]
 
 [[method]]
 id = "method.compile.temporal.frequentist"
@@ -20726,7 +20726,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = []
 evidence = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/supported_compiler.rs::every_supported_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure", "scripts/test_gate_retained_routes.py"]
-artifact_consumer = ["scripts/gate_retained_routes.py", "crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
+artifact_consumer = ["scripts/gate_retained_routes.py", "crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result"]
 
 [[method]]
 id = "method.compile.temporal.bayesian"
@@ -20754,7 +20754,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = []
 evidence = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/supported_compiler.rs::every_supported_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency", "scripts/test_gate_retained_routes.py"]
-artifact_consumer = ["scripts/gate_retained_routes.py", "crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
+artifact_consumer = ["scripts/gate_retained_routes.py", "crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result"]
 
 [[method]]
 id = "method.closure_audit.static.frequentist"

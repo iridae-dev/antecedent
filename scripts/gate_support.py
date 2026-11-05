@@ -23,6 +23,15 @@ One rule decides support for every unit:
                implementation. Internal consistency, a frozen own output (regression pin)
                and "implementation exists" never count.
 
+  current      every scientific check the unit cites has a CURRENT PASSING record in the
+  record       scientific-records ledger (parity/scientific_records.toml, maintained by
+               scripts/scientific_records.py). A record is current while the fingerprint of
+               everything the check depends on is unchanged. An owed or missing record
+               (including a failing check, which is never recorded) makes the unit
+               not_supported with missing evidence `owed: <selector>`, until the scientific
+               lane re-earns it. The release build refuses the unit like any other
+               not_supported route; the development build runs it with `would_refuse`.
+
 API and stage routes listed under a record are entry points. They have no support status of
 their own: a route is open only as an entry point of a supported unit, and refuses with
 `not_supported` otherwise. Route counts are never a support count.
@@ -32,7 +41,10 @@ surface, the n/a and refusal-reason rules, the generated graphless supports, and
 stage registry.
 
     python3 scripts/gate_support.py                    # fail on any unit that violates the rule
-    python3 scripts/gate_support.py --report           # print every violation, exit 0
+    python3 scripts/gate_support.py --evidence-only    # the rule without ledger currency (the in-tree
+                                                       # embedded status; the default generator mode)
+    python3 scripts/gate_support.py --report           # print every violation and the not-supported
+                                                       # breakdown (owed records vs other), exit 0
     python3 scripts/gate_support.py --cited-tests      # also resolve every cited test through
                                                        # `cargo test -- --list` (builds, never runs)
     python3 scripts/gate_support.py --cited-tests --matrix-shard 3   # one eighth of the matrix cells
@@ -103,14 +115,76 @@ class Unit:
     kind: str  # matrix | graphless | capability
     ident: str
     problems: list[str] = field(default_factory=list)
+    # Ledger selectors of the cited scientific checks whose record is owed.
+    owed: list[str] = field(default_factory=list)
 
     @property
     def supported(self) -> bool:
         return not self.problems
 
+    def require_current(self, ledger: "Ledger | None", test: str, name: str) -> None:
+        """Not supported while the cited check has no current passing record."""
+        selector = ledger.owed(test, name) if ledger is not None else None
+        if selector is not None and selector not in self.owed:
+            self.owed.append(selector)
+            self.problems.append(f"{OWED_PREFIX}{selector}")
+
+    @property
+    def owed_only(self) -> bool:
+        """Not supported for no reason other than owed scientific records."""
+        return bool(self.problems) and all(p.startswith(OWED_PREFIX) for p in self.problems)
+
 
 def _load(rel: str) -> dict:
     return tomllib.loads((ROOT / rel).read_text(encoding="utf-8"))
+
+
+OWED_PREFIX = "owed: "
+
+
+class Ledger:
+    """Which cited scientific checks have a current passing record in the ledger.
+
+    Classification is `scientific_records.classify`: the fingerprint comes from
+    `evidence_fingerprint`, the records from `parity/scientific_records.toml`. Nothing here
+    fingerprints or reads records itself. A cited check that is not a scientific row can
+    never be recorded, so it is owed."""
+
+    def __init__(self) -> None:
+        self._owed: dict[tuple[str, str], str] | None = None
+        self._current: set[tuple[str, str]] = set()
+
+    def _load(self) -> None:
+        import scientific_records
+        from evidence_fingerprint import Fingerprinter
+
+        rows = scientific_records.all_scientific_rows(ROOT)
+        owed, current = scientific_records.classify(ROOT, rows, Fingerprinter(ROOT))
+        key = lambda item: (item["evidence_test"], item["evidence_assertion"])  # noqa: E731
+        self._owed = {key(i): i["selector"] for i in owed}
+        self._current = {key(i) for i in current}
+
+    def owed(self, test: str, name: str) -> str | None:
+        """The ledger selector when the check's record is owed or missing; None when current."""
+        if self._owed is None:
+            self._load()
+        assert self._owed is not None
+        if (test, name) in self._current:
+            return None
+        if (test, name) in self._owed:
+            return self._owed[(test, name)]
+        from evidence_fingerprint import locate
+
+        try:
+            return locate(ROOT, {"evidence_test": test, "evidence_assertion": name})["selector"]
+        except ValueError:
+            return f"{test}::{name}"
+
+    def counts(self) -> tuple[int, int]:
+        if self._owed is None:
+            self._load()
+        assert self._owed is not None
+        return len(self._current), len(self._owed)
 
 
 _TEST_CACHE: dict[tuple[str, str], list[str]] = {}
@@ -175,7 +249,7 @@ def cell_ident(cell: dict) -> str:
     return "/".join(str(cell.get(axis)) for axis in CELL_AXES)
 
 
-def check_cell(cell: dict, prov: Provenance) -> Unit:
+def check_cell(cell: dict, prov: Provenance, ledger: Ledger | None = None) -> Unit:
     unit = Unit("matrix", cell_ident(cell))
     estimators = cell.get("estimators") or []
     if not estimators:
@@ -204,8 +278,11 @@ def check_cell(cell: dict, prov: Provenance) -> Unit:
             unit.problems.append(
                 f"no independent check: {test}::{name} is a calibration simulation, not an independent check"
             )
-        for why in test_problems(test, name):
+        why_not = test_problems(test, name)
+        for why in why_not:
             unit.problems.append(f"no independent check: {test}::{name}: {why}")
+        if not why_not:
+            unit.require_current(ledger, test, name)
     return unit
 
 
@@ -230,7 +307,7 @@ def graphless_routes(row: dict, manifest: dict) -> list[dict]:
     ]
 
 
-def check_graphless(row: dict, prov: Provenance, manifest: dict) -> Unit:
+def check_graphless(row: dict, prov: Provenance, manifest: dict, ledger: Ledger | None = None) -> Unit:
     unit = Unit("graphless", graphless_ident(row))
     by_route = {m["route"]: m for m in manifest.get("method") or []}
     routes = graphless_routes(row, manifest)
@@ -262,8 +339,11 @@ def check_graphless(row: dict, prov: Provenance, manifest: dict) -> Unit:
             unit.problems.append(
                 f"no independent check: {field_name} {ref} is a calibration simulation, not an independent check"
             )
-        for why in test_problems(path, name):
+        why_not = test_problems(path, name)
+        for why in why_not:
             unit.problems.append(f"no independent check: {field_name} {ref}: {why}")
+        if not why_not:
+            unit.require_current(ledger, path, name)
     return unit
 
 
@@ -325,7 +405,7 @@ def independent_fixtures(record: dict) -> tuple[list[dict], list[str]]:
     return good, notes
 
 
-def check_capability(record: dict, prov: Provenance) -> Unit:
+def check_capability(record: dict, prov: Provenance, ledger: Ledger | None = None) -> Unit:
     unit = Unit("capability", record["id"])
     if not record_provenance(record, prov):
         unit.problems.append("no provenance: no provenance record names this capability or its modules")
@@ -339,19 +419,26 @@ def check_capability(record: dict, prov: Provenance) -> Unit:
             + extra
             + (f" ({calibration} calibration fixture(s) are coverage attestations, not a truth check)" if calibration else "")
         )
+    for fx in good:
+        unit.require_current(ledger, fx["evidence_test"], fx["evidence_assertion"])
     return unit
 
 
 # --------------------------------------------------------------------------- run
-def evaluate() -> dict:
+def evaluate(ledger: Ledger | None = None, evidence_only: bool = False) -> dict:
+    """Every unit and its problems. `ledger` decides which cited checks are owed (default: the
+    scientific-records ledger). `evidence_only` applies the rule without ledger currency
+    (provenance plus a resolvable independent check): the in-tree embedded status, so the
+    scientific lane can run the routes it re-earns."""
     prov = Provenance()
+    ledger = None if evidence_only else (ledger if ledger is not None else Ledger())
     cells = _load(CELLS).get("cell") or []
     rows = _load(GRAPHLESS).get("support") or []
     records = _load(RECORDS).get("record") or []
     manifest = _load(MANIFEST)
 
-    matrix = [check_cell(c, prov) for c in cells]
-    graphless = [check_graphless(r, prov, manifest) for r in rows]
+    matrix = [check_cell(c, prov, ledger) for c in cells]
+    graphless = [check_graphless(r, prov, manifest, ledger) for r in rows]
 
     structural: list[str] = []
     aliased: list[tuple[str, int, int]] = []
@@ -382,7 +469,7 @@ def evaluate() -> dict:
                         structural.append(f"{rec['id']}: {label} selector {sel} matches no unit")
             aliased.append((rec["id"], len(hit_m), len(hit_g)))
             continue
-        capabilities.append(check_capability(rec, prov))
+        capabilities.append(check_capability(rec, prov, ledger))
     return {
         "matrix": matrix,
         "graphless": graphless,
@@ -391,14 +478,18 @@ def evaluate() -> dict:
         "aliased": aliased,
         "engineering": engineering,
         "structural": structural,
+        "records_current_owed": ledger.counts() if ledger is not None else (0, 0),
     }
 
 
+OWED = "owed: a cited scientific check has no current passing record"
 STALE = "independent check: a reviewed item or fixture changed since its review digest was bound"
 
 
 def cause(problem: str) -> str:
     """The reason class of a problem, without the unit-specific names."""
+    if problem.startswith(OWED_PREFIX):
+        return OWED
     if "stale" in problem and "reference_review" in problem:
         return STALE
     if problem.startswith("no provenance"):
@@ -430,10 +521,25 @@ def summarize(result: dict) -> dict:
         "capabilities": ok["capabilities"],
         "total": sum(ok.values()),
         "not_supported": len(failing),
+        "not_supported_owed": sum(1 for u in failing if u.owed_only),
+        "not_supported_other": sum(1 for u in failing if not u.owed_only),
         "listed_matrix": len(groups["matrix"]),
         "matrix_ok": {u.ident for u in groups["matrix"] if u.supported},
         "failing": failing,
     }
+
+
+# The derived status fields of every embedded support file. They are a pure function of the
+# evidence registries and the ledger's currency, never evidence themselves, so a fingerprint
+# of an embedded file must drop exactly these keys.
+DERIVED_STATUS_FIELDS = ("status", "missing_evidence")
+
+
+def derived_status(unit: Unit) -> dict:
+    """The embedded status of one unit: `supported`, or `not_supported` with its missing evidence."""
+    if unit.supported:
+        return {"status": "supported", "missing_evidence": []}
+    return {"status": "not_supported", "missing_evidence": sorted(dict.fromkeys(unit.problems))}
 
 
 def headline(summary: dict) -> str:
@@ -441,7 +547,9 @@ def headline(summary: dict) -> str:
     return (
         f"Supported units: {summary['total']} (matrix cells {summary['matrix']}, "
         f"graphless rows {summary['graphless']}, capabilities outside the matrix "
-        f"{summary['capabilities']}); not supported: {summary['not_supported']}"
+        f"{summary['capabilities']}); not supported: {summary['not_supported']} "
+        f"(owed records only {summary.get('not_supported_owed', 0)}, "
+        f"other {summary.get('not_supported_other', 0)})"
     )
 
 
@@ -1314,8 +1422,8 @@ def transport_problems(registry_path: Path | None = None, *, resolve: bool = Fal
 
 
 # --------------------------------------------------------------------------- run
-def count_main(report: bool) -> int:
-    result = evaluate()
+def count_main(report: bool, evidence_only: bool = False) -> int:
+    result = evaluate(evidence_only=evidence_only)
     summary = summarize(result)
     failing = summary["failing"]
     print(headline(summary))
@@ -1327,6 +1435,12 @@ def count_main(report: bool) -> int:
             "Engineering capabilities (no scientific claim, not support units): "
             + ", ".join(sorted(result["engineering"]))
         )
+    current, owed = result.get("records_current_owed", (0, 0))
+    print(
+        f"Scientific records: {current} current, {owed} owed; not supported: "
+        f"{summary['not_supported_owed']} unit(s) on owed records only, "
+        f"{summary['not_supported_other']} on other reasons"
+    )
     reasons: Counter[tuple[str, str]] = Counter()
     only_stale: Counter[str] = Counter()
     for unit in failing:
@@ -1345,6 +1459,9 @@ def count_main(report: bool) -> int:
     for item in result["structural"]:
         print(f"FAIL (link): {item}")
     for unit in failing:
+        if unit.owed_only:
+            print(f"FAIL [{unit.kind}] {unit.ident}: " + "; ".join(unit.problems))
+            continue
         print(f"FAIL [{unit.kind}] {unit.ident}")
         for problem in unit.problems:
             print(f"    - {problem}")
@@ -1405,13 +1522,14 @@ def main(argv: list[str]) -> int:
         print("Transport stage contracts OK")
         return 0
     report = "--report" in argv
+    evidence_only = "--evidence-only" in argv
     if "--cited-tests" in argv:
         shard = argv[argv.index("--matrix-shard") + 1] if "--matrix-shard" in argv else "all"
         found = cited_test_problems(shard)
         for problem in found:
             print(f"FAIL: {problem}", file=sys.stderr)
         return 1 if found and not report else 0
-    status = count_main(report)
+    status = count_main(report, evidence_only)
     found = structure_problems()
     for problem in found:
         print(f"FAIL: {problem}")

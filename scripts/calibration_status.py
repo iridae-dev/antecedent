@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Calibration status of the coverage records: an annotation, never a gate on code.
+"""Calibration status of the coverage records: an annotation on support, a currency check for CI.
 
 A coverage record in `parity/coverage_records.toml` was measured at some state of
 the code. Its `fingerprint` is the dependency fingerprint of its `test` target
@@ -32,9 +32,9 @@ What is owed, and why, is the one list the measurement queue runs
 
 Every supported interval route names the group that measures it in
 `parity/calibration_routes.toml` (or says why it publishes no interval); a route that does
-neither is `unmapped` in `intervals` and cannot be queued. Nothing here fails because of a code change: the exit status is 0
-whatever is owed. Calibration is measured on a development machine; engineering
-checks never read this.
+neither is `unmapped` in `intervals` and cannot be queued. Calibration status never changes support and never refuses a route. Calibration is
+measured on a development machine; CI and releases only check, through `--check`,
+that nothing is owed.
 
     python3 scripts/calibration_status.py status            # counts, then the owed ids
     python3 scripts/calibration_status.py status --owed     # every owed item, one per line: record ids, then
@@ -45,11 +45,12 @@ checks never read this.
     python3 scripts/calibration_status.py backlog           # cells whose interval has no measurement yet
     python3 scripts/calibration_status.py readiness         # which of those have measurement wiring
     python3 scripts/calibration_status.py plan              # records owning coverage ids, with their status
-    python3 scripts/calibration_status.py --check           # shape of parity/coverage_records.toml
+    python3 scripts/calibration_status.py --check           # shape, and nothing owed (exit 1 otherwise)
 
-Every subcommand is informational and exits 0. Only `--check` can fail, and only on a
-malformed coverage record (a missing field, an inconsistent grid, a bad digest): it
-reads the shape of the records, never what they measured.
+Every subcommand is informational and exits 0. `--check` is the currency check CI and
+releases run: it exits 1 on a malformed coverage record and on any owed item (a record whose
+fingerprint changed or was never stored, a probe that does not cover the tree, an interval
+route with no record). It executes nothing.
 """
 
 from __future__ import annotations
@@ -846,14 +847,37 @@ def route_map_problems(root: Path = ROOT) -> list[str]:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
+    """Currency of the coverage records: well-formed, and none owed. Executes nothing.
+
+    CI and releases run this. An owed record (fingerprint changed or never stored, a probe that
+    does not cover the tree, or an interval route with no record) is measured on a development
+    machine (`bash scripts/test.sh calibration`) and committed. Calibration state still never
+    changes support or refuses a route; this check only requires the records to be current."""
+    status = 0
     problems = shape_problems()
     if problems:
         print("coverage record shape violations:")
         for problem in problems:
             print(" -", problem)
-        return 1
-    print("coverage record shape: ok")
-    return 0
+        status = 1
+    else:
+        print("coverage record shape: ok")
+    items, _statuses, counts = current_owed()
+    if items:
+        reasons = owed_counts(items)
+        print(
+            f"calibration records owed: {len(items)} item(s): "
+            + ", ".join(f"{reasons[name]} {name}" for name in OWED_REASONS)
+        )
+        for item in items[:50]:
+            print(f"  {item['reason']}: {item['id']}")
+        if len(items) > 50:
+            print(f"  ... and {len(items) - 50} more (python3 scripts/calibration_status.py status --owed)")
+        print("measure on a development machine: bash scripts/test.sh calibration")
+        status = 1
+    else:
+        print(f"calibration records current: {counts[CURRENT]}")
+    return status
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -863,7 +887,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="validate the shape of the coverage records (the one thing that can fail)",
+        help="exit 1 on a malformed coverage record or any owed record; executes nothing",
     )
     sub = parser.add_subparsers(dest="command")
     status = sub.add_parser("status")

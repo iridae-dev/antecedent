@@ -33,8 +33,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Dag:accepted:Frequentist:cheap", "AverageEffect:Dag:accepted:Frequentist:full", "AverageEffect:Dag:accepted:Frequentist:none", "AverageEffect:Dag:explicit:Frequentist:cheap", "AverageEffect:Dag:explicit:Frequentist:full", "AverageEffect:Dag:explicit:Frequentist:none", "AverageEffect:Dag:graph_posterior:Frequentist:cheap", "AverageEffect:Dag:graph_posterior:Frequentist:full", "AverageEffect:Dag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -62,8 +62,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Dag:accepted:Bayesian:cheap", "AverageEffect:Dag:accepted:Bayesian:full", "AverageEffect:Dag:accepted:Bayesian:none", "AverageEffect:Dag:explicit:Bayesian:cheap", "AverageEffect:Dag:explicit:Bayesian:full", "AverageEffect:Dag:explicit:Bayesian:none", "AverageEffect:Dag:graph_posterior:Bayesian:cheap", "AverageEffect:Dag:graph_posterior:Bayesian:full", "AverageEffect:Dag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -91,8 +91,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -120,8 +120,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -149,8 +149,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Dag:accepted:Frequentist:cheap", "AverageEffect:Dag:accepted:Frequentist:full", "AverageEffect:Dag:accepted:Frequentist:none", "AverageEffect:Dag:explicit:Frequentist:cheap", "AverageEffect:Dag:explicit:Frequentist:full", "AverageEffect:Dag:explicit:Frequentist:none", "AverageEffect:Dag:graph_posterior:Frequentist:cheap", "AverageEffect:Dag:graph_posterior:Frequentist:full", "AverageEffect:Dag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -178,8 +178,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Dag:accepted:Bayesian:cheap", "AverageEffect:Dag:accepted:Bayesian:full", "AverageEffect:Dag:accepted:Bayesian:none", "AverageEffect:Dag:explicit:Bayesian:cheap", "AverageEffect:Dag:explicit:Bayesian:full", "AverageEffect:Dag:explicit:Bayesian:none", "AverageEffect:Dag:graph_posterior:Bayesian:cheap", "AverageEffect:Dag:graph_posterior:Bayesian:full", "AverageEffect:Dag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -207,8 +207,8 @@ family = "temporal"
 representative = ""
 obligations = ["PulseEffect:TemporalDag:accepted:Frequentist:cheap", "PulseEffect:TemporalDag:accepted:Frequentist:full", "PulseEffect:TemporalDag:accepted:Frequentist:none", "PulseEffect:TemporalDag:explicit:Frequentist:cheap", "PulseEffect:TemporalDag:explicit:Frequentist:full", "PulseEffect:TemporalDag:explicit:Frequentist:none", "PulseEffect:TemporalDag:graph_posterior:Frequentist:cheap", "PulseEffect:TemporalDag:graph_posterior:Frequentist:full", "PulseEffect:TemporalDag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -236,8 +236,8 @@ family = "temporal"
 representative = ""
 obligations = ["PulseEffect:TemporalDag:accepted:Bayesian:cheap", "PulseEffect:TemporalDag:accepted:Bayesian:full", "PulseEffect:TemporalDag:accepted:Bayesian:none", "PulseEffect:TemporalDag:explicit:Bayesian:cheap", "PulseEffect:TemporalDag:explicit:Bayesian:full", "PulseEffect:TemporalDag:explicit:Bayesian:none", "PulseEffect:TemporalDag:graph_posterior:Bayesian:cheap", "PulseEffect:TemporalDag:graph_posterior:Bayesian:full", "PulseEffect:TemporalDag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -265,8 +265,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Dag:accepted:Frequentist:cheap", "AverageEffect:Dag:accepted:Frequentist:full", "AverageEffect:Dag:accepted:Frequentist:none", "AverageEffect:Dag:explicit:Frequentist:cheap", "AverageEffect:Dag:explicit:Frequentist:full", "AverageEffect:Dag:explicit:Frequentist:none", "AverageEffect:Dag:graph_posterior:Frequentist:cheap", "AverageEffect:Dag:graph_posterior:Frequentist:full", "AverageEffect:Dag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -294,8 +294,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -323,8 +323,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -352,8 +352,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -381,8 +381,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -497,8 +497,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Dag:accepted:Frequentist:cheap", "AverageEffect:Dag:accepted:Frequentist:full", "AverageEffect:Dag:accepted:Frequentist:none", "AverageEffect:Dag:explicit:Frequentist:cheap", "AverageEffect:Dag:explicit:Frequentist:full", "AverageEffect:Dag:explicit:Frequentist:none", "AverageEffect:Dag:graph_posterior:Frequentist:cheap", "AverageEffect:Dag:graph_posterior:Frequentist:full", "AverageEffect:Dag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -526,8 +526,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -961,8 +961,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Cpdag:accepted:Frequentist:cheap", "AverageEffect:Cpdag:accepted:Frequentist:full", "AverageEffect:Cpdag:accepted:Frequentist:none", "AverageEffect:Cpdag:explicit:Frequentist:cheap", "AverageEffect:Cpdag:explicit:Frequentist:full", "AverageEffect:Cpdag:explicit:Frequentist:none", "AverageEffect:Cpdag:graph_posterior:Frequentist:cheap", "AverageEffect:Cpdag:graph_posterior:Frequentist:full", "AverageEffect:Cpdag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -990,8 +990,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Pag:accepted:Bayesian:cheap", "AverageEffect:Pag:accepted:Bayesian:full", "AverageEffect:Pag:accepted:Bayesian:none", "AverageEffect:Pag:explicit:Bayesian:cheap", "AverageEffect:Pag:explicit:Bayesian:full", "AverageEffect:Pag:explicit:Bayesian:none", "AverageEffect:Pag:graph_posterior:Bayesian:cheap", "AverageEffect:Pag:graph_posterior:Bayesian:full", "AverageEffect:Pag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1106,8 +1106,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1193,8 +1193,8 @@ family = "static_response"
 representative = ""
 obligations = ["ResponseCurve:Dag:accepted:Frequentist:cheap", "ResponseCurve:Dag:accepted:Frequentist:full", "ResponseCurve:Dag:accepted:Frequentist:none", "ResponseCurve:Dag:explicit:Frequentist:cheap", "ResponseCurve:Dag:explicit:Frequentist:full", "ResponseCurve:Dag:explicit:Frequentist:none", "ResponseCurve:Dag:graph_posterior:Frequentist:cheap", "ResponseCurve:Dag:graph_posterior:Frequentist:full", "ResponseCurve:Dag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1222,8 +1222,8 @@ family = "static_response"
 representative = ""
 obligations = ["ResponseCurve:Dag:accepted:Bayesian:cheap", "ResponseCurve:Dag:accepted:Bayesian:full", "ResponseCurve:Dag:accepted:Bayesian:none", "ResponseCurve:Dag:explicit:Bayesian:cheap", "ResponseCurve:Dag:explicit:Bayesian:full", "ResponseCurve:Dag:explicit:Bayesian:none", "ResponseCurve:Dag:graph_posterior:Bayesian:cheap", "ResponseCurve:Dag:graph_posterior:Bayesian:full", "ResponseCurve:Dag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1251,8 +1251,8 @@ family = "static_response"
 representative = ""
 obligations = ["ResponseCurve:TemporalDag:accepted:Frequentist:cheap", "ResponseCurve:TemporalDag:accepted:Frequentist:full", "ResponseCurve:TemporalDag:accepted:Frequentist:none", "ResponseCurve:TemporalDag:explicit:Frequentist:cheap", "ResponseCurve:TemporalDag:explicit:Frequentist:full", "ResponseCurve:TemporalDag:explicit:Frequentist:none", "ResponseCurve:TemporalDag:graph_posterior:Frequentist:cheap", "ResponseCurve:TemporalDag:graph_posterior:Frequentist:full", "ResponseCurve:TemporalDag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1280,8 +1280,8 @@ family = "static_response"
 representative = ""
 obligations = ["ResponseCurve:TemporalDag:accepted:Bayesian:cheap", "ResponseCurve:TemporalDag:accepted:Bayesian:full", "ResponseCurve:TemporalDag:accepted:Bayesian:none", "ResponseCurve:TemporalDag:explicit:Bayesian:cheap", "ResponseCurve:TemporalDag:explicit:Bayesian:full", "ResponseCurve:TemporalDag:explicit:Bayesian:none", "ResponseCurve:TemporalDag:graph_posterior:Bayesian:cheap", "ResponseCurve:TemporalDag:graph_posterior:Bayesian:full", "ResponseCurve:TemporalDag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1309,8 +1309,8 @@ family = "static_response"
 representative = ""
 obligations = ["AverageDerivative:Dag:accepted:Frequentist:cheap", "AverageDerivative:Dag:accepted:Frequentist:full", "AverageDerivative:Dag:accepted:Frequentist:none", "AverageDerivative:Dag:explicit:Frequentist:cheap", "AverageDerivative:Dag:explicit:Frequentist:full", "AverageDerivative:Dag:explicit:Frequentist:none", "AverageDerivative:Dag:graph_posterior:Frequentist:cheap", "AverageDerivative:Dag:graph_posterior:Frequentist:full", "AverageDerivative:Dag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1338,8 +1338,8 @@ family = "static_response"
 representative = ""
 obligations = ["AverageDerivative:Dag:accepted:Bayesian:cheap", "AverageDerivative:Dag:accepted:Bayesian:full", "AverageDerivative:Dag:accepted:Bayesian:none", "AverageDerivative:Dag:explicit:Bayesian:cheap", "AverageDerivative:Dag:explicit:Bayesian:full", "AverageDerivative:Dag:explicit:Bayesian:none", "AverageDerivative:Dag:graph_posterior:Bayesian:cheap", "AverageDerivative:Dag:graph_posterior:Bayesian:full", "AverageDerivative:Dag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1368,7 +1368,7 @@ representative = ""
 obligations = ["AverageDerivative:TemporalDag:accepted:Frequentist:cheap", "AverageDerivative:TemporalDag:accepted:Frequentist:full", "AverageDerivative:TemporalDag:accepted:Frequentist:none", "AverageDerivative:TemporalDag:explicit:Frequentist:cheap", "AverageDerivative:TemporalDag:explicit:Frequentist:full", "AverageDerivative:TemporalDag:explicit:Frequentist:none", "AverageDerivative:TemporalDag:graph_posterior:Frequentist:cheap", "AverageDerivative:TemporalDag:graph_posterior:Frequentist:full", "AverageDerivative:TemporalDag:graph_posterior:Frequentist:none"]
 limitations = ["counterpart.P07.derivative.temporal.frequentist"]
 acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`", "narrowed_promise: the slope reports the shared circular-block band, withheld when the block replicates carry no spread; the ATE refuters do not denote for a slope, so the slope is refuted as a response derivative through refute_prepared_target (placebo timing, contiguous-window subset stability and block stability refit the prepared derivative program on the whole target vector, as multiplicities where the route reads row weights and as gathered windows otherwise); the finite-difference and local-linearity checks refit a mean curve on the check grid under the derivative's own temporal specification, for a point derivative and for an average derivative under the observed law, with one coordinate per horizon merged on the horizon-indexed target (the merge is tested on known slopes per horizon; the route itself publishes the local slope at one horizon); the coverage of the band is not measured; next attempt: measure the whole-procedure coverage of this interval and record its boundary; next attempt: measure the whole-procedure coverage of this interval and record its boundary"]
+incomplete_reasons = ["narrowed_promise: the slope reports the shared circular-block band, withheld when the block replicates carry no spread; the ATE refuters do not denote for a slope, so the slope is refuted as a response derivative through refute_prepared_target (placebo timing, contiguous-window subset stability and block stability refit the prepared derivative program on the whole target vector, as multiplicities where the route reads row weights and as gathered windows otherwise); the finite-difference and local-linearity checks refit a mean curve on the check grid under the derivative's own temporal specification, for a point derivative and for an average derivative under the observed law, with one coordinate per horizon merged on the horizon-indexed target (the merge is tested on known slopes per horizon; the route itself publishes the local slope at one horizon); the coverage of the band is not measured; next attempt: measure the whole-procedure coverage of this interval and record its boundary; next attempt: measure the whole-procedure coverage of this interval and record its boundary"]
 conflicts = []
 
 [[row]]
@@ -1397,7 +1397,7 @@ representative = ""
 obligations = ["AverageDerivative:TemporalDag:accepted:Bayesian:cheap", "AverageDerivative:TemporalDag:accepted:Bayesian:full", "AverageDerivative:TemporalDag:accepted:Bayesian:none", "AverageDerivative:TemporalDag:explicit:Bayesian:cheap", "AverageDerivative:TemporalDag:explicit:Bayesian:full", "AverageDerivative:TemporalDag:explicit:Bayesian:none", "AverageDerivative:TemporalDag:graph_posterior:Bayesian:cheap", "AverageDerivative:TemporalDag:graph_posterior:Bayesian:full", "AverageDerivative:TemporalDag:graph_posterior:Bayesian:none"]
 limitations = ["counterpart.P07.derivative.temporal.bayesian"]
 acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`", "narrowed_promise: no derivative-native Bayesian calibration; no_interval_reported; prior sensitivity refits the temporal study under alternative prior scales, while the posterior-predictive check replicates independent rows and refuses series and panels; next attempt: replicate the lag-aligned outcome model with an autoregressive reference and compare through blocks of lag windows; next attempt: measure the whole-procedure coverage of this interval and record its boundary"]
+incomplete_reasons = ["narrowed_promise: no derivative-native Bayesian calibration; no_interval_reported; prior sensitivity refits the temporal study under alternative prior scales, while the posterior-predictive check replicates independent rows and refuses series and panels; next attempt: replicate the lag-aligned outcome model with an autoregressive reference and compare through blocks of lag windows; next attempt: measure the whole-procedure coverage of this interval and record its boundary"]
 conflicts = []
 
 [[row]]
@@ -1454,8 +1454,8 @@ family = "static_response"
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1541,8 +1541,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Dag:accepted:Frequentist:cheap", "AverageEffect:Dag:accepted:Frequentist:full", "AverageEffect:Dag:accepted:Frequentist:none", "AverageEffect:Dag:explicit:Frequentist:cheap", "AverageEffect:Dag:explicit:Frequentist:full", "AverageEffect:Dag:explicit:Frequentist:none", "AverageEffect:Dag:graph_posterior:Frequentist:cheap", "AverageEffect:Dag:graph_posterior:Frequentist:full", "AverageEffect:Dag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1570,8 +1570,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Dag:accepted:Bayesian:cheap", "AverageEffect:Dag:accepted:Bayesian:full", "AverageEffect:Dag:accepted:Bayesian:none", "AverageEffect:Dag:explicit:Bayesian:cheap", "AverageEffect:Dag:explicit:Bayesian:full", "AverageEffect:Dag:explicit:Bayesian:none", "AverageEffect:Dag:graph_posterior:Bayesian:cheap", "AverageEffect:Dag:graph_posterior:Bayesian:full", "AverageEffect:Dag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1773,8 +1773,8 @@ family = "structural"
 representative = ""
 obligations = ["MediationEffect:Dag:accepted:Frequentist:cheap", "MediationEffect:Dag:accepted:Frequentist:full", "MediationEffect:Dag:accepted:Frequentist:none", "MediationEffect:Dag:explicit:Frequentist:cheap", "MediationEffect:Dag:explicit:Frequentist:full", "MediationEffect:Dag:explicit:Frequentist:none", "MediationEffect:Dag:graph_posterior:Frequentist:cheap", "MediationEffect:Dag:graph_posterior:Frequentist:full", "MediationEffect:Dag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1802,8 +1802,8 @@ family = "structural"
 representative = ""
 obligations = ["MediationEffect:Dag:accepted:Bayesian:cheap", "MediationEffect:Dag:accepted:Bayesian:full", "MediationEffect:Dag:accepted:Bayesian:none", "MediationEffect:Dag:explicit:Bayesian:cheap", "MediationEffect:Dag:explicit:Bayesian:full", "MediationEffect:Dag:explicit:Bayesian:none", "MediationEffect:Dag:graph_posterior:Bayesian:cheap", "MediationEffect:Dag:graph_posterior:Bayesian:full", "MediationEffect:Dag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1831,8 +1831,8 @@ family = "temporal"
 representative = ""
 obligations = ["TemporalMediationEffect:TemporalDag:accepted:Frequentist:cheap", "TemporalMediationEffect:TemporalDag:accepted:Frequentist:full", "TemporalMediationEffect:TemporalDag:accepted:Frequentist:none", "TemporalMediationEffect:TemporalDag:explicit:Frequentist:cheap", "TemporalMediationEffect:TemporalDag:explicit:Frequentist:full", "TemporalMediationEffect:TemporalDag:explicit:Frequentist:none", "TemporalMediationEffect:TemporalDag:graph_posterior:Frequentist:cheap", "TemporalMediationEffect:TemporalDag:graph_posterior:Frequentist:full", "TemporalMediationEffect:TemporalDag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -1860,8 +1860,8 @@ family = "temporal"
 representative = ""
 obligations = ["TemporalMediationEffect:TemporalDag:accepted:Bayesian:cheap", "TemporalMediationEffect:TemporalDag:accepted:Bayesian:full", "TemporalMediationEffect:TemporalDag:accepted:Bayesian:none", "TemporalMediationEffect:TemporalDag:explicit:Bayesian:cheap", "TemporalMediationEffect:TemporalDag:explicit:Bayesian:full", "TemporalMediationEffect:TemporalDag:explicit:Bayesian:none", "TemporalMediationEffect:TemporalDag:graph_posterior:Bayesian:cheap", "TemporalMediationEffect:TemporalDag:graph_posterior:Bayesian:full", "TemporalMediationEffect:TemporalDag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -2150,8 +2150,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -2266,8 +2266,8 @@ family = "design_based"
 representative = ""
 obligations = ["InterferenceQuery:Dag:accepted:Bayesian:cheap", "InterferenceQuery:Dag:accepted:Bayesian:full", "InterferenceQuery:Dag:accepted:Bayesian:none", "InterferenceQuery:Dag:explicit:Bayesian:cheap", "InterferenceQuery:Dag:explicit:Bayesian:full", "InterferenceQuery:Dag:explicit:Bayesian:none", "InterferenceQuery:Dag:graph_posterior:Bayesian:cheap", "InterferenceQuery:Dag:graph_posterior:Bayesian:full", "InterferenceQuery:Dag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -2382,8 +2382,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -2556,8 +2556,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -2614,8 +2614,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -2730,8 +2730,8 @@ family = ""
 representative = ""
 obligations = []
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -3165,8 +3165,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Dag:accepted:Frequentist:cheap", "AverageEffect:Dag:accepted:Frequentist:full", "AverageEffect:Dag:accepted:Frequentist:none", "AverageEffect:Dag:explicit:Frequentist:cheap", "AverageEffect:Dag:explicit:Frequentist:full", "AverageEffect:Dag:explicit:Frequentist:none", "AverageEffect:Dag:graph_posterior:Frequentist:cheap", "AverageEffect:Dag:graph_posterior:Frequentist:full", "AverageEffect:Dag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -3513,8 +3513,8 @@ family = "static_effect"
 representative = ""
 obligations = ["Counterfactual:Dag:accepted:Frequentist:cheap", "Counterfactual:Dag:accepted:Frequentist:full", "Counterfactual:Dag:accepted:Frequentist:none", "Counterfactual:Dag:explicit:Frequentist:cheap", "Counterfactual:Dag:explicit:Frequentist:full", "Counterfactual:Dag:explicit:Frequentist:none", "Counterfactual:Dag:graph_posterior:Frequentist:cheap", "Counterfactual:Dag:graph_posterior:Frequentist:full", "Counterfactual:Dag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -3542,8 +3542,8 @@ family = "static_effect"
 representative = ""
 obligations = ["Counterfactual:Dag:accepted:Bayesian:cheap", "Counterfactual:Dag:accepted:Bayesian:full", "Counterfactual:Dag:accepted:Bayesian:none", "Counterfactual:Dag:explicit:Bayesian:cheap", "Counterfactual:Dag:explicit:Bayesian:full", "Counterfactual:Dag:explicit:Bayesian:none", "Counterfactual:Dag:graph_posterior:Bayesian:cheap", "Counterfactual:Dag:graph_posterior:Bayesian:full", "Counterfactual:Dag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -3571,8 +3571,8 @@ family = "static_effect"
 representative = ""
 obligations = ["Counterfactual:TemporalDag:accepted:Frequentist:cheap", "Counterfactual:TemporalDag:accepted:Frequentist:full", "Counterfactual:TemporalDag:accepted:Frequentist:none", "Counterfactual:TemporalDag:explicit:Frequentist:cheap", "Counterfactual:TemporalDag:explicit:Frequentist:full", "Counterfactual:TemporalDag:explicit:Frequentist:none", "Counterfactual:TemporalDag:graph_posterior:Frequentist:cheap", "Counterfactual:TemporalDag:graph_posterior:Frequentist:full", "Counterfactual:TemporalDag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -3600,8 +3600,8 @@ family = "static_effect"
 representative = ""
 obligations = ["Counterfactual:TemporalDag:accepted:Bayesian:cheap", "Counterfactual:TemporalDag:accepted:Bayesian:full", "Counterfactual:TemporalDag:accepted:Bayesian:none", "Counterfactual:TemporalDag:explicit:Bayesian:cheap", "Counterfactual:TemporalDag:explicit:Bayesian:full", "Counterfactual:TemporalDag:explicit:Bayesian:none", "Counterfactual:TemporalDag:graph_posterior:Bayesian:cheap", "Counterfactual:TemporalDag:graph_posterior:Bayesian:full", "Counterfactual:TemporalDag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -3629,8 +3629,8 @@ family = "static_response"
 representative = ""
 obligations = ["InterventionResponse:Dag:accepted:Frequentist:cheap", "InterventionResponse:Dag:accepted:Frequentist:full", "InterventionResponse:Dag:accepted:Frequentist:none", "InterventionResponse:Dag:explicit:Frequentist:cheap", "InterventionResponse:Dag:explicit:Frequentist:full", "InterventionResponse:Dag:explicit:Frequentist:none", "InterventionResponse:Dag:graph_posterior:Frequentist:cheap", "InterventionResponse:Dag:graph_posterior:Frequentist:full", "InterventionResponse:Dag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -3658,8 +3658,8 @@ family = "static_response"
 representative = ""
 obligations = ["InterventionResponse:Dag:accepted:Bayesian:cheap", "InterventionResponse:Dag:accepted:Bayesian:full", "InterventionResponse:Dag:accepted:Bayesian:none", "InterventionResponse:Dag:explicit:Bayesian:cheap", "InterventionResponse:Dag:explicit:Bayesian:full", "InterventionResponse:Dag:explicit:Bayesian:none", "InterventionResponse:Dag:graph_posterior:Bayesian:cheap", "InterventionResponse:Dag:graph_posterior:Bayesian:full", "InterventionResponse:Dag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -3687,8 +3687,8 @@ family = "static_response"
 representative = ""
 obligations = ["InterventionResponse:TemporalDag:accepted:Frequentist:cheap", "InterventionResponse:TemporalDag:accepted:Frequentist:full", "InterventionResponse:TemporalDag:accepted:Frequentist:none", "InterventionResponse:TemporalDag:explicit:Frequentist:cheap", "InterventionResponse:TemporalDag:explicit:Frequentist:full", "InterventionResponse:TemporalDag:explicit:Frequentist:none", "InterventionResponse:TemporalDag:graph_posterior:Frequentist:cheap", "InterventionResponse:TemporalDag:graph_posterior:Frequentist:full", "InterventionResponse:TemporalDag:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -3716,8 +3716,8 @@ family = "static_response"
 representative = ""
 obligations = ["InterventionResponse:TemporalDag:accepted:Bayesian:cheap", "InterventionResponse:TemporalDag:accepted:Bayesian:full", "InterventionResponse:TemporalDag:accepted:Bayesian:none", "InterventionResponse:TemporalDag:explicit:Bayesian:cheap", "InterventionResponse:TemporalDag:explicit:Bayesian:full", "InterventionResponse:TemporalDag:explicit:Bayesian:none", "InterventionResponse:TemporalDag:graph_posterior:Bayesian:cheap", "InterventionResponse:TemporalDag:graph_posterior:Bayesian:full", "InterventionResponse:TemporalDag:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -3977,8 +3977,8 @@ family = "design_based"
 representative = ""
 obligations = ["TransportQuery:Admg:accepted:Frequentist:cheap", "TransportQuery:Admg:accepted:Frequentist:full", "TransportQuery:Admg:accepted:Frequentist:none", "TransportQuery:Admg:explicit:Frequentist:cheap", "TransportQuery:Admg:explicit:Frequentist:full", "TransportQuery:Admg:explicit:Frequentist:none", "TransportQuery:Admg:graph_posterior:Frequentist:cheap", "TransportQuery:Admg:graph_posterior:Frequentist:full", "TransportQuery:Admg:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4006,8 +4006,8 @@ family = "design_based"
 representative = ""
 obligations = ["TransportQuery:Admg:accepted:Bayesian:cheap", "TransportQuery:Admg:accepted:Bayesian:full", "TransportQuery:Admg:accepted:Bayesian:none", "TransportQuery:Admg:explicit:Bayesian:cheap", "TransportQuery:Admg:explicit:Bayesian:full", "TransportQuery:Admg:explicit:Bayesian:none", "TransportQuery:Admg:graph_posterior:Bayesian:cheap", "TransportQuery:Admg:graph_posterior:Bayesian:full", "TransportQuery:Admg:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4036,7 +4036,7 @@ representative = ""
 obligations = ["TransportQuery:TemporalAdmg:accepted:Frequentist:cheap", "TransportQuery:TemporalAdmg:accepted:Frequentist:full", "TransportQuery:TemporalAdmg:accepted:Frequentist:none", "TransportQuery:TemporalAdmg:explicit:Frequentist:cheap", "TransportQuery:TemporalAdmg:explicit:Frequentist:full", "TransportQuery:TemporalAdmg:explicit:Frequentist:none", "TransportQuery:TemporalAdmg:graph_posterior:Frequentist:cheap", "TransportQuery:TemporalAdmg:graph_posterior:Frequentist:full", "TransportQuery:TemporalAdmg:graph_posterior:Frequentist:none"]
 limitations = ["counterpart.P14.temporal.frequentist"]
 acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`", "narrowed_promise: the Newey-West interval is reported and asserted wider than the independent-row error by temporal_admg_transport_reports_a_serial_dependence_aware_interval; its coverage is not measured; next attempt: measure the whole-procedure coverage of this interval and record its boundary"]
+incomplete_reasons = ["narrowed_promise: the Newey-West interval is reported and asserted wider than the independent-row error by temporal_admg_transport_reports_a_serial_dependence_aware_interval; its coverage is not measured; next attempt: measure the whole-procedure coverage of this interval and record its boundary"]
 conflicts = []
 
 [[row]]
@@ -4065,7 +4065,7 @@ representative = ""
 obligations = ["TransportQuery:TemporalAdmg:accepted:Bayesian:cheap", "TransportQuery:TemporalAdmg:accepted:Bayesian:full", "TransportQuery:TemporalAdmg:accepted:Bayesian:none", "TransportQuery:TemporalAdmg:explicit:Bayesian:cheap", "TransportQuery:TemporalAdmg:explicit:Bayesian:full", "TransportQuery:TemporalAdmg:explicit:Bayesian:none", "TransportQuery:TemporalAdmg:graph_posterior:Bayesian:cheap", "TransportQuery:TemporalAdmg:graph_posterior:Bayesian:full", "TransportQuery:TemporalAdmg:graph_posterior:Bayesian:none"]
 limitations = ["counterpart.P14.temporal.bayesian"]
 acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`", "narrowed_promise: the circular-block Dirichlet interval is reported and asserted wider than the independent-row posterior by temporal_admg_transport_reports_a_serial_dependence_aware_interval; its coverage is not measured; next attempt: measure the whole-procedure coverage of this interval and record its boundary"]
+incomplete_reasons = ["narrowed_promise: the circular-block Dirichlet interval is reported and asserted wider than the independent-row posterior by temporal_admg_transport_reports_a_serial_dependence_aware_interval; its coverage is not measured; next attempt: measure the whole-procedure coverage of this interval and record its boundary"]
 conflicts = []
 
 [[row]]
@@ -4093,8 +4093,8 @@ family = "static_effect"
 representative = ""
 obligations = ["ConditionalEffect:Admg:accepted:Frequentist:cheap", "ConditionalEffect:Admg:accepted:Frequentist:full", "ConditionalEffect:Admg:accepted:Frequentist:none", "ConditionalEffect:Admg:explicit:Frequentist:cheap", "ConditionalEffect:Admg:explicit:Frequentist:full", "ConditionalEffect:Admg:explicit:Frequentist:none", "ConditionalEffect:Admg:graph_posterior:Frequentist:cheap", "ConditionalEffect:Admg:graph_posterior:Frequentist:full", "ConditionalEffect:Admg:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4122,8 +4122,8 @@ family = "static_effect"
 representative = ""
 obligations = ["ConditionalEffect:Admg:accepted:Bayesian:cheap", "ConditionalEffect:Admg:accepted:Bayesian:full", "ConditionalEffect:Admg:accepted:Bayesian:none", "ConditionalEffect:Admg:explicit:Bayesian:cheap", "ConditionalEffect:Admg:explicit:Bayesian:full", "ConditionalEffect:Admg:explicit:Bayesian:none", "ConditionalEffect:Admg:graph_posterior:Bayesian:cheap", "ConditionalEffect:Admg:graph_posterior:Bayesian:full", "ConditionalEffect:Admg:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4151,8 +4151,8 @@ family = "temporal"
 representative = ""
 obligations = ["TemporalConditionalPulse:TemporalAdmg:accepted:Frequentist:cheap", "TemporalConditionalPulse:TemporalAdmg:accepted:Frequentist:full", "TemporalConditionalPulse:TemporalAdmg:accepted:Frequentist:none", "TemporalConditionalPulse:TemporalAdmg:explicit:Frequentist:cheap", "TemporalConditionalPulse:TemporalAdmg:explicit:Frequentist:full", "TemporalConditionalPulse:TemporalAdmg:explicit:Frequentist:none", "TemporalConditionalPulse:TemporalAdmg:graph_posterior:Frequentist:cheap", "TemporalConditionalPulse:TemporalAdmg:graph_posterior:Frequentist:full", "TemporalConditionalPulse:TemporalAdmg:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4180,8 +4180,8 @@ family = "temporal"
 representative = ""
 obligations = ["TemporalConditionalPulse:TemporalAdmg:accepted:Bayesian:cheap", "TemporalConditionalPulse:TemporalAdmg:accepted:Bayesian:full", "TemporalConditionalPulse:TemporalAdmg:accepted:Bayesian:none", "TemporalConditionalPulse:TemporalAdmg:explicit:Bayesian:cheap", "TemporalConditionalPulse:TemporalAdmg:explicit:Bayesian:full", "TemporalConditionalPulse:TemporalAdmg:explicit:Bayesian:none", "TemporalConditionalPulse:TemporalAdmg:graph_posterior:Bayesian:cheap", "TemporalConditionalPulse:TemporalAdmg:graph_posterior:Bayesian:full", "TemporalConditionalPulse:TemporalAdmg:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4209,8 +4209,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Admg:accepted:Frequentist:cheap", "AverageEffect:Admg:accepted:Frequentist:full", "AverageEffect:Admg:accepted:Frequentist:none", "AverageEffect:Admg:explicit:Frequentist:cheap", "AverageEffect:Admg:explicit:Frequentist:full", "AverageEffect:Admg:explicit:Frequentist:none", "AverageEffect:Admg:graph_posterior:Frequentist:cheap", "AverageEffect:Admg:graph_posterior:Frequentist:full", "AverageEffect:Admg:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4238,8 +4238,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:Admg:accepted:Bayesian:cheap", "AverageEffect:Admg:accepted:Bayesian:full", "AverageEffect:Admg:accepted:Bayesian:none", "AverageEffect:Admg:explicit:Bayesian:cheap", "AverageEffect:Admg:explicit:Bayesian:full", "AverageEffect:Admg:explicit:Bayesian:none", "AverageEffect:Admg:graph_posterior:Bayesian:cheap", "AverageEffect:Admg:graph_posterior:Bayesian:full", "AverageEffect:Admg:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4267,8 +4267,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:TemporalAdmg:accepted:Frequentist:cheap", "AverageEffect:TemporalAdmg:accepted:Frequentist:full", "AverageEffect:TemporalAdmg:accepted:Frequentist:none", "AverageEffect:TemporalAdmg:explicit:Frequentist:cheap", "AverageEffect:TemporalAdmg:explicit:Frequentist:full", "AverageEffect:TemporalAdmg:explicit:Frequentist:none", "AverageEffect:TemporalAdmg:graph_posterior:Frequentist:cheap", "AverageEffect:TemporalAdmg:graph_posterior:Frequentist:full", "AverageEffect:TemporalAdmg:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4296,8 +4296,8 @@ family = "static_effect"
 representative = ""
 obligations = ["AverageEffect:TemporalAdmg:accepted:Bayesian:cheap", "AverageEffect:TemporalAdmg:accepted:Bayesian:full", "AverageEffect:TemporalAdmg:accepted:Bayesian:none", "AverageEffect:TemporalAdmg:explicit:Bayesian:cheap", "AverageEffect:TemporalAdmg:explicit:Bayesian:full", "AverageEffect:TemporalAdmg:explicit:Bayesian:none", "AverageEffect:TemporalAdmg:graph_posterior:Bayesian:cheap", "AverageEffect:TemporalAdmg:graph_posterior:Bayesian:full", "AverageEffect:TemporalAdmg:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4383,8 +4383,8 @@ family = "temporal"
 representative = ""
 obligations = ["PulseEffect:TemporalAdmg:accepted:Frequentist:cheap", "PulseEffect:TemporalAdmg:accepted:Frequentist:full", "PulseEffect:TemporalAdmg:accepted:Frequentist:none", "PulseEffect:TemporalAdmg:explicit:Frequentist:cheap", "PulseEffect:TemporalAdmg:explicit:Frequentist:full", "PulseEffect:TemporalAdmg:explicit:Frequentist:none", "PulseEffect:TemporalAdmg:graph_posterior:Frequentist:cheap", "PulseEffect:TemporalAdmg:graph_posterior:Frequentist:full", "PulseEffect:TemporalAdmg:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4412,8 +4412,8 @@ family = "temporal"
 representative = ""
 obligations = ["PulseEffect:TemporalAdmg:accepted:Bayesian:cheap", "PulseEffect:TemporalAdmg:accepted:Bayesian:full", "PulseEffect:TemporalAdmg:accepted:Bayesian:none", "PulseEffect:TemporalAdmg:explicit:Bayesian:cheap", "PulseEffect:TemporalAdmg:explicit:Bayesian:full", "PulseEffect:TemporalAdmg:explicit:Bayesian:none", "PulseEffect:TemporalAdmg:graph_posterior:Bayesian:cheap", "PulseEffect:TemporalAdmg:graph_posterior:Bayesian:full", "PulseEffect:TemporalAdmg:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4499,8 +4499,8 @@ family = "temporal"
 representative = ""
 obligations = ["SustainedEffect:TemporalAdmg:accepted:Frequentist:cheap", "SustainedEffect:TemporalAdmg:accepted:Frequentist:full", "SustainedEffect:TemporalAdmg:accepted:Frequentist:none", "SustainedEffect:TemporalAdmg:explicit:Frequentist:cheap", "SustainedEffect:TemporalAdmg:explicit:Frequentist:full", "SustainedEffect:TemporalAdmg:explicit:Frequentist:none", "SustainedEffect:TemporalAdmg:graph_posterior:Frequentist:cheap", "SustainedEffect:TemporalAdmg:graph_posterior:Frequentist:full", "SustainedEffect:TemporalAdmg:graph_posterior:Frequentist:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4528,8 +4528,8 @@ family = "temporal"
 representative = ""
 obligations = ["SustainedEffect:TemporalAdmg:accepted:Bayesian:cheap", "SustainedEffect:TemporalAdmg:accepted:Bayesian:full", "SustainedEffect:TemporalAdmg:accepted:Bayesian:none", "SustainedEffect:TemporalAdmg:explicit:Bayesian:cheap", "SustainedEffect:TemporalAdmg:explicit:Bayesian:full", "SustainedEffect:TemporalAdmg:explicit:Bayesian:none", "SustainedEffect:TemporalAdmg:graph_posterior:Bayesian:cheap", "SustainedEffect:TemporalAdmg:graph_posterior:Bayesian:full", "SustainedEffect:TemporalAdmg:graph_posterior:Bayesian:none"]
 limitations = []
-acceptance = "incomplete"
-incomplete_reasons = ["method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+acceptance = "complete"
+incomplete_reasons = []
 conflicts = []
 
 [[row]]
@@ -4906,7 +4906,7 @@ representative = ""
 obligations = []
 limitations = []
 acceptance = "incomplete"
-incomplete_reasons = ["executes without its claimed uncertainty (basis declared_and_corroborated)", "method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+incomplete_reasons = ["executes without its claimed uncertainty (basis declared_and_corroborated)"]
 conflicts = []
 
 [[row]]
@@ -4935,7 +4935,7 @@ representative = ""
 obligations = []
 limitations = []
 acceptance = "incomplete"
-incomplete_reasons = ["executes without its claimed uncertainty (basis declared_and_corroborated)", "method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+incomplete_reasons = ["executes without its claimed uncertainty (basis declared_and_corroborated)"]
 conflicts = []
 
 [[row]]
@@ -4964,7 +4964,7 @@ representative = ""
 obligations = []
 limitations = []
 acceptance = "incomplete"
-incomplete_reasons = ["executes without its claimed uncertainty (basis declared_and_corroborated)", "method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+incomplete_reasons = ["executes without its claimed uncertainty (basis declared_and_corroborated)"]
 conflicts = []
 
 [[row]]
@@ -4993,7 +4993,7 @@ representative = ""
 obligations = []
 limitations = []
 acceptance = "incomplete"
-incomplete_reasons = ["executes without its claimed uncertainty (basis declared_and_corroborated)", "method child: consumer crates/antecedent-io-core/src/contract_section/consume.rs does not mention `consume_analysis_result`"]
+incomplete_reasons = ["executes without its claimed uncertainty (basis declared_and_corroborated)"]
 conflicts = []
 
 [[row]]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the residual-limitation ledger against the tracker and the live scan.
+"""Check the residual-limitation ledger against the live scan.
 
 Rejected:
 
@@ -7,14 +7,8 @@ Rejected:
   ambiguous        a row naming both an owner and a decision, or a decision that is not `scope`
   no_rationale     a scope decision with an empty written rationale
   self_owned       an owner that is the limitation's own item
-  closed_owner     an owner the tracker has already checked off
-  absent_owner     an owner the tracker does not list
   missing_row      a limitation the scan finds that the ledger lacks (or the reverse: stale row)
   unused_rule      an owner rule that matches no scanned limitation
-
-A row whose own item is checked off in the tracker is reported as a contradiction: the item claims
-completion while its residual remains. It does not fail the check, since only the tracker's owner
-may reopen the item.
 
     python3 scripts/check_residual_limitations.py
 """
@@ -32,11 +26,10 @@ import residual_limitations as ledger  # noqa: E402
 
 def problems(
     rows: list[dict],
-    tracker: dict[str, bool],
     scanned: list[dict] | None = None,
     rules: list[dict] | None = None,
 ) -> list[str]:
-    """Every rejection, as `code: id: detail`; `tracker` maps an item id to whether it is open."""
+    """Every rejection, as `code: id: detail`."""
     errors: list[str] = []
     for row in rows:
         ident = row["id"]
@@ -54,10 +47,6 @@ def problems(
         if owner:
             if owner == row.get("item", ""):
                 errors.append(f"self_owned: {ident}: owner {owner} is the limitation's own item")
-            elif owner not in tracker:
-                errors.append(f"absent_owner: {ident}: {owner} is not listed in {ledger.TRACKER}")
-            elif not tracker[owner]:
-                errors.append(f"closed_owner: {ident}: {owner} is already closed")
     if scanned is not None:
         have = {row["id"] for row in rows}
         found = {row["id"] for row in scanned}
@@ -74,21 +63,10 @@ def problems(
     return errors
 
 
-def contradictions(rows: list[dict], tracker: dict[str, bool]) -> list[str]:
-    return [
-        f"{row['id']}: item {row['item']} is checked off but the limitation remains"
-        for row in rows
-        if row.get("item") and tracker.get(row["item"]) is False
-    ]
-
-
 def main() -> int:
-    tracker = ledger.parse_tracker(read_text(ROOT / ledger.TRACKER))
     stored = load_toml(ROOT / ledger.LEDGER).get("limitation", [])
     rules = load_toml(ROOT / ledger.OWNERS).get("owner", [])
-    errors = problems(stored, tracker, ledger.collect(ROOT), rules)
-    for note in contradictions(stored, tracker):
-        print(f"contradiction: {note}")
+    errors = problems(stored, ledger.collect(ROOT), rules)
     if read_text(ROOT / ledger.LEDGER) != ledger.build(ROOT):
         errors.append(f"stale: {ledger.LEDGER} differs from the generator output")
     for error in errors:

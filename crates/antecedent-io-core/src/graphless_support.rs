@@ -111,12 +111,56 @@ pub enum GraphlessSupportStatus {
     Refused,
 }
 
+/// Derived support status of the graphless rows (`data/unit_support_status.json`), written by
+/// `scripts/generate_support_matrix_docs.py` from the evidence registries and the
+/// scientific-records ledger. A row whose status is not `supported` is not admitted.
+const UNIT_STATUS: &str = include_str!("../data/unit_support_status.json");
+
+#[derive(serde::Deserialize)]
+struct UnitStatusFile {
+    graphless: Vec<GraphlessUnitStatus>,
+}
+
+#[derive(serde::Deserialize)]
+struct GraphlessUnitStatus {
+    family: String,
+    design: String,
+    method: String,
+    inference_claim: String,
+    status: String,
+}
+
+/// The `(family, design, method, inference_claim)` keys whose derived status is not `supported`.
+fn not_supported_rows() -> &'static std::collections::HashSet<(String, String, String, String)> {
+    static ROWS: std::sync::OnceLock<std::collections::HashSet<(String, String, String, String)>> =
+        std::sync::OnceLock::new();
+    ROWS.get_or_init(|| owed_keys(UNIT_STATUS))
+}
+
+fn owed_keys(status: &str) -> std::collections::HashSet<(String, String, String, String)> {
+    let file: UnitStatusFile = serde_json::from_str(status).expect("graphless unit support status");
+    file.graphless
+        .into_iter()
+        .filter(|row| row.status != "supported")
+        .map(|row| (row.family, row.design, row.method, row.inference_claim))
+        .collect()
+}
+
 /// The supported row that admits `key` under `observed`, if any.
 fn find_support(
     key: GraphlessSupportKey<'_>,
     observed: GraphlessAssignmentSupport,
 ) -> Option<&'static GraphlessSupportRow> {
-    SUPPORTS.iter().find(|row| row.admits(key, observed))
+    let owed = not_supported_rows();
+    SUPPORTS.iter().find(|row| {
+        row.admits(key, observed)
+            && !owed.contains(&(
+                row.family.to_owned(),
+                row.design.to_owned(),
+                row.method.to_owned(),
+                row.inference_claim.to_owned(),
+            ))
+    })
 }
 
 /// Whether some supported row matches `key` and is satisfied by `observed`.
@@ -182,5 +226,29 @@ impl GraphlessSupportRow {
             && (!row.requires_rank_ownership || observed.rank_ownership)
             && (!row.requires_balanced_sequences || observed.balanced_sequences)
             && (!row.requires_known_density || observed.known_density)
+    }
+}
+
+#[cfg(test)]
+mod status_tests {
+    use super::owed_keys;
+
+    /// A row that release-mode data marks `not_supported` is excluded from admission;
+    /// a `supported` row is not.
+    #[test]
+    fn a_not_supported_graphless_row_in_the_status_data_is_excluded() {
+        let row = |method: &str, status: &str| {
+            format!(
+                r#"{{"family":"f","design":"d","method":"{method}","inference_claim":"c","status":"{status}","missing_evidence":[]}}"#
+            )
+        };
+        let json = format!(
+            r#"{{"graphless":[{},{}],"capabilities":[]}}"#,
+            row("owed", "not_supported"),
+            row("current", "supported")
+        );
+        let owed = owed_keys(&json);
+        assert!(owed.contains(&("f".into(), "d".into(), "owed".into(), "c".into())));
+        assert!(!owed.contains(&("f".into(), "d".into(), "current".into(), "c".into())));
     }
 }

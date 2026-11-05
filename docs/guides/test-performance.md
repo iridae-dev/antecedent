@@ -62,12 +62,13 @@ for another, and an empty selection fails.
 
 | Mode | Selects |
 | --- | --- |
-| `engineering` (default) | Script tests, workspace nextest run, doctests, optional-feature suites and the Python suite, excluding registered scientific assertions and calibration tests. |
+| `engineering` | Script tests, workspace nextest run, doctests, optional-feature suites and the Python suite, excluding registered scientific assertions and calibration tests. |
 | `rust`, `docs`, `dev` | Workspace nextest run, doctests, or a focused selection. The nextest default filter (`python3 scripts/evidence_audit.py rust-engineering-filter --check`) excludes registered scientific assertions and calibration tests. |
-| `all` | `engineering`, then `scientific` (owed only). Never calibration. |
+| (none), `all` | The development-machine run: `engineering`, then the owed `scientific` assertions, then the owed `calibration` measurements; stops at the first failure. See [Earning and checking the records](scientific-verification.md#earning-and-checking-the-records). |
 | `rust-calibration-acceptance` | Only those retained acceptance assertions; no calibration is performed. |
 | `integration` | Integration targets, without library unit tests. |
-| `scientific` | Exact scientific assertions cited by the evidence registries whose evidence changed since their recorded pass: one nextest run of the owed Rust tests and one pytest batch of the owed Python ones (`scripts/scientific_records.py run`); `--all` reruns every one. |
+| `scientific` | Only the owed scientific assertions (cited by the evidence registries or listed in `parity/scientific_tests.toml`), one nextest run per crate and one pytest batch, each batch recorded when it finishes (`scripts/scientific_records.py run`). `--only PATTERN` limits it to matching owed rows; `--all` (manual) reruns every one. No engineering run. |
+| `calibration` | Only the owed coverage records (`scripts/measure_calibration.sh --owed`); `--only PATTERN` narrows by group, record id/test or route; `--all` (manual) measures every group. |
 | `scripts` | Discovered script unit tests in their locked environment; skips, empty discovery and failures fail. |
 | `python`, `python-test` | pytest without scientific, measured-record acceptance and calibration-simulation assertions (with or without sync and native rebuild). |
 | `python-calibration-acceptance` | pytest with `-m requires_calibration`, after branch calibration. |
@@ -98,10 +99,10 @@ ordinary test is in the software lane, so none falls between lanes.
 
 | Lane | Command | Selected | Contents |
 | --- | --- | ---: | --- |
-| Engineering | `bash scripts/test.sh` | Rust tests (`rust`); pytest tests (`python`); script tests (`scripts`) | Every non-ignored workspace test except the registered scientific assertions and the registered calibration tests. |
-| Scientific evidence | `bash scripts/test.sh scientific` | 207 Rust tests plus 1 Python test | Only the assertions that `parity/*.toml` claims cite as known-truth or external-oracle evidence (`scientific` role). Discovery proves each cited test exists and is not ignored; no other lane runs them. |
+| Engineering | `bash scripts/test.sh engineering` | Rust tests (`rust`); pytest tests (`python`); script tests (`scripts`) | Every non-ignored workspace test except the registered scientific assertions and the registered calibration tests. |
+| Scientific evidence | `bash scripts/test.sh scientific` | 207 Rust tests plus 1 Python test | Only the assertions that `parity/*.toml` claims cite as known-truth or external-oracle evidence (`scientific` role). Discovery proves each cited test exists and is not ignored; only the scientific lane runs them, on a development machine. |
 | Calibration acceptance | `bash scripts/test.sh rust-calibration-acceptance` | 13 Rust tests; 39 pytest tests (`python-calibration-acceptance`) | Tests registered under `calibration_acceptance_assertions` in `parity/test_registry.toml`, or marked `requires_calibration`. They need the frozen branch's attesting coverage records and fail until `scripts/measure_calibration.sh` has produced them. |
-| Calibration measurement | `bash scripts/measure_calibration.sh` | 803 `#[ignore]` Rust tests | Replicate-heavy coverage, precision and measurement diagnostics. No ordinary lane runs them. |
+| Calibration measurement | `bash scripts/test.sh calibration` (`scripts/measure_calibration.sh --owed`) | 803 `#[ignore]` Rust tests | Replicate-heavy coverage, precision and measurement diagnostics. No ordinary lane runs them. |
 | Slow correctness | `bash scripts/test.sh slow` | 9 `#[ignore]` Rust tests | Exhaustive enumerations and heavy acceptance fits that are too slow for the ordinary lanes (for example `mag_id_bruteforce::exhaustive_four_observed_two_latent` and the ring-with-triangles sampler references in `graph_posterior_wide`). Selected by exact name from `parity/slow_correctness_tests.toml`, which gives each a reason and an expected runtime. Manual or nightly; not part of ordinary CI. Twelve sweeps that take 4 s or less at the test profile (the 100,000-row `antecedent-io` fits, the matching and neighbourhood-sensitivity 100,000-row tests, the `p = 667` joint identification and the optional-estimator closure) are ordinary tests, not in this lane. |
 | Integration | `bash scripts/test.sh integration` | 6,570 Rust tests | All integration targets, without library unit tests. |
 
@@ -224,10 +225,13 @@ From the repository root:
 
 ```bash
 # Workspace Rust unit and integration tests, including CI calibration features.
+bash scripts/test.sh engineering
+
+# Engineering, then the scientific assertions and calibration records that are owed.
 bash scripts/test.sh
 
-# Engineering tests plus the scientific assertions whose evidence changed.
-bash scripts/test.sh all
+# One owed scientific test while iterating.
+bash scripts/test.sh scientific --only graph_posterior
 
 # Reuse the same runner settings for a focused development loop.
 bash scripts/test.sh rust -p antecedent-identify --test transport_exact_scm
@@ -276,7 +280,7 @@ measured coverage records.
 ## CI build strategy
 
 The `python-native` job builds one release extension for Linux x86_64 and
-CPython 3.12. The `cited-tests` shards, the `scientific` job and the coverage/lint job
+CPython 3.12. The `cited-tests` shards and the coverage/lint job
 consume this run's artifact. The static, public-API, bench and `rust` jobs start
 independently while the extension builds.
 
@@ -290,15 +294,16 @@ directories. Python source coverage still covers the checkout package.
 Every CI job is one section of `scripts/gate_release.sh`, in four tiers: `static` (source
 reading only, seconds), the build jobs (`public-api`, `cited-tests`, `benches`, `features`,
 `python-native`, `deny`), the engineering tests (`rust`, `development`, `python-lint`,
-`python-wheels`) and one `scientific` job. A registered scientific assertion runs only in the
-`scientific` job, and only when its evidence changed since its recorded pass
-(`parity/scientific_records.toml`); the engineering jobs deselect it, so no test runs twice. The
+`python-wheels`) and one `scientific` job. CI executes no scientific assertion and no calibration
+measurement: the `scientific` job builds nothing and only checks that every record in
+`parity/scientific_records.toml` and `parity/coverage_records.toml` is current. Those records are
+earned on development machines ([Earning and checking the records](scientific-verification.md#earning-and-checking-the-records)); the engineering jobs deselect the scientific tests. The
 16 platform/interpreter wheel combinations still build and test
 their own installed wheels. Sharing the Linux source-tree extension does not
 replace packaged-wheel testing. Wheel test environments and the local release
 candidate environment also install mypy, which the two typing tests require.
 
-The cited-tests and scientific jobs use the same test optimization and debug-info settings
+The cited-tests job uses the same test optimization and debug-info settings
 as the main Rust jobs. Compiler caches remain enabled on
 the jobs that already use them; cache hits do not replace same-run artifact
 reuse.

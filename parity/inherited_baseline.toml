@@ -963,67 +963,7 @@ rationale = ""
 new_record = ""
 
 [[decision]]
-area = "Persisted identity digests"
-decision = "Persisted identities and receipts (design, decision, io artifact, estimate, completion and scenario digests) are hashed through one canonical length-delimited writer under named domains. Digests of these routes change value and earlier artifacts are not replayed."
-reference = "CHANGELOG.md"
-anchor = "Persisted identities and receipts are hashed through one canonical writer."
-
-[[decision]]
-area = "Stage identities"
-decision = "Selective-recalculation stage identities encode every input as a typed, length-delimited field (floats by bit pattern, enums by stable tag) instead of Debug text; every stage identity, the callback request digest and the batch estimator fingerprint change value."
-reference = "CHANGELOG.md"
-anchor = "Selective-recalculation stage identities no longer fold `Debug` output."
-
-[[decision]]
-area = "Request identities"
-decision = "Provider requests are hashed by content (JSON values, arrays and column tables by dtype, shape and bytes); the repr fallback is removed and a request with no canonical form refuses."
-reference = "CHANGELOG.md"
-anchor = "Provider requests are hashed by content."
-
-[[decision]]
-area = "External callback request identity"
-decision = "The callback request digest now binds the planner branch, so identity reuse across branches is refused and replay is branch-bound."
-reference = "docs/refactor-verification.md"
-anchor = "The request digest omitted the planner branch"
-
-[[decision]]
-area = "Python JSON identities"
-decision = "Every Python digest over a JSON document is the Rust canonical digest under a named domain; contract, graph, request, report and sample identities move and previously exported reports no longer validate their stored digest."
-reference = "CHANGELOG.md"
-anchor = "One JSON digest in Python."
-
-[[decision]]
-area = "Provider identity and receipt"
-decision = "One provider object identity and one provider-verification receipt carry the registered name, spec digest, request digest and operations; receipts load only under the digest a consumer retained."
-reference = "CHANGELOG.md"
-anchor = "One provider-verification receipt."
-
-[[decision]]
-area = "Canonical JSON"
-decision = "Non-finite floats have no digest and are refused before hashing; finite digests are unchanged."
-reference = "CHANGELOG.md"
-anchor = "Canonical JSON refuses non-finite floats"
-
-[[decision]]
 area = "Canonical, data and execution identity roles"
 decision = "The canonical claim identity binds scientific fields and the estimand, the data identity binds observation and sampling fields, and the numerical execution identity adds provider, options, seed, limits and uncertainty method; one field's digest never substitutes for another."
 reference = "parity/identity_contract.md"
 anchor = "The canonical claim identity binds the scientific fields above and its estimand."
-
-[[decision]]
-area = "Wire and API surface"
-decision = "Estimator-free artifact container, wire types and digests move to antecedent-io-core with the antecedent-io root re-exporting them, so public paths and artifact bytes are unchanged; test-only container seams sit behind a test-util feature."
-reference = "CHANGELOG.md"
-anchor = "move to the new `antecedent-io-core` crate"
-
-[[decision]]
-area = "Public API narrowing"
-decision = "Items without a cross-crate reference are crate-private and the reviewed public-API snapshots under parity/public_api are the gate; removals and additions are itemised per crate in the changelog."
-reference = "CHANGELOG.md"
-anchor = "Public-API narrowing"
-
-[[decision]]
-area = "Verification limits of the refactor"
-decision = "Branch verification is not a calibration attestation; calibration-dependent acceptance checks remain closed until a legitimate measurement, and no inherited route was supported by the refactor."
-reference = "docs/refactor-verification.md"
-anchor = "The branch is not fully green."

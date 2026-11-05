@@ -1,0 +1,1659 @@
+{
+  "graphless": [
+    {
+      "family": "interference",
+      "design": "cluster_randomization_total",
+      "method": "cluster_total_neyman_welch",
+      "inference_claim": "exposure_contrast_pointwise_95_student_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "interference",
+      "design": "two_stage_saturation",
+      "method": "saturation_cluster_neyman_welch",
+      "inference_claim": "exposure_contrast_pointwise_95_student_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "interference",
+      "design": "observational_known_exposure",
+      "method": "observational_known_exposure_cluster_t",
+      "inference_claim": "exposure_contrast_pointwise_95_student_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
+      "design": "two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_product_limit",
+      "inference_claim": "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
+      "design": "delayed_entry_two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_product_limit",
+      "inference_claim": "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
+      "design": "two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_ipcw_product_limit",
+      "inference_claim": "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
+      "design": "delayed_entry_two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_ipcw_product_limit",
+      "inference_claim": "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
+      "design": "two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_supremum_band",
+      "inference_claim": "simultaneous_95_survival_difference_band",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
+      "design": "two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_supremum_band",
+      "inference_claim": "simultaneous_95_cumulative_incidence_difference_band",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "continuous_dose_policy",
+      "design": "fixed_group_kernel",
+      "method": "inverse_density_kernel_paired_scores",
+      "inference_claim": "policy_reference_incremental_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
+      "design": "switchback",
+      "method": "independent_sequence_ht_score",
+      "inference_claim": "pointwise_95_student_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
+      "design": "bernoulli",
+      "method": "independent_action_ht_score",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
+      "design": "bernoulli",
+      "method": "ancova_hc0",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
+      "design": "bernoulli",
+      "method": "fixed_cuped_ht_score",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "policy_value",
+      "design": "binary_ipw",
+      "method": "fixed_randomized_ipw_scores",
+      "inference_claim": "paired_policy_incremental_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "policy_value",
+      "design": "binary_aipw_crossfit",
+      "method": "fixed_crossfit_randomized_aipw_scores",
+      "inference_claim": "paired_policy_incremental_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "policy_value",
+      "design": "binary_ipw_regret",
+      "method": "fixed_randomized_ipw_finite_class_scores",
+      "inference_claim": "finite_class_regret_simultaneous_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "difference_in_differences",
+      "design": "panel_2x2",
+      "method": "cluster_change_scores_cr1",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "difference_in_differences",
+      "design": "repeated_cross_section_2x2",
+      "method": "four_cell_cluster_scores_cr1",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "difference_in_differences",
+      "design": "staggered_event_study",
+      "method": "never_treated_event_study_cluster_cr1",
+      "inference_claim": "post_adoption_event_time_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "policy_value",
+      "design": "binary_aipw",
+      "method": "fixed_held_out_randomized_aipw_scores",
+      "inference_claim": "paired_policy_incremental_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "policy_value",
+      "design": "binary_ipw_uplift",
+      "method": "fixed_randomized_ipw_frozen_rank_scores",
+      "inference_claim": "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "policy_value",
+      "design": "binary_aipw_uplift",
+      "method": "fixed_held_out_randomized_aipw_frozen_rank_scores",
+      "inference_claim": "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "policy_value",
+      "design": "multi_action_ipw",
+      "method": "fixed_randomized_multi_action_ipw_scores",
+      "inference_claim": "paired_policy_incremental_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "policy_value",
+      "design": "multi_action_ipw_cate",
+      "method": "fixed_randomized_multi_action_ipw_fixed_group_scores",
+      "inference_claim": "paired_policy_incremental_and_all_cate_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
+      "design": "complete",
+      "method": "neyman_difference_in_means",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
+      "design": "cluster",
+      "method": "neyman_unit_weighted_cluster_totals",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
+      "design": "cluster",
+      "method": "fixed_cuped_cluster_totals",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
+      "design": "stratified",
+      "method": "blocked_neyman_difference_in_means",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
+      "design": "factorial_2x2",
+      "method": "fixed_cell_neyman_contrasts",
+      "inference_claim": "three_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
+      "design": "multi_arm",
+      "method": "independent_action_ht_scores",
+      "inference_claim": "all_action_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "longitudinal_regime",
+      "design": "known_sequential_randomized_two_period",
+      "method": "subject_excluded_q_sequential_dr_scores",
+      "inference_claim": "conditional_q_pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "longitudinal_regime",
+      "design": "known_sequential_randomized_three_period",
+      "method": "subject_excluded_q_sequential_dr_scores",
+      "inference_claim": "conditional_q_pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "complier_effect",
+      "design": "bernoulli",
+      "method": "wald_ratio_influence",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "complier_effect",
+      "design": "bernoulli_one_sided",
+      "method": "wald_ratio_influence",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "local_polynomial_ratio",
+      "design": "fuzzy_jump",
+      "method": "local_quadratic_cubic_rbc_hc0_delta",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "local_polynomial_ratio",
+      "design": "regression_kink",
+      "method": "local_quartic_slope_rbc_hc0_delta",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "longitudinal_regime",
+      "design": "known_sequential_randomized_two_period",
+      "method": "fixed_known_q_g_formula_scores",
+      "inference_claim": "conditional_q_pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "longitudinal_regime",
+      "design": "known_sequential_randomized_additive_msm",
+      "method": "stabilized_ipw_cr1_scores",
+      "inference_claim": "intercept_and_period_effects_pointwise_95_normal_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
+      "design": "bernoulli",
+      "method": "gaussian_ipow_modular_posterior",
+      "inference_claim": "conditional_pseudo_posterior_pointwise_95_quantiles",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
+      "design": "complete",
+      "method": "gaussian_ipow_modular_posterior",
+      "inference_claim": "conditional_pseudo_posterior_pointwise_95_quantiles",
+      "status": "supported",
+      "missing_evidence": []
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "transport.multi_source_limited_experiment",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.finite_scenario_envelope",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.learned_continuous_trial",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.two_step_temporal",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "counterfactual.path_specific_edge",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "identify.mixed_source_proof_search",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.admg_conditional",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.study_planning",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recovery.binary_observation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.smoothed_dose_response",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "sensitivity.joint_mechanism",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "sensitivity.joint_uncertainty",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.matched_case_control_odds_ratio",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.finite_action_inverse",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.penalized_propensity_aipw",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.clustered_dml_aipw",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.descriptive_comparison",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.tier_diagnostics",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.factorized_joint_cells",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.batch_retarget_covariance",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.dml_score_covariance",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.preflight_rank_drop",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "distribution.joint_alignment",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.cpdag_completion",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.shared_scenario_covariance",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.joint_bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "identify.binary_nested_markov",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "temporal.dependent_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "temporal.uncertain_initial_state",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "temporal.new_period_refresh",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "counterfactual.temporal_fixed_population",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recovery.sampled_observation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "distribution.meanings",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "distribution.aligned_joint_draws",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "distribution.mapped_posterior_transfer",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "external.scientific_providers",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "external.response_binding",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "external.capability_negotiation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "external.object_verification",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "external.trust_receipt",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "support.coordinate",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.provenance",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.structured_refusals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.language_parity",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "temporal.effect_constancy",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.contract",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.functionals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.structural_policy",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.evidence_obligations",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.study_candidate",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.identification_repair",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.repair_search_receipt",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.dose_grid_functional",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recovery.chain_observation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.external_signal",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.evsi",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.ranking_artifact",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.sensitivity_composition",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.functional_inverse",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.admissibility",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.structural_robustness",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.robust_verdicts",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.prior_signal_planning",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.vector_treatment",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.categorical_treatment",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.compact_runtime_export",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.nonlinear_mediation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.latent_class_effects",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.program_binding",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.native_response_claims",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.boundary",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recalculation.selective",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recalculation.receipt",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.bundle",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.verifiers",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.scenario_claims",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.proposal_receipt",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.multi_source",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.scenario_invariance",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "counterfactual.transported_additive",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.learned_joint",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "sensitivity.mechanism_discrepancy",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "sensitivity.marginal_structural_model",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recalculation.frozen_scores",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recalculation.frozen_scores_artifact",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recalculation.adjusted",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recalculation.doubly_robust",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "identify.binary_nested_markov_fisher",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recalculation.static_response",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recalculation.design_specific",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.quadratic_dose",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recalculation.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recalculation.temporal",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.native_authority",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.rollout_state",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "temporal.effect_constancy_consumers",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.proposal_arrival",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recalculation.composite",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.source_evidence",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.source_projection",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.source_lineage",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "sensitivity.source_lineage",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.conditional_study_ranking",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recalculation.native_execution_attempts",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "inference.measured_scalar",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.vector_treatment.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.categorical_treatment.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.quadratic_dose.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.dose_grid_functional.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.functionals.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.functional_inverse.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.finite_action_inverse.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recovery.binary_observation.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "recovery.chain_observation.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.penalized_propensity_aipw.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.clustered_dml_aipw.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.batch_retarget_covariance.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.multi_source_limited_experiment.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.two_step_temporal.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.admg_conditional.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.shared_scenario_covariance.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "temporal.uncertain_initial_state.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "temporal.new_period_refresh.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "temporal.effect_constancy.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.nonlinear_mediation.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.latent_class_effects.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "sensitivity.mechanism_discrepancy.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "sensitivity.marginal_structural_model.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.learned_continuous_trial.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.smoothed_dose_response.bayesian",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "mechanism_composition.acyclic_joint_model",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "evidence_ledger.overlap_accounting",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "evidence_ledger.statistical_pooling",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "evidence_ledger.random_effects",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "evidence_ledger.hierarchical_borrowing",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "evidence_ledger.transport_provenance",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "evidence_ledger.evidence_reuse",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "evidence_ledger.repeated_observation_use",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "evidence_ledger.revision",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "evidence_ledger.dependence_range",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "evidence_ledger.pooled_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "measurement.model_contract",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "measurement.classical_continuous_error",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "measurement.repeated_measurements",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "measurement.binary_misclassification",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "measurement.probabilistic_categorical",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "measurement.external_latent_posterior",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "counterfactual.transport_general",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "counterfactual.transport_sampled",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "counterfactual.transport_sampled_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "cohort_decision.mean_contrast",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "cohort_decision.declared_shift",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "cohort_decision.interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision_reliability.sampled_decision",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision_reliability.ranking_statement",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision_reliability.selection_aware_evaluation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision_reliability.ranking_probability_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "predictive_assessment.proper_scores",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "predictive_assessment.score_differences",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "predictive_assessment.calibration_diagnostics",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "predictive_assessment.overlap_check",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "predictive_assessment.distribution_drift",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "predictive_assessment.score_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "observation_query.finite_law_conditioning",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "observation_query.posterior_update",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "observation_query.evidence_requirement",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "observation_query.calibrated_probability",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "scientific_bridge.typed_bridges",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "scientific_bridge.distribution_bridges",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "scientific_bridge.interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "sequential_evaluation.policy_evaluation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.analysis_contract",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.procedure_matrix",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.bayesian_posterior",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.decision_theoretic_stopping",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.adaptive_weighting",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.repeated_measures_weighting",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.anytime_valid_sequence",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.group_sequential",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.unsupported_guarantees",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition_verification.claim_revalidation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "joint_law.linear_moment_propagation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "joint_law.aligned_nonlinear_functional",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "joint_law.known_weight_mixture",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "joint_law.dependence_envelope",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "joint_law.composed_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "interface_contract.scientific_interface",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "interface_contract.calibration_inheritance",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "interface_contract.portable_specification",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "cross_world_execution.finite_markovian_scm",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "cross_world_execution.temporal_selective",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "cross_world_execution.sampled_and_interval_readings",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "provider_callback.law_posterior_protocol",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "provider_callback.replay_policy",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "provider_callback.portable_result",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "cyclic.general_systems",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "cyclic.external_mechanisms",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "provider_callback.consumers",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "discovery.selective_reuse",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "composition.release_boundary_fixture",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.covariate_shift_cohort_effect",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.measurement_model",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.fitted_linear_gaussian_mechanism",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.typed_mechanism_transport",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.synthesis_pooling",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.synthesis_borrowing",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.synthesis_transported_prior",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.surrogate_bridge_premise",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.policy_evaluation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.period_shift_policy",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.adaptive_trial_source",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.cpdag_class_envelope",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "discovery.per_population",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "discovery.sample_split_analysis",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "discovery.sample_split_effect",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "discovery.sample_split_parent_set_effect",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.provider_source_admission",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.handoff_artifact",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.procedure_law",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.procedure_bayesian_martingale_gap",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.procedure_decision_report",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.procedure_anytime_exclusion",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.procedure_ordered_p_value",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.procedure_weighting_simulation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision_reliability.derived_numerical_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision_reliability.optimality_confidence_set",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision_reliability.selection_corrected_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision_reliability.producer_carrier",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "joint_law.composed_spread_linear",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "joint_law.composed_spread_aligned_functional",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "joint_law.composed_exceedance",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.assumption_range",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "transport.revalidation",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.transported_source",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.transported_decision_artifact",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "inverse.composed_forward_source",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "inverse.cohort_forward_source",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "inverse.transported_forward_source",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "inverse.observational_scenarios",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "model.discretized_linear_gaussian_scm",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "model.discretized_scm_artifact",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "counterfactual.whole_path_uncertainty",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "interface_contract.component_adapters",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "interface_contract.ledger_overlap",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "mechanism_composition.ledger_independence",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "joint_law.ledger_overlap_and_row_pairing",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "joint_law.composed_spread_transported",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "joint_law.composed_interval_check",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.procedure_repeated_measures",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "adaptive_inference.participant_family",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.generalized_propensity_aipw",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.randomized_missing_outcomes",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.sampling_weights",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.observational_survival_effect",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.observational_policy_value",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "gcm.model.graph_falsification",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "gcm.attribution.intrinsic_influence",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.uncertainty",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "design.evidence_plan",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "sensitivity.missing_outcome_departure",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "choice_inference.interval_candidates",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "categorical_treatment.compiled_candidate",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "mnar_fixed_shift.compiled_candidate",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.randomized_quantile",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "estimate.response_gam_derivative",
+      "status": "supported",
+      "missing_evidence": []
+    }
+  ]
+}

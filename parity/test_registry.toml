@@ -22781,3 +22781,24 @@ crate = "antecedent-io-core"
 cargo_target = "lib"
 path = "crates/antecedent-io-core/src/contract_section/consume.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-src-support-matrix-data-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/support/matrix_data.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-io-core-src-graphless-support-rs"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/graphless_support.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "support-ledger-gate"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_gate_support.py"
+gates = ["inventory"]

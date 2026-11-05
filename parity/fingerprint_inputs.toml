@@ -1,0 +1,160 @@
+# What a dynamic read site can read, for the dependency fingerprint (scripts/evidence_fingerprint.py).
+#
+# The fingerprint hashes every file a hashed source reaches by a literal path or an include
+# macro. A site that builds a path or an environment name at run time cannot be followed
+# statically, so fingerprinting a row whose hashed files contain such a site raises until
+# the site's source file has a row here. Each row names exactly what the site can read; the
+# files and directories listed (globs allowed) are hashed into every fingerprint that
+# reaches the source, and `env` names follow the fingerprint's environment rule
+# (ANTECEDENT_* values hashed, other names by name only).
+#
+# source   repo-relative file that contains the dynamic site(s)
+# inputs   repo paths, directories or globs the sites can read
+# env      environment variable names the sites can read
+# why      what the site does
+
+[[input]]
+source = "crates/antecedent-estimate/src/prepare.rs"
+env = ["CLASSIC_MEASURE", "CLASSIC_ROWS", "CLASSIC_COLUMNS", "CLASSIC_REPEATS", "CLASSIC_REVERSE"]
+inputs = []
+why = "the ignored design_measurement test reads its sizes through a closure over std::env::var"
+
+[[input]]
+source = "crates/antecedent-estimate/src/util/bootstrap/tests.rs"
+env = ["N", "REPLICATES", "THREADS", "TRIALS"]
+inputs = []
+why = "the ignored bootstrap scratch trials read their sizes through env_u64(name)"
+
+[[input]]
+source = "crates/antecedent-identify/src/sid/mixed_source/search/tests.rs"
+env = ["N", "CASES"]
+inputs = []
+why = "the ignored completeness measurement reads N and CASES through a closure over std::env::var"
+
+[[input]]
+source = "crates/antecedent-attribution/tests/latent_block_witness.rs"
+inputs = ["crates/antecedent-attribution/tests/latent_block_witness.rs"]
+env = []
+why = "checks that the file named by HEDGE_WITNESS_TEST (this file) exists"
+
+[[input]]
+source = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
+inputs = [
+  "conformance/discovery/graph_mcmc_exact/reference_exact.py",
+  "conformance/discovery/graph_mcmc_exact/reference_exact.py.lock",
+]
+env = []
+why = "checks that the generator and environment lock the fixture names exist"
+
+[[input]]
+source = "crates/antecedent-discovery/tests/multiplicity_oracle.rs"
+inputs = [
+  "conformance/stats/ols_wls/reference.py",
+  "conformance/stats/ols_wls/reference.py.lock",
+]
+env = []
+why = "checks that the generator and environment lock the multiplicity fixture names exist"
+
+[[input]]
+source = "crates/antecedent-estimate/tests/matching_construction_identity.rs"
+inputs = [
+  "provenance/estimate.knn_distance_matching.toml",
+  "provenance/estimate.distance_matching.toml",
+  "provenance/estimate.propensity_matching.toml",
+  "crates/antecedent-estimate/tests/knn_matching_calibration.rs",
+  "scripts/measure_calibration_groups.sh",
+]
+env = []
+why = "repository_file(relative) reads the matching provenance records, the calibration design and the gate script"
+
+[[input]]
+source = "crates/antecedent-state/tests/particle_filter_oracle.rs"
+inputs = [
+  "conformance/design_state/particle_filter_kalman/reference.py",
+  "conformance/design_state/particle_filter_kalman/reference.py.lock",
+]
+env = []
+why = "checks that the generator and environment lock the fixture names exist"
+
+[[input]]
+source = "crates/antecedent-stats/tests/bayesian_ci_oracle.rs"
+inputs = [
+  "conformance/discovery/bayesian_ci/reference.py",
+  "conformance/discovery/bayesian_ci/reference.py.lock",
+]
+env = []
+why = "checks that the generator and environment lock the fixture names exist"
+
+[[input]]
+source = "crates/antecedent-stats/tests/foundations_oracle.rs"
+inputs = [
+  "conformance/stats/ols_wls/reference.py",
+  "conformance/stats/ols_wls/reference.py.lock",
+  "conformance/stats/rng_gaussian/reference.py.lock",
+]
+env = []
+why = "checks the generator and the environment lock each stats fixture names (ols_wls or rng_gaussian)"
+
+[[input]]
+source = "crates/antecedent/tests/descriptive_fallback.rs"
+inputs = [
+  "docs/guides/fallback.md",
+  "parity/python_facade_surface.toml",
+  "parity/python_products.toml",
+  "python/antecedent/__init__.py",
+]
+env = []
+why = "read(path) reads the fallback guide, the facade manifests and the Python package entry point"
+
+[[input]]
+source = "crates/antecedent/tests/family_contract_conformance.rs"
+inputs = [
+  "parity/capabilities/route_manifest.toml",
+  "parity/capabilities/family_conformance.toml",
+]
+env = []
+why = "workspace_root().join(..) reads the route manifest and the family conformance table"
+
+[[input]]
+source = "crates/antecedent/tests/structure_compiler_routes.rs"
+inputs = [
+  "parity/public_api/antecedent.txt",
+  "python/src/discovery_api.rs",
+  "python/src/bayesian.rs",
+  "python/src/gcm_api.rs",
+  "python/src/intervention_program_api.rs",
+  "python/src/lib.rs",
+]
+env = []
+why = "reads the public API snapshot and the Python binding sources it forbids hidden engines in"
+
+[[input]]
+source = "crates/antecedent/tests/supported_compiler.rs"
+inputs = ["parity/supported_routes.toml"]
+env = ["SCRATCH_ROUTES", "UPDATE_SUPPORTED_ROUTES"]
+why = "compares the rendered routes with the committed supported-route record"
+
+[[input]]
+source = "crates/antecedent-core/tests/unleased_parallelism.rs"
+inputs = ["crates/*/src", "python/src"]
+env = []
+why = "scans every workspace crate's src tree and python/src for thread starts"
+
+[[input]]
+source = "crates/antecedent-identify/tests/mixed_source_external_parity.rs"
+inputs = [
+  "conformance/identify/mixed_source_external/reference.py",
+  "conformance/identify/mixed_source_external/reference.R",
+  "conformance/identify/mixed_source_external/reference.py.lock",
+  "conformance/identify/mixed_source_external/renv.lock",
+  "conformance/identify/mixed_source_external/prepare.R",
+  "crates/antecedent-identify/tests/mixed_source_external_parity.rs",
+]
+env = []
+why = "checks that each reference artifact the fixture lists exists"
+
+[[input]]
+source = "crates/antecedent/tests/workspace_invariants.rs"
+inputs = ["Cargo.toml", "crates/*/Cargo.toml"]
+env = []
+why = "scans the workspace and every crate manifest for a direct rayon dependency"

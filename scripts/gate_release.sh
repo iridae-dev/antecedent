@@ -7,15 +7,17 @@
 #                                                                         cited-tests, benches, deny)
 #   tier 2  engineering    tests of the software, no scientific claim    (sections: python-lint,
 #                                                                         engineering, development)
-#   tier 3  scientific     only the scientific assertions whose evidence (section: scientific)
-#                          changed since their recorded pass
+#   tier 3  records        every scientific and calibration record is   (section: scientific)
+#                          current; nothing is executed
 #
-# A calibration status is an annotation printed by tier 0; it never fails a change
-# (scripts/calibration_status.py). The statistical measurement is made on a
-# development machine (scripts/measure_calibration.sh), never here.
+# Scientific assertions and calibration are earned on development machines
+# (bash scripts/test.sh), rerunning only the records that are owed, and committed. This
+# gate never executes either lane: it checks that every record is current
+# (scripts/scientific_records.py status --check, scripts/calibration_status.py --check),
+# in the static tier and again as its own CI job. An owed record fails the change.
 #
 # Tier 4 is the release candidate (scripts/gate_release_candidate.sh): this gate, then the
-# CI-run check, every scientific assertion re-run, scale cases and the installed wheel.
+# CI-run check, scale cases and the installed wheel. It requires the same current records.
 #
 #   bash scripts/gate_release.sh                    # every section, in tier order
 #   bash scripts/gate_release.sh --section NAME     # one section (CI runs them as parallel jobs)
@@ -127,10 +129,9 @@ if ! git diff --exit-code -- docs/release-notes/ ":!docs/release-notes/v${VERSIO
 fi
 step python3 scripts/generate_host_schema.py --check
 
-echo "== calibration and scientific records (annotations; never fail a change) =="
+echo "== scientific and calibration records are current (earned locally, checked here) =="
+step python3 scripts/scientific_records.py status --check
 step python3 scripts/calibration_status.py --check
-step python3 scripts/calibration_status.py status || echo "calibration status unavailable"
-step python3 scripts/scientific_records.py status || echo "scientific record status unavailable"
 if (( ${#failed_steps[@]} )); then
   echo "== static: ${#failed_steps[@]} check(s) failed ==" >&2
   printf '  FAILED: %s\n' "${failed_steps[@]}" >&2
@@ -251,16 +252,18 @@ section_end development
 fi
 
 # ---------------------------------------------------------------------------------------
-# Tier 3: scientific assertions owed since their recorded pass.
+# Tier 3: record currency. Nothing executes; an owed record fails the change.
 # ---------------------------------------------------------------------------------------
+# The static tier runs these two checks inside its larger list; this section is the same
+# pair as a job of their own, so CI's `scientific` job keeps meaning "the scientific and
+# calibration evidence is current" and is quick (a checkout and Python, no build).
 if wanted scientific; then
 section_start scientific
-bash scripts/test.sh scientific
-# A change whose evidence moved owes new records. In CI they must already be committed, so
-# the run leaves the ledger as the change delivered it.
-if [[ "${CI:-}" == "true" ]] && ! git diff --exit-code -- parity/scientific_records.toml >/dev/null; then
-  echo "parity/scientific_records.toml changed: commit the records this change owes"
-  git diff --stat -- parity/scientific_records.toml
+step python3 scripts/scientific_records.py status --check
+step python3 scripts/calibration_status.py --check
+if (( ${#failed_steps[@]} )); then
+  echo "== scientific: ${#failed_steps[@]} check(s) failed; earn the owed records with bash scripts/test.sh and commit them ==" >&2
+  printf '  FAILED: %s\n' "${failed_steps[@]}" >&2
   exit 1
 fi
 section_end scientific

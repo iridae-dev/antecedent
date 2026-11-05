@@ -6,18 +6,40 @@ cd "$ROOT"
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/test.sh [engineering|scientific|all|dev|rust|rust-calibration-acceptance|integration|scripts|docs|python-test|python|python-calibration-acceptance|slow] [test arguments...]
+Usage: bash scripts/test.sh [LANE] [arguments...]
 
-  engineering  (default) Every engineering test: script tests, Rust tests, doctests,
+Lanes: (none)|all|engineering|scientific|calibration, and the focused lanes
+       dev|rust|rust-calibration-acceptance|integration|scripts|docs|python-test|python|
+       python-calibration-acceptance|slow
+
+  (none)  The development-machine run: engineering, then the owed scientific
+          assertions, then the owed calibration measurements; stops at the first
+          failure and prints what was rerun. Only owed work runs: a scientific record
+          whose fingerprint is current, or a coverage record that is current, is not
+          rerun. Commit parity/scientific_records.toml and the coverage records it
+          rewrites. Spelled `all`.
+  engineering  Every engineering test: script tests, Rust tests, doctests,
           optional-feature tests and Python tests. Registered scientific assertions
-          and calibration tests are not part of it; nothing is measured.
-  scientific   Run the scientific assertions whose evidence changed since their
-               recorded pass (parity/scientific_records.toml), in one nextest run
-               and one pytest batch, and record the passes. `scientific --all`
-               (or ANTECEDENT_SCIENTIFIC_ALL=1) reruns and re-records every one;
-               use it for a release. No calibration, replay or performance
-               measurement is selected.
-  all     engineering, then scientific (owed only). Never calibration.
+          and calibration tests are not part of it; nothing is measured. Every other
+          lane that runs begins with this one in the default run.
+  scientific   Run only the scientific assertions that are owed (no record, or the
+               fingerprint of what they depend on changed), in one nextest run per
+               crate and one pytest batch, recording each batch's passes as it
+               finishes. No engineering run.
+                 scientific --only PATTERN   owed rows whose selector, test path or id
+                                             contains PATTERN or matches it as a glob
+                                             (repeatable); the iteration loop
+                 scientific --all            rerun and re-record every assertion
+                                             (manual; never CI, never a release)
+  calibration  Measure only the owed coverage records (bash scripts/measure_calibration.sh
+               --owed): needs a clean committed tree and many cores.
+                 calibration --only PATTERN  owed work whose group label, record id or
+                                             test, or route contains PATTERN or matches
+                                             it as a glob (repeatable)
+                 calibration --all           every group (manual)
+  CI and releases run neither scientific nor calibration. They check that every
+  record is current: `python3 scripts/scientific_records.py status --check` and
+  `python3 scripts/calibration_status.py --check`.
 
   dev     Run a focused Rust selection with cheap test compilation (opt-level 0).
           Supply a package/target selection; numerical package overrides remain.
@@ -49,7 +71,9 @@ Usage: bash scripts/test.sh [engineering|scientific|all|dev|rust|rust-calibratio
 
 Examples:
   bash scripts/test.sh
-  bash scripts/test.sh scientific
+  bash scripts/test.sh engineering
+  bash scripts/test.sh scientific --only 'graph_posterior*'
+  bash scripts/test.sh calibration --only thompson_posterior
   bash scripts/test.sh dev -p antecedent --test response_facade
   bash scripts/test.sh rust -p antecedent-identify --test transport_exact_scm
   bash scripts/test.sh rust -p antecedent --test response_facade -E 'test(response)'
@@ -58,23 +82,49 @@ Examples:
 
 Rust test opt-level defaults to 2; CARGO_PROFILE_TEST_OPT_LEVEL=0 restores the
 usual edit/compile setting. Existing Cargo profile environment overrides are respected.
-Install cargo-nextest before running engineering, rust, scientific or all. Statistical calibration remains
-an explicit run through scripts/measure_calibration.sh.
+Install cargo-nextest before running engineering, rust, scientific or the default run.
+docs/guides/scientific-verification.md describes the model these lanes implement.
 EOF
 }
 
-suite="${1:-engineering}"
+original_args=(${@+"$@"})
+suite="${1:-all}"
 if [[ $# -gt 0 ]]; then shift; fi
 case "$suite" in
   -h|--help) usage; exit 0 ;;
-  engineering|dev|rust|rust-calibration-acceptance|integration|scientific|scripts|docs|python-test|python|python-calibration-acceptance|slow|all) ;;
+  engineering|dev|rust|rust-calibration-acceptance|integration|scientific|calibration|scripts|docs|python-test|python|python-calibration-acceptance|slow|all) ;;
   *) usage >&2; exit 2 ;;
 esac
-if [[ "$suite" == scientific && "${1:-}" == --all && $# -eq 1 ]]; then
-  export ANTECEDENT_SCIENTIFIC_ALL=1
-  shift
+# `scientific` and `calibration` take --all and repeatable --only PATTERN.
+scientific_args=()
+calibration_args=()
+if [[ "$suite" == scientific || "$suite" == calibration ]]; then
+  lane_all=0
+  lane_only=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --all) lane_all=1 ;;
+      --only)
+        [[ $# -ge 2 ]] || { echo "--only needs a pattern" >&2; exit 2; }
+        lane_only+=("$2"); shift ;;
+      --only=*) lane_only+=("${1#--only=}") ;;
+      *) echo "$suite accepts --all and --only PATTERN, not '$1'" >&2; exit 2 ;;
+    esac
+    shift
+  done
+  if [[ "$suite" == scientific ]]; then
+    if [[ $lane_all == 1 ]]; then scientific_args+=(--all); fi
+    for pattern in ${lane_only[@]+"${lane_only[@]}"}; do scientific_args+=(--only "$pattern"); done
+  else
+    if [[ $lane_all == 1 && ${#lane_only[@]} -gt 0 ]]; then
+      echo "calibration --all measures every group; --only narrows the owed work, so give one" >&2
+      exit 2
+    fi
+    if [[ $lane_all == 1 ]]; then calibration_args+=(--all); else calibration_args+=(--owed); fi
+    for pattern in ${lane_only[@]+"${lane_only[@]}"}; do calibration_args+=(--only "$pattern"); done
+  fi
 fi
-if [[ ( "$suite" == all || "$suite" == engineering || "$suite" == scientific || "$suite" == rust-calibration-acceptance || "$suite" == slow ) && $# -gt 0 ]]; then
+if [[ ( "$suite" == all || "$suite" == engineering || "$suite" == rust-calibration-acceptance || "$suite" == slow ) && $# -gt 0 ]]; then
   echo "$suite does not accept extra arguments; use rust, docs or python for a focused run" >&2
   exit 2
 fi
@@ -88,7 +138,7 @@ if [[ "$suite" == dev ]]; then default_test_opt=0; fi
 export CARGO_PROFILE_TEST_OPT_LEVEL="${CARGO_PROFILE_TEST_OPT_LEVEL:-$default_test_opt}"
 export CARGO_PROFILE_TEST_DEBUG="${CARGO_PROFILE_TEST_DEBUG:-line-tables-only}"
 if [[ "${ANTECEDENT_TEST_RECEIPT_ACTIVE:-0}" != 1 ]]; then
-  exec python3 "$ROOT/scripts/test_run_receipt.py" -- bash "$ROOT/scripts/test.sh" "$suite" "$@"
+  exec python3 "$ROOT/scripts/test_run_receipt.py" -- bash "$ROOT/scripts/test.sh" ${original_args[@]+"${original_args[@]}"}
 fi
 workspace=(--workspace --features antecedent/calibration-internal,antecedent-identify/test-util,antecedent-io/calibration-internal,antecedent-validate/calibration-internal)
 rust_run_index=0
@@ -152,6 +202,16 @@ python_engineering_tests() {
   python_engineering_selection "$@"
   python_tests "${python_engineering_args[@]}"
 }
+engineering_tests() {
+  uv run --frozen --script "$ROOT/scripts/run_script_tests.py"
+  rust_tests "${workspace[@]}"
+  doctests "${workspace[@]}"
+  rust_tests -p antecedent-learn --features ml-full,ml-neural
+  doctests -p antecedent-learn --features ml-full,ml-neural
+  rust_tests -p antecedent-model --features gaussian-process,ml-full
+  doctests -p antecedent-model --features gaussian-process,ml-full
+  python_engineering_tests --durations=30
+}
 
 
 case "$suite" in
@@ -185,12 +245,17 @@ case "$suite" in
     rust_tests "$@" -E 'kind(test)'
     ;;
   scientific)
-    # One entry point: scientific_records.py runs the owed Rust assertions in a single
-    # nextest invocation and the owed Python assertions in one pytest batch, proves
-    # each exact assertion ran, and records the passes. Carried-forward passes are
-    # not rerun; ANTECEDENT_SCIENTIFIC_ALL=1 (release) reruns and re-records all.
-    # A recorded pass is support evidence, never calibration.
-    python3 "$ROOT/scripts/scientific_records.py" run
+    # One entry point: scientific_records.py runs the owed Rust assertions (one nextest
+    # run per crate) and the owed Python assertions (one pytest batch), proves each exact
+    # assertion ran, and records every batch's passes as it finishes. Records whose
+    # fingerprint is current are not rerun; --all (manual) reruns and re-records all.
+    # A recorded pass is support evidence, never calibration. CI never runs this lane:
+    # it checks `scientific_records.py status --check`.
+    python3 "$ROOT/scripts/scientific_records.py" run ${scientific_args[@]+"${scientific_args[@]}"}
+    ;;
+  calibration)
+    # Owed coverage records only (--all: every group). Needs a clean committed tree.
+    bash "$ROOT/scripts/measure_calibration.sh" ${calibration_args[@]+"${calibration_args[@]}"}
     ;;
   scripts) uv run --frozen --script "$ROOT/scripts/run_script_tests.py" "$@" ;;
   python) python_engineering_tests "$@" ;;
@@ -204,17 +269,24 @@ case "$suite" in
     fi
     (cd "$ROOT/python" && uv run --no-sync pytest "$@")
     ;;
-  engineering|all)
-    uv run --frozen --script "$ROOT/scripts/run_script_tests.py"
-    rust_tests "${workspace[@]}"
-    doctests "${workspace[@]}"
-    rust_tests -p antecedent-learn --features ml-full,ml-neural
-    doctests -p antecedent-learn --features ml-full,ml-neural
-    rust_tests -p antecedent-model --features gaussian-process,ml-full
-    doctests -p antecedent-model --features gaussian-process,ml-full
-    python_engineering_tests --durations=30
-    if [[ "$suite" == all ]]; then
-      python3 "$ROOT/scripts/scientific_records.py" run
+  engineering)
+    engineering_tests
+    ;;
+  all)
+    # The development-machine run: engineering, then what scientific and calibration owe.
+    engineering_tests
+    echo "== scientific: owed assertions =="
+    python3 "$ROOT/scripts/scientific_records.py" run
+    echo "== calibration: owed records =="
+    owed_calibration="$(python3 "$ROOT/scripts/calibration_status.py" status --owed | wc -l | tr -d ' ')"
+    if [[ "$owed_calibration" == 0 ]]; then
+      echo "calibration: nothing owed"
+    else
+      echo "calibration: $owed_calibration owed item(s)"
+      bash "$ROOT/scripts/measure_calibration.sh" --owed
     fi
+    echo "== ran: engineering; owed scientific (the 'running N of M' line above); calibration ($owed_calibration owed before this run) =="
+    echo "Commit parity/scientific_records.toml and the coverage records (parity/coverage_records.toml"
+    echo "and the files the collector regenerates) if this run changed them: CI checks they are current."
     ;;
 esac

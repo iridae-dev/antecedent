@@ -577,7 +577,7 @@ jobs:
 
   # Tier 1, builds that run no test. Each job is one section of scripts/gate_release.sh, so the
   # local gate and CI cannot drift. Cheap checks run first; the engineering tests (rust, development,
-  # python-lint, python-wheels) and the scientific lane (scientific) follow.
+  # python-lint, python-wheels) and the record-currency job (scientific) follow.
 
   # The public API of every published crate matches its reviewed snapshot (rustdoc build).
   public-api:
@@ -711,13 +711,15 @@ jobs:
         if: always()
         run: sccache --show-stats
 
-  # Tier 3, the scientific lane: only the scientific assertions whose evidence changed since
-  # their recorded pass run (parity/scientific_records.toml). The records they earn must
-  # already be committed with the change; the job fails when the run leaves the ledger changed.
-  # The toolchain, features and stack size match the Rust job so a recorded pass means the same thing.
+  # Tier 3, record currency: the scientific and calibration records committed with the change
+  # are current (scripts/scientific_records.py status --check, scripts/calibration_status.py
+  # --check). CI never executes a scientific assertion or a calibration measurement and never
+  # records anything: those are earned on development machines (bash scripts/test.sh), rerunning
+  # only what is owed, and committed. A record fingerprints the toolchain, lockfile, features and
+  # ANTECEDENT_* environment, so this job pins the same Rust toolchain and test environment as the
+  # Rust job; it needs no compiler cache, nextest or native extension because it builds nothing.
   scientific:
-    name: Scientific lane
-    needs: python-native
+    name: Scientific and calibration records current
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -732,47 +734,13 @@ jobs:
         with:
           toolchain: "1.85"
 
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-
-      - name: Cache Rust compilation
-        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
-
-      - name: Enable compiler cache
-        run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
-
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
-        with:
-          tool: nextest
-
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.12"
 
-      - name: Sync Python dependencies
-        working-directory: python
-        run: uv sync --locked --python 3.12 --group dev --no-install-project
-
-      - name: Download same-run native extension
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: ci-python-native-linux-cp312
-          path: target/ci-python-native
-
-      - name: Install and verify same-run native extension
-        working-directory: python
-        run: uv run --no-sync python ../scripts/ci_python_native.py install ../target/ci-python-native "$GITHUB_SHA"
-
-      - name: Owed scientific assertions
-        env:
-          UV_NO_SYNC: "1"
+      - name: Scientific and calibration records are current
         run: bash scripts/gate_release.sh --section scientific
-
-      - name: Compiler cache statistics
-        if: always()
-        run: sccache --show-stats
 
   # Python lint / type check. `uv sync` creates python/.venv, which is what
   # scripts/gate_python_lint.sh requires, so CI runs the very script the release

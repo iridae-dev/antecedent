@@ -1,6 +1,5 @@
 # Sources retained for engineering/evidence references, excluded from public output.
 excluded = [
   "README.md",
-  "refactor-verification.md",
   "nested-markov-bayesian-calibration.md",
 ]

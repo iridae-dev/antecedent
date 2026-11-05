@@ -284,6 +284,11 @@ jobs:
             exit 1
           fi
 
+      # The published crates embed release-mode support status: a unit whose cited check has no
+      # current passing record is `not_supported`.
+      - name: Embed release support status
+        run: python3 scripts/generate_support_matrix_docs.py --release
+
       - name: Dry-run publish of every crate
         run: bash scripts/publish_crates.sh --dry-run
 
@@ -320,6 +325,9 @@ jobs:
             exit 1
           fi
 
+      - name: Embed release support status
+        run: python3 scripts/generate_support_matrix_docs.py --release
+
       - name: Publish (dry-run when no token is configured)
         env:
           CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
@@ -327,7 +335,7 @@ jobs:
           set -euo pipefail
           if [[ -n "${CRATES_IO_TOKEN:-}" ]]; then
             export CARGO_REGISTRY_TOKEN="$CRATES_IO_TOKEN"
-            bash scripts/publish_crates.sh --execute
+            bash scripts/publish_crates.sh --execute --allow-dirty  # the embedded status differs from the tag
           else
             echo "CRATES_IO_TOKEN unset; dry-run only"
             bash scripts/publish_crates.sh --dry-run

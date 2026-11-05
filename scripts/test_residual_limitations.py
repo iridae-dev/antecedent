@@ -11,16 +11,7 @@ from _repo import ensure_scripts_on_path
 ensure_scripts_on_path()
 import check_residual_limitations as check  # noqa: E402
 import residual_limitations as gen  # noqa: E402
-from _repo import load_toml, read_text  # noqa: E402
-
-TRACKER = "\n".join(
-    [
-        "- [ ] **A1** open item that carries work",
-        "- [x] **B2 — closed item.** done",
-        "- [ ] **Engineering Pass — architecture.** open unnumbered item",
-    ]
-)
-
+from _repo import load_toml  # noqa: E402
 
 def row(**fields: str) -> dict:
     base = {
@@ -39,13 +30,6 @@ def row(**fields: str) -> dict:
 
 def codes(errors: list[str]) -> list[str]:
     return [e.split(":")[0] for e in errors]
-
-
-class Tracker(unittest.TestCase):
-    def test_ids_titles_and_state_are_read(self) -> None:
-        self.assertEqual(
-            gen.parse_tracker(TRACKER), {"A1": True, "B2": False, "Engineering Pass": True}
-        )
 
 
 class Scanning(unittest.TestCase):
@@ -153,62 +137,47 @@ class Assignment(unittest.TestCase):
 
 
 class Rejections(unittest.TestCase):
-    tracker = gen.parse_tracker(TRACKER)
-
     def test_a_mapped_row_passes(self) -> None:
-        self.assertEqual(check.problems([row()], self.tracker), [])
+        self.assertEqual(check.problems([row()]), [])
         scope = row(owner="", decision="scope", rationale="a recorded boundary")
-        self.assertEqual(check.problems([scope], self.tracker), [])
+        self.assertEqual(check.problems([scope]), [])
 
     def test_unmapped_is_rejected(self) -> None:
-        self.assertEqual(codes(check.problems([row(owner="")], self.tracker)), ["unmapped"])
+        self.assertEqual(codes(check.problems([row(owner="")])), ["unmapped"])
 
     def test_self_ownership_is_rejected(self) -> None:
-        errors = check.problems([row(item="A1", owner="A1")], self.tracker)
+        errors = check.problems([row(item="A1", owner="A1")])
         self.assertEqual(codes(errors), ["self_owned"])
-
-    def test_a_closed_owner_is_rejected(self) -> None:
-        self.assertEqual(codes(check.problems([row(owner="B2")], self.tracker)), ["closed_owner"])
-
-    def test_an_absent_owner_is_rejected(self) -> None:
-        self.assertEqual(codes(check.problems([row(owner="Z9")], self.tracker)), ["absent_owner"])
 
     def test_a_scope_decision_without_rationale_is_rejected(self) -> None:
         bare = row(owner="", decision="scope", rationale="  ")
-        self.assertEqual(codes(check.problems([bare], self.tracker)), ["no_rationale"])
+        self.assertEqual(codes(check.problems([bare])), ["no_rationale"])
 
     def test_an_owner_together_with_a_decision_is_rejected(self) -> None:
         both = row(decision="scope", rationale="r")
-        self.assertEqual(codes(check.problems([both], self.tracker)), ["ambiguous"])
+        self.assertEqual(codes(check.problems([both])), ["ambiguous"])
         other = row(owner="", decision="defer", rationale="r")
-        self.assertEqual(codes(check.problems([other], self.tracker)), ["ambiguous"])
+        self.assertEqual(codes(check.problems([other])), ["ambiguous"])
 
     def test_scan_and_ledger_must_agree(self) -> None:
         scanned = [row(id="r1"), row(id="r2")]
         self.assertEqual(
-            codes(check.problems([row(id="r1")], self.tracker, scanned)), ["missing_row"]
+            codes(check.problems([row(id="r1")], scanned)), ["missing_row"]
         )
         self.assertEqual(
-            codes(check.problems([row(id="r3")], self.tracker, [row(id="r3")][:0])), ["missing_row"]
+            codes(check.problems([row(id="r3")], [row(id="r3")][:0])), ["missing_row"]
         )
 
     def test_a_rule_matching_nothing_is_rejected(self) -> None:
         rules = [{"name": "dead", "kind": "^nothing$", "owner": "A1"}]
-        errors = check.problems([row()], self.tracker, [row()], rules)
+        errors = check.problems([row()], [row()], rules)
         self.assertEqual(codes(errors), ["unused_rule"])
-
-    def test_a_checked_off_item_with_a_residual_is_a_contradiction(self) -> None:
-        notes = check.contradictions([row(item="B2")], self.tracker)
-        self.assertEqual(len(notes), 1)
-        self.assertEqual(check.contradictions([row(item="A1")], self.tracker), [])
 
 
 class Repository(unittest.TestCase):
     def test_the_committed_ledger_is_complete_and_current(self) -> None:
-        tracker_path, ledger_path = gen.ROOT / gen.TRACKER, gen.ROOT / gen.LEDGER
-        tracker = gen.parse_tracker(read_text(tracker_path))
-        stored = load_toml(ledger_path).get("limitation", [])
-        self.assertEqual(check.problems(stored, tracker), [])
+        stored = load_toml(gen.ROOT / gen.LEDGER).get("limitation", [])
+        self.assertEqual(check.problems(stored), [])
 
 
 if __name__ == "__main__":

@@ -131,10 +131,21 @@ pub(super) fn intern_axis(axis: Axis, value: &str) -> Option<&'static str> {
 
 fn matrix() -> &'static Matrix {
     static CELL: OnceLock<Matrix> = OnceLock::new();
-    CELL.get_or_init(|| {
-        let raw: RawMatrix = serde_json::from_str(SNAPSHOT).expect("support matrix snapshot");
-        let supported: &'static [SupportedCell] =
-            leak_slice(raw.supported.into_iter().map(SupportedCell::from_raw).collect());
+    CELL.get_or_init(|| build(SNAPSHOT))
+}
+
+fn build(snapshot: &str) -> Matrix {
+    {
+        let raw: RawMatrix = serde_json::from_str(snapshot).expect("support matrix snapshot");
+        let supported: &'static [SupportedCell] = leak_slice(
+            raw.supported
+                .into_iter()
+                // `status` is derived from the scientific-records ledger: a unit whose cited
+                // check has no current passing record is `not_supported` and is not admitted.
+                .filter(|row| row.status.as_deref().is_none_or(|status| status == "supported"))
+                .map(SupportedCell::from_raw)
+                .collect(),
+        );
         let mut by_coordinate = HashMap::with_capacity(supported.len());
         let mut axis_values: [HashSet<&'static str>; 5] = Default::default();
         for row in supported {
@@ -153,7 +164,7 @@ fn matrix() -> &'static Matrix {
             by_coordinate,
             axis_values,
         }
-    })
+    }
 }
 
 #[derive(Deserialize)]
@@ -182,6 +193,9 @@ struct RawSupported {
     validation: String,
     route_estimator: Option<String>,
     estimators: Vec<String>,
+    /// Derived: `supported` or `not_supported`. Absent means supported.
+    #[serde(default)]
+    status: Option<String>,
 }
 
 impl NaRule {
@@ -228,4 +242,35 @@ fn leak_strs(items: Vec<String>) -> &'static [&'static str] {
 
 fn opt_strs(items: Option<Vec<String>>) -> Option<&'static [&'static str]> {
     items.map(leak_strs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build;
+
+    fn cell(query: &str, status: Option<&str>) -> String {
+        let status = status.map_or(String::new(), |s| {
+            format!(r#","status":"{s}","missing_evidence":["owed: x"]"#)
+        });
+        format!(
+            r#"{{"query":"{query}","graph_class":"Dag","structure":"explicit","inference":"Frequentist","validation":"none","route_estimator":null,"estimators":[]{status}}}"#
+        )
+    }
+
+    /// A unit that release-mode data marks `not_supported` is not admitted; one marked
+    /// `supported`, or carrying no status, is.
+    #[test]
+    fn a_not_supported_unit_in_the_snapshot_is_not_admitted() {
+        let snapshot = format!(
+            r#"{{"na_rules":[],"closed_rules":[],"supported":[{},{},{}]}}"#,
+            cell("A", Some("not_supported")),
+            cell("B", Some("supported")),
+            cell("C", None),
+        );
+        let matrix = build(&snapshot);
+        let key = |q: &'static str| [q, "Dag", "explicit", "Frequentist", "none"];
+        assert!(!matrix.by_coordinate.contains_key(&key("A")));
+        assert!(matrix.by_coordinate.contains_key(&key("B")));
+        assert!(matrix.by_coordinate.contains_key(&key("C")));
+    }
 }

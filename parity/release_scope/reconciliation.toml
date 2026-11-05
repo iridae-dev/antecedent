@@ -1115,7 +1115,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/randomized_quantile.rs", "crates/antecedent-estimate"]
 fixtures = ["crates/antecedent/tests/randomized_quantile_known_truth.rs::dag_explicit_frequentist_none"]
-consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/randomized_quantile_known_truth.rs"]
+consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result;crates/antecedent/tests/randomized_quantile_known_truth.rs"]
 
 [[row]]
 id = "P07.quantile.static.bayesian"

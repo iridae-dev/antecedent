@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Recorded passes of the scientific assertions, carried forward while nothing they depend on changed.
 
-    scientific_records.py status [--check]   owed versus current records
-    scientific_records.py run [--all]        run the owed assertions, record passes
+    scientific_records.py status [--check]   owed versus current records; --check exits 1 when any
+                                             is owed and executes nothing (CI and releases)
+    scientific_records.py run [--all] [--only PATTERN]
+                                             run the owed assertions, record passes per batch
     scientific_records.py capture [--all]    run Rust assertions under coverage, record the
                                              source each executes
 
@@ -36,6 +38,7 @@ calibration flow.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import re
@@ -47,7 +50,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from _repo import REPO_ROOT, cargo_target_feature_args, read_text
-from evidence_fingerprint import Fingerprinter, locate
+from evidence_fingerprint import Fingerprinter, UnresolvedInput, locate
 
 RECORDS = "parity/scientific_records.toml"
 
@@ -352,19 +355,33 @@ def python_environment_ok(root: Path) -> bool:
     return False
 
 
-def cmd_run(root: Path, args: argparse.Namespace) -> int:
-    rows = all_scientific_rows(root)
-    owed, current = classify(root, rows, Fingerprinter(root))
-    run_items = (owed + current) if force_all(args) else owed
-    print(
-        f"scientific records: running {len(run_items)} of {len(rows)} "
-        f"({len(current) if not force_all(args) else 0} carried forward)",
-        flush=True,
+def matches_only(item: dict, patterns: list[str]) -> bool:
+    """Does a row match any `--only` pattern (substring or glob) on its selector, test path or id?"""
+    if not patterns:
+        return True
+    fields = [str(item.get(k) or "") for k in ("selector", "evidence_test", "id")]
+    return any(
+        pattern in field or fnmatch.fnmatchcase(field, pattern) for pattern in patterns for field in fields
     )
-    if not run_items:
-        return 0
-    if any(i["evidence_test"].endswith(".py") for i in run_items) and not python_environment_ok(root):
-        return 1
+
+
+def run_batches(items: list[dict], root: Path) -> list[tuple[str, list[dict]]]:
+    """Owed rows split into batches that are each recorded as soon as they finish: one nextest
+    run per Rust crate and one pytest run for every Python row."""
+    rust: dict[str, list[dict]] = {}
+    python: list[dict] = []
+    for item in items:
+        info = locate(root, item)
+        if info["lang"] == "rust":
+            rust.setdefault(info["crate"], []).append(item)
+        else:
+            python.append(item)
+    batches = [(f"rust {crate}", rust[crate]) for crate in sorted(rust)]
+    return batches + ([("python", python)] if python else [])
+
+
+def run_batch(root: Path, batch: list[dict]) -> tuple[int, set[str]]:
+    """Execute one batch through run_evidence_rows.py; its exit status and the selectors proven passed."""
     with tempfile.TemporaryDirectory(prefix="antecedent-scientific-") as tmp:
         ledger = Path(tmp) / "selection.toml"
         passed_out = Path(tmp) / "passed.json"
@@ -374,7 +391,7 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
                 f"id = {json.dumps(i['selector'])}\n"
                 f"evidence_test = {json.dumps(i['evidence_test'])}\n"
                 f"evidence_assertion = {json.dumps(i['evidence_assertion'])}\n\n"
-                for i in run_items
+                for i in batch
             ),
             encoding="utf-8",
         )
@@ -391,22 +408,66 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
             cwd=root, env=env,
         ).returncode
         passed = set(json.loads(passed_out.read_text(encoding="utf-8"))) if passed_out.is_file() else set()
-    recorded = record_passes(root, [i for i in run_items if i["selector"] in passed])
+    return code, passed
+
+
+def cmd_run(root: Path, args: argparse.Namespace) -> int:
+    rows = all_scientific_rows(root)
+    owed, current = classify(root, rows, Fingerprinter(root))
+    only = list(getattr(args, "only", None) or [])
+    if only and not any(matches_only(i, only) for i in owed + current):
+        print(f"FAIL: --only {only!r} matches no scientific assertion")
+        return 2
+    candidates = (owed + current) if force_all(args) else owed
+    run_items = [i for i in candidates if matches_only(i, only)]
+    print(
+        f"scientific records: running {len(run_items)} of {len(rows)} "
+        f"({len(current) if not force_all(args) else 0} carried forward"
+        + (f", filtered by --only {only}" if only else "")
+        + ")",
+        flush=True,
+    )
+    if not run_items:
+        return 0
+    if any(i["evidence_test"].endswith(".py") for i in run_items) and not python_environment_ok(root):
+        return 1
+    # Each batch is recorded as soon as it finishes, so an interrupted or partly failing
+    # run keeps every pass it earned.
+    status, recorded = 0, 0
+    for label, batch in run_batches(run_items, root):
+        print(f"scientific records: batch {label} ({len(batch)})", flush=True)
+        code, passed = run_batch(root, batch)
+        recorded += record_passes(root, [i for i in batch if i["selector"] in passed])
+        status = status or code
     print(f"scientific records: recorded {recorded} pass(es); {len(run_items) - recorded} not recorded")
-    return code
+    return status
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     status = sub.add_parser("status")
-    status.add_argument("--check", action="store_true", help="exit 1 when any assertion is owed")
+    status.add_argument(
+        "--check", action="store_true", help="exit 1 when any assertion is owed; executes nothing"
+    )
     run = sub.add_parser("run")
-    run.add_argument("--all", action="store_true", help="rerun and re-record every assertion (release candidate)")
+    run.add_argument("--all", action="store_true", help="rerun and re-record every assertion (manual)")
+    run.add_argument(
+        "--only",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help="limit to rows whose selector, test path or id contains PATTERN or matches it as a glob (repeatable)",
+    )
     capture = sub.add_parser("capture")
     capture.add_argument("--all", action="store_true", help="re-capture every Rust assertion")
     args = parser.parse_args()
-    return {"status": cmd_status, "run": cmd_run, "capture": cmd_capture}[args.command](REPO_ROOT, args)
+    try:
+        return {"status": cmd_status, "run": cmd_run, "capture": cmd_capture}[args.command](REPO_ROOT, args)
+    except UnresolvedInput as problem:
+        # An input the fingerprint cannot account for owes its record; it is never silently current.
+        print(f"FAIL: a scientific assertion has an undeclared input: {problem}")
+        return 1
 
 
 if __name__ == "__main__":

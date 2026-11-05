@@ -15,6 +15,32 @@ A test's fingerprint is a sha256 over everything it depends on:
 * Both: the declared fixture/oracle files, `Cargo.lock` and the workspace
   manifest with workspace version lines normalized, `rust-toolchain.toml`, the
   feature set and the platform.
+* Inputs the sources reach without declaring them (a test outcome depends on all
+  of these, so each is statically discovered and hashed):
+  - compile-time embeds: every `include_str!`, `include_bytes!` and `include!`
+    in a hashed Rust file, with a literal path (relative to the file) or a
+    `concat!(env!("CARGO_MANIFEST_DIR"), "...")` path. A form that cannot be
+    resolved statically (or whose target is missing or outside the repo) raises
+    `UnresolvedInput`; it is never skipped;
+  - runtime reads: path literals in hashed Rust sources and in Python tests and
+    their local imports that resolve to an existing file or directory in the repo
+    (`env!("CARGO_MANIFEST_DIR")`/`Path::new(..)` `.join(..)` runs, `"../../parity/x"`,
+    `ROOT / "parity" / "x.toml"`). A directory is hashed whole. Reads assembled
+    at run time from non-literal parts are listed by `Fingerprinter.dynamic_inputs`;
+  - build scripts: every crate's `build.rs` and the paths it declares with
+    `cargo:rerun-if-changed=`;
+  - environment: the value of every `ANTECEDENT_*` variable a hashed source names
+    (`env::var`, `var_os`, `option_env!`, `env!`, any `"ANTECEDENT_..."` literal,
+    `os.environ`, `os.getenv`, `rerun-if-env-changed`). Other names (`HOME`,
+    `CARGO_*`, `PATH`, ...) are listed in the fingerprint by name only: their values
+    are host paths and per-machine settings, and hashing them would make every record
+    churn on every machine and every shell.
+* Derived status is not evidence. `DERIVED_STATUS_FIELDS` names, per embedded or
+  read registry, the fields derived from the evidence ledgers (the attesting
+  record ids, a record's stored fingerprint). Those are removed before hashing, so
+  re-deriving support from the ledgers never invalidates the ledgers.
+
+`FINGERPRINT_VERSION` is part of every fingerprint. Raising it owes every record.
 
 `scripts/scientific_records.py` records scientific passes against it and
 `scripts/calibration_status.py` compares a coverage record's stored fingerprint
@@ -23,6 +49,7 @@ with it. Nothing here reads a ledger or runs a test.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -30,6 +57,7 @@ import re
 import subprocess
 import sys
 import tomllib
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from _repo import cargo_target_feature_args, test_target
@@ -37,6 +65,53 @@ from _repo import cargo_target_feature_args, test_target
 SKIP_DIRS = {"__pycache__", "target", ".venv", "node_modules", ".git", ".pytest_cache"}
 TEXT_SUFFIXES = {".py", ".pyi", ".rs", ".toml", ".json", ".txt", ".csv", ".cfg", ".ini", ".md", ".yaml", ".yml", ".lock"}
 SHARED_TEST_FILES = ("common.rs", "support.rs", "helpers.rs", "mod.rs")
+
+# Salt of every fingerprint: raising it owes every stored record.
+FINGERPRINT_VERSION = 3
+
+# What a dynamic read site (a path or env name built at run time) can read, per source file.
+INPUT_DECLARATIONS = "parity/fingerprint_inputs.toml"
+
+# Registries that carry status derived from the evidence ledgers, and that source code embeds
+# (`include_str!`) or reads at run time. Support status is derived from the ledgers
+# (parity/scientific_records.toml, parity/coverage_records.toml), so a fingerprint that hashed
+# these fields would be invalidated by re-deriving support from the ledger it guards. Each entry
+# is {repo-relative path: fields dropped before hashing}; the rest of the file (canonical JSON of
+# the parsed content) is evidence and stays hashed. A field path is dotted keys; `name[]` walks a
+# list; `**` matches any depth. A path absent from the file is a no-op. Add the status fields of
+# any new derived registry here (the cycle-guard test pins this behaviour).
+DERIVED_STATUS_FIELDS: dict[str, tuple[str, ...]] = {
+    # attesting_record_ids is the `current` set of calibration_status, regenerated from the ledger.
+    "crates/antecedent-io-core/data/coverage_records.json": ("attesting_record_ids",),
+    # Every support cell: the derived status and what evidence it lacks.
+    "crates/antecedent/data/support_matrix.json": (
+        "supported[].status",
+        "supported[].missing_evidence",
+    ),
+    # Per-unit support status, derived from the ledgers by gate_support.
+    "crates/antecedent-io-core/data/unit_support_status.json": (
+        "graphless[].status",
+        "graphless[].missing_evidence",
+        "capabilities[].status",
+        "capabilities[].missing_evidence",
+    ),
+    # The coverage registry stores each record's dependency fingerprint.
+    "parity/coverage_records.toml": ("record[].fingerprint",),
+    # The scientific ledger is entirely fingerprint, commit and time of the passes.
+    "parity/scientific_records.toml": (
+        "record[].fingerprint",
+        "record[].commit",
+        "record[].dirty",
+        "record[].recorded_at",
+        "record[].capture_test",
+        "record[].executed",
+    ),
+}
+
+
+class UnresolvedInput(RuntimeError):
+    """A compile-time input that cannot be resolved statically. Never caught by the callers:
+    fingerprinting must fail loudly rather than skip an input."""
 
 # --------------------------------------------------------------------------
 # Hashing helpers
@@ -102,11 +177,58 @@ def normalized_uv_lock(text: str) -> str:
     )
 
 
-def file_digest(path: Path) -> str:
-    """Content digest of one file under the right normalization; missing is a value."""
+def _drop_fields(node, segs: list[str]) -> None:
+    if not segs:
+        return
+    seg, rest = segs[0], segs[1:]
+    if seg == "**":
+        _drop_fields(node, rest)
+        children = node.values() if isinstance(node, dict) else node if isinstance(node, list) else ()
+        for child in list(children):
+            _drop_fields(child, segs)
+        return
+    if seg.endswith("[]"):
+        child = node.get(seg[:-2]) if isinstance(node, dict) else None
+        if isinstance(child, list):
+            for item in child:
+                _drop_fields(item, rest)
+        return
+    if not isinstance(node, dict):
+        return
+    if not rest:
+        node.pop(seg, None)
+    else:
+        _drop_fields(node.get(seg), rest)
+
+
+def evidence_only(path: Path, data: bytes, drop: tuple[str, ...]) -> str | None:
+    """Canonical JSON of the parsed file with the derived fields removed; `None` if unparseable."""
+    try:
+        text = data.decode("utf-8")
+        parsed = tomllib.loads(text) if path.suffix == ".toml" else json.loads(text)
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError, ValueError):
+        return None
+    for field in drop:
+        _drop_fields(parsed, field.split("."))
+    return json.dumps(parsed, sort_keys=True, ensure_ascii=False)
+
+
+def file_digest(path: Path, root: Path | None = None) -> str:
+    """Content digest of one file under the right normalization; missing is a value.
+
+    With `root`, a registry listed in `DERIVED_STATUS_FIELDS` is hashed without its derived fields."""
     if not path.is_file():
         return "missing"
     data = path.read_bytes()
+    if root is not None:
+        try:
+            drop = DERIVED_STATUS_FIELDS.get(path.relative_to(root).as_posix())
+        except ValueError:
+            drop = None
+        if drop:
+            canonical = evidence_only(path, data, drop)
+            if canonical is not None:
+                return _sha("evidence-only", canonical)
     if path.suffix == ".rs":
         return _sha(normalized_rust(data.decode("utf-8", "replace")))
     if path.name == "Cargo.toml" or path.name == "Cargo.lock":
@@ -135,7 +257,7 @@ def tree_files(directory: Path, suffixes: set[str] | None = None) -> list[Path]:
 
 
 def tree_digest(root: Path, paths: list[Path]) -> str:
-    return _sha(*[x for p in sorted(set(paths)) for x in (p.relative_to(root).as_posix(), file_digest(p))])
+    return _sha(*[x for p in sorted(set(paths)) for x in (p.relative_to(root).as_posix(), file_digest(p, root))])
 
 
 # --------------------------------------------------------------------------
@@ -201,6 +323,419 @@ def native_crates(graph: dict[str, dict]) -> list[str]:
 
 
 # --------------------------------------------------------------------------
+# Static discovery of inputs the sources reach without declaring them
+# --------------------------------------------------------------------------
+
+
+@dataclass
+class Scan:
+    """What a set of source files reaches: files (directories expanded), env names, markers
+    (declared-but-absent paths), and reads that cannot be resolved statically."""
+
+    files: set[Path] = field(default_factory=set)
+    env: set[str] = field(default_factory=set)
+    markers: set[str] = field(default_factory=set)
+    dynamic: list[str] = field(default_factory=list)
+
+    def merge(self, other: Scan) -> None:
+        self.files |= other.files
+        self.env |= other.env
+        self.markers |= other.markers
+        self.dynamic += other.dynamic
+
+
+_INCLUDE = re.compile(r"\binclude(?:_str|_bytes)?\s*!\s*[(\[{]")
+_MANIFEST = r'env\s*!\s*\(\s*"CARGO_MANIFEST_DIR"\s*\)'
+_RUN_START = re.compile(
+    rf'(?:Path\s*::\s*new|PathBuf\s*::\s*from)\s*\(\s*(?:{_MANIFEST}|"([^"\\\n]*)")\s*\)|{_MANIFEST}'
+)
+_JOIN = re.compile(r'\s*\.\s*(?:join|push)\s*\(\s*"([^"\\\n]*)"\s*\)')
+_LITERAL_SPAN = re.compile(r'"[ \n]*"')
+_ENV_READ = re.compile(
+    r"(?:\benv\s*::\s*var(?:_os)?|\boption_env\s*!|\benv\s*!)\s*\(\s*"
+    r'(?:"([^"\\\n]*)"|([A-Za-z_][A-Za-z_0-9:]*))'
+)
+_ANTECEDENT_ENV = re.compile(r"\bANTECEDENT_[A-Z0-9_]+\b")
+_RERUN = re.compile(r"cargo::?rerun-if-(changed|env-changed)=(.+)", re.S)
+_PATHLIKE = re.compile(r"/?[A-Za-z0-9_.\-]+(?:/[A-Za-z0-9_.\-]+)+/?\Z")
+_BARE_SEGMENTS = re.compile(r"[A-Za-z0-9_.\-]+(?:/[A-Za-z0-9_.\-]+)*\Z")
+
+
+def _str_consts(text: str) -> dict[str, str]:
+    return dict(re.findall(r'\bconst\s+(\w+)\s*:\s*&(?:\'static\s+)?str\s*=\s*"([^"\\\n]*)"', text))
+
+
+def module_targets(path: Path, root: Path) -> list[Path]:
+    """Files compiled into the target through `mod name;` and `#[path = "..."]` declarations of
+    `path`. Reuses the module reader of `scripts/test_evidence.py` and adds what it leaves out: a
+    `#[path]` inside an inline module (resolved against every base the compiler could use) and a
+    `#[path]` that leaves the repository (raises, since it cannot be hashed)."""
+    import test_evidence as te
+
+    out = {c for c, _ in te._declared_modules(path, root)}
+    masked = te.source_masked(path)
+    blocks = te.module_items(masked)
+    for m in te._MOD_DECL.finditer(masked.skeleton):
+        declared = te._rust_path_attribute(te._attrs_before(masked.skeleton, masked.code, m.start()))
+        if declared is None:
+            continue
+        around = sorted(
+            (b for b in blocks if b.body[0] < m.start() < b.body[1]), key=lambda b: b.body[0]
+        )
+        base = path.parent if path.name in ("mod.rs", "lib.rs", "main.rs") or path.parent.name == "tests" else path.with_suffix("")
+        candidates = [path.parent / declared]
+        if around:
+            candidates.append(base / declared)
+            nested = base
+            for block in around:
+                nested = nested / block.name
+                candidates.append(nested / declared)
+        for cand in candidates:
+            target = _bounded(root, cand)
+            if target is None:
+                if cand == candidates[0]:
+                    raise UnresolvedInput(
+                        f"{path.relative_to(root).as_posix()}: #[path = {declared!r}] leaves the repository"
+                    )
+                continue
+            if target.is_file():
+                out.add(target)
+    return sorted(out)
+
+
+def _line(text: str, pos: int) -> int:
+    return text.count("\n", 0, pos) + 1
+
+
+def _split_args(text: str, start: int) -> tuple[list[str], int]:
+    """Top-level comma-separated arguments of a delimited call whose body starts at `start`."""
+    depth, i, cur, args, n = 1, start, start, [], len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            i += 1
+            while i < n and text[i] != '"':
+                i += 2 if text[i] == "\\" else 1
+        elif c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+            if depth == 0:
+                args.append(text[cur:i])
+                return args, i + 1
+        elif c == "," and depth == 1:
+            args.append(text[cur:i])
+            cur = i + 1
+        i += 1
+    raise UnresolvedInput("unbalanced macro arguments")
+
+
+def _eval_path_expr(expr: str, crate_dir: Path) -> str:
+    """A literal, `env!("CARGO_MANIFEST_DIR")` or `concat!` of those; anything else raises."""
+    expr = expr.strip()
+    m = re.fullmatch(r'"((?:\\.|[^"\\])*)"', expr, re.S)
+    if m:
+        body = m.group(1)
+        if "\\" in body:
+            body = body.replace("\\\\", "\0").replace('\\"', '"')
+            if "\\" in body:
+                raise UnresolvedInput(f"escape in path literal {expr}")
+            body = body.replace("\0", "\\")
+        return body
+    if re.fullmatch(_MANIFEST, expr):
+        return str(crate_dir)
+    m = re.fullmatch(r"(?:(?:std|core)\s*::\s*)?concat\s*!\s*[(\[{](.*)[)\]}]", expr, re.S)
+    if m:
+        args, _ = _split_args(m.group(1) + ")", 0)
+        return "".join(_eval_path_expr(a, crate_dir) for a in args if a.strip())
+    raise UnresolvedInput(f"path expression {expr!r}")
+
+
+def _bounded(root: Path, path: Path) -> Path | None:
+    try:
+        path = Path(os.path.normpath(path))
+        path.relative_to(root)
+    except ValueError:
+        return None
+    return path
+
+
+def expand(path: Path) -> list[Path]:
+    return tree_files(path) if path.is_dir() else [path]
+
+
+def scan_rust_text(
+    path: Path, text: str, root: Path, crate_dir: Path, extra_consts: dict[str, str] | None = None
+) -> tuple[Scan, list[Path]]:
+    """Scan one Rust file. Returns what it reaches and the included `.rs` files to scan in turn."""
+    import _rust_source
+
+    rel = path.relative_to(root).as_posix()
+    views = _rust_source.lex(text.replace("\r\n", "\n"))
+    kept, skeleton = views.kept, views.kept_skeleton
+    out = Scan()
+    nested_rs: list[Path] = []
+    covered: list[tuple[int, int]] = []
+
+    def where(pos: int) -> str:
+        return f"{rel}:{_line(kept, pos)}"
+
+    # 1. Compile-time embeds. Unresolvable is fatal.
+    for m in _INCLUDE.finditer(skeleton):
+        args, end = _split_args(kept, m.end())
+        covered.append((m.start(), end))
+        if len(args) != 1:
+            raise UnresolvedInput(f"{where(m.start())}: {m.group(0)} takes one path")
+        if re.search(r'env\s*!\s*\(\s*"OUT_DIR"\s*\)', args[0]):
+            # Generated by the crate's build script: a function of build.rs and what it declares,
+            # which are hashed. Without a build script the file cannot exist.
+            if not (crate_dir / "build.rs").is_file():
+                raise UnresolvedInput(f"{where(m.start())}: OUT_DIR include in a crate without build.rs")
+            out.markers.add(f"generated-by-build-script:{rel}:{' '.join(args[0].split())}")
+            continue
+        try:
+            raw = _eval_path_expr(args[0], crate_dir)
+        except UnresolvedInput as exc:
+            raise UnresolvedInput(f"{where(m.start())}: unresolvable include ({exc})") from None
+        target = _bounded(root, path.parent / raw)
+        if target is None:
+            raise UnresolvedInput(f"{where(m.start())}: include target {raw!r} is outside the repository")
+        if not target.is_file():
+            raise UnresolvedInput(f"{where(m.start())}: include target {target.relative_to(root)} is missing")
+        out.files.add(target)
+        if target.suffix == ".rs":
+            nested_rs.append(target)
+
+    # Literal spans (contents) for the scans below.
+    literals = [
+        (m.start(), kept[m.start() + 1 : m.end() - 1]) for m in _LITERAL_SPAN.finditer(skeleton)
+    ]
+
+    # 2. Environment.
+    consts = {**(extra_consts or {}), **_str_consts(kept)}
+    for m in _ENV_READ.finditer(kept):
+        name, ident = m.group(1), m.group(2)
+        if name is not None:
+            out.env.add(name)
+        elif ident.split("::")[-1] in consts:
+            out.env.add(consts[ident.split("::")[-1]])
+        else:
+            out.dynamic.append(f"{where(m.start())}: environment read by non-literal name {ident}")
+    for _, content in literals:
+        out.env.update(_ANTECEDENT_ENV.findall(content))
+        if path.name == "build.rs":
+            r = _RERUN.match(content.strip())
+            if r and "{" in r.group(2):
+                out.dynamic.append(f"{rel}: build script declares {content.strip()!r}")
+            elif r and r.group(1) == "env-changed":
+                out.env.add(r.group(2).strip())
+            elif r:
+                target = _bounded(root, crate_dir / r.group(2).strip())
+                if target is None:
+                    out.markers.add(f"{rel}: rerun-if-changed outside repo {r.group(2).strip()}")
+                elif target.exists():
+                    out.files.update(expand(target))
+                else:
+                    out.markers.add(f"missing:{target.relative_to(root).as_posix()}")
+
+    # 3. Runtime path reads: `Path::new(env!(..)).join("a").join("b")` runs.
+    def add_candidates(rel_path: str, bases: list[Path], site: int) -> bool:
+        found = False
+        for base in bases:
+            target = _bounded(root, base / rel_path.lstrip("/"))
+            if target is None or target == root or not target.exists():
+                continue
+            if target.is_dir() and (target in crate_dir.parents or target == crate_dir):
+                continue
+            if "target" in target.relative_to(root).parts[:1]:
+                continue
+            out.files.update(expand(target))
+            found = True
+        return found
+
+    pos = 0
+    for m in _RUN_START.finditer(kept):
+        if any(a <= m.start() < b for a, b in covered):
+            continue
+        base_lit = m.group(1)
+        segs = [base_lit] if base_lit else []
+        end = m.end()
+        while (j := _JOIN.match(kept, end)):
+            segs.append(j.group(1))
+            end = j.end()
+        segs = [x for x in segs if x]
+        joined = "/".join(segs)
+        manifest = base_lit is None
+        bases = [crate_dir] if manifest else [root, crate_dir]
+        if manifest and end == m.end():
+            continue  # a bare env!(..): `concat!` or the leftover check below handles it
+        covered.append((m.start(), end))
+        if segs and not add_candidates(joined, bases, m.start()) and manifest:
+            if _bounded(root, crate_dir / joined) == root:
+                out.dynamic.append(
+                    f"{where(m.start())}: repository root joined with {joined!r}; files read beneath it by a run-time path are not tracked"
+                )
+    # Join runs on an unknown base (`root.join("parity").join("x")`) resolve against the root.
+    cursor = 0
+    while (m := _JOIN.search(kept, cursor)):
+        if any(a <= m.start() < b for a, b in covered):
+            cursor = m.end()
+            continue
+        segs, end = [m.group(1)], m.end()
+        while (j := _JOIN.match(kept, end)):
+            segs.append(j.group(1))
+            end = j.end()
+        covered.append((m.start(), end))
+        joined = "/".join(x for x in segs if x)
+        if joined:
+            add_candidates(joined, [root], m.start())
+        cursor = end
+
+    # 4. Standalone path literals (`"../../parity/x.toml"`, `"tests/data/y.json"`).
+    for at, content in literals:
+        if len(content) > 240 or not _PATHLIKE.fullmatch(content):
+            continue
+        add_candidates(content, [crate_dir, root], at)
+    # `concat!(env!("CARGO_MANIFEST_DIR"), "/../../parity/x.toml")` outside an include.
+    for m in re.finditer(r"\bconcat\s*!\s*[(\[{]", skeleton):
+        if any(a <= m.start() < b for a, b in covered):
+            continue
+        _, end = _split_args(kept, m.end())
+        call = kept[m.start() : end]
+        if not re.search(_MANIFEST, call):
+            continue
+        covered.append((m.start(), end))
+        try:
+            target = _bounded(root, Path(_eval_path_expr(call, crate_dir)))
+        except UnresolvedInput:
+            out.dynamic.append(f"{where(m.start())}: unresolvable concat! path")
+            continue
+        if target is not None and target != root and target.exists():
+            out.files.update(expand(target))
+    # CARGO_MANIFEST_DIR in any other shape cannot be followed.
+    for m in re.finditer(_MANIFEST, kept):
+        if not any(a <= m.start() < b for a, b in covered):
+            out.dynamic.append(f"{where(m.start())}: CARGO_MANIFEST_DIR path built at run time")
+    return out, nested_rs
+
+
+_PY_ENV = re.compile(
+    r"""(?:environ\s*\[\s*|environ\s*\.\s*(?:get|pop|setdefault)\s*\(\s*|getenv\s*\(\s*)["']([A-Za-z_][A-Za-z0-9_]*)["']"""
+)
+_PY_ENV_DYNAMIC = re.compile(r"""(?:environ\s*\[\s*|environ\s*\.\s*(?:get|pop)\s*\(\s*|getenv\s*\(\s*)(?!["'])\S""")
+
+
+def scan_python_env(text: str) -> set[str]:
+    return set(_PY_ENV.findall(text)) | set(_ANTECEDENT_ENV.findall(text))
+
+
+def _const_str(node) -> str | None:
+    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+
+
+def _flatten_path(node) -> list[str | None]:
+    """Parts of a path expression; `None` marks a non-literal part."""
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        return _flatten_path(node.left) + [_const_str(node.right)]
+    if isinstance(node, ast.Call):
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+        if name in {"Path", "PurePath", "PurePosixPath"}:
+            return [_const_str(a) for a in node.args]
+        if name == "joinpath" and isinstance(func, ast.Attribute):
+            return _flatten_path(func.value) + [_const_str(a) for a in node.args]
+        if name == "join" and isinstance(func, ast.Attribute) and "path" in ast.unparse(func.value):
+            return [_const_str(a) for a in node.args]
+    return [_const_str(node)]
+
+
+def scan_python_file(path: Path, text: str, root: Path) -> tuple[Scan, list[Path]]:
+    """Scan one Python file. Returns what it reaches and the local modules it imports."""
+    rel = path.relative_to(root).as_posix()
+    out = Scan()
+    out.env = scan_python_env(text)
+    for m in _PY_ENV_DYNAMIC.finditer(text):
+        out.dynamic.append(f"{rel}:{_line(text, m.start())}: environment read by non-literal name")
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as exc:
+        raise UnresolvedInput(f"{rel}: unparsable Python ({exc.msg})") from None
+
+    bases = [root, path.parent, root / "python"]
+
+    def add(rel_path: str) -> None:
+        for base in bases:
+            target = _bounded(root, base / rel_path.lstrip("/"))
+            if target is None or target == root or not target.exists():
+                continue
+            if target.is_dir() and (target in path.parents or target == path.parent):
+                continue
+            if target.is_dir() and target == root / "python":
+                continue
+            out.files.update(expand(target))
+
+    nested: set[int] = set()
+    modules: list[Path] = []
+    path_calls = {"Path", "PurePath", "PurePosixPath", "joinpath", "join"}
+    for node in ast.walk(tree):
+        chain = False
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div) and id(node) not in nested:
+            cur = node.left
+            while isinstance(cur, ast.BinOp) and isinstance(cur.op, ast.Div):
+                nested.add(id(cur))
+                cur = cur.left
+            nested.add(id(cur))
+            chain = True
+        elif isinstance(node, ast.Call) and id(node) not in nested:
+            func = node.func
+            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            if name in path_calls:
+                if name == "joinpath" and isinstance(func, ast.Attribute):
+                    nested.add(id(func.value))
+                chain = True
+        if chain:
+            parts = _flatten_path(node)
+            run: list[str] = []
+            for idx, part in enumerate([*parts, None]):
+                if part is not None:
+                    run.append(part)
+                    continue
+                if run and (len(run) >= 2 or idx - len(run) <= 1):
+                    add("/".join(x for x in run if x))
+                run = []
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and "/" in node.value:
+            if len(node.value) <= 240 and _PATHLIKE.fullmatch(node.value):
+                add(node.value)
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            names = [a.name for a in node.names]
+            if isinstance(node, ast.Import):
+                mods = [n.split(".") for n in names]
+                level = 0
+            else:
+                base = (node.module or "").split(".") if node.module else []
+                mods = [base] + [base + [n] for n in names if n != "*"]
+                level = node.level
+            search = (
+                [path.parents[level - 1]] if level
+                else [path.parent, root / "python" / "tests", root / "python", root / "scripts"]
+            )
+            for mod in mods:
+                if not mod:
+                    continue
+                for d in search:
+                    for cand in (d.joinpath(*mod).with_suffix(".py"), d.joinpath(*mod, "__init__.py")):
+                        c = _bounded(root, cand)
+                        if (
+                            c is not None
+                            and c.is_file()
+                            and not (set(c.relative_to(root).parts) & SKIP_DIRS)
+                            and not c.is_relative_to(root / "python" / "antecedent")
+                        ):
+                            modules.append(c)
+    return out, modules
+
+
+# --------------------------------------------------------------------------
 # Selectors and fingerprints
 # --------------------------------------------------------------------------
 
@@ -247,13 +782,162 @@ class Fingerprinter:
         metadata: dict | None = None,
         features: str | None = None,
         platform: bool = True,
+        environ: dict[str, str] | None = None,
     ):
         self.root = root
         self.platform = platform
+        self.environ = os.environ if environ is None else environ
         self.graph = workspace_graph(metadata if metadata is not None else load_metadata(root), root)
-        self.features = features if features is not None else os.environ.get("ANTECEDENT_SCIENTIFIC_FEATURES", "")
+        self.features = features if features is not None else self.environ.get("ANTECEDENT_SCIENTIFIC_FEATURES", "")
         self._crate: dict[str, str] = {}
+        self._scans: dict[str, Scan] = {}
+        self._file_scans: dict[tuple[Path, Path], tuple[Scan, list[Path]]] = {}
+        self._fd: dict[Path, str] = {}
+        self._modules: dict[Path, list[Path]] = {}
+        self._declarations: list[dict] | None = None
         self._shared: str | None = None
+
+    # -- hashing with a per-instance file cache ---------------------------
+    def _digest(self, path: Path) -> str:
+        if path not in self._fd:
+            self._fd[path] = file_digest(path, self.root)
+        return self._fd[path]
+
+    def _tree(self, paths) -> str:
+        return _sha(
+            *[x for p in sorted(set(paths)) for x in (p.relative_to(self.root).as_posix(), self._digest(p))]
+        )
+
+    # -- static input discovery -------------------------------------------
+    def modules_of(self, f: Path) -> list[Path]:
+        if f not in self._modules:
+            self._modules[f] = module_targets(f, self.root) if f.suffix == ".rs" else []
+        return self._modules[f]
+
+    def scan_rust(self, files: list[Path], crate_dir: Path) -> Scan:
+        """Embeds, runtime reads, build-script inputs and env names of `files`, of the Rust
+        files they `include!` and of the modules they declare (`mod x;`, `#[path]`); the modules
+        are inputs too. Raises `UnresolvedInput` for an embed it cannot resolve."""
+        out, seen, todo = Scan(), set(), [f for f in files if f.is_file()]
+        while todo:
+            f = todo.pop()
+            if f in seen:
+                continue
+            seen.add(f)
+            modules = self.modules_of(f)
+            key = (f, crate_dir)
+            if key not in self._file_scans:
+                extra: dict[str, str] = {}
+                for module in modules:
+                    extra.update(_str_consts(module.read_text(encoding="utf-8", errors="replace")))
+                self._file_scans[key] = scan_rust_text(
+                    f, f.read_text(encoding="utf-8", errors="replace"), self.root, crate_dir, extra
+                )
+            scan, nested = self._file_scans[key]
+            out.merge(scan)
+            out.files.update(modules)
+            todo.extend(nested)
+            todo.extend(modules)
+        return out
+
+    def scan_python(self, test: Path) -> Scan:
+        """Env names, repo path literals and local imports reachable from a Python test."""
+        out, seen, todo = Scan(), set(), [test]
+        while todo:
+            f = todo.pop()
+            if f in seen or not f.is_file():
+                continue
+            seen.add(f)
+            scan, modules = scan_python_file(f, f.read_text(encoding="utf-8", errors="replace"), self.root)
+            out.merge(scan)
+            out.files.update(modules)
+            todo.extend(modules)
+        return out
+
+    def crate_dir(self, name: str) -> Path:
+        return self.root / self.graph[name]["dir"]
+
+    def crate_files(self, name: str) -> list[Path]:
+        d = self.crate_dir(name)
+        return [f for f in tree_files(d / "src") + [d / "build.rs"] if f.is_file()]
+
+    def crate_scan(self, name: str) -> Scan:
+        if name not in self._scans:
+            self._scans[name] = self.scan_rust(self.crate_files(name), self.crate_dir(name))
+        return self._scans[name]
+
+    def _scan_digest(self, scan: Scan) -> str:
+        return _sha(self._tree(scan.files), *sorted(scan.markers))
+
+    def env_part(self, names: set[str]) -> dict:
+        """`ANTECEDENT_*` values are hashed; every other name is listed by name only, because
+        its value is host state (HOME, PATH, CARGO_*) that must not churn records."""
+        return {
+            "hashed": {
+                n: _sha(self.environ[n]) if n in self.environ else "unset"
+                for n in sorted(names)
+                if n.startswith("ANTECEDENT_")
+            },
+            "named_only": sorted(n for n in names if not n.startswith("ANTECEDENT_")),
+        }
+
+    def declarations(self) -> list[dict]:
+        """Rows of `parity/fingerprint_inputs.toml`: what a dynamic read site in `source` can read."""
+        if self._declarations is None:
+            path = self.root / INPUT_DECLARATIONS
+            rows: list[dict] = []
+            if path.is_file():
+                for row in tomllib.loads(path.read_text(encoding="utf-8")).get("input", []):
+                    if (
+                        not isinstance(row.get("source"), str)
+                        or not isinstance(row.get("why"), str)
+                        or not row["why"].strip()
+                        or not all(isinstance(x, str) for x in row.get("inputs", []))
+                        or not all(isinstance(x, str) for x in row.get("env", []))
+                    ):
+                        raise UnresolvedInput(f"{INPUT_DECLARATIONS}: malformed row {row!r}")
+                    rows.append(row)
+            self._declarations = rows
+        return self._declarations
+
+    def declared(self, dynamic: list[str]) -> tuple[str, set[str]]:
+        """Digest and env names of the declarations covering every dynamic site; a site whose
+        source file has no declaration raises. Inputs may be files, directories or globs."""
+        by_source: dict[str, list[dict]] = {}
+        for row in self.declarations():
+            by_source.setdefault(row["source"], []).append(row)
+        used: list[dict] = []
+        for site in sorted(set(dynamic)):
+            m = re.match(r"([^:]+?)(?::(\d+))?: ", site)
+            source = m.group(1) if m else site
+            if source not in by_source:
+                raise UnresolvedInput(
+                    f"{site}: dynamic input is not declared; add a row for {source} to {INPUT_DECLARATIONS}"
+                )
+            used += [r for r in by_source[source] if r not in used]
+        files: set[Path] = set()
+        markers: set[str] = set()
+        env: set[str] = set()
+        for row in used:
+            env.update(row.get("env", []))
+            for pattern in row.get("inputs", []):
+                hits = sorted(self.root.glob(pattern)) if any(c in pattern for c in "*?[") else [self.root / pattern]
+                hits = [h for h in hits if h.exists() and _bounded(self.root, h) is not None]
+                if not hits:
+                    markers.add(f"missing-declared:{pattern}")
+                for hit in hits:
+                    files.update(expand(hit))
+        rows_json = json.dumps(
+            [{k: row.get(k) for k in ("source", "inputs", "env", "why")} for row in used], sort_keys=True
+        )
+        return _sha(rows_json, self._tree(files), *sorted(markers)), env
+
+    def dynamic_inputs(self) -> list[str]:
+        """Reads the scans found but could not resolve statically (file:line: what), for audit."""
+        found = {d for scan in self._scans.values() for d in scan.dynamic}
+        for scan, _ in self._file_scans.values():
+            found.update(scan.dynamic)
+        return sorted(found)
 
     # -- shared inputs -----------------------------------------------------
     def shared(self) -> str:
@@ -261,9 +945,10 @@ class Fingerprinter:
             r = self.root
             toolchain = [r / "rust-toolchain.toml", r / "rust-toolchain"]
             self._shared = _sha(
-                file_digest(r / "Cargo.lock"),
-                file_digest(r / "Cargo.toml"),
-                *[file_digest(p) for p in toolchain],
+                f"fingerprint-v{FINGERPRINT_VERSION}",
+                self._digest(r / "Cargo.lock"),
+                self._digest(r / "Cargo.toml"),
+                *[self._digest(p) for p in toolchain],
                 self.features,
                 f"{sys.platform}-{os.uname().machine if hasattr(os, 'uname') else ''}" if self.platform else "",
             )
@@ -271,10 +956,20 @@ class Fingerprinter:
 
     def crate_digest(self, name: str) -> str:
         if name not in self._crate:
-            d = self.root / self.graph[name]["dir"]
+            d = self.crate_dir(name)
             files = tree_files(d / "src") + [d / "Cargo.toml", d / "build.rs"]
-            self._crate[name] = tree_digest(self.root, [f for f in files if f.is_file()])
+            base = self._tree([f for f in files if f.is_file()])
+            self._crate[name] = _sha(base, self._scan_digest(self.crate_scan(name)))
         return self._crate[name]
+
+    def build_digest(self, name: str) -> str:
+        """The crate's build script and everything it declares with `rerun-if-changed`."""
+        d = self.crate_dir(name)
+        script = d / "build.rs"
+        if not script.is_file():
+            return "none"
+        scan = self.scan_rust([script], d)
+        return _sha(self._digest(script), self._scan_digest(scan))
 
     def fixtures_digest(self, fixtures: list[str]) -> str:
         files: list[Path] = []
@@ -284,7 +979,7 @@ class Fingerprinter:
                     files += tree_files(candidate)
                 elif candidate.is_file():
                     files.append(candidate)
-        return _sha(*sorted(fixtures), tree_digest(self.root, files))
+        return _sha(*sorted(fixtures), self._tree(files))
 
     # -- per language ------------------------------------------------------
     def rust_test_files(self, test_rel: str, crate: str) -> list[Path]:
@@ -301,20 +996,69 @@ class Fingerprinter:
             files += [f for d in sorted(tests.iterdir()) if d.is_dir() and d.name != stem for f in tree_files(d)]
         return [f for f in files if f.is_file()]
 
-    def parts(self, row: dict) -> dict:
+    def rust_test_side(self, row: dict, crate: str) -> tuple[str, Scan]:
+        """Digest of the test files plus what they embed or read, and that scan."""
+        files = self.rust_test_files(row["evidence_test"], crate)
+        scan = self.scan_rust([f for f in files if f.suffix == ".rs"], self.crate_dir(crate))
+        declared, env = self.declared(scan.dynamic)
+        scan = Scan(scan.files, scan.env | env, scan.markers, scan.dynamic)
+        return _sha(self._tree(files), self._scan_digest(scan), declared), scan
+
+    def crate_of(self, rel: str) -> str | None:
+        """The workspace crate owning a repo-relative file (longest directory prefix)."""
+        best = None
+        for name, g in self.graph.items():
+            if (rel == g["dir"] or rel.startswith(g["dir"] + "/")) and (
+                best is None or len(g["dir"]) > len(self.graph[best]["dir"])
+            ):
+                best = name
+        return best
+
+    def parts(self, row: dict, executed: list[str] | None = None) -> dict:
         info = locate(self.root, row)
         fixtures = list(row.get("fixtures", []))
         parts = {
+            "version": FINGERPRINT_VERSION,
             "shared": self.shared(),
             "fixtures": self.fixtures_digest(fixtures),
         }
+        env: set[str] = set()
+        dynamic: list[str] = []
         if info["lang"] == "rust":
             crate = info["crate"]
-            parts["crates"] = {c: self.crate_digest(c) for c in closure(self.graph, crate)}
-            parts["test"] = tree_digest(self.root, self.rust_test_files(row["evidence_test"], crate))
+            parts["test"], test_scan = self.rust_test_side(row, crate)
+            env |= test_scan.env
             parts["features"] = " ".join(
                 cargo_target_feature_args(self.root / "crates" / crate / "Cargo.toml", info["target"])
             )
+            members = closure(self.graph, crate)
+            if executed is None:
+                parts["crates"] = {c: self.crate_digest(c) for c in members}
+                for c in members:
+                    env |= self.crate_scan(c).env
+                    dynamic += self.crate_scan(c).dynamic
+            else:
+                # The executed sources replace the closure; their embeds, runtime reads and env,
+                # and every closure crate's manifest and build script stay inputs.
+                parts["mode"] = "executed"
+                executed_files = {rel: self.root / rel for rel in sorted(set(executed))}
+                parts["executed"] = {rel: self._digest(f) for rel, f in executed_files.items()}
+                by_crate: dict[str | None, list[Path]] = {}
+                for rel, f in executed_files.items():
+                    if f.suffix == ".rs":
+                        by_crate.setdefault(self.crate_of(rel), []).append(f)
+                scans = Scan()
+                for owner, files in by_crate.items():
+                    scans.merge(self.scan_rust(files, self.crate_dir(owner) if owner else self.root))
+                parts["executed_inputs"] = self._scan_digest(scans)
+                env |= scans.env
+                dynamic += scans.dynamic
+                parts["manifests"] = {c: self._digest(self.crate_dir(c) / "Cargo.toml") for c in members}
+                parts["build"] = {c: self.build_digest(c) for c in members}
+                for c in members:
+                    build = self.scan_rust([self.crate_dir(c) / "build.rs"], self.crate_dir(c))
+                    env |= build.env
+                    dynamic += build.dynamic
         else:
             r = self.root
             test = r / row["evidence_test"]
@@ -322,28 +1066,41 @@ class Fingerprinter:
                 d / "conftest.py" for d in [test.parent, *test.parent.parents] if d == r or r in d.parents
             ]
             config = [r / "python" / n for n in ("pytest.ini", "uv.lock")]
-            parts["crates"] = {c: self.crate_digest(c) for c in native_crates(self.graph)}
-            parts["python"] = tree_digest(r, tree_files(r / "python" / "antecedent"))
-            parts["test"] = tree_digest(r, [test, *conftests, *config])
+            members = native_crates(self.graph)
+            parts["crates"] = {c: self.crate_digest(c) for c in members}
+            package = tree_files(r / "python" / "antecedent")
+            parts["python"] = self._tree(package)
+            py_scan = self.scan_python(test)
+            for conftest in conftests:
+                if conftest.is_file():
+                    py_scan.merge(self.scan_python(conftest))
+            parts["test"] = _sha(
+                self._tree([test, *conftests, *config]), self._scan_digest(py_scan)
+            )
+            for c in members:
+                env |= self.crate_scan(c).env
+                dynamic += self.crate_scan(c).dynamic
+            env |= py_scan.env
+            dynamic += py_scan.dynamic
+            for f in package:
+                if f.suffix == ".py":
+                    env |= scan_python_env(f.read_text(encoding="utf-8", errors="replace"))
+        parts["declared"], declared_env = self.declared(dynamic)
+        parts["env"] = self.env_part(env | declared_env)
         return parts
 
     def test_digest(self, row: dict) -> str | None:
-        """Digest of the test-side files of a Rust row (`None` for Python): what a coverage
-        capture of the row is valid for."""
+        """Digest of the test-side files of a Rust row (`None` for Python), with what they embed
+        or read: what a coverage capture of the row is valid for."""
         info = locate(self.root, row)
         if info["lang"] != "rust":
             return None
-        return tree_digest(self.root, self.rust_test_files(row["evidence_test"], info["crate"]))
+        return self.rust_test_side(row, info["crate"])[0]
 
     def fingerprint(self, row: dict, executed: list[str] | None = None) -> str:
         """The row's fingerprint. With `executed` (repo-relative source files a coverage capture
         saw the Rust test run) the crate closure is replaced by those files' normalized source."""
-        parts = self.parts(row)
-        if executed is not None and "crates" in parts and "python" not in parts:
-            del parts["crates"]
-            parts["mode"] = "executed"
-            parts["executed"] = {rel: file_digest(self.root / rel) for rel in sorted(set(executed))}
-        return _sha(json.dumps(parts, sort_keys=True))
+        return _sha(json.dumps(self.parts(row, executed), sort_keys=True))
 
 
 def coverage_row(spec: str, dgp: str = "") -> dict:

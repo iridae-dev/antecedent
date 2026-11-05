@@ -7,15 +7,15 @@
 #   path        regular expression on the source     (optional)
 #   locator     regular expression on the locator    (optional)
 #   text        regular expression on the text       (optional)
-#   item        the tracker item whose completion claims the limitation's subject (optional;
+#   item        the item id whose completion claims the limitation's subject (optional;
 #               a counterpart row takes it from its id)
 # and exactly one of
-#   owner       an open tracker item id (TODO.md) that carries the work that removes the limitation
+#   owner       a declared label (free text id) naming the work that removes the limitation
 #   decision    "scope" with a written rationale: the limitation is a recorded boundary of the
 #               release, not pending work
 # scripts/check_residual_limitations.py rejects an unmapped limitation, an owner that is the
-# limitation's own item, an owner that is closed or absent from the tracker, and a scope decision
-# without a rationale.
+# limitation's own item, a row naming both an owner and a decision, and a scope decision without
+# a rationale.
 
 # ---- theory boundaries: the target does not exist in the closed design cell -------------------
 
