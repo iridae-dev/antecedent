@@ -10849,13 +10849,6 @@ path = "scripts/test_rust_source.py"
 gates = ["inventory"]
 
 [[test]]
-id = "snapshot-capability-baseline-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_snapshot_capability_baseline.py"
-gates = ["inventory"]
-
-[[test]]
 id = "temporal-capture-transfer-script"
 crate = "scripts"
 cargo_target = "script"

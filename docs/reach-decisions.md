@@ -195,8 +195,7 @@ as a fixed sample. Every route is point-only or a labelled diagnostic.
 
 The monitoring contract (`adaptive_monitoring_contract_v1`) is a design record,
 not a value: it reaches `decision` and `inverse query` as REFUSED
-(`CausalTypeError`, recorded as an exception in
-[the carryover disposition](https://github.com/iridae-dev/antecedent/blob/main/parity/carryover_disposition.md)),
+(`CausalTypeError`),
 and a recalculation plan only by a caller-declared digest. A cell of the
 procedure matrix that describes no procedure, or that has no method yet, refuses
 `route_not_supported` with `adaptive_inference.cell_incoherent` or

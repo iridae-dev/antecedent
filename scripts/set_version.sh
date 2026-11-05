@@ -11,7 +11,7 @@
 # not already at X.Y.Z. Release workflows use it to verify that the tag names
 # the version the committed tree carries instead of rewriting the tree.
 #
-# Generated release snippets (supported-lines table, reviewed-version scope,
+# Generated release snippets (supported-lines table,
 # crate dependency line, examples install pin, notebook pins) are rewritten
 # from parity/release.toml. --check fails when those blocks drift. Prose
 # outside the markers is not read.

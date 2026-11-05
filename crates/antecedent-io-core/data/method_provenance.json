@@ -2251,7 +2251,7 @@
     "Every route is point-only with calibration not_measured except the pooled-share interval (capability `choice_inference.interval_candidates`): the equal-tail credible interval from the explicit Beta marginal quantiles of the Dirichlet posterior, reported with its calibration status and never refused for the lack of a coverage record. The study value is the exact expected value of sample information over the Dirichlet-multinomial predictive (Monte Carlo with a standard error beyond 250 000 outcomes) under a linear per-option value, with no calibrated-uncertainty claim.",
     "Stated choices do not identify behavioural or causal outcomes."
    ],
-   "digest": "5aec735c2374905021bedee5dd206d43f7ec7546a07310a0acb2185b6930b8d7",
+   "digest": "3ada52e0f80ac426070fb3cc107ec829990e213ea8918df316bded4c350c7d80",
    "id": "choice_inference.contract",
    "review": "none",
    "scope_limits": [],
@@ -2311,7 +2311,7 @@
     "Claim policy: point-only. No standard error, interval or posterior is inherited from the fit; the cohort-mean contrast is issued as an affine expectation of one coordinate and nothing else.",
     "Trust policy: numbers are always recomputed from the retained model and cohort rows; a source built from a verified analysis result is native, one built from a caller-built compact export is a declared model and is never native."
    ],
-   "digest": "4026770b3ba2747957341b23ddaaf1359c184403525d05a63c8ddc1cad437800",
+   "digest": "50d63e1b75bf7d31e5b331e8063a9d7a4892698ca364b1eba900f9d8db7399af",
    "id": "cohort_decision.mean_contrast",
    "review": "none",
    "scope_limits": [],
@@ -2382,7 +2382,7 @@
     "The design ranking is bound to the joint law only by its source digest; the acceptance checks the digest binding and the hand-derived EVPI 1/8, EVSI 1/16 and net values 0.0425 and 0.0125, not any deeper link between the two artifacts.",
     "Independence is declared, not inferred: E1 and E2 are declared independent, N and E2 share data (registry 7), and unknown dependence is never read as independence."
    ],
-   "digest": "b897947e7dbdb3292573ae0adf9d50cdbde3aa092d989adb9be0d9464ee6d688",
+   "digest": "b2d40367ba86e797a3cb774efb56a4b685327846db77d557217e40f82eeb482a",
    "id": "composition.multi_source",
    "review": "none",
    "scope_limits": [],
@@ -2483,7 +2483,7 @@
     "Semantic binding over the original distribution and study-ranking consumers, not a new inference method. A bounded unweighted aligned source explicitly interpreted as a parameter/causal-functional posterior state, or an interventional predictive scalar explicitly named state, projects to exactly the ordered finite prior used by the original terminal decision. Full terminal actions, utilities, admissibility and units and the original ranking identity are retained. Fresh consumption reads the original source and ranking artifacts and recomputes the scalar projection and full binding; no mean-only, weighted-law, marginal pairing or independent ordering can substitute. The rollout bundle node checks the complete source identity upstream and full terminal decision on its ranking edge. Structural identification, native execution and inferential calibration are never upgraded by binding.",
     "Original engineering of identity/scientific-state binding; numerical integration and its citations belong to the original study-ranking engine. No posterior/sampling, regret or ranking guarantee is inferred from exact conditional finite arithmetic."
    ],
-   "digest": "2222c4201e8b81fb8846836e39e57bdc1e984caaa177d1b85da2538a199821ad",
+   "digest": "040a43e44a8b6160cc9e6ee8bba72fbe20dd004553e4a1ef0f120d8c3f79568f",
    "id": "composition.rollout_state",
    "review": "none",
    "scope_limits": [],
@@ -2498,7 +2498,7 @@
     "Original native diagnostic scope and semantic coordinate/contributor lineage survive original decision/inverse evaluation; actual reexecution resolves only the matching original operation; fresh imports retain original unresolved status without execution authority or calibration upgrade.",
     "Original support diagnostics, original contracted-result decoder, original checked estimator and original inverse/decision numerical engines are reused. No new statistical method. Original bound external source consumers retain full request/provider/quantities/values/support/attestation; the original external claim format contains no numerical diagnostic arrays, which remain explicitly unavailable."
    ],
-   "digest": "cbc23aaba25aa01d74bd627abf9bac809b6b796ee1b722f335e25796424e049f",
+   "digest": "50e21c5c615cb26026fafc60db3d175fa4415bd289229a5ed5324742e831d863",
    "id": "composition.source_evidence",
    "review": "none",
    "scope_limits": [],
@@ -2509,7 +2509,7 @@
     "Original finite-law functional engine and complete original law artifact/request replay retain original numeric meanings. Actual native source diagnostics are cited by semantic coordinates/snapshot; native row origin requires full original source plus actual opaque native law comparison, never metadata.",
     "Original scoped diagnostics and actual action contributor identities survive projection; imported original unresolved status and source trust/calibration remain explicit."
    ],
-   "digest": "2823dc95aaad69cd3aa332b8c9b7fb8ab16de47b4d31ed73b5113557bf0dad08",
+   "digest": "62bace240e8c2e0891ff5bf981f57391a6bdb8df9e319b4a4c615681c8a8b850",
    "id": "composition.source_lineage",
    "review": "none",
    "scope_limits": [],
@@ -2524,7 +2524,7 @@
     "Original artifact consumers reconstruct each projection from retained full original bytes. Affine utilities use the original contract engine at exact semantic quantities. A selected AffineFunctional retains the full original contract and evaluates only its named action; unrelated unsupported coordinates do not become supported. Native bundle resolution requires an opaque receipt from actual original checked estimation; standalone decoding cannot import execution authority.",
     "Reuses original source artifact decoders and original contract evaluation; no new statistical method, nonlinear transform or native authority import."
    ],
-   "digest": "aae2d6c55d9f824d53a020c968973e778c3fa9bb016174d13fe45d5560f58d0a",
+   "digest": "457cc307704da3c2ca192ba781fd637e3b68aa2c3c64075743e9fbd95a7ce1e2",
    "id": "composition.source_projection",
    "review": "none",
    "scope_limits": [],
@@ -3995,7 +3995,7 @@
     "Original engineering of actual study-arrival execution over existing independently checked repair/ranking consumers, catalog SID and frozen z-transport verifiers/binders, exact finite expression compiler and provider evaluator. Every algorithm and its scientific scope retain the original implementation/provenance; this adapter is not a parallel estimator. The raw cell counts, declared Available physical binding, original planned sample total and complete checked program are reexecuted by fresh consumption.",
     "Scope is one independent unweighted jointly observed delivered regime with explicitly disjoint count tables per concrete intervention world. Count-law arithmetic is an empirical point estimate; finite structural and arithmetic verification do not validate interval calibration, authenticate raw physical observations or grant live provider authority. Existing descriptor-only arrival remains a structural receipt check."
    ],
-   "digest": "a85cf029bf887ba681ca6aefe7cbed499a5e3439701ae216dd36a264f2863275",
+   "digest": "2e7884e48123caa00873de0928bd31e8dc3214955d03065ad8b2daddd6f1fd91",
    "id": "design.proposal_arrival",
    "review": "none",
    "scope_limits": [],
@@ -10665,7 +10665,7 @@
     "Weak-IV decision refusal follows the actual Anderson-Rubin confidence-set boundary, with inspectable point and diagnostics. No arbitrary first-stage F threshold or invented Wald standard error.",
     "Independent supplied-data consumption verifies exact artifact contracts and scientific bodies using fresh checked execution, including the sharp-RD checked operation. Historical dependency-only readers are unchanged; missing raw data cannot invent a verified fit."
    ],
-   "digest": "e7b5e109a3fb0558896128ba32feb32ceb96b4e73b9b45833373e8b46194d5fe",
+   "digest": "00ae917e26f94142dfbf3be656d4a532653e79cb0b0b732432c3ec09b0c9ccb3",
    "id": "recalculation.design_specific",
    "review": "none",
    "scope_limits": [],
@@ -10685,7 +10685,7 @@
     "Execution measures actual nuisance and final-stage learner work and successful score-table builds (two on initial preparation/estimation); bounded physical-input reuse avoids duplicate nuisance fits and includes fold-unit kind/seed. Canonical graph/target/utility identities permit independent score consumption; reported analytic diagnostics and point predictions retain not-measured calibration, with no interval or coverage claim.",
     "Historical receipts contain no executable state. Fresh processes require independently verified scores or predictors for their separately supported operations, or supplied raw data for refitting."
    ],
-   "digest": "8e3eaae7673e2bf7f481e8f5a7e3ac13c19abd2f857538968bf9896896448c39",
+   "digest": "54b94df03645337f025ce6a2c29992999a3cb8bb0d946fd609a65c03cbda19ae",
    "id": "recalculation.doubly_robust",
    "review": "none",
    "scope_limits": [],
@@ -10790,7 +10790,7 @@
     "Transport factors bind complete source law, population, regime, snapshot and checked proof leaves. Rebinding reuses compatible compiled programs; source mutations invalidate their factors.",
     "Successful executing component observers count identification, compilation, factor builds, provider binding, factor evaluation, integration and calls. Utility-only changes preserve numerical state. Results are exact finite-grid points, with no statistical uncertainty support."
    ],
-   "digest": "e6fd1976c30f470b9887d01fe6418ad11956b2ea9cbb8471d2b369ca49c32883",
+   "digest": "91c5927f3dfae46819a90a5ab25b4741a6ac906f40da1b9964d0b2b168d1ffe6",
    "id": "recalculation.static_response",
    "review": "none",
    "scope_limits": [],
@@ -11230,7 +11230,7 @@
     "Original joint sensitivity v3 and its full checked baseline/proof/laws are independently consumed and reexecuted by the original joint sensitivity engine. Original sensitivity surface adapter recomputes and checks the complete surface before source lineage is published.",
     "Original stored uncertainty and declared provider assumptions remain unchanged; no new statistical method, native execution authority or calibration support."
    ],
-   "digest": "733423d39a90c4b3e8952ed68217de8ba09feeab09cbb96435643e73f8098f7c",
+   "digest": "97984059dd47e58cd764bc63b6bdfd754c84b7ae25b789eba36102f774313969",
    "id": "sensitivity.source_lineage",
    "review": "none",
    "scope_limits": [],
@@ -11432,13 +11432,13 @@
   {
    "deviations": [
     "Not an implementation of a published estimator with an inherited guarantee: studentized response intervals over a seeded set of unit-resampled replicates (20 to 2000 replicates, units drawn with replacement from the observed units), each replicate re-running the whole history-conditioned estimator. The equal-tailed bootstrap-t construction uses exact balanced complete-history unit contributions and finite positive original/per-resample unit-mean SE through a closed BalancedTemporalEstimator; The checked native adapter and independently replayed artifact enforce this balanced certificate. The public Rust trait hook can be overridden by advanced implementations; that hook remains not measured and does not independently certify arbitrary callbacks. B500 on original frozen unit50/100/200 and checked64/128/256 grids;20..4096 units for the studentized path. No bias correction or second-level bootstrap.",
-    "No consistency or coverage theorem is derived or inherited for this functional. Retired percentile/basic response measurements at 623f16dd failed at 64 checked units and 200 balanced units (rechecks1873/2000,1867/2000,1861/2000,1857/2000;zero skips). Passing paired-effect methods are retained separately. Historical studentized source candidate artifacts remain not measured: the engine reports claim dependence_preserving_calibration_not_measured and calibration not_measured, while the separate normal measured envelope authorizes only the exact guarded method after current evidence resolution. The corrected construction passed its own complete5c76724f grid measurement; final changed-surface attestation remains required; the original failures remain retained in parity/carryover_disposition.md.",
+    "No consistency or coverage theorem is derived or inherited for this functional. Retired percentile/basic response measurements at 623f16dd failed at 64 checked units and 200 balanced units (rechecks1873/2000,1867/2000,1861/2000,1857/2000;zero skips). Passing paired-effect methods are retained separately. Historical studentized source candidate artifacts remain not measured: the engine reports claim dependence_preserving_calibration_not_measured and calibration not_measured, while the separate normal measured envelope authorizes only the exact guarded method after current evidence resolution. The corrected construction passed its own complete5c76724f grid measurement; final changed-surface attestation remains required.",
     "Failed replicates (an estimator unsupported on the resample) are counted and dropped up to a bounded fraction, then the interval refuses; fewer than the minimum number of repeated units (default 20, never below 2) refuses as too_few_clusters.",
     "The internal replay artifact embeds the full unit panel and every replicate (whole-unit replicate id, unit-selection digest, re-estimated point), so a consumer re-runs the whole resampling and rejects a changed unit, time id, value or snapshot even when resealed. Studentized replay also binds original unit-score variance, aligned replicate standard errors and pivots; valid checked paired-effect percentile/basic records omit that optional field; retired response methods have no runtime path. Digests are non-cryptographic fingerprints.",
     "The new calibration-internal retained-family adapter executes actual raw-source preparation and its original numerical engine. Actual successful solve/draw or source factor/program/whole-unit work is observed. Independent source replay binds complete raw evidence and graph/program; compatible summaries retain state without new fitting. These acceptance fixtures do not measure coverage or activate the public inference route.",
     "Normal measured envelope is distinct from the original not-measured source candidate. Original method execution is independently replayed, every named scalar uses its actual native basis and current attesting record, and exact method/prior/design guards refuse adjacent protocols. Whole-method candidate measurements completed at5c76724f; final changed-surface evidence and installed normal-wheel acceptance remain release prerequisites. No general-model or simultaneous interval guarantee is inherited."
    ],
-   "digest": "1d7ea307e62092cf4fce5183e8327450aeac72902236df4041eb15d4ed97b527",
+   "digest": "9b835dd192e70ff6ee040633f514422a34944d87b6276cd1969599261bbbe893",
    "id": "temporal.dependent_interval",
    "review": "method_review",
    "scope_limits": [

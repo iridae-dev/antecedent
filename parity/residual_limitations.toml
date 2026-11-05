@@ -153,9 +153,9 @@ rationale = ""
 rule = "documentation_states_measured_outcomes"
 
 [[limitation]]
-id = "phrase.compiled-execution-3.0.2b8b39a48f"
+id = "phrase.compiled-execution.c314bd421b"
 kind = "source_phrase"
-source = "docs/migrations/compiled-execution-3.0.md"
+source = "docs/migrations/compiled-execution.md"
 locator = ""
 text = "unrelated to this repair remains open; this repair grants no new identification or"
 item = ""

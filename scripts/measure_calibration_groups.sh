@@ -544,7 +544,7 @@ run_recovery_whole_method() {
 }
 echo "== closed temporal and recovery whole-method candidates =="
 # Distinct corrected constructions; historical percentile/basic failures are
-# preserved in the original harnesses and carryover disposition, never relabeled.
+# preserved in the original harnesses, never relabeled.
 run_temporal_unit temporal_two_step_units_studentized_l95
 run_recovery_whole_method binary_missingness_whole_row_recovery_bca_l95
 

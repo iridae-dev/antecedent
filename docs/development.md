@@ -613,8 +613,7 @@ optional feature alone, `--no-default-features`) in the `features` job.
 Reviewed `unsafe` is concentrated in `antecedent-kernels` (SIMD), the
 `antecedent-data` buffer/Arrow FFI adapters (`unsafe from_ffi`), and IO mmap
 (`unsafe open_path_mapped`; safe `open_path` is an owned snapshot).
-New `unsafe` needs justification in review. Dependency and license policy:
-[security_review.md](security_review.md), ADR 0008.
+New `unsafe` needs justification in review. Dependency and license policy: ADR 0008 and `deny.toml`.
 
 ## Versions
 

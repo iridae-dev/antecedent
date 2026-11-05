@@ -140,13 +140,13 @@ detail = "`stage_identity(Stage.EVIDENCE, draws digest plus candidate-set digest
 producer = "interface_contract_artifact"
 consumer = "decision"
 status = "REFUSED"
-detail = "`CausalTypeError`; a contract declares scientific compatibility and carries no estimand value, so there is nothing to declare as a source (recorded exception in `parity/carryover_disposition.md`)"
+detail = "`CausalTypeError`; a contract declares scientific compatibility and carries no estimand value, so there is nothing to declare as a source"
 
 [[cell]]
 producer = "interface_contract_artifact"
 consumer = "inverse_query"
 status = "REFUSED"
-detail = "`CausalTypeError`; no value to declare as a mean claim (recorded exception in `parity/carryover_disposition.md`)"
+detail = "`CausalTypeError`; no value to declare as a mean claim"
 
 [[cell]]
 producer = "interface_contract_artifact"
@@ -188,13 +188,13 @@ detail = "`stage_identity(Stage.EVIDENCE, contract artifact identity)` declared 
 producer = "composition_verification_result"
 consumer = "decision"
 status = "REFUSED"
-detail = "`CausalTypeError`; a classification of claims carries no estimand value, units or population, so there is nothing to declare as a mean source; the value belongs to the claim classified (recorded exception in `parity/carryover_disposition.md`)"
+detail = "`CausalTypeError`; a classification of claims carries no estimand value, units or population, so there is nothing to declare as a mean source; the value belongs to the claim classified"
 
 [[cell]]
 producer = "composition_verification_result"
 consumer = "inverse_query"
 status = "REFUSED"
-detail = "`CausalTypeError`; no value to declare as a mean claim (recorded exception in `parity/carryover_disposition.md`)"
+detail = "`CausalTypeError`; no value to declare as a mean claim"
 
 [[cell]]
 producer = "composition_verification_result"
@@ -1109,13 +1109,13 @@ detail = "`stage_identity(Stage.EVIDENCE, source identity)` declared by the call
 producer = "adaptive_monitoring_contract"
 consumer = "decision"
 status = "REFUSED"
-detail = "`CausalTypeError`; a monitoring contract carries no estimand value, so there is nothing to declare as a source (recorded exception in `parity/carryover_disposition.md`)"
+detail = "`CausalTypeError`; a monitoring contract carries no estimand value, so there is nothing to declare as a source"
 
 [[cell]]
 producer = "adaptive_monitoring_contract"
 consumer = "inverse_query"
 status = "REFUSED"
-detail = "`CausalTypeError`; no value to declare as a mean claim (recorded exception in `parity/carryover_disposition.md`)"
+detail = "`CausalTypeError`; no value to declare as a mean claim"
 
 [[cell]]
 producer = "adaptive_monitoring_contract"

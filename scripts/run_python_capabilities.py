@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Execute manifest-selected journeys with a source-bound native build receipt.
 
-Integration creates the receipt after its serialized native build (see the pass README).
+Integration creates the receipt after its serialized native build.
 This runner does not build, install, or infer native freshness from timestamps.
 """
 

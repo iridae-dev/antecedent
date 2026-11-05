@@ -277,7 +277,7 @@ Temporal transport of a policy value is delivered by
 `temporal_policy_transport`, not by the counterfactual route above. None of
 these outputs is a composition bundle node kind, so a bundle cannot carry them. The general path-specific transport row stays carried
 forward (see
-[the carryover disposition](https://github.com/iridae-dev/antecedent/blob/main/parity/carryover_disposition.md)).
+`parity/capability_gaps.toml`).
 
 ## Derived uncertainty, transported vertical and discovery routes
 

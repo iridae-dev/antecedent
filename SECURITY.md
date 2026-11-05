@@ -44,8 +44,6 @@ trust boundaries are:
   than trusting stored digests. A resealed semantic edit is refused. Decoders return typed
   errors and are fuzzed (`fuzz/`).
 
-See `docs/security_review.md` for the per-artifact limits and the review notes.
-
 ## Reporting a Vulnerability
 
 Please do not open public issues for security vulnerabilities.

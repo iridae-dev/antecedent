@@ -46,7 +46,7 @@ class CapabilityGateTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         (self.root / "python/tests").mkdir(parents=True)
-        (self.root / "parity/python_api_pass").mkdir(parents=True)
+        (self.root / "parity/python_capabilities").mkdir(parents=True)
         (self.root / MANIFEST).write_text("schema=1\n", encoding="utf-8")
         self.source = self.root / "python/tests/test_journey.py"
         self.source.write_text(

@@ -820,7 +820,7 @@ def scientific_test_problems(root: Path) -> list[str]:
         seen.add((test, name))
         if row.get("kind") not in SCIENTIFIC_TEST_KINDS:
             problems.append(f"{where}: kind must be one of {', '.join(SCIENTIFIC_TEST_KINDS)}")
-        if not isinstance(row.get("reason"), str) or not row["reason"].strip():
+        if not isinstance(row.get("why"), str) or not row["why"].strip():
             problems.append(f"{where}: reason is required")
         fixtures = row.get("fixtures", [])
         if not isinstance(fixtures, list) or not all(isinstance(f, str) and f for f in fixtures):

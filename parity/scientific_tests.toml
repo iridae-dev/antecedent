@@ -13,473 +13,473 @@ evidence_test = "crates/antecedent/tests/functional_graph_posterior_mixture_trut
 evidence_assertion = "path_specific_graph_posterior_executes_from_the_retained_plan_without_the_builder"
 kind = "known_truth"
 fixtures = ["conformance/estimate/functional_graph_posterior_mixtures"]
-reason = "Retained-plan path-specific functional graph-posterior means against the fixture's weighted atom truths, every class and suite."
+why = "Retained-plan path-specific functional graph-posterior means against the fixture's weighted atom truths, every class and suite."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs"
 evidence_assertion = "interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"
 kind = "known_truth"
 fixtures = ["conformance/estimate/functional_graph_posterior_mixtures"]
-reason = "Retained-plan interventional-law graph-posterior means against the fixture's weighted atom truths, every class and suite."
+why = "Retained-plan interventional-law graph-posterior means against the fixture's weighted atom truths, every class and suite."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs"
 evidence_assertion = "mediation_graph_posterior_executes_from_the_retained_plan_without_the_builder"
 kind = "known_truth"
 fixtures = ["conformance/estimate/functional_graph_posterior_mixtures"]
-reason = "Retained-plan mediation-component graph-posterior means against the fixture's weighted atom truths, every class and suite."
+why = "Retained-plan mediation-component graph-posterior means against the fixture's weighted atom truths, every class and suite."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/joint_panel_workflow.rs"
 evidence_assertion = "actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes"
 kind = "posterior"
 fixtures = ["examples/rust/joint_panel_fixture.rs"]
-reason = "48,000-draw panel posterior: R-hat/convergence diagnostics and the reference decomposition of its draws."
+why = "48,000-draw panel posterior: R-hat/convergence diagnostics and the reference decomposition of its draws."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/joint_panel_workflow.rs"
 evidence_assertion = "temporal_bayesian_frame_decomposes_on_reference_worlds_and_translates_experiments"
 kind = "reference"
 fixtures = ["examples/rust/joint_panel_fixture.rs"]
-reason = "Bayesian temporal panel decomposition and experiment translation against the reference worlds."
+why = "Bayesian temporal panel decomposition and experiment translation against the reference worlds."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/joint_panel_workflow.rs"
 evidence_assertion = "temporal_frequentist_frame_decomposes_on_reference_worlds_and_translates_experiments"
 kind = "reference"
 fixtures = ["examples/rust/joint_panel_fixture.rs"]
-reason = "Frequentist temporal panel decomposition and experiment translation against the reference worlds."
+why = "Frequentist temporal panel decomposition and experiment translation against the reference worlds."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/joint_panel_workflow.rs"
 evidence_assertion = "build_joint_panel_lag_zero_bayesian_chain_mixes_and_recovers_the_known_interaction"
 kind = "known_truth"
 fixtures = ["examples/rust/joint_panel_fixture.rs"]
-reason = "Lag-zero Bayesian panel mixes (R-hat<1.01, ESS>=400) and recovers the closed-form interaction 1.5*(4/7)^2."
+why = "Lag-zero Bayesian panel mixes (R-hat<1.01, ESS>=400) and recovers the closed-form interaction 1.5*(4/7)^2."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/supported_compiler.rs"
 evidence_assertion = "sampled_supported_cells_replay_to_the_published_number"
 kind = "route_sweep"
 fixtures = ["conformance/estimate/cross_world_class_truth", "conformance/estimate/functional_graph_posterior_mixtures", "conformance/estimate/pag_ate_envelope_identified", "conformance/estimate/temporal_class_envelope/identified_pag.json", "conformance/estimate/temporal_window_truth", "conformance/response/class_aware_envelope/pag_identified.json", "conformance/response/temporal_admg_derivative_states"]
-reason = "At least 60 sampled supported cells executed; a fresh consumer reads back the number each route published."
+why = "At least 60 sampled supported cells executed; a fresh consumer reads back the number each route published."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/supported_compiler.rs"
 evidence_assertion = "every_supported_cell_completes_the_compiler_path"
 kind = "route_sweep"
 fixtures = ["conformance/estimate/cross_world_class_truth", "conformance/estimate/functional_graph_posterior_mixtures", "conformance/estimate/pag_ate_envelope_identified", "conformance/estimate/temporal_class_envelope/identified_pag.json", "conformance/estimate/temporal_window_truth", "conformance/response/class_aware_envelope/pag_identified.json", "conformance/response/temporal_admg_derivative_states"]
-reason = "All 2776 supported cells run the compiler path with real estimators and match the committed route file."
+why = "All 2776 supported cells run the compiler path with real estimators and match the committed route file."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/cross_world_class_truth.rs"
 evidence_assertion = "class_cross_world_validation_executes_from_the_retained_plan_without_the_builder"
 kind = "known_truth"
 fixtures = ["conformance/estimate/cross_world_class_truth"]
-reason = "Class cross-world effects and validation against the exact count-table functionals, every case, source, inference and suite."
+why = "Class cross-world effects and validation against the exact count-table functionals, every case, source, inference and suite."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/cross_world_class_truth.rs"
 evidence_assertion = "class_cross_world_validation_flags_a_planted_weak_effect_on_an_admg"
 kind = "known_truth"
 fixtures = ["conformance/estimate/cross_world_class_truth"]
-reason = "Clean ADMG cross-world effects match exact values; a planted weak effect is flagged by the sensitivity refuter."
+why = "Clean ADMG cross-world effects match exact values; a planted weak effect is flagged by the sensitivity refuter."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/temporal_sequential_gcomp_multistep_known_truth.rs"
 evidence_assertion = "sequential_gcomp_returns_the_modifier_averaged_effect_on_a_fixed_dag"
 kind = "known_truth"
 fixtures = []
-reason = "Sequential g-computation on a fixed temporal DAG returns the modifier-averaged effect, not the unmodified one."
+why = "Sequential g-computation on a fixed temporal DAG returns the modifier-averaged effect, not the unmodified one."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/temporal_sequential_gcomp_multistep_known_truth.rs"
 evidence_assertion = "sequential_gcomp_recovers_the_multi_step_effect_for_bayesian_plain_and_conditional_contrasts"
 kind = "known_truth"
 fixtures = []
-reason = "Multi-step sequential g-computation recovers the known effect for plain and conditional contrasts across graph classes and suites."
+why = "Multi-step sequential g-computation recovers the known effect for plain and conditional contrasts across graph classes and suites."
 
 [[test]]
 evidence_test = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
 evidence_assertion = "samplers_agree_with_the_exact_marginals_at_ten_and_twelve_variables"
 kind = "posterior"
 fixtures = []
-reason = "Structure and order samplers' edge marginals within 0.03+5 MCSE of the exact posterior at 10 and 12 variables."
+why = "Structure and order samplers' edge marginals within 0.03+5 MCSE of the exact posterior at 10 and 12 variables."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/cross_world_posterior_truth.rs"
 evidence_assertion = "nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"
 kind = "known_truth"
 fixtures = ["conformance/estimate/cross_world_class_truth"]
-reason = "Nested graph-posterior effect equals the weighted mean of the atoms' closed forms under every suite."
+why = "Nested graph-posterior effect equals the weighted mean of the atoms' closed forms under every suite."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/cross_world_temporal_truth.rs"
 evidence_assertion = "temporal_lead_refuters_pass_the_clean_series_at_their_size_and_flag_a_planted_anticipation"
 kind = "simulation"
 fixtures = ["conformance/estimate/temporal_cross_world"]
-reason = "Temporal lead refuters' size on clean series and detection of planted anticipation over a seed grid."
+why = "Temporal lead refuters' size on clean series and detection of planted anticipation over a seed grid."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/cross_world_temporal_truth.rs"
 evidence_assertion = "temporal_cross_world_cells_execute_from_the_retained_plan_without_the_builder"
 kind = "known_truth"
 fixtures = ["conformance/estimate/temporal_cross_world"]
-reason = "Temporal cross-world effects match the linear mechanism for every class, structure, inference and suite."
+why = "Temporal cross-world effects match the linear mechanism for every class, structure, inference and suite."
 
 [[test]]
 evidence_test = "crates/antecedent-design/src/choice_evsi.rs"
 evidence_assertion = "hierarchical_evsi_matches_independent_three_option_grid"
 kind = "reference"
 fixtures = ["crates/antecedent/tests/oracle_data/hierarchical_choice_evsi_three_reference.json"]
-reason = "Hierarchical choice EVSI within 2e-5 of an independent three-option grid reference."
+why = "Hierarchical choice EVSI within 2e-5 of an independent three-option grid reference."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/dbn_posterior_atom_identity.rs"
 evidence_assertion = "lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effects"
 kind = "known_truth"
 fixtures = []
-reason = "Lag-distinct DBN atoms keep their distinct effects: unadjusted mean 3.0 and adjusted mean 2.0 within 0.03."
+why = "Lag-distinct DBN atoms keep their distinct effects: unadjusted mean 3.0 and adjusted mean 2.0 within 0.03."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/dbn_posterior_atom_identity.rs"
 evidence_assertion = "repeated_dbn_atoms_contribute_their_combined_mass_once"
 kind = "reference"
 fixtures = []
-reason = "Repeated DBN atoms equal the coalesced reference fit (estimate and bootstrap SE within 1e-10) and the mixture mean."
+why = "Repeated DBN atoms equal the coalesced reference fit (estimate and bootstrap SE within 1e-10) and the mixture mean."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/temporal_window_route_evidence.rs"
 evidence_assertion = "temporal_admg_window_contrasts_run_from_the_retained_plan_without_the_builder"
 kind = "known_truth"
 fixtures = ["conformance/estimate/temporal_window_truth"]
-reason = "Temporal ADMG window contrasts against the temporal-window truth from the retained plan."
+why = "Temporal ADMG window contrasts against the temporal-window truth from the retained plan."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/temporal_window_route_evidence.rs"
 evidence_assertion = "temporal_admg_window_posterior_runs_from_the_retained_plan_without_the_builder"
 kind = "known_truth"
 fixtures = ["conformance/estimate/temporal_window_truth"]
-reason = "Temporal ADMG window posterior effect and 0.2 unidentified mass against the temporal-window truth from the retained plan."
+why = "Temporal ADMG window posterior effect and 0.2 unidentified mass against the temporal-window truth from the retained plan."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/temporal_window_route_evidence.rs"
 evidence_assertion = "temporal_pag_window_mediation_runs_from_the_retained_plan_without_the_builder"
 kind = "known_truth"
 fixtures = ["conformance/estimate/temporal_window_truth"]
-reason = "Temporal PAG window mediation brackets against the temporal-window truth from the retained plan."
+why = "Temporal PAG window mediation brackets against the temporal-window truth from the retained plan."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/temporal_window_route_evidence.rs"
 evidence_assertion = "temporal_admg_window_mediation_runs_from_the_retained_plan_without_the_builder"
 kind = "known_truth"
 fixtures = ["conformance/estimate/temporal_window_truth"]
-reason = "Temporal ADMG window mediation components against the temporal-window truth from the retained plan."
+why = "Temporal ADMG window mediation components against the temporal-window truth from the retained plan."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs"
 evidence_assertion = "response_curve_validation_panel_class_known_truth"
 kind = "known_truth"
 fixtures = ["conformance/response/curve_refuter_route_states"]
-reason = "Panel-class response curve equals 1.4x+0.6*mean_z within the pinned band under cheap and full validation."
+why = "Panel-class response curve equals 1.4x+0.6*mean_z within the pinned band under cheap and full validation."
 
 [[test]]
 evidence_test = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
 evidence_assertion = "published_conditions_clear_the_gate_on_independent_colliders_at_twelve_variables"
 kind = "posterior"
 fixtures = []
-reason = "Wide graph-posterior sampler gate: convergence and recovery of the planted structure at published conditions."
+why = "Wide graph-posterior sampler gate: convergence and recovery of the planted structure at published conditions."
 
 [[test]]
 evidence_test = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
 evidence_assertion = "published_conditions_clear_the_gate_on_the_interacting_ring_at_twelve_variables"
 kind = "posterior"
 fixtures = []
-reason = "Wide graph-posterior sampler gate: convergence and recovery of the planted structure at published conditions."
+why = "Wide graph-posterior sampler gate: convergence and recovery of the planted structure at published conditions."
 
 [[test]]
 evidence_test = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
 evidence_assertion = "published_conditions_clear_the_gate_on_independent_colliders_at_ten_variables"
 kind = "posterior"
 fixtures = []
-reason = "Wide graph-posterior sampler gate: convergence and recovery of the planted structure at published conditions."
+why = "Wide graph-posterior sampler gate: convergence and recovery of the planted structure at published conditions."
 
 [[test]]
 evidence_test = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
 evidence_assertion = "published_conditions_clear_the_gate_on_the_interacting_ring_at_ten_variables"
 kind = "posterior"
 fixtures = []
-reason = "Wide graph-posterior sampler gate: convergence and recovery of the planted structure at published conditions."
+why = "Wide graph-posterior sampler gate: convergence and recovery of the planted structure at published conditions."
 
 [[test]]
 evidence_test = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
 evidence_assertion = "strong_signal_concentrates_on_the_true_twelve_variable_structure"
 kind = "posterior"
 fixtures = []
-reason = "Wide graph-posterior sampler gate: convergence and recovery of the planted structure at published conditions."
+why = "Wide graph-posterior sampler gate: convergence and recovery of the planted structure at published conditions."
 
 [[test]]
 evidence_test = "crates/antecedent-discovery/tests/graph_posterior_wide.rs"
 evidence_assertion = "samplers_match_an_exhaustive_reference_on_the_twelve_variable_ring_skeleton"
 kind = "reference"
 fixtures = []
-reason = "Restricted samplers match the exhaustive 3^12 state reference on the twelve-variable ring skeleton."
+why = "Restricted samplers match the exhaustive 3^12 state reference on the twelve-variable ring skeleton."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/checked_bayesian_temporal_class_effect_route_evidence.rs"
 evidence_assertion = "all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_proofs"
 kind = "route_sweep"
 fixtures = []
-reason = "Every Bayesian temporal-class effect coordinate: truth inside the completion band, bounds near the adjusted/unadjusted completions, plan retained."
+why = "Every Bayesian temporal-class effect coordinate: truth inside the completion band, bounds near the adjusted/unadjusted completions, plan retained."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs"
 evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"
 kind = "route_sweep"
 fixtures = []
-reason = "Every frequentist temporal-class effect coordinate: truth inside the envelope before and after refresh."
+why = "Every frequentist temporal-class effect coordinate: truth inside the envelope before and after refresh."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/temporal_pag_mediation.rs"
 evidence_assertion = "the_bayesian_bootstrap_shares_one_weight_per_block_into_an_identified_set_interval"
 kind = "known_truth"
 fixtures = []
-reason = "Block Bayesian bootstrap recovers the structural direct effect within 0.01 and brackets the identified-set bounds."
+why = "Block Bayesian bootstrap recovers the structural direct effect within 0.01 and brackets the identified-set bounds."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/checked_temporal_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
 kind = "route_sweep"
 fixtures = []
-reason = "Every fixed-DAG temporal mediation coordinate recovers the mediated truth within tolerance."
+why = "Every fixed-DAG temporal mediation coordinate recovers the mediated truth within tolerance."
 
 [[test]]
 evidence_test = "crates/antecedent/src/analysis/execute/checked_temporal_mediation.rs"
 evidence_assertion = "checked_operation_executes_every_fixed_temporal_dag_support_coordinate"
 kind = "route_sweep"
 fixtures = []
-reason = "Every fixed temporal DAG support coordinate executes; the posterior 95% interval covers the mediated truth."
+why = "Every fixed temporal DAG support coordinate executes; the posterior 95% interval covers the mediated truth."
 
 [[test]]
 evidence_test = "crates/antecedent-design/tests/certified_program_search_reference.rs"
 evidence_assertion = "the_certified_bound_is_sound_and_the_certificate_is_tight_against_independent_truth"
 kind = "reference"
 fixtures = ["crates/antecedent-design/tests/oracle_data/certified_program_search_reference.json"]
-reason = "Certified upper bound sound and certificate tight against 20 independently computed true maxima."
+why = "Certified upper bound sound and certificate tight against 20 independently computed true maxima."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_response_route_evidence.rs"
 evidence_assertion = "all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms"
 kind = "route_sweep"
 fixtures = ["conformance/estimate/temporal_class_posterior_response_truth"]
-reason = "Every temporal graph-posterior response coordinate matches the atoms' level truth, before and after refresh."
+why = "Every temporal graph-posterior response coordinate matches the atoms' level truth, before and after refresh."
 
 [[test]]
 evidence_test = "crates/antecedent-stats/tests/hierarchical_choice_reference.rs"
 evidence_assertion = "summaries_match_the_references"
 kind = "reference"
 fixtures = ["crates/antecedent-stats/tests/oracle_data/hierarchical_choice_reference.json"]
-reason = "Hierarchical choice posterior summaries against independent references (mean, probability best, expected loss)."
+why = "Hierarchical choice posterior summaries against independent references (mean, probability best, expected loss)."
 
 [[test]]
 evidence_test = "crates/antecedent-stats/tests/hierarchical_choice_reference.rs"
 evidence_assertion = "a_nearly_homogeneous_population_recovers_the_pooled_posterior"
 kind = "reference"
 fixtures = ["crates/antecedent-stats/tests/oracle_data/hierarchical_choice_reference.json"]
-reason = "A nearly homogeneous hierarchical population recovers the pooled conjugate posterior."
+why = "A nearly homogeneous hierarchical population recovers the pooled conjugate posterior."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates"
 kind = "route_sweep"
 fixtures = ["conformance/bayesian/known_truth_mixtures"]
-reason = "Every temporal-class graph-posterior mediation coordinate matches the known-truth mixture effect."
+why = "Every temporal-class graph-posterior mediation coordinate matches the known-truth mixture effect."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/checked_temporal_class_mediation_route_evidence.rs"
 evidence_assertion = "checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordinates"
 kind = "route_sweep"
 fixtures = []
-reason = "Every temporal-class envelope mediation coordinate has both bounds at the mediated truth within tolerance."
+why = "Every temporal-class envelope mediation coordinate has both bounds at the mediated truth within tolerance."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs"
 evidence_assertion = "counterfactual_graph_posterior_executes_from_the_retained_plan_without_the_builder"
 kind = "known_truth"
 fixtures = ["conformance/estimate/cross_world_counterfactual_posterior"]
-reason = "Counterfactual graph-posterior effect equals the weighted mean of the atoms' closed forms under every suite."
+why = "Counterfactual graph-posterior effect equals the weighted mean of the atoms' closed forms under every suite."
 
 [[test]]
 evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
 evidence_assertion = "time_ordered_splits_remove_the_inflation_that_serial_dependence_causes"
 kind = "simulation"
 fixtures = []
-reason = "Shuffled splits inflate a flexible family's score under serial dependence by >0.1; time-ordered splits do not and agree on independent rows."
+why = "Shuffled splits inflate a flexible family's score under serial dependence by >0.1; time-ordered splits do not and agree on independent rows."
 
 [[test]]
 evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
 evidence_assertion = "a_tree_ensemble_recovers_an_interaction_mechanism"
 kind = "known_truth"
 fixtures = []
-reason = "Tree ensemble wins model selection on data generated from an interaction mechanism."
+why = "Tree ensemble wins model selection on data generated from an interaction mechanism."
 
 [[test]]
 evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
 evidence_assertion = "a_tree_ensemble_recovers_a_quadratic_mechanism"
 kind = "known_truth"
 fixtures = []
-reason = "Tree ensemble wins model selection on data generated from a quadratic mechanism."
+why = "Tree ensemble wins model selection on data generated from a quadratic mechanism."
 
 [[test]]
 evidence_test = "crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs"
 evidence_assertion = "all_native_target_kinds_execute_full_experiment_matrix_against_independent_references"
 kind = "reference"
 fixtures = ["conformance/response/joint_panel/acceptance_record.rs"]
-reason = "All seven native target kinds' projected prior means match separately derived truths within pinned tolerances."
+why = "All seven native target kinds' projected prior means match separately derived truths within pinned tolerances."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/mediation_decomposition_validation.rs"
 evidence_assertion = "a_pag_decomposition_is_refuted_member_by_member_against_the_structural_effect"
 kind = "known_truth"
 fixtures = []
-reason = "PAG mediation decomposition members each match the structural natural direct effect within 6e-3 and are refuted member by member."
+why = "PAG mediation decomposition members each match the structural natural direct effect within 6e-3 and are refuted member by member."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/mediation_decomposition_validation.rs"
 evidence_assertion = "a_pag_decomposition_publishes_an_artifact_a_consumer_reads"
 kind = "known_truth"
 fixtures = []
-reason = "The published PAG decomposition artifact read back by a consumer carries the structural natural direct effect within 6e-3."
+why = "The published PAG decomposition artifact read back by a consumer carries the structural natural direct effect within 6e-3."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/path_specific_admg_route.rs"
 evidence_assertion = "the_class_band_covers_the_identified_set_bayesian"
 kind = "known_truth"
 fixtures = []
-reason = "Bayesian class band covers the identified-set truth of the effect through A."
+why = "Bayesian class band covers the identified-set truth of the effect through A."
 
 [[test]]
 evidence_test = "crates/antecedent-discovery/src/structure_mcmc.rs"
 evidence_assertion = "paired_move_matches_the_exact_conditional_from_every_four_node_dag"
 kind = "posterior"
 fixtures = []
-reason = "Paired-move draws from each of the 543 four-node DAGs follow the exact normalised BIC conditional."
+why = "Paired-move draws from each of the 543 four-node DAGs follow the exact normalised BIC conditional."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs"
 evidence_assertion = "class_graph_posterior_derivative_planted_off_support_point_is_detected"
 kind = "known_truth"
 fixtures = ["conformance/response/class_derivative_states"]
-reason = "Class graph-posterior derivative: clean fixture passes and a planted off-support point is detected."
+why = "Class graph-posterior derivative: clean fixture passes and a planted off-support point is detected."
 
 [[test]]
 evidence_test = "crates/antecedent-design/tests/adaptive_policy_search.rs"
 evidence_assertion = "hard_and_chance_exposure_constraints_bind_and_relax_monotonically"
 kind = "simulation"
 fixtures = []
-reason = "Policy search on a simulator: hard exposure bound costs utility, chance relaxation recovers it, violation rates respect their bounds."
+why = "Policy search on a simulator: hard exposure bound costs utility, chance relaxation recovers it, violation rates respect their bounds."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs"
 evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs"
 kind = "route_sweep"
 fixtures = []
-reason = "Every temporal graph-posterior effect coordinate within tolerance of the route truth, before and after refresh."
+why = "Every temporal graph-posterior effect coordinate within tolerance of the route truth, before and after refresh."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/conditional_effect_admg_bayesian_interval.rs"
 evidence_assertion = "conditional_effect_admg_bayesian_cells_execute_with_a_posterior_quantile_interval"
 kind = "known_truth"
 fixtures = ["conformance/estimate/admg_conditional_strata"]
-reason = "Conditional-effect ADMG Bayesian cells match the stratified difference within the pinned tolerance with a posterior quantile interval."
+why = "Conditional-effect ADMG Bayesian cells match the stratified difference within the pinned tolerance with a posterior quantile interval."
 
 [[test]]
 evidence_test = "crates/antecedent-io/tests/choice_inference_result_artifact.rs"
 evidence_assertion = "the_hierarchical_posterior_carries_the_respondents_dependence"
 kind = "posterior"
 fixtures = []
-reason = "Hierarchical choice posterior is less certain than pooled-count Dirichlet for repeated choosers; shares sum to one."
+why = "Hierarchical choice posterior is less certain than pooled-count Dirichlet for repeated choosers; shares sum to one."
 
 [[test]]
 evidence_test = "python/tests/test_adaptive_binary_family.py"
 evidence_assertion = "test_an_estimated_correlation_is_integrated_jointly_with_the_arm_means"
 kind = "posterior"
 fixtures = []
-reason = "Joint posterior integration of an estimated arm correlation with the arm means, checked against the closed-form family."
+why = "Joint posterior integration of an estimated arm correlation with the arm means, checked against the closed-form family."
 
 [[test]]
 evidence_test = "python/tests/test_graph_posterior_acceptance.py"
 evidence_assertion = "test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics"
 kind = "posterior"
 fixtures = []
-reason = "Ten- and twelve-variable structure posteriors recover the planted graphs and publish mixing diagnostics."
+why = "Ten- and twelve-variable structure posteriors recover the planted graphs and publish mixing diagnostics."
 
 [[test]]
 evidence_test = "python/tests/test_python_products.py"
 evidence_assertion = "test_route_temporal_mediation_event_graph_posterior"
 kind = "route_sweep"
 fixtures = ["parity/python_products.toml"]
-reason = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
+why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
 
 [[test]]
 evidence_test = "python/tests/test_python_products.py"
 evidence_assertion = "test_route_intervention_response_event_graph_posterior"
 kind = "route_sweep"
 fixtures = ["parity/python_products.toml"]
-reason = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
+why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
 
 [[test]]
 evidence_test = "python/tests/test_python_products.py"
 evidence_assertion = "test_route_intervention_response_series_graph_posterior"
 kind = "route_sweep"
 fixtures = ["parity/python_products.toml"]
-reason = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
+why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
 
 [[test]]
 evidence_test = "python/tests/test_python_products.py"
 evidence_assertion = "test_route_response_curve_event_graph_posterior"
 kind = "route_sweep"
 fixtures = ["parity/python_products.toml"]
-reason = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
+why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
 
 [[test]]
 evidence_test = "python/tests/test_python_products.py"
 evidence_assertion = "test_route_response_curve_series_graph_posterior"
 kind = "route_sweep"
 fixtures = ["parity/python_products.toml"]
-reason = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
+why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
 
 [[test]]
 evidence_test = "python/tests/test_python_products.py"
 evidence_assertion = "test_route_temporal_mediation_series_graph_posterior"
 kind = "route_sweep"
 fixtures = ["parity/python_products.toml"]
-reason = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
+why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
 
 [[test]]
 evidence_test = "python/tests/test_python_products.py"
 evidence_assertion = "test_route_sustained_event_graph_posterior"
 kind = "route_sweep"
 fixtures = ["parity/python_products.toml"]
-reason = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
+why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
 
 [[test]]
 evidence_test = "python/tests/test_python_products.py"
 evidence_assertion = "test_route_pulse_series_graph_posterior"
 kind = "route_sweep"
 fixtures = ["parity/python_products.toml"]
-reason = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
+why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
 
 [[test]]
 evidence_test = "python/tests/test_python_products.py"
 evidence_assertion = "test_route_sustained_series_graph_posterior"
 kind = "route_sweep"
 fixtures = ["parity/python_products.toml"]
-reason = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
+why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
 
 [[test]]
 evidence_test = "python/tests/test_python_products.py"
 evidence_assertion = "test_route_pulse_event_graph_posterior"
 kind = "route_sweep"
 fixtures = ["parity/python_products.toml"]
-reason = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
+why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."

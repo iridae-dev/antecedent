@@ -3,8 +3,8 @@
 
 CLI: python3 scripts/set_version.py X.Y.Z 0|1
 
-The second argument is 1 for --check (write nothing). Supported lines and the
-reviewed package version live in parity/release.toml. Markdown and notebook
+The second argument is 1 for --check (write nothing). Supported lines live in
+parity/release.toml. Markdown and notebook
 pins are generated blocks, not facts read back out of prose.
 """
 
@@ -18,8 +18,6 @@ ROOT = Path(".")
 
 SUPPORTED_BEGIN = "<!-- generated:release:supported-lines:begin -->"
 SUPPORTED_END = "<!-- generated:release:supported-lines:end -->"
-REVIEWED_BEGIN = "<!-- generated:release:reviewed-version:begin -->"
-REVIEWED_END = "<!-- generated:release:reviewed-version:end -->"
 CRATE_BEGIN = "<!-- generated:release:crate-dep:begin -->"
 CRATE_END = "<!-- generated:release:crate-dep:end -->"
 PIN_BEGIN = "<!-- generated:release:python-pin:begin -->"
@@ -51,10 +49,6 @@ def supported_table(lines: list[str]) -> str:
         rows.append(f"| {line}.x   | Yes |")
     rows.append("| < 2.0   | No — upgrade to the latest release |")
     return "\n".join(rows)
-
-
-def reviewed_scope(version: str) -> str:
-    return f"Scope: workspace crates + `python` extension (package version **{version}**)"
 
 
 def crate_dep(version: str) -> str:
@@ -95,7 +89,7 @@ def rewrite_assignment(text: str, key: str, literal: str) -> str:
     return new
 
 
-def load_release(root: Path) -> tuple[str, list[str], str | None]:
+def load_release(root: Path) -> tuple[str, list[str]]:
     path = root / "parity" / "release.toml"
     text = path.read_text(encoding="utf-8")
     data = tomllib.loads(text)
@@ -105,10 +99,7 @@ def load_release(root: Path) -> tuple[str, list[str], str | None]:
     for line in lines:
         if major_minor(f"{line}.0") != line:
             raise SnippetError(f"parity/release.toml: supported line {line!r} is not major.minor")
-    reviewed = data.get("reviewed_version")
-    if reviewed is not None and not isinstance(reviewed, str):
-        raise SnippetError("parity/release.toml: reviewed_version must be a string")
-    return text, lines, reviewed
+    return text, lines
 
 
 def release_lines_for(version: str, lines: list[str]) -> list[str]:
@@ -121,16 +112,14 @@ def release_lines_for(version: str, lines: list[str]) -> list[str]:
 def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> None:
     """Fill `edits` with generated release snippets for `version`.
 
-    `supported_lines` gains the new minor when it is absent. `reviewed_version`
-    becomes `version`. Callers compare or write `edits`; this function does not
+    `supported_lines` gains the new minor when it is absent. Callers compare or write `edits`; this function does not
     touch the tree.
     """
     release_path = root / "parity" / "release.toml"
-    text, lines, _reviewed = load_release(root)
+    text, lines = load_release(root)
     new_lines = release_lines_for(version, lines)
     literal = "[" + ", ".join(f'"{line}"' for line in new_lines) + "]"
     text = rewrite_assignment(text, "supported_lines", literal)
-    text = rewrite_assignment(text, "reviewed_version", f'"{version}"')
     edits[release_path] = text
 
     security = root / "SECURITY.md"
@@ -140,15 +129,6 @@ def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> 
         SUPPORTED_END,
         supported_table(new_lines),
         "SECURITY.md",
-    )
-
-    review = root / "docs" / "security_review.md"
-    edits[review] = replace_generated(
-        review.read_text(encoding="utf-8"),
-        REVIEWED_BEGIN,
-        REVIEWED_END,
-        reviewed_scope(version),
-        "docs/security_review.md",
     )
 
     crate = root / "crates" / "antecedent" / "README.md"

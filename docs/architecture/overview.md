@@ -83,9 +83,6 @@ inventory gate. Development dependencies may test independent consumers without
 becoming production dependencies. Its negative controls run with
 `python3 scripts/test_check_architecture.py`.
 
-The [engineering review](https://github.com/iridae-dev/antecedent/blob/main/parity/engineering_pass/README.md) records the
-reviewed caller chains, fixes, compatibility decisions and executing checks.
-
 Prepared functional operations retain their checked causal program separately
 from the data-bound empirical provider. Rebinding new data reuses that program;
 reading a contract on the producing snapshot reuses the provider's factor laws.
@@ -160,7 +157,6 @@ ordinary observer exceptions retain their print-and-continue contract.
 | Capability inventories | [parity/](https://github.com/iridae-dev/antecedent/blob/main/parity/README.md) |
 | ADRs | [adr/](https://github.com/iridae-dev/antecedent/blob/main/adr/README.md) |
 | Conformance fixtures | [conformance/](../conformance/README.md) |
-| Security / unsafe / support review | [security_review.md](../security_review.md) |
 
 The [multi-source transport and retained-grid architecture](transport-meta-grid.md)
 describes the μsID theorem scope, provider aliases, common prepared lifecycle,

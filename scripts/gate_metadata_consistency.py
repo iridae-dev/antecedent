@@ -37,7 +37,7 @@ for stale in re.findall(r"Version DOI for (\d+\.\d+\.\d+)", citation):
     if stale != version:
         fail.append(f"CITATION.cff carries a version DOI for {stale!r}; canonical is {version!r}")
 
-# Supported lines and the reviewed package version live in parity/release.toml.
+# Supported lines live in parity/release.toml.
 # scripts/set_version.py writes the generated blocks. This gate compares those
 # blocks to the renderer; it does not read a version out of the surrounding prose.
 ensure_scripts_on_path()

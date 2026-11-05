@@ -895,7 +895,7 @@ class Classification(unittest.TestCase):
         return root
 
     ROW = ('[[test]]\nevidence_test="crates/p/src/lib.rs"\nevidence_assertion="{name}"\n'
-           'kind="known_truth"\nfixtures=["conformance/fx"]\nreason="checks b"\n')
+           'kind="known_truth"\nfixtures=["conformance/fx"]\nwhy="checks b"\n')
 
     def test_registry_row_is_a_scientific_row_excluded_from_the_engineering_filter(self):
         with tempfile.TemporaryDirectory() as tmp:

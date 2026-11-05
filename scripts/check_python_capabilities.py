@@ -22,7 +22,7 @@ count), collapsed to what a Python user recognizes as "a thing I can do":
                    procedures, decisions, bridges): a record is one question a consumer asks
                    (`consumer_question`), which is already the Python user's granularity.
 
-A unit is exercised when a row of `parity/python_api_pass/capabilities.toml` (status covered,
+A unit is exercised when a row of `parity/python_capabilities/capabilities.toml` (status covered,
 plumbing or deferred) cites a Python test whose reachable code exercises it: the test names the
 query or family, is the Python test the capability record itself cites, or calls one of the
 record's Python-named routes. A row may also state `supports = [unit ids]` when no static link
@@ -48,8 +48,8 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = Path("parity/python_api_pass/capabilities.toml")
-SURFACE = Path("parity/python_api_pass/rust_surface.json")
+MANIFEST = Path("parity/python_capabilities/capabilities.toml")
+SURFACE = Path("parity/python_capabilities/rust_surface.json")
 #: Statuses whose cited journeys must execute. A deferred row cites the journeys that do not
 #: depend on the measurement it waits for (the typed refusal while not_measured, for example).
 EXECUTING = {"covered", "plumbing", "deferred"}

@@ -1,4 +1,4 @@
-# Retained Gaussian compilation and physical selection in 3.0
+# Retained Gaussian compilation and physical selection
 
 The production checked linear operation retains its scientific target,
 identification product, world obligations and scientific/physical operators.

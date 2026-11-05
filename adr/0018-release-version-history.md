@@ -28,7 +28,7 @@ remains a supported **source** format for migration
 (`SUPPORTED_SOURCE_FORMATS`) but is not the frozen target. ADR 0017's
 version and format freeze is now stale and, left uncorrected, misleads
 anyone who reads it as current guidance — several docs
-(`docs/development.md`, `docs/artifacts.md`, `docs/security_review.md`)
+(`docs/development.md`, `docs/artifacts.md`)
 independently needed correction to match reality.
 
 ## Decision

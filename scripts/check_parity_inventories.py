@@ -81,7 +81,7 @@ def release_problems() -> list[str]:
         "release.wheel_matrix": ".github/workflows/ci.yml",
         "release.conformance_docs": "parity/oracle_closure.toml",
         "release.hot_path_baselines": "benches/baselines/baselines.toml",
-        "release.security_review": "deny.toml",
+        "release.dependency_policy": "deny.toml",
         "release.ci_required_jobs": ".github/workflows/ci.yml",
     }
 

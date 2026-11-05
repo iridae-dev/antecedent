@@ -190,7 +190,6 @@ nav:
   - Test performance: guides/test-performance.md
   - Conformance: conformance/README.md
   - Hot paths: hot_paths.md
-  - Security review: security_review.md
   - Callback security: callback-security.md
   - Cyclic-system scope: development/cyclic-systems.md
   - Calibration runtime: calibration-runtime.md
@@ -202,7 +201,7 @@ nav:
     - Decision reach: reach-decisions.md
     - Composition release fixture: composition-release-fixture.md
     - Sampled recovery interval: sampled-recovery-bca.md
-    - Compiled execution boundary: migrations/compiled-execution-3.0.md
+    - Compiled execution boundary: migrations/compiled-execution.md
   - Technical derivations:
     - Joint mechanism sensitivity: guides/joint-mechanism-sensitivity.md
     - Exact transport: architecture/transport-exact.md

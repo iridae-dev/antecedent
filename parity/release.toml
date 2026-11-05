@@ -6,10 +6,6 @@ library = "antecedent"
 # scripts/set_version.py rewrites this and the generated SECURITY.md table.
 supported_lines = ["3.0", "2.4", "2.3", "2.2", "2.1", "2.0"]
 
-# Package version the current security-review scope covers.
-# scripts/set_version.py rewrites this and the generated scope block.
-reviewed_version = "3.0.0"
-
 [[capabilities]]
 id = "release.parity_closure"
 status = "done"
@@ -51,10 +47,10 @@ evidence_kind = "process_attested"
 notes = "docs/hot_paths.md + benches/baselines owners/contracts. Enforced by scripts/gate_hot_path_baselines.sh (owner/contract metadata for docs/hot_paths.md and benches/baselines), run from the static section of scripts/gate_release.sh."
 
 [[capabilities]]
-id = "release.security_review"
+id = "release.dependency_policy"
 status = "done"
 evidence_kind = "process_attested"
-notes = "Focused 2.4.1 source review covers experimental transport replay budgets, exact evaluator charging, Gaussian pooling, weighted source-proof authority and calibration artifact validation; external Cargo.lock dependency identities are unchanged from v2.4.0. Candidate unsafe/license/dependency policy checks + cargo-deny. Enforced by scripts/gate_release_candidate.sh (cargo-deny required for the release candidate) and the CI deny job; docs/security_review.md is a reviewed document, not executable behaviour."
+notes = "Unsafe, license and dependency policy checks plus cargo-deny. Enforced by scripts/gate_release_candidate.sh (cargo-deny required for the release candidate) and the CI deny job."
 
 [[capabilities]]
 id = "release.artifact_mmap_stream_skip"

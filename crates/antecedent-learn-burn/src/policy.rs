@@ -456,7 +456,7 @@ impl Provenance {
 /// of the smallest workload where the device end to end is at least twice as fast as the CPU
 /// with the out-of-fold gap inside tolerance (40,000 rows, 32 columns, hidden 128, 15 epochs,
 /// two folds). Below it, copies, kernel launches, and the fixed per-fit device cost mean the
-/// CPU is faster or the gain is under the 2x rule; see `parity/accelerator_decision.md`.
+/// CPU is faster or the gain is under the 2x rule.
 pub const DEFAULT_MIN_DEVICE_WORK: u64 = 37_094_400_000;
 
 /// Thresholds `auto` applies.
