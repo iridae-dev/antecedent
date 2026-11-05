@@ -12,6 +12,22 @@
 # inputs   repo paths, directories or globs the sites can read
 # env      environment variable names the sites can read
 # why      what the site does
+#
+# A procedural macro or build script may also read data outside source folders.
+# Earning requires an assessed input boundary for any such code in the test's
+# dependency graph. Put the declaration on the test consumer's Cargo.toml (the
+# native python/Cargo.toml for Python), and list every assessed compile-time package
+# name in `compile_time`. `inputs` and `env` describe its complete read boundary.
+# For example, a reader macro that loads its consumer's input.txt:
+# [[input]]
+# source = "crates/consumer/Cargo.toml"
+# compile_time = ["reader"]
+# inputs = ["crates/consumer/input.txt"]
+# env = []
+# why = "assessed reader macro reads this consumer input"
+# An empty input list is an explicit assessment that the listed packages consume
+# no additional files, not an automatic waiver for unknown reads. Missing metadata
+# or an unassessed package refuses earning. Declared missing paths are guarded too.
 
 [[input]]
 source = "crates/antecedent-estimate/src/prepare.rs"

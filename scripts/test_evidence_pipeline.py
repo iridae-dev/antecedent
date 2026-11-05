@@ -13,6 +13,54 @@ import scientific_records as sr
 
 
 class PipelineTest(unittest.TestCase):
+    def test_compile_time_data_requires_a_boundary_and_invalidates_the_pass(self):
+        with tempfile.TemporaryDirectory(prefix='antecedent-compile-input-') as tmp:
+            root = Path(tmp)
+            original = Path(__file__).resolve().parents[1]
+            for crate in ('reader', 'toy'):
+                (root / f'crates/{crate}/src').mkdir(parents=True)
+            (root / 'crates/toy/tests').mkdir()
+            (root / 'tools/evidence-analyzer').mkdir(parents=True)
+            shutil.copyfile(original / 'rust-toolchain.toml', root / 'rust-toolchain.toml')
+            shutil.copyfile(original / 'tools/evidence-analyzer/pin.toml', root / 'tools/evidence-analyzer/pin.toml')
+            (root / 'Cargo.toml').write_text('[workspace]\nmembers=["crates/reader","crates/toy"]\nresolver="2"\n')
+            (root / 'crates/reader/Cargo.toml').write_text('[package]\nname="reader"\nversion="0.1.0"\nedition="2021"\n[lib]\nproc-macro=true\n')
+            (root / 'crates/reader/src/lib.rs').write_text('''extern crate proc_macro;
+#[proc_macro]
+pub fn measured(_: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let input = std::fs::read_to_string(format!("{dir}/input.txt")).unwrap();
+    let value: i32 = input.trim().parse().unwrap();
+    format!("pub const VALUE:i32={value};").parse().unwrap()
+}
+''')
+            (root / 'crates/toy/Cargo.toml').write_text('[package]\nname="toy"\nversion="0.1.0"\nedition="2021"\n[dependencies]\nreader={path="../reader"}\n')
+            (root / 'crates/toy/src/lib.rs').write_text('reader::measured!();\npub fn used()->i32 { VALUE }\n')
+            data = root / 'crates/toy/input.txt'
+            data.write_text('7')
+            (root / 'crates/toy/tests/check.rs').write_text('#[test] fn check() { assert_eq!(toy::used(),7); }\n')
+            subprocess.run(['cargo','generate-lockfile','--offline'], cwd=root, check=True, capture_output=True)
+            row = dict(evidence_test='crates/toy/tests/check.rs', evidence_assertion='check', fixtures=[], roles=['scientific'])
+            with redirect_stdout(io.StringIO()), self.assertRaisesRegex(RuntimeError, 'undeclared compile-time'):
+                sr.earn_rust(root, [row])
+            self.assertFalse(sr.load_records(root))
+            (root / 'parity').mkdir(exist_ok=True)
+            (root / 'parity/fingerprint_inputs.toml').write_text('''[[input]]
+source="crates/toy/Cargo.toml"
+compile_time=["reader"]
+inputs=["crates/toy/input.txt"]
+env=[]
+why="reader macro reads its consumer's input.txt"
+''')
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(sr.earn_rust(root, [row]), 0)
+            self.assertEqual(len(sr.classify(root, [row])[1]), 1)
+            data.write_text('8')
+            self.assertEqual(len(sr.classify(root, [row])[0]), 1)
+            rebuilt = subprocess.run(['cargo','test','--offline','-p','toy','--test','check'],
+                                     cwd=root, capture_output=True)
+            self.assertNotEqual(rebuilt.returncode, 0)
+
     def test_capture_earn_and_check_with_pinned_compiler(self):
         with tempfile.TemporaryDirectory(prefix='antecedent-manifest-engineering-') as tmp:
             root = Path(tmp)
@@ -56,6 +104,14 @@ class PipelineTest(unittest.TestCase):
             (root/'crates/toy/src/lib.rs').write_text(source.replace('unused()','unused(x:i32)'))
             owed,current = sr.classify(root,[row])
             self.assertEqual((len(owed),len(current)),(1,0))
+
+            # Cargo auto-discovers a new build.rs without a Cargo.toml edit.
+            (root/'crates/toy/src/lib.rs').write_text('pub fn used()->i32 { option_env!("REVIEW_VALUE").unwrap_or("2").parse().unwrap() }\n')
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(sr.earn_rust(root, [row]), 0)
+            self.assertEqual(len(sr.classify(root, [row])[1]), 1)
+            (root/'crates/toy/build.rs').write_text('fn main() { println!("cargo:rustc-env=REVIEW_VALUE=3"); }')
+            self.assertEqual(len(sr.classify(root, [row])[0]), 1)
 
 
 if __name__ == '__main__': unittest.main()

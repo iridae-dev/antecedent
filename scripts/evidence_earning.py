@@ -159,14 +159,46 @@ class Snapshot:
         # anywhere in the compilation (or the metadata saying so cannot be read), no
         # body is projected: the whole snapshot keeps complete source.
         compile_time = compile_time_code(root)
-        self.opaque = compile_time is None
+        if compile_time is None:
+            raise RuntimeError('cannot establish compile-time dependencies; Cargo metadata is required before earning evidence')
+        required = set().union(*(compile_time.get(name, {name}) for name in names))
         for name in names:
             directory = fp.crate_dir(name)
             config = tomllib.loads((directory / 'Cargo.toml').read_text())
             if config.get('lib', {}).get('proc-macro') or (directory / 'build.rs').exists():
-                self.opaque = True
-            if compile_time is None or compile_time.get(name, {name}):
-                self.opaque = True
+                required.add(name)
+        if required:
+            consumer = fp.crate_dir(info['crate']) if info['lang'] == 'rust' else root / 'python'
+            source = (consumer / 'Cargo.toml').relative_to(root).as_posix()
+            boundaries = [entry for entry in fp.declarations() if entry['source'] == source
+                          and 'compile_time' in entry]
+            assessed = set()
+            for entry in boundaries:
+                packages = entry['compile_time']
+                if not isinstance(packages, list) or not all(isinstance(p, str) for p in packages):
+                    raise RuntimeError(f'{INPUT_DECLARATIONS}: compile_time must list assessed package names')
+                assessed.update(packages)
+            if not required <= assessed:
+                raise RuntimeError(f'undeclared compile-time input boundary for {source}: '
+                                   f'{", ".join(sorted(required - assessed))}; add an assessed '
+                                   f'compile_time input declaration to {INPUT_DECLARATIONS}')
+            # A declared boundary covers data and environment reads, not just
+            # source. Apply it even though no runtime path scanner reached it.
+            with fp.tracking() as compile_inputs:
+                _, compile_env = fp.declared([f'{source}: compile-time inputs'])
+            files.update(compile_inputs.files)
+            dirs.update(p.relative_to(root).as_posix() for p in compile_inputs.directories)
+            for entry in boundaries:
+                for pattern in entry.get('inputs', []):
+                    if not any(c in pattern for c in '*?[') and not (root / pattern).is_dir():
+                        files.add(root / pattern)
+            env_names.update(compile_env)
+            wrong = noncanonical_environment(os.environ, compile_env)
+            if wrong:
+                raise RuntimeError('compile-time inputs require the canonical environment; unset: ' + ', '.join(wrong))
+        self.opaque = bool(required)
+        for name in names:
+            directory = fp.crate_dir(name)
             for sub in ('src', 'tests'):
                 if (directory / sub).is_dir():
                     dirs.add((directory / sub).relative_to(root).as_posix())
@@ -223,12 +255,19 @@ class Snapshot:
             raise RuntimeError('evidence inputs changed during execution; pass not recorded')
         # Share complete source-tree digests across records. Projected source
         # stays explicit so body precision is not lost through tree hashing.
+        checker = Checker(self.root)
         for guard in list(self.manifest['inputs']):
             prefix = guard.get('path', '')
             if guard['kind'] != 'membership' or not prefix.endswith('/src'):
                 continue
-            inside = [i for i in self.manifest['inputs'] if i.get('path', '').startswith(prefix + '/')]
-            if any(i['kind'] == 'guarded_file' for i in inside):
+            # Only replace files represented by the tree. Explicit reads of
+            # ignored files still carry evidence even though git omits them.
+            members = set(checker.members(prefix))
+            inside = [i for i in self.manifest['inputs'] if i['kind'] == 'evidence_file'
+                      and i.get('path') in members]
+            projected = [i for i in self.manifest['inputs'] if i.get('path', '').startswith(prefix + '/')
+                         and i['kind'] == 'guarded_file']
+            if projected:
                 continue
             self.manifest['inputs'] = [i for i in self.manifest['inputs'] if i not in inside]
             self.manifest['inputs'].append(dict(kind='tree', path=prefix,

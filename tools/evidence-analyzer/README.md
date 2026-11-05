@@ -17,6 +17,14 @@ dependency graph; when no owed assertion qualifies, the driver is not built. Run
 dependency edges; `scripts/evidence_analyzer_probe.py` uses that on a disposable
 fixture to check the compiler interface.
 
+Keeping full source alone does not establish the data read by a procedural macro
+or build script. Earning therefore also requires an assessed `compile_time` input
+declaration on the consumer's Cargo.toml in `parity/fingerprint_inputs.toml` for
+every compile-time package in its dependency graph. Unknown boundaries or missing
+Cargo metadata refuse earning; declared data, environment inputs and missing paths
+remain dependencies. See the declaration example in that registry. Policy
+`conservative-source-v2` invalidates manifests earned before these safeguards.
+
 What a manifest covers is described in
 [Earning and checking the records](../../docs/guides/scientific-verification.md#earning-and-checking-the-records).
 Engineering checks:

@@ -105,7 +105,15 @@ class EarningTests(Fixture):
         from evidence_earning import project_snapshot
         import evidence_earning
         coverage = {str((self.root / 'crates/leaf/src/lib.rs').resolve()): {1}}
-        for graph in (None, {'leaf': {'a_derive'}, 'mid': set(), 'top': set()}, {'top': {'build_script_dep'}}):
+        with patch.dict(evidence_earning._COMPILE_TIME, {self.root: None}):
+            with self.assertRaisesRegex(RuntimeError, 'Cargo metadata'):
+                self.snapshot()
+        for graph in ({'leaf': {'a_derive'}, 'mid': set(), 'top': set()},
+                      {'leaf': set(), 'mid': set(), 'top': {'build_script_dep'}}):
+            required = sorted(set().union(*graph.values()))
+            import json
+            self.write('parity/fingerprint_inputs.toml', '[[input]]\nsource="crates/top/Cargo.toml"\n'
+                       f'compile_time={json.dumps(required)}\ninputs=[]\nenv=[]\nwhy="assessed fixture macro"\n')
             with patch.dict(evidence_earning._COMPILE_TIME, {self.root: graph}):
                 snapshot = self.snapshot()
             self.assertTrue(snapshot.opaque, graph)
@@ -114,6 +122,55 @@ class EarningTests(Fixture):
             self.assertTrue(snapshot.manifest['fallbacks'])
         with patch.dict(evidence_earning._COMPILE_TIME, {self.root: {'leaf': set(), 'mid': set(), 'top': set()}}):
             self.assertFalse(self.snapshot().opaque)
+
+    def test_a_new_default_build_script_invalidates_the_pass(self):
+        snapshot = self.snapshot()
+        ref = snapshot.publish()
+        self.write('crates/leaf/build.rs', 'fn main() { println!("cargo:rustc-env=VALUE=3"); }')
+        self.assertFalse(Checker(self.root).check(snapshot.manifest['record'], ref)['current'])
+        with self.assertRaisesRegex(RuntimeError, 'inputs changed'):
+            snapshot.publish()
+
+    def test_unassessed_compile_time_reads_refuse_earning(self):
+        import evidence_earning
+        graph = {'leaf': set(), 'mid': set(), 'top': {'reader'}}
+        with patch.dict(evidence_earning._COMPILE_TIME, {self.root: graph}):
+            with self.assertRaisesRegex(RuntimeError, 'undeclared compile-time input boundary'):
+                self.snapshot()
+
+    def test_declared_compile_time_data_and_missing_inputs_are_guarded(self):
+        import evidence_earning
+        self.write('parity/fingerprint_inputs.toml', '''[[input]]
+source="crates/top/Cargo.toml"
+compile_time=["reader"]
+inputs=["crates/top/input.txt", "crates/top/optional.txt"]
+env=[]
+why="reader macro reads the consumer inputs"
+''')
+        self.write('crates/top/input.txt', '7')
+        graph = {'leaf': set(), 'mid': set(), 'top': {'reader'}}
+        with patch.dict(evidence_earning._COMPILE_TIME, {self.root: graph}):
+            snapshot = self.snapshot()
+        ref = snapshot.publish()
+        self.assertTrue(Checker(self.root).check(snapshot.manifest['record'], ref)['current'])
+        self.write('crates/top/input.txt', '8')
+        self.assertFalse(Checker(self.root).check(snapshot.manifest['record'], ref)['current'])
+        self.write('crates/top/input.txt', '7')
+        self.write('crates/top/optional.txt', 'new input')
+        self.assertFalse(Checker(self.root).check(snapshot.manifest['record'], ref)['current'])
+
+    def test_compaction_preserves_explicit_ignored_data_inputs(self):
+        self.write('crates/top/src/lib.rs', 'pub const V:&str=include_str!("data/value.txt");')
+        self.write('crates/top/src/data/value.txt', '7')
+        self.write('.gitignore', 'value.txt\n')
+        for args in (['init','-q'], ['add','-A']):
+            subprocess.run(['git', *args], cwd=self.root, check=True, capture_output=True)
+        snapshot = self.snapshot()
+        ref = snapshot.publish()
+        self.assertTrue(any(i.get('path') == 'crates/top/src/data/value.txt'
+                            for i in snapshot.manifest['inputs']))
+        self.write('crates/top/src/data/value.txt', '8')
+        self.assertFalse(Checker(self.root).check(snapshot.manifest['record'], ref)['current'])
 
     def test_earning_refuses_untracked_inputs_and_ignores_ignored_files(self):
         git = lambda *args: subprocess.run(['git', *args], cwd=self.root, check=True, capture_output=True)  # noqa: E731

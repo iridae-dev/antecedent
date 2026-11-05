@@ -970,6 +970,10 @@ class Fingerprinter:
                         or not row["why"].strip()
                         or not all(isinstance(x, str) for x in row.get("inputs", []))
                         or not all(isinstance(x, str) for x in row.get("env", []))
+                        or ("compile_time" in row and (
+                            not isinstance(row["compile_time"], list)
+                            or not all(isinstance(x, str) for x in row["compile_time"])
+                        ))
                     ):
                         raise UnresolvedInput(f"{INPUT_DECLARATIONS}: malformed row {row!r}")
                     rows.append(row)
@@ -1037,7 +1041,9 @@ class Fingerprinter:
         def compute() -> str:
             d = self.crate_dir(name)
             files = tree_files(d / "src") + [d / "Cargo.toml", d / "build.rs"]
-            base = self._tree([f for f in files if f.is_file()])
+            # Cargo discovers build.rs automatically, including when it is added
+            # without a manifest edit. Absence is therefore an input too.
+            base = self._tree(files)
             return _sha(base, self._scan_digest(self.crate_scan(name)))
 
         return self._memo(f"crate:{name}", compute)

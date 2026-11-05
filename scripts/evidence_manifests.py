@@ -33,7 +33,7 @@ SCHEMA = 1
 NORMALIZATION = "raw-bytes-v1"
 # The dependency policy that writes manifests. Changing what earning records,
 # or how, renames it, which owes every manifest written under the old policy.
-ANALYZER = "conservative-source-v1"
+ANALYZER = "conservative-source-v2"
 HEX = re.compile(r"[0-9a-f]{64}\Z")
 KINDS = ("file", "tree", "env", "guarded_file", "membership", "evidence_file", "glob", "build_env")
 ROLES = ("execution", "compile", "selection", "external", "identity")
