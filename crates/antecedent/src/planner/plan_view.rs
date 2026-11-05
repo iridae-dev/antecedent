@@ -1928,6 +1928,7 @@ impl PlanView {
             "identity_scope": self.identity_scope().as_str(),
             "semantic_identity": self.semantic_identity().map(|id| id.to_hex()),
             "depth": self.depth().as_str(),
+            "deferred_atom_operations": self.depth().deferred_operations(),
             "scientific": scientific_json(self.scientific()),
             "identification": self.identification.facts(),
             "statistical": statistical_json(self.statistical()),

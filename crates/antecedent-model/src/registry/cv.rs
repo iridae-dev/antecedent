@@ -2,7 +2,9 @@
 
 use std::borrow::Cow;
 
-use antecedent_core::CausalRng;
+use std::sync::Arc;
+
+use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_data::TabularData;
 use antecedent_kernels::{ViewError, shuffled_fold_assignment};
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
@@ -53,6 +55,10 @@ pub(super) struct FitFrame<'d> {
     /// a frame keep the scheme, so a fit that cross-validates internally (the tree
     /// families' out-of-fold noise scale) splits the way the selection does.
     pub(super) splits: ValidationSplits,
+    /// The caller's execution context, when the fit runs under one. A tree-ensemble family
+    /// admits its working set against it and polls its cancellation; the other families
+    /// never read it. Fold subsets keep it.
+    pub(super) execution: Option<Arc<ExecutionContext>>,
 }
 
 impl<'d> FitFrame<'d> {
@@ -74,7 +80,19 @@ impl<'d> FitFrame<'d> {
             groups: super::fit::unit_id_groups(data, n),
             n,
             splits: ValidationSplits::Shuffled,
+            execution: None,
         })
+    }
+
+    /// Same frame fitted under the caller's execution context.
+    pub(super) fn with_execution(mut self, ctx: &ExecutionContext) -> Self {
+        self.execution = Some(Arc::new(ctx.clone()));
+        self
+    }
+
+    /// The caller's execution context, when one was supplied.
+    pub(super) fn execution(&self) -> Option<&ExecutionContext> {
+        self.execution.as_deref()
     }
 
     /// Same frame with the declared validation-split scheme.
@@ -114,6 +132,7 @@ impl<'d> FitFrame<'d> {
             groups: self.groups.as_ref().map(|g| rows.iter().map(|&r| g[r]).collect()),
             n: rows.len(),
             splits: self.splits,
+            execution: self.execution.clone(),
         }
     }
 
@@ -124,6 +143,7 @@ impl<'d> FitFrame<'d> {
             groups: self.groups.clone(),
             n: self.n,
             splits: self.splits,
+            execution: self.execution.clone(),
         }
     }
 

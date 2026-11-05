@@ -433,10 +433,42 @@ fn materialize_refuses_a_file_that_grew_after_its_quote() {
     let plan = table.plan_columns(&["x", "y"], ReadOptions::with_chunk_rows(3)).unwrap();
     assert_eq!(table.quote(&plan).unwrap().unwrap().rows(), GlobalId::new(2));
     write_parquet(&path, &numeric_batch(3, 0.0), 3);
-    assert!(matches!(table.materialize(&plan, &ctx()), Err(FileSourceError::Data(_))));
-    // A shorter replacement also cannot produce a complete receipt for the original quote.
+    assert!(matches!(table.materialize(&plan, &ctx()), Err(FileSourceError::SourceChanged { .. })));
+    // A shorter replacement is refused the same way.
     write_parquet(&path, &numeric_batch(1, 0.0), 1);
-    assert!(matches!(table.materialize(&plan, &ctx()), Err(FileSourceError::Data(_))));
+    assert!(matches!(table.materialize(&plan, &ctx()), Err(FileSourceError::SourceChanged { .. })));
+}
+
+#[test]
+fn a_file_rewritten_after_open_is_refused_at_reader_and_at_rewind() {
+    for (label, write) in [
+        ("drift-parquet", write_parquet as fn(&Path, &RecordBatch, usize)),
+        ("drift-ipc", write_ipc_file as fn(&Path, &RecordBatch, usize)),
+    ] {
+        let scratch = Scratch::new(label);
+        let name = if label == "drift-parquet" { "t.parquet" } else { "t.arrow" };
+        let path = scratch.path(name);
+        write(&path, &numeric_batch(4, 0.0), 2);
+        let table = TableFile::open(&path).unwrap();
+        let plan = table.plan_columns(&["x", "y"], ReadOptions::with_chunk_rows(2)).unwrap();
+        let mut reader = table.reader(&plan, &ctx()).unwrap();
+        assert!(reader.next_chunk().unwrap().is_some());
+
+        // The same schema with more rows changes the footer and the file size.
+        write(&path, &numeric_batch(9, 0.0), 3);
+        let refused = reader.rewind().unwrap_err();
+        assert!(matches!(refused, FileSourceError::SourceChanged { .. }), "{refused}");
+        let refused = table.reader(&plan, &ctx()).unwrap_err();
+        assert!(matches!(refused, FileSourceError::SourceChanged { .. }), "{refused}");
+
+        // A different schema is refused too.
+        let other = Schema::new(vec![Field::new("x", DataType::Int32, false)]);
+        let odd = RecordBatch::try_new(Arc::new(other), vec![Arc::new(Int32Array::from(vec![1]))])
+            .unwrap();
+        write(&path, &odd, 1);
+        let refused = table.reader(&plan, &ctx()).unwrap_err();
+        assert!(matches!(refused, FileSourceError::SourceChanged { .. }), "{refused}");
+    }
 }
 
 #[test]

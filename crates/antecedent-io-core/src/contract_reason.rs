@@ -181,6 +181,8 @@ pub enum ContractReason {
     DependenciesFunctionalEffectResponsePosteriorDraws,
     /// `dependencies.identification_replay_budget`.
     DependenciesIdentificationReplayBudget,
+    /// `dependencies.identification_estimand_criterion`.
+    DependenciesIdentificationEstimandCriterion,
     /// `dependencies.linear_fit_sufficient_statistics`.
     DependenciesLinearFitSufficientStatistics,
     /// `dependencies.nested_counterfactual_fit_moments`.
@@ -649,6 +651,9 @@ impl ContractReason {
             Self::DependenciesIdentificationReplayBudget => {
                 "dependencies.identification_replay_budget"
             }
+            Self::DependenciesIdentificationEstimandCriterion => {
+                "dependencies.identification_estimand_criterion"
+            }
             Self::DependenciesLinearFitSufficientStatistics => {
                 "dependencies.linear_fit_sufficient_statistics"
             }
@@ -901,6 +906,7 @@ impl ContractReason {
                 | Self::DependenciesCheckedBayesianSyntheticControlOperation
                 | Self::DependenciesCheckedBayesianRdOperation
                 | Self::DependenciesCheckedTransportTrialOperation
+                | Self::DependenciesIdentificationEstimandCriterion
         )
     }
 }
@@ -1025,6 +1031,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesFunctionalEffectResponseFactorLaws,
     ContractReason::DependenciesFunctionalEffectResponsePosteriorDraws,
     ContractReason::DependenciesIdentificationReplayBudget,
+    ContractReason::DependenciesIdentificationEstimandCriterion,
     ContractReason::DependenciesLinearFitSufficientStatistics,
     ContractReason::DependenciesNestedCounterfactualFitMoments,
     ContractReason::DependenciesNestedCounterfactualFitRank,
@@ -1244,6 +1251,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "dependencies.functional_effect_posterior_draws",
     "dependencies.functional_effect_response_factor_laws",
     "dependencies.functional_effect_response_posterior_draws",
+    "dependencies.identification_estimand_criterion",
     "dependencies.identification_replay_budget",
     "dependencies.linear_fit_sufficient_statistics",
     "dependencies.nested_counterfactual_fit_moments",

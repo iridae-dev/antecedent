@@ -1629,6 +1629,9 @@ fn plan_section(plan: &PlanView, names: Names<'_>) -> Section {
     fact(&mut head, "Family", plan.family().as_str());
     fact(&mut head, "Stage", plan.stage().as_str());
     fact(&mut head, "Depth", plan.depth().as_str());
+    if let Some(operations) = plan.depth().deferred_operations() {
+        fact(&mut head, "Deferred atom operations", operations);
+    }
     fact(&mut head, "Program identity", plan.identity().to_hex());
     fact(&mut head, "Sealed operation", opt_str(plan.operation()));
     if let Some(family) = facts.get("cyclic_family").as_text() {

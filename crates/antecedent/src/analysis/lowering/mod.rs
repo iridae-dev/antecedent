@@ -5,7 +5,8 @@
 //! in `registry`, and every family lowers each layer from its own scientific
 //! problem: a query the world algebra cannot state lowers to its typed functional
 //! keyed by the query's canonical digest, and an identification that refuses at
-//! compile is deferred with a recorded reason. There is no partial lowering.
+//! compile is deferred with a recorded reason. The only partial depth is a graph
+//! posterior whose per-atom operations are chosen at execution; it names them.
 //!
 //! Dispatch refuses a plan without a lowered program (`route_not_lowered`), and
 //! compile and one-shot run refuse a context already inside a lowered dispatch
@@ -209,6 +210,14 @@ pub(crate) fn expected_cell(study: &Study) -> Option<RouteCell> {
     study.route_input_classified().map(|input| RouteCell::of(&input))
 }
 
+/// Whether `program` was compiled for `study`: the key of every input identification
+/// reads (query, graph, data schema, declarations, inference) agrees. A program that
+/// recorded no key (an input without a canonical encoding) is bound only to a study
+/// that has none either.
+pub(crate) fn program_is_bound_to(program: &LoweredProgram, study: &Study) -> bool {
+    program.binding() == retention_key(study)
+}
+
 /// Refuse compile and one-shot run inside the dispatch of a lowered program.
 ///
 /// # Errors
@@ -274,7 +283,8 @@ fn install(
         scan::ScanPlan::resident(demand)?
     };
     let operators = scan.operators()?;
-    staged.lowered = Some(Arc::new(lowered.with_physical_operators(operators)));
+    let lowered = lowered.with_physical_operators(operators).with_binding(retention_key(study));
+    staged.lowered = Some(Arc::new(lowered));
     staged.quote_route_memory(ctx)?;
     *plan = candidate;
     Ok(())

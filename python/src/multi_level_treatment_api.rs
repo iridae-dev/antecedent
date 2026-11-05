@@ -20,6 +20,8 @@ const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 ///
 /// `adjustment_columns[j]` is the column named `adjustment_names[j]`.
 #[pyfunction]
+#[pyo3(signature = (outcome, treatment, adjustment_names, adjustment_columns, declaration_json, *, memory_bytes=None, cancel=None))]
+#[allow(clippy::too_many_arguments, reason = "one request: columns, declaration and bounds")]
 fn evaluate_multi_level_treatment(
     py: Python<'_>,
     outcome: Vec<f64>,
@@ -27,6 +29,8 @@ fn evaluate_multi_level_treatment(
     adjustment_names: Vec<String>,
     adjustment_columns: Vec<Vec<f64>>,
     declaration_json: &str,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
     check_declared_size(declaration_json, MAX_JSON_BYTES, "multi-level treatment")?;
     let spec: MultiLevelSpecWire = serde_json::from_str(declaration_json).map_err(|e| {
@@ -52,7 +56,9 @@ fn evaluate_multi_level_treatment(
         spec,
     };
     detach_catch(py, move || {
-        let report = MultiLevelTreatment::evaluate(&request).map_err(py_err)?;
+        let ctx =
+            crate::transport_common::execution_context(request.spec.seed, memory_bytes, cancel);
+        let report = MultiLevelTreatment::evaluate(&request, &ctx).map_err(py_err)?;
         serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))
     })
 }

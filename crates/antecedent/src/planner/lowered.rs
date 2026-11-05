@@ -44,11 +44,19 @@ pub use planning::{PlanningProgram, SIMULATION_RECORD_BYTES, SimulationQuote};
 const LOWERED_PROGRAM_TAG: &str = "antecedent.lowered_program";
 
 /// How far a route's lowering has been carried. Every registered route cell lowers
-/// each layer from its own scientific problem; there is no partial lowering.
+/// each layer from its own scientific problem, except the atom operations a program
+/// names as deferred: those are lowered and identified per posterior atom at execution.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum LoweringDepth {
     /// The route lowers each layer from its own scientific problem.
     Complete,
+    /// The outer program is lowered; the named per-atom operations (their identification,
+    /// estimator and executor) are chosen from each atom's structure at every execution
+    /// and are not retained in this program.
+    AtomOperationsDeferred {
+        /// The deferred per-atom operations, in words.
+        operations: &'static str,
+    },
 }
 
 impl LoweringDepth {
@@ -57,6 +65,16 @@ impl LoweringDepth {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Complete => "complete",
+            Self::AtomOperationsDeferred { .. } => "atom_operations_deferred",
+        }
+    }
+
+    /// The per-atom operations this lowering defers to execution, when it defers any.
+    #[must_use]
+    pub const fn deferred_operations(self) -> Option<&'static str> {
+        match self {
+            Self::Complete => None,
+            Self::AtomOperationsDeferred { operations } => Some(operations),
         }
     }
 }
@@ -720,6 +738,10 @@ impl LoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
         writer.text(self.cell.as_str()).text(self.depth.as_str());
+        // A complete program writes nothing more, so its identity is unchanged.
+        if let Some(operations) = self.depth.deferred_operations() {
+            writer.text(operations);
+        }
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
         writer.bytes(self.statistical.identity().as_bytes());
@@ -736,6 +758,7 @@ impl LoweredParts {
             physical: self.physical,
             claim: self.claim,
             identity,
+            binding: None,
         }
     }
 }
@@ -776,6 +799,7 @@ impl CyclicLoweredParts {
             physical: self.physical,
             claim: self.claim,
             identity,
+            binding: None,
         }
     }
 }
@@ -816,6 +840,7 @@ impl PlanningLoweredParts {
             physical: self.physical,
             claim: self.claim,
             identity,
+            binding: None,
         }
     }
 }
@@ -857,6 +882,7 @@ impl ChainLoweredParts {
             physical: self.physical,
             claim: self.claim,
             identity,
+            binding: None,
         }
     }
 }
@@ -894,6 +920,7 @@ impl GraphImputationLoweredParts {
             physical: self.physical,
             claim: self.claim,
             identity,
+            binding: None,
         }
     }
 }
@@ -931,6 +958,7 @@ impl CategoricalPosteriorLoweredParts {
             physical: self.physical,
             claim: self.claim,
             identity,
+            binding: None,
         }
     }
 }
@@ -968,6 +996,7 @@ impl MnarFixedShiftLoweredParts {
             physical: self.physical,
             claim: self.claim,
             identity,
+            binding: None,
         }
     }
 }
@@ -1032,6 +1061,10 @@ pub struct LoweredProgram {
     physical: PhysicalLayer,
     claim: ClaimDemand,
     identity: SemanticDigest,
+    /// Key of the study inputs identification reads, recorded when compile attached the
+    /// program; `None` when the program was not attached to a study or an input has no
+    /// canonical encoding. Not part of the identity.
+    binding: Option<[u8; 32]>,
 }
 
 const _: () = {
@@ -1177,6 +1210,17 @@ impl LoweredProgram {
         all.extend(operators);
         self.physical.operators = Arc::from(all);
         self
+    }
+
+    /// The program with the key of the study it was compiled for.
+    pub(crate) fn with_binding(mut self, binding: Option<[u8; 32]>) -> Self {
+        self.binding = binding;
+        self
+    }
+
+    /// Key of the study this program was compiled for, when it recorded one.
+    pub(crate) const fn binding(&self) -> Option<[u8; 32]> {
+        self.binding
     }
 
     /// Layer six.

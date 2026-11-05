@@ -75,7 +75,11 @@ fn produce_source(
     let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
     assert_eq!(
         consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
-        vec!["dependencies.checked_response_grid_operation"]
+        vec![
+            "dependencies.checked_response_grid_operation",
+            // Names an identification the consumer cannot re-derive from the bytes.
+            "dependencies.identification_estimand_criterion",
+        ]
     );
     (SourceEvidence::from_result(&bytes).unwrap(), prepared, ctx)
 }
@@ -251,7 +255,11 @@ fn opaque_resolution_executes_original_preparation_and_rejects_changed_science()
     );
     assert_eq!(
         resolution.resolved_dependencies().iter().map(AsRef::as_ref).collect::<Vec<_>>(),
-        vec!["dependencies.checked_response_grid_operation"]
+        vec![
+            "dependencies.checked_response_grid_operation",
+            // Names an identification the consumer cannot re-derive from the bytes.
+            "dependencies.identification_estimand_criterion",
+        ]
     );
     let (_, changed, _) = produce_source(0.25, 51);
     assert_eq!(

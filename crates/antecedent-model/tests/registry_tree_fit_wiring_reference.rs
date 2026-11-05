@@ -258,3 +258,64 @@ fn registry_tree_fit_wiring_reference_classifiers_fit_the_indicator_of_each_leve
         }
     }
 }
+
+fn single_family_selection(family: MechanismFamily) -> (CompiledCausalModel, SelectionOptions) {
+    let mut g = Dag::with_variables(2);
+    g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let model = CompiledCausalModel::compile(g).unwrap();
+    let options = SelectionOptions {
+        constraints: vec![
+            (
+                VariableId::from_raw(0),
+                NodeFamilyConstraint {
+                    allowed: Some(Arc::from([MechanismFamily::LinearGaussian])),
+                    ..NodeFamilyConstraint::default()
+                },
+            ),
+            (
+                VariableId::from_raw(1),
+                NodeFamilyConstraint { required: Some(family), ..NodeFamilyConstraint::default() },
+            ),
+        ],
+        splits: ValidationSplits::Shuffled,
+    };
+    (model, options)
+}
+
+#[test]
+fn registry_tree_fit_runs_under_the_callers_context_and_stops_on_its_limits() {
+    let (x, y) = series();
+    let data = table(&x, &y, ValueType::Continuous);
+    let (model, options) = single_family_selection(MechanismFamily::TreeBoostedAdditive);
+    let registry = MechanismRegistry::standard();
+
+    let cancelled = ExecutionContext::for_tests(1);
+    cancelled.cancellation.cancel();
+    let error = registry
+        .assign_and_fit_with_in(&model, &data, SelectionPolicy::BestScore, &options, &cancelled)
+        .unwrap_err();
+    assert!(matches!(error, antecedent_model::ModelError::Cancelled), "{error:?}");
+
+    let starved = ExecutionContext::for_tests(1).with_memory_limit(Some(1));
+    let error = registry
+        .assign_and_fit_with_in(&model, &data, SelectionPolicy::BestScore, &options, &starved)
+        .unwrap_err();
+    assert!(matches!(error, antecedent_model::ModelError::ResourceLimit { .. }), "{error:?}");
+
+    // The caller's seed and thread budget never reach the ensemble: the fit is the one the
+    // context-free entry point produces.
+    let caller = ExecutionContext::for_tests(99);
+    let (in_ctx, _) = registry
+        .assign_and_fit_with_in(&model, &data, SelectionPolicy::BestScore, &options, &caller)
+        .unwrap();
+    let (ambient, _) =
+        registry.assign_and_fit_with(&model, &data, SelectionPolicy::BestScore, &options).unwrap();
+    let (
+        MechanismSlot::TreeAdditive { ensemble: a, .. },
+        MechanismSlot::TreeAdditive { ensemble: b, .. },
+    ) = (&in_ctx.slots[1], &ambient.slots[1])
+    else {
+        panic!("additive tree slots");
+    };
+    assert_eq!(a.predictor(), b.predictor());
+}

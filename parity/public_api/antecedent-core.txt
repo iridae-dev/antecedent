@@ -17,6 +17,7 @@
 #[doc(hidden)] pub fn antecedent_core::numerical_admission::exposure_probability_work_limit() -> u64
 #[doc(hidden)] pub fn antecedent_core::numerical_admission::has_context() -> bool
 #[doc(hidden)] pub fn antecedent_core::numerical_admission::hmc_work_limit() -> u64
+#[doc(hidden)] pub fn antecedent_core::numerical_admission::id_work_limit() -> u64
 #[doc(hidden)] pub fn antecedent_core::numerical_admission::is_cancelled() -> bool
 #[doc(hidden)] pub fn antecedent_core::numerical_admission::with_context<T>(ctx: &antecedent_core::ExecutionContext, execute: impl core::ops::function::FnOnce() -> T) -> T
 #[doc(hidden)] pub fn antecedent_core::numerical_admission::with_context_and_failure<T>(ctx: &antecedent_core::ExecutionContext, execute: impl core::ops::function::FnOnce() -> T) -> (T, core::option::Option<antecedent_core::execution::AdmissionError>)
@@ -7457,6 +7458,7 @@ pub const <antecedent_core::DeclaredSamplingDesign>::ALL: [Self; 3]
 pub const <antecedent_core::DiagnosticScope>::ALL: [Self; 3]
 pub const <antecedent_core::ExecutionContext>::DEFAULT_EXPOSURE_PROBABILITY_WORK_LIMIT: u64
 pub const <antecedent_core::ExecutionContext>::DEFAULT_HMC_WORK_LIMIT: u64
+pub const <antecedent_core::ExecutionContext>::DEFAULT_ID_WORK_LIMIT: u64
 pub const <antecedent_core::ExecutionContext>::DEFAULT_PULSE_EXTRAPOLATION_RANGES: f64
 pub const <antecedent_core::IdentificationStatus>::ALL: [Self; 6]
 pub const <antecedent_core::IdentityDomain>::ALL: [antecedent_core::IdentityDomain; 15]
@@ -9023,11 +9025,13 @@ pub const antecedent_core::reason_details::mnar_fixed_shift::PREPARATION_CANCELL
 pub const antecedent_core::reason_details::mnar_fixed_shift::PREPARATION_RESOURCE_LIMIT: &str
 pub const antecedent_core::reason_details::mnar_fixed_shift::SOURCE_ADMISSION_CANCELLED: &str
 pub const antecedent_core::reason_details::mnar_fixed_shift::SOURCE_ADMISSION_RESOURCE_LIMIT: &str
+pub const antecedent_core::reason_details::mnar_sensitivity::ADJUSTMENT_NOT_VALID: &str
 pub const antecedent_core::reason_details::mnar_sensitivity::BOUNDS_EXCEEDED: &str
 pub const antecedent_core::reason_details::mnar_sensitivity::COMPOSITION_NOT_SUPPORTED: &str
 pub const antecedent_core::reason_details::mnar_sensitivity::COVARIATES_NOT_USED: &str
 pub const antecedent_core::reason_details::mnar_sensitivity::COVARIATES_REQUIRED: &str
 pub const antecedent_core::reason_details::mnar_sensitivity::DESIGN_SINGULAR: &str
+pub const antecedent_core::reason_details::mnar_sensitivity::GRAPH_NOT_SUPPORTED: &str
 pub const antecedent_core::reason_details::mnar_sensitivity::INSUFFICIENT_OBSERVED: &str
 pub const antecedent_core::reason_details::mnar_sensitivity::INVALID_BOOTSTRAP: &str
 pub const antecedent_core::reason_details::mnar_sensitivity::INVALID_DATA: &str
@@ -9041,6 +9045,7 @@ pub const antecedent_core::reason_details::mnar_sensitivity::UNBOUNDED_RANGE: &s
 pub const antecedent_core::reason_details::mnar_sensitivity::UNSUPPORTED_ESTIMATOR: &str
 pub const antecedent_core::reason_details::mnar_sensitivity::UNSUPPORTED_MECHANISM: &str
 pub const antecedent_core::reason_details::mnar_sensitivity::UNSUPPORTED_QUERY: &str
+pub const antecedent_core::reason_details::mnar_sensitivity::UNSUPPORTED_TARGET: &str
 pub const antecedent_core::reason_details::msm_posterior::BAND_NOT_CONSTRUCTED: &str
 pub const antecedent_core::reason_details::msm_posterior::EMPTY_LAW: &str
 pub const antecedent_core::reason_details::msm_posterior::EXTERNAL_POWER_PRIOR: &str
@@ -9702,6 +9707,7 @@ pub const antecedent_core::reason_details::scientific_bridge::ASSOCIATION_AS_INT
 pub const antecedent_core::reason_details::scientific_bridge::ASSUMPTION_EVIDENCE_MISSING: &str
 pub const antecedent_core::reason_details::scientific_bridge::ASSUMPTION_MISSING: &str
 pub const antecedent_core::reason_details::scientific_bridge::BLANK_FIELD: &str
+pub const antecedent_core::reason_details::scientific_bridge::CANCELLED: &str
 pub const antecedent_core::reason_details::scientific_bridge::CHAIN_STAGE_NOT_AFFINE: &str
 pub const antecedent_core::reason_details::scientific_bridge::CONDITIONING_MISMATCH: &str
 pub const antecedent_core::reason_details::scientific_bridge::DEGENERATE_VALIDATION: &str
@@ -9725,6 +9731,7 @@ pub const antecedent_core::reason_details::scientific_bridge::INTERVAL_NOT_SUPPO
 pub const antecedent_core::reason_details::scientific_bridge::INTERVAL_SCOPE_OUTSIDE_MEASURED: &str
 pub const antecedent_core::reason_details::scientific_bridge::INTERVAL_SOURCE_UNCERTAINTY_REQUIRED: &str
 pub const antecedent_core::reason_details::scientific_bridge::INVALID_QUANTITY: &str
+pub const antecedent_core::reason_details::scientific_bridge::JOINT_LAW_DIMENSION_LIMIT: &str
 pub const antecedent_core::reason_details::scientific_bridge::MALFORMED_MAPPING: &str
 pub const antecedent_core::reason_details::scientific_bridge::MAPPING_NOT_ALLOWED: &str
 pub const antecedent_core::reason_details::scientific_bridge::MAPPING_SCOPE_MISMATCH: &str
@@ -9741,13 +9748,16 @@ pub const antecedent_core::reason_details::scientific_bridge::OUTSIDE_ATTAINABLE
 pub const antecedent_core::reason_details::scientific_bridge::OUTSIDE_VALIDATED_RANGE: &str
 pub const antecedent_core::reason_details::scientific_bridge::POPULATION_MISMATCH: &str
 pub const antecedent_core::reason_details::scientific_bridge::PREDICTIVE_IMPORTANCE_AS_CAUSAL_EFFECT: &str
+pub const antecedent_core::reason_details::scientific_bridge::PROPAGATION_ADMISSION_REFUSED: &str
 pub const antecedent_core::reason_details::scientific_bridge::PROPAGATION_OVERFLOW: &str
+pub const antecedent_core::reason_details::scientific_bridge::PROPAGATION_WORK_LIMIT: &str
 pub const antecedent_core::reason_details::scientific_bridge::PROVENANCE: &str
 pub const antecedent_core::reason_details::scientific_bridge::PROXY_AS_CONSTRUCT: &str
 pub const antecedent_core::reason_details::scientific_bridge::QUANTITY_MISMATCH: &str
 pub const antecedent_core::reason_details::scientific_bridge::REGIME_MISMATCH: &str
 pub const antecedent_core::reason_details::scientific_bridge::REPLAY_MISMATCH: &str
 pub const antecedent_core::reason_details::scientific_bridge::SCIENTIFIC_ENDPOINT_AS_UTILITY: &str
+pub const antecedent_core::reason_details::scientific_bridge::SIMULATION_DRAW_LIMIT: &str
 pub const antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_INVALID: &str
 pub const antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_MISSING: &str
 pub const antecedent_core::reason_details::scientific_bridge::SOURCE_MOMENT_NOT_FINITE: &str
@@ -11555,6 +11565,7 @@ pub fn <antecedent_core::ExecutionContext>::fn admit_scratch(&self, work_items: 
 pub fn <antecedent_core::ExecutionContext>::fn exposure_probability_work_limit(&self) -> u64
 pub fn <antecedent_core::ExecutionContext>::fn for_tests(seed: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn hmc_work_limit(&self) -> u64
+pub fn <antecedent_core::ExecutionContext>::fn id_work_limit(&self) -> u64
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch_if_free<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
@@ -11574,6 +11585,7 @@ pub fn <antecedent_core::ExecutionContext>::fn try_map_indexed_with_scratch<T, S
 pub fn <antecedent_core::ExecutionContext>::fn with_admission(self, pool: antecedent_core::execution::AdmissionPool) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_exposure_probability_work_limit(&self, limit: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_hmc_work_limit(&self, limit: u64) -> Self
+pub fn <antecedent_core::ExecutionContext>::fn with_id_work_limit(&self, limit: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_imputation_bootstrap(&self, replicates: u32) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_memory_limit(self, limit: core::option::Option<u64>) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_pulse_extrapolation_ranges(&self, ranges: f64) -> core::option::Option<Self>

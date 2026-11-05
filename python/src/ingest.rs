@@ -582,7 +582,9 @@ pub(crate) fn admit_retention(bytes: u64) -> PyResult<Arc<antecedent::execution:
             antecedent::execution::AdmissionRefusal::Cancelled => {
                 py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
             }
-            error => crate::CausalResourceError::new_err(error.to_string()),
+            error @ antecedent::execution::AdmissionRefusal::Refused(_) => {
+                crate::CausalResourceError::new_err(error.to_string())
+            }
         })
 }
 

@@ -385,7 +385,7 @@ pub fn plan_over_routes(
         reports.push(report);
     }
     let evaluation = match &request.value {
-        Some(value) => Some(evaluate(value_request(value, &request.candidates)?)?),
+        Some(value) => Some(evaluate(value_request(value, &request.candidates)?, ctx)?),
         None => None,
     };
     let value = evaluation

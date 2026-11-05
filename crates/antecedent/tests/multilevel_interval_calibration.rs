@@ -72,19 +72,22 @@ fn simulate(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
 /// Fit the full-population contrast of level 2 against level 0 through the facade.
 fn fit(n: usize, seed: u64) -> Option<MultiLevelReportWire> {
     let (treatment, outcome, z) = simulate(n, seed);
-    MultiLevelTreatment::evaluate(&MultiLevelTreatmentRequest {
-        outcome,
-        treatment,
-        adjustment: vec![AdjustmentColumn { name: "z".into(), values: z }],
-        spec: MultiLevelSpecWire {
-            target: MultiLevelTargetWire::FullPopulation,
-            active: 2.0,
-            control: 0.0,
-            levels: Some(LEVELS.to_vec()),
-            folds: None,
-            seed,
+    MultiLevelTreatment::evaluate(
+        &MultiLevelTreatmentRequest {
+            outcome,
+            treatment,
+            adjustment: vec![AdjustmentColumn { name: "z".into(), values: z }],
+            spec: MultiLevelSpecWire {
+                target: MultiLevelTargetWire::FullPopulation,
+                active: 2.0,
+                control: 0.0,
+                levels: Some(LEVELS.to_vec()),
+                folds: None,
+                seed,
+            },
         },
-    })
+        &antecedent::prelude::ExecutionContext::production_default(seed),
+    )
     .ok()
 }
 
@@ -176,20 +179,24 @@ fn a_published_interval_is_the_estimate_plus_or_minus_z_standard_errors_or_withh
 #[test]
 fn the_pairwise_target_reports_its_interval_as_not_measured() {
     let (treatment, outcome, z) = simulate(1500, BASE_SEED);
-    let report = MultiLevelTreatment::evaluate(&MultiLevelTreatmentRequest {
-        outcome,
-        treatment,
-        adjustment: vec![AdjustmentColumn { name: "z".into(), values: z }],
-        spec: MultiLevelSpecWire {
-            target: MultiLevelTargetWire::PairwiseSubpopulation,
-            active: 2.0,
-            control: 0.0,
-            levels: None,
-            folds: None,
-            seed: 1,
+    let report = MultiLevelTreatment::evaluate(
+        &MultiLevelTreatmentRequest {
+            outcome,
+            treatment,
+            adjustment: vec![AdjustmentColumn { name: "z".into(), values: z }],
+            spec: MultiLevelSpecWire {
+                target: MultiLevelTargetWire::PairwiseSubpopulation,
+                active: 2.0,
+                control: 0.0,
+                levels: None,
+                folds: None,
+                seed: 1,
+            },
         },
-    })
+        &antecedent::prelude::ExecutionContext::production_default(1),
+    )
     .expect("a pairwise fit");
+    assert_eq!(report.adjustment_basis, "declared");
     assert!(report.interval.is_some());
     assert_eq!(report.interval_status, MULTI_LEVEL_INTERVAL_NOT_MEASURED);
     assert_eq!(report.calibration, MULTI_LEVEL_TREATMENT_CALIBRATION);

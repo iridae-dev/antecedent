@@ -5323,6 +5323,7 @@ pub const <antecedent_contract::summary_observation::SummaryUse>::ALL: [Self; 2]
 pub const antecedent_contract::ASSUMPTION_RANGE_LABEL: &str
 pub const antecedent_contract::IDENTIFICATION_NOT_CLAIMED: &str
 pub const antecedent_contract::JOINT_LAW_STAGE: &str
+pub const antecedent_contract::MAX_JOINT_EVENT_VARIABLES: usize
 pub const antecedent_contract::MAX_OBLIGATION_COORDINATES: usize
 pub const antecedent_contract::MEASURED_INTERVAL_LABEL: &str
 pub const antecedent_contract::MECHANISM_COMPOSITION_STAGE: &str
@@ -5346,6 +5347,9 @@ pub const antecedent_contract::bridge::BRIDGE_IDENTITY_VERSION: u64
 pub const antecedent_contract::bridge::BRIDGE_SOURCE_PORT: &str
 pub const antecedent_contract::bridge::BRIDGE_TARGET_PORT: &str
 pub const antecedent_contract::bridge::MAX_BRIDGE_ASSUMPTIONS: usize
+pub const antecedent_contract::bridge::MAX_JOINT_LAW_DIMENSION: usize
+pub const antecedent_contract::bridge::MAX_PROPAGATION_WORK: u64
+pub const antecedent_contract::bridge::MAX_SIMULATION_DRAWS: usize
 pub const antecedent_contract::bridge::MAX_VALIDATION_TRIALS: usize
 pub const antecedent_contract::bridge::MIN_VALIDATION_TRIALS: u32
 pub const antecedent_contract::bridge::POINT_PROPAGATION_CALIBRATION: &str
@@ -7447,8 +7451,8 @@ pub fn antecedent_contract::bridge::interval_not_supported() -> antecedent_contr
 pub fn antecedent_contract::bridge::nonlinear_expectation(map: antecedent_contract::bridge::NonlinearMap, law: &antecedent_contract::bridge::AnalyticLaw) -> core::result::Result<antecedent_contract::bridge::NonlinearMoment, antecedent_contract::bridge::BridgeRefusal>
 pub fn antecedent_contract::bridge::point_propagation_unavailable(contract: &antecedent_contract::bridge::BridgeContract, standard_error_supplied: bool) -> antecedent_contract::bridge::BridgeRefusal
 pub fn antecedent_contract::bridge::preserved_support(contract: &antecedent_contract::bridge::BridgeContract, map: antecedent_contract::bridge::SupportMap, source: antecedent_contract::bridge::ValueInterval) -> core::result::Result<antecedent_contract::bridge::PreservedSupport, antecedent_contract::bridge::BridgeRefusal>
-pub fn antecedent_contract::bridge::propagate_joint(law: &antecedent_contract::bridge::JointLaw, g: &dyn core::ops::function::Fn(&[f64]) -> f64, method: antecedent_contract::bridge::PropagationMethod) -> core::result::Result<antecedent_contract::bridge::JointPropagation, antecedent_contract::bridge::BridgeRefusal>
-pub fn antecedent_contract::bridge::propagate_nonlinear(contract: &antecedent_contract::bridge::BridgeContract, source_mean: f64, source_variance: f64, g: &dyn core::ops::function::Fn(f64, f64, f64) -> f64, method: antecedent_contract::bridge::PropagationMethod) -> core::result::Result<antecedent_contract::bridge::ContractNonlinearPropagation, antecedent_contract::bridge::BridgeRefusal>
+pub fn antecedent_contract::bridge::propagate_joint(law: &antecedent_contract::bridge::JointLaw, g: &dyn core::ops::function::Fn(&[f64]) -> f64, method: antecedent_contract::bridge::PropagationMethod, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_contract::bridge::JointPropagation, antecedent_contract::bridge::BridgeRefusal>
+pub fn antecedent_contract::bridge::propagate_nonlinear(contract: &antecedent_contract::bridge::BridgeContract, source_mean: f64, source_variance: f64, g: &dyn core::ops::function::Fn(f64, f64, f64) -> f64, method: antecedent_contract::bridge::PropagationMethod, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_contract::bridge::ContractNonlinearPropagation, antecedent_contract::bridge::BridgeRefusal>
 pub fn antecedent_contract::bridge::support_image(map: antecedent_contract::bridge::SupportMap, source: antecedent_contract::bridge::ValueInterval) -> core::result::Result<antecedent_contract::bridge::ValueInterval, antecedent_contract::bridge::BridgeRefusal>
 pub fn antecedent_contract::bridge::wrong_value_kind(requested: antecedent_contract::bridge::ValueKind, held: antecedent_contract::bridge::ValueKind) -> antecedent_contract::bridge::BridgeRefusal
 pub fn antecedent_contract::calibration_refusal() -> antecedent_contract::ExternalRefusal
@@ -8048,6 +8052,7 @@ pub use antecedent_contract::joint_alignment::MassFate = antecedent_contract::Ma
 pub use antecedent_contract::joint_event_quantity::JointEventKind = antecedent_contract::JointEventKind
 pub use antecedent_contract::joint_event_quantity::JointEventQuantity = antecedent_contract::JointEventQuantity
 pub use antecedent_contract::joint_event_quantity::JointEventVariable = antecedent_contract::JointEventVariable
+pub use antecedent_contract::joint_event_quantity::MAX_JOINT_EVENT_VARIABLES = antecedent_contract::MAX_JOINT_EVENT_VARIABLES
 pub use antecedent_contract::joint_law_rule::ASSUMPTION_RANGE_LABEL = antecedent_contract::ASSUMPTION_RANGE_LABEL
 pub use antecedent_contract::joint_law_rule::ComposedCoordinate = antecedent_contract::ComposedCoordinate
 pub use antecedent_contract::joint_law_rule::ComposedIntervalPlan = antecedent_contract::ComposedIntervalPlan

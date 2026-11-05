@@ -426,7 +426,7 @@ const STAGE_DISCOVER: &str = "discover";
 /// attribution call (Shapley allocation, root-cause ranking).
 const STAGE_ATTRIBUTE: &str = "attribute";
 /// Stage id reported on a [`CausalError::Cancelled`] raised by identification.
-const STAGE_IDENTIFY: &str = "identify";
+pub(crate) const STAGE_IDENTIFY: &str = "identify";
 /// Stage id reported on a [`CausalError::Cancelled`] raised by a model fit.
 const STAGE_MODEL: &str = "model";
 /// Stage id reported on a [`CausalError::Cancelled`] raised by counterfactual evaluation.
@@ -753,6 +753,9 @@ impl From<EstimationError> for CausalError {
             error @ EstimationError::Prob(ProbError::Refused {
                 code: "hmc_work_budget", ..
             }) => Self::Resource { message: error.to_string() },
+            error @ EstimationError::Learner(LearnError::ResourceLimit { .. }) => {
+                Self::Resource { message: error.to_string() }
+            }
             other => Self::Estimate(other),
         }
     }
@@ -785,6 +788,9 @@ impl From<LearnError> for CausalError {
             | LearnError::Stats(StatsError::Admission(error))
             | LearnError::Probability(ProbError::Admission(error)) => {
                 lift_admission(error, STAGE_MODEL)
+            }
+            error @ LearnError::ResourceLimit { .. } => {
+                Self::Resource { message: error.to_string() }
             }
             other => Self::rejected(other),
         }

@@ -46,7 +46,7 @@ from .._native import consume_design_ranking as _consume_native
 from .._native import evaluate_design_ranking as _evaluate
 from .._refusal import raise_refusal
 from ..errors import CausalTypeError, CausalValueError
-from ..execution import Execution
+from ..execution import Execution, native_controls
 from ..external import LineageLink
 from ._declarations import (
     RESULT_LINK_ID,
@@ -1148,7 +1148,12 @@ def _rank_value(
         text = json.dumps(request, allow_nan=False)
     except ValueError as error:
         raise CausalValueError("a declaration contains a non-finite number") from error
-    body, artifact, refusal = _evaluate(text, artifact_id, decision.prior._checked)
+    body, artifact, refusal = _evaluate(
+        text,
+        artifact_id,
+        decision.prior._checked,
+        **native_controls(execution, memory="memory_bytes", cancel="cancel"),
+    )
     raise_refusal(refusal, _refusal_type)
     assert body is not None and artifact is not None
     wire = json.loads(body)

@@ -61,7 +61,7 @@ use crate::global_index::{ChunkIndex, GlobalId};
 
 use convert::ColumnState;
 use identity::ColumnDigest;
-use provider::{BatchProvider, DecodeNeed};
+use provider::{BatchProvider, DecodeNeed, FileStamp};
 
 mod chunks;
 mod format;
@@ -107,6 +107,8 @@ pub const DEFAULT_TEXT_BYTES_PER_ROW: u64 = 64;
 pub struct TableFile {
     format: TableFileFormat,
     paths: Vec<PathBuf>,
+    /// What each file looked like at open; every reopen compares against it.
+    stamps: Arc<[FileStamp]>,
     view: SchemaView,
     declared_rows: Option<GlobalId>,
 }
@@ -155,13 +157,14 @@ impl TableFile {
         } else {
             vec![path.to_path_buf()]
         };
-        let first = provider::inspect(&paths[0], format)?;
+        let first = FileStamp::capture(&paths[0], format)?;
         let mut rows = first.rows;
-        let mut decode_per_row = first.decode_per_row;
+        let mut decode_per_row = first.decode_per_row.clone();
         // Files of a dataset are opened one after another, so the largest footer bounds it.
         let mut reader_bytes = first.reader_bytes;
+        let mut stamps = vec![first.clone()];
         for other in &paths[1..] {
-            let next = provider::inspect(other, format)?;
+            let next = FileStamp::capture(other, format)?;
             same_schema(&first.schema, &next.schema, other)?;
             rows = match (rows, next.rows) {
                 (Some(total), Some(more)) => Some(
@@ -172,16 +175,18 @@ impl TableFile {
                 _ => None,
             };
             reader_bytes = reader_bytes.max(next.reader_bytes);
-            for (slot, more) in decode_per_row.iter_mut().zip(next.decode_per_row) {
+            for (slot, more) in decode_per_row.iter_mut().zip(next.decode_per_row.iter().copied()) {
                 *slot = match (*slot, more) {
                     (Some(left), Some(right)) => Some(left.max(right)),
                     (left, right) => left.or(right),
                 };
             }
+            stamps.push(next);
         }
         Ok(Self {
             format,
             paths,
+            stamps: stamps.into(),
             view: SchemaView::new(first.schema, decode_per_row, reader_bytes),
             declared_rows: rows.map(GlobalId::new),
         })
@@ -265,17 +270,29 @@ impl TableFile {
     ///
     /// # Errors
     ///
-    /// The plan does not belong to this schema, or the files cannot be opened.
+    /// The plan does not belong to this schema, the files cannot be opened, or a
+    /// file changed since [`Self::open`] (size, modification time, schema, row
+    /// count or decode-cost inputs): [`FileSourceError::SourceChanged`].
     pub fn reader(
         &self,
         plan: &ReadPlan,
         ctx: &ExecutionContext,
     ) -> Result<TableChunkReader, FileSourceError> {
         self.check_plan(plan)?;
-        let provider =
-            provider::open_all(self.format, &self.paths, &plan.projection, plan.chunk_rows);
+        provider::verify_all(self.format, &self.paths, &self.stamps)?;
+        let provider = provider::open_all(
+            self.format,
+            &self.paths,
+            &self.stamps,
+            &plan.projection,
+            plan.chunk_rows,
+        );
         TableChunkReader::new(
-            Origin::File { format: self.format, paths: self.paths.clone() },
+            Origin::File {
+                format: self.format,
+                paths: self.paths.clone(),
+                stamps: Arc::clone(&self.stamps),
+            },
             plan.clone(),
             ctx,
             provider,

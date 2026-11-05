@@ -71,6 +71,14 @@ pub const MAX_SENSITIVITY_ACTIONS: usize = 64;
 pub const MAX_SENSITIVITY_SCENARIO_EVALUATIONS: usize = 1 << 24;
 /// Deepest utility expression.
 pub const MAX_SENSITIVITY_UTILITY_DEPTH: usize = 32;
+/// Most nodes in one utility expression. Depth alone does not bound a tree: a binary tree of
+/// depth `d` may hold `2^d` nodes, and every node is evaluated at every grid point, range
+/// vertex and action.
+pub const MAX_SENSITIVITY_UTILITY_NODES: usize = 1024;
+/// Most utility node evaluations a surface may need: the scenario evaluations of
+/// [`MAX_SENSITIVITY_SCENARIO_EVALUATIONS`] weighted by the node count of each action's
+/// utility, that is grid points times range vertices times the nodes of every action.
+pub const MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS: usize = 1 << 28;
 
 /// Intake bounds for a sensitivity artifact. The defaults are the `MAX_SENSITIVITY_*`
 /// constants; a consumer with a larger budget passes its own to
@@ -89,6 +97,11 @@ pub struct SensitivityLimits {
     pub max_scenario_evaluations: usize,
     /// Deepest utility expression.
     pub max_utility_depth: usize,
+    /// Most nodes in one utility expression.
+    pub max_utility_nodes: usize,
+    /// Most utility node evaluations the range vertices of the surface may need, counting
+    /// every node of every action's utility at every grid point and vertex.
+    pub max_scenario_node_evaluations: usize,
 }
 
 impl Default for SensitivityLimits {
@@ -100,6 +113,8 @@ impl Default for SensitivityLimits {
             max_actions: MAX_SENSITIVITY_ACTIONS,
             max_scenario_evaluations: MAX_SENSITIVITY_SCENARIO_EVALUATIONS,
             max_utility_depth: MAX_SENSITIVITY_UTILITY_DEPTH,
+            max_utility_nodes: MAX_SENSITIVITY_UTILITY_NODES,
+            max_scenario_node_evaluations: MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS,
         }
     }
 }
@@ -259,6 +274,20 @@ impl UtilityTerm {
             | Self::Mul(a, b)
             | Self::Min(a, b)
             | Self::Max(a, b) => 1 + a.depth().max(b.depth()),
+        }
+    }
+
+    /// Nodes of the expression. The recursion is as deep as the expression, which the caller
+    /// has already bounded by the depth limit.
+    fn node_count(&self) -> usize {
+        match self {
+            Self::Const(_) | Self::Quantity(_) => 1,
+            Self::Neg(a) => a.node_count().saturating_add(1),
+            Self::Add(a, b)
+            | Self::Sub(a, b)
+            | Self::Mul(a, b)
+            | Self::Min(a, b)
+            | Self::Max(a, b) => a.node_count().saturating_add(b.node_count()).saturating_add(1),
         }
     }
 
@@ -992,19 +1021,31 @@ fn validate_quantities(parts: &SensitivityParts) -> Result<(), IoError> {
 }
 
 /// Refuse a surface whose vertex enumeration exceeds the limits' scenario evaluations
-/// ([`MAX_SENSITIVITY_SCENARIO_EVALUATIONS`] by default).
+/// ([`MAX_SENSITIVITY_SCENARIO_EVALUATIONS`] by default) or, weighted by the nodes of each
+/// action's utility, its node evaluations ([`MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS`]).
 fn validate_scenario_work(
     parts: &SensitivityParts,
     limits: &SensitivityLimits,
 ) -> Result<(), IoError> {
     let ranged = parts.quantities.iter().filter(|q| q.is_ranged()).count();
     let scenarios = u32::try_from(ranged).ok().and_then(|r| 1_usize.checked_shl(r));
-    let evaluations = scenarios
-        .and_then(|vertices| vertices.checked_mul(parts.grid.len()))
-        .and_then(|points| points.checked_mul(parts.actions.len()));
+    let points = scenarios.and_then(|vertices| vertices.checked_mul(parts.grid.len()));
+    let evaluations = points.and_then(|points| points.checked_mul(parts.actions.len()));
     if evaluations.is_none_or(|work| work > limits.max_scenario_evaluations) {
         return Err(bounds_exceeded(
             "the range vertices of the surface need more utility evaluations than the bound",
+        ));
+    }
+    // Each evaluation walks the action's whole expression, so the work is weighted by the
+    // nodes of every action's utility, not by the action count alone.
+    let nodes = parts
+        .actions
+        .iter()
+        .try_fold(0_usize, |total, action| total.checked_add(action.utility.node_count()));
+    let node_evaluations = points.zip(nodes).and_then(|(points, nodes)| points.checked_mul(nodes));
+    if node_evaluations.is_none_or(|work| work > limits.max_scenario_node_evaluations) {
+        return Err(bounds_exceeded(
+            "the utility expressions of the surface need more node evaluations than the bound",
         ));
     }
     Ok(())
@@ -1029,6 +1070,9 @@ fn validate_actions(parts: &SensitivityParts, limits: &SensitivityLimits) -> Res
         }
         if action.utility.depth() > limits.max_utility_depth || !action.utility.all_finite() {
             return Err(invalid_surface("utility expression is too deep or not finite"));
+        }
+        if action.utility.node_count() > limits.max_utility_nodes {
+            return Err(bounds_exceeded("a utility expression has more nodes than the bound"));
         }
         if action.utility.references().iter().any(|id| !known.contains(id.as_str())) {
             return Err(wrong_contract("an action reads a quantity the surface does not carry"));

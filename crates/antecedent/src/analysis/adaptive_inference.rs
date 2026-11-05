@@ -188,6 +188,10 @@ impl AdaptiveInferenceSession {
 
     /// Run the inferential paradigm a request names.
     ///
+    /// This is a specialized checked path outside the central compiler: the session validates
+    /// the procedure contract (paradigm support, exposure authorization, probability floors,
+    /// outcome range) before it executes, and does not lower the procedure as a program.
+    ///
     /// # Errors
     /// A paradigm the cell is not supported for, an exposure or delay that
     /// fails the authorization, a probability floor failure, an outcome

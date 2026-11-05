@@ -84,7 +84,8 @@ pub(crate) use ridge::RidgeLearner;
 pub(crate) use spec::FOREST_PROBABILITY_MIN_LEAF;
 pub use spec::{
     DevicePolicy, ElasticNetSpec, ForestSpec, GbtSpec, LearnerSpec, LinearSpec, LogisticSpec,
-    NeuralSpec, RidgeSpec, resolve, resolve_for, resolve_propensity_for,
+    MAX_GBT_DEPTH, MAX_GBT_TREES, NeuralSpec, RidgeSpec, resolve, resolve_for,
+    resolve_propensity_for,
 };
 pub use transform::{FittedTransformer, Identity, TransformerFactory};
 

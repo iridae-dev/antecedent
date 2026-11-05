@@ -10046,7 +10046,7 @@ status = "covered"
 owner = "Python tiered scientific integration"
 behavior = "Data-free tiered certificate retains all declared orientation scenarios and target coordinates; explicit staged estimation enters the actual tiered-background builder with the original target."
 python = "antecedent.identify"
-composed_caller = "identify._identify_tiered -> tiered_identify_api -> identify_tiered/identify_tiered_joint -> existing canonical query/identification codecs; Identification.estimate -> prepared_api.prepare_tiered -> StudyBuilder.tiered_background"
+composed_caller = "identify._identify_tiered -> tiered_identify_api -> StudyBuilder::tiered_background/identify_structure_within (compiled tier-closure identification under the call's context) -> existing canonical query/identification codecs; Identification.estimate -> prepared_api.prepare_tiered -> StudyBuilder.tiered_background"
 required_dimensions = ["success", "inspection", "controls", "refusal", "lifecycle"]
 [[capability.evidence]]
 test = "python/tests/test_tiered_identification.py::test_codetermined_identification_has_no_data_or_estimation_work"

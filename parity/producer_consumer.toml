@@ -1312,7 +1312,7 @@ where = "`design.consume` under a different cost map"
 [[refusal]]
 code = "`route_not_supported`"
 detail = "`measurement_model.interval_requires_estimate`"
-where = "`MeasurementEstimate.interval` and `PreparedMeasurementModel.interval`"
+where = "`PreparedMeasurementModel.interval` (a prepared model holds no corrected value) and `MeasurementEstimate.interval` of a record without a derived standard error; with one the estimate forms an equal-tailed Wald interval"
 
 [[refusal]]
 code = "`route_not_supported`"

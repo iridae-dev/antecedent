@@ -897,6 +897,10 @@ fn consume_supported_family(
                     // The plan records fitted design roles, but no independent
                     // consumer can recompute the numeric fit without replay rows.
                     | "dependencies.linear_fit_sufficient_statistics"
+                    // Names an identification the consumer cannot re-derive
+                    // (non-DAG graph, effect modifiers, or a query outside the
+                    // criterion check), so it stays unverified, not wrong.
+                    | "dependencies.identification_estimand_criterion"
             )
     };
     let has_unscoped = consumed.body.refutations.iter().any(|report| report.scope.is_none());
@@ -971,7 +975,8 @@ fn supported_family_conditional_effect_frequentist_consumes() {
         consumed.acceptance.unresolved.as_ref(),
         &[
             std::sync::Arc::<str>::from("dependencies.refutation_replay"),
-            std::sync::Arc::<str>::from("dependencies.checked_conditional_effect_operation")
+            std::sync::Arc::<str>::from("dependencies.checked_conditional_effect_operation"),
+            std::sync::Arc::<str>::from("dependencies.identification_estimand_criterion"),
         ]
     );
     let labels: std::collections::HashMap<_, _> =
@@ -1067,7 +1072,8 @@ fn supported_family_mediation_frequentist_consumes() {
         consumed.acceptance.unresolved.as_ref(),
         &[
             std::sync::Arc::<str>::from("dependencies.refutation_replay"),
-            std::sync::Arc::<str>::from("dependencies.checked_mediation_operation")
+            std::sync::Arc::<str>::from("dependencies.checked_mediation_operation"),
+            std::sync::Arc::<str>::from("dependencies.identification_estimand_criterion"),
         ]
     );
     let labels: std::collections::HashMap<_, _> =
@@ -6723,9 +6729,13 @@ fn graph_posterior_weights_and_atoms_enter_identification() {
         // independent consumer cannot replay; its claim stays readable.
         assert_eq!(
             consumed.acceptance.unresolved.as_ref(),
-            &[std::sync::Arc::<str>::from(
-                "dependencies.checked_bayesian_graph_posterior_ate_operation"
-            )]
+            &[
+                std::sync::Arc::<str>::from(
+                    "dependencies.checked_bayesian_graph_posterior_ate_operation"
+                ),
+                // The carried estimands name graphs the consumer cannot re-derive.
+                std::sync::Arc::<str>::from("dependencies.identification_estimand_criterion"),
+            ]
         );
         assert!(!consumed.acceptance.accepts_as_claim());
         consumed.contract.unwrap().claim.unwrap().claim_id
@@ -6751,9 +6761,13 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
         let consumed = consume_analysis_result(&bytes).unwrap();
         assert_eq!(
             consumed.acceptance.unresolved.as_ref(),
-            &[std::sync::Arc::<str>::from(
-                "dependencies.checked_bayesian_graph_posterior_ate_operation"
-            )]
+            &[
+                std::sync::Arc::<str>::from(
+                    "dependencies.checked_bayesian_graph_posterior_ate_operation"
+                ),
+                // The carried estimands name graphs the consumer cannot re-derive.
+                std::sync::Arc::<str>::from("dependencies.identification_estimand_criterion"),
+            ]
         );
         assert!(!consumed.acceptance.accepts_as_claim());
         let contract = consumed.contract.unwrap();

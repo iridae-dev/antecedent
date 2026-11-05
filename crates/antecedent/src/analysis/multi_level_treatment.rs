@@ -48,6 +48,13 @@ pub const MULTI_LEVEL_INTERVAL_NOT_MEASURED: &str = "not_measured";
 /// Reason when the contrast has no positive finite standard error to build an interval from.
 pub const MULTI_LEVEL_NO_STANDARD_ERROR: &str = "no_positive_standard_error";
 
+/// How the adjustment set behind every report was established: the caller declared it and no
+/// graph was checked, so the contrast is not a graph-identified effect.
+pub const MULTI_LEVEL_ADJUSTMENT_BASIS: &str = "declared";
+/// Estimand tag of the declared adjustment; the adjustment-shaped estimators accept it, and it
+/// never claims a back-door check.
+const DECLARED_ADJUSTMENT_METHOD: &str = "generalized.adjustment.declared";
+
 /// Query axis of the multi-level contrast coverage records.
 pub const MULTI_LEVEL_QUERY: &str = "MultiLevelContrast";
 /// Estimator label of the cross-fitted multinomial generalized-propensity AIPW.
@@ -81,7 +88,8 @@ pub struct MultiLevelSpecWire {
     /// Cross-fit folds of the full-population fit; `None` uses the library default.
     #[serde(default)]
     pub folds: Option<usize>,
-    /// Seed of the cross-fit fold plan.
+    /// Seed of the cross-fit fold plan. `evaluate` runs under the caller's context and its
+    /// seed; bindings that build the context from this declaration use this value.
     #[serde(default)]
     pub seed: u64,
 }
@@ -188,6 +196,14 @@ pub struct MultiLevelReportWire {
     /// positive standard error.
     #[serde(default)]
     pub interval_reason: Option<String>,
+    /// How the adjustment set was established: `declared` (the caller's columns, no
+    /// graph check), so the contrast is not reported as identified.
+    #[serde(default = "adjustment_basis_default")]
+    pub adjustment_basis: String,
+}
+
+fn adjustment_basis_default() -> String {
+    MULTI_LEVEL_ADJUSTMENT_BASIS.into()
 }
 
 /// Calibration match key and scope of the interval a request would publish.
@@ -240,7 +256,13 @@ pub fn multi_level_interval_basis(
 pub struct MultiLevelTreatment;
 
 impl MultiLevelTreatment {
-    /// Estimate the declared contrast.
+    /// Estimate the declared contrast under the caller's `ctx`.
+    ///
+    /// This is a specialized checked path outside the central compiler. It checks the columns,
+    /// the declared levels, the population semantics and overlap, and refuses on sparse
+    /// levels. It does not check the adjustment columns against a graph: they are a declared,
+    /// unverified adjustment, and the report says so in `adjustment_basis`. The cross-fit
+    /// seed, cancellation and admission pool are `ctx`'s.
     ///
     /// # Errors
     /// `invalid_argument` for malformed columns or levels; `treatment_level_undeclared` for a full-population
@@ -248,6 +270,7 @@ impl MultiLevelTreatment {
     /// estimator's overlap, GLM and regression refusals.
     pub fn evaluate(
         request: &MultiLevelTreatmentRequest,
+        ctx: &ExecutionContext,
     ) -> Result<MultiLevelReportWire, CausalError> {
         let invalid = |detail: &str, message: &str| {
             CausalError::Estimate(EstimationError::refused_detail(
@@ -293,7 +316,7 @@ impl MultiLevelTreatment {
             .map(|j| VariableId::from_raw(2 + u32::try_from(j).unwrap_or(u32::MAX)))
             .collect();
         let estimand = IdentifiedEstimand::backdoor(
-            "backdoor.adjustment",
+            DECLARED_ADJUSTMENT_METHOD,
             Arc::from(adjustment),
             ExprId::from_raw(0),
         );
@@ -320,9 +343,8 @@ impl MultiLevelTreatment {
             Some(folds) => estimator.with_folds(folds),
             None => estimator,
         };
-        let ctx = ExecutionContext::production_default(spec.seed);
         let estimate = estimator
-            .fit(&table, &estimand, &query, &ctx, AssumptionSet::new())
+            .fit(&table, &estimand, &query, ctx, AssumptionSet::new())
             .map_err(CausalError::from)?;
         Ok(report(&estimate, spec, estimator.folds))
     }
@@ -410,5 +432,6 @@ fn report(
         interval,
         interval_status: interval_status.into(),
         interval_reason,
+        adjustment_basis: MULTI_LEVEL_ADJUSTMENT_BASIS.into(),
     }
 }

@@ -167,7 +167,14 @@ fn source_projection_original_native_mean_and_affine_utility_match_independent_t
         assert!(artifact.report().output["actions"][i]["standard_error"].is_null());
     }
     assert_eq!(artifact.report().output["calibration"], truth["calibration"]);
-    assert_eq!(artifact.report().unresolved, vec!["dependencies.checked_response_grid_operation"]);
+    assert_eq!(
+        artifact.report().unresolved,
+        // The second names an identification the consumer cannot re-derive.
+        vec![
+            "dependencies.checked_response_grid_operation",
+            "dependencies.identification_estimand_criterion",
+        ]
+    );
     let bytes = artifact.export().unwrap();
     let (replayed, fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
         SourceProjectionArtifact::consume(&bytes, artifact.identity()).unwrap()

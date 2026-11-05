@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use antecedent::prelude::{CausalSchema, CausalSchemaBuilder, Intervention, Value};
+use antecedent::prelude::{CausalSchema, Intervention, Value};
 use antecedent::query::{
     AverageEffectQuery, CausalQuery, OutcomeFunctional, ResponseFunctional, ResponseQuery,
     TargetPopulation,
@@ -158,6 +158,9 @@ impl TieredQuery {
 }
 
 /// Identify tier declarations without loading data, preparing an estimator, or executing it.
+///
+/// The identification is the compiled study's over a table with the declared variables and no
+/// rows (identification reads structure and query only), under the call's execution context.
 #[pyfunction(name = "_identify_tiered_structure")]
 fn identify_tiered_structure(
     py: Python<'_>,
@@ -169,46 +172,29 @@ fn identify_tiered_structure(
     let query = TieredQuery::parse(query)?;
     let within = crate::parse_within_tier(Some(&within_tier))?;
     crate::detach_catch(py, move || {
-        let mut builder = CausalSchemaBuilder::new();
-        for name in &names {
-            builder = builder.continuous(name.as_str()).finish();
-        }
-        let schema = builder.build().map_err(crate::py_err)?;
+        let empty: &[f64] = &[];
+        let data = antecedent::prelude::TabularData::from_f64_columns(
+            names.iter().map(|name| (name.as_str(), empty)),
+        )
+        .map_err(crate::py_err)?;
+        let schema = antecedent::data::TableView::schema(&data).clone();
         let named: Vec<Vec<&str>> =
             tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
         let background = antecedent::graph::TieredBackground::from_named(&schema, &named, within)
             .map_err(crate::py_err)?;
         let query = query.into_query(&schema)?;
-        let result = match &query {
-            CausalQuery::AverageEffect(query) => {
-                antecedent::identify::identify_tiered(&background, query)
-            }
-            CausalQuery::Response(query) => {
-                antecedent::identify::identify_tiered_joint(&background, &schema, query)
-            }
-            _ => return Err(crate::value_err("unsupported tiered query")),
-        }
-        .map_err(|error| {
-            // Unknown within-tier order denotes two scenarios, not one joint
-            // ADMG. Preserve that scientific support refusal as a typed public
-            // boundary while leaving data/search failures on their own paths.
-            if background.within_tier == antecedent::graph::WithinTier::Unknown
-                && matches!(&query, CausalQuery::Response(_))
-                && matches!(
-                    &error,
-                    antecedent::identify::IdentificationError::UnsupportedQuery { .. }
-                )
-            {
-                crate::refusal(
-                    antecedent::reason::reason_code!("route_not_supported"),
-                    error.to_string(),
-                )
-            } else {
-                crate::py_err(antecedent::CausalError::from(error))
-            }
-        })?;
+        let ctx = crate::py_execution_context(0, crate::resolve_user_threads(None));
+        let identification = antecedent::Study::tabular(data)
+            .tiered_background(background.clone())
+            .map_err(crate::py_err)?
+            .query(query.clone())
+            .identify_structure_within(&ctx)
+            .map_err(crate::py_err)?;
+        let antecedent::Identification::Point { result, .. } = &identification else {
+            return Err(crate::value_err("tiered identification is not a single-graph product"));
+        };
         crate::identification_details::tiered_to_json(
-            &result,
+            result,
             &query,
             &names,
             &background,

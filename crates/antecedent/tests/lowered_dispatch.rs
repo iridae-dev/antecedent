@@ -324,3 +324,88 @@ fn compiled_execution_takes_the_identification_the_program_retained() {
         "a compiled plan is not a prepared handle; its published diagnostics are unchanged"
     );
 }
+
+/// The confounded fixture with the confounder's edges dropped: the same route cell, data
+/// schema and query as [`static_effect_study`], under another graph.
+fn unconfounded_effect_study() -> Study {
+    let (data, _, query) = confounded_scm(128, 41);
+    let mut dag = Dag::with_variables(3);
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+}
+
+#[test]
+fn a_plan_compiled_for_another_study_of_the_same_cell_is_refused() {
+    let (ctx, sink) = recording_ctx(17);
+    let own = static_effect_study();
+    let other = unconfounded_effect_study();
+    let own_plan = own.compile(&ctx).unwrap();
+    let other_plan = other.compile(&ctx).unwrap();
+    assert_eq!(
+        own_plan.lowered().unwrap().route(),
+        other_plan.lowered().unwrap().route(),
+        "both studies execute in one route cell"
+    );
+    assert_ne!(own_plan.lowered_program_identity(), other_plan.lowered_program_identity());
+    let identified = identify_computations(&sink);
+    let text = refusal_text(own.execute(&other_plan, &ctx));
+    assert!(
+        text.contains("reason=route_not_lowered: the plan was compiled for a different study"),
+        "{text}"
+    );
+    let text = refusal_text(other.execute(&own_plan, &ctx));
+    assert!(text.contains("route_not_lowered"), "{text}");
+    assert_eq!(identify_computations(&sink), identified, "the refusal precedes any execution");
+    // Each study still executes its own plan and stamps its own program.
+    let result = own.execute(&own_plan, &ctx).unwrap();
+    assert_eq!(result.lowered_program_identity(), own_plan.lowered_program_identity());
+}
+
+/// A validated attribution on the outlier fixture, with `samples` Monte Carlo draws.
+fn validated_structural_study(samples: usize) -> Study {
+    let x: Vec<f64> = (0..20).map(f64::from).collect();
+    let y: Vec<f64> = (0..20).map(|i| if i == 19 { 200.0 } else { 2.0 * f64::from(i) }).collect();
+    let data = TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
+    let mut graph = Dag::with_variables(2);
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    Study::tabular(data)
+        .graph(graph)
+        .query(CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new(
+            [VariableId::from_raw(1)],
+            samples,
+        )))
+        .refute(RefuteSuite::Cheap)
+        .build()
+        .unwrap()
+}
+
+#[test]
+fn a_validated_run_honours_the_supplied_plan_or_refuses_it() {
+    let ctx = ExecutionContext::for_tests(19);
+    let study = validated_structural_study(100);
+    // An unlowered plan is refused before the refit path prepares its own.
+    let logical = study.compile_logical().unwrap().compile_physical(&ctx).unwrap();
+    let text = refusal_text(study.execute(&logical, &ctx));
+    assert!(text.contains("route_not_lowered"), "{text}");
+    // So is the plan of a different study of the same cell, and of another cell.
+    let other = validated_structural_study(50).compile(&ctx).unwrap();
+    let text = refusal_text(study.execute(&other, &ctx));
+    assert!(
+        text.contains("route_not_lowered: the plan was compiled for a different study"),
+        "{text}"
+    );
+    let foreign = static_effect_study().compile(&ctx).unwrap();
+    let text = refusal_text(study.execute(&foreign, &ctx));
+    assert!(text.contains("route_not_lowered"), "{text}");
+    // Its own plan is accepted: whatever the validated refit reports, it is not a plan refusal.
+    let own = study.compile(&ctx).unwrap();
+    if let Err(error) = study.execute(&own, &ctx) {
+        assert!(!error.to_string().contains("route_not_lowered"), "{error}");
+    }
+}

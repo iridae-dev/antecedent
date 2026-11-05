@@ -217,6 +217,34 @@ pub fn transport_augmented_response_grid(
     })
 }
 
+/// [`transport_augmented_response_grid`] under the caller's memory, work and cancellation policy.
+///
+/// The supplied-equation evaluation with no study around it: the entry for a caller that supplies
+/// every nuisance itself and owns the execution policy the numerical kernels obey. The result
+/// states only the grid means, source effective sample sizes and selection overlap it computed.
+///
+/// # Errors
+///
+/// The refusals of [`transport_augmented_response_grid`].
+pub fn transport_augmented_response_grid_with_context(
+    identification: &TransportIdentification,
+    outcome: &[f64],
+    trial: &[bool],
+    selection_probability: &[f64],
+    inputs: &ResponseGridInputs<'_>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<TransportResponseGridEstimate, EstimationError> {
+    antecedent_core::numerical_admission::with_context(ctx, || {
+        transport_augmented_response_grid(
+            identification,
+            outcome,
+            trial,
+            selection_probability,
+            inputs,
+        )
+    })
+}
+
 /// The intervention grid and the grid-local regressions and weights of
 /// [`transport_augmented_response_grid`], laid out as documented there.
 #[derive(Clone, Copy, Debug)]

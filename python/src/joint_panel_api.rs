@@ -567,7 +567,9 @@ impl PyJointPanelResult {
                     antecedent::execution::AdmissionRefusal::Cancelled => {
                         crate::CausalCancelledError::new_err(e.to_string())
                     }
-                    _ => crate::CausalResourceError::new_err(e.to_string()),
+                    antecedent::execution::AdmissionRefusal::Refused(_) => {
+                        crate::CausalResourceError::new_err(e.to_string())
+                    }
                 })?;
         let declaration: CertificateDeclaration = serde_json::from_str(declaration_json)
             .map_err(|error| crate::value_err(error.to_string()))?;
@@ -821,11 +823,13 @@ fn admit_declaration(
 /// Charge `bytes` to the caller's admission: a cancelled run or an unfunded request is an
 /// operational stop (`CausalCancelledError`, `CausalResourceError`), never a request error.
 fn admit_bytes(ctx: &ExecutionContext, bytes: u64) -> PyResult<antecedent::execution::Retention> {
-    antecedent::execution::retain(&ctx, bytes).map_err(|error| match error {
+    antecedent::execution::retain(ctx, bytes).map_err(|error| match error {
         antecedent::execution::AdmissionRefusal::Cancelled => {
             crate::CausalCancelledError::new_err(error.to_string())
         }
-        _ => crate::CausalResourceError::new_err(error.to_string()),
+        antecedent::execution::AdmissionRefusal::Refused(_) => {
+            crate::CausalResourceError::new_err(error.to_string())
+        }
     })
 }
 #[pyfunction]

@@ -170,7 +170,7 @@ fn input_admission(
     if ctx.cancellation.is_cancelled() {
         return Err(crate::CausalCancelledError::new_err("cancelled"));
     }
-    antecedent::execution::retain(&ctx, (json.len() as u64).saturating_mul(4))
+    antecedent::execution::retain(ctx, (json.len() as u64).saturating_mul(4))
         .map_err(|e| operation_error(e, ctx))
 }
 

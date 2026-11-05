@@ -154,6 +154,72 @@ pub(super) fn propagation_overflow(field: &str, remedy: &'static str) -> BridgeR
         .with_offending(field)
 }
 
+// -- resource limits and cancellation of a propagation (execution_resource_limit) ----------------
+
+fn resource(stage: &'static str, detail: &str, remedy: &'static str) -> BridgeRefusal {
+    ExternalRefusal::new(antecedent_core::reason_code!("execution_resource_limit"), stage, detail)
+        .with_remedy(remedy)
+}
+
+/// A joint law declared over more coordinates than the limit.
+pub(super) fn joint_law_dimension_limit(dimension: usize) -> BridgeRefusal {
+    resource(
+        STAGE_DECLARE,
+        antecedent_core::reason_details::scientific_bridge::JOINT_LAW_DIMENSION_LIMIT,
+        "declare the joint law over fewer coordinates; marginalize the inputs the quantity does not depend on",
+    )
+    .with_offending("joint_law")
+    .with_expected(format!("at most {} coordinates", super::MAX_JOINT_LAW_DIMENSION))
+    .with_supplied(dimension.to_string())
+}
+
+/// A simulation that asks for more draws than the limit.
+pub(super) fn simulation_draw_limit(draws: usize) -> BridgeRefusal {
+    resource(
+        STAGE_BIND,
+        antecedent_core::reason_details::scientific_bridge::SIMULATION_DRAW_LIMIT,
+        "state fewer simulated draws; the Monte Carlo standard error is reported with the result",
+    )
+    .with_offending("simulation.draws")
+    .with_expected(format!("at most {} draws", super::MAX_SIMULATION_DRAWS))
+    .with_supplied(draws.to_string())
+}
+
+/// A propagation whose planned operations pass the work cap.
+pub(super) fn propagation_work_limit(planned: u64) -> BridgeRefusal {
+    resource(
+        STAGE_BIND,
+        antecedent_core::reason_details::scientific_bridge::PROPAGATION_WORK_LIMIT,
+        "propagate over fewer coordinates or fewer simulated draws, or use the sigma-point transform",
+    )
+    .with_expected(format!("at most {} planned operations", super::MAX_PROPAGATION_WORK))
+    .with_supplied(planned.to_string())
+}
+
+/// The execution context's memory pool cannot hold the propagation's working set.
+pub(super) fn propagation_admission_refused(
+    bytes: u64,
+    error: &antecedent_core::execution::AdmissionError,
+) -> BridgeRefusal {
+    resource(
+        STAGE_BIND,
+        antecedent_core::reason_details::scientific_bridge::PROPAGATION_ADMISSION_REFUSED,
+        "raise the execution context's memory budget or propagate over fewer coordinates",
+    )
+    .with_expected(format!("{bytes} bytes of working set"))
+    .with_supplied(error.to_string())
+}
+
+/// The caller cancelled a propagation; no moments are reported.
+pub(super) fn propagation_cancelled() -> BridgeRefusal {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        STAGE_BIND,
+        antecedent_core::reason_details::scientific_bridge::CANCELLED,
+    )
+    .with_remedy("run the propagation again; a cancelled propagation reports no mean or variance")
+}
+
 /// A bridge whose dose or spend units disagree between its sides.
 pub(super) fn estimand_units_mismatch(expected: String, supplied: String) -> BridgeRefusal {
     mismatch(

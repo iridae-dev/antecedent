@@ -13,6 +13,8 @@ from .. import _native
 from .._columns import _cast_bool
 from .._scientific import ScientificResult
 from ..errors import CausalTypeError, CausalValueError
+from ..execution import Execution
+from ._controls import call_native
 from ._impl.identify import TransportIdentification
 
 
@@ -53,8 +55,17 @@ def estimate_augmented_response_grid(
     observed_regression: Sequence[float],
     target_regression: Any,
     response_weight: Any,
+    execution: Execution | None = None,
 ) -> AugmentedResponseGrid:
     """Evaluate an augmented mean response using a checked transport certificate.
+
+    Specialized transport operation outside the central compiler, kept as a documented
+    low-level exception: it evaluates the caller's own augmented response equation, which
+    has no compiled route. It returns the grid means, source effective sample sizes and
+    selection overlap with the claim ``point_only``; it fits no nuisance, forms no
+    interval and does not claim that the composition inherits either component's
+    double robustness. ``execution`` supplies the memory, work and cancellation policy the
+    numerical kernels obey.
 
     Grid-dependent arrays have shape ``(len(grid), len(outcome))``. Signed local
     response weights are permitted. Rust checks certification and all numerical inputs.
@@ -88,7 +99,16 @@ def estimate_augmented_response_grid(
         if arr.shape != shape:
             raise CausalValueError(f"{name} must have shape {shape}, got {arr.shape}")
         arrays[name] = arr.ravel(order="C").tolist()
-    wire = json.loads(_native.estimate_transport_response_grid(identification._native, **arrays))
+    wire = json.loads(
+        call_native(
+            execution,
+            _native.estimate_transport_response_grid,
+            identification._native,
+            memory=None,
+            seed="seed",
+            **arrays,
+        )
+    )
     return AugmentedResponseGrid(
         tuple(wire["grid"]),
         tuple(wire["mean"]),

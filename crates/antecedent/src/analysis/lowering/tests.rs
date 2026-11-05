@@ -72,9 +72,11 @@ fn supported_route_lowerings() -> Vec<Option<String>> {
 
 #[test]
 fn every_registered_cell_lowers_completely_and_the_supported_routes_name_registered_cells() {
-    // One depth: a partial lowering cannot be added without failing this match.
+    // Two depths: a new partial lowering cannot be added without failing this match. The
+    // only deferral is a graph posterior's per-atom operations, which it names.
     let complete = |depth: LoweringDepth| match depth {
         LoweringDepth::Complete => true,
+        LoweringDepth::AtomOperationsDeferred { operations } => !operations.is_empty(),
     };
     assert!(complete(LoweringDepth::Complete));
     let mut registered: BTreeSet<&str> = REGISTERED.iter().map(|(cell, _)| cell.as_str()).collect();

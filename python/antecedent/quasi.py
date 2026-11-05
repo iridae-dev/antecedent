@@ -1071,6 +1071,11 @@ def estimate_did(
     Optional explicit ``treated`` and ``post`` vectors override the named
     columns. Panel, staggered-adoption, weighted, and clustered-inference
     designs are outside this utility's contract.
+
+    This is a low-level utility outside the central compiler. It checks the column shapes
+    and that all four cells are populated; it does not check parallel trends, no anticipation or
+    a graph, and the returned contrast carries no supported identification claim. The checked
+    panel-DiD route answers a different (panel) design.
     """
 
     if not isinstance(query, DifferenceInDifferences):
@@ -1125,6 +1130,11 @@ def estimate_group_time_att(
     describe sampled units, not propensity or inferential support. It also
     reports pointwise cluster-robust standard errors using subject IDs by
     default, or an optional higher-level cluster column.
+
+    This is a specialized checked path outside the central compiler. It checks balanced
+    support and cohort/period validity; it does not check parallel trends or no anticipation,
+    which are assumptions of the estimate, and it is not the checked panel-DiD route's
+    selected-target result.
     """
 
     if not isinstance(query, StaggeredAdoption):

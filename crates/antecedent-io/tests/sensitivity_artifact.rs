@@ -670,6 +670,59 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
     assert_eq!(artifact.to_bytes_within("tight", bytes.len()).expect("fits"), bytes);
 }
 
+/// A balanced sum of `leaves` copies of the quantity `ua`: `2 * leaves - 1` nodes at a depth of
+/// about `log2(leaves)`, so the depth bound alone never refuses it.
+fn balanced_sum(leaves: usize) -> UtilityTerm {
+    if leaves == 1 {
+        return UtilityTerm::quantity("ua");
+    }
+    let half = leaves / 2;
+    UtilityTerm::sum(balanced_sum(half), balanced_sum(leaves - half))
+}
+
+#[test]
+fn utility_trees_are_bounded_by_node_count_and_by_node_weighted_work() {
+    use antecedent_io::sensitivity_artifact::{MAX_SENSITIVITY_UTILITY_NODES, SensitivityLimits};
+    const BOUNDS: &str = "route_not_supported";
+    const NODES: &str = "sensitivity_decision_composition.bounds_exceeded: a utility expression has more nodes than the bound";
+    const NODE_WORK: &str = "sensitivity_decision_composition.bounds_exceeded: the utility expressions of the surface need more node evaluations than the bound";
+    assert_eq!(MAX_SENSITIVITY_UTILITY_NODES, 1024);
+    let with_first_action = |utility: UtilityTerm| {
+        let mut parts = frozen_parts();
+        parts.actions[0].utility = utility;
+        parts
+    };
+    // A negated sum of 512 leaves holds exactly 1024 nodes: admitted by the producer and by
+    // the consumer. A sum of 513 leaves holds 1025 and is refused one past the bound.
+    let at_bound = UtilityTerm::Neg(Box::new(balanced_sum(512)));
+    let artifact = SensitivityArtifact::new(with_first_action(at_bound)).expect("at the bound");
+    let bytes = artifact.to_bytes("nodes").expect("encode");
+    SensitivityArtifact::from_bytes(&bytes, None).expect("consume at the bound");
+    let error = SensitivityArtifact::new(with_first_action(balanced_sum(513))).unwrap_err();
+    assert_eq!(refusal(&error), (BOUNDS, NODES));
+
+    // The work is weighted by the nodes of every action: the frozen surface has three grid
+    // points, one vertex and two one-node actions, so it needs six node evaluations.
+    let defaults = SensitivityLimits::default();
+    let exact = SensitivityLimits { max_scenario_node_evaluations: 6, ..defaults };
+    SensitivityArtifact::new_within(frozen_parts(), &exact).expect("exact node work");
+    let tight = SensitivityLimits { max_scenario_node_evaluations: 5, ..defaults };
+    let error = SensitivityArtifact::new_within(frozen_parts(), &tight).unwrap_err();
+    assert_eq!(refusal(&error), (BOUNDS, NODE_WORK));
+    // A negated first action has two nodes, which raises the surface to nine node evaluations.
+    let wider = |utility: &str| {
+        let mut parts = frozen_parts();
+        parts.actions[0].utility = UtilityTerm::Neg(Box::new(UtilityTerm::quantity(utility)));
+        parts
+    };
+    let error = SensitivityArtifact::new_within(wider("ua"), &exact).unwrap_err();
+    assert_eq!(refusal(&error), (BOUNDS, NODE_WORK));
+    let nodes_one = SensitivityLimits { max_utility_nodes: 1, ..defaults };
+    SensitivityArtifact::new_within(frozen_parts(), &nodes_one).expect("one node each");
+    let error = SensitivityArtifact::new_within(wider("ua"), &nodes_one).unwrap_err();
+    assert_eq!(refusal(&error), (BOUNDS, NODES));
+}
+
 /// Construction check of the reported joint sampling interval: five replicates whose ranges are
 /// `[z - 0.6, z + 0.6]` about baselines `z = 0.4, 0.45, 0.5, 0.55, 0.6`, at level 0.5. The type-7
 /// quantile at 0.25 of five ordered values is exactly the second (position 1.0) and at 0.75 the

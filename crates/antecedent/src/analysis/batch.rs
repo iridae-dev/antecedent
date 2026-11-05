@@ -17,9 +17,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ExecutionContext, ResponseQuery, VariableId,
-};
+use antecedent_core::{AverageEffectQuery, ExecutionContext, ResponseQuery, VariableId};
 
 /// Query frozen on a [`PreparedBatch`] handle.
 #[derive(Clone, Debug)]
@@ -634,7 +632,7 @@ impl BatchStudy {
         }
         let fingerprint = self.estimator_fingerprint()?;
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
-        let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
+        let shared = self.compile_shared_ate(&data, queries, ctx)?;
         let nuisances = batch_nuisance_cache(ctx, self.retention);
         let completed = ctx
             .try_map_indexed(queries.len(), |index, inner| {
@@ -703,7 +701,7 @@ impl BatchStudy {
         }
         let fingerprint = self.estimator_fingerprint()?;
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
-        let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
+        let shared = self.compile_shared_ate(&data, queries, ctx)?;
         let nuisances = batch_nuisance_cache(ctx, self.retention);
         let mut plans = Vec::with_capacity(queries.len());
         for query in queries {
@@ -791,7 +789,7 @@ impl BatchStudy {
         }
         let fingerprint = self.estimator_fingerprint()?;
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
-        let shared = self.compile_shared_cells(&data, queries, ctx.rng.master_seed())?;
+        let shared = self.compile_shared_cells(&data, queries, ctx)?;
         let mut plans = Vec::with_capacity(queries.len());
         let mut frozen = Vec::with_capacity(queries.len());
         for query in queries {
@@ -858,22 +856,24 @@ impl BatchStudy {
         &self,
         data: &TabularData,
         queries: &[AverageEffectQuery],
-        fold_seed: u64,
+        ctx: &ExecutionContext,
     ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
-        self.compile_shared(data, queries, fold_seed, Self::ate_adjustment_set)
+        self.compile_shared(data, queries, ctx, Self::ate_adjustment_set)
     }
 
     fn compile_shared_cells(
         &self,
         data: &TabularData,
         queries: &[ResponseQuery],
-        fold_seed: u64,
+        ctx: &ExecutionContext,
     ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
-        self.compile_shared(data, queries, fold_seed, Self::cell_adjustment_set)
+        self.compile_shared(data, queries, ctx, Self::cell_adjustment_set)
     }
 
     /// The shared cross-fit design over the adjustment sets `adjustment_set` selects for each
-    /// of `queries`.
+    /// of `queries`. Each set is read from the compiled identification of that query's study
+    /// under the caller's context, so the shared work is admitted by, and cancelled with, the
+    /// call that asked for it; the fold seed is the context's master seed.
     #[allow(
         clippy::type_complexity,
         reason = "the signature describes the existing typed operation"
@@ -882,18 +882,28 @@ impl BatchStudy {
         &self,
         data: &TabularData,
         queries: &[Q],
-        fold_seed: u64,
-        adjustment_set: fn(&Self, &Q) -> Result<Arc<[VariableId]>, CausalError>,
+        ctx: &ExecutionContext,
+        adjustment_set: fn(
+            &Self,
+            &TabularData,
+            &Q,
+            &ExecutionContext,
+        ) -> Result<Arc<[VariableId]>, CausalError>,
     ) -> Result<Option<Arc<SharedBatchDesign>>, CausalError> {
         let mut sets = Vec::with_capacity(queries.len());
         for query in queries {
-            sets.push(adjustment_set(self, query)?);
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled {
+                    stage: crate::analysis::stage::STAGE_IDENTIFY,
+                });
+            }
+            sets.push(adjustment_set(self, data, query, ctx)?);
         }
         Ok(Some(Arc::new(SharedBatchDesign::compile(
             data,
             &sets,
             u32::try_from(DEFAULT_AIPW_FOLDS).unwrap_or(5),
-            fold_seed,
+            ctx.rng.master_seed(),
         )?)))
     }
 
@@ -925,43 +935,61 @@ impl BatchStudy {
         }
     }
 
+    /// The adjustment set of the study this batch would build for `query`, read from that
+    /// study's compiled identification under the caller's context.
     fn ate_adjustment_set(
         &self,
+        data: &TabularData,
         query: &AverageEffectQuery,
+        ctx: &ExecutionContext,
     ) -> Result<Arc<[VariableId]>, CausalError> {
-        match &self.graph {
-            BatchGraph::Dag(graph) => {
-                ate_adjustment_set(graph, query, self.identifier, self.estimator)
+        if let BatchGraph::Tiered(background) = &self.graph {
+            if background.within_tier == antecedent_graph::WithinTier::Unknown {
+                return Ok(Arc::from([]));
             }
-            BatchGraph::Tiered(background) => {
-                if background.within_tier == antecedent_graph::WithinTier::Unknown {
-                    return Ok(Arc::from([]));
-                }
-                let identification = antecedent_identify::identify_tiered(background, query)?;
-                identification.estimands.first().map(|e| Arc::clone(&e.adjustment_set)).ok_or_else(
-                    || CausalError::Compile {
+        }
+        let identification = self.study_for_data(data, query)?.identify_structure_within(ctx)?;
+        let crate::Identification::Point { result, .. } = &identification else {
+            return Err(CausalError::Compile {
+                message: "batch identification is not a single-graph product".into(),
+            });
+        };
+        match &self.graph {
+            BatchGraph::Dag(_) => {
+                let estimator = self.estimator.unwrap_or(EstimatorId::Aipw);
+                Ok(crate::strategy_table::select_estimand(result, estimator)?.adjustment_set)
+            }
+            BatchGraph::Tiered(_) => {
+                result.estimands.first().map(|e| Arc::clone(&e.adjustment_set)).ok_or_else(|| {
+                    CausalError::Compile {
                         message: "tiered batch identifier returned no estimand".into(),
-                    },
-                )
+                    }
+                })
             }
         }
     }
 
-    fn cell_adjustment_set(&self, query: &ResponseQuery) -> Result<Arc<[VariableId]>, CausalError> {
+    fn cell_adjustment_set(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<Arc<[VariableId]>, CausalError> {
+        let identification =
+            self.study_for_response_on(data, query)?.identify_structure_within(ctx)?;
+        let crate::Identification::Point { result, .. } = &identification else {
+            return Err(CausalError::Compile {
+                message: "batch prepare_cells identification is not a single-graph product".into(),
+            });
+        };
+        let first = result.estimands.first().map(|e| Arc::clone(&e.adjustment_set));
         match &self.graph {
-            BatchGraph::Dag(graph) => cell_adjustment_set(graph, query, self.identifier),
-            BatchGraph::Tiered(background) => {
-                let identification = antecedent_identify::identify_tiered_joint(
-                    background,
-                    self.data.schema(),
-                    query,
-                )?;
-                identification.estimands.first().map(|e| Arc::clone(&e.adjustment_set)).ok_or(
-                    CausalError::Unsupported {
-                        message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,
-                    },
-                )
-            }
+            BatchGraph::Dag(_) => first.ok_or_else(|| CausalError::Compile {
+                message: "batch prepare_cells identifier returned no estimand".into(),
+            }),
+            BatchGraph::Tiered(_) => first.ok_or(CausalError::Unsupported {
+                message: antecedent_identify::TIERED_JOINT_ADJUSTMENT_REFUSE,
+            }),
         }
     }
 }
@@ -1468,37 +1496,6 @@ impl PreparedBatch {
             ctx,
         )
     }
-}
-
-fn ate_adjustment_set(
-    graph: &Dag,
-    query: &AverageEffectQuery,
-    identifier: Option<IdentifierId>,
-    estimator: Option<EstimatorId>,
-) -> Result<Arc<[VariableId]>, CausalError> {
-    let identifier = identifier.unwrap_or(crate::strategy_table::DEFAULT_IDENTIFIER_ID);
-    let estimator = estimator.unwrap_or(EstimatorId::Aipw);
-    let identification = crate::strategy_table::identify_static(identifier, graph, query)?;
-    let estimand = crate::strategy_table::select_estimand(&identification, estimator)?;
-    Ok(estimand.adjustment_set)
-}
-
-fn cell_adjustment_set(
-    graph: &Dag,
-    query: &ResponseQuery,
-    identifier: Option<IdentifierId>,
-) -> Result<Arc<[VariableId]>, CausalError> {
-    let identifier = identifier.unwrap_or(crate::strategy_table::DEFAULT_RESPONSE_IDENTIFIER_ID);
-    let identification = crate::strategy_table::identify_static_query(
-        identifier,
-        graph,
-        &CausalQuery::Response(query.clone()),
-    )?;
-    identification.estimands.first().map(|e| Arc::clone(&e.adjustment_set)).ok_or_else(|| {
-        CausalError::Compile {
-            message: "batch prepare_cells identifier returned no estimand".into(),
-        }
-    })
 }
 
 /// Record the shared design and, per result, whether its cross-fitted propensity /

@@ -227,8 +227,6 @@ for _fn in ("prepare_statistical_transport", "prepare_transport_grid"):
 # Underscore-named natives the package wraps. They are private, but their stub signatures
 # are compared exactly like the public ones.
 _WRAPPED_PRIVATE_NATIVES = {
-    "_identify_ate",
-    "_identify_ate_admg",
     "_identify_structure",
 }
 
@@ -241,7 +239,7 @@ def test_wrapped_private_natives_exist_and_are_stubbed():
 _MUST_BE_CHECKED = (
     "analyze_ate_many",
     "discover_pcmci",
-    "_identify_ate",
+    "_identify_structure",
     "prepare_ate_batch",
     "prepare_cells_batch",
 )

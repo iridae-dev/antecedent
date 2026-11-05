@@ -10975,7 +10975,9 @@ pub const antecedent_io_core::sensitivity_artifact::MAX_SENSITIVITY_ARTIFACT_BYT
 pub const antecedent_io_core::sensitivity_artifact::MAX_SENSITIVITY_GRID_POINTS: usize
 pub const antecedent_io_core::sensitivity_artifact::MAX_SENSITIVITY_QUANTITIES: usize
 pub const antecedent_io_core::sensitivity_artifact::MAX_SENSITIVITY_SCENARIO_EVALUATIONS: usize
+pub const antecedent_io_core::sensitivity_artifact::MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS: usize
 pub const antecedent_io_core::sensitivity_artifact::MAX_SENSITIVITY_UTILITY_DEPTH: usize
+pub const antecedent_io_core::sensitivity_artifact::MAX_SENSITIVITY_UTILITY_NODES: usize
 pub const antecedent_io_core::sensitivity_artifact::SENSITIVITY_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::sensitivity_artifact::SENSITIVITY_ARTIFACT_VERSION: u16
 pub const antecedent_io_core::sensitivity_artifact::SENSITIVITY_CLAIM_LINK_ID: &str
@@ -14378,7 +14380,9 @@ pub field antecedent_io_core::sensitivity_artifact::SensitivityLimits::max_bytes
 pub field antecedent_io_core::sensitivity_artifact::SensitivityLimits::max_grid_points: usize
 pub field antecedent_io_core::sensitivity_artifact::SensitivityLimits::max_quantities: usize
 pub field antecedent_io_core::sensitivity_artifact::SensitivityLimits::max_scenario_evaluations: usize
+pub field antecedent_io_core::sensitivity_artifact::SensitivityLimits::max_scenario_node_evaluations: usize
 pub field antecedent_io_core::sensitivity_artifact::SensitivityLimits::max_utility_depth: usize
+pub field antecedent_io_core::sensitivity_artifact::SensitivityLimits::max_utility_nodes: usize
 pub field antecedent_io_core::sensitivity_artifact::SensitivityMeta::actions: alloc::vec::Vec<antecedent_io_core::sensitivity_artifact::ActionUtility>
 pub field antecedent_io_core::sensitivity_artifact::SensitivityMeta::coordinate: antecedent_io_core::sensitivity_artifact::AssumptionCoordinate
 pub field antecedent_io_core::sensitivity_artifact::SensitivityMeta::feature: alloc::string::String
@@ -17808,6 +17812,7 @@ pub variant antecedent_io_core::ContractReason::DependenciesFunctionalEffectFact
 pub variant antecedent_io_core::ContractReason::DependenciesFunctionalEffectPosteriorDraws
 pub variant antecedent_io_core::ContractReason::DependenciesFunctionalEffectResponseFactorLaws
 pub variant antecedent_io_core::ContractReason::DependenciesFunctionalEffectResponsePosteriorDraws
+pub variant antecedent_io_core::ContractReason::DependenciesIdentificationEstimandCriterion
 pub variant antecedent_io_core::ContractReason::DependenciesIdentificationReplayBudget
 pub variant antecedent_io_core::ContractReason::DependenciesLinearFitSufficientStatistics
 pub variant antecedent_io_core::ContractReason::DependenciesNestedCounterfactualFitMoments

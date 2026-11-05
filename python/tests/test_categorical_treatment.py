@@ -24,11 +24,13 @@ from antecedent.categorical_treatment import (
     consume_categorical_effects,
 )
 from antecedent.errors import (
+    CausalCancelledError,
     CausalSerializationError,
     CausalTypeError,
     CausalUnsupportedError,
     CausalValueError,
 )
+from antecedent.state import CancellationToken
 
 from _refusal import assert_registered_refusal
 
@@ -66,6 +68,13 @@ def monotone(**kwargs):
     kwargs.setdefault("reference", "lo")
     kwargs.setdefault("monotonicity", "non_decreasing")
     return categorical_effects(MONO_OUTCOME, MONO_LEVELS, **kwargs)
+
+
+def test_categorical_fit_runs_under_the_callers_execution() -> None:
+    token = CancellationToken()
+    token.cancel()
+    with pytest.raises((CategoricalTreatmentRefusal, CausalCancelledError)):
+        abc(execution=antecedent.Execution(cancel=token))
 
 
 def test_categorical_dummy_regression_matches_group_mean_algebra() -> None:

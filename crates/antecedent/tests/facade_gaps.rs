@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use antecedent::estimate::{identify_static_query, select_estimand};
+use antecedent::estimate::select_estimand;
 use antecedent::validate::PredictiveCheckKind;
 use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
@@ -22,6 +22,27 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
 use antecedent_graph::{Dag, DenseNodeId, Pag};
+
+/// The static identification of `query` over `graph` by the compiled study (identification
+/// reads structure and query, never rows, so the table is two rows of the graph's variables).
+fn identify_static_query(
+    identifier: IdentifierId,
+    graph: &Dag,
+    query: &CausalQuery,
+) -> Result<antecedent_identify::IdentificationResult, antecedent::CausalError> {
+    let names: Vec<String> = (0..graph.node_count()).map(|i| format!("v{i}")).collect();
+    let rows = [0.0_f64, 1.0];
+    let data =
+        TabularData::from_f64_columns(names.iter().map(|name| (name.as_str(), rows.as_slice())))
+            .unwrap();
+    Study::tabular(data)
+        .graph(graph.clone())
+        .query(query.clone())
+        .identifier(identifier)
+        .refute(RefuteSuite::None)
+        .build()?
+        .identify_only()
+}
 
 fn chain_table(n: usize) -> (TabularData, Dag) {
     let mut b = CausalSchemaBuilder::new();
@@ -430,17 +451,16 @@ fn pag_compile_ready() {
     assert_eq!(resolved.directed_children(DenseNodeId::from_raw(0)), [DenseNodeId::from_raw(1)]);
 }
 
-/// `identify_admg_query` routes a conditional distribution on an ADMG through
-/// IDC. `Study` refuses conditional ADMG distributions at compile, so the
-/// public strategy-table entry point is the one caller that reaches this
-/// branch: `x -> y`, `z -> y`, `x <-> z`, query `P(y | do(x), z)`. IDC line 1
+/// General ID routes a conditional distribution on an ADMG through IDC. `Study` refuses
+/// conditional ADMG distributions at compile, so the identification crate's own algorithm is
+/// the one caller that reaches this branch: `x -> y`, `z -> y`, `x <-> z`, query `P(y | do(x), z)`. IDC line 1
 /// moves `z` into the intervention (it is independent of `y` given `x` once
 /// `x`'s incoming edges and `z`'s outgoing edges are cut), leaving
 /// `P(y | do(x, z)) = P(y | x, z)`.
 #[test]
 fn admg_conditional_distribution_runs_idc() {
-    use antecedent::strategy_table::identify_admg_query;
     use antecedent_core::InterventionalDistributionQuery;
+    use antecedent_identify::{IdIdentifier, IdcIdentifier, IdentificationWorkspace};
 
     let (x, y, z) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
     let mut admg = antecedent_graph::Admg::with_variables(3);
@@ -452,9 +472,14 @@ fn admg_conditional_distribution_runs_idc() {
         [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
     );
     query.conditioning = Arc::from([VariableId::from_raw(2)]);
-    let result =
-        identify_admg_query(IdentifierId::GeneralId, &admg, &CausalQuery::Distribution(query))
-            .unwrap();
+    let prepared = IdIdentifier::new().prepare(&admg).unwrap();
+    let result = IdcIdentifier::new()
+        .identify(
+            &prepared,
+            &CausalQuery::Distribution(query),
+            &mut IdentificationWorkspace::default(),
+        )
+        .unwrap();
     assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
     let rules: Vec<&str> = result.derivation.steps.iter().map(|s| s.rule.as_ref()).collect();
     assert!(rules.contains(&"general.idc"), "IDC must run: {rules:?}");

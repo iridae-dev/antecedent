@@ -98,6 +98,15 @@ pub enum FileSourceError {
         /// What disagreed.
         detail: String,
     },
+    /// A file changed after its table was opened: its size, modification time,
+    /// schema, row count or decode-cost inputs differ from what the read was
+    /// admitted on. Reopen the table and plan again.
+    SourceChanged {
+        /// File that changed.
+        path: PathBuf,
+        /// What differs.
+        detail: String,
+    },
     /// A required column is not in the file.
     UnknownColumn {
         /// Requested name.
@@ -179,6 +188,7 @@ impl FileSourceError {
             | Self::Format { .. }
             | Self::EmptyDataset { .. }
             | Self::SchemaMismatch { .. }
+            | Self::SourceChanged { .. }
             | Self::Data(_) => FileSourceErrorKind::Data,
             Self::MemoryRefused { .. } | Self::CountOverflow { .. } => {
                 FileSourceErrorKind::Resource
@@ -214,6 +224,9 @@ impl FileSourceError {
             Self::Closure(ClosureError::Refused(refusal)) => {
                 Some(format!("retain column '{}' in the projection", refusal.retain))
             }
+            Self::SourceChanged { .. } => {
+                Some("reopen the table with TableFile::open and plan the read again".to_owned())
+            }
             Self::ScanIncomplete => Some("read every chunk before asking for the identity".into()),
             Self::NotRewindable => {
                 Some("open the table from a file, which can be read again".to_owned())
@@ -247,6 +260,12 @@ impl fmt::Display for FileSourceError {
             Self::SchemaMismatch { path, detail } => {
                 write!(f, "{} does not match the table schema: {detail}", path.display())
             }
+            Self::SourceChanged { path, detail } => write!(
+                f,
+                "{} changed after the table was opened: {detail}; next attempt: reopen the table \
+                 with TableFile::open and plan the read again",
+                path.display()
+            ),
             Self::UnknownColumn { column, available } => write!(
                 f,
                 "required column '{column}' is not in the file; available: {}",

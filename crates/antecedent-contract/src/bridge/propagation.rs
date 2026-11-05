@@ -31,16 +31,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::ExecutionContext;
+use antecedent_core::execution::{AdmissionError, AdmissionLease};
 use antecedent_core::identity::CanonicalWriter;
 
 use super::super::mapping::BridgeMapping;
 use super::super::refusal::{
     BridgeRefusal, dependence_not_a_covariance, estimand_bridge_incomplete,
     estimand_bridge_mismatch, estimand_spend_inconsistent, estimand_units_mismatch,
-    experimental_prior_without_estimand_bridge, malformed_mapping, mapping_uncertainty_invalid,
-    mapping_uncertainty_missing, nonlinear_law_insufficient, nonlinear_mean_not_expectation,
-    propagation_overflow, source_dependence_invalid, source_dependence_missing,
-    source_moment_not_finite, source_variance_invalid, uncertain_mapping_not_affine,
+    experimental_prior_without_estimand_bridge, joint_law_dimension_limit, malformed_mapping,
+    mapping_uncertainty_invalid, mapping_uncertainty_missing, nonlinear_law_insufficient,
+    nonlinear_mean_not_expectation, propagation_admission_refused, propagation_cancelled,
+    propagation_overflow, propagation_work_limit, simulation_draw_limit, source_dependence_invalid,
+    source_dependence_missing, source_moment_not_finite, source_variance_invalid,
+    uncertain_mapping_not_affine,
 };
 use super::{BridgeAssumption, BridgeContract, check_text};
 
@@ -758,9 +762,21 @@ pub(super) fn propagate_affine(
 // ---------------------------------------------------------------------------
 
 /// Fewest simulated draws a propagation accepts: below this the Monte Carlo standard error of
-/// the variance, which needs a fourth moment, is not meaningful. There is no upper bound; the
-/// simulation streams its moments, so the draw count costs time and never memory.
+/// the variance, which needs a fourth moment, is not meaningful.
 const MIN_SIMULATION_DRAWS: usize = 64;
+/// Most simulated draws a propagation accepts. The simulation streams its moments, so the
+/// draw count costs time and never memory; the cap and [`MAX_PROPAGATION_WORK`] bound the time.
+pub const MAX_SIMULATION_DRAWS: usize = 100_000_000;
+/// Most coordinates a [`JointLaw`] admits. The covariance is `n` by `n`, the factorization is
+/// cubic in `n` and the second-order delta method evaluates the function `2n² + 1` times.
+pub const MAX_JOINT_LAW_DIMENSION: usize = 64;
+/// Most logical operations one propagation may plan: each evaluation of the function counts
+/// as the coordinates it is built from plus one, each simulated draw as the triangular
+/// factor product that makes it, and each factorization or matrix product as its cube.
+/// A propagation whose plan passes the cap is refused before it starts.
+pub const MAX_PROPAGATION_WORK: u64 = 1 << 34;
+/// Draws between two polls of the cancellation token during a simulation.
+const SIMULATION_POLL_STRIDE: usize = 1024;
 /// Relative step of the finite differences behind the second-order terms, in
 /// units of each coordinate's standard deviation.
 const DIFFERENCE_STEP: f64 = 1e-2;
@@ -788,15 +804,21 @@ impl JointLaw {
     /// A joint law from coordinate names, means and a row-major covariance.
     ///
     /// # Errors
-    /// The dimension is zero or above the limit; the lengths disagree; a mean
-    /// or covariance entry is not finite; the covariance is not symmetric or
-    /// not positive semi-definite.
+    /// The dimension is above [`MAX_JOINT_LAW_DIMENSION`] (family `resource`) or zero; the
+    /// lengths disagree; a mean or covariance entry is not finite; the covariance is not
+    /// symmetric or not positive semi-definite.
     pub fn new(
         names: Vec<String>,
         mean: Vec<f64>,
         covariance: Vec<f64>,
     ) -> Result<Self, BridgeRefusal> {
         let n = mean.len();
+        // Checked before anything is sized from the dimension: the factorization below is
+        // cubic in it, and the cap is a compile-time constant, so this constructor needs no
+        // context.
+        if n > MAX_JOINT_LAW_DIMENSION {
+            return Err(joint_law_dimension_limit(n));
+        }
         if n == 0 || names.len() != n || n.checked_mul(n) != Some(covariance.len()) {
             return Err(malformed_mapping(
                 "joint_law",
@@ -1043,28 +1065,101 @@ fn checked(value: f64) -> Result<f64, BridgeRefusal> {
     }
 }
 
+/// What one propagation holds while it runs: the admitted working set and the context whose
+/// cancellation it polls. Dropping it returns the lease.
+struct Admitted<'a> {
+    ctx: &'a ExecutionContext,
+    _lease: AdmissionLease,
+}
+
+impl Admitted<'_> {
+    /// Stop with a `cancelled_no_claim` refusal once the context is cancelled.
+    fn poll(&self) -> Result<(), BridgeRefusal> {
+        if self.ctx.cancellation.is_cancelled() { Err(propagation_cancelled()) } else { Ok(()) }
+    }
+}
+
+/// Bytes the working set of a propagation over `n` coordinates holds: the covariance factor,
+/// the Hessian, its product with the covariance, and the points and gradients.
+fn working_bytes(n: u64) -> u64 {
+    8 * (4 * n * n + 8 * n + 16)
+}
+
+/// Operations of one evaluation of the function: the point is built from `n` coordinates.
+fn evaluation_work(n: u64) -> u64 {
+    n + 1
+}
+
+/// Planned operations of the second-order delta method: `2n² + 1` evaluations, then the
+/// covariance products behind the trace terms.
+fn delta_work(n: u64) -> u64 {
+    (2 * n * n + 1).saturating_mul(evaluation_work(n)).saturating_add(2 * n * n * n + 3 * n * n)
+}
+
+/// Planned operations of the sigma-point transform: `2n + 1` evaluations and one factorization.
+fn unscented_work(n: u64) -> u64 {
+    (2 * n + 1).saturating_mul(evaluation_work(n)).saturating_add(n * n * n)
+}
+
+/// Planned operations of a simulation: one factorization, then per draw the `n` normals, the
+/// triangular product and the evaluation.
+fn simulation_work(n: u64, draws: u64) -> u64 {
+    let per_draw = n * (n + 1) / 2 + 2 * n + 1;
+    draws.saturating_mul(per_draw).saturating_add(n * n * n)
+}
+
+/// Admit one propagation: refuse a cancelled context, refuse a plan over the work cap, and
+/// reserve the working set against the context's memory pool, all before anything is allocated.
+fn admit(
+    ctx: &ExecutionContext,
+    dimension: usize,
+    planned_work: u64,
+) -> Result<Admitted<'_>, BridgeRefusal> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(propagation_cancelled());
+    }
+    if planned_work > MAX_PROPAGATION_WORK {
+        return Err(propagation_work_limit(planned_work));
+    }
+    let bytes = working_bytes(dimension as u64);
+    let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        AdmissionError::Cancelled => propagation_cancelled(),
+        other => propagation_admission_refused(bytes, &other),
+    })?;
+    Ok(Admitted { ctx, _lease: lease })
+}
+
 /// Mean and variance of `g(Z)` for `Z` with the joint moments of `law`.
 ///
+/// The propagation is admitted under `ctx` before it allocates: it refuses with family
+/// `resource` when its planned work passes [`MAX_PROPAGATION_WORK`], when a simulation asks for
+/// more than [`MAX_SIMULATION_DRAWS`] draws, or when `ctx`'s memory pool cannot hold the working
+/// set. Cancellation is polled once per row of the second-order Hessian, once per sigma point
+/// and once per 1024 simulated draws, and returns `cancelled_no_claim` with no moments.
+///
 /// # Errors
-/// The function is not finite at a point the method evaluates; a simulation
-/// asks for fewer than 64 draws or more than fit the evaluation counter.
+/// The function is not finite at a point the method evaluates; a simulation asks for fewer
+/// than 64 draws; a resource refusal or a cancellation as above.
 pub fn propagate_joint(
     law: &JointLaw,
     g: &dyn Fn(&[f64]) -> f64,
     method: PropagationMethod,
+    ctx: &ExecutionContext,
 ) -> Result<JointPropagation, BridgeRefusal> {
     match method {
-        PropagationMethod::SecondOrderDelta => second_order_delta(law, g),
-        PropagationMethod::Unscented => unscented(law, g),
-        PropagationMethod::Simulation { draws, seed } => simulate(law, g, draws, seed),
+        PropagationMethod::SecondOrderDelta => second_order_delta(law, g, ctx),
+        PropagationMethod::Unscented => unscented(law, g, ctx),
+        PropagationMethod::Simulation { draws, seed } => simulate(law, g, draws, seed, ctx),
     }
 }
 
 fn second_order_delta(
     law: &JointLaw,
     g: &dyn Fn(&[f64]) -> f64,
+    ctx: &ExecutionContext,
 ) -> Result<JointPropagation, BridgeRefusal> {
     let n = law.dimension();
+    let admitted = admit(ctx, n, delta_work(n as u64))?;
     let sigma = law.covariance();
     let center = law.mean();
     let step: Vec<f64> = (0..n).map(|i| DIFFERENCE_STEP * sigma[i * n + i].sqrt()).collect();
@@ -1082,12 +1177,14 @@ fn second_order_delta(
     let mut gradient = vec![0.0; n];
     let mut hessian = vec![0.0; n * n];
     for &i in &active {
+        admitted.poll()?;
         let up = eval(&[(i, step[i])])?;
         let down = eval(&[(i, -step[i])])?;
         gradient[i] = (up - down) / (2.0 * step[i]);
         hessian[i * n + i] = (up - 2.0 * plug_in + down) / (step[i] * step[i]);
     }
     for (position, &i) in active.iter().enumerate() {
+        admitted.poll()?;
         for &j in &active[position + 1..] {
             let upper = eval(&[(i, step[i]), (j, step[j])])?;
             let left = eval(&[(i, step[i]), (j, -step[j])])?;
@@ -1144,8 +1241,13 @@ fn second_order_delta(
     })
 }
 
-fn unscented(law: &JointLaw, g: &dyn Fn(&[f64]) -> f64) -> Result<JointPropagation, BridgeRefusal> {
+fn unscented(
+    law: &JointLaw,
+    g: &dyn Fn(&[f64]) -> f64,
+    ctx: &ExecutionContext,
+) -> Result<JointPropagation, BridgeRefusal> {
     let n = law.dimension();
+    let admitted = admit(ctx, n, unscented_work(n as u64))?;
     let factor = law.factor();
     let center = law.mean();
     let kappa = if n < 3 { (3 - n) as f64 } else { 0.0 };
@@ -1155,6 +1257,7 @@ fn unscented(law: &JointLaw, g: &dyn Fn(&[f64]) -> f64) -> Result<JointPropagati
     let plug_in = checked(g(center))?;
     let mut values = Vec::with_capacity(2 * n);
     for column in 0..n {
+        admitted.poll()?;
         for sign in [1.0, -1.0] {
             let point: Vec<f64> =
                 (0..n).map(|row| center[row] + sign * spread * factor[row * n + column]).collect();
@@ -1214,13 +1317,19 @@ fn simulate(
     g: &dyn Fn(&[f64]) -> f64,
     draws: usize,
     seed: u64,
+    ctx: &ExecutionContext,
 ) -> Result<JointPropagation, BridgeRefusal> {
-    if draws < MIN_SIMULATION_DRAWS || draws == usize::MAX {
+    if draws < MIN_SIMULATION_DRAWS {
         return Err(malformed_mapping(
             "simulation.draws",
-            "state at least 64 simulated draws, fewer than the evaluation counter can hold",
+            "state at least 64 simulated draws, and at most the simulation draw limit",
         ));
     }
+    if draws > MAX_SIMULATION_DRAWS {
+        return Err(simulation_draw_limit(draws));
+    }
+    let admitted =
+        admit(ctx, law.dimension(), simulation_work(law.dimension() as u64, draws as u64))?;
     let n = law.dimension();
     let factor = law.factor();
     let center = law.mean();
@@ -1232,7 +1341,10 @@ fn simulate(
     // bound memory and a long run keeps the accuracy of a Welford recurrence.
     let (mut seen, mut mean, mut m2, mut m3, mut m4) =
         (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
-    for _ in 0..draws {
+    for draw in 0..draws {
+        if draw % SIMULATION_POLL_STRIDE == 0 {
+            admitted.poll()?;
+        }
         let mut index = 0;
         while index < n {
             let (first, second) = stream.normal_pair();
@@ -1315,6 +1427,9 @@ pub struct ContractNonlinearPropagation {
 /// slope. `g` is the function of the mapped quantity the consumer needs, for
 /// example a utility `exp(intercept + slope * source)`.
 ///
+/// The propagation is admitted, work-capped and cancellable under `ctx` exactly as
+/// [`propagate_joint`] is.
+///
 /// # Errors
 /// The contract is not supported; the mapping is not affine; mapping
 /// uncertainty or source dependence is missing or not feasible jointly;
@@ -1325,6 +1440,7 @@ pub fn propagate_nonlinear(
     source_variance: f64,
     g: &dyn Fn(f64, f64, f64) -> f64,
     method: PropagationMethod,
+    ctx: &ExecutionContext,
 ) -> Result<ContractNonlinearPropagation, BridgeRefusal> {
     contract.check_support()?;
     let (intercept, slope) = affine_coefficients(&contract.mapping)?;
@@ -1342,7 +1458,7 @@ pub fn propagate_nonlinear(
         source_mean,
         source_variance,
     )?;
-    let propagation = propagate_joint(&law, &|point| g(point[0], point[1], point[2]), method)?;
+    let propagation = propagate_joint(&law, &|point| g(point[0], point[1], point[2]), method, ctx)?;
     Ok(ContractNonlinearPropagation {
         propagation,
         joint_law: law,
@@ -2320,10 +2436,16 @@ mod joint_tests {
     use super::super::super::mapping::BridgeMapping;
     use super::super::{BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeScope};
     use super::{
-        JointLaw, MappingUncertainty, PropagationMethod, SourceMappingDependence, propagate_joint,
-        propagate_nonlinear,
+        JointLaw, MAX_JOINT_LAW_DIMENSION, MAX_PROPAGATION_WORK, MAX_SIMULATION_DRAWS,
+        MappingUncertainty, PropagationMethod, SourceMappingDependence, delta_work,
+        propagate_joint, propagate_nonlinear, simulation_work, unscented_work,
     };
     use crate::{QuantityRole, ScientificQuantity};
+    use antecedent_core::ExecutionContext;
+
+    fn ctx() -> ExecutionContext {
+        ExecutionContext::for_tests(1)
+    }
 
     fn quantity(variable: &str) -> ScientificQuantity {
         ScientificQuantity {
@@ -2430,6 +2552,7 @@ mod joint_tests {
             0.25,
             &|a, b, m| a + b * m,
             PropagationMethod::SecondOrderDelta,
+            &ctx(),
         )
         .unwrap();
         assert!(relative(delta.propagation.mean, analytic.mean) < 1e-7);
@@ -2444,12 +2567,14 @@ mod joint_tests {
         let (law, m, v, mean, variance) = lognormal_law();
         let plug_in = m.exp();
         assert!(relative(mean, plug_in) > 0.01);
-        let delta = propagate_joint(&law, &exp_sum, PropagationMethod::SecondOrderDelta).unwrap();
-        let sigma = propagate_joint(&law, &exp_sum, PropagationMethod::Unscented).unwrap();
+        let delta =
+            propagate_joint(&law, &exp_sum, PropagationMethod::SecondOrderDelta, &ctx()).unwrap();
+        let sigma = propagate_joint(&law, &exp_sum, PropagationMethod::Unscented, &ctx()).unwrap();
         let simulated = propagate_joint(
             &law,
             &exp_sum,
             PropagationMethod::Simulation { draws: 300_000, seed: 17 },
+            &ctx(),
         )
         .unwrap();
         assert!((delta.plug_in - plug_in).abs() < 1e-12);
@@ -2473,8 +2598,13 @@ mod joint_tests {
     fn simulation_is_reproducible_and_responds_to_the_seed() {
         let (law, ..) = lognormal_law();
         let run = |seed| {
-            propagate_joint(&law, &exp_sum, PropagationMethod::Simulation { draws: 2_000, seed })
-                .unwrap()
+            propagate_joint(
+                &law,
+                &exp_sum,
+                PropagationMethod::Simulation { draws: 2_000, seed },
+                &ctx(),
+            )
+            .unwrap()
         };
         assert_eq!(run(5), run(5));
         assert_ne!(run(5).mean.to_bits(), run(6).mean.to_bits());
@@ -2487,7 +2617,9 @@ mod joint_tests {
         let g = |_: f64, b: f64, m: f64| (b * m).exp();
         let build = |dependence| contract(0.0, 0.5, slope_only(0.0025), dependence);
         let run = |dependence, method| {
-            propagate_nonlinear(&build(dependence), 1.0, 0.01, &g, method).unwrap().propagation
+            propagate_nonlinear(&build(dependence), 1.0, 0.01, &g, method, &ctx())
+                .unwrap()
+                .propagation
         };
         let simulation = PropagationMethod::Simulation { draws: 400_000, seed: 99 };
         let mut variances = Vec::new();
@@ -2537,6 +2669,7 @@ mod joint_tests {
             1.0,
             &|a, b, m| a + b * m,
             PropagationMethod::Unscented,
+            &ctx(),
         )
         .unwrap_err();
         assert_eq!(
@@ -2550,6 +2683,7 @@ mod joint_tests {
             1.0,
             &|a, b, m| a + b * m,
             PropagationMethod::Unscented,
+            &ctx(),
         )
         .unwrap_err();
         assert_eq!(
@@ -2557,17 +2691,182 @@ mod joint_tests {
             antecedent_core::reason_details::scientific_bridge::SOURCE_DEPENDENCE_MISSING
         );
         let (law, ..) = lognormal_law();
-        let error =
-            propagate_joint(&law, &exp_sum, PropagationMethod::Simulation { draws: 3, seed: 1 })
-                .unwrap_err();
+        let error = propagate_joint(
+            &law,
+            &exp_sum,
+            PropagationMethod::Simulation { draws: 3, seed: 1 },
+            &ctx(),
+        )
+        .unwrap_err();
         assert_eq!(
             error.detail,
             antecedent_core::reason_details::scientific_bridge::MALFORMED_MAPPING
         );
-        let error = propagate_joint(&law, &|_| f64::NAN, PropagationMethod::Unscented).unwrap_err();
+        let error =
+            propagate_joint(&law, &|_| f64::NAN, PropagationMethod::Unscented, &ctx()).unwrap_err();
         assert_eq!(
             error.detail,
             antecedent_core::reason_details::scientific_bridge::PROPAGATION_OVERFLOW
         );
+    }
+
+    fn identity_law(dimension: usize) -> JointLaw {
+        let mut covariance = vec![0.0; dimension * dimension];
+        for index in 0..dimension {
+            covariance[index * dimension + index] = 1.0;
+        }
+        JointLaw::new(
+            (0..dimension).map(|index| format!("z{index}")).collect(),
+            vec![0.0; dimension],
+            covariance,
+        )
+        .unwrap()
+    }
+
+    fn is_resource(error: &super::BridgeRefusal, detail: &str) -> bool {
+        error.code == antecedent_core::reason_code!("execution_resource_limit")
+            && error.detail == detail
+    }
+
+    #[test]
+    fn a_joint_law_refuses_one_past_the_dimension_limit() {
+        let at_limit = identity_law(MAX_JOINT_LAW_DIMENSION);
+        assert_eq!(at_limit.dimension(), MAX_JOINT_LAW_DIMENSION);
+        let n = MAX_JOINT_LAW_DIMENSION + 1;
+        let error = JointLaw::new(
+            (0..n).map(|index| format!("z{index}")).collect(),
+            vec![0.0; n],
+            vec![0.0; n * n],
+        )
+        .unwrap_err();
+        assert!(is_resource(
+            &error,
+            antecedent_core::reason_details::scientific_bridge::JOINT_LAW_DIMENSION_LIMIT
+        ));
+    }
+
+    #[test]
+    fn a_simulation_refuses_one_past_the_draw_limit_before_it_runs() {
+        let (law, ..) = lognormal_law();
+        let calls = std::cell::Cell::new(0_usize);
+        let counting = |point: &[f64]| {
+            calls.set(calls.get() + 1);
+            exp_sum(point)
+        };
+        let error = propagate_joint(
+            &law,
+            &counting,
+            PropagationMethod::Simulation { draws: MAX_SIMULATION_DRAWS + 1, seed: 1 },
+            &ctx(),
+        )
+        .unwrap_err();
+        assert!(is_resource(
+            &error,
+            antecedent_core::reason_details::scientific_bridge::SIMULATION_DRAW_LIMIT
+        ));
+        assert_eq!(calls.get(), 0);
+    }
+
+    #[test]
+    fn the_work_cap_refuses_one_past_the_bound_and_covers_the_second_order_delta() {
+        // The plan is a pure function of the dimension and the draws, so the bound itself
+        // is exercised without running billions of operations.
+        let n = MAX_JOINT_LAW_DIMENSION as u64;
+        assert!(delta_work(n) <= MAX_PROPAGATION_WORK);
+        assert!(unscented_work(n) <= MAX_PROPAGATION_WORK);
+        let per_draw = simulation_work(n, 1) - simulation_work(n, 0);
+        let last_admitted = (MAX_PROPAGATION_WORK - simulation_work(n, 0)) / per_draw;
+        assert!(simulation_work(n, last_admitted) <= MAX_PROPAGATION_WORK);
+        assert!(simulation_work(n, last_admitted + 1) > MAX_PROPAGATION_WORK);
+        // The second-order delta grows as the cube of the dimension: it is charged, not free.
+        assert!(delta_work(2 * n) > 4 * delta_work(n));
+        // A full-dimension simulation at the draw limit is over the cap and is refused whole.
+        let law = identity_law(MAX_JOINT_LAW_DIMENSION);
+        let calls = std::cell::Cell::new(0_usize);
+        let counting = |point: &[f64]| {
+            calls.set(calls.get() + 1);
+            point.iter().sum::<f64>()
+        };
+        let error = propagate_joint(
+            &law,
+            &counting,
+            PropagationMethod::Simulation { draws: MAX_SIMULATION_DRAWS, seed: 1 },
+            &ctx(),
+        )
+        .unwrap_err();
+        assert!(is_resource(
+            &error,
+            antecedent_core::reason_details::scientific_bridge::PROPAGATION_WORK_LIMIT
+        ));
+        assert_eq!(calls.get(), 0);
+    }
+
+    #[test]
+    fn a_memory_budget_that_cannot_hold_the_working_set_refuses_with_family_resource() {
+        let (law, ..) = lognormal_law();
+        let starved = ExecutionContext::for_tests(1).with_memory_limit(Some(1));
+        for method in [
+            PropagationMethod::SecondOrderDelta,
+            PropagationMethod::Unscented,
+            PropagationMethod::Simulation { draws: 1_000, seed: 1 },
+        ] {
+            let error = propagate_joint(&law, &exp_sum, method, &starved).unwrap_err();
+            assert!(is_resource(
+                &error,
+                antecedent_core::reason_details::scientific_bridge::PROPAGATION_ADMISSION_REFUSED
+            ));
+        }
+    }
+
+    #[test]
+    fn a_cancelled_context_stops_every_method_with_no_moments() {
+        let (law, ..) = lognormal_law();
+        let cancelled = ctx();
+        cancelled.cancellation.cancel();
+        for method in [
+            PropagationMethod::SecondOrderDelta,
+            PropagationMethod::Unscented,
+            PropagationMethod::Simulation { draws: 1_000, seed: 1 },
+        ] {
+            let error = propagate_joint(&law, &exp_sum, method, &cancelled).unwrap_err();
+            assert_eq!(error.code, antecedent_core::reason_code!("cancelled_no_claim"));
+            assert_eq!(error.detail, antecedent_core::reason_details::scientific_bridge::CANCELLED);
+        }
+        let none = contract(0.0, 1.0, slope_only(1.0), shared(0.0));
+        let error = propagate_nonlinear(
+            &none,
+            0.0,
+            1.0,
+            &|a, b, m| a + b * m,
+            PropagationMethod::Unscented,
+            &cancelled,
+        )
+        .unwrap_err();
+        assert_eq!(error.detail, antecedent_core::reason_details::scientific_bridge::CANCELLED);
+    }
+
+    #[test]
+    fn a_simulation_cancelled_between_draw_batches_stops_before_the_last_draw() {
+        let (law, ..) = lognormal_law();
+        let context = ctx();
+        let token = context.cancellation.clone();
+        let calls = std::cell::Cell::new(0_usize);
+        let cancelling = |point: &[f64]| {
+            calls.set(calls.get() + 1);
+            if calls.get() == 1_500 {
+                token.cancel();
+            }
+            exp_sum(point)
+        };
+        let error = propagate_joint(
+            &law,
+            &cancelling,
+            PropagationMethod::Simulation { draws: 100_000, seed: 3 },
+            &context,
+        )
+        .unwrap_err();
+        assert_eq!(error.detail, antecedent_core::reason_details::scientific_bridge::CANCELLED);
+        // The next poll is at the next batch boundary, not at the end of the run.
+        assert!(calls.get() < 3_000, "{}", calls.get());
     }
 }

@@ -72,7 +72,8 @@ pub use contract::{
     point_propagation_unavailable, preserved_support, support_image,
 };
 pub use contract::{
-    ContractNonlinearPropagation, JointLaw, JointPropagation, PropagationMethod, propagate_joint,
+    ContractNonlinearPropagation, JointLaw, JointPropagation, MAX_JOINT_LAW_DIMENSION,
+    MAX_PROPAGATION_WORK, MAX_SIMULATION_DRAWS, PropagationMethod, propagate_joint,
     propagate_nonlinear,
 };
 pub use kind::{AssumptionKind, BridgeKind, QuantityClass, ValueKind};

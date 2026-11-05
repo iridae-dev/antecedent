@@ -51,10 +51,27 @@ fn survival_spec() -> ObservationalSurvivalSpecWire {
     }
 }
 
+fn run_survival(
+    request: &ObservationalSurvivalRequest,
+) -> Result<ObservationalSurvivalReportWire, antecedent::CausalError> {
+    ObservationalSurvivalEffect::evaluate(
+        request,
+        &antecedent::prelude::ExecutionContext::production_default(request.spec.seed),
+    )
+}
+
+#[test]
+fn survival_runs_under_the_callers_cancelled_context() {
+    let request = survival_request(300, survival_spec());
+    let ctx = antecedent::prelude::ExecutionContext::production_default(request.spec.seed);
+    ctx.cancellation.cancel();
+    assert!(ObservationalSurvivalEffect::evaluate(&request, &ctx).is_err());
+}
+
 #[test]
 fn survival_report_states_its_estimands_assumptions_and_standing() {
     let request = survival_request(1500, survival_spec());
-    let report = ObservationalSurvivalEffect::evaluate(&request).unwrap();
+    let report = run_survival(&request).unwrap();
     assert!((report.horizon - 2.0).abs() < f64::EPSILON);
     assert_eq!(report.censoring, "at_random_given_covariates");
     assert_eq!(report.calibration, "not_measured");
@@ -96,9 +113,7 @@ fn survival_report_states_its_estimands_assumptions_and_standing() {
 fn a_missing_horizon_and_an_undeclared_censoring_assumption_are_refused_separately() {
     let mut spec = survival_spec();
     spec.horizon = None;
-    let text = ObservationalSurvivalEffect::evaluate(&survival_request(300, spec))
-        .unwrap_err()
-        .to_string();
+    let text = run_survival(&survival_request(300, spec)).unwrap_err().to_string();
     assert!(
         text.contains(antecedent_core::reason_details::survival_effect::HORIZON_MISSING),
         "{text}"
@@ -107,9 +122,7 @@ fn a_missing_horizon_and_an_undeclared_censoring_assumption_are_refused_separate
 
     let mut spec = survival_spec();
     spec.censoring = None;
-    let text = ObservationalSurvivalEffect::evaluate(&survival_request(300, spec))
-        .unwrap_err()
-        .to_string();
+    let text = run_survival(&survival_request(300, spec)).unwrap_err().to_string();
     assert!(
         text.contains(
             antecedent_core::reason_details::survival_effect::CENSORING_ASSUMPTION_MISSING
@@ -120,9 +133,7 @@ fn a_missing_horizon_and_an_undeclared_censoring_assumption_are_refused_separate
 
     let mut spec = survival_spec();
     spec.censoring = Some("informative".into());
-    let text = ObservationalSurvivalEffect::evaluate(&survival_request(300, spec))
-        .unwrap_err()
-        .to_string();
+    let text = run_survival(&survival_request(300, spec)).unwrap_err().to_string();
     assert!(
         text.contains(
             antecedent_core::reason_details::survival_effect::CENSORING_ASSUMPTION_UNKNOWN
@@ -135,14 +146,21 @@ fn a_missing_horizon_and_an_undeclared_censoring_assumption_are_refused_separate
 fn a_horizon_beyond_follow_up_is_a_positivity_refusal_on_the_public_route() {
     let mut spec = survival_spec();
     spec.horizon = Some(500.0);
-    let text = ObservationalSurvivalEffect::evaluate(&survival_request(600, spec))
-        .unwrap_err()
-        .to_string();
+    let text = run_survival(&survival_request(600, spec)).unwrap_err().to_string();
     assert!(text.contains("positivity_violated"), "{text}");
     assert!(
         text.contains(antecedent_core::reason_details::survival_effect::HORIZON_BEYOND_FOLLOW_UP),
         "{text}"
     );
+}
+
+fn run_policy(
+    request: &ObservationalPolicyRequest,
+) -> Result<ObservationalPolicyReportWire, antecedent::CausalError> {
+    ObservationalPolicyValue::evaluate(
+        request,
+        &antecedent::prelude::ExecutionContext::production_default(request.spec.seed),
+    )
 }
 
 fn policy_request(spec: ObservationalPolicySpecWire) -> ObservationalPolicyRequest {
@@ -181,10 +199,17 @@ fn policy_spec(evaluation: &str) -> ObservationalPolicySpecWire {
 }
 
 #[test]
+fn policy_value_runs_under_the_callers_cancelled_context() {
+    let request = policy_request(policy_spec("prespecified"));
+    let ctx = antecedent::prelude::ExecutionContext::production_default(request.spec.seed);
+    ctx.cancellation.cancel();
+    assert!(ObservationalPolicyValue::evaluate(&request, &ctx).is_err());
+}
+
+#[test]
 fn policy_value_reports_the_declared_support_evaluation_and_standing() {
     for (evaluation, expected_rows) in [("prespecified", 1200), ("cross_fitted_learning", 1200)] {
-        let report =
-            ObservationalPolicyValue::evaluate(&policy_request(policy_spec(evaluation))).unwrap();
+        let report = run_policy(&policy_request(policy_spec(evaluation))).unwrap();
         assert_eq!(report.evaluation, evaluation);
         assert_eq!(report.support, vec![0.0, 1.0]);
         assert_eq!(report.evaluation_rows, expected_rows);
@@ -208,8 +233,7 @@ fn policy_value_reports_the_declared_support_evaluation_and_standing() {
         let back: ObservationalPolicyReportWire = serde_json::from_str(&json).unwrap();
         assert_eq!(back, report);
     }
-    let held_out =
-        ObservationalPolicyValue::evaluate(&policy_request(policy_spec("held_out"))).unwrap();
+    let held_out = run_policy(&policy_request(policy_spec("held_out"))).unwrap();
     assert!(held_out.evaluation_rows < 1200 && held_out.learning_rows > 0);
     assert!(held_out.estimand.contains("held-out"));
 }
@@ -246,12 +270,12 @@ fn every_undeclared_policy_input_is_refused_with_its_own_detail() {
     for (detail, edit) in cases {
         let mut request = policy_request(policy_spec("prespecified"));
         edit(&mut request.spec);
-        let text = ObservationalPolicyValue::evaluate(&request).unwrap_err().to_string();
+        let text = run_policy(&request).unwrap_err().to_string();
         assert!(text.contains(detail), "{detail}: {text}");
     }
     let mut request = policy_request(policy_spec("held_out"));
     request.spec.evaluation_fraction = None;
-    let text = ObservationalPolicyValue::evaluate(&request).unwrap_err().to_string();
+    let text = run_policy(&request).unwrap_err().to_string();
     assert!(
         text.contains(antecedent_core::reason_details::policy_value::EVALUATION_FRACTION_MISSING),
         "{text}"
@@ -262,12 +286,12 @@ fn every_undeclared_policy_input_is_refused_with_its_own_detail() {
 fn reusing_the_evaluation_rows_to_learn_the_policy_and_unsupported_actions_are_refused() {
     let mut spec = policy_spec("prespecified");
     spec.policy_origin = Some("learned_on_evaluation_rows".into());
-    let text = ObservationalPolicyValue::evaluate(&policy_request(spec)).unwrap_err().to_string();
+    let text = run_policy(&policy_request(spec)).unwrap_err().to_string();
     assert!(text.contains("policy_learned_on_evaluation_rows"), "{text}");
 
     let mut request = policy_request(policy_spec("prespecified"));
     request.spec.policy_actions.as_mut().unwrap()[0] = 7.0;
-    let text = ObservationalPolicyValue::evaluate(&request).unwrap_err().to_string();
+    let text = run_policy(&request).unwrap_err().to_string();
     assert!(text.contains("positivity_violated"), "{text}");
     assert!(
         text.contains(antecedent_core::reason_details::policy_value::ACTION_OUTSIDE_SUPPORT),

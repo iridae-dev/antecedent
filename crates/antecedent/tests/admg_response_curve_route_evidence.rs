@@ -251,26 +251,33 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
         .unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
     if bayesian {
+        // The posterior draws, plus the identification criterion: a response curve is
+        // not a query the consumer re-derives, so the carried estimands stay unverified.
         assert_eq!(
             consumed.acceptance.unresolved.len(),
-            1,
+            2,
             "{coordinate}: {:?}",
             consumed.acceptance.unresolved
         );
-        assert!(
-            consumed.acceptance.unresolved.iter().any(|reason| {
-                reason.as_ref() == "dependencies.functional_effect_response_posterior_draws"
-            }),
-            "{coordinate}: {:?}",
-            consumed.acceptance.unresolved
-        );
+        for expected in [
+            "dependencies.functional_effect_response_posterior_draws",
+            "dependencies.identification_estimand_criterion",
+        ] {
+            assert!(
+                consumed.acceptance.unresolved.iter().any(|reason| reason.as_ref() == expected),
+                "{coordinate}: {:?}",
+                consumed.acceptance.unresolved
+            );
+        }
         assert!(!consumed.acceptance.accepts_as_verified_program());
     } else {
-        assert!(
-            consumed.acceptance.accepts_as_verified_program(),
-            "{coordinate}: {:?}",
-            consumed.acceptance.unresolved
+        // The only open item names an identification the consumer cannot re-derive.
+        assert_eq!(
+            consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
+            vec!["dependencies.identification_estimand_criterion"],
+            "{coordinate}"
         );
+        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
     }
     let wire_means =
         match &consumed.body.response.as_ref().expect("portable response payload").estimate {

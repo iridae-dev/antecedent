@@ -1939,7 +1939,9 @@ impl PyPreparedPolicyAnalysis {
                 antecedent::execution::AdmissionRefusal::Cancelled => {
                     py_err(antecedent::CausalError::Cancelled { stage: "policy_fit" })
                 }
-                error => crate::CausalResourceError::new_err(error.to_string()),
+                error @ antecedent::execution::AdmissionRefusal::Refused(_) => {
+                    crate::CausalResourceError::new_err(error.to_string())
+                }
             };
             let _check = antecedent::execution::retain_bounded(&ctx, 0, std::time::Duration::ZERO)
                 .map_err(admission_error)?;

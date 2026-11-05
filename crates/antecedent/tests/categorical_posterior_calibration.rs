@@ -47,6 +47,11 @@ const MAX_LEVELS: usize = 8;
 /// Arm sizes: every level keeps the candidate's minimum and the remaining rows follow the
 /// imbalance profile, which is balanced, halves per level, or leaves the minimum to every
 /// non-reference level.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "each share is a non-negative fraction of the spare rows, far below usize::MAX"
+)]
 fn arm_sizes(rows: usize, levels: usize, imbalance: usize) -> Vec<usize> {
     let weights: Vec<f64> = (0..levels)
         .map(|level| match imbalance {

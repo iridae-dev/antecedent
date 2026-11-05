@@ -1083,7 +1083,7 @@ mod tests {
         assert!(!typicality(&constant, GRID, 1.0).passed(), "a constant shift has no spread");
         let zero: Vec<Vec<f64>> = (0..20).map(|_| vec![0.0; GRID]).collect();
         assert!(typicality(&zero, GRID, 1.0).passed());
-        assert!(MIN_REPLICATES >= 2);
+        const { assert!(MIN_REPLICATES >= 2) };
     }
 
     /// A procedure whose curve ignores the treatment it is given is flat under the placebo; the
@@ -1242,7 +1242,9 @@ mod tests {
         assert_eq!(window.time_index().length, 96);
         assert!(
             (0..original.len()).any(|start| {
-                kept.iter().enumerate().all(|(i, v)| *v == original[(start + i) % original.len()])
+                kept.iter()
+                    .enumerate()
+                    .all(|(i, v)| v.to_bits() == original[(start + i) % original.len()].to_bits())
             }),
             "the subset is one circular window of the series"
         );

@@ -1010,6 +1010,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_b
 pub const <antecedent_learn::EffectSupport>::VERSION: u32
 pub const <antecedent_learn::recipes::RecipeKind>::ALL: [Self; 5]
 pub const antecedent_learn::BASIS_MAX_DEGREE: usize
+pub const antecedent_learn::MAX_GBT_DEPTH: u32
+pub const antecedent_learn::MAX_GBT_TREES: u32
 pub const antecedent_learn::dr_replay::MAX_REPLAY_COVARIATES: usize
 pub const antecedent_learn::dr_replay::MAX_REPLAY_FOLDS: usize
 pub const antecedent_learn::dr_replay::MAX_REPLAY_ROWS: usize
@@ -1270,6 +1272,7 @@ pub fn <antecedent_learn::ForestSpec>::const fn resolved_min_samples_leaf(self, 
 pub fn <antecedent_learn::KnownVarianceBasisRegression>::const fn estimator_id(&self) -> &'static str
 pub fn <antecedent_learn::KnownVarianceBasisRegression>::fn fit(&self, design: antecedent_learn::BasisDesign<'_>, spec: &antecedent_learn::KnownVarianceBasisSpec<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_learn::BasisRegressionPosterior, antecedent_learn::LearnError>
 pub fn <antecedent_learn::LassoLogisticLearner>::fn new(lambda: f64) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::LearnError>::fn is_resource_limit(&self) -> bool
 pub fn <antecedent_learn::LearnerCapabilities>::const fn none() -> Self
 pub fn <antecedent_learn::LearnerSpec>::const fn for_task(self, task: antecedent_learn::PredictionTask) -> Self
 pub fn <antecedent_learn::LearnerSpec>::const fn name(self) -> &'static str
@@ -1610,6 +1613,8 @@ pub use antecedent_learn::spec::GbtSpec = antecedent_learn::GbtSpec
 pub use antecedent_learn::spec::LearnerSpec = antecedent_learn::LearnerSpec
 pub use antecedent_learn::spec::LinearSpec = antecedent_learn::LinearSpec
 pub use antecedent_learn::spec::LogisticSpec = antecedent_learn::LogisticSpec
+pub use antecedent_learn::spec::MAX_GBT_DEPTH = antecedent_learn::MAX_GBT_DEPTH
+pub use antecedent_learn::spec::MAX_GBT_TREES = antecedent_learn::MAX_GBT_TREES
 pub use antecedent_learn::spec::NeuralSpec = antecedent_learn::NeuralSpec
 pub use antecedent_learn::spec::RidgeSpec = antecedent_learn::RidgeSpec
 pub use antecedent_learn::spec::resolve = antecedent_learn::resolve
@@ -1634,6 +1639,7 @@ pub variant antecedent_learn::LearnError::Cancelled
 pub variant antecedent_learn::LearnError::NonFinite { message: &'static str }
 pub variant antecedent_learn::LearnError::Probability(antecedent_prob::error::ProbError)
 pub variant antecedent_learn::LearnError::ProviderUnavailable { spec: &'static str, required: antecedent_learn::LearnerCapabilities }
+pub variant antecedent_learn::LearnError::ResourceLimit { message: &'static str }
 pub variant antecedent_learn::LearnError::Shape { message: &'static str }
 pub variant antecedent_learn::LearnError::Stats(antecedent_stats::error::StatsError)
 pub variant antecedent_learn::LearnError::TaskMismatch { requested: antecedent_learn::PredictionTask, supported: antecedent_learn::PredictionTask }

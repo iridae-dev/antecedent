@@ -27,4 +27,4 @@ sha256 = "922695f17b791098764b2fc4e3164e04c9d4171ec287f51114a00b8182e591ab"
 role = "assertion"
 path = "crates/antecedent/tests/proposal_arrival.rs"
 items = ["fn arrival_checked_transport_evaluates_actual_counts_and_full_atom_truth", "fn arrival_checked_z_transport_replays_original_proof_and_actual_count_worlds", "fn arrival_count_snapshot_population_assignment_and_sampling_refusals", "fn arrival_original_artifact_and_raw_provider_replay_refuses_resealed_changes", "fn candidate", "fn detail", "fn execute", "fn fixture", "fn fixture_family", "fn law", "fn pin", "fn ranking", "fn v"]
-sha256 = "0e12a969bb1ba367ffa11ebc110770b61da24c2bc3c3b88a6c53d75433bfba65"
+sha256 = "38810cdf5cfc956eaa29f689ea4e4e26486f776c4743041fad4ff9e8903b46b6"

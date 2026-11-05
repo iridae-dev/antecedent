@@ -158,7 +158,9 @@ fn round_trip(prepared: &PreparedStudy, result: &StudyResult, ctx: &ExecutionCon
     // dependency and nothing else, never a malformed payload.
     let dependency_only = !consumed.acceptance.unresolved.is_empty()
         && consumed.acceptance.unresolved.iter().all(|reason| {
-            reason.starts_with("dependencies.checked_") && reason.ends_with("_operation")
+            (reason.starts_with("dependencies.checked_") && reason.ends_with("_operation"))
+                // Names an identification the consumer cannot re-derive (class graph).
+                || reason.as_ref() == "dependencies.identification_estimand_criterion"
         });
     assert!(
         consumed.acceptance.accepts_as_verified_program() || dependency_only,

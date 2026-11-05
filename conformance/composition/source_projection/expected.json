@@ -53,7 +53,7 @@
             "fn source_projection_original_native_mean_and_affine_utility_match_independent_truth",
             "struct Mutant"
           ],
-          "sha256": "f1a634878776c9a000cd0a5e13e0dfe3ba0d6c26232fb7a2d093412fabb570b5"
+          "sha256": "ba9184f4108a49c04811e5e6ffa7778cd74c1c03167e50deee68af04a0e5231b"
         }
       ],
       "fixture_payload_sha256": "52071841f3fa90745d54d0cc0456188ad46e1f836a9cb26fb27096c4481701f0"

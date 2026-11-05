@@ -479,15 +479,17 @@ fn is_front_door_set(
 /// (a front-door set restricted to those nodes still intercepts every directed path, and the
 /// two back-door conditions are per mediator). A node that has an open back-door path from the
 /// treatment can be in no front-door set, so those are dropped first; the remaining pool is
-/// searched by increasing set size with no cap on the size or on the pool, and `limits` bounds
-/// the number of candidate sets tested. A pool that does not intercept every directed path
-/// proves no set exists without any enumeration.
+/// searched by increasing set size with no cap on the size or on the pool, and `remaining`
+/// bounds the number of candidate sets tested: the caller's shared budget, decremented per
+/// candidate so several searches of one call draw on the same cap. Cancellation of the active
+/// workflow is polled per pool node and per candidate. A pool that does not intercept every
+/// directed path proves no set exists without any enumeration.
 fn front_door_set_on(
     admg: &Admg,
     nodes: &NodeMap<'_>,
     treatment: VariableId,
     outcome: VariableId,
-    limits: SearchLimits,
+    remaining: &mut u64,
 ) -> Result<FrontDoorSearch<Vec<VariableId>>, IdentificationError> {
     let t = (nodes.dense)(treatment)?;
     let y = (nodes.dense)(outcome)?;
@@ -498,6 +500,7 @@ fn front_door_set_on(
         admg.copy_filtered(CopyLabels::StaticIndex { extra: 0 }, |from, _| from != t, |_, _| true)?;
     let mut pool: Vec<DenseNodeId> = Vec::new();
     for node in DenseNodeId::all(admg.node_count()) {
+        poll_front_door_cancellation()?;
         if node != t
             && node != y
             && descendants.contains(node)
@@ -507,7 +510,6 @@ fn front_door_set_on(
             pool.push(node);
         }
     }
-    let budget = u64::try_from(limits.operations).unwrap_or(u64::MAX);
     let mut examined = 0u64;
     // Intercepting every directed path is monotone in the mediator set, so the whole pool is
     // the best case: when it fails, nothing smaller can pass.
@@ -517,9 +519,11 @@ fn front_door_set_on(
     for size in 1..=pool.len() {
         let mut chosen: Vec<usize> = (0..size).collect();
         loop {
-            if examined >= budget {
+            poll_front_door_cancellation()?;
+            if *remaining == 0 {
                 return Ok(FrontDoorSearch::NotCertified { examined });
             }
+            *remaining -= 1;
             examined += 1;
             let candidate: Vec<DenseNodeId> = chosen.iter().map(|&i| pool[i]).collect();
             if is_front_door_set(admg, t, y, &candidate, &mut workspace)? {
@@ -544,6 +548,20 @@ fn front_door_set_on(
         }
     }
     Ok(FrontDoorSearch::Absent)
+}
+
+/// Refuse with `Cancelled` once the active workflow's token is cancelled.
+fn poll_front_door_cancellation() -> Result<(), IdentificationError> {
+    if antecedent_core::numerical_admission::is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
+    Ok(())
+}
+
+/// The candidate-set budget of one front-door call: the caller's request, never above
+/// [`default_front_door_limits`]. A request cannot remove the cap.
+fn front_door_test_budget(requested: usize) -> u64 {
+    u64::try_from(requested.min(DEFAULT_FRONT_DOOR_TESTS)).unwrap_or(u64::MAX)
 }
 
 /// `admg` with every node of `removed` deleted (ids preserved).
@@ -633,7 +651,8 @@ pub fn search_admg_front_door_derivative(
             .ok_or(IdentificationError::UnknownVariable { id: VariableId::from_raw(node.raw()) })
     };
     let nodes = NodeMap { dense: &dense, variable: &variable };
-    Ok(front_door_set_on(admg, &nodes, treatment, outcome, limits)?
+    let mut remaining = front_door_test_budget(limits.operations);
+    Ok(front_door_set_on(admg, &nodes, treatment, outcome, &mut remaining)?
         .map(|mediators| front_door_result(query, treatment, outcome, mediators)))
 }
 
@@ -652,6 +671,8 @@ pub fn upgrade_id_only_derivative_cases(
     let &[(treatment, outcome)] = pairs.as_slice() else {
         return Ok(());
     };
+    // One candidate-set budget for every completion of this call.
+    let mut remaining = front_door_test_budget(DEFAULT_FRONT_DOOR_TESTS);
     for case in &mut envelope.cases {
         let id_only =
             case.result.estimands.first().is_some_and(|estimand| {
@@ -665,7 +686,7 @@ pub fn upgrade_id_only_derivative_cases(
         let dense = |variable: VariableId| pag_var_to_dense(mag, variable);
         let variable = |node: DenseNodeId| mag_dense_to_var(mag, node);
         let nodes = NodeMap { dense: &dense, variable: &variable };
-        match front_door_set_on(&admg, &nodes, treatment, outcome, default_front_door_limits())? {
+        match front_door_set_on(&admg, &nodes, treatment, outcome, &mut remaining)? {
             FrontDoorSearch::Found(mediators) => {
                 case.result = front_door_result(query, treatment, outcome, mediators);
             }
@@ -1053,6 +1074,32 @@ mod tests {
         let set: Vec<_> = result.estimands[0].adjustment_set.iter().map(|v| v.raw()).collect();
         assert!(!set.contains(&1), "the mediator is forbidden: {set:?}");
         assert!(set.contains(&3), "the confounder is required: {set:?}");
+    }
+
+    #[test]
+    fn front_door_search_shares_one_budget_and_polls_cancellation() {
+        // X=0 -> M=1 -> Y=2 with X <-> Y: the front-door set is {M}.
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(node(0), node(1)).unwrap();
+        g.insert_directed(node(1), node(2)).unwrap();
+        g.insert_bidirected(node(0), node(2)).unwrap();
+        let query = point_derivative(0, 2);
+        let found =
+            search_admg_front_door_derivative(&g, &query, default_front_door_limits()).unwrap();
+        assert!(matches!(found, FrontDoorSearch::Found(_)));
+        // A request above the default is clamped; zero tests leaves the search undecided.
+        let none = SearchLimits { operations: 0, depth: usize::MAX };
+        assert!(matches!(
+            search_admg_front_door_derivative(&g, &query, none).unwrap(),
+            FrontDoorSearch::NotCertified { examined: 0 }
+        ));
+        assert_eq!(front_door_test_budget(usize::MAX), DEFAULT_FRONT_DOOR_TESTS as u64);
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let cancelled = antecedent_core::numerical_admission::with_context(&ctx, || {
+            search_admg_front_door_derivative(&g, &query, default_front_door_limits())
+        });
+        assert_eq!(cancelled.unwrap_err(), IdentificationError::Cancelled);
     }
 
     #[test]

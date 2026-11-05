@@ -1449,11 +1449,13 @@ pub const REASON_DETAILS: &[&str] = &[
     "mnar_fixed_shift.preparation_resource_limit",
     "mnar_fixed_shift.source_admission_cancelled",
     "mnar_fixed_shift.source_admission_resource_limit",
+    "mnar_sensitivity.adjustment_not_valid",
     "mnar_sensitivity.bounds_exceeded",
     "mnar_sensitivity.composition_not_supported",
     "mnar_sensitivity.covariates_not_used",
     "mnar_sensitivity.covariates_required",
     "mnar_sensitivity.design_singular",
+    "mnar_sensitivity.graph_not_supported",
     "mnar_sensitivity.insufficient_observed",
     "mnar_sensitivity.invalid_bootstrap",
     "mnar_sensitivity.invalid_data",
@@ -1467,6 +1469,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "mnar_sensitivity.unsupported_estimator",
     "mnar_sensitivity.unsupported_mechanism",
     "mnar_sensitivity.unsupported_query",
+    "mnar_sensitivity.unsupported_target",
     "msm_posterior.band_not_constructed",
     "msm_posterior.empty_law",
     "msm_posterior.external_power_prior",
@@ -2128,6 +2131,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "scientific_bridge.assumption_evidence_missing",
     "scientific_bridge.assumption_missing",
     "scientific_bridge.blank_field",
+    "scientific_bridge.cancelled",
     "scientific_bridge.chain_stage_not_affine",
     "scientific_bridge.conditioning_mismatch",
     "scientific_bridge.degenerate_validation",
@@ -2151,6 +2155,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "scientific_bridge.interval_scope_outside_measured",
     "scientific_bridge.interval_source_uncertainty_required",
     "scientific_bridge.invalid_quantity",
+    "scientific_bridge.joint_law_dimension_limit",
     "scientific_bridge.malformed_mapping",
     "scientific_bridge.mapping_not_allowed",
     "scientific_bridge.mapping_scope_mismatch",
@@ -2167,13 +2172,16 @@ pub const REASON_DETAILS: &[&str] = &[
     "scientific_bridge.outside_validated_range",
     "scientific_bridge.population_mismatch",
     "scientific_bridge.predictive_importance_as_causal_effect",
+    "scientific_bridge.propagation_admission_refused",
     "scientific_bridge.propagation_overflow",
+    "scientific_bridge.propagation_work_limit",
     "scientific_bridge.provenance",
     "scientific_bridge.proxy_as_construct",
     "scientific_bridge.quantity_mismatch",
     "scientific_bridge.regime_mismatch",
     "scientific_bridge.replay_mismatch",
     "scientific_bridge.scientific_endpoint_as_utility",
+    "scientific_bridge.simulation_draw_limit",
     "scientific_bridge.source_dependence_invalid",
     "scientific_bridge.source_dependence_missing",
     "scientific_bridge.source_moment_not_finite",
@@ -4161,11 +4169,13 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("mnar_fixed_shift.preparation_resource_limit", &["execution_resource_limit"]),
     ("mnar_fixed_shift.source_admission_cancelled", &["execution_cancelled"]),
     ("mnar_fixed_shift.source_admission_resource_limit", &["execution_resource_limit"]),
+    ("mnar_sensitivity.adjustment_not_valid", &["invalid_argument"]),
     ("mnar_sensitivity.bounds_exceeded", &["route_not_supported"]),
     ("mnar_sensitivity.composition_not_supported", &["route_not_supported"]),
     ("mnar_sensitivity.covariates_not_used", &["invalid_argument"]),
     ("mnar_sensitivity.covariates_required", &["invalid_argument"]),
     ("mnar_sensitivity.design_singular", &["invalid_argument"]),
+    ("mnar_sensitivity.graph_not_supported", &["route_not_supported"]),
     ("mnar_sensitivity.insufficient_observed", &["invalid_argument"]),
     ("mnar_sensitivity.invalid_bootstrap", &["invalid_argument"]),
     ("mnar_sensitivity.invalid_data", &["invalid_argument"]),
@@ -4179,6 +4189,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("mnar_sensitivity.unsupported_estimator", &["route_not_supported"]),
     ("mnar_sensitivity.unsupported_mechanism", &["route_not_supported"]),
     ("mnar_sensitivity.unsupported_query", &["route_not_supported"]),
+    ("mnar_sensitivity.unsupported_target", &["route_not_supported"]),
     ("msm_posterior.band_not_constructed", &["route_not_supported"]),
     ("msm_posterior.empty_law", &["invalid_argument"]),
     ("msm_posterior.external_power_prior", &["route_not_supported"]),
@@ -4840,6 +4851,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("scientific_bridge.assumption_evidence_missing", &["bridge_assumption_missing"]),
     ("scientific_bridge.assumption_missing", &["bridge_assumption_missing"]),
     ("scientific_bridge.blank_field", &["scientific_bridge_invalid"]),
+    ("scientific_bridge.cancelled", &["cancelled_no_claim"]),
     ("scientific_bridge.chain_stage_not_affine", &["route_not_supported"]),
     ("scientific_bridge.conditioning_mismatch", &["bridge_binding_mismatch"]),
     ("scientific_bridge.degenerate_validation", &["bridge_mapping_not_supported"]),
@@ -4863,6 +4875,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("scientific_bridge.interval_scope_outside_measured", &["route_not_supported"]),
     ("scientific_bridge.interval_source_uncertainty_required", &["required_option_missing"]),
     ("scientific_bridge.invalid_quantity", &["scientific_bridge_invalid"]),
+    ("scientific_bridge.joint_law_dimension_limit", &["execution_resource_limit"]),
     ("scientific_bridge.malformed_mapping", &["scientific_bridge_invalid"]),
     ("scientific_bridge.mapping_not_allowed", &["scientific_bridge_invalid"]),
     ("scientific_bridge.mapping_scope_mismatch", &["bridge_binding_mismatch"]),
@@ -4879,13 +4892,16 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("scientific_bridge.outside_validated_range", &["bridge_mapping_not_supported"]),
     ("scientific_bridge.population_mismatch", &["bridge_binding_mismatch"]),
     ("scientific_bridge.predictive_importance_as_causal_effect", &["bridge_substitution_refused"]),
+    ("scientific_bridge.propagation_admission_refused", &["execution_resource_limit"]),
     ("scientific_bridge.propagation_overflow", &["scientific_bridge_invalid"]),
+    ("scientific_bridge.propagation_work_limit", &["execution_resource_limit"]),
     ("scientific_bridge.provenance", &["scientific_bridge_invalid"]),
     ("scientific_bridge.proxy_as_construct", &["proxy_offered_as_construct"]),
     ("scientific_bridge.quantity_mismatch", &["bridge_binding_mismatch"]),
     ("scientific_bridge.regime_mismatch", &["bridge_binding_mismatch"]),
     ("scientific_bridge.replay_mismatch", &["invalid_argument"]),
     ("scientific_bridge.scientific_endpoint_as_utility", &["bridge_substitution_refused"]),
+    ("scientific_bridge.simulation_draw_limit", &["execution_resource_limit"]),
     ("scientific_bridge.source_dependence_invalid", &["scientific_bridge_invalid"]),
     ("scientific_bridge.source_dependence_missing", &["sampling_dependence_unknown"]),
     ("scientific_bridge.source_moment_not_finite", &["scientific_bridge_invalid"]),
@@ -8737,6 +8753,8 @@ pub mod mnar_fixed_shift {
 
 /// Details in the `mnar_sensitivity` family.
 pub mod mnar_sensitivity {
+    /// Detail `mnar_sensitivity.adjustment_not_valid`.
+    pub const ADJUSTMENT_NOT_VALID: &str = "mnar_sensitivity.adjustment_not_valid";
     /// Detail `mnar_sensitivity.bounds_exceeded`.
     pub const BOUNDS_EXCEEDED: &str = "mnar_sensitivity.bounds_exceeded";
     /// Detail `mnar_sensitivity.composition_not_supported`.
@@ -8747,6 +8765,8 @@ pub mod mnar_sensitivity {
     pub const COVARIATES_REQUIRED: &str = "mnar_sensitivity.covariates_required";
     /// Detail `mnar_sensitivity.design_singular`.
     pub const DESIGN_SINGULAR: &str = "mnar_sensitivity.design_singular";
+    /// Detail `mnar_sensitivity.graph_not_supported`.
+    pub const GRAPH_NOT_SUPPORTED: &str = "mnar_sensitivity.graph_not_supported";
     /// Detail `mnar_sensitivity.insufficient_observed`.
     pub const INSUFFICIENT_OBSERVED: &str = "mnar_sensitivity.insufficient_observed";
     /// Detail `mnar_sensitivity.invalid_bootstrap`.
@@ -8773,6 +8793,8 @@ pub mod mnar_sensitivity {
     pub const UNSUPPORTED_MECHANISM: &str = "mnar_sensitivity.unsupported_mechanism";
     /// Detail `mnar_sensitivity.unsupported_query`.
     pub const UNSUPPORTED_QUERY: &str = "mnar_sensitivity.unsupported_query";
+    /// Detail `mnar_sensitivity.unsupported_target`.
+    pub const UNSUPPORTED_TARGET: &str = "mnar_sensitivity.unsupported_target";
 }
 
 /// Details in the `msm_posterior` family.
@@ -10259,6 +10281,8 @@ pub mod scientific_bridge {
     pub const ASSUMPTION_MISSING: &str = "scientific_bridge.assumption_missing";
     /// Detail `scientific_bridge.blank_field`.
     pub const BLANK_FIELD: &str = "scientific_bridge.blank_field";
+    /// Detail `scientific_bridge.cancelled`.
+    pub const CANCELLED: &str = "scientific_bridge.cancelled";
     /// Detail `scientific_bridge.chain_stage_not_affine`.
     pub const CHAIN_STAGE_NOT_AFFINE: &str = "scientific_bridge.chain_stage_not_affine";
     /// Detail `scientific_bridge.conditioning_mismatch`.
@@ -10305,6 +10329,8 @@ pub mod scientific_bridge {
     pub const INTERVAL_SOURCE_UNCERTAINTY_REQUIRED: &str = "scientific_bridge.interval_source_uncertainty_required";
     /// Detail `scientific_bridge.invalid_quantity`.
     pub const INVALID_QUANTITY: &str = "scientific_bridge.invalid_quantity";
+    /// Detail `scientific_bridge.joint_law_dimension_limit`.
+    pub const JOINT_LAW_DIMENSION_LIMIT: &str = "scientific_bridge.joint_law_dimension_limit";
     /// Detail `scientific_bridge.malformed_mapping`.
     pub const MALFORMED_MAPPING: &str = "scientific_bridge.malformed_mapping";
     /// Detail `scientific_bridge.mapping_not_allowed`.
@@ -10337,8 +10363,12 @@ pub mod scientific_bridge {
     pub const POPULATION_MISMATCH: &str = "scientific_bridge.population_mismatch";
     /// Detail `scientific_bridge.predictive_importance_as_causal_effect`.
     pub const PREDICTIVE_IMPORTANCE_AS_CAUSAL_EFFECT: &str = "scientific_bridge.predictive_importance_as_causal_effect";
+    /// Detail `scientific_bridge.propagation_admission_refused`.
+    pub const PROPAGATION_ADMISSION_REFUSED: &str = "scientific_bridge.propagation_admission_refused";
     /// Detail `scientific_bridge.propagation_overflow`.
     pub const PROPAGATION_OVERFLOW: &str = "scientific_bridge.propagation_overflow";
+    /// Detail `scientific_bridge.propagation_work_limit`.
+    pub const PROPAGATION_WORK_LIMIT: &str = "scientific_bridge.propagation_work_limit";
     /// Detail `scientific_bridge.provenance`.
     pub const PROVENANCE: &str = "scientific_bridge.provenance";
     /// Detail `scientific_bridge.proxy_as_construct`.
@@ -10351,6 +10381,8 @@ pub mod scientific_bridge {
     pub const REPLAY_MISMATCH: &str = "scientific_bridge.replay_mismatch";
     /// Detail `scientific_bridge.scientific_endpoint_as_utility`.
     pub const SCIENTIFIC_ENDPOINT_AS_UTILITY: &str = "scientific_bridge.scientific_endpoint_as_utility";
+    /// Detail `scientific_bridge.simulation_draw_limit`.
+    pub const SIMULATION_DRAW_LIMIT: &str = "scientific_bridge.simulation_draw_limit";
     /// Detail `scientific_bridge.source_dependence_invalid`.
     pub const SOURCE_DEPENDENCE_INVALID: &str = "scientific_bridge.source_dependence_invalid";
     /// Detail `scientific_bridge.source_dependence_missing`.

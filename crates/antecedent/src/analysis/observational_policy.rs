@@ -75,7 +75,8 @@ pub struct ObservationalPolicySpecWire {
     /// order. Exclusive with `known_propensity`.
     #[serde(default)]
     pub known_propensity_columns: Option<Vec<Vec<f64>>>,
-    /// Seed of the fold plan or held-out split.
+    /// Seed of the fold plan or held-out split. `evaluate` runs under the caller's context and
+    /// its seed; bindings that build the context from this declaration use this value.
     #[serde(default)]
     pub seed: u64,
 }
@@ -170,7 +171,8 @@ impl ObservationalPolicyValue {
     /// being scored, so requests over the same rows, support and splits fit them once. The
     /// cache is charged to the admission pool of `ctx` and, when `retention` is not
     /// [`RetentionMode::FullReusable`], retains nothing. Each result equals the request's own
-    /// [`Self::evaluate`]; one request's refusal does not affect another's.
+    /// [`Self::evaluate`] under `ctx` (its seed, not each request's declared seed, drives the
+    /// cross-fit); one request's refusal does not affect another's.
     ///
     /// [`RetentionMode::FullReusable`]: antecedent_state::retention::RetentionMode::FullReusable
     #[must_use]
@@ -180,10 +182,16 @@ impl ObservationalPolicyValue {
         retention: antecedent_state::retention::RetentionMode,
     ) -> Vec<Result<ObservationalPolicyReportWire, CausalError>> {
         let cache = super::batch::batch_nuisance_cache(ctx, retention);
-        requests.iter().map(|request| cache.scope(|| Self::evaluate(request)).0).collect()
+        requests.iter().map(|request| cache.scope(|| Self::evaluate(request, ctx)).0).collect()
     }
 
-    /// Estimate the declared policy's value.
+    /// Estimate the declared policy's value under the caller's `ctx`.
+    ///
+    /// This is a specialized checked path outside the central compiler. It checks the
+    /// declared support, objective, evaluation scheme and policy origin (a policy learned on
+    /// the scoring rows is refused), the columns and the propensity floor. It does not check
+    /// the adjustment columns against a graph: the report lists exchangeability as a declared
+    /// assumption. The cross-fit seed, cancellation and admission pool are `ctx`'s.
     ///
     /// # Errors
     /// `required_option_missing` for an absent support, objective, evaluation or policy
@@ -198,6 +206,7 @@ impl ObservationalPolicyValue {
     )]
     pub fn evaluate(
         request: &ObservationalPolicyRequest,
+        ctx: &ExecutionContext,
     ) -> Result<ObservationalPolicyReportWire, CausalError> {
         let refused = |code: &'static str, detail: &str, message: &str| {
             CausalError::Estimate(EstimationError::refused_detail(code, detail, message))
@@ -320,7 +329,6 @@ impl ObservationalPolicyValue {
         }
         let covariates: Vec<&[f64]> =
             request.adjustment.iter().map(|c| c.values.as_slice()).collect();
-        let ctx = ExecutionContext::production_default(spec.seed);
         let estimate = estimator
             .estimate(
                 &PolicyData {
@@ -328,7 +336,7 @@ impl ObservationalPolicyValue {
                     treatment: &request.treatment,
                     covariates: &covariates,
                 },
-                &ctx,
+                ctx,
             )
             .map_err(CausalError::from)?;
         Ok(ObservationalPolicyReportWire {

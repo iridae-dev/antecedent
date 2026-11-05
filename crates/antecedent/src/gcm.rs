@@ -9,9 +9,23 @@
 //! fits its mechanisms through a [`crate::MechanismProgram`] (held-out
 //! family selection, with the selection record on the result) and returns the
 //! engine's answer with a [`crate::CausalContract`] and a claim. The `sample_do`,
-//! `policy_value`, `counterfactual_ite`, `anomaly_attribution*`, `attribute_*` and
-//! `rank_root_causes` functions are the engines those routes run; they are hidden
-//! from the public surface.
+//! `policy_value`, `counterfactual_ite`, `anomaly_attribution*`, `attribute_*`,
+//! noise-replay and policy functions are the engines those routes run; they are
+//! crate-private, and public only under the `calibration-internal` feature for the suites
+//! that compare an engine with its route.
+//!
+//! # Specialized model operations outside the central compiler
+//!
+//! Some operations on a fitted model have no compiled route and stay public:
+//! [`arrow_strengths`], [`population_do_contrast`], [`counterfactual_contrasts`],
+//! [`simultaneous_hard_counterfactual`], [`interventional_mean`], the do-samplers
+//! ([`KdeDoSampler`], [`McmcDoSampler`], [`WeightingDoSampler`]), the held-out
+//! [`ModelEvaluator`], [`rank_root_causes`] (which only reorders an attribution a route
+//! returned) and the cyclic, external-mechanism and composition modules. Each takes the
+//! caller's [`ExecutionContext`] (or its seed and thread budget) and returns the numbers
+//! it computed under the fitted mechanisms. None carries a contract, a claim, a
+//! calibration status or an identification statement: the result is a statement about the
+//! fitted model, not a checked causal effect of the data. Use a study query for a claim.
 //!
 //! # Example
 //!
@@ -36,6 +50,26 @@ use antecedent_graph::Dag;
 use antecedent_model::{InterventionOverlay, ModelView, NoiseFix, NoiseReplayer, NoiseSource};
 
 use crate::error::CausalError;
+
+/// Declares a model-level engine behind a compiled route.
+///
+/// A route in the central compiler (`CausalQuery::Simulate`, `CausalQuery::Attribute`) answers
+/// every operation declared through this macro, with a contract and a claim; the raw engine is
+/// what that route runs, so it is crate-private. It is public only under the
+/// `calibration-internal` feature, for the suites that compare an engine's output with the
+/// route's.
+macro_rules! internal_engine {
+    ($(#[$meta:meta])* pub fn $name:ident $($rest:tt)*) => {
+        $(#[$meta])*
+        #[cfg(feature = "calibration-internal")]
+        pub fn $name $($rest)*
+
+        $(#[$meta])*
+        #[cfg(not(feature = "calibration-internal"))]
+        #[allow(dead_code, reason = "reached only through a compiled route or a calibration suite")]
+        pub(crate) fn $name $($rest)*
+    };
+}
 
 mod counterfactual_contrasts;
 pub use counterfactual_contrasts::{ContrastedOutcome, CounterfactualContrasts};
@@ -189,7 +223,6 @@ pub fn fit_gcm_with(
 ///
 /// # Errors
 /// The existing fitting failures, or cancellation before a node, candidate or validation fold.
-#[doc(hidden)]
 pub fn fit_gcm_polled(
     graph: Dag,
     data: &TabularData,
@@ -201,9 +234,7 @@ pub fn fit_gcm_polled(
     let defaults = SelectionOptions::default();
     let (registry, options) = selection.unwrap_or((&standard, &defaults));
     let (store, assignments) = registry
-        .assign_and_fit_with_polled(&compiled, data, SelectionPolicy::BestScore, options, &|| {
-            ctx.cancellation.is_cancelled()
-        })
+        .assign_and_fit_with_in(&compiled, data, SelectionPolicy::BestScore, options, ctx)
         .map_err(|error| match error {
             ModelError::Cancelled => CausalError::Cancelled { stage: "policy_fit" },
             other if selection.is_some() => map_mechanism_fit(other),
@@ -948,148 +979,160 @@ pub(crate) fn map_mechanism_fit(e: ModelError) -> CausalError {
     }
 }
 
-/// Interventional ancestral sample under hard `do` values (batch, one GIL/boundary crossing).
-///
-/// # Errors
-///
-/// Sampling failures.
-#[doc(hidden)]
-pub fn sample_do(
-    model: &CompiledCausalModel,
-    interventions: &[Intervention],
-    n: usize,
-    rng: &mut CausalRng,
-    ctx: &ExecutionContext,
-) -> Result<ValueBatch, CausalError> {
-    let mut ws = MechanismWorkspace::default();
-    sample_interventional(model, interventions, n, rng, &mut ws, ctx).map_err(CausalError::from)
-}
-
-/// Abduction once, then the factual units replayed under `interventions`, which may carry
-/// value programs (`Intervention::transform` / `Intervention::assign`). The retained noise
-/// goes through the same per-node precedence and program executor as [`sample_do`], so a
-/// policy gives the same values on the factual rows of an invertible model on both routes.
-///
-/// # Errors
-///
-/// Abduction / prediction failures, or a refused policy.
-#[doc(hidden)]
-pub fn counterfactual_policy(
-    model: CompiledCausalModel,
-    data: &TabularData,
-    interventions: &[Intervention],
-    outcomes: &[VariableId],
-    ctx: &ExecutionContext,
-) -> Result<CounterfactualResult, CausalError> {
-    let engine = CounterfactualEngine::new(model);
-    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
-    let mut ws = MechanismWorkspace::default();
-    let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(interventions) };
-    Ok(engine.predict(&exo, &[world], outcomes, false, &mut ws, ctx)?)
-}
-
-/// Abduction at every step of a factual panel, then the retained per-step noise replayed through
-/// the model under the plan's scheduled interventions. `steps[t]` holds the factual units at
-/// step `t` (every unit present at every step, in the same order); `plan.n_steps` must equal
-/// `steps.len()` and `plan.n_rows` each table's row count.
-///
-/// The noise goes through the executor [`counterfactual_policy`] and [`sample_temporal_policy`]
-/// use, so a policy (including a lagged read of earlier realised steps) means the same thing on
-/// all three routes.
-///
-/// # Errors
-///
-/// Abduction failures at any step, noise that does not match the model, rows or steps, a policy
-/// reading history that does not exist yet, or a refused program.
-#[doc(hidden)]
-pub fn counterfactual_temporal_policy(
-    model: CompiledCausalModel,
-    steps: &[TabularData],
-    plan: &TemporalPlan<'_>,
-    ctx: &ExecutionContext,
-) -> Result<TemporalPath, CausalError> {
-    let engine = CounterfactualEngine::new(model);
-    let exo = steps
-        .iter()
-        .map(|data| engine.abduct(data, AbductionMissingPolicy::Error, ctx))
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut ws = MechanismWorkspace::default();
-    Ok(engine.predict_temporal(&exo, plan, &mut ws, ctx)?)
-}
-
-/// Draw `n` rows under `interventions` together with the exogenous noise that produced them.
-/// Replaying the returned table with [`replay_noise`] under the same interventions and salt `0`
-/// reproduces the draws bit for bit.
-///
-/// # Errors
-///
-/// An invalid intervention set, an unfitted mechanism that is not hard-set, a table over the
-/// context's memory limit, or cancellation.
-#[doc(hidden)]
-pub fn sample_with_noise(
-    model: &CompiledCausalModel,
-    interventions: &[Intervention],
-    n: usize,
-    ctx: &ExecutionContext,
-) -> Result<(ValueBatch, NoiseTable), CausalError> {
-    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
-    Ok(NoiseReplayer::new().sample(&ModelView::with_overlay(model, overlay), n, ctx)?)
-}
-
-/// A noise table of `n_rows` rows holding the caller's own noise: one column per model node in
-/// dense node order (`values[node * n_rows + row]`). Noise must be finite, and strictly inside
-/// `(0, 1)` for a categorical node.
-///
-/// # Errors
-///
-/// A shape mismatch, an invalid noise value, or a table over the context's memory limit.
-#[doc(hidden)]
-pub fn noise_table_from_columns(
-    model: &CompiledCausalModel,
-    n_rows: usize,
-    values: &[f64],
-    ctx: &ExecutionContext,
-) -> Result<NoiseTable, CausalError> {
-    let n_nodes = model.n_nodes();
-    if n_rows.checked_mul(n_nodes) != Some(values.len()) {
-        return Err(CausalError::from(ModelError::Shape {
-            message: "noise must hold n_rows values for each of the model's nodes".into(),
-        }));
+internal_engine! {
+    /// Interventional ancestral sample under hard `do` values (batch, one GIL/boundary crossing).
+    ///
+    /// # Errors
+    ///
+    /// Sampling failures.
+    #[doc(hidden)]
+    pub fn sample_do(
+        model: &CompiledCausalModel,
+        interventions: &[Intervention],
+        n: usize,
+        rng: &mut CausalRng,
+        ctx: &ExecutionContext,
+    ) -> Result<ValueBatch, CausalError> {
+        let mut ws = MechanismWorkspace::default();
+        sample_interventional(model, interventions, n, rng, &mut ws, ctx).map_err(CausalError::from)
     }
-    let mut table = NoiseTable::sample(&ModelView::observational(model), n_rows, ctx)?;
-    let nodes: Vec<_> = (0..n_nodes)
-        .map(|node| {
-            u32::try_from(node).map(antecedent_graph::DenseNodeId::from_raw).map_err(|_| {
-                CausalError::from(ModelError::Shape { message: "node index exceeds u32".into() })
-            })
-        })
-        .collect::<Result<_, _>>()?;
-    table.fix(model, &nodes, NoiseFix::Columns(values))?;
-    Ok(table)
 }
 
-/// Replay retained noise through the model under `interventions`, with the per-node precedence
-/// of forward sampling (a stochastic policy draws from the stream keyed by `policy_salt`).
-///
-/// # Errors
-///
-/// An invalid intervention set, a table of another model's width, a mechanism that refuses its
-/// noise, a table over the context's memory limit, or cancellation.
-#[doc(hidden)]
-pub fn replay_noise(
-    model: &CompiledCausalModel,
-    interventions: &[Intervention],
-    noise: &NoiseTable,
-    policy_salt: u64,
-    ctx: &ExecutionContext,
-) -> Result<ValueBatch, CausalError> {
-    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
-    Ok(NoiseReplayer::new().replay(
-        &ModelView::with_overlay(model, overlay),
-        NoiseSource::Table(noise),
-        policy_salt,
-        ctx,
-    )?)
+internal_engine! {
+    /// Abduction once, then the factual units replayed under `interventions`, which may carry
+    /// value programs (`Intervention::transform` / `Intervention::assign`). The retained noise
+    /// goes through the same per-node precedence and program executor as [`sample_do`], so a
+    /// policy gives the same values on the factual rows of an invertible model on both routes.
+    ///
+    /// # Errors
+    ///
+    /// Abduction / prediction failures, or a refused policy.
+    #[doc(hidden)]
+    pub fn counterfactual_policy(
+        model: CompiledCausalModel,
+        data: &TabularData,
+        interventions: &[Intervention],
+        outcomes: &[VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<CounterfactualResult, CausalError> {
+        let engine = CounterfactualEngine::new(model);
+        let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
+        let mut ws = MechanismWorkspace::default();
+        let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(interventions) };
+        Ok(engine.predict(&exo, &[world], outcomes, false, &mut ws, ctx)?)
+    }
+}
+
+internal_engine! {
+    /// Abduction at every step of a factual panel, then the retained per-step noise replayed through
+    /// the model under the plan's scheduled interventions. `steps[t]` holds the factual units at
+    /// step `t` (every unit present at every step, in the same order); `plan.n_steps` must equal
+    /// `steps.len()` and `plan.n_rows` each table's row count.
+    ///
+    /// The noise goes through the executor [`counterfactual_policy`] and [`sample_temporal_policy`]
+    /// use, so a policy (including a lagged read of earlier realised steps) means the same thing on
+    /// all three routes.
+    ///
+    /// # Errors
+    ///
+    /// Abduction failures at any step, noise that does not match the model, rows or steps, a policy
+    /// reading history that does not exist yet, or a refused program.
+    #[doc(hidden)]
+    pub fn counterfactual_temporal_policy(
+        model: CompiledCausalModel,
+        steps: &[TabularData],
+        plan: &TemporalPlan<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<TemporalPath, CausalError> {
+        let engine = CounterfactualEngine::new(model);
+        let exo = steps
+            .iter()
+            .map(|data| engine.abduct(data, AbductionMissingPolicy::Error, ctx))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut ws = MechanismWorkspace::default();
+        Ok(engine.predict_temporal(&exo, plan, &mut ws, ctx)?)
+    }
+}
+
+internal_engine! {
+    /// Draw `n` rows under `interventions` together with the exogenous noise that produced them.
+    /// Replaying the returned table with [`replay_noise`] under the same interventions and salt `0`
+    /// reproduces the draws bit for bit.
+    ///
+    /// # Errors
+    ///
+    /// An invalid intervention set, an unfitted mechanism that is not hard-set, a table over the
+    /// context's memory limit, or cancellation.
+    #[doc(hidden)]
+    pub fn sample_with_noise(
+        model: &CompiledCausalModel,
+        interventions: &[Intervention],
+        n: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<(ValueBatch, NoiseTable), CausalError> {
+        let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+        Ok(NoiseReplayer::new().sample(&ModelView::with_overlay(model, overlay), n, ctx)?)
+    }
+}
+
+internal_engine! {
+    /// A noise table of `n_rows` rows holding the caller's own noise: one column per model node in
+    /// dense node order (`values[node * n_rows + row]`). Noise must be finite, and strictly inside
+    /// `(0, 1)` for a categorical node.
+    ///
+    /// # Errors
+    ///
+    /// A shape mismatch, an invalid noise value, or a table over the context's memory limit.
+    #[doc(hidden)]
+    pub fn noise_table_from_columns(
+        model: &CompiledCausalModel,
+        n_rows: usize,
+        values: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<NoiseTable, CausalError> {
+        let n_nodes = model.n_nodes();
+        if n_rows.checked_mul(n_nodes) != Some(values.len()) {
+            return Err(CausalError::from(ModelError::Shape {
+                message: "noise must hold n_rows values for each of the model's nodes".into(),
+            }));
+        }
+        let mut table = NoiseTable::sample(&ModelView::observational(model), n_rows, ctx)?;
+        let nodes: Vec<_> = (0..n_nodes)
+            .map(|node| {
+                u32::try_from(node).map(antecedent_graph::DenseNodeId::from_raw).map_err(|_| {
+                    CausalError::from(ModelError::Shape { message: "node index exceeds u32".into() })
+                })
+            })
+            .collect::<Result<_, _>>()?;
+        table.fix(model, &nodes, NoiseFix::Columns(values))?;
+        Ok(table)
+    }
+}
+
+internal_engine! {
+    /// Replay retained noise through the model under `interventions`, with the per-node precedence
+    /// of forward sampling (a stochastic policy draws from the stream keyed by `policy_salt`).
+    ///
+    /// # Errors
+    ///
+    /// An invalid intervention set, a table of another model's width, a mechanism that refuses its
+    /// noise, a table over the context's memory limit, or cancellation.
+    #[doc(hidden)]
+    pub fn replay_noise(
+        model: &CompiledCausalModel,
+        interventions: &[Intervention],
+        noise: &NoiseTable,
+        policy_salt: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<ValueBatch, CausalError> {
+        let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+        Ok(NoiseReplayer::new().replay(
+            &ModelView::with_overlay(model, overlay),
+            NoiseSource::Table(noise),
+            policy_salt,
+            ctx,
+        )?)
+    }
 }
 
 /// Model-based value of a policy on one outcome, with the unintervened outcome on the same
@@ -1119,29 +1162,31 @@ pub struct PolicyValue {
     pub support: PolicySupport,
 }
 
-/// Value of `interventions` on `outcome` under the fitted model: draw `n` rows with their noise
-/// under the policy, replay the same noise with no intervention, and report both means and their
-/// paired difference with the simulation error.
-///
-/// This is [`sample_with_noise`] and [`replay_noise`], the executor every policy route shares;
-/// a policy the simulation route refuses is refused here with the same registered reason code.
-///
-/// # Errors
-///
-/// A refused policy, an outcome absent from the model, fewer than two draws, a table over the
-/// context's memory limit, or cancellation.
-#[doc(hidden)]
-pub fn policy_value(
-    model: &CompiledCausalModel,
-    interventions: &[Intervention],
-    outcome: VariableId,
-    n: usize,
-    ctx: &ExecutionContext,
-) -> Result<PolicyValue, CausalError> {
-    let node = policy_value_request(model, outcome, n)?;
-    let support = policy_support(model, interventions);
-    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
-    policy_value_on(model, &overlay, support, (outcome, node), n, ctx)
+internal_engine! {
+    /// Value of `interventions` on `outcome` under the fitted model: draw `n` rows with their noise
+    /// under the policy, replay the same noise with no intervention, and report both means and
+    /// their paired difference with the simulation error.
+    ///
+    /// This is [`sample_with_noise`] and [`replay_noise`], the executor every policy route shares;
+    /// a policy the simulation route refuses is refused here with the same registered reason code.
+    ///
+    /// # Errors
+    ///
+    /// A refused policy, an outcome absent from the model, fewer than two draws, a table over the
+    /// context's memory limit, or cancellation.
+    #[doc(hidden)]
+    pub fn policy_value(
+        model: &CompiledCausalModel,
+        interventions: &[Intervention],
+        outcome: VariableId,
+        n: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<PolicyValue, CausalError> {
+        let node = policy_value_request(model, outcome, n)?;
+        let support = policy_support(model, interventions);
+        let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+        policy_value_on(model, &overlay, support, (outcome, node), n, ctx)
+    }
 }
 
 /// The outcome's dense node, after checking the request can report a simulation error.
@@ -1288,14 +1333,14 @@ impl PreparedPolicy {
         self.model_bindings
     }
 
-    /// Value of the retained program on `outcome`; equals [`policy_value`] on the same model,
+    /// Value of the retained program on `outcome`, run on the retained compiled overlay without
+    /// compiling the program again; it equals the compiled policy-value route on the same model,
     /// program and context. `model` must be the model the policy was prepared or rebound on.
     ///
     /// # Errors
     ///
     /// An outcome absent from the model, fewer than two draws, a table over the context's
     /// memory limit, or cancellation.
-    #[doc(hidden)]
     pub fn value(
         &self,
         model: &CompiledCausalModel,
@@ -1308,23 +1353,25 @@ impl PreparedPolicy {
     }
 }
 
-/// Roll the model out over time under a scheduled intervention sequence, drawing fresh noise.
-/// A value program may read earlier realised steps through `plan.window` (see
-/// [`antecedent_model::rollout_temporal`]).
-///
-/// # Errors
-///
-/// Rollout failures: shape, a policy reading history that does not exist yet, or a refused
-/// program.
-#[doc(hidden)]
-pub fn sample_temporal_policy(
-    model: &CompiledCausalModel,
-    plan: &TemporalPlan<'_>,
-    rng: &mut CausalRng,
-    ctx: &ExecutionContext,
-) -> Result<TemporalPath, CausalError> {
-    let mut ws = MechanismWorkspace::default();
-    Ok(antecedent_model::rollout_temporal(model, plan, TemporalNoise::Draw(rng), &mut ws, ctx)?)
+internal_engine! {
+    /// Roll the model out over time under a scheduled intervention sequence, drawing fresh noise.
+    /// A value program may read earlier realised steps through `plan.window` (see
+    /// [`antecedent_model::rollout_temporal`]).
+    ///
+    /// # Errors
+    ///
+    /// Rollout failures: shape, a policy reading history that does not exist yet, or a refused
+    /// program.
+    #[doc(hidden)]
+    pub fn sample_temporal_policy(
+        model: &CompiledCausalModel,
+        plan: &TemporalPlan<'_>,
+        rng: &mut CausalRng,
+        ctx: &ExecutionContext,
+    ) -> Result<TemporalPath, CausalError> {
+        let mut ws = MechanismWorkspace::default();
+        Ok(antecedent_model::rollout_temporal(model, plan, TemporalNoise::Draw(rng), &mut ws, ctx)?)
+    }
 }
 
 pub(crate) fn sample_temporal_policy_with_history_availability(
@@ -1345,24 +1392,26 @@ pub(crate) fn sample_temporal_policy_with_history_availability(
     )?)
 }
 
-/// Abduction once, then unit-level ITE for binary hard interventions on `treatment`.
-///
-/// # Errors
-///
-/// Abduction / prediction failures.
-#[doc(hidden)]
-pub fn counterfactual_ite(
-    model: CompiledCausalModel,
-    data: &TabularData,
-    treatment: VariableId,
-    outcome: VariableId,
-    active: f64,
-    control: f64,
-    ctx: &ExecutionContext,
-) -> Result<IteResult, CausalError> {
-    let engine = CounterfactualEngine::new(model);
-    let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
-    ite_from_abduction(&engine, exo, treatment, outcome, (active, control), ctx)
+internal_engine! {
+    /// Abduction once, then unit-level ITE for binary hard interventions on `treatment`.
+    ///
+    /// # Errors
+    ///
+    /// Abduction / prediction failures.
+    #[doc(hidden)]
+    pub fn counterfactual_ite(
+        model: CompiledCausalModel,
+        data: &TabularData,
+        treatment: VariableId,
+        outcome: VariableId,
+        active: f64,
+        control: f64,
+        ctx: &ExecutionContext,
+    ) -> Result<IteResult, CausalError> {
+        let engine = CounterfactualEngine::new(model);
+        let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
+        ite_from_abduction(&engine, exo, treatment, outcome, (active, control), ctx)
+    }
 }
 
 /// [`counterfactual_ite`] with the noise of many-to-one (categorical) nodes drawn from `rng`.
@@ -1432,7 +1481,6 @@ fn ite_from_abduction(
 ///
 /// An empty outcome or world, an outcome that is not in the model, or abduction / prediction
 /// failures.
-#[doc(hidden)]
 pub fn counterfactual_contrasts(
     model: CompiledCausalModel,
     data: &TabularData,
@@ -1646,38 +1694,42 @@ fn anomaly_query(
     AnomalyAttributionQuery::new(outcomes.into_iter().collect::<Arc<[VariableId]>>(), max_units)
 }
 
-/// Score anomalies for listed outcome variables.
-///
-/// # Errors
-///
-/// Attribution failures.
-#[doc(hidden)]
-pub fn anomaly_attribution(
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    outcomes: impl IntoIterator<Item = VariableId>,
-    max_units: usize,
-) -> Result<Vec<AnomalyScores>, CausalError> {
-    let q = anomaly_query(outcomes, max_units);
-    score_anomalies(model, data, &q).map_err(CausalError::from)
+internal_engine! {
+    /// Score anomalies for listed outcome variables.
+    ///
+    /// # Errors
+    ///
+    /// Attribution failures.
+    #[doc(hidden)]
+    pub fn anomaly_attribution(
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        outcomes: impl IntoIterator<Item = VariableId>,
+        max_units: usize,
+    ) -> Result<Vec<AnomalyScores>, CausalError> {
+        let q = anomaly_query(outcomes, max_units);
+        score_anomalies(model, data, &q).map_err(CausalError::from)
+    }
 }
 
-/// [`anomaly_attribution`] under an execution context: rows are scored in parallel up to its
-/// thread budget and a cancelled context stops the run.
-///
-/// # Errors
-///
-/// Attribution failures.
-#[doc(hidden)]
-pub fn anomaly_attribution_with(
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    outcomes: impl IntoIterator<Item = VariableId>,
-    max_units: usize,
-    ctx: &antecedent_core::ExecutionContext,
-) -> Result<Vec<AnomalyScores>, CausalError> {
-    let q = anomaly_query(outcomes, max_units);
-    score_anomalies_with(model, data, &q, ctx).map_err(CausalError::from)
+internal_engine! {
+    /// [`anomaly_attribution`] under an execution context: rows are scored in parallel up to its
+    /// thread budget and a cancelled context stops the run.
+    ///
+    /// # Errors
+    ///
+    /// Attribution failures.
+    #[doc(hidden)]
+    pub fn anomaly_attribution_with(
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        outcomes: impl IntoIterator<Item = VariableId>,
+        max_units: usize,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Vec<AnomalyScores>, CausalError> {
+        let q = anomaly_query(outcomes, max_units);
+        score_anomalies_with(model, data, &q, ctx).map_err(CausalError::from)
+    }
 }
 
 /// Forwards sub-crate attribution entry points through the one error mapping the facade owns:
@@ -1689,10 +1741,12 @@ macro_rules! forward_mapped {
         $name:ident($($arg:ident: $ty:ty),* $(,)?) -> $ret:ty => $target:path;
     )+) => {
         $(
-            $(#[$meta])*
-            #[doc(hidden)]
-            pub fn $name($($arg: $ty),*) -> Result<$ret, CausalError> {
-                $target($($arg),*).map_err(CausalError::from)
+            internal_engine! {
+                $(#[$meta])*
+                #[doc(hidden)]
+                pub fn $name($($arg: $ty),*) -> Result<$ret, CausalError> {
+                    $target($($arg),*).map_err(CausalError::from)
+                }
             }
         )+
     };
@@ -1826,99 +1880,105 @@ forward_mapped! {
     ) -> Vec<FeatureRelevance> => feature_relevance;
 }
 
-/// Sample an interventional distribution under [`InterventionalDistributionQuery`].
-///
-/// Thin wrapper over [`sample_do`]. Only [`TargetPopulation::AllObserved`] is supported.
-///
-/// # Errors
-///
-/// Query validation, unsupported target population, or sampling failures.
-#[doc(hidden)]
-pub fn sample_interventional_distribution(
-    model: &CompiledCausalModel,
-    query: &InterventionalDistributionQuery,
-    n: usize,
-    rng: &mut CausalRng,
-    ctx: &ExecutionContext,
-) -> Result<ValueBatch, CausalError> {
-    query.validate()?;
-    if query.target_population != TargetPopulation::AllObserved {
-        return Err(crate::unsupported_reason!(
-            "population_not_estimable",
-            "sample_interventional_distribution only supports TargetPopulation::AllObserved"
-        ));
+internal_engine! {
+    /// Sample an interventional distribution under [`InterventionalDistributionQuery`].
+    ///
+    /// Thin wrapper over [`sample_do`]. Only [`TargetPopulation::AllObserved`] is supported.
+    ///
+    /// # Errors
+    ///
+    /// Query validation, unsupported target population, or sampling failures.
+    #[doc(hidden)]
+    pub fn sample_interventional_distribution(
+        model: &CompiledCausalModel,
+        query: &InterventionalDistributionQuery,
+        n: usize,
+        rng: &mut CausalRng,
+        ctx: &ExecutionContext,
+    ) -> Result<ValueBatch, CausalError> {
+        query.validate()?;
+        if query.target_population != TargetPopulation::AllObserved {
+            return Err(crate::unsupported_reason!(
+                "population_not_estimable",
+                "sample_interventional_distribution only supports TargetPopulation::AllObserved"
+            ));
+        }
+        sample_do(model, &query.interventions, n, rng, ctx)
     }
-    sample_do(model, &query.interventions, n, rng, ctx)
 }
 
-/// Path-specific contribution via [`PathSpecificEffectQuery`].
-///
-/// Thin wrapper over [`path_decompose`]. Only [`TargetPopulation::AllObserved`] is supported.
-/// When `path_nodes` is non-empty, keeps paths that visit every listed intermediate node.
-///
-/// # Errors
-///
-/// Query validation, unsupported target population, or path decomposition failures.
-#[doc(hidden)]
-pub fn attribute_path_specific(
-    model: &CompiledCausalModel,
-    query: &PathSpecificEffectQuery,
-    ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, CausalError> {
-    query.validate()?;
-    if query.target_population != TargetPopulation::AllObserved {
-        return Err(crate::unsupported_reason!(
-            "population_not_estimable",
-            "attribute_path_specific only supports TargetPopulation::AllObserved"
-        ));
+internal_engine! {
+    /// Path-specific contribution via [`PathSpecificEffectQuery`].
+    ///
+    /// Thin wrapper over [`path_decompose`]. Only [`TargetPopulation::AllObserved`] is supported.
+    /// When `path_nodes` is non-empty, keeps paths that visit every listed intermediate node.
+    ///
+    /// # Errors
+    ///
+    /// Query validation, unsupported target population, or path decomposition failures.
+    #[doc(hidden)]
+    pub fn attribute_path_specific(
+        model: &CompiledCausalModel,
+        query: &PathSpecificEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<ChangeAttributionResult, CausalError> {
+        query.validate()?;
+        if query.target_population != TargetPopulation::AllObserved {
+            return Err(crate::unsupported_reason!(
+                "population_not_estimable",
+                "attribute_path_specific only supports TargetPopulation::AllObserved"
+            ));
+        }
+        let mut result = path_decompose(
+            model,
+            &[query.treatment],
+            query.outcome,
+            query.max_paths,
+            query.max_len,
+            ctx,
+        )?;
+        if !query.path_nodes.is_empty() {
+            let filtered: Vec<_> = result
+                .path_breakdown
+                .iter()
+                .filter(|p| query.path_nodes.iter().all(|n| p.path.iter().any(|v| v == n)))
+                .cloned()
+                .collect();
+            result.total_change = filtered.iter().map(|p| p.contribution).sum();
+            result.path_breakdown = Arc::from(filtered);
+        }
+        Ok(result)
     }
-    let mut result = path_decompose(
-        model,
-        &[query.treatment],
-        query.outcome,
-        query.max_paths,
-        query.max_len,
-        ctx,
-    )?;
-    if !query.path_nodes.is_empty() {
-        let filtered: Vec<_> = result
-            .path_breakdown
-            .iter()
-            .filter(|p| query.path_nodes.iter().all(|n| p.path.iter().any(|v| v == n)))
-            .cloned()
-            .collect();
-        result.total_change = filtered.iter().map(|p| p.contribution).sum();
-        result.path_breakdown = Arc::from(filtered);
-    }
-    Ok(result)
 }
 
-/// Feature relevance under interventions.
-///
-/// Positional form of [`attribute_feature_relevance_with`], kept for the Python binding's
-/// keyword arguments.
-///
-/// # Errors
-///
-/// Sampling failures.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "positional form of attribute_feature_relevance_with, which the Python binding calls with its keyword arguments"
-)]
-#[doc(hidden)]
-pub fn attribute_feature_relevance(
-    model: &CompiledCausalModel,
-    data: &TabularData,
-    outcome: VariableId,
-    features: &[VariableId],
-    delta: f64,
-    n_samples: usize,
-    max_features: usize,
-    ctx: &ExecutionContext,
-) -> Result<Vec<FeatureRelevance>, CausalError> {
-    let options =
-        antecedent_attribution::FeatureRelevanceOptions { delta, n_samples, max_features };
-    attribute_feature_relevance_with(model, data, outcome, features, &options, ctx)
+internal_engine! {
+    /// Feature relevance under interventions.
+    ///
+    /// Positional form of [`attribute_feature_relevance_with`], kept for the Python binding's
+    /// keyword arguments.
+    ///
+    /// # Errors
+    ///
+    /// Sampling failures.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "positional form of attribute_feature_relevance_with, which the Python binding calls with its keyword arguments"
+    )]
+    #[doc(hidden)]
+    pub fn attribute_feature_relevance(
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        outcome: VariableId,
+        features: &[VariableId],
+        delta: f64,
+        n_samples: usize,
+        max_features: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<FeatureRelevance>, CausalError> {
+        let options =
+            antecedent_attribution::FeatureRelevanceOptions { delta, n_samples, max_features };
+        attribute_feature_relevance_with(model, data, outcome, features, &options, ctx)
+    }
 }
 
 /// Rank root causes from an attribution result.
@@ -1926,7 +1986,6 @@ pub fn attribute_feature_relevance(
 /// # Errors
 ///
 /// Ranking failures.
-#[doc(hidden)]
 pub fn rank_root_causes(
     attribution: &ChangeAttributionResult,
     ctx: &ExecutionContext,

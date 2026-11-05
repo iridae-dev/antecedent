@@ -60,6 +60,15 @@ mod tests;
 /// Why a cross-world cell retains no identification.
 const CROSS_WORLD_IDENTIFIES_PER_EXECUTION: &str = "a cross-world or attribution query over a graph posterior identifies each atom on its own \
      structure at each execution";
+/// Why an atom-route cell retains no identification.
+const ATOM_ROUTE_IDENTIFIES_PER_EXECUTION: &str = "a latent-confounded conditional effect, derivative or multi-coordinate response over a \
+     graph posterior identifies each atom on its own structure at each execution";
+/// The per-atom operations a latent-confounded conditional effect defers.
+const ADMG_CONDITIONAL_OPERATIONS: &str = "per-atom identification and estimator of the conditional effect: each ADMG atom runs the \
+     IDC conditional executor, or the DAG conditional route when it has no bidirected edge";
+/// The per-atom operations a derivative or multi-coordinate response defers.
+const ATOM_RESPONSE_OPERATIONS: &str = "per-atom identification and estimator of the response: each atom runs the response, derivative \
+     or class executor of its own structure (DAG, ADMG, CPDAG or PAG)";
 /// Why a graph-posterior program has no single design width.
 const ATOM_DESIGNS: &str = "every graph-posterior atom fits its own adjustment design";
 /// Declaration name used when the route record names no estimator.
@@ -99,10 +108,22 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
     let estimator = record.estimator.as_deref().and_then(|name| name.parse::<EstimatorId>().ok());
     let family = atom_family(posterior);
     let target = problem_target(study, cell, family, &record.query_variables);
+    let deferred = deferred_atom_operations(study, posterior);
     let identification = if cell == GraphPosteriorCell::CrossWorld {
         IdentificationLayer::PerExecution { reason: CROSS_WORLD_IDENTIFIES_PER_EXECUTION }
     } else {
-        super::retain_identification(cx, None)?
+        let layer = super::retain_identification(cx, None)?;
+        // Nothing was retained for the atoms of a deferred cell: their identification is
+        // the executor's, at each execution.
+        let nothing_retained = matches!(
+            &layer,
+            IdentificationLayer::Retained(retained) if retained.caches().is_empty()
+        );
+        if deferred.is_some() && nothing_retained {
+            IdentificationLayer::PerExecution { reason: ATOM_ROUTE_IDENTIFIES_PER_EXECUTION }
+        } else {
+            layer
+        }
     };
     let envelope = unidentified_mass(&identification) > POSTERIOR_MASS_TOLERANCE;
     let design = DesignShape::not_design_based(ATOM_DESIGNS);
@@ -145,7 +166,9 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
     let evidence = super::decision::evidence_program(cx, None, &statistical)?;
     Ok(LoweredParts {
         cell: cx.cell,
-        depth: LoweringDepth::Complete,
+        depth: deferred.map_or(LoweringDepth::Complete, |operations| {
+            LoweringDepth::AtomOperationsDeferred { operations }
+        }),
         scientific,
         identification,
         statistical,
@@ -154,6 +177,28 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         claim,
     }
     .finish())
+}
+
+/// The per-atom operations the cell defers to execution, when it defers any: a
+/// latent-confounded conditional effect and a derivative or multi-coordinate response
+/// retain no per-atom identification and choose each atom's executor from its structure.
+fn deferred_atom_operations(study: &Study, posterior: &GraphPosterior) -> Option<&'static str> {
+    match (&study.data, &study.query) {
+        (DataInput::Tabular(_), CausalQuery::ConditionalEffect(_))
+            if matches!(
+                posterior.atom_kind(),
+                GraphPosteriorAtomKind::Admg | GraphPosteriorAtomKind::TemporalAdmg
+            ) =>
+        {
+            Some(ADMG_CONDITIONAL_OPERATIONS)
+        }
+        (DataInput::Tabular(_), CausalQuery::Response(query))
+            if crate::analysis::execute::atom_route_response(query) =>
+        {
+            Some(ATOM_RESPONSE_OPERATIONS)
+        }
+        _ => None,
+    }
 }
 
 /// Refuse, before any atom is identified, a query every execution of the cell refuses.

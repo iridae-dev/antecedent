@@ -27,4 +27,4 @@ sha256 = "fd14c0add0ee49e3c21765a3bd92506db7e31cb392ddf70638ce455447337d16"
 role = "assertion"
 path = "crates/antecedent/tests/source_evidence.rs"
 items = ["fn actual_action_contributors_preserve_original_diagnostics_without_synthesized_local_values", "fn bounded_evidence_refuses_oversized_logical_sections_before_decompression", "fn contract", "fn full_original_source_comparison_rejects_changed_science_and_seed", "fn native_inverse_artifact_replays_original_source_diagnostics_and_rejects_changed_mean_binding", "fn opaque_resolution_executes_original_preparation_and_rejects_changed_science", "fn original_diagnostic_scopes_and_semantic_coordinate_values_survive_consumption", "fn original_external_attestation_retains_exact_support_request_and_source_without_native_authority", "fn original_native_source_chain_is_typed_and_independently_rederived", "fn produce_source", "fn source", "fn source_with"]
-sha256 = "6a0254ce2171ef093b736c2c925287a407aa190bfcac960c40c40b2e4f69707b"
+sha256 = "ade8fd3efd60af8108f0284c43261da669ed61ebe62d83be41051331dbd1d15c"

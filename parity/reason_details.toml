@@ -8664,6 +8664,12 @@ codes = ["execution_resource_limit"]
 meaning = "Source replay exceeds the execution budget."
 
 [[detail]]
+id = "mnar_sensitivity.adjustment_not_valid"
+family = "mnar_sensitivity"
+codes = ["invalid_argument"]
+meaning = "The adjustment set is not a valid backdoor adjustment in the study's graph."
+
+[[detail]]
 id = "mnar_sensitivity.bounds_exceeded"
 family = "mnar_sensitivity"
 codes = ["route_not_supported"]
@@ -8692,6 +8698,12 @@ id = "mnar_sensitivity.design_singular"
 family = "mnar_sensitivity"
 codes = ["invalid_argument"]
 meaning = "The covariate design is singular or the propensity model failed at a parameter value."
+
+[[detail]]
+id = "mnar_sensitivity.graph_not_supported"
+family = "mnar_sensitivity"
+codes = ["route_not_supported"]
+meaning = "The study declares a graph posterior or a graph that is not a DAG, so the adjustment cannot be checked against one graph."
 
 [[detail]]
 id = "mnar_sensitivity.insufficient_observed"
@@ -8770,6 +8782,12 @@ id = "mnar_sensitivity.unsupported_query"
 family = "mnar_sensitivity"
 codes = ["route_not_supported"]
 meaning = "The study's query is not an average effect on tabular data."
+
+[[detail]]
+id = "mnar_sensitivity.unsupported_target"
+family = "mnar_sensitivity"
+codes = ["route_not_supported"]
+meaning = "The study's intervention levels, target population, outcome functional or effect modifiers differ from the full-population treated-minus-control mean contrast the analysis computes."
 
 [[detail]]
 id = "msm_posterior.band_not_constructed"
@@ -12738,6 +12756,12 @@ codes = ["scientific_bridge_invalid"]
 meaning = "An identity, statement or scope field is blank or over the byte bound."
 
 [[detail]]
+id = "scientific_bridge.cancelled"
+family = "scientific_bridge"
+codes = ["cancelled_no_claim"]
+meaning = "The caller cancelled a joint propagation before it finished; no mean, variance or partial moment is reported."
+
+[[detail]]
 id = "scientific_bridge.chain_stage_not_affine"
 family = "scientific_bridge"
 codes = ["route_not_supported"]
@@ -12876,6 +12900,12 @@ codes = ["scientific_bridge_invalid"]
 meaning = "A source or target quantity has an incomplete coordinate or ambiguous conditioning."
 
 [[detail]]
+id = "scientific_bridge.joint_law_dimension_limit"
+family = "scientific_bridge"
+codes = ["execution_resource_limit"]
+meaning = "A joint law is declared over more coordinates than the limit; the covariance, its factorization and the second-order delta method all grow with the dimension, so the law is not built."
+
+[[detail]]
 id = "scientific_bridge.malformed_mapping"
 family = "scientific_bridge"
 codes = ["scientific_bridge_invalid"]
@@ -12972,10 +13002,22 @@ codes = ["bridge_substitution_refused"]
 meaning = "The importance of a feature in a predictive model is offered as a causal effect."
 
 [[detail]]
+id = "scientific_bridge.propagation_admission_refused"
+family = "scientific_bridge"
+codes = ["execution_resource_limit"]
+meaning = "The execution context's memory pool cannot hold the working set of a joint propagation; nothing is propagated and the budget, not the question, is too small."
+
+[[detail]]
 id = "scientific_bridge.propagation_overflow"
 family = "scientific_bridge"
 codes = ["scientific_bridge_invalid"]
 meaning = "A propagated value or map image overflows the finite range."
+
+[[detail]]
+id = "scientific_bridge.propagation_work_limit"
+family = "scientific_bridge"
+codes = ["execution_resource_limit"]
+meaning = "The planned operations of a joint propagation (evaluations of the function, simulated draws and matrix products) pass the work cap; the propagation is refused before it starts and no draw count is reduced."
 
 [[detail]]
 id = "scientific_bridge.provenance"
@@ -13012,6 +13054,12 @@ id = "scientific_bridge.scientific_endpoint_as_utility"
 family = "scientific_bridge"
 codes = ["bridge_substitution_refused"]
 meaning = "A scientific endpoint is offered as a decision utility with no utility mapping, or with a mapping that leaves it unchanged."
+
+[[detail]]
+id = "scientific_bridge.simulation_draw_limit"
+family = "scientific_bridge"
+codes = ["execution_resource_limit"]
+meaning = "A simulated propagation asks for more draws than the limit; the draw count is not reduced."
 
 [[detail]]
 id = "scientific_bridge.source_dependence_invalid"

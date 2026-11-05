@@ -4792,7 +4792,7 @@ identity_inputs = ["scientific quantity coordinates", "population, regime and ho
 wire_changes = ["Allocate sensitivity_decision_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR sensitivity_decision.meta plus a separate little-endian numerical sensitivity_decision.numbers section), implemented in antecedent-io because antecedent-design has no antecedent-validate dependency: assumption coordinate and grid; per-quantity lower/upper surface; per-point support; action utilities; tipping brackets; uncertainty relationship (assumption range, optional identified bound, no sampling interval method or reported separately); provenance including the adapted JointMechanismSensitivityResult source kind. Unknown major versions refuse; existing wires are never reinterpreted."]
 compatibility = "Existing routes keep their exact scope. Point-only: the surface is exact only at its grid points, nothing between them is evaluated, and a switch bracketed by two grid points carries a linear interpolation explicitly labelled as such. Assumption ranges are declared inputs and never probabilities (weights must be declared for point surfaces and are never inferred from a range); a sampling interval is retained beside the decision and never composed with the range. A JointMechanismSensitivityResult is adapted exactly or refused (unsupported_adaptation). Departure from the frozen text: the frozen route_frozen detail is removed (the executed route no longer needs it) and invalid_artifact and sampling_not_reported are added for the Python bridge and facade, which emit them. The sensitivity_decision.meta and sensitivity_decision.numbers section labels live in a different namespace and are not refusal details. The computation is a synchronous finite evaluation without a cancellation hook; bounds.cancellation is recorded because the registry gate requires it."
 search = false
-bounds = { cancellation = true }
+bounds = { cancellation = true, max_utility_nodes = 1024, max_scenario_node_evaluations = 268435456 }
 refusals = [
   { detail = "sensitivity_decision_composition.wrong_contract" },
   { detail = "sensitivity_decision_composition.unsupported_coordinate" },
@@ -6421,7 +6421,7 @@ identity_inputs = ["artifact bytes and the identity its own consumer recomputes"
 wire_changes = ["None: no new artifact kind. The verifiers read the existing portable artifacts and publish facts as additive metadata of the composition_bundle_v1 consumption report (owned by composition.bundle). Unknown major versions refuse; existing wires are never reinterpreted."]
 compatibility = "Additive: no existing route or wire changes. This record was created at implementation, so there is no frozen text to depart from. This record shares the composition_bundle.* refusal namespace with composition.bundle, which owns the full list of twelve details; the nine declared here are the stages a verifier fails a node at. External mean decisions are point-only attested, joint-draw decisions retain the aligned-law requirement, and a reference node is verified by the bundle only as matched a supplied source and never replayed by a verifier. Synchronous finite computation without a cancellation hook; bounds.cancellation is recorded because the registry gate requires it."
 search = false
-bounds = { cancellation = true }
+bounds = { cancellation = true, max_family_covariance_dim = 1024, max_response_grid_points = 100000 }
 surface_rust = ["crates/antecedent-design/src/composition_verifiers.rs"]
 surface_values = ["ArtifactDescription"]
 refusals = [
@@ -7802,7 +7802,7 @@ identity_inputs = ["graph/query/checked adjustment and causal roles", "complete 
 wire_changes = ["No new receipt version: additive model_fits records final-stage CATE work beside actual nuisance folds and score builds. Existing zero-model receipts retain wire identities. Scores and parent-bound predictors use their existing independently verified codecs."]
 compatibility = "Existing direct DML/DR-Learner and AIPW/cell/adjusted routes preserve their own contracts. Receipt-only state recreates no estimator; explicit supplied raw data refits. PLR, trimming, arbitrary callbacks and unsupported target operations remain unavailable in this adapter. The minimum adapter accepts Linear/Ridge outcome and final-stage learners and Linear/Ridge/Logistic treatment learners; Auto, tree, neural, elastic-net and arbitrary factories remain unsupported."
 search = false
-bounds = { cancellation = true, input_bytes_per_value = 8, max_json_bytes = 1048576 }
+bounds = { cancellation = true, input_bytes_per_value = 8, max_json_bytes = 1048576, max_gbt_trees = 10000, max_gbt_depth = 20, max_gbt_design_cells = 2147483648 }
 surface_rust = ["crates/antecedent/src/analysis/recalc_dr.rs"]
 surface_values = ["CatePrediction", "DrRequest", "DrSession", "DrEstimator", "DrSessionHandle"]
 surface_pyo3 = ["python/src/recalc_dr_api.rs"]
@@ -14609,13 +14609,18 @@ compatibility = "Additive. No existing claim, artifact or reason code changes; a
 search = false
 prerequisite_records = ["measurement.model_contract", "measurement.binary_misclassification", "evidence_ledger.transport_provenance"]
 prerequisite_reason = "A latent-measured bridge consumes a typed binary-misclassification measurement model and its identity; a transported bridge records its premise as a transport identity the evidence ledger recognizes. Neither supplies coverage and none is inherited."
-bounds = { cancellation = true }
-resource_notes = "Contract validation has no fixed assumption or validation-trial count cap; 64 and 4096 are defaults for decoders of untrusted input, not limits on the declared contract."
+bounds = { cancellation = true, max_joint_law_dimension = 64, max_simulation_draws = 100000000, max_propagation_work = 17179869184, max_joint_event_variables = 64 }
+resource_notes = "Contract validation has no fixed assumption or validation-trial count cap; 64 and 4096 are defaults for decoders of untrusted input, not limits on the declared contract. A joint propagation (propagate_joint, propagate_nonlinear) takes an ExecutionContext, is admitted against its memory pool before it allocates, polls cancellation per Hessian row, sigma point and 1024 draws, and refuses with family resource past the dimension, draw and planned-work caps."
 inference_inventory_disposition = "point_output_listed_not_measured"
 refusals = [
   { detail = "scientific_bridge.source_dependence_invalid", remedy = "Declare a valid source and mapping dependence." },
   { detail = "scientific_bridge.source_moment_not_finite", remedy = "Supply a finite source moment." },
   { detail = "scientific_bridge.propagation_overflow", remedy = "Supply finite inputs whose mapped values remain finite." },
+  { detail = "scientific_bridge.joint_law_dimension_limit", remedy = "Declare the joint law over fewer coordinates." },
+  { detail = "scientific_bridge.simulation_draw_limit", remedy = "State fewer simulated draws." },
+  { detail = "scientific_bridge.propagation_work_limit", remedy = "Propagate over fewer coordinates or draws, or use the sigma-point transform." },
+  { detail = "scientific_bridge.propagation_admission_refused", remedy = "Raise the execution context's memory budget or propagate over fewer coordinates." },
+  { detail = "scientific_bridge.cancelled", remedy = "Run the propagation again; a cancelled propagation reports no moments." },
   { detail = "scientific_bridge.estimand_units_mismatch", remedy = "State the experiment dose, target dose and spend difference in one unit identity." },
   { detail = "scientific_bridge.estimand_spend_inconsistent", remedy = "State a spend difference equal to target dose minus experiment dose, or correct the doses." },
   { detail = "scientific_bridge.estimand_bridge_incomplete", remedy = "Complete the required estimand bridge fields." },

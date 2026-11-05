@@ -86,7 +86,7 @@
             "fn q_component_product",
             "fn subproblem_hash",
             "fn sum_out_if_any",
-            "fn unmetered",
+            "fn admitted",
             "fn var",
             "fn with_causal_markov",
             "struct IdIdentifier",
@@ -98,7 +98,7 @@
             "struct SubproblemKey",
             "type Assign"
           ],
-          "sha256": "19787de5443068a11d5bc664d92edd0a58e922a117b91028ba6af1b35f8df3cf"
+          "sha256": "7b3e5a4e9eeeaf718a4de80b012f91eadbe298258a9b9268240d4c8a52ee9857"
         },
         {
           "role": "assertion_source",

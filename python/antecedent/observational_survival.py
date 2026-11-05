@@ -52,7 +52,7 @@ import numpy as np
 
 from ._native import evaluate_observational_survival as _evaluate
 from .errors import CausalTypeError, CausalValueError
-from .execution import Execution, resolve_execution
+from .execution import Execution, native_controls, resolve_execution
 
 __all__ = [
     "ArmSurvival",
@@ -231,6 +231,7 @@ def survival_effect(
             list(adjustment),
             [_column(values, f"adjust[{name!r}]") for name, values in adjustment.items()],
             json.dumps(declaration),
+            **native_controls(execution, memory="memory_bytes", cancel="cancel"),
         )
     )
     return ObservationalSurvivalEffect(

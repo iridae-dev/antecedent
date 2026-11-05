@@ -140,6 +140,53 @@ fn checked_response_grid_rejects_reordered_member_values() {
     );
 }
 
+#[test]
+fn an_explicit_response_grid_past_the_point_bound_is_refused_before_any_member_replays() {
+    use crate::{CheckedFunctionalResponseGridWire, ResponseIdentificationWire, ResponseValueWire};
+    use antecedent_core::{ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery};
+
+    let bound = super::replay::MAX_RESPONSE_GRID_POINTS;
+    let target_for = |points: usize| {
+        let grid: Vec<f64> = (0..points).map(|index| index as f64).collect();
+        let query = CausalQuery::Response(ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(grid.into()),
+            ),
+        }));
+        causal_query_to_wire(&query).unwrap()
+    };
+    let family = CheckedFunctionalResponseGridWire {
+        format: 1,
+        treatment: 0,
+        outcome: 1,
+        members: Vec::new(),
+    };
+    let reported = ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
+        grid: Vec::new(),
+        dimension: 1,
+        mean: Vec::new(),
+    });
+    let laws = crate::DistributionFactorLawsWire {
+        format: 1,
+        provider: "empirical_table".into(),
+        source_rows: 2,
+        complete_case_rows: 2,
+        missing_row_policy: "joint_complete_case".into(),
+        domains: Vec::new(),
+        requirements: Vec::new(),
+        factors: Vec::new(),
+    };
+    let limits = crate::distribution_replay::ReplayLimits::default();
+    let replay = |points| {
+        replay_functional_response_grid(&target_for(points), &family, &reported, &laws, &limits)
+    };
+    // One past the bound is a resource refusal; the bound itself reaches the member count.
+    assert_eq!(replay(bound + 1), Err(ContractReason::FunctionalEffectResponseGridResourceLimit));
+    assert_eq!(replay(bound), Err(ContractReason::ProgramFunctionalEffectResponseGridMemberCount));
+}
+
 /// Treatment and outcome candidates first, then any further continuous variables.
 fn schema_and_query_for(names: &[&str]) -> (antecedent_core::CausalSchema, CausalQuery) {
     let mut builder = CausalSchemaBuilder::new();
@@ -2413,6 +2460,130 @@ mod dr_replay {
             slot.mediators = mediators;
             assert!(reasons(&forged, Some(&forged.witness)).contains(ESTIMANDS), "{method}");
         }
+    }
+
+    #[test]
+    fn an_estimand_the_criterion_check_cannot_evaluate_is_unresolved_not_passed() {
+        const UNCHECKED: &str = "dependencies.identification_estimand_criterion";
+        let case = standard();
+        let verify = crate::contract_section::replay::verify_carried_estimands;
+        assert_eq!(verify(&case.contract), Ok(()));
+        assert!(!reasons(&case, Some(&case.witness)).contains(UNCHECKED));
+        let unchecked = Err(crate::ContractReason::DependenciesIdentificationEstimandCriterion);
+        // Effect modifiers make the target conditional, which the criterion check does not cover.
+        let mut modified = case.clone();
+        let crate::CausalQueryWire::AverageEffect { effect_modifiers, .. } =
+            &mut modified.contract.target.query
+        else {
+            panic!("the fixture targets an average effect");
+        };
+        effect_modifiers.push(2);
+        assert_eq!(verify(&modified.contract), unchecked);
+        assert!(reasons(&modified, Some(&modified.witness)).contains(UNCHECKED));
+        // A graph other than a DAG, or no carried graph, is not evaluated either.
+        let mut ungrounded = case.clone();
+        ungrounded.contract.identification = None;
+        assert_eq!(verify(&ungrounded.contract), unchecked);
+        // An estimand of a method with another criterion is not a graph-criterion estimand, but
+        // a general-ID estimand is re-derived from the carried graph, so without one it is
+        // unresolved rather than trusted.
+        let mut other = ungrounded;
+        for estimand in &mut other.contract.identification_product.as_mut().unwrap().estimands {
+            estimand.method = "other.method".into();
+        }
+        assert_eq!(verify(&other.contract), Ok(()));
+        for estimand in &mut other.contract.identification_product.as_mut().unwrap().estimands {
+            estimand.method = "general.id".into();
+        }
+        assert_eq!(verify(&other.contract), unchecked);
+        // The unresolved reason is exported by a producer and refused by acceptance.
+        assert!(
+            crate::ContractReason::DependenciesIdentificationEstimandCriterion
+                .omitted_when_encoding()
+        );
+    }
+
+    /// The standard case with its identification product replaced by the general-ID product
+    /// of the carried graph for the carried target query.
+    fn general_id_case() -> Case {
+        use antecedent_identify::{IdIdentifier, IdentificationWorkspace};
+        let mut case = standard();
+        let crate::identity::GraphIdentityWire::Dag(graph) =
+            &case.contract.identification.as_ref().unwrap().graph
+        else {
+            panic!("the fixture carries a DAG");
+        };
+        let dag = crate::dag_from_wire(graph).unwrap();
+        let query = crate::causal_query_from_wire(&case.contract.target.query).unwrap();
+        let id = IdIdentifier::new();
+        let prepared = id.prepare_dag(&dag).unwrap();
+        let result = id.identify(&prepared, &query, &mut IdentificationWorkspace::default());
+        let derived = crate::identity::identification_product_wire(&result.unwrap(), false);
+        let derived = derived.unwrap();
+        assert_eq!(derived.estimands[0].method, "general.id");
+        let product = case.contract.identification_product.as_mut().unwrap();
+        product.estimands = derived.estimands;
+        product.arena = derived.arena;
+        case
+    }
+
+    #[test]
+    fn a_carried_general_id_functional_is_rederived_from_the_carried_graph() {
+        const ESTIMANDS: &str = "identification_product.estimands";
+        let verify = crate::contract_section::replay::verify_carried_estimands;
+        let genuine = general_id_case();
+        assert_eq!(verify(&genuine.contract), Ok(()));
+        assert!(!reasons(&genuine, Some(&genuine.witness)).contains(ESTIMANDS));
+        // A resealed product carrying the naive conditional E[Y | T] as its general-ID
+        // functional: self-consistent, but not what the identification derives.
+        let mut naive = genuine.clone();
+        let mut arena = antecedent_expr::CausalExprArena::new();
+        let outcome = antecedent_core::VariableId::from_raw(1);
+        let y = arena.intern_var_set([outcome]);
+        let t = arena.intern_var_set([antecedent_core::VariableId::from_raw(0)]);
+        let no_intervention = arena.empty_intervention_set();
+        let law = arena.intern_distribution(
+            y,
+            t,
+            no_intervention,
+            antecedent_expr::DomainRef::Observational,
+        );
+        let mean = arena.intern(antecedent_expr::ExprNode::Expectation {
+            function: antecedent_expr::OutcomeExprId::identity(outcome),
+            distribution: law,
+        });
+        let product = naive.contract.identification_product.as_mut().unwrap();
+        product.arena = crate::expr_arena_to_wire(&arena).unwrap();
+        product.estimands[0].functional = mean.raw();
+        assert_eq!(
+            verify(&naive.contract),
+            Err(crate::ContractReason::IdentificationProductEstimands)
+        );
+        assert!(reasons(&naive, Some(&naive.witness)).contains(ESTIMANDS));
+    }
+
+    #[test]
+    fn a_general_id_estimand_the_rederivation_cannot_handle_is_unresolved_not_passed() {
+        let verify = crate::contract_section::replay::verify_carried_estimands;
+        let unchecked = Err(crate::ContractReason::DependenciesIdentificationEstimandCriterion);
+        // A conditional target is not one marginal derivation.
+        let mut modified = general_id_case();
+        let crate::CausalQueryWire::AverageEffect { effect_modifiers, .. } =
+            &mut modified.contract.target.query
+        else {
+            panic!("the fixture targets an average effect");
+        };
+        effect_modifiers.push(2);
+        assert_eq!(verify(&modified.contract), unchecked);
+        // A graph class the derivation does not read.
+        let mut ungrounded = general_id_case();
+        ungrounded.contract.identification.as_mut().unwrap().graph =
+            crate::identity::GraphIdentityWire::RandomizedTrial;
+        assert_eq!(verify(&ungrounded.contract), unchecked);
+        // No carried graph at all.
+        let mut bare = general_id_case();
+        bare.contract.identification = None;
+        assert_eq!(verify(&bare.contract), unchecked);
     }
 
     #[test]

@@ -236,8 +236,10 @@ These rules govern which calls are admitted, cancellable and work-bounded.
   3. charges a finite work cap and refuses with family `resource` once the cap is passed.
 
   An entry point whose cost is fixed, or bounded by a compile-time constant, is exempt.
-* **Work caps are always finite.** Each kernel declares its own cap and the limit is
-  recorded in `parity/limits.toml`. A context can lower a cap; nothing makes one unbounded.
+* **Work caps are always finite.** Each kernel declares its cap as a named constant with a
+  test one past the bound. A cap a supported capability exposes is published in
+  [supported bounds](../../supported-bounds.md). A context can lower a cap; nothing makes one
+  unbounded.
 * **Retained output stays charged.** Bytes a result keeps after the call returns remain
   charged to the context's budget for the result's lifetime. They are not released when
   the computing call returns.

@@ -361,4 +361,8 @@ fn evsi_evaluation_keeps_caller_context_and_exact_ranking_artifact() {
         ),
         "{error}"
     );
+
+    // The study-independent form observes the caller's context too.
+    antecedent::analysis::design_ranking::evaluate(wire.clone(), &cancelled)
+        .expect_err("a cancelled caller context stops the standalone evaluation");
 }

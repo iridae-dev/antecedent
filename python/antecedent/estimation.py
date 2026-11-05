@@ -62,8 +62,7 @@ from ._from_raw import (
 from ._mediation_summary import mediation_effects_summary
 from ._native import (
     MediationEffectsSummary,
-    _identify_ate,
-    _identify_ate_admg,
+    _identify_structure,
 )
 from ._study_lifecycle import guard_design, replay_declaration, retain, retain_preparation
 from ._table_file import coerce_table_source
@@ -320,9 +319,8 @@ def identify(
     list (variable order); with a typed graph the names come from
     ``graph.nodes()``.
 
-    ``identify(TieredBackground)`` stays Rust-only
-    (``identify_tiered`` / ``identify_tiered_joint``). Prepared identification
-    already returns the certificate; this entry does not accept a tier rule.
+    This entry does not accept a tier rule: :func:`antecedent.identify` identifies a
+    ``TieredBackground`` and returns the certificate.
     Pair-family joint cells use :func:`prepare_many` with joint response queries.
 
     Prefer an ``Admg`` whenever a confounder is unmeasured. A ``Dag`` has no way
@@ -333,32 +331,25 @@ def identify(
     """
     if isinstance(identifier, Identifier):
         identifier = str(identifier)
-    if isinstance(graph, Admg):
-        status, method, adjustment = _identify_ate_admg(
-            list(graph.nodes()),
-            graph,
-            query.treatment,
-            query.outcome,
-            identifier=identifier,
-        )
-        return IdentifyResult(
-            status=status, method=method, adjustment_set=list(adjustment), query=query
-        )
-    if isinstance(graph, Dag):
-        node_names = list(graph.nodes())
-        edges = list(graph.edges())
+    if isinstance(graph, (Admg, Dag)):
+        structure = graph
     else:
         if names is None:
             raise CausalValueError("identify(edge_list) requires names=")
-        node_names = list(names)
-        edges = list(graph)
-    status, method, adjustment = _identify_ate(
-        node_names,
-        edges,
+        structure = Dag.from_edges(list(names), list(graph))
+    # The compiled study's identification of the structure and query (the same product a
+    # study derives before it estimates), under a fresh execution context.
+    summary = _identify_structure(
+        structure,
+        "average_effect",
         query.treatment,
         query.outcome,
         identifier=identifier,
+        estimand_method=True,
     )
+    if isinstance(summary, str):
+        raise TypeError("native identification returned details where a summary was requested")
+    status, method, adjustment = summary
     return IdentifyResult(
         status=status, method=method, adjustment_set=list(adjustment), query=query
     )

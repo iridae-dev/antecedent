@@ -1108,7 +1108,7 @@ fn roundtrip_expr_arena(wire_json: &str, root: u32) -> PyResult<ReloadedExpressi
 }
 
 #[pyfunction]
-#[pyo3(signature = (identification, *, outcome, trial, selection_probability, grid, observed_regression, target_regression, response_weight))]
+#[pyo3(signature = (identification, *, outcome, trial, selection_probability, grid, observed_regression, target_regression, response_weight, seed=0, cancel=None))]
 #[allow(clippy::too_many_arguments)]
 fn estimate_transport_response_grid(
     py: Python<'_>,
@@ -1120,10 +1120,16 @@ fn estimate_transport_response_grid(
     observed_regression: Vec<f64>,
     target_regression: Vec<f64>,
     response_weight: Vec<f64>,
+    seed: u64,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
     let certificate = identification.identification.clone();
+    let mut ctx = crate::py_execution_context(seed, 1);
+    if cancel.is_some() {
+        crate::apply_cancel(&mut ctx, cancel);
+    }
     let estimate = detach_catch(py, move || {
-        antecedent::estimate::transport_augmented_response_grid(
+        antecedent::estimate::transport_augmented_response_grid_with_context(
             &certificate,
             &outcome,
             &trial,
@@ -1134,6 +1140,7 @@ fn estimate_transport_response_grid(
                 target_regression: &target_regression,
                 response_weight: &response_weight,
             },
+            &ctx,
         )
         .map_err(py_err)
     })?;
@@ -1153,7 +1160,7 @@ fn estimate_transport_response_grid(
 #[pyfunction]
 #[pyo3(signature = (
     identification, outcome, treatment, trial, selection_probability, treatment_probability, *,
-    mu0=None, mu1=None
+    mu0=None, mu1=None, seed=0, cancel=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn estimate_trial_transport(
@@ -1166,6 +1173,8 @@ fn estimate_trial_transport(
     treatment_probability: PyReadonlyArray1<'_, f64>,
     mu0: Option<PyReadonlyArray1<'_, f64>>,
     mu1: Option<PyReadonlyArray1<'_, f64>>,
+    seed: u64,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<TrialTransportResult> {
     if mu0.is_some() != mu1.is_some() {
         return Err(crate::value_err("mu0 and mu1 must be supplied together"));
@@ -1197,6 +1206,10 @@ fn estimate_trial_transport(
     let mu0 = mu0.map(|values| values.as_array().iter().copied().collect::<Vec<_>>());
     let mu1 = mu1.map(|values| values.as_array().iter().copied().collect::<Vec<_>>());
     let identification = identification.identification.clone();
+    let mut ctx = crate::py_execution_context(seed, 1);
+    if cancel.is_some() {
+        crate::apply_cancel(&mut ctx, cancel);
+    }
     // Buffers are owned copies now; run the estimator off the GIL like the
     // interference path below.
     let estimate = detach_catch(py, move || {
@@ -1209,7 +1222,7 @@ fn estimate_trial_transport(
             &selection,
             &propensity,
             regressions,
-            &crate::py_execution_context(0, 1),
+            &ctx,
         )
         .map_err(py_err)
     })?;
@@ -1275,7 +1288,9 @@ fn estimate_network_interference(
             antecedent::execution::AdmissionRefusal::Cancelled => {
                 crate::CausalCancelledError::new_err("cancelled")
             }
-            other => crate::CausalResourceError::new_err(other.to_string()),
+            other @ antecedent::execution::AdmissionRefusal::Refused(_) => {
+                crate::CausalResourceError::new_err(other.to_string())
+            }
         })?;
     let names = vec!["outcome".to_owned()];
     let batch = numeric_columns_to_batch(&names, &[crate::NumericColumn::F64(outcome)])?;
@@ -1307,7 +1322,6 @@ fn estimate_network_interference(
         VariableId::from_raw(0),
     )?;
     detach_catch(py, move || {
-        let _input_lease = input_lease;
         let edge_count = u64::try_from(edges.len()).unwrap_or(u64::MAX);
         let units = u64::try_from(assignment.len()).unwrap_or(u64::MAX);
         let network_bytes = edge_count
@@ -1321,7 +1335,9 @@ fn estimate_network_interference(
                 antecedent::execution::AdmissionRefusal::Cancelled => {
                     crate::CausalCancelledError::new_err("cancelled")
                 }
-                other => crate::CausalResourceError::new_err(other.to_string()),
+                other @ antecedent::execution::AdmissionRefusal::Refused(_) => {
+                    crate::CausalResourceError::new_err(other.to_string())
+                }
             })?;
         antecedent::inference::interference::admit_exposure_probability_work_for_shape(
             &query.assignment,
@@ -1360,6 +1376,8 @@ fn estimate_network_interference(
             ) => crate::CausalResourceError::new_err(error.to_string()),
             other => py_err(other),
         })?;
+        // The lease covers the whole computation above.
+        drop(input_lease);
         Ok(InterferenceAnalysisResult {
             horvitz_thompson: result.contrast.horvitz_thompson,
             hajek: result.contrast.hajek,

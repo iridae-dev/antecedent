@@ -42,6 +42,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any
 
+from . import _reason_details
 from ._native import mnar_sensitivity_run as _run
 from ._refusal import raise_refusal
 from ._validate import real
@@ -80,7 +81,9 @@ class MnarSensitivityRefusal(StructuredRefusal):
     ``mechanism_not_declared``, ``unsupported_mechanism``, ``unsupported_estimator``,
     ``unbounded_range``, ``range_excludes_mar``, ``composition_not_supported``, ``invalid_data``,
     ``invalid_loading``, ``invalid_level``, ``invalid_decision``, ``invalid_tolerance``,
-    ``insufficient_observed`` or ``bounds_exceeded``. A refusal with code ``invalid_argument``
+    ``insufficient_observed``, ``unsupported_target`` (a declared target population or outcome
+    functional the arm-mean contrast does not compute), ``adjustment_not_valid``,
+    ``graph_not_supported`` or ``bounds_exceeded``. A refusal with code ``invalid_argument``
     is also a :class:`~antecedent.errors.CausalValueError`.
     """
 
@@ -479,7 +482,9 @@ def from_analysis(
     """The sensitivity of a checked binary-treatment ``AverageEffect`` result's own estimand.
 
     The result supplies the query (treatment, outcome, control and active levels) and the
-    checked adjustment set; ``data`` is the table whose outcome column holds the missing
+    checked adjustment set; a query that declares a target population or an outcome functional
+    is refused (``mnar_sensitivity.unsupported_target``) because the analysis computes the
+    full-population difference of arm means; ``data`` is the table whose outcome column holds the missing
     values (``None`` or NaN). With a non-empty adjustment set the default estimator is
     ``"aipw"`` on the adjustment set as covariates; with an empty one it is
     ``"difference_in_means"``. This is the route a ``missing_not_at_random`` imputation
@@ -502,6 +507,26 @@ def from_analysis(
     if not result.identification:
         raise CausalValueError("MNAR from_analysis requires a point-identified adjustment query")
     query = result.query
+    refused = [
+        name
+        for name, value in (
+            ("target population", query.target_population),
+            ("outcome functional", query.outcome_functional),
+        )
+        if value is not None
+    ]
+    if refused:
+        raise MnarSensitivityRefusal(
+            {
+                "code": "route_not_supported",
+                "detail": _reason_details.mnar_sensitivity.UNSUPPORTED_TARGET,
+                "message": (
+                    "the sensitivity analysis computes the full-population difference of arm "
+                    f"means; the query declares a {' and a '.join(refused)}"
+                ),
+                "offending": ", ".join(refused),
+            }
+        )
     adjustment = tuple(result.identification.adjustment_set)
     names, columns = as_columns(data)
     table = dict(zip(names, columns, strict=True))

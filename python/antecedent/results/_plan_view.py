@@ -172,6 +172,7 @@ class ProgramPlanView(ResultModel):
     )
     semantic_identity: str | None = None
     depth: str
+    deferred_atom_operations: str | None = None
     cyclic_family: str | None = None
     planned_design: str | None = None
     scientific: PlanScientificLayer

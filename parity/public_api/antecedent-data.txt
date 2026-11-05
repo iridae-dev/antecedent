@@ -3076,6 +3076,7 @@ pub variant antecedent_data::file_source::FileSourceError::MissingValue { column
 pub variant antecedent_data::file_source::FileSourceError::NotRewindable
 pub variant antecedent_data::file_source::FileSourceError::ScanIncomplete
 pub variant antecedent_data::file_source::FileSourceError::SchemaMismatch { path: std::path::PathBuf, detail: alloc::string::String }
+pub variant antecedent_data::file_source::FileSourceError::SourceChanged { path: std::path::PathBuf, detail: alloc::string::String }
 pub variant antecedent_data::file_source::FileSourceError::UnknownColumn { column: alloc::string::String, available: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_data::file_source::FileSourceError::UnknownFormat { path: std::path::PathBuf }
 pub variant antecedent_data::file_source::FileSourceError::UnsupportedColumn { column: alloc::string::String, arrow_type: alloc::string::String, next_attempt: &'static str }

@@ -94,7 +94,8 @@ Logical compile writes a route record. It does not build an
 | `PreparedStudy::estimate`, `estimate_series`, `estimate_panel`, `estimate_multi_env`, `estimate_retained` | `crates/antecedent/src/analysis/prepared/estimate.rs`, `lifecycle.rs` | 3 | `antecedent` | Exists today. Same schema and frozen plan. Numeric knobs, seeds, and `ExecutionContext` may change. |
 | `PreparedStudy::rebind_data`, `rebind_series`, `rebind_panel`, `rebind_multi_env` | `crates/antecedent/src/analysis/prepared/lifecycle.rs` | 3 | `antecedent` | Exists today. Schema-checked data swap that returns a new prepared study and leaves the source unchanged. A frozen-field change is an error, not a recompile. |
 | `PreparedStudy::retarget` | `crates/antecedent/src/analysis/prepared/retarget.rs` | 1 | `antecedent` | Exists today. Row-weight population on a prepared score table. Identification is unchanged. |
-| `PreparedStudy::refute` | `crates/antecedent/src/analysis/prepared/lifecycle.rs` | 4 | `antecedent` | Exists today. Same frozen estimand. `CausalQuery::AverageEffect` only. |
+| `PreparedStudy::refute` | `crates/antecedent/src/analysis/prepared/lifecycle.rs` | 4 | `antecedent` | Exists today. Same frozen estimand. The scalar suites (`RefuteSuite`) on an average effect, a mediation query or an intervention response; any other quantity is refuted by the target-native entries below. |
+| `PreparedStudy::refute_retained_target`, `refute_prepared_target` | `crates/antecedent/src/analysis/target_validation.rs` | 4 | `antecedent` | Exists today. The target-native counterpart of `PreparedStudy::refute`: it reads the refutation target (family, quadrant, coordinates, lowered-program identity) from the result and runs the target-native catalogue on it, so a conditional effect, response derivative, temporal vector, mediation decomposition, world-valued or joint-contrast result is refuted on its own quantity. Python: `PreparedAnalysis.refute_target`. See [target-native validation](../guides/target-native-validation.md). |
 | `PreparedStudy::contract` | `crates/antecedent/src/analysis/contract.rs` | 6 | `antecedent` | Exists today. Builds `CausalContract` from cached identification products. |
 | `Study::inspect` | `crates/antecedent/src/analysis/contract.rs` | 1 | `antecedent` | Exists today. Cheap structural inspection. Identification slot and program identity are absent. It does not identify (`compiler.inspect_does_not_identify`); the [plan view](#the-plan-view) is where identification is shown. |
 | `CachedStaticIdentification`, `CachedTemporalIdentification`, `CachedTemporalHorizonIdentification` | `crates/antecedent/src/analysis/prepared/cached.rs` | 2 | `antecedent` | Exists today. Public cached products. |
@@ -109,7 +110,7 @@ Logical compile writes a route record. It does not build an
 
 `PreparedExecution` variants, all in `crates/antecedent/src/analysis/prepared/execution.rs`, crate `antecedent`, layer 3 (each retains a checked operation and calls estimators on the estimate click): `FunctionalEffect`, `PathSpecificEffect`, `AdmgResponseCurve`, `AdmgGraphPosteriorResponse`, `CheckedLinear`, `CheckedGlmAdjustment`, `CheckedRd`, `CheckedPropensity`, `CheckedConditional`, `BayesianConditional`, `GraphPosteriorEffect`, `ClassGraphPosteriorEffect`, `BayesianGraphPosteriorAte`, `StaticClassEffect`, `CheckedAipw`, `Counterfactual`, `NestedCounterfactual`, `DerivativeResponse`, `CellAipwResponse`, `StaticDagResponse`, `StaticMediation`, `BayesianStaticMediation`, `Attribution`, `TemporalDagResponse`, `TemporalDagEffect`, `BayesianTemporalDagEffect`, `TemporalMediation`, `Interference`, `Randomized`, `PolicyValue`, `ContinuousDoseResponse`, `PanelDid`, `SyntheticControl`, `LocalPolynomialRatio`, `Survival`, `LongitudinalRegime`, `TemporalClassEffect`, `Distribution`, `BayesianGcomp`, `BayesianBasisAte`, `BayesianBasisCate`, `BayesianRobustAte`, `StaticResponseCurve`, `FrontDoorLinear`, `Iv`, `UnknownTieredAverage`, `BayesianClassConditional`, `TemporalClassResponse`, `TemporalGraphPosteriorResponse`, `TemporalClassMediation`, `BayesianTemporalClassEffect`, `TemporalGraphPosteriorEffect`, `StaticClassResponse`, `GraphPosteriorResponse`, `BayesianSpecialist`, `TransportTrial`.
 
-Python `PreparedAnalysis` (`python/antecedent/prepared.py`) is the immutable handle over it: `inspect`, `plan_view`, `ant.estimate`, `retarget`, `ant.rebind`, `refute`.
+Python `PreparedAnalysis` (`python/antecedent/prepared.py`) is the immutable handle over it: `inspect`, `plan_view`, `ant.estimate`, `retarget`, `ant.rebind`, `refute`, `refute_target`.
 
 ## Scientific problem
 
@@ -195,7 +196,7 @@ Exists today in `antecedent-core` unless noted. These types are the problem stat
 
 ## The lowered program
 
-`LoweredProgram` (`crates/antecedent/src/planner/lowered.rs`) is the mandatory output of compile for every `RouteCell`. Every cell lowers at `LoweringDepth::Complete`; there is no partial lowering.
+`LoweredProgram` (`crates/antecedent/src/planner/lowered.rs`) is the mandatory output of compile for every `RouteCell`. Every cell lowers at `LoweringDepth::Complete` except the graph-posterior cells whose atoms are answered by the explicit executor of each atom's structure (a latent-confounded conditional effect, a derivative or multi-coordinate response): they record `LoweringDepth::AtomOperationsDeferred`, name the deferred per-atom identification and estimator, and carry a per-execution identification layer. There is no other partial lowering.
 
 | Layer | Field | Notes |
 | --- | --- | --- |

@@ -2388,7 +2388,12 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
         .lowered()
         .ok_or_else(|| format!("{expected}: compile attached no lowered program"))?;
     let lowering = lowered.route().to_owned();
-    if lowered.depth() != antecedent::planner::lowered::LoweringDepth::Complete {
+    // Only a graph posterior may defer, and only the named per-atom operations of an atom
+    // answered by the executor of its own structure.
+    let deferred = lowered.depth().deferred_operations();
+    if lowered.depth() != antecedent::planner::lowered::LoweringDepth::Complete
+        && !(lowering.starts_with("GraphPosterior") && deferred.is_some_and(|ops| !ops.is_empty()))
+    {
         return Err(format!("{expected}: {lowering} did not lower every layer"));
     }
     let lowered_identity = lowered.identity();
@@ -2463,10 +2468,23 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
     {
         return Err(format!("{expected}: inconsistent refutation replay dependency"));
     }
-    without_refutation_replay.acceptance.unresolved = other_dependencies.into();
+    // The estimand-criterion check covers the marginal average effect on a DAG only; any
+    // other target or graph class leaves it unevaluated by a consumer holding the bytes. The
+    // source evidence resolves it by re-running the original estimation, so it never stands
+    // alone as the reason a contract is not a verified program. Every other dependency is
+    // still checked below.
+    let had_criterion_dependency = other_dependencies
+        .iter()
+        .any(|reason| reason.as_ref() == "dependencies.identification_estimand_criterion")
+        && consumed.acceptance.recognized
+        && consumed.contract.is_some();
+    without_refutation_replay.acceptance.unresolved = other_dependencies
+        .into_iter()
+        .filter(|reason| reason.as_ref() != "dependencies.identification_estimand_criterion")
+        .collect();
     let other_dependencies_resolved = without_refutation_replay.acceptance.unresolved.is_empty();
     if !consumed.acceptance.accepts_as_verified_program()
-        && !(has_refutation_replay && other_dependencies_resolved)
+        && !((has_refutation_replay || had_criterion_dependency) && other_dependencies_resolved)
         && !sealed_checked_operation_dependency_only(&without_refutation_replay)
         && !functional_effect_replay_dependency_only(&without_refutation_replay)
         && !linear_replay_dependency_only(&without_refutation_replay)

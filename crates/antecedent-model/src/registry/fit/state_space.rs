@@ -152,15 +152,25 @@ mod short_fit_tests {
     #[test]
     fn lgssm_fitter_refuses_short_unidentified_series() {
         for n in [1, 2] {
-            let frame =
-                FitFrame { parents: vec![], groups: None, n, splits: ValidationSplits::Shuffled };
+            let frame = FitFrame {
+                parents: vec![],
+                groups: None,
+                n,
+                splits: ValidationSplits::Shuffled,
+                execution: None,
+            };
             let y = vec![1.0; n];
             let result =
                 fit_lgssm_kalman_em(&frame, &y, FaerBackend, &mut LeastSquaresWorkspace::default());
             assert!(matches!(result, Err(ModelError::Unsupported { .. })));
         }
-        let frame =
-            FitFrame { parents: vec![], groups: None, n: 3, splits: ValidationSplits::Shuffled };
+        let frame = FitFrame {
+            parents: vec![],
+            groups: None,
+            n: 3,
+            splits: ValidationSplits::Shuffled,
+            execution: None,
+        };
         let result = fit_lgssm_kalman_em(
             &frame,
             &[0.0, 1.0, 0.0],

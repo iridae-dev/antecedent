@@ -79,10 +79,10 @@ pub(super) fn graph_from_json(
         })?;
     // Dense adjacency of both edge kinds, charged before the graph is built.
     let bytes = u64::try_from(nodes.saturating_mul(nodes).saturating_mul(2)).unwrap_or(u64::MAX);
-    let lease = antecedent::execution::retain(&ctx, bytes.saturating_add(4096)).map_err(
+    let lease = antecedent::execution::retain(ctx, bytes.saturating_add(4096)).map_err(
         |error| match error {
             AdmissionRefusal::Cancelled => crate::CausalCancelledError::new_err(error.to_string()),
-            _ => crate::CausalResourceError::new_err(error.to_string()),
+            AdmissionRefusal::Refused(_) => crate::CausalResourceError::new_err(error.to_string()),
         },
     )?;
     let spec = UnrolledPanelSpec {

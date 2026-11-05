@@ -85,8 +85,16 @@ impl Stream {
 }
 
 /// Law 1: `x_t = 4 u - 2`, `y_t = 1.2 + 1.8 x_{t-1} + 0.3 e`.
+fn pinned_usize(value: &Value) -> usize {
+    usize::try_from(value.as_u64().unwrap()).expect("pinned count fits usize")
+}
+
+fn pinned_u32(value: &Value) -> u32 {
+    u32::try_from(value.as_u64().unwrap()).expect("pinned count fits u32")
+}
+
 fn lag_series(pin: &Value) -> TimeSeriesData {
-    let n = pin["lag_series"]["rows"].as_u64().unwrap() as usize;
+    let n = pinned_usize(&pin["lag_series"]["rows"]);
     let mut stream = Stream(pin["lag_series"]["seed"].as_u64().unwrap());
     let x: Vec<f64> = (0..n).map(|_| 4.0 * stream.uniform() - 2.0).collect();
     let mut y = vec![0.0; n];
@@ -99,7 +107,7 @@ fn lag_series(pin: &Value) -> TimeSeriesData {
 /// Law 2: `z_t = sin(.37 t)`, `x_t = cos(.61 t) + .3 e`, `y_t = 1.4 x_{t-1} + .6 z_{t-1} + .3 e`.
 /// Returns the series and `mean(z)` over the lag-aligned rows.
 fn class_series(pin: &Value) -> (TimeSeriesData, f64) {
-    let n = pin["class_series"]["rows"].as_u64().unwrap() as usize;
+    let n = pinned_usize(&pin["class_series"]["rows"]);
     let mut stream = Stream(pin["class_series"]["seed"].as_u64().unwrap());
     let z: Vec<f64> = (0..n).map(|i| (i as f64 * 0.37).sin()).collect();
     let x: Vec<f64> = (0..n).map(|i| (i as f64 * 0.61).cos() + 0.3 * stream.gauss()).collect();
@@ -118,7 +126,7 @@ fn class_series(pin: &Value) -> (TimeSeriesData, f64) {
 
 /// Law 4: `z = sin(.37 i)`, `t = .5 z + .8 sin(.61 i) + .3 e`, `y = 1 + 2 t + .3 e`.
 fn static_table(pin: &Value) -> TabularData {
-    let n = pin["static_table"]["rows"].as_u64().unwrap() as usize;
+    let n = pinned_usize(&pin["static_table"]["rows"]);
     let mut stream = Stream(pin["static_table"]["seed"].as_u64().unwrap());
     let z: Vec<f64> = (0..n).map(|i| (i as f64 * 0.37).sin()).collect();
     let t: Vec<f64> =
@@ -489,8 +497,8 @@ fn response_curve_validation_dag_posterior_known_truth() {
 
 /// Eight units of law 1, drawn unit after unit from one stream.
 fn lag_panel(pin: &Value) -> PanelData {
-    let units = pin["panel"]["units"].as_u64().unwrap() as u32;
-    let rows = pin["panel"]["rows"].as_u64().unwrap() as usize;
+    let units = pinned_u32(&pin["panel"]["units"]);
+    let rows = pinned_usize(&pin["panel"]["rows"]);
     let mut stream = Stream(pin["panel"]["seed"].as_u64().unwrap());
     let members: Vec<PanelUnit> = (0..units)
         .map(|unit_id| {
@@ -664,8 +672,8 @@ fn response_curve_validation_adjustable_temporal_admg_known_truth() {
 /// Six units of law 2 (the shared confounder `z` is the same wave in every unit), drawn unit
 /// after unit from one stream. Returns the panel and `mean(z)` over the lag-aligned rows.
 fn class_panel(pin: &Value) -> (PanelData, f64) {
-    let units = pin["class_panel"]["units"].as_u64().unwrap() as u32;
-    let n = pin["class_panel"]["rows"].as_u64().unwrap() as usize;
+    let units = pinned_u32(&pin["class_panel"]["units"]);
+    let n = pinned_usize(&pin["class_panel"]["rows"]);
     let mut stream = Stream(pin["class_panel"]["seed"].as_u64().unwrap());
     let z: Vec<f64> = (0..n).map(|i| (i as f64 * 0.37).sin()).collect();
     let members: Vec<PanelUnit> = (0..units)

@@ -123,6 +123,7 @@ fn a_valid_declaration_reports_its_construction() {
     assert_eq!(plan.treatment_columns, names(&["t0", "t1"]));
     assert_eq!(plan.adjustment, names(&["age", "z"]));
     assert_eq!(plan.retained_covariates, names(&["age"]));
+    assert_eq!(plan.adjustment_basis, "declared");
     assert!(plan.exclusions.is_empty());
     assert_eq!(plan.rows_complete, 500);
     let mut by_hand: Vec<f64> = t.t0.iter().zip(&t.t1).map(|(a, b)| a + 2.0 * b).collect();

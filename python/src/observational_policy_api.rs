@@ -22,6 +22,8 @@ const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 ///
 /// `adjustment_columns[j]` is the column named `adjustment_names[j]`.
 #[pyfunction]
+#[pyo3(signature = (outcome, treatment, adjustment_names, adjustment_columns, declaration_json, *, memory_bytes=None, cancel=None))]
+#[allow(clippy::too_many_arguments, reason = "one request: columns, declaration and bounds")]
 fn evaluate_observational_policy(
     py: Python<'_>,
     outcome: Vec<f64>,
@@ -29,6 +31,8 @@ fn evaluate_observational_policy(
     adjustment_names: Vec<String>,
     adjustment_columns: Vec<Vec<f64>>,
     declaration_json: &str,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
     check_declared_size(declaration_json, MAX_JSON_BYTES, "observational policy value")?;
     let spec: ObservationalPolicySpecWire =
@@ -55,7 +59,9 @@ fn evaluate_observational_policy(
         spec,
     };
     detach_catch(py, move || {
-        let report = ObservationalPolicyValue::evaluate(&request).map_err(py_err)?;
+        let ctx =
+            crate::transport_common::execution_context(request.spec.seed, memory_bytes, cancel);
+        let report = ObservationalPolicyValue::evaluate(&request, &ctx).map_err(py_err)?;
         serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))
     })
 }

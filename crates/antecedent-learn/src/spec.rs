@@ -67,7 +67,18 @@ impl Default for ElasticNetSpec {
     }
 }
 
+/// Most trees a gradient-boosted spec admits. Forust cannot be interrupted mid-fit, so the
+/// work a started fit does is bounded by refusing larger specs before it starts.
+pub const MAX_GBT_TREES: u32 = 10_000;
+
+/// Deepest tree a gradient-boosted spec admits. A tree holds up to `2^(depth + 1)` nodes, so
+/// the depth bounds the memory one tree can take.
+pub const MAX_GBT_DEPTH: u32 = 20;
+
 /// Gradient-boosted trees (Forust in F). Public name is not the provider.
+///
+/// `trees` is at most [`MAX_GBT_TREES`] and `depth` at most [`MAX_GBT_DEPTH`];
+/// [`LearnerSpec::validate`] refuses a larger spec as [`LearnError::ResourceLimit`].
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct GbtSpec {
@@ -197,6 +208,21 @@ fn valid_f32_rate(rate: f64) -> bool {
     rate.is_finite() && rate32.is_finite() && rate32 > 0.0
 }
 
+/// Refuse a boosted-tree spec above the declared tree or depth limit.
+fn check_gbt_limits(spec: GbtSpec) -> Result<(), LearnError> {
+    if spec.trees > MAX_GBT_TREES {
+        return Err(LearnError::ResourceLimit {
+            message: "gradient-boosted trees above the tree limit",
+        });
+    }
+    if spec.depth > MAX_GBT_DEPTH {
+        return Err(LearnError::ResourceLimit {
+            message: "gradient-boosted trees above the depth limit",
+        });
+    }
+    Ok(())
+}
+
 impl LearnerSpec {
     /// Stable exact-parameter identity, shared by compilation and provider caches.
     #[must_use]
@@ -233,8 +259,12 @@ impl LearnerSpec {
 
     /// Validate configuration independently of feature availability or task coercion.
     /// # Errors
-    /// Nonfinite, negative, or otherwise invalid hyperparameters.
+    /// Nonfinite, negative, or otherwise invalid hyperparameters; a boosted-tree spec above
+    /// [`MAX_GBT_TREES`] trees or [`MAX_GBT_DEPTH`] levels is [`LearnError::ResourceLimit`].
     pub fn validate(self) -> Result<(), LearnError> {
+        if let Self::GradientBoostedTrees(s) = self {
+            check_gbt_limits(s)?;
+        }
         let valid = match self {
             Self::Ridge(s) => s.lambda.is_finite() && s.lambda >= 0.0,
             Self::Logistic(s) => s.ridge_lambda.is_finite() && s.ridge_lambda >= 0.0,
@@ -514,4 +544,25 @@ fn required_capabilities(spec: LearnerSpec) -> LearnerCapabilities {
         _ => cap.regression = true,
     }
     cap
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gbt_spec_refuses_one_past_the_tree_and_depth_limits() {
+        let at_limit = GbtSpec { trees: MAX_GBT_TREES, depth: MAX_GBT_DEPTH, learning_rate: 0.1 };
+        assert!(LearnerSpec::GradientBoostedTrees(at_limit).validate().is_ok());
+        let too_many = GbtSpec { trees: MAX_GBT_TREES + 1, ..at_limit };
+        let too_deep = GbtSpec { depth: MAX_GBT_DEPTH + 1, ..at_limit };
+        for spec in [too_many, too_deep] {
+            let error = LearnerSpec::GradientBoostedTrees(spec).validate().unwrap_err();
+            assert!(matches!(error, LearnError::ResourceLimit { .. }), "{error:?}");
+            assert!(error.is_resource_limit());
+        }
+        let zero = GbtSpec { trees: 0, ..at_limit };
+        let error = LearnerSpec::GradientBoostedTrees(zero).validate().unwrap_err();
+        assert!(!error.is_resource_limit());
+    }
 }

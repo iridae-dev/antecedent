@@ -72,7 +72,7 @@ impl TableStream {
 }
 
 pub(super) enum Origin {
-    File { format: TableFileFormat, paths: Vec<PathBuf> },
+    File { format: TableFileFormat, paths: Vec<PathBuf>, stamps: Arc<[provider::FileStamp]> },
     Stream,
 }
 
@@ -483,16 +483,24 @@ impl TableChunkReader {
     ///
     /// # Errors
     ///
-    /// [`FileSourceError::NotRewindable`] for an Arrow C stream, or the files
-    /// cannot be reopened.
+    /// [`FileSourceError::NotRewindable`] for an Arrow C stream, the files
+    /// cannot be reopened, or a file changed since the table was opened
+    /// ([`FileSourceError::SourceChanged`]).
     pub fn rewind(&mut self) -> Result<(), FileSourceError> {
-        let Origin::File { format, paths } = &self.origin else {
+        let Origin::File { format, paths, stamps } = &self.origin else {
             return Err(FileSourceError::NotRewindable);
         };
         self.pending = None;
         self.provider = None;
-        self.provider =
-            Some(provider::open_all(*format, paths, &self.plan.projection, self.plan.chunk_rows));
+        // A changed file is refused before the position or the pass state is reset.
+        provider::verify_all(*format, paths, stamps)?;
+        self.provider = Some(provider::open_all(
+            *format,
+            paths,
+            stamps,
+            &self.plan.projection,
+            self.plan.chunk_rows,
+        ));
         for state in &mut self.states {
             state.restart();
         }
@@ -596,7 +604,14 @@ mod retry_tests {
         let huge = "x".repeat(1_000_000);
         let fake = Underquoted { batches: vec![make(&huge), make("skipped")].into_iter() };
         let mut reader = TableChunkReader::new(
-            Origin::File { format: TableFileFormat::ArrowIpcFile, paths: vec![path.clone()] },
+            Origin::File {
+                format: TableFileFormat::ArrowIpcFile,
+                paths: vec![path.clone()],
+                stamps: vec![
+                    provider::FileStamp::capture(&path, TableFileFormat::ArrowIpcFile).unwrap(),
+                ]
+                .into(),
+            },
             plan,
             &ctx,
             Box::new(fake),

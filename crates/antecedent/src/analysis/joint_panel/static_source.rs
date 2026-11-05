@@ -28,7 +28,7 @@ impl PreparedStudy<JointPanelState> {
     /// Its underlying graph derivation must stand independently. Exact training rows,
     /// supported interventions and the empirical reference law are checked before the
     /// row-to-balanced-group reindexing is accepted. No builder, identification or fit runs.
-    /// Nonlinear numerical fitting and uncertainty retain their own conditional/not_measured meaning.
+    /// Nonlinear numerical fitting and uncertainty retain their own conditional or `not_measured` meaning.
     ///
     /// # Errors
     /// Refuses temporal targets, changed source data, unsupported worlds, parametric-only

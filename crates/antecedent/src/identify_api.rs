@@ -25,7 +25,8 @@ use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 use crate::error::CausalError;
 use crate::strategy_table::{
     self, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_IDENTIFIER_ID, DEFAULT_PAG_IDENTIFIER_ID,
-    IdentifierId, identify_admg, identify_cpdag, identify_pag, identify_static_query,
+    IdentifierId, identify_admg, identify_cpdag_in_context, identify_cpdag_response_in_context,
+    identify_pag_in_context, identify_pag_response_in_context, identify_static_query_in_context,
     identify_temporal_cpdag_configured, identify_temporal_pag_configured,
 };
 
@@ -200,6 +201,66 @@ pub(crate) fn identify_study_within(
     identify_with_source(structure, query, strategy, source, &mut budget, ctx)
 }
 
+/// The tier-closure identification of a study declared with a tier background, under the
+/// caller's execution context.
+///
+/// The study's graph is the background's materialized ADMG or PAG; the tier-closure
+/// identifier is the fast path over generalized adjustment on it, so the answer is the one
+/// the compiled tiered routes execute: a point result for the known closure (average effect
+/// or a joint hard intervention) and both declared orientation scenarios for an unknown
+/// within-tier order. A joint intervention under an unknown order has no single ADMG and is
+/// refused as `route_not_supported`.
+///
+/// # Errors
+///
+/// Cancellation, a query the tier closure does not cover, or identification failure.
+pub(crate) fn identify_tiered_study_within(
+    structure: &AcceptedGraph,
+    background: &antecedent_graph::TieredBackground,
+    schema: &antecedent_core::CausalSchema,
+    query: &CausalQuery,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Identification, CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: crate::error::STAGE_IDENTIFY });
+    }
+    let identified = match query {
+        CausalQuery::AverageEffect(average) => {
+            antecedent_identify::identify_tiered(background, average)
+        }
+        CausalQuery::Response(response) => {
+            antecedent_identify::identify_tiered_joint(background, schema, response)
+        }
+        _ => {
+            return Err(crate::unsupported_reason!(
+                "route_not_supported",
+                "tiered identification supports an AverageEffect or a joint InterventionResponse \
+                 only."
+            ));
+        }
+    };
+    let result = identified.map_err(|error| {
+        if background.within_tier == antecedent_graph::WithinTier::Unknown
+            && matches!(query, CausalQuery::Response(_))
+            && matches!(&error, antecedent_identify::IdentificationError::UnsupportedQuery { .. })
+        {
+            crate::unsupported_reason!(
+                "route_not_supported",
+                "Unknown-tier joint InterventionResponse has no single ADMG; two canonical \
+                 scenarios are not a cell-AIPW support"
+            )
+        } else {
+            CausalError::from(error)
+        }
+    })?;
+    Ok(Identification::Point {
+        result,
+        temporal_indexer: None,
+        strategy: IdentifierId::GeneralizedAdjustment,
+        structure_version: structure.version(),
+    })
+}
+
 /// The default-identifier identification of an accepted graph, for the module's own tests.
 #[cfg(test)]
 fn identify(structure: &AcceptedGraph, query: &CausalQuery) -> Result<Identification, CausalError> {
@@ -226,9 +287,11 @@ fn identify_with_source(
         crate::support::refuse_if_not_applicable_in(cell, ctx)?;
     }
     match structure.graph_ref() {
-        GraphRef::Dag(dag) => identify_source_dag(dag, query, strategy, structure_version),
-        GraphRef::Cpdag(cpdag) => identify_source_cpdag(cpdag, query, strategy, structure_version),
-        GraphRef::Pag(pag) => identify_source_pag(pag, query, strategy, structure_version),
+        GraphRef::Dag(dag) => identify_source_dag(dag, query, strategy, structure_version, ctx),
+        GraphRef::Cpdag(cpdag) => {
+            identify_source_cpdag(cpdag, query, strategy, structure_version, ctx)
+        }
+        GraphRef::Pag(pag) => identify_source_pag(pag, query, strategy, structure_version, ctx),
         GraphRef::Admg(admg) => identify_source_admg(admg, query, strategy, structure_version),
         GraphRef::TemporalAdmg(temporal) => {
             identify_source_temporal_admg(temporal, query, strategy, structure_version)
@@ -265,9 +328,28 @@ fn identify_source_dag(
     query: &CausalQuery,
     strategy: IdentifierId,
     structure_version: u32,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Identification, CausalError> {
-    let id_query = static_identify_query(query);
-    let result = identify_static_query(strategy, dag, &id_query)?;
+    // A conditional effect keeps its query variant to the identifier boundary: only the
+    // modifier-aware backdoor identifiers certify it, so a marginal-only identifier or a
+    // collider adjustment is refused instead of answering the average effect.
+    let result = if let CausalQuery::ConditionalEffect(conditional) = query {
+        conditional.validate()?;
+        if !matches!(
+            strategy,
+            IdentifierId::BackdoorAdjustment | IdentifierId::BackdoorEfficient | IdentifierId::Auto
+        ) {
+            return Err(CausalError::Unsupported {
+                message: "conditional effects require a modifier-aware backdoor identifier",
+            });
+        }
+        // The identifier receives the conditional query itself, so it checks the modifiers
+        // against the graph rather than answering the marginal effect.
+        identify_static_query_in_context(strategy, dag, query, None, Some(ctx))?
+    } else {
+        let id_query = static_identify_query(query);
+        identify_static_query_in_context(strategy, dag, &id_query, None, Some(ctx))?
+    };
     Ok(Identification::Point { result, temporal_indexer: None, strategy, structure_version })
 }
 
@@ -276,11 +358,12 @@ fn identify_source_cpdag(
     query: &CausalQuery,
     strategy: IdentifierId,
     structure_version: u32,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Identification, CausalError> {
     let envelope = if let CausalQuery::Response(response) = query {
-        strategy_table::identify_cpdag_response(strategy, cpdag, response)?
+        identify_cpdag_response_in_context(strategy, cpdag, response, Some(ctx))?
     } else {
-        identify_cpdag(strategy, cpdag, &class_ate_witness(query, "CPDAG")?)?
+        identify_cpdag_in_context(strategy, cpdag, &class_ate_witness(query, "CPDAG")?, Some(ctx))?
     };
     Ok(Identification::CpdagEnvelope { envelope, strategy, structure_version })
 }
@@ -290,11 +373,12 @@ fn identify_source_pag(
     query: &CausalQuery,
     strategy: IdentifierId,
     structure_version: u32,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Identification, CausalError> {
     let envelope = if let CausalQuery::Response(response) = query {
-        strategy_table::identify_pag_response(strategy, pag, response)?
+        identify_pag_response_in_context(strategy, pag, response, Some(ctx))?
     } else {
-        identify_pag(strategy, pag, &class_ate_witness(query, "PAG")?)?
+        identify_pag_in_context(strategy, pag, &class_ate_witness(query, "PAG")?, Some(ctx))?
     };
     Ok(Identification::Envelope { envelope, strategy, structure_version })
 }

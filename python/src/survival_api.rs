@@ -109,7 +109,9 @@ fn admit_grid_copy(
             antecedent::execution::AdmissionRefusal::Cancelled => {
                 crate::py_err(antecedent::CausalError::Cancelled { stage: "survival" })
             }
-            error => crate::CausalResourceError::new_err(error.to_string()),
+            error @ antecedent::execution::AdmissionRefusal::Refused(_) => {
+                crate::CausalResourceError::new_err(error.to_string())
+            }
         })
     })?;
     // The second detached run is a separate interrupt scope.
@@ -234,8 +236,7 @@ fn randomized_survival_ipcw(
     let (ctx, input_lease) = admit_grid_copy(py, n, times.len())?;
     let survival = g.iter().copied().collect::<Vec<_>>();
     let (summary, kernel_minimum_g) = detach_catch(py, move || {
-        // Declared first so the lease outlives the copied buffer on every exit.
-        let _input_lease = input_lease;
+        // Moved into the closure so the lease outlives the copied buffer on every exit.
         let survival = survival;
         let minimum_g =
             validate_ipcw_grid(&duration, &times, &survival, tau, minimum_probability, || {
@@ -270,6 +271,7 @@ fn randomized_survival_ipcw(
         )
         .map_err(crate::value_err)?;
         debug_assert!((minimum_g - result.1).abs() <= 1e-10);
+        drop(input_lease);
         Ok(result)
     })?;
     Ok((
@@ -348,8 +350,7 @@ fn randomized_cumulative_incidence_ipcw(
     let (ctx, input_lease) = admit_grid_copy(py, n, times.len())?;
     let survival = g.iter().copied().collect::<Vec<_>>();
     let (summary, kernel_minimum_g) = detach_catch(py, move || {
-        // Declared first so the lease outlives the copied buffer on every exit.
-        let _input_lease = input_lease;
+        // Moved into the closure so the lease outlives the copied buffer on every exit.
         let survival = survival;
         let minimum_g =
             validate_ipcw_grid(&duration, &times, &survival, tau, minimum_probability, || {
@@ -381,6 +382,7 @@ fn randomized_cumulative_incidence_ipcw(
         )
         .map_err(crate::value_err)?;
         debug_assert!((minimum_g - result.1).abs() <= 1e-10);
+        drop(input_lease);
         Ok(result)
     })?;
     Ok((

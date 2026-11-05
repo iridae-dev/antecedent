@@ -454,15 +454,19 @@ def estimate(
 ) -> InterferenceEstimate:
     """Estimate a known randomized exposure contrast on a fixed unit network.
 
-    This is an unsupported utility: every assignment
-    design and exposure mapping, and ``execution`` carries the exposure-probability Monte
-    Carlo seed. It calls the interference estimator directly and returns bare
-    numbers, with no study, contract, export or calibration slot. ``work_limit``
-    sets the total logical-operation ceiling for both exposure probabilities;
-    exceeding it refuses the request without reducing the Monte Carlo draw count.
-    ``antecedent.analyze(data, graph=[], query=InterferenceQuery(..., network=,
-    realized_assignment=))`` retains a study for the supported Bernoulli cell
-    and the separately checked, unsupported cluster total-effect construction.
+    Specialized interference operation outside the central compiler, kept as a documented
+    low-level exception: it accepts every assignment design and exposure mapping, which the
+    compiled path does not. It returns bare numbers (the Horvitz-Thompson and Hajek
+    contrasts, a conservative variance and the exposure-probability diagnostics) and carries
+    no study, contract, export, interval or calibration slot; the only things it checks are
+    the input shapes, the design and the work limit. ``execution`` supplies the
+    exposure-probability Monte Carlo seed and the cancellation and memory policy.
+    ``work_limit`` sets the total logical-operation ceiling for both exposure
+    probabilities; exceeding it refuses the request without reducing the Monte Carlo draw
+    count. ``antecedent.analyze(data, graph=[], query=InterferenceQuery(...,
+    network=, realized_assignment=))`` is the compiled, study-retaining path for the
+    supported Bernoulli cell and the separately checked, unsupported cluster total-effect
+    construction, and the one to use for a claim.
     """
 
     if not isinstance(query, InterferenceQuery):

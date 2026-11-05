@@ -88,8 +88,6 @@ pub use antecedent_identify::{
 pub use antecedent_identify::{bind_transport_derivation, lower_transport_formula};
 /// Decide items of the parent module.
 pub use antecedent_identify::{decide_two_source_z_transport, decide_z_transport_inspecting};
-/// Tier-closure identification as a fast path over generalized adjustment.
-pub use antecedent_identify::{identify_tiered, identify_tiered_joint};
 /// Transport under graph uncertainty.
 pub mod discovered_transport {
     pub use antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind;

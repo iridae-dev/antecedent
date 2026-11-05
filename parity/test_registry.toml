@@ -22767,3 +22767,10 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_response_gam_derivative_truth.py"
 gates = ["inventory"]
+
+[[test]]
+id = "engineering-crates-antecedent-learn-src-spec-rs"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/spec.rs"
+gates = ["inventory", "named"]

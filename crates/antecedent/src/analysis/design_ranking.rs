@@ -706,7 +706,13 @@ impl DesignRankingEvaluation {
 }
 
 /// Evaluate every declared candidate's EVSI through the existing decision-regret path and
-/// seal the ranking.
+/// seal the ranking, under the caller's `ctx`.
+///
+/// This is the study-independent form: it is a specialized checked path outside the central
+/// compiler. It checks the declaration, signal providers, source overlap, cost units and the
+/// preposterior integration, and it observes the cancellation and admission pool of `ctx`;
+/// it does not compile a lowered program, so the evaluation carries no program identity. Use
+/// [`evaluate_for_study`] to bind the ranking to a study's lowered EVSI program.
 ///
 /// # Errors
 /// A malformed declaration, a refused signal or provider (wrong candidate, prior, sample
@@ -714,13 +720,10 @@ impl DesignRankingEvaluation {
 /// or a changed action set, a bound violation, or an artifact that cannot be sealed.
 pub fn evaluate(
     wire: DesignRankingRequestWire,
+    ctx: &ExecutionContext,
 ) -> Result<DesignRankingEvaluation, DesignRankingError> {
     let prepared = Prepared::try_from(wire)?;
-    let ctx = ExecutionContext::production(
-        prepared.request.rng_seed,
-        antecedent_core::default_user_threads(),
-    );
-    evaluate_prepared(&prepared, &ctx, None)
+    evaluate_prepared(&prepared, ctx, None)
 }
 
 /// Compile `study` as the state belief of the declared EVSI evaluation.

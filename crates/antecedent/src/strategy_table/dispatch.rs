@@ -33,6 +33,7 @@ use super::{EstimatorId, IdentifierId, estimator_data, identifier_data, require_
 /// # Errors
 ///
 /// Unknown identifier, identification failure, or non-identified status.
+#[cfg(test)]
 pub(crate) fn identify_static(
     identifier: IdentifierId,
     graph: &Dag,
@@ -74,7 +75,7 @@ pub(crate) fn identify_conditional_static_in_context(
 /// # Errors
 ///
 /// Unknown identifier, identification failure, or non-identified status.
-pub fn identify_static_query(
+pub(crate) fn identify_static_query(
     identifier: IdentifierId,
     graph: &Dag,
     query: &CausalQuery,
@@ -125,7 +126,7 @@ const fn static_identifier_refusal(identifier: IdentifierId) -> &'static str {
 /// # Errors
 ///
 /// Unknown identifier, identification failure, or non-identified status.
-pub fn identify_static_query_with_rd(
+pub(crate) fn identify_static_query_with_rd(
     identifier: IdentifierId,
     graph: &Dag,
     query: &CausalQuery,
@@ -143,11 +144,27 @@ pub fn identify_static_query_with_rd(
 ///
 /// As [`identify_static_query_with_rd`]; a pool that cannot fund the search's graph copies is a
 /// budget refusal, never a non-identification.
+pub(crate) fn identify_static_query_in_context(
+    identifier: IdentifierId,
+    graph: &Dag,
+    query: &CausalQuery,
+    rd: Option<antecedent_identify::SharpRdConfig>,
+    context: Option<&ExecutionContext>,
+) -> Result<IdentificationResult, CausalError> {
+    // The general-ID recursion reads its work cap and cancellation from the installed context.
+    match context {
+        Some(ctx) => crate::execution::run_admitted(ctx, || {
+            identify_static_query_scoped(identifier, graph, query, rd, context)
+        }),
+        None => identify_static_query_scoped(identifier, graph, query, rd, context),
+    }
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "the complete route keeps related contract checks together"
 )]
-pub fn identify_static_query_in_context(
+fn identify_static_query_scoped(
     identifier: IdentifierId,
     graph: &Dag,
     query: &CausalQuery,
@@ -292,7 +309,7 @@ pub fn identify_static_query_in_context(
 /// # Errors
 ///
 /// Unsupported identifier or identification failure.
-pub fn identify_cpdag(
+pub(crate) fn identify_cpdag(
     identifier: IdentifierId,
     cpdag: &antecedent_graph::Cpdag,
     query: &AverageEffectQuery,
@@ -307,7 +324,7 @@ pub fn identify_cpdag(
 /// # Errors
 ///
 /// As [`identify_cpdag`].
-pub fn identify_cpdag_in_context(
+pub(crate) fn identify_cpdag_in_context(
     identifier: IdentifierId,
     cpdag: &antecedent_graph::Cpdag,
     query: &AverageEffectQuery,
@@ -357,30 +374,12 @@ pub(crate) fn identify_pag_in_context(
     }
 }
 
-/// Class-aware identification over a `TemporalCpdag` (MEC `TemporalDag` envelope).
-///
-/// # Errors
-///
-/// Unsupported identifier or identification failure.
-pub fn identify_temporal_cpdag(
-    identifier: IdentifierId,
-    cpdag: &antecedent_graph::TemporalCpdag,
-    query: &TemporalEffectQuery,
-) -> Result<TemporalClassEnvelope, CausalError> {
-    identify_temporal_cpdag_configured(
-        identifier,
-        cpdag,
-        query,
-        GeneralizedAdjustmentConfig::default(),
-    )
-}
-
 /// Class-aware `TemporalCpdag` identification with an explicit completion cap.
 ///
 /// # Errors
 ///
 /// Unsupported identifier or identification failure.
-pub fn identify_temporal_cpdag_configured(
+pub(crate) fn identify_temporal_cpdag_configured(
     identifier: IdentifierId,
     cpdag: &antecedent_graph::TemporalCpdag,
     query: &TemporalEffectQuery,
@@ -396,25 +395,12 @@ pub fn identify_temporal_cpdag_configured(
     )
 }
 
-/// Class-aware identification over a `TemporalPag` (`TemporalDag` completion envelope).
-///
-/// # Errors
-///
-/// Unsupported identifier or identification failure.
-pub fn identify_temporal_pag(
-    identifier: IdentifierId,
-    pag: &antecedent_graph::TemporalPag,
-    query: &TemporalEffectQuery,
-) -> Result<TemporalClassEnvelope, CausalError> {
-    identify_temporal_pag_configured(identifier, pag, query, GeneralizedAdjustmentConfig::default())
-}
-
 /// Class-aware `TemporalPag` identification with an explicit completion cap.
 ///
 /// # Errors
 ///
 /// Unsupported identifier or identification failure.
-pub fn identify_temporal_pag_configured(
+pub(crate) fn identify_temporal_pag_configured(
     identifier: IdentifierId,
     pag: &antecedent_graph::TemporalPag,
     query: &TemporalEffectQuery,
@@ -477,7 +463,7 @@ pub(crate) fn not_identified_admg(
 /// # Errors
 ///
 /// Unsupported identifier or identification failure.
-pub fn identify_admg_query(
+pub(crate) fn identify_admg_query(
     identifier: IdentifierId,
     admg: &antecedent_graph::Admg,
     query: &CausalQuery,
@@ -1063,18 +1049,6 @@ fn reject_non_generalized_identifier<T>(
     }
 }
 
-/// Class-aware response identification covering every intervention target.
-///
-/// # Errors
-/// Unsupported strategy/query or graph errors.
-pub fn identify_cpdag_response(
-    identifier: IdentifierId,
-    graph: &antecedent_graph::Cpdag,
-    query: &antecedent_core::ResponseQuery,
-) -> Result<IdentificationEnvelope<Dag>, CausalError> {
-    identify_cpdag_response_in_context(identifier, graph, query, None)
-}
-
 /// Whether a derivative functional names more than one treatment/outcome pair (a Jacobian or
 /// directional derivative over several coordinates), so each pair must be identified by the
 /// one adjustment set the regression conditions on.
@@ -1174,18 +1148,6 @@ pub(crate) fn identify_admg_derivative(
                   adjustment set nor a front-door set: it is a general ID functional of the \
                   observed law, and no continuous-treatment estimator evaluates such a functional",
     })
-}
-
-/// Class-aware MAG response identification covering every intervention target.
-///
-/// # Errors
-/// Unsupported strategy/query or graph errors.
-pub fn identify_pag_response(
-    identifier: IdentifierId,
-    graph: &Pag,
-    query: &antecedent_core::ResponseQuery,
-) -> Result<IdentificationEnvelope<Pag>, CausalError> {
-    identify_pag_response_in_context(identifier, graph, query, None)
 }
 
 /// Preserve declared work/depth truncation, but never publish a resource interruption as mass.

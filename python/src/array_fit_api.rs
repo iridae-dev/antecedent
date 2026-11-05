@@ -38,7 +38,9 @@ pub(crate) fn execute_score(
             antecedent::execution::AdmissionRefusal::Cancelled => {
                 py_err(antecedent::CausalError::Cancelled { stage })
             }
-            error => crate::CausalResourceError::new_err(error.to_string()),
+            error @ antecedent::execution::AdmissionRefusal::Refused(_) => {
+                crate::CausalResourceError::new_err(error.to_string())
+            }
         });
     }
     let fit = result.map_err(py_err)?;

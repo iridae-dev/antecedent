@@ -17,10 +17,16 @@
 //!    functional of `antecedent_estimate::measurement` and keeps the result
 //!    bound to the model identity. The standard error is an uncalibrated
 //!    delta-method estimate that includes the uncertainty of the estimated
-//!    measurement parameters where the record says it was propagated. No
-//!    interval is produced: [`MeasurementEstimate::interval`] refuses with
-//!    `not_supported` until the whole measurement-plus-estimation method
-//!    has a measured coverage record.
+//!    measurement parameters where the record says it was propagated.
+//!    [`MeasurementEstimate::interval`] forms the equal-tailed Wald interval
+//!    `point -/+ z * standard_error` for a level in `(0, 1)`; its coverage is
+//!    not measured, so the interval carries no calibrated status. A bad level
+//!    refuses with `invalid_argument` (`measurement_model.interval_level`) and a
+//!    record without a standard error with `route_not_supported`
+//!    (`measurement_model.interval_requires_estimate`).
+//!    [`PreparedMeasurementModel::interval`] always refuses
+//!    (`uncertainty_representation_insufficient`): a prepared model holds no
+//!    corrected value to put an interval around.
 //! 3. **Export** ([`MeasurementEstimate::export`]) writes the model, its
 //!    identities and the result with its sufficient inputs.
 //! 4. **Consume** ([`consume_measurement_model_artifact`]) recomputes the
@@ -934,7 +940,7 @@ impl MeasurementEstimate {
     }
 
     /// The delta-method standard error. It is uncalibrated: no coverage has
-    /// been measured and no interval follows from it.
+    /// been measured, so a Wald interval formed from it has no calibrated status.
     #[must_use]
     pub const fn standard_error(&self) -> Option<f64> {
         self.record.standard_error

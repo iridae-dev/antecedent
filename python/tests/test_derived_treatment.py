@@ -99,6 +99,8 @@ def test_a_declared_joint_cell_recovers_the_known_law_and_the_interaction():
     assert "propensity=ridge_logistic" in result.provenance
     assert result.plan.observed_levels == (0.0, 1.0, 2.0, 3.0)
     assert result.plan.retained_covariates == ("z",)
+    # The adjustment is the caller's declaration, never a graph identification.
+    assert result.plan.adjustment_basis == "declared"
 
 
 def test_a_family_with_one_unsupported_cell_keeps_the_rest():

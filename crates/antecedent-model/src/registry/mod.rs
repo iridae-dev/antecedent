@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::VariableId;
+use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
@@ -22,6 +22,10 @@ use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 use crate::compile::{CompiledCausalModel, CompiledMechanismStore, MechanismSlot};
 use crate::error::ModelError;
 use crate::mechanism::NoiseInferenceMode;
+
+/// Seed of the context the entry points that take no [`ExecutionContext`] fit under. It
+/// reaches no fit: the ensemble fits seed their own fixed streams.
+const AMBIENT_FIT_SEED: u64 = 0;
 
 /// Candidate mechanism family known to the registry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -603,19 +607,64 @@ impl MechanismRegistry {
     /// [`Self::assign_and_fit_with`] that polls `cancelled` as
     /// [`Self::assign_and_fit_polled`] does.
     ///
+    /// This entry point takes no [`ExecutionContext`], so a tree-ensemble family fits under a
+    /// private serial context with an unbounded memory pool and no host cancellation. A host
+    /// that owns a memory budget or a cancellation token calls
+    /// [`Self::assign_and_fit_with_in`] instead.
+    ///
     /// # Errors
     ///
     /// As [`Self::assign_and_fit_with`], and [`ModelError::Cancelled`].
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one pass per node: resolve candidates, score each, select, record provenance"
-    )]
     pub fn assign_and_fit_with_polled(
         &self,
         model: &CompiledCausalModel,
         data: &TabularData,
         policy: SelectionPolicy,
         options: &SelectionOptions,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<(CompiledMechanismStore, Vec<MechanismAssignment>), ModelError> {
+        let ambient = ExecutionContext::production(AMBIENT_FIT_SEED, 1);
+        self.assign_and_fit_inner(model, data, policy, options, &ambient, cancelled)
+    }
+
+    /// [`Self::assign_and_fit_with`] under the caller's [`ExecutionContext`].
+    ///
+    /// Cancellation is polled from `ctx.cancellation` before every node, candidate family and
+    /// cross-validation fold. A tree-ensemble family is admitted against `ctx`'s memory pool
+    /// before its fit starts, and the admission or input-limit refusal ends the whole
+    /// selection as [`ModelError::ResourceLimit`] rather than dropping the family from the
+    /// candidates. A boosted-tree fit cannot be interrupted once it has started (see
+    /// `antecedent_learn::GbtSpec`); cancellation takes effect at the next fold or family.
+    /// Fitted mechanisms do not depend on `ctx`'s seed: the ensemble fits use fixed streams.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::assign_and_fit_with`], [`ModelError::Cancelled`], and
+    /// [`ModelError::ResourceLimit`].
+    pub fn assign_and_fit_with_in(
+        &self,
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        policy: SelectionPolicy,
+        options: &SelectionOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<(CompiledMechanismStore, Vec<MechanismAssignment>), ModelError> {
+        self.assign_and_fit_inner(model, data, policy, options, ctx, &|| {
+            ctx.cancellation.is_cancelled()
+        })
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one pass per node: resolve candidates, score each, select, record provenance"
+    )]
+    fn assign_and_fit_inner(
+        &self,
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        policy: SelectionPolicy,
+        options: &SelectionOptions,
+        ctx: &ExecutionContext,
         cancelled: &dyn Fn() -> bool,
     ) -> Result<(CompiledMechanismStore, Vec<MechanismAssignment>), ModelError> {
         let n = model.n_nodes();
@@ -642,8 +691,9 @@ impl MechanismRegistry {
             };
             let constraint = options.constraint_for(var);
             let families = resolve_candidates(registry_list, typing, constraint, var)?;
-            let frame =
-                FitFrame::from_data(gather, model, data, y.len())?.with_splits(options.splits);
+            let frame = FitFrame::from_data(gather, model, data, y.len())?
+                .with_splits(options.splits)
+                .with_execution(ctx);
             let plan = frame.split_plan()?;
 
             let mut candidates = Vec::new();
@@ -665,6 +715,9 @@ impl MechanismRegistry {
                     }
                     // Cancellation is not a family failure: it must stop the whole fit.
                     Err(ModelError::Cancelled) => return Err(ModelError::Cancelled),
+                    // A budget the host set too small is not a family failure either: the
+                    // family may be the best one, so the selection cannot proceed without it.
+                    Err(error @ ModelError::ResourceLimit { .. }) => return Err(error),
                     Err(e) => failed.push((family, e.to_string())),
                 }
             }

@@ -11,6 +11,8 @@
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::SystemTime;
 
 use arrow_array::RecordBatch;
 use arrow_array::ffi_stream::ArrowArrayStreamReader;
@@ -59,6 +61,101 @@ pub(crate) struct Inspected {
     pub reader_bytes: u64,
 }
 
+/// What a file looked like when its table was opened: the facts the read was
+/// admitted on. Every reopen compares against it and refuses on drift.
+#[derive(Clone, Debug)]
+pub(crate) struct FileStamp {
+    len: u64,
+    modified: Option<SystemTime>,
+    pub schema: SchemaRef,
+    pub rows: Option<u64>,
+    pub decode_per_row: Vec<Option<u64>>,
+    pub reader_bytes: u64,
+}
+
+fn file_times(path: &Path) -> Result<(u64, Option<SystemTime>), FileSourceError> {
+    let meta = std::fs::metadata(path).map_err(|error| FileSourceError::Io {
+        path: path.to_path_buf(),
+        message: error.to_string(),
+    })?;
+    Ok((meta.len(), meta.modified().ok()))
+}
+
+fn changed(path: &Path, detail: &str) -> FileSourceError {
+    FileSourceError::SourceChanged { path: path.to_path_buf(), detail: detail.to_owned() }
+}
+
+impl FileStamp {
+    /// Read the size, modification time, schema and cost inputs of `path`.
+    pub(crate) fn capture(path: &Path, format: TableFileFormat) -> Result<Self, FileSourceError> {
+        let (len, modified) = file_times(path)?;
+        let seen = inspect(path, format)?;
+        Ok(Self {
+            len,
+            modified,
+            schema: seen.schema,
+            rows: seen.rows,
+            decode_per_row: seen.decode_per_row,
+            reader_bytes: seen.reader_bytes,
+        })
+    }
+
+    fn verify_times(&self, path: &Path) -> Result<(), FileSourceError> {
+        let (len, modified) = file_times(path)?;
+        if len != self.len || modified != self.modified {
+            return Err(changed(path, "the file size or modification time differs from open"));
+        }
+        Ok(())
+    }
+
+    /// Refuse when `path` no longer matches the table as opened: size, modification
+    /// time, schema, row count or decode-cost inputs.
+    pub(crate) fn verify(
+        &self,
+        path: &Path,
+        format: TableFileFormat,
+    ) -> Result<(), FileSourceError> {
+        self.verify_times(path)?;
+        let now = inspect(path, format)?;
+        if now.schema != self.schema {
+            return Err(changed(path, "the schema differs from open"));
+        }
+        if now.rows != self.rows {
+            return Err(changed(path, "the row count differs from open"));
+        }
+        if now.reader_bytes != self.reader_bytes || now.decode_per_row != self.decode_per_row {
+            return Err(changed(path, "the decode-cost inputs differ from open"));
+        }
+        Ok(())
+    }
+
+    /// Cheap check made as a provider opens a file: size, modification time and
+    /// the row count the reader just parsed.
+    #[cfg_attr(
+        not(any(feature = "parquet", feature = "ipc")),
+        allow(dead_code, reason = "only compiled readers reopen files")
+    )]
+    fn verify_reopen(&self, path: &Path, rows: Option<u64>) -> Result<(), FileSourceError> {
+        self.verify_times(path)?;
+        if rows != self.rows {
+            return Err(changed(path, "the row count differs from open"));
+        }
+        Ok(())
+    }
+}
+
+/// Refuse unless every file of `paths` still matches its open-time stamp.
+pub(crate) fn verify_all(
+    format: TableFileFormat,
+    paths: &[PathBuf],
+    stamps: &[FileStamp],
+) -> Result<(), FileSourceError> {
+    for (path, stamp) in paths.iter().zip(stamps) {
+        stamp.verify(path, format)?;
+    }
+    Ok(())
+}
+
 pub(crate) fn inspect(path: &Path, format: TableFileFormat) -> Result<Inspected, FileSourceError> {
     match format {
         TableFileFormat::Parquet => parquet_inspect(path),
@@ -73,12 +170,14 @@ pub(crate) fn inspect(path: &Path, format: TableFileFormat) -> Result<Inspected,
 pub(crate) fn open_all(
     format: TableFileFormat,
     paths: &[PathBuf],
+    stamps: &Arc<[FileStamp]>,
     projection: &[usize],
     batch_rows: usize,
 ) -> Box<dyn BatchProvider> {
     Box::new(Chained {
         format,
         paths: paths.to_vec(),
+        stamps: Arc::clone(stamps),
         projection: projection.to_vec(),
         batch_rows,
         next: 0,
@@ -89,6 +188,7 @@ pub(crate) fn open_all(
 struct Chained {
     format: TableFileFormat,
     paths: Vec<PathBuf>,
+    stamps: Arc<[FileStamp]>,
     projection: Vec<usize>,
     batch_rows: usize,
     next: usize,
@@ -102,8 +202,11 @@ impl BatchProvider for Chained {
                 let Some(path) = self.paths.get(self.next) else {
                     return Ok(DecodeNeed::Exhausted);
                 };
+                let stamp = self.stamps.get(self.next).ok_or_else(|| {
+                    changed(path, "the file has no open-time record to compare against")
+                })?;
                 self.current =
-                    Some(open_one(self.format, path, &self.projection, self.batch_rows)?);
+                    Some(open_one(self.format, path, stamp, &self.projection, self.batch_rows)?);
                 self.next += 1;
             }
             let Some(current) = self.current.as_mut() else {
@@ -122,8 +225,11 @@ impl BatchProvider for Chained {
                 let Some(path) = self.paths.get(self.next) else {
                     return Ok(None);
                 };
+                let stamp = self.stamps.get(self.next).ok_or_else(|| {
+                    changed(path, "the file has no open-time record to compare against")
+                })?;
                 self.current =
-                    Some(open_one(self.format, path, &self.projection, self.batch_rows)?);
+                    Some(open_one(self.format, path, stamp, &self.projection, self.batch_rows)?);
                 self.next += 1;
             }
             if let Some(current) = self.current.as_mut() {
@@ -139,13 +245,14 @@ impl BatchProvider for Chained {
 fn open_one(
     format: TableFileFormat,
     path: &Path,
+    stamp: &FileStamp,
     projection: &[usize],
     batch_rows: usize,
 ) -> Result<Box<dyn BatchProvider>, FileSourceError> {
     match format {
-        TableFileFormat::Parquet => parquet_open(path, projection, batch_rows),
-        TableFileFormat::ArrowIpcFile => ipc_open(path, projection, false),
-        TableFileFormat::ArrowIpcStream => ipc_open(path, projection, true),
+        TableFileFormat::Parquet => parquet_open(path, stamp, projection, batch_rows),
+        TableFileFormat::ArrowIpcFile => ipc_open(path, stamp, projection, false),
+        TableFileFormat::ArrowIpcStream => ipc_open(path, stamp, projection, true),
     }
 }
 
@@ -265,6 +372,7 @@ fn parquet_inspect(_path: &Path) -> Result<Inspected, FileSourceError> {
 #[cfg(feature = "parquet")]
 fn parquet_open(
     path: &Path,
+    stamp: &FileStamp,
     projection: &[usize],
     batch_rows: usize,
 ) -> Result<Box<dyn BatchProvider>, FileSourceError> {
@@ -284,6 +392,10 @@ fn parquet_open(
 
     let builder = ParquetRecordBatchReaderBuilder::try_new(open_file(path)?)
         .map_err(|error| format_error(path, &error))?;
+    stamp.verify_reopen(path, u64::try_from(builder.metadata().file_metadata().num_rows()).ok())?;
+    if builder.schema() != &stamp.schema {
+        return Err(changed(path, "the schema differs from open"));
+    }
     let mask = ProjectionMask::roots(builder.parquet_schema(), projection.iter().copied());
     let reader = builder
         .with_projection(mask)
@@ -296,6 +408,7 @@ fn parquet_open(
 #[cfg(not(feature = "parquet"))]
 fn parquet_open(
     _path: &Path,
+    _stamp: &FileStamp,
     _projection: &[usize],
     _batch_rows: usize,
 ) -> Result<Box<dyn BatchProvider>, FileSourceError> {
@@ -327,6 +440,7 @@ fn ipc_inspect(_path: &Path, stream: bool) -> Result<Inspected, FileSourceError>
 #[cfg(feature = "ipc")]
 fn ipc_open(
     path: &Path,
+    stamp: &FileStamp,
     projection: &[usize],
     stream: bool,
 ) -> Result<Box<dyn BatchProvider>, FileSourceError> {
@@ -359,6 +473,7 @@ fn ipc_open(
         }
     }
 
+    stamp.verify_reopen(path, None)?;
     let costs = if stream {
         super::ipc_scan::scan_stream(path)?
     } else {
@@ -367,13 +482,21 @@ fn ipc_open(
     let reader = BufReader::new(open_file(path)?);
     let projection = Some(projection.to_vec());
     let path = path.to_path_buf();
+    // Both readers report the file's full schema even when a projection is set.
+    let same = |seen: &arrow_schema::Schema| seen.fields() == stamp.schema.fields();
     if stream {
         let reader = StreamReader::try_new(reader, projection)
             .map_err(|error| format_error(&path, &error))?;
+        if !same(&reader.schema()) {
+            return Err(changed(&path, "the schema differs from open"));
+        }
         Ok(Box::new(IpcBatches { reader, path, costs, next: 0 }))
     } else {
         let reader =
             FileReader::try_new(reader, projection).map_err(|error| format_error(&path, &error))?;
+        if !same(&reader.schema()) {
+            return Err(changed(&path, "the schema differs from open"));
+        }
         Ok(Box::new(IpcBatches { reader, path, costs, next: 0 }))
     }
 }
@@ -381,6 +504,7 @@ fn ipc_open(
 #[cfg(not(feature = "ipc"))]
 fn ipc_open(
     _path: &Path,
+    _stamp: &FileStamp,
     _projection: &[usize],
     stream: bool,
 ) -> Result<Box<dyn BatchProvider>, FileSourceError> {

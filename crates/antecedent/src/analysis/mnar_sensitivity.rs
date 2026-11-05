@@ -7,9 +7,10 @@
 //!   of the outcome-missingness mechanism, with tipping points of the sign and of every declared decision;
 //! * [`mnar_sensitivity_for_table`] reads the treatment, outcome and covariate columns of a
 //!   table (an invalid outcome cell is a missing outcome) and runs the same analysis;
-//! * [`mnar_sensitivity_for_study`] starts from a built [`Study`]: it takes the treatment and
-//!   outcome of the study's average-effect query and its data, so the sensitivity analysis
-//!   re-runs the very estimand the study declared. This is the route the refusal of a
+//! * [`mnar_sensitivity_for_study`] starts from a built [`Study`]: it binds the study's complete
+//!   average-effect target (intervention levels, target population, outcome functional and
+//!   effect modifiers) and checks the adjustment against the study's graph, refusing every
+//!   coordinate the arm-mean engine does not compute. This is the route the refusal of a
 //!   `missing_not_at_random` multiple-imputation declaration names as the next attempt.
 //!
 //! The adjusted estimators (`regression_adjusted`, `ipw`, `aipw`) impute each missing outcome
@@ -23,8 +24,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{CausalQuery, VariableId, reason_code};
+use antecedent_core::{
+    AverageEffectQuery, CausalQuery, Intervention, OutcomeFunctional, TargetPopulation, VariableId,
+    reason_code,
+};
 use antecedent_data::TableView;
+use antecedent_identify::backdoor::check_joint_adjustment;
 pub use antecedent_validate::mnar_sensitivity::{
     ArmLoading, MNAR_ASSIGNMENT_ASSUMPTION_ID, MNAR_ASSUMPTION_RANGE_CLAIM,
     MNAR_DEPARTURE_ASSUMPTION_ID, MNAR_DEPARTURE_ASSUMPTION_STATUS, MNAR_EMPIRICAL_STATUS,
@@ -120,16 +125,69 @@ pub fn mnar_sensitivity_for_table<T: TableView>(
     run_ids(table, id_of(treatment)?, id_of(outcome)?, &covariates, spec)
 }
 
-/// The analysis of a built study's average-effect query on the study's own tabular data.
+fn target_refusal(coordinates: &[&str]) -> MnarSensitivityError {
+    MnarSensitivityError {
+        code: reason_code!("route_not_supported"),
+        detail: antecedent_core::reason_details::mnar_sensitivity::UNSUPPORTED_TARGET,
+        message: format!(
+            "the sensitivity analysis computes the full-population difference of arm means \
+             between treatment levels 1 and 0; the study's {} differ{} from that target",
+            coordinates.join(", "),
+            if coordinates.len() == 1 { "s" } else { "" }
+        ),
+    }
+}
+
+/// The coordinates of the study's average-effect target that the arm-mean engine does not
+/// compute: it contrasts the arms coded 1 and 0 over all observed rows, as a mean, with no
+/// effect modifiers.
+fn unsupported_coordinates(query: &AverageEffectQuery) -> Vec<&'static str> {
+    let level = |intervention: &Intervention, expected: f64| {
+        matches!(
+            intervention,
+            Intervention::Set { variable, value, .. }
+                if *variable == query.treatment && value.as_f64() == Some(expected)
+        )
+    };
+    let mut refused = Vec::new();
+    if !level(&query.control, 0.0) || !level(&query.active, 1.0) {
+        refused.push("intervention levels");
+    }
+    if !matches!(query.target_population, TargetPopulation::AllObserved) {
+        refused.push("target population");
+    }
+    if !matches!(query.outcome_functional, OutcomeFunctional::Mean) {
+        refused.push("outcome functional");
+    }
+    if !query.effect_modifiers.is_empty() {
+        refused.push("effect modifiers");
+    }
+    refused
+}
+
+/// The sensitivity of a built study's average-effect target on the study's own tabular data.
 ///
-/// The study's treatment and outcome are the analysed columns and `adjustment` (the study's
-/// adjustment set) the covariates of an adjusted estimator; use the difference in means with
-/// an empty adjustment set. A study whose query is not an average effect, or whose data are
-/// not a table, is refused with `mnar_sensitivity.unsupported_query`.
+/// The study's complete target is bound before anything runs. The engine contrasts the arm
+/// means of a treatment coded 0 and 1 over all observed rows, so the study's control and
+/// active interventions must be `do(treatment := 0)` and `do(treatment := 1)`, its target
+/// population all observed units, its outcome functional the mean and its effect modifiers
+/// empty. Any other coordinate is refused with `mnar_sensitivity.unsupported_target`, which
+/// names the refused coordinates; none is silently replaced by the full-population mean
+/// contrast.
+///
+/// `adjustment` (the covariates of an adjusted estimator; empty for the difference in means)
+/// is checked against the study's graph with the joint sufficient backdoor criterion: a set
+/// that contains a descendant of the treatment, or leaves a backdoor path open, is refused
+/// with `mnar_sensitivity.adjustment_not_valid`. A study declared on a graph posterior or on
+/// a graph that is not a DAG has no single graph to check against and is refused with
+/// `mnar_sensitivity.graph_not_supported`. A study whose query is not an average effect, or
+/// whose data are not a table, is refused with `mnar_sensitivity.unsupported_query`.
 ///
 /// # Errors
 ///
-/// `mnar_sensitivity.unsupported_query`, otherwise the refusals of [`mnar_sensitivity`].
+/// `mnar_sensitivity.unsupported_query`, `mnar_sensitivity.unsupported_target`,
+/// `mnar_sensitivity.graph_not_supported`, `mnar_sensitivity.adjustment_not_valid`,
+/// otherwise the refusals of [`mnar_sensitivity`].
 pub fn mnar_sensitivity_for_study(
     study: &Study,
     adjustment: &[VariableId],
@@ -145,5 +203,34 @@ pub fn mnar_sensitivity_for_study(
                 .to_owned(),
         });
     };
+    let refused = unsupported_coordinates(query);
+    if !refused.is_empty() {
+        return Err(target_refusal(&refused));
+    }
+    let (None, Some(dag)) = (&study.graph_posterior, study.graph.as_dag()) else {
+        return Err(MnarSensitivityError {
+            code: reason_code!("route_not_supported"),
+            detail: antecedent_core::reason_details::mnar_sensitivity::GRAPH_NOT_SUPPORTED,
+            message: "the adjustment is checked against a single DAG; the study declares a \
+                      graph posterior or a graph that is not a DAG"
+                .to_owned(),
+        });
+    };
+    let not_valid = |message: String| MnarSensitivityError {
+        code: reason_code!("invalid_argument"),
+        detail: antecedent_core::reason_details::mnar_sensitivity::ADJUSTMENT_NOT_VALID,
+        message,
+    };
+    match check_joint_adjustment(dag, &[query.treatment], query.outcome, adjustment) {
+        Ok(Some(_)) => {}
+        Ok(None) => {
+            return Err(not_valid(
+                "the adjustment set is not a valid backdoor adjustment in the study's graph: it \
+                 contains a descendant of the treatment or leaves a backdoor path open"
+                    .to_owned(),
+            ));
+        }
+        Err(error) => return Err(not_valid(format!("the adjustment set is invalid: {error}"))),
+    }
     run_ids(table, query.treatment, query.outcome, adjustment, spec)
 }

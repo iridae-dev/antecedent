@@ -95,7 +95,8 @@ fn draw(n: usize, seed: u64) -> Draw {
     let mut out = Draw { a: Vec::new(), m: Vec::new(), y: Vec::new(), x: Vec::new() };
     for i in 0..n {
         let uniform = |tag: u64| unit_uniform(stream_seed(seed, 2 * i as u64 + tag));
-        let x = XS[((uniform(0) * 5.0) as usize).min(4)];
+        let u = uniform(0) * 5.0;
+        let x = XS[(1u8..5).rev().find(|&k| u >= f64::from(k)).map_or(0, usize::from)];
         let a = f64::from(uniform(1) < 0.5);
         let m = ALPHA * a + GAMMA * x + SIGMA2.sqrt() * noise();
         let y = B0 + B1 * a + C1 * m + C2 * m * m + DELTA * a * m + BX * x + OUTCOME_SD * noise();

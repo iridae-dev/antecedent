@@ -704,10 +704,13 @@ fn assert_prepared_contract_consume(
     let bytes = prepared.encode_contracted_result(result, artifact_id, ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
     if let Some(dependency) = expected_dependency {
-        assert_eq!(
-            consumed.acceptance.unresolved.as_ref(),
-            &[std::sync::Arc::<str>::from(dependency)]
-        );
+        // A conditional target also leaves the estimand-criterion check unevaluated: the
+        // consumer's criterion check covers the marginal average effect only.
+        let mut expected = vec![std::sync::Arc::<str>::from(dependency)];
+        if query_kind == "conditional_effect" {
+            expected.push("dependencies.identification_estimand_criterion".into());
+        }
+        assert_eq!(consumed.acceptance.unresolved.as_ref(), expected.as_slice());
     } else {
         assert!(
             consumed.acceptance.accepts_as_verified_program(),

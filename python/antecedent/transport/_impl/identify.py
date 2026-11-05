@@ -632,14 +632,20 @@ def estimate_trial_effect(
     *,
     mu0: Sequence[float] | None = None,
     mu1: Sequence[float] | None = None,
+    execution: Execution | None = None,
 ) -> TrialTransportEstimate:
     """Estimate a trial-to-target binary-treatment contrast by IPW and optional AIPW.
 
-    This is an unsupported utility: it calls the
-    trial-to-target estimator directly and returns bare numbers, with no study,
-    contract, export or calibration slot. ``antecedent.analyze(data, graph=Admg,
-    query=TransportQuery(..., trial=, selection_probability=,
-    treatment_probability=))`` is the supported, study-retaining path.
+    Specialized transport operation outside the central compiler, kept as a documented
+    low-level exception: it computes IPW and, from the caller's own outcome regressions
+    ``mu0`` and ``mu1``, AIPW, which the compiled path does not accept. It returns bare
+    numbers with their overlap diagnostics and carries no study, contract, export,
+    interval, calibration slot or support claim; the only thing it checks is the
+    identification certificate and the input shapes and ranges. ``execution`` supplies the
+    memory, work and cancellation policy the numerical kernels obey.
+    ``antecedent.analyze(data, graph=Admg, query=TransportQuery(..., trial=,
+    selection_probability=, treatment_probability=))`` is the compiled, study-retaining
+    path and the one to use for a claim.
 
     ``identification`` must be the result of :func:`identify` for this query.
     Identification and estimation stay separate operations, but the estimator
@@ -660,13 +666,17 @@ def estimate_trial_effect(
         )
     if (mu0 is None) != (mu1 is None):
         raise CausalValueError("mu0 and mu1 must be supplied together")
-    raw = _estimate_trial_transport(
+    raw = call_native(
+        execution,
+        _estimate_trial_transport,
         identification._native,
         np.asarray(outcome, dtype=np.float64),
         list(treatment),
         list(trial),
         np.asarray(selection_probability, dtype=np.float64),
         np.asarray(treatment_probability, dtype=np.float64),
+        memory=None,
+        seed="seed",
         mu0=None if mu0 is None else np.asarray(mu0, dtype=np.float64),
         mu1=None if mu1 is None else np.asarray(mu1, dtype=np.float64),
     )

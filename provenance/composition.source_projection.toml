@@ -40,4 +40,4 @@ sha256 = "b889f2bff4ef92c43458b09a659cf899314749955681f79b70e1d408a07a82cb"
 role = "assertion"
 path = "crates/antecedent/tests/source_projection.rs"
 items = ["fn contract", "fn pin", "fn prepared", "fn project", "fn source", "fn source_projection_original_native_mean_and_affine_utility_match_independent_truth"]
-sha256 = "0908d50fcf6c15e3797bbca1eb2ba90c7f6927f05b652b385849d5c0ff747dba"
+sha256 = "aba2947160b11957855bd895a6a31f9f798f1edd97b9b6019dbd2429ad4ad41b"

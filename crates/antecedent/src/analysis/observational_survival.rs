@@ -53,7 +53,8 @@ pub struct ObservationalSurvivalSpecWire {
     /// Floor on the probability of remaining uncensored through the horizon.
     #[serde(default)]
     pub min_censoring_survival: Option<f64>,
-    /// Seed of the cross-fit fold plan.
+    /// Seed of the cross-fit fold plan. `evaluate` runs under the caller's context and its
+    /// seed; bindings that build the context from this declaration use this value.
     #[serde(default)]
     pub seed: u64,
 }
@@ -142,7 +143,13 @@ pub struct ObservationalSurvivalReportWire {
 pub struct ObservationalSurvivalEffect;
 
 impl ObservationalSurvivalEffect {
-    /// Estimate the declared survival effects.
+    /// Estimate the declared survival effects under the caller's `ctx`.
+    ///
+    /// This is a specialized checked path outside the central compiler. It checks the
+    /// declared horizon, censoring assumption, treatment levels, columns, propensity and
+    /// censoring floors, and refuses on positivity. It does not check the adjustment set
+    /// against a graph: the declared covariates are an assumption the report lists, never an
+    /// identification. The cross-fit seed, cancellation and admission pool are `ctx`'s.
     ///
     /// # Errors
     /// `required_option_missing` for an absent horizon or censoring assumption;
@@ -152,6 +159,7 @@ impl ObservationalSurvivalEffect {
     /// estimator's GLM and Cox refusals.
     pub fn evaluate(
         request: &ObservationalSurvivalRequest,
+        ctx: &ExecutionContext,
     ) -> Result<ObservationalSurvivalReportWire, CausalError> {
         let refused = |code: &'static str, detail: &str, message: &str| {
             CausalError::Estimate(EstimationError::refused_detail(code, detail, message))
@@ -209,7 +217,6 @@ impl ObservationalSurvivalEffect {
         }
         let covariates: Vec<&[f64]> =
             request.adjustment.iter().map(|c| c.values.as_slice()).collect();
-        let ctx = ExecutionContext::production_default(spec.seed);
         let estimate = estimator
             .estimate(
                 &SurvivalData {
@@ -218,7 +225,7 @@ impl ObservationalSurvivalEffect {
                     treatment: &request.treatment,
                     covariates: &covariates,
                 },
-                &ctx,
+                ctx,
             )
             .map_err(CausalError::from)?;
         let arm = |a: &ArmSurvival| ArmSurvivalWire {

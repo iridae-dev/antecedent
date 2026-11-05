@@ -262,7 +262,9 @@ def _declared_modules(path: Path, boundary: Path | None = None) -> list[tuple[Pa
     out = []
     for m in _MOD_DECL.finditer(masked.skeleton):
         attrs = _attrs_before(masked.skeleton, masked.code, m.start())
-        if _disabling_cfg(attrs):
+        # A feature-only cfg compiles the module in the lanes, which enable the workspace's
+        # test features.
+        if _disabling_cfg(attrs, features=True):
             continue
         around = [b for b in blocks if b.body[0] < m.start() < b.body[1]]
         if any(_disabling_cfg(b.attrs) for b in around):

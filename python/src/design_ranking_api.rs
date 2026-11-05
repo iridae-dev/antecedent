@@ -102,12 +102,14 @@ fn payload_error(error: &DesignRankingError) -> Result<String, PyErr> {
 /// Evaluate every declared candidate's EVSI and seal the ranking:
 /// `(artifact body json, artifact bytes, refusal json)`.
 #[pyfunction]
-#[pyo3(signature = (request_json, artifact_id, checked_prior=None))]
+#[pyo3(signature = (request_json, artifact_id, checked_prior=None, *, memory_bytes=None, cancel=None))]
 fn evaluate_design_ranking(
     py: Python<'_>,
     request_json: &str,
     artifact_id: &str,
     checked_prior: Option<PyRef<'_, crate::prior_signal_api::CheckedPriorSignal>>,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<EvaluatePayload> {
     check_size(request_json)?;
     let mut request: DesignRankingRequestWire =
@@ -118,13 +120,16 @@ fn evaluate_design_ranking(
         }
     }
     let artifact_id = artifact_id.to_owned();
-    detach_catch(py, move || match evaluate(request) {
-        Ok(done) => {
-            let bytes = done.export(&artifact_id).map_err(serialization)?;
-            let body = serde_json::to_string(done.artifact()).map_err(serialization)?;
-            Ok((Some(body), Some(bytes), None))
+    detach_catch(py, move || {
+        let ctx = crate::transport_common::execution_context(0, memory_bytes, cancel);
+        match evaluate(request, &ctx) {
+            Ok(done) => {
+                let bytes = done.export(&artifact_id).map_err(serialization)?;
+                let body = serde_json::to_string(done.artifact()).map_err(serialization)?;
+                Ok((Some(body), Some(bytes), None))
+            }
+            Err(error) => Ok((None, None, Some(payload_error(&error)?))),
         }
-        Err(error) => Ok((None, None, Some(payload_error(&error)?))),
     })
 }
 

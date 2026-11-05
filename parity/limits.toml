@@ -1760,3 +1760,102 @@ documentation = [{ path = "crates/antecedent/src/analysis/graph_imputation.rs", 
 guard = { path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "SearchBudget::with_memory\\(" }
 refusal = { path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "budget\\.charge\\(1, 25 \\* 1024 \\* 1024\\)[\\s\\S]{0,1800}?\\bErr\\s*\\(" }
 scope_fixture = { path = "crates/antecedent-discovery/src/graph_imputation_enumeration.rs", pattern = "\\bsearch_budget_depth_and_memory_bounds_refuse_one_past_and_admit_the_bound\\b" }
+
+[[bound]]
+record = "decision.sensitivity_composition"
+key = "max_utility_nodes"
+implementation = [{ path = "crates/antecedent-io-core/src/sensitivity_artifact.rs", constant = "MAX_SENSITIVITY_UTILITY_NODES" }]
+documentation = [{ path = "crates/antecedent-io-core/src/sensitivity_artifact.rs", constant = "MAX_SENSITIVITY_UTILITY_NODES" }]
+guard = { path = "crates/antecedent-io-core/src/sensitivity_artifact.rs", pattern = 'action\.utility\.node_count\(\) > limits\.max_utility_nodes' }
+refusal = { path = "crates/antecedent-io-core/src/sensitivity_artifact.rs", pattern = 'action\.utility\.node_count\(\) > limits\.max_utility_nodes \{\s*return Err\(' }
+scope_fixture = { path = "crates/antecedent-io/tests/sensitivity_artifact.rs", pattern = '\butility_trees_are_bounded_by_node_count_and_by_node_weighted_work\b' }
+
+[[bound]]
+record = "scientific_bridge.typed_bridges"
+key = "max_joint_law_dimension"
+implementation = [{ path = "crates/antecedent-contract/src/bridge/propagation.rs", constant = "MAX_JOINT_LAW_DIMENSION" }]
+documentation = [{ path = "crates/antecedent-contract/src/bridge/propagation.rs", constant = "MAX_JOINT_LAW_DIMENSION" }]
+guard = { path = "crates/antecedent-contract/src/bridge/propagation.rs", pattern = 'if n > MAX_JOINT_LAW_DIMENSION \{' }
+refusal = { path = "crates/antecedent-contract/src/bridge/propagation.rs", pattern = 'if n > MAX_JOINT_LAW_DIMENSION \{\s*return Err\(' }
+scope_fixture = { path = "crates/antecedent-contract/src/bridge/propagation.rs", pattern = '\ba_joint_law_refuses_one_past_the_dimension_limit\b' }
+
+[[bound]]
+record = "scientific_bridge.typed_bridges"
+key = "max_simulation_draws"
+implementation = [{ path = "crates/antecedent-contract/src/bridge/propagation.rs", constant = "MAX_SIMULATION_DRAWS" }]
+documentation = [{ path = "crates/antecedent-contract/src/bridge/propagation.rs", constant = "MAX_SIMULATION_DRAWS" }]
+guard = { path = "crates/antecedent-contract/src/bridge/propagation.rs", pattern = 'if draws > MAX_SIMULATION_DRAWS \{' }
+refusal = { path = "crates/antecedent-contract/src/bridge/propagation.rs", pattern = 'if draws > MAX_SIMULATION_DRAWS \{\s*return Err\(' }
+scope_fixture = { path = "crates/antecedent-contract/src/bridge/propagation.rs", pattern = '\ba_simulation_refuses_one_past_the_draw_limit_before_it_runs\b' }
+
+[[bound]]
+record = "scientific_bridge.typed_bridges"
+key = "max_propagation_work"
+implementation = [{ path = "crates/antecedent-contract/src/bridge/propagation.rs", constant = "MAX_PROPAGATION_WORK" }]
+documentation = [{ path = "crates/antecedent-contract/src/bridge/propagation.rs", constant = "MAX_PROPAGATION_WORK" }]
+guard = { path = "crates/antecedent-contract/src/bridge/propagation.rs", pattern = 'if planned_work > MAX_PROPAGATION_WORK \{' }
+refusal = { path = "crates/antecedent-contract/src/bridge/propagation.rs", pattern = 'if planned_work > MAX_PROPAGATION_WORK \{\s*return Err\(' }
+scope_fixture = { path = "crates/antecedent-contract/src/bridge/propagation.rs", pattern = '\bthe_work_cap_refuses_one_past_the_bound_and_covers_the_second_order_delta\b' }
+
+[[bound]]
+record = "scientific_bridge.typed_bridges"
+key = "max_joint_event_variables"
+implementation = [{ path = "crates/antecedent-contract/src/joint_event_quantity.rs", constant = "MAX_JOINT_EVENT_VARIABLES" }]
+documentation = [{ path = "crates/antecedent-contract/src/joint_event_quantity.rs", constant = "MAX_JOINT_EVENT_VARIABLES" }]
+guard = { path = "crates/antecedent-contract/src/joint_event_quantity.rs", pattern = 'if self\.variables\.len\(\) > MAX_JOINT_EVENT_VARIABLES \{' }
+refusal = { path = "crates/antecedent-contract/src/joint_event_quantity.rs", pattern = 'if self\.variables\.len\(\) > MAX_JOINT_EVENT_VARIABLES \{\s*return Err\(' }
+scope_fixture = { path = "crates/antecedent-contract/src/joint_event_quantity.rs", pattern = '\ba_joint_event_refuses_one_past_the_variable_limit\b' }
+
+[[bound]]
+record = "recalculation.doubly_robust"
+key = "max_gbt_trees"
+implementation = [{ path = "crates/antecedent-learn/src/spec.rs", constant = "MAX_GBT_TREES" }]
+documentation = [{ path = "crates/antecedent-learn/src/spec.rs", constant = "MAX_GBT_TREES" }]
+guard = { path = "crates/antecedent-learn/src/spec.rs", pattern = 'if spec\.trees > MAX_GBT_TREES \{' }
+refusal = { path = "crates/antecedent-learn/src/spec.rs", pattern = 'if spec\.trees > MAX_GBT_TREES \{\s*return Err\(' }
+scope_fixture = { path = "crates/antecedent-learn/src/spec.rs", pattern = '\bgbt_spec_refuses_one_past_the_tree_and_depth_limits\b' }
+
+[[bound]]
+record = "recalculation.doubly_robust"
+key = "max_gbt_depth"
+implementation = [{ path = "crates/antecedent-learn/src/spec.rs", constant = "MAX_GBT_DEPTH" }]
+documentation = [{ path = "crates/antecedent-learn/src/spec.rs", constant = "MAX_GBT_DEPTH" }]
+guard = { path = "crates/antecedent-learn/src/spec.rs", pattern = 'if spec\.depth > MAX_GBT_DEPTH \{' }
+refusal = { path = "crates/antecedent-learn/src/spec.rs", pattern = 'if spec\.depth > MAX_GBT_DEPTH \{\s*return Err\(' }
+scope_fixture = { path = "crates/antecedent-learn/src/spec.rs", pattern = '\bgbt_spec_refuses_one_past_the_tree_and_depth_limits\b' }
+
+[[bound]]
+record = "recalculation.doubly_robust"
+key = "max_gbt_design_cells"
+implementation = [{ path = "crates/antecedent-learn/src/gbt.rs", constant = "MAX_GBT_DESIGN_CELLS" }]
+documentation = [{ path = "crates/antecedent-learn/src/gbt.rs", constant = "MAX_GBT_DESIGN_CELLS" }]
+guard = { path = "crates/antecedent-learn/src/gbt.rs", pattern = 'if cells > MAX_GBT_DESIGN_CELLS \{' }
+refusal = { path = "crates/antecedent-learn/src/gbt.rs", pattern = 'if cells > MAX_GBT_DESIGN_CELLS \{\s*return Err\(' }
+scope_fixture = { path = "crates/antecedent-learn/src/gbt.rs", pattern = '\bdesign_cells_refuse_one_past_the_bound\b' }
+
+[[bound]]
+record = "decision.sensitivity_composition"
+key = "max_scenario_node_evaluations"
+implementation = [{ path = "crates/antecedent-io-core/src/sensitivity_artifact.rs", constant = "MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS" }]
+documentation = [{ path = "crates/antecedent-io-core/src/sensitivity_artifact.rs", constant = "MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS" }]
+guard = { path = "crates/antecedent-io-core/src/sensitivity_artifact.rs", pattern = 'work > limits\.max_scenario_node_evaluations' }
+refusal = { path = "crates/antecedent-io-core/src/sensitivity_artifact.rs", pattern = 'work > limits\.max_scenario_node_evaluations\) \{\s*return Err\(' }
+scope_fixture = { path = "crates/antecedent-io/tests/sensitivity_artifact.rs", pattern = '\butility_trees_are_bounded_by_node_count_and_by_node_weighted_work\b' }
+
+[[bound]]
+record = "composition.verifiers"
+key = "max_family_covariance_dim"
+implementation = [{ path = "crates/antecedent-io-core/src/analysis_result_artifact/validate.rs", constant = "MAX_FAMILY_COVARIANCE_DIM" }]
+documentation = [{ path = "crates/antecedent-io-core/src/analysis_result_artifact/validate.rs", constant = "MAX_FAMILY_COVARIANCE_DIM" }]
+guard = { path = "crates/antecedent-io-core/src/analysis_result_artifact/validate.rs", pattern = 'n > MAX_FAMILY_COVARIANCE_DIM' }
+refusal = { path = "crates/antecedent-io-core/src/analysis_result_artifact/validate.rs", pattern = 'n > MAX_FAMILY_COVARIANCE_DIM \{\s*return Err\(' }
+scope_fixture = { path = "crates/antecedent-io-core/src/analysis_result_artifact/tests.rs", pattern = '\bmalformed_portable_family_covariance_and_bands_are_refused\b' }
+
+[[bound]]
+record = "composition.verifiers"
+key = "max_response_grid_points"
+implementation = [{ path = "crates/antecedent-io-core/src/contract_section/replay.rs", constant = "MAX_RESPONSE_GRID_POINTS" }]
+documentation = [{ path = "crates/antecedent-io-core/src/contract_section/replay.rs", constant = "MAX_RESPONSE_GRID_POINTS" }]
+guard = { path = "crates/antecedent-io-core/src/contract_section/replay.rs", pattern = 'values\.len\(\) > MAX_RESPONSE_GRID_POINTS' }
+refusal = { path = "crates/antecedent-io-core/src/contract_section/replay.rs", pattern = 'values\.len\(\) > MAX_RESPONSE_GRID_POINTS \{\s*return Err\(' }
+scope_fixture = { path = "crates/antecedent-io-core/src/contract_section/tests.rs", pattern = '\ban_explicit_response_grid_past_the_point_bound_is_refused_before_any_member_replays\b' }

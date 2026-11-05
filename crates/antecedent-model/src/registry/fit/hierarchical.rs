@@ -266,6 +266,7 @@ mod eb_tests {
             groups,
             n: x.len(),
             splits: ValidationSplits::Shuffled,
+            execution: None,
         }
     }
 

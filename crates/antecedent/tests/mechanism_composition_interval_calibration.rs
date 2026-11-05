@@ -48,7 +48,7 @@ use antecedent_contract::{
 use antecedent_core::ExecutionContext;
 use antecedent_model::compile::MechanismSlot;
 use antecedent_model::compose::{
-    ContrastArm, Domain, MeanContrast, MechanismUncertainty, ParameterTerm,
+    ContrastArm, CrossCovarianceBlock, Domain, MeanContrast, MechanismUncertainty, ParameterTerm,
     SelectionNodeDeclaration, UncertaintyMeaning,
 };
 use common::calibration::{
@@ -74,9 +74,9 @@ fn ols(columns: &[&[f64]], y: &[f64]) -> Option<(Vec<f64>, f64, Vec<f64>)> {
     let design = |row: usize, col: usize| if col == 0 { 1.0 } else { columns[col - 1][row] };
     let mut gram = vec![0.0; k * k];
     let mut moment = vec![0.0; k];
-    for row in 0..n {
+    for (row, &target) in y.iter().enumerate() {
         for a in 0..k {
-            moment[a] += design(row, a) * y[row];
+            moment[a] += design(row, a) * target;
             for b in 0..k {
                 gram[a * k + b] += design(row, a) * design(row, b);
             }
@@ -203,6 +203,32 @@ fn independent() -> DependenceInput {
     }
 }
 
+/// The asymptotic independence of equation-by-equation OLS estimates as an explicit joint
+/// declaration: a zero cross-covariance block for every pair of mechanisms. A bare
+/// independence declaration is refused for a functional that multiplies coefficients along a
+/// path, so the zero blocks are what licenses the first-order variance here.
+fn zero_cross_covariance(mechanisms: &[MechanismInput]) -> DependenceInput {
+    let mut ordered: Vec<&MechanismInput> = mechanisms.iter().collect();
+    ordered.sort_by(|a, b| a.declaration.output.variable_id.cmp(&b.declaration.output.variable_id));
+    let mut blocks = Vec::new();
+    for (i, first) in ordered.iter().enumerate() {
+        for second in &ordered[i + 1..] {
+            let terms = |m: &MechanismInput| {
+                m.uncertainty.as_ref().map(|u| u.parameters.clone()).unwrap_or_default()
+            };
+            let (first_parameters, second_parameters) = (terms(first), terms(second));
+            blocks.push(CrossCovarianceBlock {
+                first: first.declaration.output.variable_id.clone(),
+                second: second.declaration.output.variable_id.clone(),
+                values: vec![0.0; first_parameters.len() * second_parameters.len()],
+                first_parameters,
+                second_parameters,
+            });
+        }
+    }
+    DependenceInput::CrossCovariance { blocks }
+}
+
 /// Source sample of the chain and its fitted mechanisms.
 fn source_mechanisms(n: usize, seed: u64) -> Option<Vec<MechanismInput>> {
     let mut noise = gaussian(seed);
@@ -224,7 +250,10 @@ fn source_mechanisms(n: usize, seed: u64) -> Option<Vec<MechanismInput>> {
     ])
 }
 
-fn prepare(mechanisms: Vec<MechanismInput>) -> Option<PreparedMechanismComposition> {
+fn prepare(
+    mechanisms: Vec<MechanismInput>,
+    dependence: DependenceInput,
+) -> Option<PreparedMechanismComposition> {
     let mut edges = Vec::new();
     for mechanism in &mechanisms {
         for parent in &mechanism.declaration.parents {
@@ -241,7 +270,7 @@ fn prepare(mechanisms: Vec<MechanismInput>) -> Option<PreparedMechanismCompositi
             mechanisms,
             edges,
             admissions: Vec::new(),
-            dependence: independent(),
+            dependence,
             admit_declared_mechanisms: false,
         },
         &ctx(),
@@ -250,13 +279,15 @@ fn prepare(mechanisms: Vec<MechanismInput>) -> Option<PreparedMechanismCompositi
 }
 
 fn composed_interval(n: usize, seed: u64) -> Option<(f64, f64)> {
-    let source = prepare(source_mechanisms(n, seed)?)?;
+    let mechanisms = source_mechanisms(n, seed)?;
+    let dependence = zero_cross_covariance(&mechanisms);
+    let source = prepare(mechanisms, dependence)?;
     let band = source.interval(&at_x(2.0), REPORTED_LEVEL).ok()?;
     Some((band.lower, band.upper))
 }
 
 fn transported_interval(n: usize, seed: u64) -> Option<(f64, f64)> {
-    let source = prepare(source_mechanisms(n, seed)?)?;
+    let source = prepare(source_mechanisms(n, seed)?, independent())?;
     // The target sample: X as in the source, M = 1.5 + 0.5 X + 2 e_M.
     let mut noise = gaussian(seed ^ 0x7A3C_9E01);
     let (mut x, mut m) = (Vec::new(), Vec::new());

@@ -963,11 +963,21 @@ fn validate_temporal_namespace(
     Ok(())
 }
 
+/// Most functionals a recorded family covariance may span.
+///
+/// The positive-semidefinite check is a cubic Cholesky factorization of the carried matrix, so
+/// the dimension read from the bytes is bounded before it sizes any work. It equals the
+/// largest family table a producer builds (`1024 * 1024` cells).
+pub(crate) const MAX_FAMILY_COVARIANCE_DIM: usize = 1024;
+
 /// Validate recorded family summaries without claiming to replay their science.
 fn validate_family_inference(result: &AnalysisResultWire) -> Result<(), IoError> {
     let invalid = |detail: &str| IoError::Convert(format!("invalid family inference: {detail}"));
     if let Some(covariance) = &result.joint_covariance {
         let n = covariance.dim;
+        if n > MAX_FAMILY_COVARIANCE_DIM {
+            return Err(invalid("covariance dimension exceeds the format bound"));
+        }
         if n == 0 || n.checked_mul(n) != Some(covariance.values.len()) {
             return Err(invalid("covariance dimensions"));
         }

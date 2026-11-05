@@ -26,7 +26,10 @@ average it over different populations.
 
 What the answer is **not**:
 
-* No graph is checked: the caller owns that ``adjust`` is a valid adjustment set.
+* No graph is checked: the caller owns that ``adjust`` is a valid adjustment set, and the
+  result says so with ``adjustment_basis == "declared"``. This is a specialized
+  checked path outside the central compiler (it checks columns, levels and overlap); it
+  does not identify the effect.
 * The standard error is the plug-in influence-function variance of cross-fitted scores. The
   95% interval ``effect ± z · se_analytic`` is published (``interval`` set), and ``interval_status == "calibrated"`` only when a current coverage record measured this
   construction (the full-population target, its number of levels, folds and row count).
@@ -54,7 +57,7 @@ import numpy as np
 
 from ._native import evaluate_multi_level_treatment as _evaluate
 from .errors import CausalTypeError, CausalValueError
-from .execution import Execution, resolve_execution
+from .execution import Execution, native_controls, resolve_execution
 
 if TYPE_CHECKING:
     from ._native import CalibrationStatus
@@ -123,6 +126,9 @@ class MultiLevelEffect:
     interval_status: CalibrationStatus
     #: Why the interval is withheld, when it is.
     interval_reason: str | None
+    #: ``"declared"``: the ``adjust`` columns are the caller's declaration and no graph
+    #: was checked, so the contrast is not a graph-identified effect.
+    adjustment_basis: str = "declared"
 
     def to_dict(self) -> dict[str, Any]:
         """A plain, JSON-serializable view."""
@@ -157,6 +163,7 @@ class MultiLevelEffect:
             },
             "interval_status": self.interval_status,
             "interval_reason": self.interval_reason,
+            "adjustment_basis": self.adjustment_basis,
         }
 
 
@@ -219,6 +226,7 @@ def multi_level_effect(
             list(adjustment),
             [_column(values, f"adjust[{name!r}]") for name, values in adjustment.items()],
             json.dumps(declaration),
+            **native_controls(execution, memory="memory_bytes", cancel="cancel"),
         )
     )
     return MultiLevelEffect(
@@ -239,4 +247,5 @@ def multi_level_effect(
         interval=None if report["interval"] is None else MultiLevelInterval(**report["interval"]),
         interval_status=report["interval_status"],
         interval_reason=report["interval_reason"],
+        adjustment_basis=report["adjustment_basis"],
     )

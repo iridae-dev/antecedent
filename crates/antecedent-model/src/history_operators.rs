@@ -35,9 +35,11 @@
 
 use std::sync::Arc;
 
+use antecedent_core::execution::AdmissionError;
 use antecedent_core::intervention::{AdmitError, ExecutionSurface, InterventionOperation};
 use antecedent_core::{
-    HistoryWindow, InitialLaw, Intervention, InterventionError, TemporalPolicy, Value, is_blank,
+    ExecutionContext, HistoryWindow, InitialLaw, Intervention, InterventionError, TemporalPolicy,
+    Value, is_blank,
 };
 use antecedent_data::{SamplingRegularity, TimeIndex};
 use thiserror::Error;
@@ -1438,6 +1440,56 @@ fn horizon_steps(history: &HistoryConstruction) -> Result<u32, HistoryOperatorEr
 /// Most ticks a history program rolls out; each rollout keeps one outcome per step.
 const MAX_HORIZON_STEPS: u32 = 10_000_000;
 
+/// Most work units one execution charges across both rollouts. A unit is one rolled tick
+/// over one retained state value (`2 * depth` lags of outcome and action, plus the tick).
+pub(crate) const MAX_ROLLOUT_WORK: u64 = 2_000_000_000;
+
+/// Rolled ticks between cancellation polls and work charges.
+const ROLLOUT_POLL_STEPS: u32 = 4_096;
+
+/// Worlds one execution rolls: the policy and the reference.
+const ROLLOUT_WORLDS: u64 = 2;
+
+/// Work units of both rollouts, or `u64::MAX` when the product does not fit.
+fn rollout_work(steps: u32, state_len: usize) -> u64 {
+    u64::from(steps)
+        .checked_mul(u64::try_from(state_len).unwrap_or(u64::MAX))
+        .and_then(|per_world| per_world.checked_mul(ROLLOUT_WORLDS))
+        .unwrap_or(u64::MAX)
+}
+
+/// Bytes both rollouts hold at once: the two retained paths, and one world's growing
+/// outcome and action state, each of `steps` values beyond the `depth` lags.
+fn rollout_bytes(steps: u32, depth: usize) -> Option<u64> {
+    let steps = u64::from(steps);
+    let depth = u64::try_from(depth).ok()?;
+    let values = steps.checked_mul(4)?.checked_add(depth.checked_mul(2)?)?;
+    values.checked_mul(8)
+}
+
+/// Refuse a rollout whose total work is past `cap`.
+fn admit_rollout_work(work: u64, cap: u64) -> Result<(), HistoryExecutionError> {
+    if work > cap {
+        return Err(HistoryExecutionError::RolloutWorkCapExceeded { work, cap });
+    }
+    Ok(())
+}
+
+/// Work still unspent, shared by both rollouts of one execution.
+struct RolloutBudget {
+    cap: u64,
+    spent: u64,
+}
+
+impl RolloutBudget {
+    fn charge(&mut self, units: u64) -> Result<(), HistoryExecutionError> {
+        let work = self.spent.saturating_add(units);
+        admit_rollout_work(work, self.cap)?;
+        self.spent = work;
+        Ok(())
+    }
+}
+
 const fn action_bounds(action: DelayedAction) -> (i32, i32) {
     match action {
         DelayedAction::Pulse { at_step, .. } => (at_step, at_step),
@@ -1967,6 +2019,31 @@ pub enum HistoryExecutionError {
         /// Step of the first non-finite value.
         step: u32,
     },
+    /// The admission pool cannot hold the rollouts. Nothing was allocated for them.
+    #[error(
+        "the rollouts need {required_bytes} bytes and the admission pool holds \
+         {available_bytes}; next attempt: shorten the horizon or raise the admission pool"
+    )]
+    RolloutMemoryRefused {
+        /// Bytes both rollouts hold at once.
+        required_bytes: u64,
+        /// Bytes the pool still had.
+        available_bytes: u64,
+    },
+    /// The rollouts would charge more work than the cap allows.
+    #[error(
+        "the rollouts charge {work} work units (ticks x retained state, both worlds) and the \
+         cap is {cap}; next attempt: shorten the horizon or the history"
+    )]
+    RolloutWorkCapExceeded {
+        /// Work the rollouts charge, or had charged when they were stopped.
+        work: u64,
+        /// The cap.
+        cap: u64,
+    },
+    /// The execution context was cancelled; no result is reported.
+    #[error("the execution was cancelled; no trajectory is reported")]
+    Cancelled,
 }
 
 /// Outcome and action observed on the ticks of one cadence.
@@ -2769,9 +2846,17 @@ impl HistoryProgram {
     /// A [`InitialLaw::contemporaneous_observed`] law starts the roll at the last retained
     /// ticks of the series; a named law needs its `initial` state.
     ///
+    /// Under `ctx` the rollouts of both worlds are admitted against the memory pool before
+    /// they allocate (one lease for the call), poll cancellation every few thousand ticks,
+    /// and charge one shared work budget of ticks times retained state, capped at a finite
+    /// bound. The result is not held against the pool after the call returns.
+    ///
     /// # Errors
     ///
-    /// Any [`HistoryExecutionError`].
+    /// Any [`HistoryExecutionError`], including
+    /// [`HistoryExecutionError::RolloutMemoryRefused`],
+    /// [`HistoryExecutionError::RolloutWorkCapExceeded`] and
+    /// [`HistoryExecutionError::Cancelled`].
     pub fn execute(
         &self,
         series: &TickSeries<'_>,
@@ -2779,7 +2864,11 @@ impl HistoryProgram {
         policy: PolicyRule,
         reference: PolicyRule,
         initial: Option<&InitialState>,
+        ctx: &ExecutionContext,
     ) -> Result<TrajectoryExecution, HistoryExecutionError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(HistoryExecutionError::Cancelled);
+        }
         let declared = self.weights.is_some();
         let supplied = row_weights.is_some();
         if declared != supplied {
@@ -2812,11 +2901,29 @@ impl HistoryProgram {
         let steps = self.horizon_steps().map_err(|_| HistoryExecutionError::HorizonUncountable)?;
         let start = u32::try_from(self.timing.at_ns() / self.history.frame().interval_ns())
             .unwrap_or(u32::MAX);
-        let roll = |rule: PolicyRule| -> Result<Vec<f64>, HistoryExecutionError> {
+        let state_len = state.outcomes.len() + state.actions.len() + 1;
+        admit_rollout_work(rollout_work(steps, state_len), MAX_ROLLOUT_WORK)?;
+        let required_bytes = rollout_bytes(steps, d).unwrap_or(u64::MAX);
+        let _lease = ctx.acquire_admission(0, required_bytes).map_err(|error| match error {
+            AdmissionError::Cancelled => HistoryExecutionError::Cancelled,
+            _ => HistoryExecutionError::RolloutMemoryRefused {
+                required_bytes,
+                available_bytes: ctx.admission().available().bytes(),
+            },
+        })?;
+        let mut budget = RolloutBudget { cap: MAX_ROLLOUT_WORK, spent: 0 };
+        let mut roll = |rule: PolicyRule| -> Result<Vec<f64>, HistoryExecutionError> {
             let mut outcomes = state.outcomes.clone();
             let mut actions = state.actions.clone();
             let mut path = Vec::with_capacity(steps as usize);
             for step in 0..steps {
+                if step % ROLLOUT_POLL_STEPS == 0 {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(HistoryExecutionError::Cancelled);
+                    }
+                    let batch = (steps - step).min(ROLLOUT_POLL_STEPS);
+                    budget.charge(rollout_work(batch, state_len) / ROLLOUT_WORLDS)?;
+                }
                 let previous = outcomes[outcomes.len() - 1];
                 let action = rule.action(step, start, previous);
                 let next = Transition::step(&fit, &outcomes, &actions, action);
@@ -3499,6 +3606,10 @@ mod execution_tests {
         HistoryProgram::try_new(h, timing, policy, transition, regression, weights, reduction)
     }
 
+    fn ctx() -> ExecutionContext {
+        ExecutionContext::for_tests(1)
+    }
+
     fn program(functional: &str) -> HistoryProgram {
         program_with(
             InitialLaw::contemporaneous_observed(),
@@ -3555,7 +3666,7 @@ mod execution_tests {
         weights[74] = 30.0;
         let invalid_policy = PolicyRule::Hold(f64::NAN);
         assert_eq!(
-            weighted.execute(&series, None, invalid_policy, PolicyRule::Hold(0.0), None),
+            weighted.execute(&series, None, invalid_policy, PolicyRule::Hold(0.0), None, &ctx()),
             Err(HistoryExecutionError::WeightDeclarationMismatch {
                 declared: true,
                 supplied: false
@@ -3567,7 +3678,8 @@ mod execution_tests {
                 Some(&weights),
                 invalid_policy,
                 PolicyRule::Hold(0.0),
-                None
+                None,
+                &ctx()
             ),
             Err(HistoryExecutionError::WeightDeclarationMismatch {
                 declared: false,
@@ -3575,10 +3687,17 @@ mod execution_tests {
             })
         );
         let plain = unweighted
-            .execute(&series, None, PolicyRule::Hold(0.0), PolicyRule::Hold(0.0), None)
+            .execute(&series, None, PolicyRule::Hold(0.0), PolicyRule::Hold(0.0), None, &ctx())
             .unwrap();
         let fit = weighted
-            .execute(&series, Some(&weights), PolicyRule::Hold(0.0), PolicyRule::Hold(0.0), None)
+            .execute(
+                &series,
+                Some(&weights),
+                PolicyRule::Hold(0.0),
+                PolicyRule::Hold(0.0),
+                None,
+                &ctx(),
+            )
             .unwrap();
         assert!(
             fit.fit
@@ -3606,7 +3725,8 @@ mod execution_tests {
                 Some(&weights[..weights.len() - 1]),
                 PolicyRule::Hold(0.0),
                 PolicyRule::Hold(0.0),
-                None
+                None,
+                &ctx()
             ),
             Err(HistoryExecutionError::WeightShape { .. })
         ));
@@ -3624,6 +3744,7 @@ mod execution_tests {
                 PolicyRule::Pulse { level: 1.0, otherwise: 0.0 },
                 PolicyRule::Hold(0.0),
                 None,
+                &ctx(),
             )
             .unwrap();
         // The scan produced one window per tick after the first lag and the fit recovers the
@@ -3650,6 +3771,7 @@ mod execution_tests {
                 PolicyRule::Sustained { level: 1.0, otherwise: 0.0 },
                 PolicyRule::Hold(0.0),
                 None,
+                &ctx(),
             )
             .unwrap();
         let s0 = B0;
@@ -3664,6 +3786,7 @@ mod execution_tests {
                 PolicyRule::Sustained { level: 1.0, otherwise: 0.0 },
                 PolicyRule::Hold(0.0),
                 None,
+                &ctx(),
             )
             .unwrap();
         close(total.contrast(), s0 + s1 + s2 + s3, 1e-7, "sum");
@@ -3681,6 +3804,7 @@ mod execution_tests {
                 PolicyRule::Reactive { cutoff, below: high, at_or_above: low, otherwise: 0.0 },
                 PolicyRule::Hold(0.0),
                 None,
+                &ctx(),
             )
             .unwrap();
         // Independent recursion with the true mechanism from the last observed tick.
@@ -3709,6 +3833,7 @@ mod execution_tests {
                 PolicyRule::Pulse { level: 1.0, otherwise: 0.0 },
                 PolicyRule::Hold(0.0),
                 None,
+                &ctx(),
             )
             .unwrap();
         close(run.contrast(), PHI * PHI * (PHI * B0 + B1), 0.02, "noisy final effect");
@@ -3768,6 +3893,81 @@ mod execution_tests {
     }
 
     #[test]
+    fn a_cancelled_context_refuses_before_any_rollout() {
+        let (y, a) = simulate(300, 0.3, 5);
+        let series = TickSeries::try_new(&y, &a).unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let hold = PolicyRule::Hold(0.0);
+        assert_eq!(
+            program("final").execute(&series, None, hold, hold, None, &ctx),
+            Err(HistoryExecutionError::Cancelled)
+        );
+    }
+
+    #[test]
+    fn rollout_memory_is_admitted_before_allocation_and_returned() {
+        let (y, a) = simulate(300, 0.3, 5);
+        let series = TickSeries::try_new(&y, &a).unwrap();
+        let hold = PolicyRule::Hold(0.0);
+        let needed = rollout_bytes(4, 1).unwrap();
+        let tight = antecedent_core::execution::AdmissionPool::fixed(1, needed - 1);
+        let refused = program("final")
+            .execute(
+                &series,
+                None,
+                hold,
+                hold,
+                None,
+                &ExecutionContext::for_tests(1).with_admission(tight.clone()),
+            )
+            .unwrap_err();
+        assert_eq!(
+            refused,
+            HistoryExecutionError::RolloutMemoryRefused {
+                required_bytes: needed,
+                available_bytes: needed - 1
+            }
+        );
+        assert_eq!(tight.available().bytes(), needed - 1);
+        let exact = antecedent_core::execution::AdmissionPool::fixed(1, needed);
+        program("final")
+            .execute(
+                &series,
+                None,
+                hold,
+                hold,
+                None,
+                &ExecutionContext::for_tests(1).with_admission(exact.clone()),
+            )
+            .unwrap();
+        assert_eq!(exact.available().bytes(), needed, "the lease is returned");
+    }
+
+    #[test]
+    fn rollout_work_cap_refuses_one_past_and_admits_the_bound() {
+        assert_eq!(admit_rollout_work(MAX_ROLLOUT_WORK, MAX_ROLLOUT_WORK), Ok(()));
+        assert_eq!(
+            admit_rollout_work(MAX_ROLLOUT_WORK + 1, MAX_ROLLOUT_WORK),
+            Err(HistoryExecutionError::RolloutWorkCapExceeded {
+                work: MAX_ROLLOUT_WORK + 1,
+                cap: MAX_ROLLOUT_WORK
+            })
+        );
+        // Two worlds of `steps` ticks over `state_len` values each.
+        assert_eq!(rollout_work(4, 3), 24);
+        assert_eq!(rollout_work(u32::MAX, usize::MAX), u64::MAX);
+        // One budget is shared by the two passes: the second pass finds what the first left.
+        let mut budget = RolloutBudget { cap: 10, spent: 0 };
+        assert_eq!(budget.charge(5), Ok(()));
+        assert_eq!(budget.charge(5), Ok(()));
+        assert_eq!(
+            budget.charge(1),
+            Err(HistoryExecutionError::RolloutWorkCapExceeded { work: 11, cap: 10 })
+        );
+    }
+
+    #[test]
     #[allow(
         clippy::too_many_lines,
         reason = "the scientific fixture keeps its setup and assertions together"
@@ -3785,10 +3985,10 @@ mod execution_tests {
             "final",
         )
         .unwrap();
-        let error = named.execute(&series, None, hold, hold, None).unwrap_err();
+        let error = named.execute(&series, None, hold, hold, None, &ctx()).unwrap_err();
         assert!(matches!(error, HistoryExecutionError::InitialStateRequired { .. }), "{error}");
         let state = InitialState { outcomes: vec![2.0], actions: vec![0.0] };
-        let run = named.execute(&series, None, hold, hold, Some(&state)).unwrap();
+        let run = named.execute(&series, None, hold, hold, Some(&state), &ctx()).unwrap();
         let mut prev = 2.0;
         let mut prev_a = 0.0;
         for value in &run.policy {
@@ -3799,7 +3999,7 @@ mod execution_tests {
         }
         let wrong = InitialState { outcomes: vec![2.0, 1.0], actions: vec![0.0] };
         assert!(matches!(
-            named.execute(&series, None, hold, hold, Some(&wrong)),
+            named.execute(&series, None, hold, hold, Some(&wrong), &ctx()),
             Err(HistoryExecutionError::InitialStateShape { .. })
         ));
 
@@ -3812,7 +4012,7 @@ mod execution_tests {
         )
         .unwrap();
         assert_eq!(
-            unresolved.execute(&series, None, hold, hold, None).unwrap_err(),
+            unresolved.execute(&series, None, hold, hold, None, &ctx()).unwrap_err(),
             HistoryExecutionError::HistoryCapUnresolved
         );
         let zero = program_with(
@@ -3823,12 +4023,12 @@ mod execution_tests {
         )
         .unwrap();
         assert_eq!(
-            zero.execute(&series, None, hold, hold, None).unwrap_err(),
+            zero.execute(&series, None, hold, hold, None, &ctx()).unwrap_err(),
             HistoryExecutionError::HistoryDepthZero
         );
         let short = TickSeries::try_new(&y[..4], &a[..4]).unwrap();
         assert!(matches!(
-            program("final").execute(&short, None, hold, hold, None),
+            program("final").execute(&short, None, hold, hold, None, &ctx()),
             Err(HistoryExecutionError::SeriesTooShort { .. })
         ));
 

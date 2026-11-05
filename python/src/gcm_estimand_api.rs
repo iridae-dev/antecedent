@@ -258,6 +258,10 @@ impl PyFittedGcm {
     ///
     /// Defined for linear-family mechanisms; a child with a non-linear mechanism refuses
     /// rather than reporting an approximation.
+    ///
+    /// A specialized model operation outside the central compiler: it reads the fitted
+    /// mechanisms under the caller's seed and thread budget and carries no contract, claim or
+    /// calibration status.
     fn arrow_strengths(&self) -> PyResult<Vec<PyArrowStrength>> {
         let strengths =
             arrow_strengths(&self.inner.model).map_err(|e| py_err(CausalError::from(e)))?;
@@ -280,6 +284,10 @@ impl PyFittedGcm {
     /// `mean(parent) + delta/2` minus the one at `mean(parent) - delta/2`, common random
     /// numbers across the arms. `max_units` is the most observed rows the contrast will accept
     /// (default: all); a larger table is refused, not truncated.
+    ///
+    /// A specialized model operation outside the central compiler: it reads the fitted
+    /// mechanisms under the caller's seed and thread budget and carries no contract, claim or
+    /// calibration status.
     #[pyo3(signature = (parent, child, delta, *, max_units=None, seed=0, threads=None))]
     fn population_do_contrast(
         &self,
@@ -316,6 +324,10 @@ impl PyFittedGcm {
     /// Abduce once, then the unit-level contrast of every listed outcome between two worlds,
     /// each world a *set* of simultaneous hard interventions (`active` and `control` map
     /// variable names to levels). Every outcome is read from the same two replays.
+    ///
+    /// A specialized model operation outside the central compiler: it reads the fitted
+    /// mechanisms under the caller's seed and thread budget and carries no contract, claim or
+    /// calibration status.
     #[pyo3(signature = (outcomes, active, control, *, seed=0, threads=None))]
     fn counterfactual_contrasts(
         &self,
@@ -359,6 +371,10 @@ impl PyFittedGcm {
     /// Mean of `outcome` over every unit when the `outer` and `inner` hard interventions hold
     /// simultaneously on the abduced factual noise (`Y_{outer, inner}`). The two sets must
     /// target disjoint variables.
+    ///
+    /// A specialized model operation outside the central compiler: it reads the fitted
+    /// mechanisms under the caller's seed and thread budget and carries no contract, claim or
+    /// calibration status.
     #[pyo3(signature = (outcome, outer, inner, *, seed=0, threads=None))]
     fn simultaneous_counterfactual(
         &self,
@@ -386,6 +402,10 @@ impl PyFittedGcm {
     }
 
     /// Mean of `outcome` under hard `interventions`, from `n` ancestral draws.
+    ///
+    /// A specialized model operation outside the central compiler: it reads the fitted
+    /// mechanisms under the caller's seed and thread budget and carries no contract, claim or
+    /// calibration status.
     #[pyo3(signature = (outcome, interventions, n, *, seed=0, threads=None))]
     fn interventional_mean(
         &self,
@@ -418,6 +438,10 @@ impl PyFittedGcm {
     /// defaults). For a root treatment `root_match_tolerance` is the half-width of the window
     /// of observed rows matched to the do-value (the default is exact matching up to 1e-9).
     /// Any other method raises.
+    ///
+    /// A specialized model operation outside the central compiler: it reads the fitted
+    /// mechanisms under the caller's seed and thread budget and carries no contract, claim or
+    /// calibration status.
     #[pyo3(signature = (method, outcome, interventions, n=1000, *, bandwidth=None, proposal_sd=None, burn_in=None, thin=None, root_match_tolerance=None, seed=0, threads=None))]
     #[allow(clippy::too_many_arguments, reason = "one keyword per sampler control")]
     fn do_sample(
@@ -523,6 +547,10 @@ impl PyFittedGcm {
 
     /// Evaluate the fitted model on its own data: in-sample log-likelihood, residual
     /// independence, local-Markov checks and a shuffled-outcome likelihood baseline.
+    ///
+    /// A specialized model operation outside the central compiler: it reads the fitted
+    /// mechanisms under the caller's seed and thread budget and carries no contract, claim or
+    /// calibration status.
     #[pyo3(signature = (*, alpha=0.05, n_permutations=20, seed=0, threads=None))]
     fn evaluate(
         &self,

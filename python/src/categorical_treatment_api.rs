@@ -66,7 +66,7 @@ fn check_size(text: &str) -> PyResult<()> {
 /// `cluster` (one entry per row) and `serial_lag` declare the rows' weights and dependence; each
 /// is read by the matching covariance kind or refused, and is bound by the artifact digests.
 #[pyfunction]
-#[pyo3(signature = (outcome, adjustment_columns, levels, declaration_json, artifact_id, *, sampling_weights=None, cluster=None, serial_lag=None))]
+#[pyo3(signature = (outcome, adjustment_columns, levels, declaration_json, artifact_id, *, sampling_weights=None, cluster=None, serial_lag=None, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments, reason = "the rows, their declarations and the artifact id")]
 fn evaluate_categorical_treatment(
     py: Python<'_>,
@@ -78,6 +78,8 @@ fn evaluate_categorical_treatment(
     sampling_weights: Option<Vec<f64>>,
     cluster: Option<Vec<u32>>,
     serial_lag: Option<u64>,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<EvaluatePayload> {
     check_size(declaration_json)?;
     let declared: Declaration = serde_json::from_str(declaration_json)
@@ -106,14 +108,11 @@ fn evaluate_categorical_treatment(
     let artifact_id = artifact_id.to_owned();
     let rows = CategoricalRowsRequest { sampling_weights, cluster, serial_lag };
     detach_catch(py, move || {
+        let ctx = crate::transport_common::execution_context(0, memory_bytes, cancel);
         let fitted = if rows.is_plain() {
-            CategoricalTreatment::evaluate(&request)
+            CategoricalTreatment::evaluate_with(&request, &ctx)
         } else {
-            CategoricalTreatment::evaluate_declared(
-                &request,
-                &rows,
-                &antecedent::prelude::ExecutionContext::production(0, 1),
-            )
+            CategoricalTreatment::evaluate_declared(&request, &rows, &ctx)
         };
         match fitted.and_then(|done| match &posterior {
             Some(declaration) => done.with_posterior(declaration),

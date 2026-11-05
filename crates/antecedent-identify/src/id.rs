@@ -178,18 +178,38 @@ enum IdOutcome {
     Fail(HedgeCertificate),
 }
 
-/// Budget hook of a metered ID recursion: every recursive call charges
-/// `(recursion depth, estimated live bytes)` to the caller's budget, and an error
-/// stops the recursion. Unmetered callers (every public entry point) pass
-/// [`IdMeter::unmetered`] and see unchanged behaviour.
+/// Budget of one ID recursion. Every recursive call (memo hits included) is charged.
+///
+/// Public entry points build [`IdMeter::admitted`]: a finite call cap taken from the active
+/// workflow context (`ExecutionContext::id_work_limit`, the finite default when none is
+/// installed) and a cancellation poll on that context. A caller that already holds its own
+/// budget builds [`IdMeter::metered`], which reports `(recursion depth, estimated live bytes)`
+/// to it instead; an error from the hook stops the recursion.
 pub(crate) struct IdMeter<'m> {
     charge: Option<&'m mut (dyn FnMut(usize, u64) -> Result<(), IdentificationError> + 'm)>,
     depth: usize,
+    calls: u64,
+    /// Finite call cap and cancellation poll of the active workflow; `None` when a caller
+    /// budget (`charge`) owns both.
+    admitted_cap: Option<u64>,
 }
 
-impl IdMeter<'_> {
-    const fn unmetered() -> Self {
-        Self { charge: None, depth: 0 }
+impl<'m> IdMeter<'m> {
+    /// A meter capped by the active workflow's general-ID work limit and its cancellation.
+    fn admitted() -> Self {
+        Self {
+            charge: None,
+            depth: 0,
+            calls: 0,
+            admitted_cap: Some(antecedent_core::numerical_admission::id_work_limit()),
+        }
+    }
+
+    /// A meter reporting every call to the caller's own budget.
+    fn metered(
+        charge: &'m mut (dyn FnMut(usize, u64) -> Result<(), IdentificationError> + 'm),
+    ) -> Self {
+        Self { charge: Some(charge), depth: 0, calls: 0, admitted_cap: None }
     }
 
     /// Enter one recursive call and charge it: the live state is the expression
@@ -200,6 +220,15 @@ impl IdMeter<'_> {
         memo_entries: usize,
     ) -> Result<(), IdentificationError> {
         self.depth += 1;
+        self.calls = self.calls.saturating_add(1);
+        if let Some(cap) = self.admitted_cap {
+            if antecedent_core::numerical_admission::is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
+            if self.calls > cap {
+                return Err(IdentificationError::budget(crate::error::IdentificationBudget::Steps));
+            }
+        }
         let bytes = (arena_nodes as u64)
             .saturating_mul(96)
             .saturating_add((memo_entries as u64).saturating_mul(192));
@@ -253,7 +282,7 @@ pub(crate) fn identify_interventional_metered(
     let mut memo = IdMemo::default();
     let mut perf = IdentificationPerformanceRecord::default();
     let active = BitSet::full(prepared.admg().node_count());
-    let mut meter = IdMeter { charge: Some(charge), depth: 0 };
+    let mut meter = IdMeter::metered(charge);
     let mut run = IdRun {
         prepared,
         ancestors: AncestorMemo::default(),
@@ -314,7 +343,7 @@ pub(crate) fn identify_assigned_problems(
 ) -> Result<AssignedIds, IdentificationError> {
     let mut memo = IdMemo::default();
     let active = BitSet::full(prepared.admg().node_count());
-    let mut meter = IdMeter::unmetered();
+    let mut meter = IdMeter::admitted();
     let mut run = IdRun {
         prepared,
         ancestors: AncestorMemo::default(),
@@ -642,6 +671,8 @@ impl IdIdentifier {
         let active_level = intervention_value(&query.active)?;
         let control_level = intervention_value(&query.control)?;
 
+        // One budget across both sides of the contrast.
+        let mut meter = IdMeter::admitted();
         let mut side = |assign: Assign,
                         prepared: &PreparedAdmg,
                         arena: &mut CausalExprArena,
@@ -657,7 +688,7 @@ impl IdIdentifier {
                 derivation,
                 perf,
                 ws: &mut workspace.graph,
-                meter: &mut IdMeter::unmetered(),
+                meter: &mut meter,
             };
             id_recurse(
                 &mut run,
@@ -753,21 +784,13 @@ impl IdIdentifier {
         let mut memo = IdMemo::default();
         let mut perf = IdentificationPerformanceRecord::default();
         let active_set = BitSet::full(prepared.admg().node_count());
-
-        let mut x_set = BitSet::with_len(prepared.admg().node_count());
-        let mut schedule_dense = Vec::with_capacity(schedule.len());
-        for &t in schedule {
-            let d = prepared.var_to_dense(t)?;
-            x_set.insert(d);
-            schedule_dense.push(d);
-        }
-        let mut y_set = BitSet::with_len(prepared.admg().node_count());
-        y_set.insert(prepared.var_to_dense(outcome)?);
-        require_disjoint(&y_set, &x_set)?;
+        let (x_set, schedule_dense, y_set) = schedule_sets(prepared, schedule, outcome)?;
 
         let assign_for = |level: &Value| -> Assign {
             schedule_dense.iter().map(|&d| (d, level.clone())).collect()
         };
+        // One budget across both sides of the contrast.
+        let mut meter = IdMeter::admitted();
         let mut side = |assign: Assign,
                         prepared: &PreparedAdmg,
                         arena: &mut CausalExprArena,
@@ -783,7 +806,7 @@ impl IdIdentifier {
                 derivation,
                 perf,
                 ws: &mut workspace.graph,
-                meter: &mut IdMeter::unmetered(),
+                meter: &mut meter,
             };
             id_recurse(
                 &mut run,
@@ -875,7 +898,7 @@ impl IdIdentifier {
                     derivation: &mut derivation,
                     perf: &mut perf,
                     ws: &mut workspace.graph,
-                    meter: &mut IdMeter::unmetered(),
+                    meter: &mut IdMeter::admitted(),
                 };
                 match id_recurse(
                     &mut run,
@@ -940,6 +963,26 @@ pub(crate) fn validate_distribution_query(
 /// `P(A)` as if it were the interventional law. This guard sits on the dense
 /// sets so that it also covers entries with no query object to validate and
 /// interventions that only resolve to a variable after normalization.
+/// Treatment set, dense schedule and outcome set of a schedule contrast; the outcome must not
+/// be scheduled.
+fn schedule_sets(
+    prepared: &PreparedAdmg,
+    schedule: &[VariableId],
+    outcome: VariableId,
+) -> Result<(BitSet, Vec<DenseNodeId>, BitSet), IdentificationError> {
+    let mut x_set = BitSet::with_len(prepared.admg().node_count());
+    let mut schedule_dense = Vec::with_capacity(schedule.len());
+    for &t in schedule {
+        let d = prepared.var_to_dense(t)?;
+        x_set.insert(d);
+        schedule_dense.push(d);
+    }
+    let mut y_set = BitSet::with_len(prepared.admg().node_count());
+    y_set.insert(prepared.var_to_dense(outcome)?);
+    require_disjoint(&y_set, &x_set)?;
+    Ok((x_set, schedule_dense, y_set))
+}
+
 fn require_disjoint(y: &BitSet, x: &BitSet) -> Result<(), IdentificationError> {
     if !y.any() {
         return Err(IdentificationError::unsupported("general ID requires at least one outcome"));
@@ -1622,6 +1665,51 @@ mod tests {
         let res = id.identify_ate(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands[0].method_kind().unwrap(), EstimandMethod::GeneralId);
+    }
+
+    fn identify_chain_under(
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<(), IdentificationError> {
+        let id = IdIdentifier::new();
+        let prep = id.prepare_dag(&chain_dag()).unwrap();
+        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
+        let mut ws = IdentificationWorkspace::default();
+        antecedent_core::numerical_admission::with_context(ctx, || {
+            id.identify_ate(&prep, &q, &mut ws).map(|_| ())
+        })
+    }
+
+    #[test]
+    fn id_recursion_refuses_one_past_the_work_cap() {
+        let base = antecedent_core::ExecutionContext::for_tests(1);
+        // The smallest cap the identification fits under; one below it must refuse.
+        let fits = (1..=4096u64)
+            .find(|&cap| identify_chain_under(&base.with_id_work_limit(cap)).is_ok())
+            .expect("the chain identifies under a small cap");
+        assert!(fits > 1, "identification needs more than one recursive call");
+        let past = identify_chain_under(&base.with_id_work_limit(fits - 1)).unwrap_err();
+        assert!(matches!(
+            past,
+            IdentificationError::Budget { budget: crate::error::IdentificationBudget::Steps }
+        ));
+        assert!(identify_chain_under(&base.with_id_work_limit(0)).is_err());
+    }
+
+    #[test]
+    fn id_work_cap_is_finite_and_a_context_only_lowers_it() {
+        let base = antecedent_core::ExecutionContext::for_tests(1);
+        let default = antecedent_core::ExecutionContext::DEFAULT_ID_WORK_LIMIT;
+        assert_eq!(base.id_work_limit(), default);
+        assert_eq!(base.with_id_work_limit(u64::MAX).id_work_limit(), default);
+        assert_eq!(base.with_id_work_limit(7).id_work_limit(), 7);
+        identify_chain_under(&base).unwrap();
+    }
+
+    #[test]
+    fn id_recursion_polls_cancellation() {
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        assert_eq!(identify_chain_under(&ctx).unwrap_err(), IdentificationError::Cancelled);
     }
 
     #[test]

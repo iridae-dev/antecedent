@@ -33,6 +33,7 @@ mod arrow_null_ingest;
 mod artifact_compat_earlier_release;
 #[path = "artifact_migrate.rs"]
 mod artifact_migrate;
+#[cfg(feature = "calibration-internal")]
 #[path = "attribution.rs"]
 mod attribution;
 #[path = "augmented_panel_did_route.rs"]

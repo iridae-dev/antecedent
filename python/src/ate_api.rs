@@ -1148,107 +1148,6 @@ pub(crate) struct GraphEdge {
     pub(crate) at_target: String,
 }
 
-/// Identify-only on a static ADMG (no estimation).
-///
-/// An ADMG carries bidirected edges, so it is the only static graph type that
-/// can state "these two variables share an unmeasured common cause". Without
-/// this entry point an unobserved confounder had to be flattened into a DAG
-/// before identification, where it looks like an ordinary adjustable node and
-/// the effect is reported as identified by adjusting on a variable no study
-/// can measure.
-#[pyfunction(name = "_identify_ate_admg")]
-#[pyo3(signature = (names, graph, treatment, outcome, *, identifier=None))]
-fn identify_ate_admg(
-    py: Python<'_>,
-    names: Vec<String>,
-    graph: graphs::Admg,
-    treatment: String,
-    outcome: String,
-    identifier: Option<String>,
-) -> PyResult<(String, String, Vec<String>)> {
-    detach_catch(py, move || {
-        let zeros = [0.0_f64, 1.0];
-        let pairs: Vec<(&str, &[f64])> =
-            names.iter().map(|n| (n.as_str(), zeros.as_slice())).collect();
-        let data = antecedent::prelude::TabularData::from_f64_columns(pairs).map_err(py_err)?;
-        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let admg = graph.aligned_to_names(&names)?;
-        let mut builder = Study::tabular(data)
-            .graph(admg)
-            .query(AverageEffectQuery::binary_ate(t_id, y_id))
-            .refute(RefuteSuite::None);
-        if let Some(id) = identifier {
-            builder = builder.identifier(
-                id.parse::<antecedent::IdentifierId>()
-                    .map_err(|e| crate::value_err(e.to_string()))?,
-            );
-        }
-        let analysis = builder.build().map_err(py_err)?;
-        let id_res = analysis.identify_only().map_err(py_err)?;
-        let status = format!("{:?}", id_res.status);
-        let method = id_res.estimands.first().map(|e| e.method.to_string()).unwrap_or_default();
-        let adjustment: Vec<String> = id_res
-            .estimands
-            .first()
-            .map(|e| {
-                e.adjustment_set
-                    .iter()
-                    .filter_map(|vid| names.get(vid.as_usize()).cloned())
-                    .collect()
-            })
-            .unwrap_or_default();
-        Ok((status, method, adjustment))
-    })
-}
-
-/// Identify-only on a static DAG (no estimation).
-#[pyfunction(name = "_identify_ate")]
-#[pyo3(signature = (names, edges, treatment, outcome, *, identifier=None))]
-fn identify_ate(
-    py: Python<'_>,
-    names: Vec<String>,
-    edges: Vec<(String, String)>,
-    treatment: String,
-    outcome: String,
-    identifier: Option<String>,
-) -> PyResult<(String, String, Vec<String>)> {
-    detach_catch(py, move || {
-        let zeros = [0.0_f64, 1.0];
-        let pairs: Vec<(&str, &[f64])> =
-            names.iter().map(|n| (n.as_str(), zeros.as_slice())).collect();
-        let data = antecedent::prelude::TabularData::from_f64_columns(pairs).map_err(py_err)?;
-        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let mut builder = Study::tabular(data)
-            .graph(dag)
-            .query(AverageEffectQuery::binary_ate(t_id, y_id))
-            .refute(RefuteSuite::None);
-        if let Some(id) = identifier {
-            builder = builder.identifier(
-                id.parse::<antecedent::IdentifierId>()
-                    .map_err(|e| crate::value_err(e.to_string()))?,
-            );
-        }
-        let analysis = builder.build().map_err(py_err)?;
-        let id_res = analysis.identify_only().map_err(py_err)?;
-        let status = format!("{:?}", id_res.status);
-        let method = id_res.estimands.first().map(|e| e.method.to_string()).unwrap_or_default();
-        let adjustment: Vec<String> = id_res
-            .estimands
-            .first()
-            .map(|e| {
-                e.adjustment_set
-                    .iter()
-                    .filter_map(|vid| names.get(vid.as_usize()).cloned())
-                    .collect()
-            })
-            .unwrap_or_default();
-        Ok((status, method, adjustment))
-    })
-}
-
 fn structure_var_id(names: &[String], name: &str) -> PyResult<VariableId> {
     names
         .iter()
@@ -1395,9 +1294,16 @@ fn structure_query(
 fn identification_tuple(
     identification: &antecedent::Identification,
     names: &[String],
+    estimand_method: bool,
 ) -> (String, String, Vec<String>) {
     let status = format!("{:?}", identification.status());
-    let method = identification.strategy().as_str().to_string();
+    // The strategy that ran, or (when asked) the method of the estimand that carries the answer.
+    let method = if estimand_method {
+        identification.estimands().first().map(|e| e.method.to_string())
+    } else {
+        None
+    }
+    .unwrap_or_else(|| identification.strategy().as_str().to_string());
     let indexer = match identification {
         antecedent::Identification::Point { temporal_indexer, .. } => temporal_indexer.as_ref(),
         antecedent::Identification::TemporalEnvelope { envelope, .. } => envelope.indexers.first(),
@@ -1437,6 +1343,7 @@ fn identification_tuple(
     window=None,
     treatments=None,
     include_details=false,
+    estimand_method=false,
     horizons=None,
     max_history_lag=None,
     response_grid=None,
@@ -1458,6 +1365,7 @@ fn identify_structure(
     window: Option<(i32, i32)>,
     treatments: Option<Vec<String>>,
     include_details: bool,
+    estimand_method: bool,
     horizons: Option<Vec<u32>>,
     max_history_lag: Option<u32>,
     response_grid: Option<Vec<f64>>,
@@ -1465,6 +1373,7 @@ fn identify_structure(
 ) -> PyResult<Py<PyAny>> {
     use pyo3::IntoPyObjectExt;
     let dag = graph.extract::<graphs::Dag>().ok();
+    let admg = graph.extract::<graphs::Admg>().ok();
     let cpdag = graph.extract::<graphs::Cpdag>().ok();
     let pag = graph.extract::<graphs::Pag>().ok();
     let tdag = graph.extract::<graphs::TemporalDag>().ok();
@@ -1473,6 +1382,26 @@ fn identify_structure(
     let (summary, details) = detach_catch(py, move || {
         let (structure, names) = if let Some(g) = dag {
             (AcceptedGraph::from(g.dag), g.names)
+        } else if let Some(g) = admg {
+            // A latent-free ADMG is its directed part: a DAG, so the caller's identifier keeps
+            // its meaning; with bidirected edges only general ID reads the structure.
+            let aligned = g.aligned_to_names(&g.names)?;
+            if aligned.has_bidirected() {
+                (AcceptedGraph::from(aligned), g.names)
+            } else {
+                let mut dag = antecedent::graph::Dag::with_variables(
+                    u32::try_from(aligned.node_count())
+                        .map_err(|_| crate::value_err("ADMG too large"))?,
+                );
+                for node in 0..aligned.node_count() {
+                    let from =
+                        antecedent::graph::DenseNodeId::try_from_usize(node).map_err(py_err)?;
+                    for &to in aligned.children(from) {
+                        dag.insert_directed(from, to).map_err(py_err)?;
+                    }
+                }
+                (AcceptedGraph::from(dag), g.names)
+            }
         } else if let Some(g) = cpdag {
             (AcceptedGraph::from(g.cpdag), g.names)
         } else if let Some(g) = pag {
@@ -1485,7 +1414,7 @@ fn identify_structure(
             (AcceptedGraph::from(g.pag), g.names)
         } else {
             return Err(crate::value_err(
-                "identify_structure requires a Dag, Cpdag, Pag, TemporalDag, TemporalCpdag, or TemporalPag",
+                "identify_structure requires a Dag, Admg, Cpdag, Pag, TemporalDag, TemporalCpdag, or TemporalPag",
             ));
         };
         let mut query = structure_query(
@@ -1601,7 +1530,7 @@ fn identify_structure(
         } else {
             None
         };
-        Ok((identification_tuple(&identification, &names), details))
+        Ok((identification_tuple(&identification, &names, estimand_method), details))
     })?;
     match details {
         Some(json) => json.into_py_any(py),
@@ -2012,8 +1941,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(prepare_cells_batch, m)?)?;
     m.add_class::<PyPreparedBatch>()?;
     m.add_class::<PyCompletedBatch>()?;
-    m.add_function(wrap_pyfunction!(identify_ate, m)?)?;
-    m.add_function(wrap_pyfunction!(identify_ate_admg, m)?)?;
     m.add_function(wrap_pyfunction!(identify_structure, m)?)?;
     Ok(())
 }

@@ -88,7 +88,7 @@ fn parse(
             antecedent::execution::AdmissionRefusal::Cancelled => {
                 antecedent::estimate::joint_panel::PanelError::Cancelled.into()
             }
-            error => {
+            error @ antecedent::execution::AdmissionRefusal::Refused(_) => {
                 antecedent::estimate::joint_panel::PanelError::Resource(error.to_string()).into()
             }
         })

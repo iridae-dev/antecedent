@@ -29,11 +29,17 @@ impl SourceResolution {
                 antecedent_core::reason_details::source_evidence::RESOLUTION_SCOPE_UNSUPPORTED,
             ));
         }
-        if evidence
-            .unresolved()
-            .iter()
-            .any(|dependency| dependency.as_ref() != "dependencies.checked_response_grid_operation")
-        {
+        // The retained response operation, and the identification criterion the consumer
+        // cannot evaluate from the bytes alone: both are resolved here by re-running the
+        // original estimation and comparing the whole producing artifact, identification
+        // product included.
+        if evidence.unresolved().iter().any(|dependency| {
+            !matches!(
+                dependency.as_ref(),
+                "dependencies.checked_response_grid_operation"
+                    | "dependencies.identification_estimand_criterion"
+            )
+        }) {
             return Err(refuse(
                 antecedent_core::reason_details::source_evidence::RESOLUTION_SCOPE_UNSUPPORTED,
             ));

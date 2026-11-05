@@ -189,7 +189,7 @@ than the window at compile time; both are `policy_history_unavailable`
 
 ### Counterfactual rollout of a factual panel
 
-`antecedent::gcm::counterfactual_temporal_policy` takes the factual units at every step (one table
+The temporal counterfactual engine (crate-private; a study's `Simulate` query reaches it) takes the factual units at every step (one table
 per step, the same units in the same order), abducts each step's noise from its own table and
 replays it through `predict_temporal`, so a lagged read sees the counterfactual earlier steps. A
 program without a lagged read gives, at each step, what `counterfactual_policy` gives for that

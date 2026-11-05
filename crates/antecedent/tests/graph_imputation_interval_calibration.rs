@@ -143,15 +143,12 @@ fn prior_predictive_cell(
         CoverageTally::for_record(RecordKey { test, dgp, interval: "nearest_rank_95" }, 0.95);
     let mut skipped = 0u64;
     for result in results {
-        match result {
-            Some((truth, (lower, upper, basis))) => {
-                candidate::bind(&mut tally, &basis);
-                tally.record(Some((lower, upper)), truth);
-            }
-            None => {
-                skipped += 1;
-                tally.skip();
-            }
+        if let Some((truth, (lower, upper, basis))) = result {
+            candidate::bind(&mut tally, &basis);
+            tally.record(Some((lower, upper)), truth);
+        } else {
+            skipped += 1;
+            tally.skip();
         }
     }
     assert_eq!(skipped, 0, "prior-predictive coverage cannot condition on successful fits");

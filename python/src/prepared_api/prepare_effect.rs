@@ -436,10 +436,11 @@ impl PyPreparedAnalysis {
                 )?))
             };
             // The compiled study over the schema-only table: a bare DAG is an explicit structure.
+            let ctx = crate::py_execution_context(0, crate::resolve_user_threads(None));
             let id = Study::tabular(data)
                 .graph(dag)
                 .query(query)
-                .identify_structure()
+                .identify_structure_within(&ctx)
                 .map_err(py_err)?;
             let adjustment = id
                 .estimands()

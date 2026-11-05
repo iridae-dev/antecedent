@@ -17,14 +17,82 @@ use forust_ml::gradientbooster::GradientBooster;
 use forust_ml::objective::ObjectiveType;
 
 use crate::dense::{gather_physical, materialize_dense_colmajor, require_binary_labels};
-use crate::design::{DesignView, TargetView};
+use crate::design::{DesignView, Layout, TargetView};
 use crate::error::LearnError;
 use crate::learner::{
     FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
 };
 use crate::spec::GbtSpec;
 
+/// Most cells (rows times features) of the design one boosted fit admits.
+///
+/// Forust bins and copies the design, so the fit's working set grows with this product. The
+/// cap bounds the input the uninterruptible fit is allowed to see; the host's memory budget
+/// bounds it further through admission.
+const MAX_GBT_DESIGN_CELLS: u64 = 1 << 31;
+
+/// Bytes charged per design cell for the binned copy Forust builds.
+const GBT_BINNED_BYTES_PER_CELL: u64 = 4;
+
+/// Bytes charged per row for the gradient, hessian, prediction, weight, target and index
+/// vectors a boosting round keeps.
+const GBT_BYTES_PER_ROW: u64 = 64;
+
+/// Bytes charged per tree node: split, children, weight and bookkeeping.
+const GBT_BYTES_PER_NODE: u64 = 128;
+
+/// Refuse a design above [`MAX_GBT_DESIGN_CELLS`] before anything is sized from it.
+fn check_design_cells(rows: usize, cols: usize) -> Result<u64, LearnError> {
+    let cells = u64::try_from(rows)
+        .ok()
+        .zip(u64::try_from(cols).ok())
+        .and_then(|(r, c)| r.checked_mul(c))
+        .ok_or(LearnError::ResourceLimit {
+            message: "gradient-boosted trees design size overflows the cell count",
+        })?;
+    if cells > MAX_GBT_DESIGN_CELLS {
+        return Err(LearnError::ResourceLimit {
+            message: "gradient-boosted trees design above the cell limit",
+        });
+    }
+    Ok(cells)
+}
+
+/// Bytes one boosted fit holds: the design copy when the view must be gathered, Forust's
+/// binned copy, the per-row vectors and the trees, each bounded by the rows it can split.
+fn gbt_working_bytes(
+    cells: u64,
+    rows: usize,
+    copied_design: bool,
+    spec: GbtSpec,
+) -> Result<u64, LearnError> {
+    let overflow =
+        LearnError::ResourceLimit { message: "gradient-boosted trees working set overflows" };
+    let rows = u64::try_from(rows).map_err(|_| overflow.clone())?;
+    // `validate` bounded the depth, so the shift cannot overflow.
+    let full_tree = (1_u64 << (spec.depth + 1)) - 1;
+    let nodes_per_tree = full_tree.min(rows.saturating_mul(2).saturating_add(1));
+    let design_copy = if copied_design { cells.checked_mul(8) } else { Some(0) };
+    let binned = cells.checked_mul(GBT_BINNED_BYTES_PER_CELL);
+    let vectors = rows.checked_mul(GBT_BYTES_PER_ROW);
+    let trees = u64::from(spec.trees)
+        .checked_mul(nodes_per_tree)
+        .and_then(|nodes| nodes.checked_mul(GBT_BYTES_PER_NODE));
+    [design_copy, binned, vectors, trees]
+        .into_iter()
+        .try_fold(0_u64, |sum, part| part.and_then(|bytes| sum.checked_add(bytes)))
+        .ok_or(overflow)
+}
+
 /// Forust gradient-boosted trees.
+///
+/// # Cancellation
+///
+/// Forust offers no interrupt, so a started fit cannot be cancelled and runs to completion.
+/// [`LearnerFactory::fit`] therefore refuses a spec above [`crate::MAX_GBT_TREES`] trees or
+/// [`crate::MAX_GBT_DEPTH`] levels and a design above the cell limit, admits the working set it
+/// estimates from rows, features, trees and depth against the context's memory budget before the
+/// design is copied, and polls cancellation before it starts and after Forust returns.
 #[derive(Clone, Copy, Debug)]
 pub struct GbtLearner {
     spec: GbtSpec,
@@ -70,6 +138,16 @@ impl LearnerFactory for GbtLearner {
         if ctx.cancellation.is_cancelled() {
             return Err(LearnError::Cancelled);
         }
+        // Admitted before the design is copied; held until the fit returns. Forust cannot be
+        // interrupted once `fit` starts below, so this and the input caps are its only bound.
+        let cells = check_design_cells(x.nrows(), x.ncols())?;
+        let copied_design =
+            x.row_selection().is_some() || x.dense().layout() != Layout::ColumnMajor;
+        let bytes = gbt_working_bytes(cells, x.nrows(), copied_design, self.spec)?;
+        let _admission = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => LearnError::Cancelled,
+            other => LearnError::Admission(other),
+        })?;
         let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
         let gathered_y = gather_physical(y.values(), x, nrows)?;
         if matches!(self.task, PredictionTask::BinaryProbability) {
@@ -213,6 +291,75 @@ impl FittedPredictor for GbtPredictor {
 
 fn forust_err(err: &forust_ml::errors::ForustError) -> LearnError {
     LearnError::Backend(format!("{err}"))
+}
+
+#[cfg(test)]
+mod limit_tests {
+    use super::*;
+
+    fn fixture() -> (Vec<f64>, Vec<f64>) {
+        ((0..8_i32).map(f64::from).collect(), (0..8_i32).map(f64::from).collect())
+    }
+
+    #[test]
+    fn design_cells_refuse_one_past_the_bound() {
+        let bound = usize::try_from(MAX_GBT_DESIGN_CELLS).unwrap();
+        assert_eq!(check_design_cells(bound, 1).unwrap(), MAX_GBT_DESIGN_CELLS);
+        assert!(matches!(check_design_cells(bound + 1, 1), Err(LearnError::ResourceLimit { .. })));
+        assert!(matches!(check_design_cells(usize::MAX, 2), Err(LearnError::ResourceLimit { .. })));
+    }
+
+    #[test]
+    fn fit_refuses_specs_above_the_tree_and_depth_limits() {
+        let (x, y) = fixture();
+        let view = DesignView::from_column_major(&x, 8, 1).unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let too_many = GbtSpec { trees: crate::MAX_GBT_TREES + 1, depth: 2, learning_rate: 0.1 };
+        let too_deep = GbtSpec { trees: 2, depth: crate::MAX_GBT_DEPTH + 1, learning_rate: 0.1 };
+        for spec in [too_many, too_deep] {
+            let learner = GbtLearner::new(spec, PredictionTask::Regression);
+            assert!(matches!(
+                learner.fit(view, TargetView::new(&y), None, &ctx),
+                Err(LearnError::ResourceLimit { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn fit_is_admitted_against_the_memory_budget_and_polls_cancellation() {
+        let (x, y) = fixture();
+        let view = DesignView::from_column_major(&x, 8, 1).unwrap();
+        let learner = GbtLearner::new(
+            GbtSpec { trees: 2, depth: 2, learning_rate: 0.1 },
+            PredictionTask::Regression,
+        );
+        let limited = ExecutionContext::for_tests(1).with_memory_limit(Some(1));
+        assert!(matches!(
+            learner.fit(view, TargetView::new(&y), None, &limited),
+            Err(LearnError::Admission(
+                antecedent_core::execution::AdmissionError::ExceedsRemainder { .. }
+            ))
+        ));
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            learner.fit(view, TargetView::new(&y), None, &cancelled),
+            Err(LearnError::Cancelled)
+        ));
+        let roomy = ExecutionContext::for_tests(1).with_memory_limit(Some(1 << 20));
+        assert!(learner.fit(view, TargetView::new(&y), None, &roomy).is_ok());
+    }
+
+    #[test]
+    fn working_bytes_grow_with_trees_depth_and_rows() {
+        let spec = GbtSpec { trees: 10, depth: 3, learning_rate: 0.1 };
+        let base = gbt_working_bytes(1_000, 1_000, false, spec).unwrap();
+        let more_trees = GbtSpec { trees: 20, ..spec };
+        assert!(gbt_working_bytes(1_000, 1_000, false, more_trees).unwrap() > base);
+        let deeper = GbtSpec { depth: 4, ..spec };
+        assert!(gbt_working_bytes(1_000, 1_000, false, deeper).unwrap() > base);
+        assert!(gbt_working_bytes(1_000, 1_000, true, spec).unwrap() > base);
+    }
 }
 
 #[cfg(test)]

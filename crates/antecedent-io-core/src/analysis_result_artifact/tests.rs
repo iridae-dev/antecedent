@@ -737,6 +737,17 @@ fn malformed_portable_family_covariance_and_bands_are_refused() {
             encode_analysis_result_artifact(&body, names.clone(), "bad-family").unwrap_err();
         assert!(error.to_string().contains("family inference"), "{error}");
     }
+    // One past the format bound refuses before the matrix is read or factored; the bound itself
+    // reaches the dimension check, so the two refusals are distinguishable.
+    let bound = super::validate::MAX_FAMILY_COVARIANCE_DIM;
+    let mut past = fixture();
+    past.joint_covariance = Some(crate::JointCovarianceWire { dim: bound + 1, values: Vec::new() });
+    let error = encode_analysis_result_artifact(&past, names.clone(), "past-bound").unwrap_err();
+    assert!(error.to_string().contains("exceeds the format bound"), "{error}");
+    let mut at = fixture();
+    at.joint_covariance = Some(crate::JointCovarianceWire { dim: bound, values: Vec::new() });
+    let error = encode_analysis_result_artifact(&at, names.clone(), "at-bound").unwrap_err();
+    assert!(error.to_string().contains("covariance dimensions"), "{error}");
     let mut missing_covariance = fixture();
     missing_covariance.simultaneous_interval = Some((0.0, 2.0, 0.95));
     refused(

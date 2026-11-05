@@ -3500,6 +3500,8 @@ def estimate_trial_transport(
     *,
     mu0: NDArray[np.float64] | None = None,
     mu1: NDArray[np.float64] | None = None,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
 ) -> TrialTransportResult: ...
 def estimate_network_interference(
     outcome: NDArray[np.float64],
@@ -3597,16 +3599,8 @@ def _identify_tiered_structure(
     within_tier: str,
     query: dict[str, Any],
 ) -> str: ...
-def _identify_ate(
-    names: list[str],
-    edges: list[tuple[str, str]],
-    treatment: str,
-    outcome: str,
-    *,
-    identifier: str | None = None,
-) -> tuple[str, str, list[str]]: ...
 def _identify_structure(
-    graph: Dag | Cpdag | Pag | TemporalDag | TemporalCpdag | TemporalPag,
+    graph: Dag | Admg | Cpdag | Pag | TemporalDag | TemporalCpdag | TemporalPag,
     query_kind: str,
     treatment: str,
     outcome: str,
@@ -3620,19 +3614,12 @@ def _identify_structure(
     window: tuple[int, int] | None = None,
     treatments: list[str] | None = None,
     include_details: bool = False,
+    estimand_method: bool = False,
     horizons: list[int] | None = None,
     max_history_lag: int | None = None,
     response_grid: list[float] | None = None,
     response_steps: list[tuple[str, str, list[float]]] | None = None,
 ) -> tuple[str, str, list[str]] | str: ...
-def _identify_ate_admg(
-    names: list[str],
-    graph: Admg,
-    treatment: str,
-    outcome: str,
-    *,
-    identifier: str | None = None,
-) -> tuple[str, str, list[str]]: ...
 def discover_pcmci(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -7607,7 +7594,12 @@ class ScoreResumeHandle:
     ) -> tuple[str | None, str | None]: ...
 
 def evaluate_design_ranking(
-    request_json: str, artifact_id: str, checked_prior: CheckedPriorSignal | None = None
+    request_json: str,
+    artifact_id: str,
+    checked_prior: CheckedPriorSignal | None = None,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_design_ranking(
     artifact: bytes, expectation_json: str | None = None
@@ -7720,6 +7712,8 @@ def evaluate_categorical_treatment(
     sampling_weights: NDArray[np.float64] | list[float] | None = None,
     cluster: list[int] | None = None,
     serial_lag: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_categorical_treatment_artifact(
     artifact: bytes,
@@ -7733,6 +7727,9 @@ def evaluate_multi_level_treatment(
     adjustment_names: list[str],
     adjustment_columns: list[NDArray[np.float64] | list[float]],
     declaration_json: str,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
 def evaluate_observational_survival(
     duration: NDArray[np.float64] | list[float],
@@ -7741,6 +7738,9 @@ def evaluate_observational_survival(
     adjustment_names: list[str],
     adjustment_columns: list[NDArray[np.float64] | list[float]],
     declaration_json: str,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
 def evaluate_observational_policy(
     outcome: NDArray[np.float64] | list[float],
@@ -7748,6 +7748,9 @@ def evaluate_observational_policy(
     adjustment_names: list[str],
     adjustment_columns: list[NDArray[np.float64] | list[float]],
     declaration_json: str,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
 def method_provenance_json(identifier: str | None = None, estimator: str | None = None) -> str: ...
 def capability_provenance_json(capability: str) -> str: ...
@@ -10244,6 +10247,8 @@ def estimate_transport_response_grid(
     observed_regression: Sequence[float],
     target_regression: Sequence[float],
     response_weight: Sequence[float],
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
 
 class TransportedResponseHandle:

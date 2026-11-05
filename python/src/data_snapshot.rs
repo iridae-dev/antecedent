@@ -32,7 +32,9 @@ impl IndexSnapshot {
                         antecedent::execution::AdmissionRefusal::Cancelled => {
                             crate::py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
                         }
-                        error => crate::CausalResourceError::new_err(error.to_string()),
+                        error @ antecedent::execution::AdmissionRefusal::Refused(_) => {
+                            crate::CausalResourceError::new_err(error.to_string())
+                        }
                     })?,
             );
             let values = if let Ok(array) = values.extract::<numpy::PyReadonlyArray1<'_, i64>>() {
@@ -177,7 +179,9 @@ impl TableSnapshot {
                     antecedent::execution::AdmissionRefusal::Cancelled => {
                         crate::py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
                     }
-                    error => crate::CausalResourceError::new_err(error.to_string()),
+                    error @ antecedent::execution::AdmissionRefusal::Refused(_) => {
+                        crate::CausalResourceError::new_err(error.to_string())
+                    }
                 })?,
             );
             // Arrow can alias writable NumPy arrays. Default snapshots therefore take

@@ -102,7 +102,7 @@ record_sha256 = "30ece2957918d26cbc258b2769f5ac2be7898865c82d7e3458280e8bf8a3519
 role = "implementation"
 path = "crates/antecedent-model/src/registry/mod.rs"
 items = ["enum MechanismFamily", "enum MechanismTyping", "enum SelectionPolicy", "fn assign_and_fit", "fn assign_and_fit_polled", "fn assign_and_fit_with", "fn assign_and_fit_with_polled", "fn default", "fn id", "fn mechanism_family_id", "fn refit_frequency_weighted_polled", "fn refit_weighted", "fn refit_weighted_polled", "fn refit_with_weights", "fn select", "fn standard", "fn validate_constraints", "fn with_bayesian_families", "struct MechanismAssignment", "struct MechanismCandidate", "struct MechanismRegistry"]
-sha256 = "56575682470db14dbe3ae4b6a48a42b4d34418c64c8742d3982f3a2a98f1acd9"
+sha256 = "c5e1cfad056077030ec30d9e3076c3f74c28b017dcf44d76079ff9fe07fe53cd"
 
 [[method_review.artifacts]]
 role = "implementation"

@@ -3848,6 +3848,10 @@
       "declaration": "pub fn <antecedent::Study>::fn identify_only(&self) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent::CausalError>",
       "kind": "method"
     },
+    "<antecedent::Study>::identify_only_within": {
+      "declaration": "pub fn <antecedent::Study>::fn identify_only_within(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent::CausalError>",
+      "kind": "method"
+    },
     "<antecedent::Study>::identify_structure": {
       "declaration": "pub fn <antecedent::Study>::fn identify_structure(&self) -> core::result::Result<antecedent::Identification, antecedent::CausalError>",
       "kind": "method"
@@ -7661,7 +7665,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::multi_level_treatment::MultiLevelTreatment>::evaluate": {
-      "declaration": "pub fn <antecedent::analysis::multi_level_treatment::MultiLevelTreatment>::fn evaluate(request: &antecedent::analysis::multi_level_treatment::MultiLevelTreatmentRequest) -> core::result::Result<antecedent::analysis::multi_level_treatment::MultiLevelReportWire, antecedent::CausalError>",
+      "declaration": "pub fn <antecedent::analysis::multi_level_treatment::MultiLevelTreatment>::fn evaluate(request: &antecedent::analysis::multi_level_treatment::MultiLevelTreatmentRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::multi_level_treatment::MultiLevelReportWire, antecedent::CausalError>",
       "kind": "method"
     },
     "<antecedent::analysis::native_claims::NativeResponseClaim>::calibration": {
@@ -7865,7 +7869,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::observational_policy::ObservationalPolicyValue>::evaluate": {
-      "declaration": "pub fn <antecedent::analysis::observational_policy::ObservationalPolicyValue>::fn evaluate(request: &antecedent::analysis::observational_policy::ObservationalPolicyRequest) -> core::result::Result<antecedent::analysis::observational_policy::ObservationalPolicyReportWire, antecedent::CausalError>",
+      "declaration": "pub fn <antecedent::analysis::observational_policy::ObservationalPolicyValue>::fn evaluate(request: &antecedent::analysis::observational_policy::ObservationalPolicyRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::observational_policy::ObservationalPolicyReportWire, antecedent::CausalError>",
       "kind": "method"
     },
     "<antecedent::analysis::observational_policy::ObservationalPolicyValue>::evaluate_many": {
@@ -7873,7 +7877,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::observational_survival::ObservationalSurvivalEffect>::evaluate": {
-      "declaration": "pub fn <antecedent::analysis::observational_survival::ObservationalSurvivalEffect>::fn evaluate(request: &antecedent::analysis::observational_survival::ObservationalSurvivalRequest) -> core::result::Result<antecedent::analysis::observational_survival::ObservationalSurvivalReportWire, antecedent::CausalError>",
+      "declaration": "pub fn <antecedent::analysis::observational_survival::ObservationalSurvivalEffect>::fn evaluate(request: &antecedent::analysis::observational_survival::ObservationalSurvivalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::observational_survival::ObservationalSurvivalReportWire, antecedent::CausalError>",
       "kind": "method"
     },
     "<antecedent::analysis::planning::PlanningPlan>::execute": {
@@ -9700,6 +9704,10 @@
       "declaration": "pub fn <antecedent::gcm::PreparedPolicy>::fn support(&self) -> &antecedent_model::program::PolicySupport",
       "kind": "method"
     },
+    "<antecedent::gcm::PreparedPolicy>::value": {
+      "declaration": "pub fn <antecedent::gcm::PreparedPolicy>::fn value(&self, model: &antecedent_model::compile::CompiledCausalModel, outcome: antecedent_core::ids::VariableId, n: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::gcm::PolicyValue, antecedent::CausalError>",
+      "kind": "method"
+    },
     "<antecedent::host::HostStatus>::as_str": {
       "declaration": "pub fn <antecedent::host::HostStatus>::const fn as_str(self) -> &'static str",
       "kind": "method"
@@ -10258,6 +10266,10 @@
     },
     "<antecedent::planner::lowered::LoweringDepth>::as_str": {
       "declaration": "pub fn <antecedent::planner::lowered::LoweringDepth>::const fn as_str(self) -> &'static str",
+      "kind": "method"
+    },
+    "<antecedent::planner::lowered::LoweringDepth>::deferred_operations": {
+      "declaration": "pub fn <antecedent::planner::lowered::LoweringDepth>::const fn deferred_operations(self) -> core::option::Option<&'static str>",
       "kind": "method"
     },
     "<antecedent::planner::lowered::PhysicalLayer>::design": {
@@ -13977,7 +13989,7 @@
       "kind": "function"
     },
     "antecedent::analysis::design_ranking::evaluate": {
-      "declaration": "pub fn antecedent::analysis::design_ranking::evaluate(wire: antecedent::analysis::design_ranking::DesignRankingRequestWire) -> core::result::Result<antecedent::analysis::design_ranking::DesignRankingEvaluation, antecedent::analysis::design_ranking::DesignRankingError>",
+      "declaration": "pub fn antecedent::analysis::design_ranking::evaluate(wire: antecedent::analysis::design_ranking::DesignRankingRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::design_ranking::DesignRankingEvaluation, antecedent::analysis::design_ranking::DesignRankingError>",
       "kind": "function"
     },
     "antecedent::analysis::design_ranking::evaluate_for_study": {
@@ -17310,14 +17322,6 @@
       "declaration": "pub fn antecedent::estimate::identification_status_acceptable(status: antecedent_core::identification::IdentificationStatus) -> bool",
       "kind": "function"
     },
-    "antecedent::estimate::identify_static_query": {
-      "declaration": "pub fn antecedent::estimate::identify_static_query(identifier: antecedent::IdentifierId, graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::variants::CausalQuery) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent::CausalError>",
-      "kind": "function"
-    },
-    "antecedent::estimate::identify_static_query_with_rd": {
-      "declaration": "pub fn antecedent::estimate::identify_static_query_with_rd(identifier: antecedent::IdentifierId, graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::variants::CausalQuery, rd: core::option::Option<antecedent_identify::rd::SharpRdConfig>) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent::CausalError>",
-      "kind": "function"
-    },
     "antecedent::estimate::require_identified": {
       "declaration": "pub fn antecedent::estimate::require_identified(result: &antecedent_identify::result::IdentificationResult) -> core::result::Result<(), antecedent::CausalError>",
       "kind": "function"
@@ -17482,6 +17486,10 @@
       "declaration": "pub fn antecedent::gcm::candidate_families(token: &str) -> core::result::Result<alloc::vec::Vec<antecedent_model::registry::MechanismFamily>, antecedent::CausalError>",
       "kind": "function"
     },
+    "antecedent::gcm::counterfactual_contrasts": {
+      "declaration": "pub fn antecedent::gcm::counterfactual_contrasts(model: antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, outcomes: &[antecedent_core::ids::VariableId], worlds: (&[antecedent_core::intervention::Intervention], &[antecedent_core::intervention::Intervention]), ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::gcm::ContrastSetResult, antecedent::CausalError>",
+      "kind": "function"
+    },
     "antecedent::gcm::evaluate_graph": {
       "declaration": "pub fn antecedent::gcm::evaluate_graph(graph: &antecedent_graph::dag::Dag, data: &antecedent_data::dataset::TabularData, config: &antecedent_model::falsify::GraphFalsificationConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::falsify::GraphFalsificationReport, antecedent::CausalError>",
       "kind": "function"
@@ -17494,8 +17502,16 @@
       "declaration": "pub fn antecedent::gcm::fit_gcm_counterfactual(graph: &alloc::sync::Arc<antecedent_graph::dag::Dag>, data: &antecedent_data::dataset::TabularData) -> core::result::Result<antecedent::gcm::FittedGcm, antecedent::CausalError>",
       "kind": "function"
     },
+    "antecedent::gcm::fit_gcm_polled": {
+      "declaration": "pub fn antecedent::gcm::fit_gcm_polled(graph: antecedent_graph::dag::Dag, data: &antecedent_data::dataset::TabularData, selection: core::option::Option<(&antecedent_model::registry::MechanismRegistry, &antecedent_model::registry::selection::SelectionOptions)>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::gcm::FittedGcm, antecedent::CausalError>",
+      "kind": "function"
+    },
     "antecedent::gcm::fit_gcm_with": {
       "declaration": "pub fn antecedent::gcm::fit_gcm_with(graph: antecedent_graph::dag::Dag, data: &antecedent_data::dataset::TabularData, registry: &antecedent_model::registry::MechanismRegistry, options: &antecedent_model::registry::selection::SelectionOptions) -> core::result::Result<antecedent::gcm::FittedGcm, antecedent::CausalError>",
+      "kind": "function"
+    },
+    "antecedent::gcm::rank_root_causes": {
+      "declaration": "pub fn antecedent::gcm::rank_root_causes(attribution: &antecedent_attribution::result::ChangeAttributionResult, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::result::RootCauseRank>, antecedent::CausalError>",
       "kind": "function"
     },
     "antecedent::gcm::registry_from_candidates": {
@@ -18284,46 +18300,6 @@
     },
     "antecedent::strategy_table::estimator_validation": {
       "declaration": "pub fn antecedent::strategy_table::estimator_validation(estimator: antecedent::EstimatorId, suite: antecedent::SupportValidation) -> core::result::Result<(), antecedent::strategy_table::ScientificRefusal>",
-      "kind": "function"
-    },
-    "antecedent::strategy_table::identify_admg_query": {
-      "declaration": "pub fn antecedent::strategy_table::identify_admg_query(identifier: antecedent::IdentifierId, admg: &antecedent_graph::admg::Admg, query: &antecedent_core::query::variants::CausalQuery) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent::CausalError>",
-      "kind": "function"
-    },
-    "antecedent::strategy_table::identify_cpdag": {
-      "declaration": "pub fn antecedent::strategy_table::identify_cpdag(identifier: antecedent::IdentifierId, cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_identify::envelope::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent::CausalError>",
-      "kind": "function"
-    },
-    "antecedent::strategy_table::identify_cpdag_in_context": {
-      "declaration": "pub fn antecedent::strategy_table::identify_cpdag_in_context(identifier: antecedent::IdentifierId, cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::average::AverageEffectQuery, context: core::option::Option<&antecedent_core::execution::context::ExecutionContext>) -> core::result::Result<antecedent_identify::envelope::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent::CausalError>",
-      "kind": "function"
-    },
-    "antecedent::strategy_table::identify_cpdag_response": {
-      "declaration": "pub fn antecedent::strategy_table::identify_cpdag_response(identifier: antecedent::IdentifierId, graph: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::envelope::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent::CausalError>",
-      "kind": "function"
-    },
-    "antecedent::strategy_table::identify_pag_response": {
-      "declaration": "pub fn antecedent::strategy_table::identify_pag_response(identifier: antecedent::IdentifierId, graph: &antecedent_graph::pag::Pag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::envelope::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent::CausalError>",
-      "kind": "function"
-    },
-    "antecedent::strategy_table::identify_static_query_in_context": {
-      "declaration": "pub fn antecedent::strategy_table::identify_static_query_in_context(identifier: antecedent::IdentifierId, graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::variants::CausalQuery, rd: core::option::Option<antecedent_identify::rd::SharpRdConfig>, context: core::option::Option<&antecedent_core::execution::context::ExecutionContext>) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent::CausalError>",
-      "kind": "function"
-    },
-    "antecedent::strategy_table::identify_temporal_cpdag": {
-      "declaration": "pub fn antecedent::strategy_table::identify_temporal_cpdag(identifier: antecedent::IdentifierId, cpdag: &antecedent_graph::cpdag::TemporalCpdag, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::temporal_generalized::TemporalClassEnvelope, antecedent::CausalError>",
-      "kind": "function"
-    },
-    "antecedent::strategy_table::identify_temporal_cpdag_configured": {
-      "declaration": "pub fn antecedent::strategy_table::identify_temporal_cpdag_configured(identifier: antecedent::IdentifierId, cpdag: &antecedent_graph::cpdag::TemporalCpdag, query: &antecedent_core::query::temporal::TemporalEffectQuery, config: antecedent_identify::generalized::GeneralizedAdjustmentConfig) -> core::result::Result<antecedent_identify::temporal_generalized::TemporalClassEnvelope, antecedent::CausalError>",
-      "kind": "function"
-    },
-    "antecedent::strategy_table::identify_temporal_pag": {
-      "declaration": "pub fn antecedent::strategy_table::identify_temporal_pag(identifier: antecedent::IdentifierId, pag: &antecedent_graph::temporal_pag::TemporalPag, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::temporal_generalized::TemporalClassEnvelope, antecedent::CausalError>",
-      "kind": "function"
-    },
-    "antecedent::strategy_table::identify_temporal_pag_configured": {
-      "declaration": "pub fn antecedent::strategy_table::identify_temporal_pag_configured(identifier: antecedent::IdentifierId, pag: &antecedent_graph::temporal_pag::TemporalPag, query: &antecedent_core::query::temporal::TemporalEffectQuery, config: antecedent_identify::generalized::GeneralizedAdjustmentConfig) -> core::result::Result<antecedent_identify::temporal_generalized::TemporalClassEnvelope, antecedent::CausalError>",
       "kind": "function"
     },
     "antecedent::strategy_table::inference_mismatch": {
@@ -28758,10 +28734,20 @@
       "kind": "reexport",
       "target": "antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_SCENARIO_EVALUATIONS"
     },
+    "export:antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS": {
+      "declaration": "pub use antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS = antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS",
+      "kind": "reexport",
+      "target": "antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_SCENARIO_NODE_EVALUATIONS"
+    },
     "export:antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_UTILITY_DEPTH": {
       "declaration": "pub use antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_UTILITY_DEPTH = antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_UTILITY_DEPTH",
       "kind": "reexport",
       "target": "antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_UTILITY_DEPTH"
+    },
+    "export:antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_UTILITY_NODES": {
+      "declaration": "pub use antecedent::analysis::sensitivity_decision::MAX_SENSITIVITY_UTILITY_NODES = antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_UTILITY_NODES",
+      "kind": "reexport",
+      "target": "antecedent_io::sensitivity_artifact::MAX_SENSITIVITY_UTILITY_NODES"
     },
     "export:antecedent::analysis::sensitivity_decision::NoRobustReason": {
       "declaration": "pub use antecedent::analysis::sensitivity_decision::NoRobustReason = antecedent_design::sensitivity_decision::NoRobustReason",
@@ -34673,6 +34659,11 @@
       "kind": "reexport",
       "target": "antecedent_estimate::transport_augmented_response_grid"
     },
+    "export:antecedent::estimate::transport_augmented_response_grid_with_context": {
+      "declaration": "pub use antecedent::estimate::transport_augmented_response_grid_with_context = antecedent_estimate::transport_augmented_response_grid_with_context",
+      "kind": "reexport",
+      "target": "antecedent_estimate::transport_augmented_response_grid_with_context"
+    },
     "export:antecedent::estimate::transport_scenarios::PreparedScenarioSet": {
       "declaration": "pub use antecedent::estimate::transport_scenarios::PreparedScenarioSet = antecedent_estimate::transport_scenarios::PreparedScenarioSet",
       "kind": "reexport",
@@ -36407,16 +36398,6 @@
       "declaration": "pub use antecedent::identify::identify_meta_transport = antecedent_identify::identify_meta_transport",
       "kind": "reexport",
       "target": "antecedent_identify::identify_meta_transport"
-    },
-    "export:antecedent::identify::identify_tiered": {
-      "declaration": "pub use antecedent::identify::identify_tiered = antecedent_identify::identify_tiered",
-      "kind": "reexport",
-      "target": "antecedent_identify::identify_tiered"
-    },
-    "export:antecedent::identify::identify_tiered_joint": {
-      "declaration": "pub use antecedent::identify::identify_tiered_joint = antecedent_identify::identify_tiered_joint",
-      "kind": "reexport",
-      "target": "antecedent_identify::identify_tiered_joint"
     },
     "export:antecedent::identify::identify_z_transport": {
       "declaration": "pub use antecedent::identify::identify_z_transport = antecedent_identify::identify_z_transport",
@@ -40992,16 +40973,6 @@
       "declaration": "pub use antecedent::strategy_table::identification_status_acceptable = antecedent::estimate::identification_status_acceptable",
       "kind": "reexport",
       "target": "antecedent::estimate::identification_status_acceptable"
-    },
-    "export:antecedent::strategy_table::identify_static_query": {
-      "declaration": "pub use antecedent::strategy_table::identify_static_query = antecedent::estimate::identify_static_query",
-      "kind": "reexport",
-      "target": "antecedent::estimate::identify_static_query"
-    },
-    "export:antecedent::strategy_table::identify_static_query_with_rd": {
-      "declaration": "pub use antecedent::strategy_table::identify_static_query_with_rd = antecedent::estimate::identify_static_query_with_rd",
-      "kind": "reexport",
-      "target": "antecedent::estimate::identify_static_query_with_rd"
     },
     "export:antecedent::strategy_table::require_identified": {
       "declaration": "pub use antecedent::strategy_table::require_identified = antecedent::estimate::require_identified",

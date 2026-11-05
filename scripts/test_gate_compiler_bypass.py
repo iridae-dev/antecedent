@@ -19,10 +19,14 @@ COPIED = (
     "crates/antecedent/src/strategy_table/mod.rs",
     "crates/antecedent/src/strategy_table/dispatch.rs",
     "crates/antecedent/src/analysis/surface/estimate.rs",
+    "crates/antecedent/src/analysis/surface/identify.rs",
     "parity/python_facade_surface.toml",
     "python/antecedent/estimation.py",
     "python/antecedent/identify.py",
     "python/src/bounds_api.rs",
+    "python/src/tiered_identify_api.rs",
+    "python/src/ate_api.rs",
+    "python/src/prepared_api/prepare_effect.rs",
 )
 
 
@@ -76,6 +80,27 @@ def main() -> None:
             "pub(crate) fn identify_study(",
             "pub fn identify_study(",
         ),
+        "re-exported static identification variant": (
+            "crates/antecedent/src/analysis/surface/estimate.rs",
+            "pub use antecedent_estimate::{",
+            "pub use antecedent_estimate::{identify_static_query, ",
+        ),
+        "re-exported tiered identifier": (
+            "crates/antecedent/src/analysis/surface/identify.rs",
+            "pub use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};",
+            "pub use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};\n"
+            "pub use antecedent_identify::identify_tiered;",
+        ),
+        "public class identification variant": (
+            "crates/antecedent/src/strategy_table/dispatch.rs",
+            "pub(crate) fn identify_cpdag(",
+            "pub fn identify_cpdag(",
+        ),
+        "context-free identification in a binding": (
+            "python/src/prepared_api/prepare_effect.rs",
+            ".identify_structure_within(&ctx)",
+            ".identify_structure()",
+        ),
         "registry row for a raw entry": (
             "parity/python_facade_surface.toml",
             '[[entry]]\nrust = "antecedent::design::preview_design_rank"',
@@ -99,6 +124,27 @@ def main() -> None:
         other.write_text("from ._native import _identify_ate\n", encoding="utf-8")
         if not compiler_bypass_problems(destination):
             failures.append("python native imported outside its wrapper")
+    for native in ("_identify_ate", "_identify_ate_admg"):
+        with tempfile.TemporaryDirectory() as scratch:
+            destination = Path(scratch)
+            overlay(destination)
+            wrapper = destination / "python/antecedent/estimation.py"
+            wrapper.write_text(
+                wrapper.read_text(encoding="utf-8") + f"\nfrom ._native import {native}\n",
+                encoding="utf-8",
+            )
+            if not compiler_bypass_problems(destination):
+                failures.append(f"legacy identify native {native} named again in its wrapper")
+    with tempfile.TemporaryDirectory() as scratch:
+        destination = Path(scratch)
+        overlay(destination)
+        binding = destination / "python/src/direct_identify_api.rs"
+        binding.write_text(
+            "fn run() { let _ = antecedent::identify::identify_tiered(&background, &query); }\n",
+            encoding="utf-8",
+        )
+        if not compiler_bypass_problems(destination):
+            failures.append("binding calling a raw identification entry")
     with tempfile.TemporaryDirectory() as scratch:
         destination = Path(scratch)
         overlay(destination)
@@ -122,7 +168,7 @@ def main() -> None:
             failures.append("retired binary-IV native exported again by the extension")
     if failures:
         raise SystemExit("FAIL: the bypass check missed: " + ", ".join(failures))
-    print(f"ok: compiler-bypass check passes on the repo and catches {len(cases) + 3} reopenings")
+    print(f"ok: compiler-bypass check passes on the repo and catches {len(cases) + 6} reopenings")
 
 
 if __name__ == "__main__":

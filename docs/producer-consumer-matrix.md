@@ -163,7 +163,7 @@ executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
 | `route_not_supported` | `sensitivity_decision_composition.composition_not_supported` | a sampling interval composed with an assumption range |
 | `joint_law_required` | `composition_bundle.unsupported_law` | a mean decision whose functional needs a joint law, or a joint-law result over a mean-only claim |
 | `design_cost_units_mismatch` | `design_ranking.cost_units_mismatch` | `design.consume` under a different cost map |
-| `route_not_supported` | `measurement_model.interval_requires_estimate` | `MeasurementEstimate.interval` and `PreparedMeasurementModel.interval` |
+| `route_not_supported` | `measurement_model.interval_requires_estimate` | `PreparedMeasurementModel.interval` (a prepared model holds no corrected value) and `MeasurementEstimate.interval` of a record without a derived standard error; with one the estimate forms an equal-tailed Wald interval |
 | `route_not_supported` | `measurement_model.operation_not_supported` | `PreparedMeasurementModel.check_operation` for an operation the route card refuses (`condition_on_construct`) |
 | `not_supported` | `mechanism_composition.interval_route_closed` | `PreparedMechanismComposition.interval` |
 | `route_not_supported` | `evidence_ledger.interval_construction_unavailable` | `EvidenceLedger.pooled_interval` |

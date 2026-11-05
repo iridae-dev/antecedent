@@ -17,16 +17,18 @@
 //!   accepted DAG → Bayesian ATE → path-specific decompose → unit ITE
 //!   plus a temporal pulse Bayesian block on a held `TemporalDag`.
 //!
+//! The path decomposition is an `Attribute` query and the unit effects a `Simulate` query on
+//! the same supplied DAG; both are compiled study routes.
+//!
 //! Run: `cargo run -p antecedent --example sales_spreadsheet_e2e`
 
 use std::sync::Arc;
 
-use antecedent::RefuteSuite;
-use antecedent::gcm::{attribute_path_specific, counterfactual_ite, fit_gcm};
 use antecedent::prelude::*;
+use antecedent::{AttributionOutcome, CompiledExecution, RefuteSuite, SimulationOutcome};
 use antecedent_core::{
-    CausalRng, Lag, MeasurementSpec, PathSpecificEffectQuery, RoleHint, SmallRoleSet,
-    TemporalPolicy, ValueType,
+    AttributeQuery, AttributeTarget, CausalQuery, CausalRng, Lag, MeasurementSpec, RoleHint,
+    SimulateQuery, SimulationTarget, SmallRoleSet, TemporalPolicy, ValueType,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex, ValidityBitmap,
@@ -184,10 +186,23 @@ pub fn run() -> Result<(), CausalError> {
     assert!(bayes.posterior.is_some());
     println!("Bayesian ATE={:.4} (campaign → revenue)", bayes.estimate().as_effect().unwrap().ate);
 
-    let fitted = fit_gcm(dag.clone(), &data)?;
-    let path_q = PathSpecificEffectQuery::binary(VariableId::from_raw(1), VariableId::from_raw(3))
-        .with_path_nodes([VariableId::from_raw(2)]);
-    let path = attribute_path_specific(&fitted.model, &path_q, &ExecutionContext::for_tests(5))?;
+    // Path-specific decomposition of campaign → revenue through the mediator.
+    let path_query = CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::Paths {
+        sources: Arc::from([VariableId::from_raw(1)]),
+        outcome: VariableId::from_raw(3),
+        max_paths: 16,
+        max_len: 4,
+        through: Arc::from([VariableId::from_raw(2)]),
+    }));
+    let path_study = Study::tabular(data.clone()).graph(dag.clone()).query(path_query).build()?;
+    let path_run = CompiledExecution::run(&path_study, &ExecutionContext::for_tests(5))?;
+    let Some(AttributionOutcome::Change(path)) =
+        path_run.result().attribution().map(|payload| payload.outcome.clone())
+    else {
+        return Err(CausalError::Compile {
+            message: "a paths target returns a change attribution".into(),
+        });
+    };
     assert!(path.total_change.is_finite());
     println!(
         "Path decompose total_change={:.4} paths={}",
@@ -195,15 +210,22 @@ pub fn run() -> Result<(), CausalError> {
         path.path_breakdown.len()
     );
 
-    let ite = counterfactual_ite(
-        fitted.model,
-        &data,
-        VariableId::from_raw(1),
-        VariableId::from_raw(3),
-        1.0,
-        0.0,
-        &ExecutionContext::for_tests(7),
-    )?;
+    // Unit-level effects of the campaign on revenue.
+    let ite_query = CausalQuery::Simulate(SimulateQuery::new(SimulationTarget::UnitEffects {
+        treatment: VariableId::from_raw(1),
+        outcome: VariableId::from_raw(3),
+        active: 1.0,
+        control: 0.0,
+    }));
+    let ite_study = Study::tabular(data.clone()).graph(dag.clone()).query(ite_query).build()?;
+    let ite_run = CompiledExecution::run(&ite_study, &ExecutionContext::for_tests(7))?;
+    let Some(SimulationOutcome::UnitEffects(ite)) =
+        ite_run.result().simulation().map(|payload| payload.outcome.clone())
+    else {
+        return Err(CausalError::Compile {
+            message: "a unit-effects target returns the effects".into(),
+        });
+    };
     assert_eq!(ite.unit_effects.len(), 400);
     assert!(ite.mean_ite.is_finite());
     println!("ITE mean={:.4} n={}", ite.mean_ite, ite.unit_effects.len());

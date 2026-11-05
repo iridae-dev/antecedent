@@ -52,9 +52,9 @@ fn admit_targets(
     if bytes > budget.limits().max_bytes {
         return Err(resource("metadata byte limit"));
     }
-    antecedent::execution::retain(&ctx, bytes).map_err(|e| match e {
+    antecedent::execution::retain(ctx, bytes).map_err(|e| match e {
         antecedent::execution::AdmissionRefusal::Cancelled => cancelled(),
-        other => resource(&other.to_string()),
+        other @ antecedent::execution::AdmissionRefusal::Refused(_) => resource(&other.to_string()),
     })
 }
 

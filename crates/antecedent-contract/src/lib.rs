@@ -109,7 +109,9 @@ pub use joint_alignment::{
     AlignedLaw, JointAlignment, JointAlignmentError, JointAlignmentRequest, JointAxis,
     JointAxisKind, JointConsumer, JointCovariance, LawArray, LawCoupling, MassAccount, MassFate,
 };
-pub use joint_event_quantity::{JointEventKind, JointEventQuantity, JointEventVariable};
+pub use joint_event_quantity::{
+    JointEventKind, JointEventQuantity, JointEventVariable, MAX_JOINT_EVENT_VARIABLES,
+};
 pub use joint_law_rule::{
     ASSUMPTION_RANGE_LABEL, ComposedCoordinate, ComposedIntervalPlan, CoverageRecord,
     InputAlignment, InputRole, JOINT_LAW_STAGE, MEASURED_INTERVAL_LABEL, POINT_ONLY_LABEL,

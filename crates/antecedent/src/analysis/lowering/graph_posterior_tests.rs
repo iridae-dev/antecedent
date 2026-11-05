@@ -764,3 +764,54 @@ fn tabular_cross_world_and_attribution_posteriors_lower_to_the_cross_world_cell(
         }
     });
 }
+
+// A multi-coordinate intervention level is answered atom by atom by the explicit executor of
+// each atom's structure. The outer mixture is lowered, but no per-atom identification is
+// retained, so the program says which operations it defers rather than recording a complete
+// lowering.
+#[test]
+fn a_multi_coordinate_response_names_the_atom_operations_it_defers() {
+    on_large_stack(|| {
+        let ctx = ExecutionContext::for_tests(47);
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(1),
+            interventions: Arc::from([
+                Intervention::set(VariableId::from_raw(0), Value::f64(1.0)),
+                Intervention::set(VariableId::from_raw(2), Value::f64(0.0)),
+            ]),
+        });
+        let study = tabular_study(
+            CausalQuery::Response(query),
+            tabular_posterior(false),
+            InferenceMode::Frequentist,
+            0,
+        );
+        let lowered = compiled(&study, &ctx);
+        assert_ne!(lowered.depth(), LoweringDepth::Complete);
+        assert_eq!(lowered.depth().as_str(), "atom_operations_deferred");
+        let operations = lowered.depth().deferred_operations().expect("the deferral is named");
+        assert!(operations.contains("per-atom identification"), "{operations}");
+        assert!(!lowered.identification_retained());
+        let view = crate::planner::plan_view::checks::assert_view_agrees(
+            "multi-coordinate response",
+            &study.compile(&ctx).unwrap(),
+        );
+        assert_eq!(view.depth(), lowered.depth());
+        assert_eq!(view.facts().get("deferred_atom_operations").as_text(), Some(operations));
+        // A single-coordinate level is the complete cell.
+        let single = tabular_study(
+            CausalQuery::Response(ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                outcome: VariableId::from_raw(1),
+                interventions: Arc::from([Intervention::set(
+                    VariableId::from_raw(0),
+                    Value::f64(1.0),
+                )]),
+            })),
+            tabular_posterior(false),
+            InferenceMode::Frequentist,
+            0,
+        );
+        assert_eq!(compiled(&single, &ctx).depth(), LoweringDepth::Complete);
+        assert_ne!(identity(&study, &ctx), identity(&single, &ctx));
+    });
+}

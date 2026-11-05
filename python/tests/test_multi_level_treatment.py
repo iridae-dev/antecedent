@@ -95,6 +95,20 @@ def test_the_target_has_no_default_and_full_population_needs_its_levels() -> Non
         )
 
 
+def test_the_adjustment_is_reported_as_declared_not_identified() -> None:
+    data = _draw(1500, seed=4)
+    result = multi_level_treatment.multi_level_effect(
+        data["y"],
+        data["t"],
+        active=2.0,
+        control=0.0,
+        target="pairwise_subpopulation",
+        adjust={"z": data["z"]},
+    )
+    assert result.adjustment_basis == "declared"
+    assert result.to_dict()["adjustment_basis"] == "declared"
+
+
 def test_the_interval_is_reported_with_its_calibration_status() -> None:
     data = _draw(2000, seed=9)
     common = {"active": 2.0, "control": 0.0, "adjust": {"z": data["z"]}}

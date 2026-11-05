@@ -61,7 +61,9 @@ impl PyJointPanelResult {
                     antecedent::execution::AdmissionRefusal::Cancelled => {
                         crate::CausalCancelledError::new_err(e.to_string())
                     }
-                    _ => crate::CausalResourceError::new_err(e.to_string()),
+                    antecedent::execution::AdmissionRefusal::Refused(_) => {
+                        crate::CausalResourceError::new_err(e.to_string())
+                    }
                 })?;
         let d: Declaration =
             serde_json::from_str(declaration_json).map_err(|e| crate::value_err(e.to_string()))?;

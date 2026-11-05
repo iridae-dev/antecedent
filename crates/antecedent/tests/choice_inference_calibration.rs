@@ -355,14 +355,14 @@ fn hierarchical_study_value_matches_importance_sampling() {
         .unwrap()[0]
         .evsi;
     let mut choices_after = [0usize; 3];
-    for a in 0..=2usize {
+    for (a, slot) in choices_after.iter_mut().enumerate() {
         let mut updated = current.clone();
         updated.push(vec![a as u32, (2 - a) as u32]);
         let summary = HierarchicalChoicePosterior::new(&prior, &updated)
             .unwrap()
             .summary(&cancelled)
             .unwrap();
-        choices_after[a] = argmax(&summary.mean);
+        *slot = argmax(&summary.mean);
     }
     let sequence_probability = |p: f64, k: f64, counts: &[u32]| {
         let mut value = 1.0;

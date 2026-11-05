@@ -23,6 +23,11 @@ estimates under every permutation of the ordering with a flag where they disagre
 that cannot be evaluated is refused alone (``status == "unsupported"`` with its reason code)
 and the rest of the family is kept. The claim is ``point_only``.
 
+This is a specialized checked path outside the central compiler: it checks the construction,
+the cell support and the normalization, but not the adjustment set against a graph. The
+adjustment is the caller's declaration, and ``plan.adjustment_basis`` is
+``"declared"``; the cells are not an identified effect.
+
 ``nuisance="random_forest"`` or ``"gradient_boosted_trees"`` replaces the ridge-logistic
 conditionals and the per-cell OLS outcome models with that learner, cross-fitted over the same
 folds (a model never predicts a row it was fit on), with the learner identity, implementation
@@ -150,6 +155,10 @@ class DerivedTreatmentPlan:
     observed_levels: tuple[float, ...]
     rows_complete: int
     report: PreflightReport
+    #: ``"declared"``: the adjustment set is the caller's declaration, screened for
+    #: constituents, descendants and copies, but not checked against a graph. The plan is not an
+    #: identification of the derived treatment's effect.
+    adjustment_basis: str = "declared"
 
 
 @dataclass(frozen=True, slots=True)
@@ -270,6 +279,7 @@ def _plan(raw: Mapping[str, Any]) -> DerivedTreatmentPlan:
         observed_levels=tuple(raw["observed_levels"]),
         rows_complete=raw["rows_complete"],
         report=_preflight_report(raw["report"]),
+        adjustment_basis=raw["adjustment_basis"],
     )
 
 

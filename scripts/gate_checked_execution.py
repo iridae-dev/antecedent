@@ -321,16 +321,30 @@ BYPASS_REEXPORTS = (
     "rank_designs",
 )
 # Python natives with no compiled twin. Only the staged wrapper that owns each may import it.
-BYPASS_PYTHON_NATIVES = (
-    "_identify_ate_admg",
-    "_identify_ate",
-)
+# None remain: identification reaches Python through `_identify_structure` and
+# `_identify_tiered_structure`, which build a compiled study and call
+# `identify_structure_within` under the call's execution context.
+BYPASS_PYTHON_NATIVES: tuple[str, ...] = ()
 # Natives that had no compiled twin and were retired when the compiled study replaced them. No
 # Python module may name one again, the staged wrapper included: the wrapper goes through
-# `analyze` (the compiled `IvBounds` study), and a native entry of the same name reopens the bypass.
-RETIRED_PYTHON_NATIVES = ("_binary_iv_ate_bounds",)
+# `analyze` (the compiled `IvBounds` study) or the compiled identification, and a native entry
+# of the same name reopens the bypass.
+RETIRED_PYTHON_NATIVES = ("_binary_iv_ate_bounds", "_identify_ate", "_identify_ate_admg")
 RETIRED_NATIVE_SOURCES = ("python/src",)
 BYPASS_PYTHON_WRAPPERS = ("estimation.py", "identify.py")
+# Identification entry points are enumerated, not named: every `fn identify_*` the identify
+# crate defines, and every one the facade's strategy table dispatches to. A new identifier
+# gains the rule by its name. The transport, meta-transport and catalog families have their own
+# staged gate (a transport query is not a study's identification).
+IDENTIFY_ENTRY_SOURCES = (
+    "crates/antecedent-identify/src",
+    "crates/antecedent/src/strategy_table/dispatch.rs",
+)
+IDENTIFY_ENTRY_FAMILIES_EXEMPT = ("transport", "catalog", "identify_meta_")
+# Python binding code reaches identification through a compiled study, under the call's
+# context. The no-context forms build `production_default` and are not a caller's context.
+PYTHON_BINDING_SOURCES = ("python/src",)
+_NO_CONTEXT_IDENTIFY = re.compile(r"\.\s*identify_(?:structure|only)\s*\(\s*\)")
 _PUB_USE = re.compile(r"\bpub\s+use\b[^;]*;")
 
 
@@ -339,9 +353,36 @@ def _reexport_named(name: str) -> re.Pattern[str]:
     return re.compile(rf"(?<!\w){re.escape(name)}(?!\w|\s*::)")
 
 
+def identify_entry_points(root: Path = ROOT) -> set[str]:
+    """Names of the raw identification functions: every `fn identify_*` in the sources.
+
+    Enumerated from the identify crate and the strategy table so that a new identifier is
+    covered by the rule that covers the existing ones. Falls back to the repository when
+    `root` carries a partial copy.
+    """
+    names: set[str] = set()
+    for source in IDENTIFY_ENTRY_SOURCES:
+        base = root / source
+        if not base.exists():
+            base = ROOT / source
+        files = [base] if base.is_file() else sorted(base.rglob("*.rs")) if base.is_dir() else []
+        for path in files:
+            if "target" in path.relative_to(base.parent if base.is_file() else base).parts:
+                continue
+            masked = rust_mask(path.read_text(encoding="utf-8"))
+            names.update(re.findall(r"\bfn\s+(identify_\w+)", masked))
+    return {
+        name
+        for name in names
+        if not any(family in name for family in IDENTIFY_ENTRY_FAMILIES_EXEMPT)
+    }
+
+
 def compiler_bypass_problems(root: Path = ROOT) -> list[str]:
     """Raw estimate, identification and ranking entries stay behind the compiled path."""
     problems: list[str] = []
+    entries = identify_entry_points(root)
+    reexported = tuple(sorted({*BYPASS_REEXPORTS, *entries}))
     for surface in BYPASS_FACADE_SURFACES:
         target = root / surface
         files = (
@@ -354,7 +395,7 @@ def compiler_bypass_problems(root: Path = ROOT) -> list[str]:
         for path in files:
             masked = rust_mask(path.read_text(encoding="utf-8"))
             for statement in _PUB_USE.finditer(masked):
-                for name in BYPASS_REEXPORTS:
+                for name in reexported:
                     if _reexport_named(name).search(statement.group(0)):
                         problems.append(
                             f"{path.relative_to(root)}:{line_of(masked, statement.start())}: "
@@ -372,6 +413,36 @@ def compiler_bypass_problems(root: Path = ROOT) -> list[str]:
                 problems.append(
                     f"{rel}:{line_of(masked, match.start())}: {name} is public; it must stay "
                     "pub(crate) so only compiled programs reach it"
+                )
+    # Structural: no identification entry the strategy table dispatches to is public.
+    dispatch_rel = "crates/antecedent/src/strategy_table/dispatch.rs"
+    dispatch = root / dispatch_rel
+    if dispatch.is_file():
+        masked = rust_mask(dispatch.read_text(encoding="utf-8"))
+        for match in re.finditer(r"(?m)^\s*pub\s+(?:const\s+)?fn\s+(identify_\w+)", masked):
+            problems.append(
+                f"{dispatch_rel}:{line_of(masked, match.start())}: {match.group(1)} is public; "
+                "an identification goes through the compiled study (identify_structure_within)"
+            )
+    python_src = root / PYTHON_BINDING_SOURCES[0]
+    if python_src.is_dir():
+        call = re.compile(
+            rf"(?<!fn )(?<![\w])(?:{'|'.join(sorted(map(re.escape, entries)))})\s*\(", re.S
+        ) if entries else None
+        for path in sorted(python_src.rglob("*.rs")):
+            masked = rust_mask(path.read_text(encoding="utf-8"))
+            for match in _NO_CONTEXT_IDENTIFY.finditer(masked):
+                problems.append(
+                    f"{path.relative_to(root)}:{line_of(masked, match.start())}: identifies "
+                    "without the caller's execution context; use identify_structure_within"
+                )
+            if call is None:
+                continue
+            for match in call.finditer(masked):
+                problems.append(
+                    f"{path.relative_to(root)}:{line_of(masked, match.start())}: binding code "
+                    f"calls the raw identification entry {match.group(0).rstrip('( ')!r}; "
+                    "build a compiled study and call identify_structure_within"
                 )
     for rel, names in BYPASS_DOC_HIDDEN.items():
         path = root / rel
@@ -414,8 +485,12 @@ def compiler_bypass_problems(root: Path = ROOT) -> list[str]:
                     "that the facade no longer exports"
                 )
     package = root / "python" / "antecedent"
-    pattern = re.compile(rf"(?<!\w)(?:{'|'.join(BYPASS_PYTHON_NATIVES)})\b")
-    if package.is_dir():
+    pattern = (
+        re.compile(rf"(?<!\w)(?:{'|'.join(BYPASS_PYTHON_NATIVES)})\b")
+        if BYPASS_PYTHON_NATIVES
+        else None
+    )
+    if package.is_dir() and pattern is not None:
         for path in sorted(package.rglob("*.py")):
             if path.name in BYPASS_PYTHON_WRAPPERS:
                 continue

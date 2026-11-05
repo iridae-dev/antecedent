@@ -131,6 +131,11 @@ pub struct DerivedTreatmentDeclaration {
     pub exclusions: Vec<DeclaredExclusion>,
 }
 
+/// How the adjustment set of every plan was established: the caller declared it and the check
+/// screened it for constituents, descendants and copies, but no graph was consulted, so the
+/// plan is not a graph identification of the derived treatment's effect.
+pub const DERIVED_ADJUSTMENT_BASIS: &str = "declared";
+
 /// The accepted construction: what the estimator may use.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct DerivedTreatmentPlan {
@@ -150,6 +155,9 @@ pub struct DerivedTreatmentPlan {
     pub rows_complete: usize,
     /// The fit-free preflight report of the accepted design (review flags included).
     pub report: PreflightReport,
+    /// How the adjustment set was established: always [`DERIVED_ADJUSTMENT_BASIS`]
+    /// (`declared`), never a back-door identification.
+    pub adjustment_basis: &'static str,
 }
 
 fn refuse(
@@ -612,10 +620,17 @@ pub fn check_derived_treatment(
         observed_levels,
         rows_complete: report.rows_complete,
         report,
+        adjustment_basis: DERIVED_ADJUSTMENT_BASIS,
     })
 }
 
 /// Check the declaration, then estimate its joint cells with factorized propensities.
+///
+/// This is a specialized checked path outside the central compiler. It checks the
+/// construction (constituents, descendants, copies, legal values, design rank) and the cell
+/// support, and it takes the caller's `ctx`. It does not check the adjustment set against a
+/// graph: the plan reports `adjustment_basis == "declared"`, so the cells are
+/// point estimates under a declared adjustment, never an identified effect.
 ///
 /// The declaration must be a [`Transformation::JointCell`] of at most 31 binary
 /// components (the fit refuses when the rows cannot populate every joint cell). The check runs

@@ -1865,11 +1865,13 @@ class mnar_fixed_shift:  # noqa: N801
 
 
 class mnar_sensitivity:  # noqa: N801
+    ADJUSTMENT_NOT_VALID: Final = "mnar_sensitivity.adjustment_not_valid"
     BOUNDS_EXCEEDED: Final = "mnar_sensitivity.bounds_exceeded"
     COMPOSITION_NOT_SUPPORTED: Final = "mnar_sensitivity.composition_not_supported"
     COVARIATES_NOT_USED: Final = "mnar_sensitivity.covariates_not_used"
     COVARIATES_REQUIRED: Final = "mnar_sensitivity.covariates_required"
     DESIGN_SINGULAR: Final = "mnar_sensitivity.design_singular"
+    GRAPH_NOT_SUPPORTED: Final = "mnar_sensitivity.graph_not_supported"
     INSUFFICIENT_OBSERVED: Final = "mnar_sensitivity.insufficient_observed"
     INVALID_BOOTSTRAP: Final = "mnar_sensitivity.invalid_bootstrap"
     INVALID_DATA: Final = "mnar_sensitivity.invalid_data"
@@ -1883,6 +1885,7 @@ class mnar_sensitivity:  # noqa: N801
     UNSUPPORTED_ESTIMATOR: Final = "mnar_sensitivity.unsupported_estimator"
     UNSUPPORTED_MECHANISM: Final = "mnar_sensitivity.unsupported_mechanism"
     UNSUPPORTED_QUERY: Final = "mnar_sensitivity.unsupported_query"
+    UNSUPPORTED_TARGET: Final = "mnar_sensitivity.unsupported_target"
 
 
 class msm_posterior:  # noqa: N801
@@ -2681,6 +2684,7 @@ class scientific_bridge:  # noqa: N801
     ASSUMPTION_EVIDENCE_MISSING: Final = "scientific_bridge.assumption_evidence_missing"
     ASSUMPTION_MISSING: Final = "scientific_bridge.assumption_missing"
     BLANK_FIELD: Final = "scientific_bridge.blank_field"
+    CANCELLED: Final = "scientific_bridge.cancelled"
     CHAIN_STAGE_NOT_AFFINE: Final = "scientific_bridge.chain_stage_not_affine"
     CONDITIONING_MISMATCH: Final = "scientific_bridge.conditioning_mismatch"
     DEGENERATE_VALIDATION: Final = "scientific_bridge.degenerate_validation"
@@ -2708,6 +2712,7 @@ class scientific_bridge:  # noqa: N801
         "scientific_bridge.interval_source_uncertainty_required"
     )
     INVALID_QUANTITY: Final = "scientific_bridge.invalid_quantity"
+    JOINT_LAW_DIMENSION_LIMIT: Final = "scientific_bridge.joint_law_dimension_limit"
     MALFORMED_MAPPING: Final = "scientific_bridge.malformed_mapping"
     MAPPING_NOT_ALLOWED: Final = "scientific_bridge.mapping_not_allowed"
     MAPPING_SCOPE_MISMATCH: Final = "scientific_bridge.mapping_scope_mismatch"
@@ -2726,13 +2731,16 @@ class scientific_bridge:  # noqa: N801
     PREDICTIVE_IMPORTANCE_AS_CAUSAL_EFFECT: Final = (
         "scientific_bridge.predictive_importance_as_causal_effect"
     )
+    PROPAGATION_ADMISSION_REFUSED: Final = "scientific_bridge.propagation_admission_refused"
     PROPAGATION_OVERFLOW: Final = "scientific_bridge.propagation_overflow"
+    PROPAGATION_WORK_LIMIT: Final = "scientific_bridge.propagation_work_limit"
     PROVENANCE: Final = "scientific_bridge.provenance"
     PROXY_AS_CONSTRUCT: Final = "scientific_bridge.proxy_as_construct"
     QUANTITY_MISMATCH: Final = "scientific_bridge.quantity_mismatch"
     REGIME_MISMATCH: Final = "scientific_bridge.regime_mismatch"
     REPLAY_MISMATCH: Final = "scientific_bridge.replay_mismatch"
     SCIENTIFIC_ENDPOINT_AS_UTILITY: Final = "scientific_bridge.scientific_endpoint_as_utility"
+    SIMULATION_DRAW_LIMIT: Final = "scientific_bridge.simulation_draw_limit"
     SOURCE_DEPENDENCE_INVALID: Final = "scientific_bridge.source_dependence_invalid"
     SOURCE_DEPENDENCE_MISSING: Final = "scientific_bridge.source_dependence_missing"
     SOURCE_MOMENT_NOT_FINITE: Final = "scientific_bridge.source_moment_not_finite"
@@ -4856,11 +4864,13 @@ ALL: Final[tuple[str, ...]] = (
     "mnar_fixed_shift.preparation_resource_limit",
     "mnar_fixed_shift.source_admission_cancelled",
     "mnar_fixed_shift.source_admission_resource_limit",
+    "mnar_sensitivity.adjustment_not_valid",
     "mnar_sensitivity.bounds_exceeded",
     "mnar_sensitivity.composition_not_supported",
     "mnar_sensitivity.covariates_not_used",
     "mnar_sensitivity.covariates_required",
     "mnar_sensitivity.design_singular",
+    "mnar_sensitivity.graph_not_supported",
     "mnar_sensitivity.insufficient_observed",
     "mnar_sensitivity.invalid_bootstrap",
     "mnar_sensitivity.invalid_data",
@@ -4874,6 +4884,7 @@ ALL: Final[tuple[str, ...]] = (
     "mnar_sensitivity.unsupported_estimator",
     "mnar_sensitivity.unsupported_mechanism",
     "mnar_sensitivity.unsupported_query",
+    "mnar_sensitivity.unsupported_target",
     "msm_posterior.band_not_constructed",
     "msm_posterior.empty_law",
     "msm_posterior.external_power_prior",
@@ -5535,6 +5546,7 @@ ALL: Final[tuple[str, ...]] = (
     "scientific_bridge.assumption_evidence_missing",
     "scientific_bridge.assumption_missing",
     "scientific_bridge.blank_field",
+    "scientific_bridge.cancelled",
     "scientific_bridge.chain_stage_not_affine",
     "scientific_bridge.conditioning_mismatch",
     "scientific_bridge.degenerate_validation",
@@ -5558,6 +5570,7 @@ ALL: Final[tuple[str, ...]] = (
     "scientific_bridge.interval_scope_outside_measured",
     "scientific_bridge.interval_source_uncertainty_required",
     "scientific_bridge.invalid_quantity",
+    "scientific_bridge.joint_law_dimension_limit",
     "scientific_bridge.malformed_mapping",
     "scientific_bridge.mapping_not_allowed",
     "scientific_bridge.mapping_scope_mismatch",
@@ -5574,13 +5587,16 @@ ALL: Final[tuple[str, ...]] = (
     "scientific_bridge.outside_validated_range",
     "scientific_bridge.population_mismatch",
     "scientific_bridge.predictive_importance_as_causal_effect",
+    "scientific_bridge.propagation_admission_refused",
     "scientific_bridge.propagation_overflow",
+    "scientific_bridge.propagation_work_limit",
     "scientific_bridge.provenance",
     "scientific_bridge.proxy_as_construct",
     "scientific_bridge.quantity_mismatch",
     "scientific_bridge.regime_mismatch",
     "scientific_bridge.replay_mismatch",
     "scientific_bridge.scientific_endpoint_as_utility",
+    "scientific_bridge.simulation_draw_limit",
     "scientific_bridge.source_dependence_invalid",
     "scientific_bridge.source_dependence_missing",
     "scientific_bridge.source_moment_not_finite",
@@ -7611,11 +7627,13 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "mnar_fixed_shift.preparation_resource_limit": ("execution_resource_limit",),
     "mnar_fixed_shift.source_admission_cancelled": ("execution_cancelled",),
     "mnar_fixed_shift.source_admission_resource_limit": ("execution_resource_limit",),
+    "mnar_sensitivity.adjustment_not_valid": ("invalid_argument",),
     "mnar_sensitivity.bounds_exceeded": ("route_not_supported",),
     "mnar_sensitivity.composition_not_supported": ("route_not_supported",),
     "mnar_sensitivity.covariates_not_used": ("invalid_argument",),
     "mnar_sensitivity.covariates_required": ("invalid_argument",),
     "mnar_sensitivity.design_singular": ("invalid_argument",),
+    "mnar_sensitivity.graph_not_supported": ("route_not_supported",),
     "mnar_sensitivity.insufficient_observed": ("invalid_argument",),
     "mnar_sensitivity.invalid_bootstrap": ("invalid_argument",),
     "mnar_sensitivity.invalid_data": ("invalid_argument",),
@@ -7629,6 +7647,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "mnar_sensitivity.unsupported_estimator": ("route_not_supported",),
     "mnar_sensitivity.unsupported_mechanism": ("route_not_supported",),
     "mnar_sensitivity.unsupported_query": ("route_not_supported",),
+    "mnar_sensitivity.unsupported_target": ("route_not_supported",),
     "msm_posterior.band_not_constructed": ("route_not_supported",),
     "msm_posterior.empty_law": ("invalid_argument",),
     "msm_posterior.external_power_prior": ("route_not_supported",),
@@ -8296,6 +8315,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "scientific_bridge.assumption_evidence_missing": ("bridge_assumption_missing",),
     "scientific_bridge.assumption_missing": ("bridge_assumption_missing",),
     "scientific_bridge.blank_field": ("scientific_bridge_invalid",),
+    "scientific_bridge.cancelled": ("cancelled_no_claim",),
     "scientific_bridge.chain_stage_not_affine": ("route_not_supported",),
     "scientific_bridge.conditioning_mismatch": ("bridge_binding_mismatch",),
     "scientific_bridge.degenerate_validation": ("bridge_mapping_not_supported",),
@@ -8319,6 +8339,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "scientific_bridge.interval_scope_outside_measured": ("route_not_supported",),
     "scientific_bridge.interval_source_uncertainty_required": ("required_option_missing",),
     "scientific_bridge.invalid_quantity": ("scientific_bridge_invalid",),
+    "scientific_bridge.joint_law_dimension_limit": ("execution_resource_limit",),
     "scientific_bridge.malformed_mapping": ("scientific_bridge_invalid",),
     "scientific_bridge.mapping_not_allowed": ("scientific_bridge_invalid",),
     "scientific_bridge.mapping_scope_mismatch": ("bridge_binding_mismatch",),
@@ -8335,13 +8356,16 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "scientific_bridge.outside_validated_range": ("bridge_mapping_not_supported",),
     "scientific_bridge.population_mismatch": ("bridge_binding_mismatch",),
     "scientific_bridge.predictive_importance_as_causal_effect": ("bridge_substitution_refused",),
+    "scientific_bridge.propagation_admission_refused": ("execution_resource_limit",),
     "scientific_bridge.propagation_overflow": ("scientific_bridge_invalid",),
+    "scientific_bridge.propagation_work_limit": ("execution_resource_limit",),
     "scientific_bridge.provenance": ("scientific_bridge_invalid",),
     "scientific_bridge.proxy_as_construct": ("proxy_offered_as_construct",),
     "scientific_bridge.quantity_mismatch": ("bridge_binding_mismatch",),
     "scientific_bridge.regime_mismatch": ("bridge_binding_mismatch",),
     "scientific_bridge.replay_mismatch": ("invalid_argument",),
     "scientific_bridge.scientific_endpoint_as_utility": ("bridge_substitution_refused",),
+    "scientific_bridge.simulation_draw_limit": ("execution_resource_limit",),
     "scientific_bridge.source_dependence_invalid": ("scientific_bridge_invalid",),
     "scientific_bridge.source_dependence_missing": ("sampling_dependence_unknown",),
     "scientific_bridge.source_moment_not_finite": ("scientific_bridge_invalid",),

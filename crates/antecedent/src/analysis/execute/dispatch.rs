@@ -671,21 +671,11 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        // Validation may execute through its own refit path instead of execute_on;
-        // still reject a foreign runtime callback plan before taking that branch.
-        if crate::analysis::lowering::has_runtime_callback(&self.query)
-            || physical.lowered().is_some_and(|program| program.semantic_identity().is_none())
-        {
-            let program =
-                physical.require_lowered(crate::analysis::lowering::expected_cell(self))?;
-            if !program.accepts_live_query(&self.query) {
-                return Err(crate::compile_reason!(
-                    "route_not_lowered",
-                    "the plan belongs to a different live callback query"
-                ));
-            }
-        }
+        // Validation executes through its own refit path instead of execute_on, which would
+        // never look at the supplied plan: refuse an unlowered, foreign or differently bound
+        // plan before taking that branch.
         if crate::analysis::functional_validation::requested(self) {
+            self.require_plan_for_study(physical, true)?;
             return crate::analysis::functional_validation::run_validated(self, ctx);
         }
         self.execute_shared(&Arc::new(physical.clone()), None, ctx)
@@ -704,6 +694,36 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.execute_on(&self.data, physical, execution, None, ctx)
+    }
+
+    /// The lowered program of `physical`, checked against this study.
+    ///
+    /// # Errors
+    ///
+    /// `route_not_lowered`: the plan carries no lowered program, it was lowered for another
+    /// route cell, it belongs to different live callback bindings, or (when `bound`) it was
+    /// compiled for a study whose query, graph, data schema or declarations differ from
+    /// this one's.
+    fn require_plan_for_study<'p>(
+        &self,
+        physical: &'p PhysicalExecutionPlan,
+        bound: bool,
+    ) -> Result<&'p crate::planner::lowered::LoweredProgram, CausalError> {
+        let program = physical.require_lowered(crate::analysis::lowering::expected_cell(self))?;
+        if !program.accepts_live_query(&self.query) {
+            return Err(crate::compile_reason!(
+                "route_not_lowered",
+                "the plan belongs to a different live callback query"
+            ));
+        }
+        if bound && !crate::analysis::lowering::program_is_bound_to(program, self) {
+            return Err(crate::compile_reason!(
+                "route_not_lowered",
+                "the plan was compiled for a different study: its query, graph, data schema or \
+                 declarations differ from this study's"
+            ));
+        }
+        Ok(program)
     }
 
     /// Execute against an explicit data slot (prepare/estimate must not clone `Study`).
@@ -726,13 +746,9 @@ impl super::Study {
                           refresh",
             });
         }
-        let program = physical.require_lowered(crate::analysis::lowering::expected_cell(self))?;
-        if !program.accepts_live_query(&self.query) {
-            return Err(crate::compile_reason!(
-                "route_not_lowered",
-                "the plan belongs to a different live callback query"
-            ));
-        }
+        // A fresh run has no sealed operation to carry the binding: the plan's program must
+        // have been compiled for this study. A prepared handle runs its own retained plan.
+        let program = self.require_plan_for_study(physical, execution.is_none())?;
         let ctx = &ctx.enter_lowered_dispatch(program.identity());
         let mut result = match data {
             DataInput::Tabular(tabular) if crate::analysis::missing_imputation::imputes(self) => {
@@ -3219,11 +3235,20 @@ impl super::Study {
     ///
     /// Missing graph structure, unsupported graph class, or identification failure.
     pub fn identify_only(&self) -> Result<IdentificationResult, CausalError> {
-        use crate::strategy_table::{
-            DEFAULT_IDENTIFIER_ID, DEFAULT_RESPONSE_IDENTIFIER_ID, identify_admg,
-            identify_static_query,
-        };
+        self.identify_only_within(&ExecutionContext::production_default(0))
+    }
 
+    /// [`Self::identify_only`] under the caller's execution context: the identification is the
+    /// compiled one ([`Self::identify_structure_within`]), so its exact searches lease their
+    /// storage from the context's admission pool and stop at its cancellation token.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::identify_only`], plus resource or cancellation refusal.
+    pub fn identify_only_within(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<IdentificationResult, CausalError> {
         if self.graph_posterior.is_some() {
             // `self.graph` is only the placeholder shape here (see `stub_accepted_graph_for`);
             // identification runs per-graph, against the real posterior atoms, inside `execute()`.
@@ -3233,41 +3258,56 @@ impl super::Study {
                  runs per-graph inside execute."
             ));
         }
-        let default_id = if matches!(&self.query, CausalQuery::Response(_)) {
-            DEFAULT_RESPONSE_IDENTIFIER_ID
-        } else {
-            DEFAULT_IDENTIFIER_ID
-        };
-        let id = self.declared.identifier.unwrap_or(default_id);
-
-        if let Some(admg) = self.graph.as_admg() {
+        let identification = if self.declared.tiered.is_some() {
+            self.identify_structure_within(ctx)?
+        } else if let Some(admg) = self.graph.as_admg() {
             if admg_has_bidirected(admg) {
-                let CausalQuery::AverageEffect(query) = &self.query else {
+                if !matches!(&self.query, CausalQuery::AverageEffect(_)) {
                     return Err(crate::unsupported_reason!(
                         "route_not_supported",
                         "identify_only on an ADMG supports AverageEffect only."
                     ));
-                };
+                }
                 // Only general ID handles bidirected structure; the default
                 // identifier is a backdoor strategy that would ignore it.
-                let identifier =
-                    if self.declared.identifier.is_some() { id } else { IdentifierId::GeneralId };
-                return identify_admg(identifier, admg, query);
+                let identifier = self.declared.identifier.unwrap_or(IdentifierId::GeneralId);
+                crate::identify_api::identify_study_within(
+                    &self.graph,
+                    &self.query,
+                    Some(identifier),
+                    self.structure_source,
+                    ctx,
+                )?
+            } else {
+                // No bidirected edges: this ADMG *is* a DAG. Coercing keeps the
+                // caller's identifier choice meaningful instead of forcing general
+                // ID on a graph with no latent structure to reason about.
+                let coerced = crate::AcceptedGraph::from(admg_without_latents_to_dag(admg)?);
+                crate::identify_api::identify_study_within(
+                    &coerced,
+                    &self.query,
+                    self.declared.identifier,
+                    self.structure_source,
+                    ctx,
+                )?
             }
-            // No bidirected edges: this ADMG *is* a DAG. Coercing keeps the
-            // caller's identifier choice meaningful instead of forcing general
-            // ID on a graph with no latent structure to reason about.
-            let coerced = admg_without_latents_to_dag(admg)?;
-            return identify_static_query(id, &coerced, &self.query);
-        }
-
-        let graph = self.graph.as_dag().ok_or_else(|| {
-            crate::unsupported_reason!(
+        } else {
+            if self.graph.as_dag().is_none() {
+                return Err(crate::unsupported_reason!(
+                    "route_not_supported",
+                    "identify_only supports static DAG and ADMG graphs only."
+                ));
+            }
+            self.identify_structure_within(ctx)?
+        };
+        match identification {
+            crate::Identification::Point { result, .. } => Ok(result),
+            _ => Err(crate::unsupported_reason!(
                 "route_not_supported",
-                "identify_only supports static DAG and ADMG graphs only."
-            )
-        })?;
-        identify_static_query(id, graph, &self.query)
+                "identify_only returns a single-graph identification; use identify_structure \
+                 for a class envelope."
+            )),
+        }
     }
 
     /// The identification of this study's query against its structure, for every graph
@@ -3301,6 +3341,24 @@ impl super::Study {
                 "identify_structure is not a graph-posterior cell; identification \
                  runs per-graph inside execute."
             ));
+        }
+        if let Some(background) = self.declared.tiered.as_ref() {
+            let schema = match &self.data {
+                DataInput::Tabular(data) => data.schema(),
+                DataInput::Temporal(data) | DataInput::Event(data) => data.schema(),
+                _ => {
+                    return Err(CausalError::Unsupported {
+                        message: "TieredBackground requires tabular or series data",
+                    });
+                }
+            };
+            return crate::identify_api::identify_tiered_study_within(
+                &self.graph,
+                background,
+                schema,
+                &self.query,
+                ctx,
+            );
         }
         crate::identify_api::identify_study_within(
             &self.graph,

@@ -57,6 +57,11 @@ pub struct SplitEffect {
 
 /// Split `data`, discover on one part and estimate the treatment's effect on the other.
 ///
+/// This is a specialized checked path outside the central compiler: it runs the discovery
+/// contract and the measured-inference owner under the caller's context and refuses an
+/// unresolved structure, but it is not lowered as one combined discovery-and-estimation
+/// program.
+///
 /// The discovery contract's seed is the context's master seed; `split_seed` decides the
 /// row permutation. Every column of `data` is searched and must be a finite float64 column.
 ///

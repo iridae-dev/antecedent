@@ -440,6 +440,7 @@ path = "tests/evidence_synthesis_calibration.rs"
 [[test]]
 name = "gcm"
 path = "tests/gcm.rs"
+required-features = ["calibration-internal"]
 
 [[test]]
 name = "generic_aipw_precision"
@@ -990,6 +991,7 @@ required-features = ["file-source"]
 [[test]]
 name = "structure_compiler_routes"
 path = "tests/structure_compiler_routes.rs"
+required-features = ["calibration-internal"]
 
 [[test]]
 name = "target_refuter_extensions"

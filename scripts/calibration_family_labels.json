@@ -337,17 +337,17 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/nonlinear_mediation_interval_calibration.rs",
-      "sha256": "c2d32d6618701f12545dacdef168744ba2de444114257e0d27dc6ce441a63ab4",
+      "sha256": "fdd3dfd6d0241a9ef3171eb9e63f99eb55744549fb487b1705070184ee28a995",
       "labelled_calls": [
         {
-          "line": 179,
+          "line": 180,
           "call": ".labelled(",
           "argument": "label"
         }
       ],
       "constructor_calls": [
         {
-          "line": 171,
+          "line": 172,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n                test: \"nonlinear_mediation_natural_effects_percentile_bootstrap_interval\",\n                dgp: \"gaussian_mediator_quadratic_outcome_closed_form_natural_effects\",\n                interval: \"bootstrap_percentile\",\n            },\n            calibration::REPORTED_LEVEL,"
         }
@@ -892,17 +892,17 @@
     },
     {
       "path": "crates/antecedent/tests/categorical_posterior_calibration.rs",
-      "sha256": "02449fe3cc519b7087031c36ce9f66b25310c6b1b34e73c44e845c2149391ff2",
+      "sha256": "8f1eb81ce02454040f2d10a286522fe34aaa534096b4422a69a6421a136eb5f3",
       "labelled_calls": [
         {
-          "line": 151,
+          "line": 156,
           "call": ".labelled(",
           "argument": "format!(\"k{levels}\")"
         }
       ],
       "constructor_calls": [
         {
-          "line": 143,
+          "line": 148,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n                test: \"categorical_conjugate_contrast_prior_predictive_interval\",\n                dgp: \"declared_levels_normal_inverse_gamma_prior_predictive_imbalance_grid\",\n                interval: \"posterior_quantile\",\n            },\n            0.95,"
         }
@@ -1092,7 +1092,7 @@
     },
     {
       "path": "crates/antecedent/tests/graph_imputation_interval_calibration.rs",
-      "sha256": "c9a85a94f3c3c7939374fcd1b1eaea9c0329cecd3de3136387cd0b5fecdd162e",
+      "sha256": "16085202c94e3ea2acd52214d20320b8b46ac29be89d2eeeaf0d658b2fd73999",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1177,7 +1177,7 @@
     },
     {
       "path": "crates/antecedent/tests/mechanism_composition_interval_calibration.rs",
-      "sha256": "eebb8f356135bfffaff11bc6dcd2e138b84b422d04430c6846773fc98be5a9ef",
+      "sha256": "fb41f11783fd7a8acea78c8be55342ec1cc211faaf1f010ad5d5a715a5eca631",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1401,11 +1401,11 @@
     },
     {
       "path": "crates/antecedent/tests/multilevel_interval_calibration.rs",
-      "sha256": "af32c39d5117cc601fb7fa77293cc7f369bfdf49ae26df15867bf64ff74a281e",
+      "sha256": "9a4298e9f31fb0b0d66c4eae5a17cc4521cc9126584149c8d2f2ca12d422dbd6",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 202,
+          "line": 209,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"multilevel_generalized_propensity_interval\",\n            dgp: \"confounded_three_level_treatment\",\n            interval: INTERVAL,\n        },\n        REPORTED_LEVEL,"
         }

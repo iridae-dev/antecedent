@@ -83,8 +83,13 @@ imputes the fitted values, which is the missing-at-random estimate. The per-poin
 interval of an adjusted estimator is a seeded bootstrap (`bootstrap_replicates`, `seed`) that
 resamples units within arm and repeats the imputation fit, so imputation uncertainty is in it.
 The route from a study is `result.mnar_sensitivity(data=..., model=..., lower=..., upper=...)`
-(Python) and `mnar_sensitivity_for_study` (Rust), which take the treatment, outcome and checked
-adjustment set from the study's own average-effect query.
+(Python) and `mnar_sensitivity_for_study` (Rust). Both bind the complete target of the study's
+average-effect query. The analysis is the full-population difference of the arm means at the two
+treatment levels, so a target population, an outcome functional, effect modifiers or intervention
+levels other than that contrast are refused with `mnar_sensitivity.unsupported_target`, which names
+them. Python takes the checked adjustment set of the result's identification; Rust takes the
+adjustment set as an argument and checks it against the study's DAG with the joint backdoor
+criterion (`adjustment_not_valid`, or `graph_not_supported` for a graph posterior).
 
 What is reported, and what is kept apart:
 
@@ -99,7 +104,7 @@ Refusals use `MnarSensitivityRefusal` with detail `mnar_sensitivity.<slot>`:
 `mechanism_not_declared` (`required_option_missing`: the departure cannot be inferred from the
 data, so declare it), `unsupported_mechanism`, `unsupported_estimator` (an estimator with no
 completed-table form, such as a causal forest, is refused rather than silently replaced),
-`covariates_required`, `covariates_not_used`, `design_singular` (a singular covariate design or a
+`unsupported_target`, `adjustment_not_valid`, `graph_not_supported`, `covariates_required`, `covariates_not_used`, `design_singular` (a singular covariate design or a
 propensity outside (0, 1)), `invalid_bootstrap`, `unsupported_query`, `unbounded_range` (a non-finite or oversized bound), `range_excludes_mar`,
 `composition_not_supported`, `invalid_data`, `invalid_loading`, `invalid_level`,
 `invalid_decision`, `invalid_tolerance`, `insufficient_observed` and `bounds_exceeded`. A

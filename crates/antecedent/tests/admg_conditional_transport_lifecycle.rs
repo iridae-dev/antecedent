@@ -18,7 +18,7 @@ use antecedent::{
     PreparedAdmgConditionalTransport, StudyBuilder, consume_admg_conditional_transport_artifact,
 };
 use antecedent_core::{ExecutionContext, SearchLimits};
-use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
+use antecedent_expr::ExactEvaluationLimits;
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, BoundConditionalTransportFunctional,
@@ -196,7 +196,7 @@ fn refresh_keeps_the_proof_and_moves_the_point() {
         .unwrap()
         .with_empirical_counts(vec![1; cells])
         .unwrap();
-        let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
+        let counted = antecedent_expr::ExactTransportData::try_new(laws, 1_000_000).unwrap();
         let error = prepared.refresh(counted, &ctx).unwrap_err();
         let IoError::Refused { code, message } = error else { panic!("coded refusal") };
         assert_eq!(code, "not_supported");

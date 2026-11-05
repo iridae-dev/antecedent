@@ -60,7 +60,7 @@ import numpy as np
 
 from ._native import evaluate_observational_policy as _evaluate
 from .errors import CausalTypeError, CausalValueError
-from .execution import Execution, resolve_execution
+from .execution import Execution, native_controls, resolve_execution
 
 __all__ = ["ActionValue", "ObservationalPolicyValue", "ReferenceComparison", "policy_value"]
 
@@ -244,6 +244,7 @@ def policy_value(
             list(adjustment),
             [_column(values, f"adjust[{name!r}]") for name, values in adjustment.items()],
             json.dumps(declaration),
+            **native_controls(execution, memory="memory_bytes", cancel="cancel"),
         )
     )
     ref = report["reference"]

@@ -75,7 +75,8 @@ pub use propagation::{
     support_image,
 };
 pub use propagation::{
-    ContractNonlinearPropagation, JointLaw, JointPropagation, PropagationMethod, propagate_joint,
+    ContractNonlinearPropagation, JointLaw, JointPropagation, MAX_JOINT_LAW_DIMENSION,
+    MAX_PROPAGATION_WORK, MAX_SIMULATION_DRAWS, PropagationMethod, propagate_joint,
     propagate_nonlinear,
 };
 

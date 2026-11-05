@@ -497,10 +497,10 @@ pub use transport::{
     TransportOverlapReport, TransportResponseGridEstimate, evaluate_exact_mz_transport,
     evaluate_exact_transport, evaluate_exact_z_transport, prepare_exact_mz_transport,
     prepare_exact_transport, prepare_exact_z_transport, refuse_cancelled, refuse_eval,
-    transport_augmented_response_grid, transport_outcome_kind, trial_aipw_row_scores,
-    trial_to_target_bayesian_bootstrap, trial_to_target_bayesian_bootstrap_blocks,
-    trial_to_target_effect, trial_to_target_effect_with_context, trial_to_target_ipw_hac_se,
-    trial_to_target_ipw_se,
+    transport_augmented_response_grid, transport_augmented_response_grid_with_context,
+    transport_outcome_kind, trial_aipw_row_scores, trial_to_target_bayesian_bootstrap,
+    trial_to_target_bayesian_bootstrap_blocks, trial_to_target_effect,
+    trial_to_target_effect_with_context, trial_to_target_ipw_hac_se, trial_to_target_ipw_se,
 };
 pub use util::{BootstrapSeResult, DrawSpec, IntervalRequest, ReplicatePolicy, ResamplingReport};
 

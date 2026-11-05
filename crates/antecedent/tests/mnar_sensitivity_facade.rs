@@ -90,6 +90,83 @@ fn the_table_reader_refuses_an_unknown_column() {
     assert_eq!(err.detail(), antecedent_core::reason_details::mnar_sensitivity::INVALID_DATA);
 }
 
+fn confounded_graph() -> antecedent_graph::Dag {
+    let mut graph = antecedent_graph::Dag::empty();
+    let ids: Vec<_> = (0..3)
+        .map(|i| {
+            graph.add_node(antecedent_graph::NodeRef::Static(VariableId::from_raw(i))).unwrap()
+        })
+        .collect();
+    graph.insert_directed(ids[2], ids[0]).unwrap();
+    graph.insert_directed(ids[2], ids[1]).unwrap();
+    graph.insert_directed(ids[0], ids[1]).unwrap();
+    graph
+}
+
+fn study_of(query: AverageEffectQuery) -> Study {
+    Study::tabular(table())
+        .query(query)
+        .graph(confounded_graph())
+        .missing(MissingDeclaration::new(MissingPolicy::CompleteCase))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+}
+
+fn binary() -> AverageEffectQuery {
+    AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+}
+
+#[test]
+fn a_study_whose_target_differs_from_the_arm_mean_contrast_is_refused_by_coordinate() {
+    use antecedent_core::{OutcomeFunctional, TargetPopulation};
+    let w = [VariableId::from_raw(2)];
+    let refused = [
+        (
+            AverageEffectQuery::with_levels(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                0.0,
+                2.0,
+            ),
+            "intervention levels",
+        ),
+        (binary().with_target_population(TargetPopulation::Treated), "target population"),
+        (
+            binary().with_outcome_functional(OutcomeFunctional::exceedance(2.0)),
+            "outcome functional",
+        ),
+        (binary().with_effect_modifiers([VariableId::from_raw(2)]), "effect modifiers"),
+    ];
+    for (query, coordinate) in refused {
+        let err = mnar_sensitivity_for_study(
+            &study_of(query),
+            &w,
+            &spec(MnarEstimator::RegressionAdjusted),
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.detail(),
+            antecedent_core::reason_details::mnar_sensitivity::UNSUPPORTED_TARGET
+        );
+        assert!(err.message.contains(coordinate), "{coordinate}: {}", err.message);
+    }
+}
+
+#[test]
+fn an_adjustment_that_leaves_a_backdoor_path_open_is_refused() {
+    let err = mnar_sensitivity_for_study(
+        &study_of(binary()),
+        &[],
+        &spec(MnarEstimator::DifferenceInMeans),
+    )
+    .unwrap_err();
+    assert_eq!(
+        err.detail(),
+        antecedent_core::reason_details::mnar_sensitivity::ADJUSTMENT_NOT_VALID
+    );
+}
+
 #[test]
 fn a_study_requests_the_sensitivity_of_its_own_average_effect() {
     let data = table();

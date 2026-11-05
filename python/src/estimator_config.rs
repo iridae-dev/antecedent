@@ -1172,7 +1172,15 @@ pub(crate) fn get_learner(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Optio
         let json: String = dict.py().import("json")?.call_method1("dumps", (wire,))?.extract()?;
         serde_json::from_str::<LearnerSpec>(&json).map_err(|e| invalid(format!("{key}: {e}")))?
     };
-    spec.validate().map_err(|e| invalid(format!("{key}: {e}")))?;
+    spec.validate().map_err(|e| {
+        // A spec above a declared size limit is the resource refusal the fit would raise, not
+        // a malformed value.
+        if e.is_resource_limit() {
+            crate::refusal("execution_resource_limit", format!("{key}: {e}"))
+        } else {
+            invalid(format!("{key}: {e}"))
+        }
+    })?;
     Ok(Some(spec))
 }
 

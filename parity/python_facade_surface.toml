@@ -1857,18 +1857,6 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
-rust = "antecedent::estimate::identify_static_query"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::estimate::identify_static_query_with_rd"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
 rust = "antecedent::estimate::require_identified"
 kind = "fn"
 status = "internal"
@@ -2039,54 +2027,6 @@ reason = "composition-graph or planner plumbing executed behind the prepared stu
 
 [[entry]]
 rust = "antecedent::strategy_table::attach_static_bootstrap"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::strategy_table::identify_admg_query"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::strategy_table::identify_cpdag"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::strategy_table::identify_cpdag_response"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::strategy_table::identify_pag_response"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::strategy_table::identify_temporal_cpdag"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::strategy_table::identify_temporal_cpdag_configured"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::strategy_table::identify_temporal_pag"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::strategy_table::identify_temporal_pag_configured"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
@@ -2792,18 +2732,6 @@ rust = "antecedent::retained_refresh::spill_registry_within_admission"
 kind = "fn"
 status = "internal"
 reason = "Caps the byte budget of a SpillRegistry by the admission pool of the operation that spills a retained refresh; its only consumers are the Rust spill and reload of retained refresh handles (SpilledRefresh), which Python never holds, so the registry has no Python call to configure."
-
-[[entry]]
-rust = "antecedent::strategy_table::identify_cpdag_in_context"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
-
-[[entry]]
-rust = "antecedent::strategy_table::identify_static_query_in_context"
-kind = "fn"
-status = "internal"
-reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
 rust = "antecedent::analysis::PreparedIdentificationView"

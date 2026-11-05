@@ -125,6 +125,19 @@ pub fn hmc_work_limit() -> u64 {
     })
 }
 
+/// General-ID recursion ceiling from the active workflow, or the finite default.
+#[doc(hidden)]
+#[must_use]
+pub fn id_work_limit() -> u64 {
+    ACTIVE.with(|active| {
+        active
+            .borrow()
+            .context
+            .as_ref()
+            .map_or(ExecutionContext::DEFAULT_ID_WORK_LIMIT, ExecutionContext::id_work_limit)
+    })
+}
+
 /// Check the active workflow's cancellation at an original numerical loop boundary.
 #[doc(hidden)]
 #[must_use]

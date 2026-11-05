@@ -40,6 +40,26 @@ impl Default for ReplayLimits {
     }
 }
 
+/// Work one replay was admitted for, so a caller that replays several members under one
+/// [`ReplayLimits`] can charge each against what the earlier ones left.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ReplayCharge {
+    /// Table cells the replay admitted.
+    pub cells: usize,
+    /// Evaluator and scan operations the replay was bounded by.
+    pub operations: usize,
+}
+
+impl ReplayLimits {
+    /// The limits left after `spent` has been charged; a spent budget leaves zero.
+    pub(crate) fn remaining_after(&self, spent: ReplayCharge) -> Self {
+        Self {
+            max_cells: self.max_cells.saturating_sub(spent.cells),
+            max_operations: self.max_operations.saturating_sub(spent.operations),
+        }
+    }
+}
+
 /// Recompute every finite-discrete distribution atom from its checked program and portable
 /// factor laws. Returns a stable dependency/error key suitable for a refusal report.
 #[allow(
@@ -253,7 +273,7 @@ pub(crate) fn replay_functional_scalar(
     program_wire: &FunctionalProgramWire,
     laws: &DistributionFactorLawsWire,
     limits: &ReplayLimits,
-) -> Result<(), ContractReason> {
+) -> Result<ReplayCharge, ContractReason> {
     if !matches!(
         query,
         CausalQueryWire::AverageEffect { .. }
@@ -296,13 +316,12 @@ pub(crate) fn replay_functional_scalar(
     let free = program.free_variables();
     let free_cells = support_cells(laws, free, limits)
         .map_err(|_| ContractReason::FunctionalEffectFactorDomains)?;
-    if free_cells
+    let operations = free_cells
         .checked_mul(program.arena().len().max(1))
         .and_then(|n| n.checked_add(scan_work))
-        .is_none_or(|n| n > limits.max_operations)
-    {
-        return Err(ContractReason::FunctionalEffectReplayResourceLimit);
-    }
+        .filter(|n| *n <= limits.max_operations)
+        .ok_or(ContractReason::FunctionalEffectReplayResourceLimit)?;
+    let charge = ReplayCharge { cells: law_cells(laws), operations: operations.max(1) };
     let support = provider
         .support(free, &EvalContext::default())
         .map_err(|_| ContractReason::FunctionalEffectFreeVariableSupport)?;
@@ -342,7 +361,7 @@ pub(crate) fn replay_functional_scalar(
     if !expected.is_finite() || (expected - reported).abs() > 1e-10 * (1.0 + expected.abs()) {
         return Err(ContractReason::FunctionalEffectResultMismatch);
     }
-    Ok(())
+    Ok(charge)
 }
 
 fn verify_scalar_requirements(
@@ -606,10 +625,8 @@ fn law_scan_work(laws: &DistributionFactorLawsWire) -> usize {
     work
 }
 
-fn validate_law_size(
-    laws: &DistributionFactorLawsWire,
-    limits: &ReplayLimits,
-) -> Result<(), ContractReason> {
+/// Table cells (domain levels plus factor entries) the laws occupy.
+fn law_cells(laws: &DistributionFactorLawsWire) -> usize {
     let domain_entries =
         laws.domains.iter().fold(0usize, |total, (_, levels)| total.saturating_add(levels.len()));
     let factor_cells = laws.factors.iter().fold(0usize, |total, factor| {
@@ -617,7 +634,14 @@ fn validate_law_size(
             subtotal.saturating_add(row.values.len().saturating_add(1))
         }))
     });
-    if domain_entries.saturating_add(factor_cells) > limits.max_cells {
+    domain_entries.saturating_add(factor_cells)
+}
+
+fn validate_law_size(
+    laws: &DistributionFactorLawsWire,
+    limits: &ReplayLimits,
+) -> Result<(), ContractReason> {
+    if law_cells(laws) > limits.max_cells {
         return Err(ContractReason::DistributionReplayResourceLimit);
     }
     Ok(())
@@ -665,6 +689,7 @@ mod tests {
         laws: &DistributionFactorLawsWire,
     ) -> Result<(), ContractReason> {
         super::replay_functional_scalar(query, reported, program, laws, &ReplayLimits::default())
+            .map(|_| ())
     }
     use antecedent_expr::{
         CausalExprArena, FunctionalProgram, InterventionAssignment, ProgramLimits, ProgramSchema,
@@ -933,5 +958,31 @@ mod tests {
             super::replay_functional_scalar(&query, Some(0.75), &program, &laws, &few_operations),
             Err(ContractReason::FunctionalEffectReplayResourceLimit)
         );
+    }
+
+    #[test]
+    fn replays_of_one_family_share_one_budget() {
+        let (query, program, laws) = scalar_fixture();
+        let charge = super::replay_functional_scalar(
+            &query,
+            Some(0.75),
+            &program,
+            &laws,
+            &ReplayLimits::default(),
+        )
+        .unwrap();
+        assert!(charge.cells > 0 && charge.operations > 0);
+        // A budget that admits exactly one replay admits the first and refuses the second.
+        let exact = ReplayLimits { max_cells: charge.cells, max_operations: charge.operations };
+        let left = exact.remaining_after(charge);
+        assert_eq!((left.max_cells, left.max_operations), (0, 0));
+        super::replay_functional_scalar(&query, Some(0.75), &program, &laws, &exact).unwrap();
+        assert_eq!(
+            super::replay_functional_scalar(&query, Some(0.75), &program, &laws, &left),
+            Err(ContractReason::FunctionalEffectFactorLawsResourceLimit)
+        );
+        // Charging more than is left saturates at zero instead of wrapping.
+        let over = ReplayLimits { max_cells: 1, max_operations: 1 }.remaining_after(charge);
+        assert_eq!((over.max_cells, over.max_operations), (0, 0));
     }
 }

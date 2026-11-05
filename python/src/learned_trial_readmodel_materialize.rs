@@ -205,7 +205,9 @@ pub(super) fn admitted(
         AdmissionRefusal::Cancelled => crate::py_err(antecedent::CausalError::Cancelled {
             stage: "trial_identification_materialize",
         }),
-        error => crate::py_err(antecedent::CausalError::Resource { message: error.to_string() }),
+        error @ antecedent::execution::AdmissionRefusal::Refused(_) => {
+            crate::py_err(antecedent::CausalError::Resource { message: error.to_string() })
+        }
     })?;
     let mut bytes = Vec::new();
     bytes.try_reserve_exact(counter.length).map_err(|error| {

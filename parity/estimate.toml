@@ -140,7 +140,7 @@ evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "admg_frontdoor_contract_records_functional_identification"
 limitations = "The evidence test asserts the identification status, identified mass and identification product of a front-door estimand; backdoor estimand fields are asserted in the identify tests."
 python_facade = "full"
-notes = "Rust IdentifiedEstimand + CausalAnalysis::identify_only; Python antecedent.identify → Identification (.to_identify_result() for the legacy IdentifyResult shape; antecedent.estimation.identify still returns IdentifyResult directly)"
+notes = "Rust IdentifiedEstimand + Study::identify_only_within (compiled identification under the caller's context); Python antecedent.identify → Identification (.to_identify_result() for the legacy IdentifyResult shape; antecedent.estimation.identify still returns IdentifyResult directly)"
 
 [[capabilities]]
 id = "estimate.linear_regression"

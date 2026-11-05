@@ -6,16 +6,20 @@
 //! portable artifact and, as a batch callback, saved only as a verified record of its source: an
 //! in-process function has no durable encoding.
 //!
+//! Sampling, counterfactual execution and the policy value are `Simulate` queries on a study:
+//! the route fits the mechanisms and runs the program, with the selection record on the result.
+//!
 //! Run: `cargo run -p antecedent --example intervention_programs`
 //! Source: `examples/rust/intervention_programs.rs`
 
 use std::sync::Arc;
 
-use antecedent::gcm::{counterfactual_policy, fit_gcm, policy_value, sample_do};
+use antecedent::gcm::fit_gcm;
+use antecedent::{CompiledExecution, SimulationOutcome, Study};
 use antecedent_core::{
-    BatchCallback, CallbackError, CallbackImplementation, CallbackOutput, CallbackSpec, CausalRng,
-    ExecutionContext, Intervention, PinnedDependency, Portability, RecoveryRecord, ValueExpr,
-    VariableId,
+    BatchCallback, CallbackError, CallbackImplementation, CallbackOutput, CallbackSpec,
+    CausalQuery, ExecutionContext, Intervention, PinnedDependency, Portability, RecoveryRecord,
+    SimulateQuery, SimulationTarget, ValueExpr, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
@@ -23,7 +27,7 @@ use antecedent_io::policy_program_artifact::{
     decode_policy_program, decode_policy_program_with, encode_policy_program,
     policy_program_callback_records, policy_program_identity,
 };
-use antecedent_model::{RouteDecision, policy_support};
+use antecedent_model::{RouteDecision, ValueBatch, policy_support};
 
 const PRICE: VariableId = VariableId::from_raw(0);
 const DEMAND: VariableId = VariableId::from_raw(1);
@@ -72,6 +76,40 @@ fn recoverable(digest: &str) -> CallbackImplementation {
     }
 }
 
+/// Run the simulation `target` states through a compiled study route.
+fn simulate(
+    data: &TabularData,
+    graph: &Dag,
+    target: SimulationTarget,
+    ctx: &ExecutionContext,
+) -> Result<SimulationOutcome, Box<dyn std::error::Error>> {
+    let query = CausalQuery::Simulate(SimulateQuery::new(target));
+    let study = Study::tabular(data.clone()).graph(graph.clone()).query(query).build()?;
+    let execution = CompiledExecution::run(&study, ctx)?;
+    let payload = execution.result().simulation().ok_or("the route returned no simulation")?;
+    Ok(payload.outcome.clone())
+}
+
+/// `draws` interventional draws under `interventions`, from a fixed seed so that two programs
+/// are drawn on the same noise.
+fn sample(
+    data: &TabularData,
+    graph: &Dag,
+    interventions: &[Intervention],
+    draws: usize,
+    ctx: &ExecutionContext,
+) -> Result<ValueBatch, Box<dyn std::error::Error>> {
+    let target = SimulationTarget::InterventionalSample {
+        interventions: Arc::from(interventions.to_vec()),
+        draws,
+        seed: 7,
+    };
+    match simulate(data, graph, target, ctx)? {
+        SimulationOutcome::Sample(batch) => Ok(batch),
+        other => Err(format!("an interventional sample returns draws, got {other:?}").into()),
+    }
+}
+
 /// Runs the example end to end; `main` calls it and the example test suite runs it.
 #[allow(clippy::too_many_lines, reason = "the example reads top to bottom as one walkthrough")]
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -89,7 +127,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     ])?;
     let mut graph = Dag::with_variables(2);
     graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))?;
-    let fitted = fit_gcm(graph, &data)?;
+    let fitted = fit_gcm(graph.clone(), &data)?;
     let ctx = ExecutionContext::for_tests(7);
 
     // 1. Forward sampling. On the same noise the policy is the hand-applied floor.
@@ -97,14 +135,8 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         PRICE,
         ValueExpr::constant(10.0).max(ValueExpr::constant(0.85).mul(ValueExpr::generated())),
     );
-    let observed = sample_do(&fitted.model, &[], 512, &mut CausalRng::from_seed(7), &ctx)?;
-    let policy = sample_do(
-        &fitted.model,
-        std::slice::from_ref(&floor),
-        512,
-        &mut CausalRng::from_seed(7),
-        &ctx,
-    )?;
+    let observed = sample(&data, &graph, &[], 512, &ctx)?;
+    let policy = sample(&data, &graph, std::slice::from_ref(&floor), 512, &ctx)?;
     let (before, after) = (observed.column(0)?, policy.column(0)?);
     for (generated, floored) in before.iter().zip(after) {
         assert!((floored - 10.0_f64.max(0.85 * generated)).abs() < 1e-12);
@@ -114,13 +146,13 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     // 2. Counterfactual execution: each factual unit's own noise goes through the floor.
     let outcomes = [PRICE, DEMAND];
-    let worlds = counterfactual_policy(
-        fitted.model.clone(),
-        &data,
-        std::slice::from_ref(&floor),
-        &outcomes,
-        &ctx,
-    )?;
+    let target = SimulationTarget::Counterfactual {
+        interventions: Arc::from([floor.clone()]),
+        outcomes: Arc::from(outcomes),
+    };
+    let SimulationOutcome::Counterfactual(worlds) = simulate(&data, &graph, target, &ctx)? else {
+        return Err("a counterfactual target returns the factual rows' worlds".into());
+    };
     let dense_price = fitted.model.dense_of(PRICE).ok_or("price is in the model")?;
     let dense_demand = fitted.model.dense_of(DEMAND).ok_or("demand is in the model")?;
     for (unit, factual) in price.iter().enumerate() {
@@ -175,13 +207,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             [ValueExpr::generated()],
         ),
     );
-    let drawn = sample_do(
-        &fitted.model,
-        std::slice::from_ref(&by_callback),
-        512,
-        &mut CausalRng::from_seed(7),
-        &ctx,
-    )?;
+    let drawn = sample(&data, &graph, std::slice::from_ref(&by_callback), 512, &ctx)?;
     assert!(drawn.column(0)?.iter().zip(after).all(|(a, b)| a.to_bits() == b.to_bits()));
     assert!(matches!(by_callback.portability(), Portability::RuntimeBound { .. }));
     let refused =
@@ -206,7 +232,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     let restored = decode_policy_program_with(&artifact, &supply(SOURCE_DIGEST))?;
-    let replayed = sample_do(&fitted.model, &restored, 512, &mut CausalRng::from_seed(7), &ctx)?;
+    let replayed = sample(&data, &graph, &restored, 512, &ctx)?;
     assert!(replayed.column(0)?.iter().zip(after).all(|(a, b)| a.to_bits() == b.to_bits()));
     let tampered = decode_policy_program_with(&artifact, &supply(&"0".repeat(64)))
         .expect_err("source that differs from the record must not replay");
@@ -217,7 +243,14 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     // 8. The value of the policy is the paired difference against the unintervened model on the
     //    same noise; only the simulation error is quantified.
-    let value = policy_value(&fitted.model, std::slice::from_ref(&floor), DEMAND, 4_000, &ctx)?;
+    let target = SimulationTarget::PolicyValue {
+        interventions: Arc::from([floor.clone()]),
+        outcome: DEMAND,
+        draws: 4_000,
+    };
+    let SimulationOutcome::PolicyValue(value) = simulate(&data, &graph, target, &ctx)? else {
+        return Err("a policy-value target returns its value".into());
+    };
     // The floor lowers most prices, and demand falls with price.
     assert!(value.mean_difference > 5.0 * value.difference_simulation_stderr);
     assert!(value.support.simulation.is_supported());

@@ -68,6 +68,8 @@ pub struct ExecutionContext {
     /// Explicit logical-operation ceiling for an exposure-probability procedure.
     pub(super) exposure_probability_work_limit: Option<u64>,
     pub(super) hmc_work_limit: Option<u64>,
+    /// Explicit ceiling on the recursive calls of one general-ID identification.
+    pub(super) id_work_limit: Option<u64>,
     pub(super) temporal_materialization_limits: Option<crate::TemporalMaterializationLimits>,
     pub(super) randomization_test_limits: Option<RandomizationTestLimits>,
     /// What a development build ran although a route was `not_supported`. Shared by every
@@ -184,6 +186,25 @@ impl ExecutionContext {
         self.hmc_work_limit.unwrap_or(Self::DEFAULT_HMC_WORK_LIMIT)
     }
 
+    /// Default ceiling on the recursive calls (memo hits included) of one general-ID
+    /// identification call.
+    pub const DEFAULT_ID_WORK_LIMIT: u64 = 1 << 20;
+
+    /// This context lowering the general-ID recursion ceiling to `limit` calls. A context
+    /// can lower the cap but never remove it.
+    #[must_use]
+    pub fn with_id_work_limit(&self, limit: u64) -> Self {
+        let mut scoped = self.clone();
+        scoped.id_work_limit = Some(limit.min(Self::DEFAULT_ID_WORK_LIMIT));
+        scoped
+    }
+
+    /// General-ID recursion ceiling for this execution.
+    #[must_use]
+    pub fn id_work_limit(&self) -> u64 {
+        self.id_work_limit.unwrap_or(Self::DEFAULT_ID_WORK_LIMIT)
+    }
+
     /// The pulse extrapolation bound a context carries unless one is set: the active level of a
     /// pulse may lie at most this many observed treatment ranges beyond the observed interval.
     pub const DEFAULT_PULSE_EXTRAPOLATION_RANGES: f64 = 10.0;
@@ -251,6 +272,7 @@ impl ExecutionContext {
             pulse_extrapolation_ranges: None,
             exposure_probability_work_limit: None,
             hmc_work_limit: None,
+            id_work_limit: None,
             temporal_materialization_limits: None,
             randomization_test_limits: None,
             would_refuse: Arc::default(),
@@ -303,6 +325,7 @@ impl ExecutionContext {
             pulse_extrapolation_ranges: None,
             exposure_probability_work_limit: None,
             hmc_work_limit: None,
+            id_work_limit: None,
             temporal_materialization_limits: None,
             randomization_test_limits: None,
             would_refuse: Arc::default(),
@@ -509,6 +532,7 @@ impl core::fmt::Debug for ExecutionContext {
             .field("pulse_extrapolation_ranges", &self.pulse_extrapolation_ranges)
             .field("exposure_probability_work_limit", &self.exposure_probability_work_limit)
             .field("hmc_work_limit", &self.hmc_work_limit)
+            .field("id_work_limit", &self.id_work_limit)
             .field("temporal_materialization_limits", &self.temporal_materialization_limits)
             .field("randomization_test_limits", &self.randomization_test_limits)
             .field("admission", &self.admission())

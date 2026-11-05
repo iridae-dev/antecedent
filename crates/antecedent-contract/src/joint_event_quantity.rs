@@ -11,6 +11,11 @@
 
 use crate::quantity::{QuantityCondition, QuantityMismatch, QuantityRole, ScientificQuantity};
 
+/// Most variables one joint event names. Validation compares every pair of variables for
+/// duplicates and lowering builds one identity string from all of them, so the cap bounds both;
+/// an event with more variables is refused as an invalid coordinate before either runs.
+pub const MAX_JOINT_EVENT_VARIABLES: usize = 64;
+
 /// The functional a joint event reports.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum JointEventKind {
@@ -95,8 +100,12 @@ impl JointEventQuantity {
     /// Validate nonempty and distinct variables with declared names and units.
     ///
     /// # Errors
-    /// An empty variable list, a blank or duplicate variable, or a blank identity.
+    /// An empty variable list, more than [`MAX_JOINT_EVENT_VARIABLES`] variables, a blank or
+    /// duplicate variable, or a blank identity.
     pub fn validate(&self) -> Result<(), QuantityMismatch> {
+        if self.variables.len() > MAX_JOINT_EVENT_VARIABLES {
+            return Err(QuantityMismatch::InvalidCoordinate);
+        }
         if self.schema_id.trim().is_empty()
             || self.variables.is_empty()
             || self.variables.iter().any(|v| v.name.trim().is_empty() || v.units.trim().is_empty())
@@ -126,8 +135,12 @@ impl JointEventQuantity {
     /// Lower to the single-coordinate form every contract encoding carries.
     ///
     /// # Errors
-    /// An invalid joint event, or an invalid lowered coordinate.
+    /// An invalid joint event, more than [`MAX_JOINT_EVENT_VARIABLES`] variables, or an invalid
+    /// lowered coordinate.
     pub fn to_coordinate(&self) -> Result<ScientificQuantity, QuantityMismatch> {
+        if self.variables.len() > MAX_JOINT_EVENT_VARIABLES {
+            return Err(QuantityMismatch::InvalidCoordinate);
+        }
         if self.schema_id.trim().is_empty() || self.variables.is_empty() {
             return Err(QuantityMismatch::InvalidCoordinate);
         }
@@ -163,6 +176,9 @@ impl JointEventQuantity {
         let body = body.strip_suffix(')')?;
         let (count, mut rest) = body.split_once(';').map_or((body, ""), |(c, r)| (c, r));
         let count: usize = count.parse().ok()?;
+        if count > MAX_JOINT_EVENT_VARIABLES {
+            return None;
+        }
         // The declared count is untrusted text: never reserve more than the body can hold.
         let mut variables = Vec::with_capacity(count.min(rest.len()));
         while !rest.is_empty() {
@@ -299,6 +315,41 @@ mod tests {
         let mut joint = event(JointEventKind::Probability, &["a", "b"]);
         joint.variables[1].units = "wrong".into();
         assert_eq!(joint.validate_in_schema(&schema()), Err(QuantityMismatch::Variable));
+    }
+
+    #[test]
+    fn a_joint_event_refuses_one_past_the_variable_limit() {
+        let names: Vec<String> = (0..=MAX_JOINT_EVENT_VARIABLES).map(|i| format!("v{i}")).collect();
+        let schema: Vec<(String, String)> =
+            names.iter().map(|name| (name.clone(), "kg".to_string())).collect();
+        let build = |count: usize| JointEventQuantity {
+            schema_id: "sch".into(),
+            variables: names[..count]
+                .iter()
+                .map(|name| JointEventVariable { name: name.clone(), units: "kg".into() })
+                .collect(),
+            kind: JointEventKind::Probability,
+            population_id: "pop".into(),
+            regime_id: "obs".into(),
+            horizon: 0,
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        };
+        let at_limit = build(MAX_JOINT_EVENT_VARIABLES);
+        at_limit.validate_in_schema(&schema).unwrap();
+        let coordinate = at_limit.to_coordinate().unwrap();
+        assert_eq!(
+            JointEventQuantity::from_coordinate(&coordinate, "sch", &schema),
+            Some(at_limit)
+        );
+        let past = build(MAX_JOINT_EVENT_VARIABLES + 1);
+        assert_eq!(past.validate(), Err(QuantityMismatch::InvalidCoordinate));
+        assert_eq!(past.validate_in_schema(&schema), Err(QuantityMismatch::InvalidCoordinate));
+        assert_eq!(past.to_coordinate(), Err(QuantityMismatch::InvalidCoordinate));
+        // A forged coordinate that declares more variables than the limit decodes to nothing.
+        let mut forged = coordinate;
+        forged.variable_id = format!("sch:joint({};1:v0)", MAX_JOINT_EVENT_VARIABLES + 1);
+        assert_eq!(JointEventQuantity::from_coordinate(&forged, "sch", &schema), None);
     }
 
     #[test]

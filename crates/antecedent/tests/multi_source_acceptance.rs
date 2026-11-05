@@ -696,7 +696,11 @@ fn ranking_request() -> DesignRankingRequestWire {
 
 #[test]
 fn acceptance_the_ranking_matches_the_hand_derived_evsi_and_net_values() {
-    let evaluation = design_ranking::evaluate(ranking_request()).unwrap();
+    let evaluation = design_ranking::evaluate(
+        ranking_request(),
+        &antecedent::prelude::ExecutionContext::production_default(0),
+    )
+    .unwrap();
     let report = evaluation.report();
     let ids: Vec<&str> = report.candidates.iter().map(|c| c.semantic_id.as_str()).collect();
     assert_eq!(ids, vec!["native-trial", "external-trial"]);
@@ -796,7 +800,13 @@ fn composed_builder(e2_evidence: &str) -> (BundleBuilder, String) {
     let artifact = law("lab-2", "snap-e2", None);
     let contract = law_contract();
     let result = evaluate_contract(&contract, &artifact).unwrap();
-    let ranking = design_ranking::evaluate(ranking_request()).unwrap().export("ranking").unwrap();
+    let ranking = design_ranking::evaluate(
+        ranking_request(),
+        &antecedent::prelude::ExecutionContext::production_default(0),
+    )
+    .unwrap()
+    .export("ranking")
+    .unwrap();
     let mut builder = BundleBuilder::new();
     builder
         .add_reference(

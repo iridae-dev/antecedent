@@ -79,7 +79,7 @@ from ._native import evaluate_categorical_treatment as _evaluate
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
-from .execution import Execution, resolve_execution
+from .execution import Execution, native_controls, resolve_execution
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
@@ -741,8 +741,14 @@ def categorical_effects(
     snapshot: str | None = None,
     artifact_id: str = _DEFAULT_ARTIFACT_ID,
     posterior: CategoricalPosteriorPrior | None = None,
+    execution: Execution | None = None,
 ) -> CategoricalEffects:
     """Estimate the adjusted effect of every level of a categorical treatment.
+
+    This is a specialized checked path outside the central compiler: it checks the declared
+    levels, level support, covariance declarations and the sealed artifact, and runs under
+    ``execution`` (its memory limit and cancellation). ``adjust`` is the caller's declared
+    adjustment; no graph is checked, so the effects are not graph-identified.
 
     ``levels`` holds one label per row (labels are compared as strings). ``categories`` is the
     declared level set (at least two); omitted (unordered only), it is the sorted observed
@@ -859,6 +865,7 @@ def categorical_effects(
         json.dumps(declaration, allow_nan=False),
         _name(artifact_id, "artifact_id"),
         **native_rows,
+        **native_controls(execution, memory="memory_bytes", cancel="cancel"),
     )
     if report is not None and artifact is None and refusal is not None:
         return _result(report, None, refusal)  # the export was refused; the fit stands
