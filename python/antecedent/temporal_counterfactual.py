@@ -38,6 +38,9 @@ from ._native import (
     evaluate_general_temporal_counterfactual as _evaluate_general,
 )
 from ._native import (
+    TemporalExecutorHandle as _TemporalExecutor,
+)
+from ._native import (
     evaluate_temporal_counterfactual as _evaluate_temporal,
 )
 from ._native import (
@@ -47,6 +50,7 @@ from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from ._validate import non_finite_refusal, real
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution, resolve_execution
 from .temporal import TemporalRefusal
 
 if TYPE_CHECKING:
@@ -55,7 +59,11 @@ if TYPE_CHECKING:
 __all__ = [
     "AbductionReceipt",
     "ActionHistory",
+    "ExecutionWork",
     "NodeMechanism",
+    "SelectiveTemporalEffect",
+    "StageReceipt",
+    "TemporalCounterfactualSession",
     "TemporalCounterfactualEffect",
     "TemporalCounterfactualIdentity",
     "TemporalMechanisms",
@@ -370,12 +378,10 @@ class TemporalCounterfactualEffect(ScientificResult):
         return artifact_from_receipt(self, self._artifact_bytes)
 
 
-def _temporal_effect(report_json: str, artifact: bytes) -> TemporalCounterfactualEffect:
-    artifact = container_bytes(artifact)
-    report = json.loads(report_json)
+def _effect_fields(report: Mapping[str, Any]) -> dict[str, Any]:
     receipt = report["receipt"]
-    return TemporalCounterfactualEffect(
-        units=tuple(
+    return {
+        "units": tuple(
             UnitCounterfactual(
                 unit=u["unit"],
                 history=u["history"],
@@ -385,15 +391,15 @@ def _temporal_effect(report_json: str, artifact: bytes) -> TemporalCounterfactua
             )
             for u in report["units"]
         ),
-        mean_plus=float(report["mean_plus"]),
-        mean_minus=float(report["mean_minus"]),
-        contrast=float(report["mean_contrast"]),
-        plus_name=report["plus_name"],
-        minus_name=report["minus_name"],
-        mechanism_class=report["mechanism_class"],
-        inference_claim=report["inference_claim"],
-        snapshot=report["snapshot"],
-        receipt=AbductionReceipt(
+        "mean_plus": float(report["mean_plus"]),
+        "mean_minus": float(report["mean_minus"]),
+        "contrast": float(report["mean_contrast"]),
+        "plus_name": report["plus_name"],
+        "minus_name": report["minus_name"],
+        "mechanism_class": report["mechanism_class"],
+        "inference_claim": report["inference_claim"],
+        "snapshot": report["snapshot"],
+        "receipt": AbductionReceipt(
             snapshot=receipt["snapshot"],
             graph_digest=receipt["graph_digest"],
             fit_digest=receipt["fit_digest"],
@@ -408,9 +414,51 @@ def _temporal_effect(report_json: str, artifact: bytes) -> TemporalCounterfactua
             shared_by_both_worlds=bool(receipt["shared_by_both_worlds"]),
             digest=receipt["digest"],
         ),
-        identity=TemporalCounterfactualIdentity(**report["identity"]),
-        _artifact_bytes=artifact,
+        "identity": TemporalCounterfactualIdentity(**report["identity"]),
+    }
+
+
+def _temporal_effect(report_json: str, artifact: bytes) -> TemporalCounterfactualEffect:
+    artifact = container_bytes(artifact)
+    return TemporalCounterfactualEffect(
+        **_effect_fields(json.loads(report_json)), _artifact_bytes=artifact
     )
+
+
+def _fixed_population_request(
+    histories: Sequence[UnitHistory],
+    plus: ActionHistory,
+    minus: ActionHistory,
+    mechanisms: TemporalMechanisms,
+    snapshot: str,
+    horizon: int,
+    latent_confounding: bool,
+) -> str:
+    if isinstance(histories, str | bytes) or not isinstance(histories, Sequence):
+        raise CausalTypeError("histories must be a sequence of UnitHistory")
+    if not all(isinstance(h, UnitHistory) for h in histories):
+        raise CausalTypeError("histories must be UnitHistory objects")
+    if not isinstance(plus, ActionHistory) or not isinstance(minus, ActionHistory):
+        raise CausalTypeError("plus and minus must be ActionHistory objects")
+    if not isinstance(mechanisms, TemporalMechanisms):
+        raise CausalTypeError("mechanisms must be TemporalMechanisms")
+    _name(snapshot, "snapshot")
+    if isinstance(horizon, bool) or not isinstance(horizon, int) or not 0 <= horizon <= _U32_MAX:
+        raise CausalValueError("horizon must be a non-negative integer")
+    units = [h.unit for h in histories]
+    request = {
+        "graph": {
+            "horizon": horizon,
+            "edges": mechanisms._edges(),
+            "latent_confounding": bool(latent_confounding),
+        },
+        "fit": mechanisms._wire(),
+        "snapshot": snapshot,
+        "factual": [h._wire() for h in histories],
+        "plus": plus._wire(units),
+        "minus": minus._wire(units),
+    }
+    return json.dumps(request, allow_nan=False)
 
 
 def temporal_fixed_population(
@@ -441,33 +489,10 @@ def temporal_fixed_population(
     ``.invalid_graph``, ``.fit_mismatch``, ``.history_name_invalid`` or
     ``.non_finite_history``.
     """
-    if isinstance(histories, str | bytes) or not isinstance(histories, Sequence):
-        raise CausalTypeError("histories must be a sequence of UnitHistory")
-    if not all(isinstance(h, UnitHistory) for h in histories):
-        raise CausalTypeError("histories must be UnitHistory objects")
-    if not isinstance(plus, ActionHistory) or not isinstance(minus, ActionHistory):
-        raise CausalTypeError("plus and minus must be ActionHistory objects")
-    if not isinstance(mechanisms, TemporalMechanisms):
-        raise CausalTypeError("mechanisms must be TemporalMechanisms")
-    _name(snapshot, "snapshot")
-    if isinstance(horizon, bool) or not isinstance(horizon, int) or not 0 <= horizon <= _U32_MAX:
-        raise CausalValueError("horizon must be a non-negative integer")
-    units = [h.unit for h in histories]
-    request = {
-        "graph": {
-            "horizon": horizon,
-            "edges": mechanisms._edges(),
-            "latent_confounding": bool(latent_confounding),
-        },
-        "fit": mechanisms._wire(),
-        "snapshot": snapshot,
-        "factual": [h._wire() for h in histories],
-        "plus": plus._wire(units),
-        "minus": minus._wire(units),
-    }
-    report, artifact, refusal = _evaluate_temporal(
-        json.dumps(request, allow_nan=False), "temporal_counterfactual"
+    request = _fixed_population_request(
+        histories, plus, minus, mechanisms, snapshot, horizon, latent_confounding
     )
+    report, artifact, refusal = _evaluate_temporal(request, "temporal_counterfactual")
     raise_refusal(refusal, TemporalRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
@@ -515,6 +540,140 @@ def consume_temporal_counterfactual_artifact(
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _temporal_effect(report, data)
+
+
+# --- Selective execution: change only the action histories, keep the abduction --------------------
+
+
+@dataclass(frozen=True, slots=True)
+class StageReceipt:
+    """One stage of a selective execution: its identity and how its output was obtained.
+
+    ``stage`` is ``mechanism_fitting``, ``factual_abduction``, ``exogenous_draws``,
+    ``action_prediction`` or ``summary_decision``. ``status`` is ``declared`` (the fitted
+    mechanisms were supplied, nothing was fitted), ``computed`` in this execution or ``reused``
+    from a retained output whose identity matched.
+    """
+
+    stage: str
+    identity: str
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionWork:
+    """Work observed at the algorithm's boundaries; a reused abduction is not counted as work."""
+
+    mechanism_fits: int
+    abductions: int
+    abduction_states_enumerated: int
+    abductions_reused: int
+    shared_draws: int
+    world_predictions: int
+    posterior_states_predicted: int
+    summaries: int
+
+    @classmethod
+    def _from_wire(cls, wire: Mapping[str, Any]) -> ExecutionWork:
+        return cls(**{name: int(wire[name]) for name in cls.__slots__})
+
+
+@dataclass(frozen=True, slots=True)
+class SelectiveTemporalEffect(ScientificResult):
+    """A fixed-population temporal counterfactual with the stages that produced it.
+
+    The answer (``units``, the means, ``contrast``, ``receipt``, ``identity``) is bit-identical to
+    :func:`temporal_fixed_population` on the same request. ``stages`` says which stage outputs this
+    execution computed and which it reused; ``work`` is what this execution did, so a request that
+    changed only the named action histories shows ``abductions == 0`` and ``abductions_reused ==
+    n_units``.
+    """
+
+    units: tuple[UnitCounterfactual, ...]
+    mean_plus: float
+    mean_minus: float
+    contrast: float
+    plus_name: str
+    minus_name: str
+    mechanism_class: str
+    inference_claim: str
+    snapshot: str
+    receipt: AbductionReceipt
+    identity: TemporalCounterfactualIdentity
+    stages: tuple[StageReceipt, ...]
+    work: ExecutionWork
+
+    @property
+    def abduction_reused(self) -> bool:
+        """Whether the exogenous history was taken from a retained abduction."""
+        return any(s.stage == "factual_abduction" and s.status == "reused" for s in self.stages)
+
+
+class TemporalCounterfactualSession:
+    """A selective executor of the fixed-population temporal counterfactual.
+
+    Each unit's exogenous history is abduced from its factual trajectory and kept. A later
+    :meth:`evaluate` whose graph, mechanism fit, snapshot and factual histories are unchanged and
+    that changes only the named action histories **reuses** that abduction and replays just the
+    two worlds; changed factual evidence, a refit, another graph or another snapshot is a different
+    abduction identity and abduces again. A refused request leaves the retained state unchanged.
+    The answer is always the one :func:`temporal_fixed_population` gives; reuse changes the work,
+    never the number.
+
+    Retention is bounded (the oldest abduction is evicted first) and lives in this object only.
+    """
+
+    __slots__ = ("_native",)
+
+    def __init__(self) -> None:
+        self._native = _TemporalExecutor()
+
+    @property
+    def retained(self) -> int:
+        """The number of abductions kept for reuse."""
+        return int(self._native.retained_len())
+
+    @property
+    def work(self) -> ExecutionWork:
+        """Cumulative work of every successful :meth:`evaluate` of this session."""
+        return ExecutionWork._from_wire(json.loads(self._native.counters()))
+
+    def evaluate(
+        self,
+        histories: Sequence[UnitHistory],
+        *,
+        plus: ActionHistory,
+        minus: ActionHistory,
+        mechanisms: TemporalMechanisms,
+        snapshot: str,
+        horizon: int = 2,
+        latent_confounding: bool = False,
+        execution: Execution | None = None,
+    ) -> SelectiveTemporalEffect:
+        """Answer :func:`temporal_fixed_population`, reusing a retained abduction when it applies.
+
+        Raises:
+            ~antecedent.temporal.TemporalRefusal: the refusals of
+                :func:`temporal_fixed_population`, unchanged.
+        """
+        execution = resolve_execution(execution)
+        request = _fixed_population_request(
+            histories, plus, minus, mechanisms, snapshot, horizon, latent_confounding
+        )
+        payload, refusal = self._native.execute(request, seed=execution.seed)
+        raise_refusal(refusal, TemporalRefusal)
+        if payload is None:  # pragma: no cover - the native contract
+            raise CausalValueError(
+                "the native temporal executor returned neither a result nor a refusal"
+            )
+        wire = json.loads(payload)
+        return SelectiveTemporalEffect(
+            **_effect_fields(wire["report"]),
+            stages=tuple(
+                StageReceipt(s["stage"], s["identity"], s["status"]) for s in wire["stages"]
+            ),
+            work=ExecutionWork._from_wire(wire["work"]),
+        )
 
 
 # --- Any horizon, any number of named action histories ---------------------------------------

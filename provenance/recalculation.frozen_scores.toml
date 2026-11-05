@@ -40,7 +40,7 @@ kind = "wrapper"
 rationale = "Cell-AIPW retention with portable frozen scores: a compatible target-weight retarget reweights the frozen cell scores with zero refits."
 no_independent_algorithm = "recalc_cell.rs freezes the estimator's score table, validates weights and calls antecedent_estimate::retarget; the fits and the reweighted mean are the covered estimator and retarget routines. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
 covered_by = ["estimate.cell.aipw", "estimate.aipw"]
-record_sha256 = "8db1cace4c3705f610ee769c49d91f69bb198743a03f92721a3d40d1e516856e"
+record_sha256 = "a792e1170d2631ccc969a23a8d95dcea1aed243cf2c7f8162b0e178d9d9002b2"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

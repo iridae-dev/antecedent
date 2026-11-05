@@ -812,6 +812,36 @@ impl super::Study {
         provenance: Option<&super::TemporalRowProvenance>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        let result =
+            self.execute_graph_posterior_series_unrefuted(data, gp, physical, provenance, ctx)?;
+        let CausalQuery::Response(q) = &self.query else { return Ok(result) };
+        let Some(treatment) = super::curve_refutation::curve_treatment(q) else {
+            return Ok(result);
+        };
+        let placebo = super::curve_refutation::series_placebo(treatment, ctx);
+        let subset = super::curve_refutation::series_subset(ctx);
+        self.attach_curve_refutation(
+            result,
+            data,
+            q,
+            (&placebo, &subset),
+            &|study, perturbed, rctx| {
+                study.execute_graph_posterior_series_unrefuted(
+                    perturbed, gp, physical, provenance, rctx,
+                )
+            },
+            ctx,
+        )
+    }
+
+    fn execute_graph_posterior_series_unrefuted(
+        &self,
+        data: &TimeSeriesData,
+        gp: &GraphPosterior,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        provenance: Option<&super::TemporalRowProvenance>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         if is_class_atom(gp.atom_kind())
             && super::temporal_class_point::temporal_class_point_family(&self.query)
         {
@@ -1014,6 +1044,31 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        let result = self.execute_series_response_route_unrefuted(data, q, physical, ctx)?;
+        let Some(treatment) = super::curve_refutation::curve_treatment(q) else {
+            return Ok(result);
+        };
+        let placebo = super::curve_refutation::series_placebo(treatment, ctx);
+        let subset = super::curve_refutation::series_subset(ctx);
+        self.attach_curve_refutation(
+            result,
+            data,
+            q,
+            (&placebo, &subset),
+            &|study, perturbed, rctx| {
+                study.execute_series_response_route_unrefuted(perturbed, q, physical, rctx)
+            },
+            ctx,
+        )
+    }
+
+    fn execute_series_response_route_unrefuted(
+        &self,
+        data: &TimeSeriesData,
+        q: &ResponseQuery,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         if self.graph.class() == GraphClass::TemporalAdmg {
             return self.execute_temporal_admg_derivative(data, q, physical, ctx);
         }
@@ -1106,6 +1161,31 @@ impl super::Study {
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        let result = self.execute_panel_response_route_unrefuted(panel, q, physical, ctx)?;
+        let Some(treatment) = super::curve_refutation::curve_treatment(q) else {
+            return Ok(result);
+        };
+        let placebo = super::curve_refutation::panel_placebo(treatment, ctx);
+        let subset = super::curve_refutation::panel_subset(ctx);
+        self.attach_curve_refutation(
+            result,
+            panel,
+            q,
+            (&placebo, &subset),
+            &|study, perturbed, rctx| {
+                study.execute_panel_response_route_unrefuted(perturbed, q, physical, rctx)
+            },
+            ctx,
+        )
+    }
+
+    fn execute_panel_response_route_unrefuted(
+        &self,
+        panel: &antecedent_data::PanelData,
+        q: &ResponseQuery,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         if self.graph.class().is_incomplete_temporal() {
             return self.execute_panel_class_response(panel, q, physical, ctx);
         }
@@ -1167,6 +1247,35 @@ impl super::Study {
 
     /// Tabular graph-posterior dispatch shared by fresh and prepared execution.
     fn execute_graph_posterior_tabular(
+        &self,
+        data: &TabularData,
+        gp: &GraphPosterior,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let result = self.execute_graph_posterior_tabular_unrefuted(data, gp, physical, ctx)?;
+        let CausalQuery::Response(q) = &self.query else { return Ok(result) };
+        if gp.atom_kind() != antecedent_discovery::GraphPosteriorAtomKind::Dag {
+            return Ok(result);
+        }
+        let Some(treatment) = super::curve_refutation::curve_treatment(q) else {
+            return Ok(result);
+        };
+        let placebo = super::curve_refutation::tabular_placebo(treatment, ctx);
+        let subset = super::curve_refutation::tabular_subset(ctx);
+        self.attach_curve_refutation(
+            result,
+            data,
+            q,
+            (&placebo, &subset),
+            &|study, perturbed, rctx| {
+                study.execute_graph_posterior_tabular_unrefuted(perturbed, gp, physical, rctx)
+            },
+            ctx,
+        )
+    }
+
+    fn execute_graph_posterior_tabular_unrefuted(
         &self,
         data: &TabularData,
         gp: &GraphPosterior,

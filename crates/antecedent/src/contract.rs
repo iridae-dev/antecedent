@@ -16,8 +16,8 @@ pub use antecedent_contract::response_coordinates;
 /// Semantic contract for composing independently fitted causal mechanisms.
 pub use antecedent_contract::{
     AdmissionBasis, AdmissionCoordinate, DependenceDeclaration, LatentCauseDeclaration,
-    MechanismCompositionDeclaration, MechanismDeclaration, MechanismOriginKind, TransportAdmission,
-    check_declared_independence_against_ledger,
+    MechanismCompositionDeclaration, MechanismDeclaration, MechanismInterfaceBasis,
+    MechanismOriginKind, TransportAdmission, check_declared_independence_against_ledger,
 };
 /// Four typed reasoning slots: Identification, Support, Uncertainty, Assumptions.
 pub use antecedent_contract::{AssumptionSlot, ReasoningView, SlotAvailability, SupportSlot};
@@ -66,6 +66,7 @@ pub mod provider_transport {
 }
 /// Typed bridges between scientific quantities.
 pub mod bridge {
+    pub use antecedent_contract::bridge::BridgeInterfaceBasis;
     pub use antecedent_contract::bridge::{
         AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind,
         BridgeMapping, BridgeScope, BridgeSource, BridgedClaim, EstimandBridge, ExposureSetting,
@@ -84,7 +85,10 @@ pub mod evidence_ledger {
 }
 /// Semantic contract for measurement models.
 pub mod measurement {
-    pub use antecedent_contract::measurement::{LatentPosteriorTrust, MeasurementOperation};
+    pub use antecedent_contract::measurement::{
+        LatentPosteriorTrust, MeasurementInterfaceBasis, MeasurementOperation,
+        measurement_interface_contract,
+    };
 }
 /// Mixed-module policy for a release workflow.
 pub mod mixed_module {

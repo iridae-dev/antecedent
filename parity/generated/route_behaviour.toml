@@ -982,7 +982,7 @@ refusals = [
   { code = "distribution_meaning_mismatch", detail = "distribution_meaning.posterior_interval" },
 ]
 routes = [
-  { route = "antecedent.distribution.meaning_check", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.joint_distribution.DistributionIdentity", stage = "consume", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -1021,7 +1021,7 @@ refusals = [
   { code = "invalid_argument", detail = "external_scientific_providers.duplicate_declaration" },
 ]
 routes = [
-  { route = "antecedent.external.law_provider", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.provider_callbacks.CallbackDeclaration", stage = "prepare", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -1063,7 +1063,7 @@ refusals = [
   { code = "invalid_argument", detail = "external_response_binding.malformed_meaning" },
 ]
 routes = [
-  { route = "antecedent.external.bind_response", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.external.ExternalSpec.bind", stage = "consume", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -1074,7 +1074,7 @@ refusals = [
   { code = "external_binding_mismatch", detail = "provider_capability_negotiation.request_mismatch" },
 ]
 routes = [
-  { route = "antecedent.external.negotiate_capability", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.provider_callbacks.CallbackSession.execute", stage = "prepare", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -1087,7 +1087,7 @@ refusals = [
   { code = "external_verification_failed", detail = "external_object_verification.failed_probe" },
 ]
 routes = [
-  { route = "antecedent.external.verify_object", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.provider_callbacks.CallbackDeclaration.verify", stage = "evaluate", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -1097,7 +1097,7 @@ refusals = [
   { code = "external_verification_failed", detail = "external_trust_receipt.receipt_mismatch" },
 ]
 routes = [
-  { route = "antecedent.external.trust_receipt", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.extensibility.ProviderVerificationReceipt.load", stage = "consume", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -1115,7 +1115,7 @@ refusals = [
   { code = "route_not_supported", detail = "coordinate_support.temporal_path_not_described" },
 ]
 routes = [
-  { route = "antecedent.support.coordinate_grid", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.dose_grid.dose_support_table", stage = "evaluate", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -1130,7 +1130,7 @@ refusals = [
   { code = "external_binding_mismatch", detail = "composition_provenance.digest_mismatch" },
 ]
 routes = [
-  { route = "antecedent.provenance.composition_chain", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.design.ranking.DesignRankingResult.stages_behind", stage = "consume", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -1153,7 +1153,7 @@ refusals = [
   { code = "joint_law_required", detail = "aligned_joint_draws.marginals_not_joint" },
 ]
 routes = [
-  { route = "antecedent.composition.cross_language", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.joint_distribution.JointDistributionArtifact.load", stage = "consume", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -1225,7 +1225,7 @@ refusals = [
   { code = "decision_contract_unsatisfied", detail = "decision_structural.probabilities_required" },
 ]
 routes = [
-  { route = "antecedent.decision.structural_policy", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.decision_robust.finite_scenarios", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -2030,8 +2030,8 @@ refusals = [
   { code = "invalid_argument", detail = "composition_bundle.node_not_found" },
 ]
 routes = [
-  { route = "antecedent.bundle.standard_consumer", stage = "consume", status = "supported", claim = "point_only" },
-  { route = "antecedent.bundle.mean_decision_bytes", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition_bundle.consume_bundle", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition_bundle.mean_decision", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -2103,7 +2103,7 @@ refusals = [
   { code = "invalid_argument", detail = "composition_bundle.node_not_found" },
 ]
 routes = [
-  { route = "antecedent.acceptance.multi_source_decision", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.evaluate_with_support", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -2117,7 +2117,7 @@ refusals = [
   { code = "invalid_argument", detail = "scenario_invariance.refused" },
 ]
 routes = [
-  { route = "antecedent.invariance.scenario_invariance_report", stage = "evaluate", status = "supported", claim = "structural_envelope" },
+  { route = "antecedent.scenario_invariance.invariance_report", stage = "evaluate", status = "supported", claim = "structural_envelope" },
 ]
 
 [[record]]
@@ -2388,7 +2388,7 @@ refusals = [
   { code = "route_not_supported", detail = "frozen_scores.identity_mismatch" },
 ]
 routes = [
-  { route = "antecedent.recalc.frozen_scores_artifact", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.recalc_cell.CellSession.export_frozen_scores", stage = "consume", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -3553,7 +3553,7 @@ refusals = [
   { code = "invalid_argument", detail = "native_distribution.authority_required" },
 ]
 routes = [
-  { route = "antecedent.joint_distribution.JointDistributionArtifact.authority_boundary", stage = "representation", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.DecisionInput.from_distribution", stage = "representation", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -6814,7 +6814,7 @@ refusals = [
 ]
 routes = [
   { route = "antecedent_design.decision_reliability.derive_uncertainty.confidence_set", stage = "evaluate", status = "supported", claim = "none" },
-  { route = "antecedent.python.decision_reliability.DecisionReliability.derive_uncertainty", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.decision_reliability.DecisionReliability.derive_uncertainty", stage = "evaluate", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -6919,8 +6919,8 @@ refusals = [
 routes = [
   { route = "antecedent_design.transport_sensitivity.transport_assumption_range", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent_design.transport_sensitivity.TransportAssumptionRange.to_artifact", stage = "representation", status = "supported", claim = "none" },
-  { route = "antecedent.transport_sensitivity.transport_range", stage = "evaluate", status = "supported", claim = "none" },
-  { route = "antecedent.transport_sensitivity.transport_sensitivity_artifact", stage = "representation", status = "supported", claim = "none" },
+  { route = "antecedent.transport.sensitivity.transport_sensitivity", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.transport.sensitivity.TransportSensitivity.decision_source", stage = "representation", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -6967,7 +6967,7 @@ refusals = [
 ]
 routes = [
   { route = "antecedent_design.decision_transported_source.evaluate_transported_decision", stage = "evaluate", status = "supported", claim = "point_only" },
-  { route = "antecedent.decision_contract.BoundDecisionContract.evaluate_transported", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.decision.Contract.evaluate_transported", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent_design.decision_transported_source.TransportedResponse.from_transported_synthesis", stage = "prepare", status = "supported", claim = "point_only" },
   { route = "antecedent_design.decision_transported_source.interval", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", claim = "point_only" },
 ]
@@ -7036,7 +7036,7 @@ refusals = [
 ]
 routes = [
   { route = "antecedent_design.inverse_forward_source.transported_forward_source", stage = "prepare", status = "supported", claim = "point_only" },
-  { route = "antecedent.inverse_sources.transported_source", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.inverse_sources.transported_forward_source", stage = "prepare", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -7507,7 +7507,7 @@ refusals = [
   { code = "sampling_weights_invalid", detail = "sampling_weights.invalid" },
 ]
 routes = [
-  { route = "antecedent.result.PublishedScalarUncertainty.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.results.IntervalBindingView", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent_estimate.propensity.PropensityWeighting.population_linear_score_interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent_estimate.propensity.PropensityWeighting.population_score_interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent_estimate.AipwAte.population_linear_interval", stage = "uncertainty", status = "supported", claim = "interval" },
@@ -7633,4 +7633,22 @@ routes = [
   { route = "antecedent_io.measured_inference.mnar_candidate.measure_source", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent.python.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "estimate.randomized_quantile"
+status = "supported"
+refusals = [
+]
+routes = [
+  { route = "antecedent_estimate.randomized_quantile.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "estimate.response_gam_derivative"
+status = "supported"
+refusals = [
+]
+routes = [
+  { route = "antecedent_estimate.response_gam_derivative.pointwise_band", stage = "uncertainty", status = "supported", claim = "interval" },
 ]

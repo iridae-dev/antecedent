@@ -53,7 +53,7 @@ sha256 = "b2784ca05bb3d620a8beaa98d25e021bae828e42c85bdbda5f7776a981ccb05f"
 role = "assertion"
 path = "crates/antecedent-estimate/tests/sequential_contrast_reference.rs"
 items = ["const DRAWS", "fn contrast", "fn floats", "fn reference", "fn the_posterior_laws_of_both_regimes_and_the_shared_weight_contrast_match_the_exact_laws", "fn the_wald_interval_matches_the_exact_standard_error_and_normal_quantile"]
-sha256 = "b99a18fa6dc195f869984a9e9b366b1a022ca5484f718345ed3d7ea7d1f698a6"
+sha256 = "bd97c5f1b8b966d76a57169fdf39130790b0f91a982fe04f4266eea0d00f7b32"
 
 [[method_review.artifacts]]
 role = "reference"

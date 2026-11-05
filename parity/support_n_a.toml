@@ -28,20 +28,6 @@ graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
 reason = "TransportQuery and InterferenceQuery are typed against static graphs; they do not denote on a temporal graph class."
 
 [[n_a]]
-queries = ["ResponseCurve"]
-graph_classes = ["Admg", "TemporalAdmg", "TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
-structures = ["explicit", "accepted"]
-validations = ["cheap", "full"]
-reason = "cheap and full denote the ATE-shaped scalar refuter suite; a function-valued curve has no such state."
-
-[[n_a]]
-queries = ["ResponseCurve"]
-graph_classes = ["Dag", "TemporalDag", "TemporalCpdag", "TemporalPag"]
-structures = ["graph_posterior"]
-validations = ["cheap", "full"]
-reason = "cheap and full denote the ATE-shaped scalar refuter suite; a graph-posterior response remains function-valued or atom-mixed with no supported scalar-refuter state."
-
-[[n_a]]
 queries = [
   "AnomalyAttribution",
   "AverageDerivative",

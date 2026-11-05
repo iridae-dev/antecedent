@@ -1,0 +1,133 @@
+{
+  "fixture_id": "response.curve_refuter_route_states",
+  "dgp": "lag series: x=4u-2; y_t=1.2+1.8*x_{t-1}+.3*e (seed 20240701, 1200 rows). class series: z=sin(.37t); x=cos(.61t)+.3*e; y_t=1.4*x_{t-1}+.6*z_{t-1}+.3*e (seed 20240702, 600 rows). static table: z=sin(.37i); t=.5z+.8sin(.61i)+.3*e; y=1+2t+.3*e (seed 20240704, 800 rows). u uniform and e sum of 12 uniforms minus 6 from one 64-bit LCG stream per law. panel: eight units of the lag-series law with 200 steps each, drawn unit after unit from one stream (seed 20240707). class panel: six units of the class-series law with 200 steps each, drawn unit after unit from one stream (seed 20240708)",
+  "lag_series": {
+    "rows": 1200,
+    "seed": 20240701,
+    "grid": [
+      -1.0,
+      0.0,
+      1.0
+    ],
+    "off_support_at": 2.2
+  },
+  "class_series": {
+    "rows": 600,
+    "seed": 20240702,
+    "grid": [
+      0.0,
+      1.0
+    ]
+  },
+  "static_table": {
+    "rows": 800,
+    "seed": 20240704,
+    "grid": [
+      -0.5,
+      0.5
+    ]
+  },
+  "curve_absolute_tolerance": 0.15,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "linear laws in `dgp`: the interventional mean at level x is 1.2 + 1.8 x (lag series), 1.4 x + 0.6 mean(z_{t-1}) (class series) and 1 + 2 x (static table); the generator confirms by exact rational least squares on the regenerated rows that the fitted adjusted curve lies within a third of the declared band of each closed form",
+    "generator": "conformance/response/curve_refuter_route_states/reference.py",
+    "command": "uv run --frozen --script conformance/response/curve_refuter_route_states/reference.py --check",
+    "environment_lock": "conformance/response/curve_refuter_route_states/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "the class-panel curve (1.4 x + 0.6 mean(z) pooled over units)",
+      "the panel curve (the lag-series curve 1.2 + 1.8 x pooled over units)",
+      "the curve at each grid point within curve_absolute_tolerance for each law",
+      "the planted off-support grid point lies beyond the largest treatment value"
+    ],
+    "context_only_outputs": [
+      "fixture_id and dgp text (checked only as a guard on the model used)"
+    ],
+    "independence_basis": "The generator regenerates the stated rows from the integer noise recurrence and solves the exact rational normal equations of Y on 1, T, Z; it imports no Antecedent code and no statistics package. The shared object is the stated law and the noise recurrence.",
+    "historical_exposure": "Written for this fixture from the stated law and declared inputs; no product implementation source was consulted and no earlier pinned numbers are reused.",
+    "reference_review": {
+      "scope": "Exact interventional-mean curves of three linear structural laws (a lag-one series, a lag-one class series with a measured confounder, and a static confounded table), the finite-sample least-squares curves of the regenerated rows, and the position of one off-support grid point relative to the observed treatment range.",
+      "independence_basis": "The generator regenerates the stated rows from the integer noise recurrence and solves the exact rational normal equations of Y on 1, T, Z; it imports no Antecedent code and no statistics package. The shared object is the stated law and the noise recurrence.",
+      "historical_exposure": "Written for this fixture from the stated law and declared inputs; no product implementation source was consulted and no earlier pinned numbers are reused.",
+      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+      "limitations": "The laws are linear, so the curves are lines and the fixture cannot detect curvature errors. The tolerance is a declared estimation band. The refuter verdicts themselves are asserted against these truths and the planted off-support grid point, not derived by the reference; the refuters' power against planted breaks of the procedure is pinned on injected refits beside the implementation. No uncertainty or calibration.",
+      "sources": [],
+      "artifacts": [
+        {
+          "role": "generator",
+          "path": "conformance/response/curve_refuter_route_states/reference.py",
+          "sha256": "c6bb30f1674fd51cff51f3a2fc7ce5e02ca97b38ec264622e142789636f17978"
+        },
+        {
+          "role": "environment_lock",
+          "path": "conformance/response/curve_refuter_route_states/reference.py.lock",
+          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs",
+          "items": [
+            "fn assert_curve_reports",
+            "fn bayesian",
+            "fn chain_mask",
+            "fn class_panel",
+            "fn class_posterior",
+            "fn class_series",
+            "fn curve",
+            "fn dag_posterior",
+            "fn dbn_posterior",
+            "fn fixture",
+            "fn lag_bit",
+            "fn lag_graph",
+            "fn lag_panel",
+            "fn lag_series",
+            "fn number",
+            "fn numbers",
+            "fn published",
+            "fn report",
+            "fn response_curve_validation_adjustable_temporal_admg_known_truth",
+            "fn response_curve_validation_dag_posterior_known_truth",
+            "fn response_curve_validation_panel_class_known_truth",
+            "fn response_curve_validation_panel_known_truth",
+            "fn response_curve_validation_temporal_admg_known_truth",
+            "fn response_curve_validation_temporal_class_known_truth",
+            "fn response_curve_validation_temporal_dag_known_truth",
+            "fn response_curve_validation_temporal_posterior_known_truth",
+            "fn reverse_mask",
+            "fn spec",
+            "fn static_curve",
+            "fn static_table",
+            "fn temporal_admg_frontdoor",
+            "fn temporal_cpdag",
+            "fn temporal_pag",
+            "fn variables",
+            "impl Stream",
+            "struct Stream"
+          ],
+          "sha256": "48b5902aca4239e046e05121aaabfaf556e745e695ce4cbc4fda032adcb38609"
+        }
+      ],
+      "fixture_payload_sha256": "396984a203f68c599b6cc3c3056fcc582d06ac80ffb3a5813053f2e99081f4b3"
+    }
+  },
+  "panel": {
+    "units": 8,
+    "rows": 200,
+    "seed": 20240707,
+    "grid": [
+      -1.0,
+      0.0,
+      1.0
+    ]
+  },
+  "class_panel": {
+    "units": 6,
+    "rows": 200,
+    "seed": 20240708,
+    "grid": [
+      0.0,
+      1.0
+    ]
+  }
+}

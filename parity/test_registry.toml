@@ -5991,6 +5991,13 @@ path = "crates/antecedent/tests/learned_continuous_calibration.rs"
 gates = ["inventory"]
 
 [[test]]
+id = "learned-continuous-bootstrap-calibration"
+crate = "antecedent"
+cargo_target = "learned_continuous_bootstrap_calibration"
+path = "crates/antecedent/tests/learned_continuous_bootstrap_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "learned-continuous-lifecycle"
 crate = "antecedent"
 cargo_target = "suite_05"
@@ -6529,6 +6536,27 @@ path = "crates/antecedent/tests/randomized_interval_calibration.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "randomized-quantile-interval-calibration"
+crate = "antecedent"
+cargo_target = "randomized_quantile_interval_calibration"
+path = "crates/antecedent/tests/randomized_quantile_interval_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "typed-transported-mechanism-interval-calibration"
+crate = "antecedent"
+cargo_target = "typed_transported_mechanism_interval_calibration"
+path = "crates/antecedent/tests/typed_transported_mechanism_interval_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "mechanism-composition-interval-calibration"
+crate = "antecedent"
+cargo_target = "mechanism_composition_interval_calibration"
+path = "crates/antecedent/tests/mechanism_composition_interval_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "randomized-precision-intervals"
 crate = "antecedent"
 cargo_target = "suite_06"
@@ -7037,6 +7065,13 @@ id = "response-curve-validation-known-truth"
 crate = "antecedent"
 cargo_target = "response_curve_validation_known_truth"
 path = "crates/antecedent/tests/response_curve_validation_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "response-curve-validation-routes-known-truth"
+crate = "antecedent"
+cargo_target = "response_curve_validation_routes_known_truth"
+path = "crates/antecedent/tests/response_curve_validation_routes_known_truth.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -21022,6 +21057,27 @@ path = "crates/antecedent-estimate/tests/choice_interval_calibration.rs"
 gates = ["inventory"]
 
 [[test]]
+id = "matched-odds-ratio-interval-calibration"
+crate = "antecedent-estimate"
+cargo_target = "matched_odds_ratio_interval_calibration"
+path = "crates/antecedent-estimate/tests/matched_odds_ratio_interval_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "descriptive-comparison-interval-calibration"
+crate = "antecedent-estimate"
+cargo_target = "descriptive_comparison_interval_calibration"
+path = "crates/antecedent-estimate/tests/descriptive_comparison_interval_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "nonlinear-mediation-interval-calibration"
+crate = "antecedent-estimate"
+cargo_target = "nonlinear_mediation_interval_calibration"
+path = "crates/antecedent-estimate/tests/nonlinear_mediation_interval_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
 id = "audit-crates-antecedent-design-src-choice-evsi-rs"
 crate = "antecedent-design"
 cargo_target = "lib"
@@ -22276,6 +22332,13 @@ id = "antecedent-design-sequential-evaluation-interval-construction"
 crate = "antecedent-design"
 cargo_target = "sequential_evaluation_interval_construction"
 path = "crates/antecedent-design/tests/sequential_evaluation_interval_construction.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-sequential-off-policy-interval-calibration"
+crate = "antecedent-design"
+cargo_target = "sequential_off_policy_interval_calibration"
+path = "crates/antecedent-design/tests/sequential_off_policy_interval_calibration.rs"
 gates = ["inventory", "named"]
 
 [[test]]

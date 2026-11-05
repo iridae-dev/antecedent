@@ -46,7 +46,7 @@ sha256 = "45d04c089b8ed5a949066848d4913d3a059ab5ffb38379678e8995d35e5aaa9d"
 role = "implementation"
 path = "crates/antecedent-io-core/src/distribution_artifact.rs"
 items = ["const ARTIFACT_KIND", "const DRAW_SECTION", "const MAX_DISTRIBUTION_ARTIFACT_BYTES", "const MAX_DISTRIBUTION_COORDINATES", "const MAX_DISTRIBUTION_DRAWS", "const META_SECTION", "enum DistributionCalibration", "enum DistributionTrust", "enum DrawAlignment", "fn covariance", "fn default", "fn draws", "fn from_bytes", "fn from_bytes_within", "fn joint_expectation", "fn mean", "fn metadata", "fn n_draws", "fn new", "fn new_within", "fn quantities", "fn require_coordinate", "fn require_joint", "fn semantic", "fn to_bytes", "fn to_bytes_within", "fn validate", "fn validate_metadata", "fn validate_within", "fn weights", "struct DistributionArtifact", "struct DistributionIdentity", "struct DistributionIntakeLimits", "struct DistributionMetadata", "struct DistributionProvenance", "struct LegacyPosteriorBinding"]
-sha256 = "b8909be7043599313aba000f78f021efc9283ed3109ec55855ed985102862258"
+sha256 = "5fd62dd35d22955c7b613bc7d6367a7156a6270fcba6ec5a5f13100dde45026c"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

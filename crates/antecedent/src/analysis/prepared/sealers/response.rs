@@ -214,6 +214,8 @@ pub(super) fn static_response_curve(cx: &SealContext<'_>) -> SealOutcome {
     let sealed = match (cx.static_response_dag(), analysis.static_cache()) {
         (Some((query, _)), Some(cache))
             if query.temporal.is_none()
+                && analysis.settings.refute == RefuteSuite::None
+                && analysis.declared.custom_validators.is_empty()
                 && query.observation == antecedent_core::ObservationSpec::Complete
                 && query.target_population == TargetPopulation::AllObserved
                 && matches!(

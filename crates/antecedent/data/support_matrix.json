@@ -53,51 +53,6 @@
     },
     {
       "queries": [
-        "ResponseCurve"
-      ],
-      "graph_classes": [
-        "Dag",
-        "Admg",
-        "TemporalAdmg",
-        "TemporalDag",
-        "Cpdag",
-        "Pag",
-        "TemporalCpdag",
-        "TemporalPag"
-      ],
-      "structures": [
-        "explicit",
-        "accepted"
-      ],
-      "inferences": null,
-      "validations": [
-        "cheap",
-        "full"
-      ],
-      "reason": "cheap and full denote the ATE-shaped scalar refuter suite; a function-valued curve has no such state."
-    },
-    {
-      "queries": [
-        "ResponseCurve"
-      ],
-      "graph_classes": [
-        "Dag",
-        "TemporalDag",
-        "TemporalCpdag",
-        "TemporalPag"
-      ],
-      "structures": [
-        "graph_posterior"
-      ],
-      "inferences": null,
-      "validations": [
-        "cheap",
-        "full"
-      ],
-      "reason": "cheap and full denote the ATE-shaped scalar refuter suite; a graph-posterior response remains function-valued or atom-mixed with no supported scalar-refuter state."
-    },
-    {
-      "queries": [
         "AnomalyAttribution",
         "AverageDerivative",
         "ChangeAttribution",
@@ -1320,7 +1275,8 @@
         "causal.forest",
         "propensity.stratification",
         "distance.matching",
-        "frontdoor.functional"
+        "frontdoor.functional",
+        "randomized.quantile"
       ]
     },
     {
@@ -1398,7 +1354,8 @@
         "causal.forest",
         "propensity.stratification",
         "distance.matching",
-        "frontdoor.functional"
+        "frontdoor.functional",
+        "randomized.quantile"
       ]
     },
     {
@@ -30653,6 +30610,894 @@
       "query": "MediationEffect",
       "graph_class": "Pag",
       "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Dag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Dag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Dag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Dag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Dag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Dag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Dag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Dag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Admg",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect",
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Admg",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect",
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Admg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Admg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Admg",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect",
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Admg",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect",
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Admg",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Admg",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Cpdag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Cpdag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Cpdag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Cpdag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Cpdag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Cpdag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Cpdag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Cpdag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Pag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Pag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Pag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Pag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Pag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Pag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Pag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Pag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalDag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalDag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalDag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalDag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalDag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalDag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalDag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalDag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalCpdag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalCpdag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalCpdag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalCpdag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalCpdag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalCpdag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalCpdag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalCpdag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalPag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalPag",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalPag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalPag",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalPag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalPag",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalPag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalPag",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Dag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Dag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "response.kennedy_dr",
+      "estimators": [
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Dag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "Dag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.bayesian",
+      "estimators": [
+        "response.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalDag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalDag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalDag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalDag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalCpdag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalCpdag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalCpdag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalCpdag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalPag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalPag",
+      "structure": "graph_posterior",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "temporal.response.gcomp",
+      "estimators": [
+        "temporal.response.gcomp"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalPag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalPag",
+      "structure": "graph_posterior",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "response.temporal.bayesian",
+      "estimators": [
+        "response.temporal.bayesian"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalAdmg",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect",
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalAdmg",
+      "structure": "explicit",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect",
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalAdmg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalAdmg",
+      "structure": "explicit",
+      "inference": "Bayesian",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalAdmg",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect",
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalAdmg",
+      "structure": "accepted",
+      "inference": "Frequentist",
+      "validation": "full",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect",
+        "response.kennedy_dr"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalAdmg",
+      "structure": "accepted",
+      "inference": "Bayesian",
+      "validation": "cheap",
+      "route_estimator": "functional.effect",
+      "estimators": [
+        "functional.effect"
+      ]
+    },
+    {
+      "query": "ResponseCurve",
+      "graph_class": "TemporalAdmg",
+      "structure": "accepted",
       "inference": "Bayesian",
       "validation": "full",
       "route_estimator": "functional.effect",

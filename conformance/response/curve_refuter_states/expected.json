@@ -10,7 +10,7 @@
     0.0,
     0.8
   ],
-  "off_support_at": 6.0,
+  "off_support_at": 2.55,
   "curve_absolute_tolerance": 0.15,
   "oracle": {
     "kind": "closed_form",
@@ -51,21 +51,33 @@
           "path": "crates/antecedent/tests/response_curve_validation_known_truth.rs",
           "items": [
             "const ROWS",
+            "fn admg_fixture",
+            "fn balanced_table",
+            "fn bayesian",
+            "fn class_case",
             "fn curve",
             "fn dag",
             "fn fixture",
             "fn grid",
             "fn number",
+            "fn oriented_pag",
+            "fn published",
             "fn report",
+            "fn reports",
+            "fn response_curve_validation_adjustable_admg_known_truth",
+            "fn response_curve_validation_admg_known_truth",
+            "fn response_curve_validation_bayesian_dag_known_truth",
+            "fn response_curve_validation_class_known_truth",
             "fn response_curve_validation_detects_a_grid_beyond_the_observed_treatment_range",
             "fn response_curve_validation_known_truth",
             "fn study",
-            "fn table"
+            "fn table",
+            "fn two_completion_cpdag"
           ],
-          "sha256": "6e36d54a9280ecd7b6d360b48c247b6b8584f97ae07f22d80baf08f5f7ad49b9"
+          "sha256": "8a66e2df477283a78a97b9d2301835ff1d58d3e59405ae863a16ccf6f0b5581d"
         }
       ],
-      "fixture_payload_sha256": "cc3d6d85ad940d0a8a0f6a361e3a7d55ccad4ca095777efd07ab472be2d0afaf"
+      "fixture_payload_sha256": "ad5e143c1ae19d0b398be847b29f439abdeef4123c43fc4a311bdfceaea489c7"
     }
   }
 }

@@ -54,7 +54,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from antecedent import _reason_details
 
@@ -565,12 +565,17 @@ class ConsumedTransportedDecision(ScientificResult):
     """
 
     decision: Any
-    response: TransportedResponse
     receipt: TransportReceipt
     assumptions: tuple[str, ...]
     inference: str
     native_target_data: bool
     decision_identity: str
+    _handle: Any = field(repr=False, compare=False, default=None)
+
+    @property
+    def response(self) -> TransportedResponse:
+        """The transported point rebuilt from the artifact."""
+        return cast(TransportedResponse, self._handle)
 
     @property
     def verdict(self) -> Any:
@@ -617,10 +622,10 @@ def consume_transported_decision(
     wire = json.loads(payload)
     return ConsumedTransportedDecision(
         decision=_supported_from_wire(wire["decision"]),
-        response=TransportedResponse._of(handle),
         receipt=TransportReceipt._from_wire(wire["receipt"]),
         assumptions=tuple(wire["assumptions"]),
         inference=str(wire["inference"]),
         native_target_data=False,
         decision_identity=str(wire["decision_identity"]),
+        _handle=TransportedResponse._of(handle),
     )

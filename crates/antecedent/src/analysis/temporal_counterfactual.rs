@@ -30,10 +30,11 @@ pub use antecedent_counterfactual::transported_gate::{
 use antecedent_io::temporal_counterfactual_artifact as temporal_counterfactual_wire;
 pub use temporal_counterfactual_wire::{
     ActionHistoryWire, FactualUnitWire, FitWire, MechanismWire, ReceiptWire, RefusalWire,
-    TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION, TemporalCounterfactualArtifact,
-    TemporalCounterfactualArtifactError, TemporalCounterfactualIdentity,
-    TemporalCounterfactualReportWire, TemporalCounterfactualRequestWire, TemporalGraphWire,
-    UnitOutcomeWire, WitnessWire,
+    SelectiveTemporalReport, TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION,
+    TemporalCounterfactualArtifact, TemporalCounterfactualArtifactError,
+    TemporalCounterfactualIdentity, TemporalCounterfactualReportWire,
+    TemporalCounterfactualRequestWire, TemporalGraphWire, UnitOutcomeWire, WitnessWire,
+    execute_selective,
 };
 
 pub use antecedent_counterfactual::temporal_cross_world::general::{

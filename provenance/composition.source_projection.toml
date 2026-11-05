@@ -28,13 +28,13 @@ kind = "wrapper"
 rationale = "Source-backed projections of a portable workflow: replay of an original artifact consumer, binding exact coordinates and an affine decision expression."
 no_independent_algorithm = "Replays an original consumer and an affine expression over supplied numbers; the module has no square root, logarithm, exponential, power or solve."
 covered_by = ["composition.source_evidence", "decision.contract"]
-record_sha256 = "d6eeb60b6ef6164d04c667756e36a8e08c976ed04b315e1a9d1cfaf17c2e8536"
+record_sha256 = "67918c28b3efc71c6ad7aa618c654ca1bec710a50cba84fd7c98f2e4fea0eade"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/source_projection_artifact.rs"
 items = ["const MAGIC", "const MAX_SOURCE_PROJECTION_BYTES", "enum ProjectionSource", "enum SourceProjection", "fn affine_functional_output", "fn affine_output", "fn consume", "fn export", "fn external_source", "fn identity", "fn inspect", "fn invalid_projection", "fn native_source", "fn original_bytes", "fn original_refusal", "fn produce", "fn projection", "fn recomputed_identity", "fn reconstruct", "fn report", "struct OriginalSource", "struct ProjectionReport", "struct SourceProjectionArtifact"]
-sha256 = "17f948aa93f2cea1167cf0051cb69f3e8a5739b0628b933dce966adfc651faf3"
+sha256 = "b889f2bff4ef92c43458b09a659cf899314749955681f79b70e1d408a07a82cb"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

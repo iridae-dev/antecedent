@@ -16183,3 +16183,483 @@ coordinate = "MediationEffect:Pag:graph_posterior:Bayesian:full"
 identifier = "path_specific.natural"
 estimator = "functional.effect"
 lowering = "GraphPosteriorCrossWorld"
+
+[[route]]
+coordinate = "ResponseCurve:Dag:explicit:Frequentist:cheap"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "StaticResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:Dag:explicit:Frequentist:full"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "StaticResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:Dag:explicit:Bayesian:cheap"
+identifier = "response.backdoor"
+estimator = "response.bayesian"
+lowering = "StaticResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:Dag:explicit:Bayesian:full"
+identifier = "response.backdoor"
+estimator = "response.bayesian"
+lowering = "StaticResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:Dag:accepted:Frequentist:cheap"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "StaticResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:Dag:accepted:Frequentist:full"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "StaticResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:Dag:accepted:Bayesian:cheap"
+identifier = "response.backdoor"
+estimator = "response.bayesian"
+lowering = "StaticResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:Dag:accepted:Bayesian:full"
+identifier = "response.backdoor"
+estimator = "response.bayesian"
+lowering = "StaticResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:explicit:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:explicit:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:explicit:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:explicit:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:accepted:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:accepted:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:accepted:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:accepted:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:Cpdag:explicit:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.kennedy_dr"
+lowering = "StaticResponseCpdag"
+
+[[route]]
+coordinate = "ResponseCurve:Cpdag:explicit:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "response.kennedy_dr"
+lowering = "StaticResponseCpdag"
+
+[[route]]
+coordinate = "ResponseCurve:Cpdag:explicit:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+lowering = "StaticResponseCpdag"
+
+[[route]]
+coordinate = "ResponseCurve:Cpdag:explicit:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+lowering = "StaticResponseCpdag"
+
+[[route]]
+coordinate = "ResponseCurve:Cpdag:accepted:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.kennedy_dr"
+lowering = "StaticResponseCpdag"
+
+[[route]]
+coordinate = "ResponseCurve:Cpdag:accepted:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "response.kennedy_dr"
+lowering = "StaticResponseCpdag"
+
+[[route]]
+coordinate = "ResponseCurve:Cpdag:accepted:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+lowering = "StaticResponseCpdag"
+
+[[route]]
+coordinate = "ResponseCurve:Cpdag:accepted:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+lowering = "StaticResponseCpdag"
+
+[[route]]
+coordinate = "ResponseCurve:Pag:explicit:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.kennedy_dr"
+lowering = "StaticResponsePag"
+
+[[route]]
+coordinate = "ResponseCurve:Pag:explicit:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "response.kennedy_dr"
+lowering = "StaticResponsePag"
+
+[[route]]
+coordinate = "ResponseCurve:Pag:explicit:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+lowering = "StaticResponsePag"
+
+[[route]]
+coordinate = "ResponseCurve:Pag:explicit:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+lowering = "StaticResponsePag"
+
+[[route]]
+coordinate = "ResponseCurve:Pag:accepted:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.kennedy_dr"
+lowering = "StaticResponsePag"
+
+[[route]]
+coordinate = "ResponseCurve:Pag:accepted:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "response.kennedy_dr"
+lowering = "StaticResponsePag"
+
+[[route]]
+coordinate = "ResponseCurve:Pag:accepted:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+lowering = "StaticResponsePag"
+
+[[route]]
+coordinate = "ResponseCurve:Pag:accepted:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+lowering = "StaticResponsePag"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:explicit:Frequentist:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:explicit:Frequentist:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:explicit:Bayesian:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:explicit:Bayesian:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:accepted:Frequentist:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:accepted:Frequentist:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:accepted:Bayesian:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:accepted:Bayesian:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseDag"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:explicit:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:explicit:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:explicit:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:explicit:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:accepted:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:accepted:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:accepted:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:accepted:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:explicit:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:explicit:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:explicit:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:explicit:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:accepted:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:accepted:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:accepted:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:accepted:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+lowering = "TemporalResponseClass"
+
+[[route]]
+coordinate = "ResponseCurve:Dag:graph_posterior:Frequentist:cheap"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "ResponseCurve:Dag:graph_posterior:Frequentist:full"
+identifier = "response.backdoor"
+estimator = "response.kennedy_dr"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "ResponseCurve:Dag:graph_posterior:Bayesian:cheap"
+identifier = "response.backdoor"
+estimator = "response.bayesian"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "ResponseCurve:Dag:graph_posterior:Bayesian:full"
+identifier = "response.backdoor"
+estimator = "response.bayesian"
+lowering = "GraphPosteriorStaticResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:graph_posterior:Frequentist:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+lowering = "GraphPosteriorTemporalResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:graph_posterior:Frequentist:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+lowering = "GraphPosteriorTemporalResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:graph_posterior:Bayesian:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+lowering = "GraphPosteriorTemporalResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:graph_posterior:Bayesian:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+lowering = "GraphPosteriorTemporalResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:graph_posterior:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+lowering = "GraphPosteriorTemporalResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:graph_posterior:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+lowering = "GraphPosteriorTemporalResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:graph_posterior:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+lowering = "GraphPosteriorTemporalResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:graph_posterior:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+lowering = "GraphPosteriorTemporalResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:graph_posterior:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+lowering = "GraphPosteriorTemporalResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:graph_posterior:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+lowering = "GraphPosteriorTemporalResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:graph_posterior:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+lowering = "GraphPosteriorTemporalResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:graph_posterior:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+lowering = "GraphPosteriorTemporalResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:explicit:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:explicit:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:explicit:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:explicit:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:accepted:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:accepted:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:accepted:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalAdmg:accepted:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+lowering = "MixedAdmgResponse"

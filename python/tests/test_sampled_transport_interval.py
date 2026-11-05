@@ -76,3 +76,29 @@ def test_a_smoothed_table_is_reported_with_its_rule_in_the_scope_never_refused_o
     assert scalar.interval[1] == pytest.approx(
         min(1.0, smoothed.probability + Z_975 * se), abs=1e-12
     )
+
+
+def test_a_measured_inference_round_trips_through_its_bytes_against_the_retained_identity():
+    # No calibration record is needed: the status only annotates, so this runs in the
+    # engineering lane. The fresh consumer replays the sealed counts; the point and the interval
+    # it reads must equal the producer's, and an identity retained for another inference refuses.
+    import dataclasses
+
+    from antecedent._measured_inference import MeasuredInference
+
+    derivation, tables = _joint_tables(seed=21, n=10_000)
+    estimate = _estimate(derivation, tables)
+    measured = estimate.measure_interval()
+    scalar = measured.scalar("target_probability")
+
+    loaded = MeasuredInference.load(bytes(measured.export()), expected=measured.expected_identity)
+    again = loaded.scalar("target_probability")
+    assert again.point == scalar.point == pytest.approx(estimate.probability, abs=1e-15)
+    assert again.interval == scalar.interval
+    assert again.level == scalar.level == 0.95
+    assert again.calibration == scalar.calibration
+    assert loaded.route == measured.route == "sampled_counterfactual_transport"
+
+    other = dataclasses.replace(measured.expected_identity, data_digest="ab" * 32)
+    with pytest.raises(Exception, match="(?i)identity|not_supported|mismatch"):
+        MeasuredInference.load(bytes(measured.export()), expected=other)

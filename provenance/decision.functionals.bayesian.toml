@@ -37,4 +37,4 @@ sha256 = "9206ff4bf652c875d9facff5fbbb756af44c2debc2697bd68004be5927f4fffb"
 role = "assertion"
 path = "crates/antecedent/tests/posterior_mean_decision.rs"
 items = ["fn contract", "fn decision_posterior_consumer_replays_the_dirichlet_weights", "fn decision_posterior_mean_keeps_the_finite_law_expectation", "fn decision_posterior_refuses_a_mapped_prior", "fn expectation", "fn finite_action_inverse_posterior_consumer_replays_the_selected_action", "fn finite_action_inverse_posterior_refuses_an_not_measured_band", "fn finite_action_inverse_posterior_uses_the_dirichlet_mean", "fn functional_inverse_posterior_consumer_replays_the_mean_law", "fn functional_inverse_posterior_refuses_an_external_power_prior", "fn functional_inverse_posterior_uses_the_dirichlet_mean", "fn inverse_on", "fn law", "fn quantity", "fn refusal"]
-sha256 = "cbc820fb68fec366e7a9af839791638c06830ccbf38112b1f88d7b16efbffd30"
+sha256 = "ba3ff2d407628e8a7e7d2634da4f6af840a2f74b218aa7bc0851a66bd59cf2e3"

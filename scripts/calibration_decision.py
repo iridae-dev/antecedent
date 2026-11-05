@@ -19,8 +19,13 @@ LEGACY_DOMAIN = "release_2_4_1_validation_v1"
 HC3_DOMAIN = "release_2_4_1_weighted_hc3_validation_v1"
 PAG_DOMAIN = "release_2_4_1_pag_trial_shift_validation_v1"
 PAG_CONFIDENCE_SET_DOMAIN = "release_2_4_1_pag_confidence_set_validation_v1"
-DOMAIN = "release_2_4_1_pag_confidence_set_validation_v1"
-DOMAINS = frozenset({LEGACY_DOMAIN, HC3_DOMAIN, PAG_DOMAIN, PAG_CONFIDENCE_SET_DOMAIN})
+# The domain of an ordinary measurement of every current-protocol group. The domains above are
+# the spent, allocation-bound domains of earlier follow-ups and keep their meaning.
+DOMAIN = "coverage_measurement"  # a literal: historical sources are read by parsing it
+MEASUREMENT_DOMAIN = DOMAIN
+DOMAINS = frozenset(
+    {LEGACY_DOMAIN, HC3_DOMAIN, PAG_DOMAIN, PAG_CONFIDENCE_SET_DOMAIN, MEASUREMENT_DOMAIN}
+)
 ALPHA = 0.05
 GRID_POINTS = 3
 CELL_CAP = 256

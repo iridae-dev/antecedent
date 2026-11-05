@@ -27,4 +27,4 @@ sha256 = "5546b4b6a02906cd3401ee0f959f21dd5b873236719b8550c1a6e1e615e48304"
 role = "assertion"
 path = "crates/antecedent/tests/effect_constancy_consumers.rs"
 items = ["fn actual_affine_policy_engine_retains_ties_and_empty_generalization_intersection", "fn actual_bank_filtering_and_effect_ranking_remain_data_dependent_advice", "fn consumer", "fn contract", "fn effect", "fn estimand", "fn oracle", "fn original", "fn original_covariance_aware_contrast_replays_and_does_not_support_transport"]
-sha256 = "3a3cb8a72fa3d3e5a9739e37ba4bb920b055146957e10f4e758d807e923ac498"
+sha256 = "57997eb3df4d77c3d9922e9e5216c42a8e6c57a1e3cf34c4ed9af6c0afff6dbc"

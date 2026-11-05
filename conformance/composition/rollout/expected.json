@@ -53,10 +53,10 @@
             "fn rollout_truncation_corruption_and_nonfinite_prior_refuse",
             "fn source"
           ],
-          "sha256": "f602c41eba8871a8c8487ed21f4be1915a5d8604242d6dc041efcf2087a91d16"
+          "sha256": "f94cd977591dcba77dac587095a5e24ef2b3ef82824bbfa1dc6ea416b9de0ebd"
         }
       ],
-      "fixture_payload_sha256": "293f527285c6906088201a666b1258d5b2ecac400097687227d34795ac9caa14"
+      "fixture_payload_sha256": "9148e269e3d842f8690942ba5017298cc21b3263e34cf89111cbb8dcc4ffdd0c"
     }
   },
   "state_draws": [

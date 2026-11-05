@@ -23,13 +23,13 @@ redistribution = "Primary works are cited, not redistributed. The reference scri
 limitations = "Noise-free quadratic data on an uneven 40-row design at bandwidths 0.8, 2.5 and 40 and dose offsets 0 and 1e4, two grid doses: level and contrast agree with the truth to 1e-8 and the derivative to 1e-7; four noisy cases agree with the 40-digit unpenalised fit to a relative 1e-9. The reproduction property itself is an algebraic fact about weighted least squares and is checked, not derived, here. Not exercised: designs where the kernel weight sum is near three, a mean that is only approximately quadratic (the unrestricted bias-aware route covers that), and any coverage. The record cites no publication."
 sources = ["https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["No numerical defect was found: the level, derivative and contrast reproduce an exact quadratic for every bandwidth and offset tested, and noisy fits equal the multiprecision weighted fit.", "The quadratic-mean entry changes only the smoothing_bias_included label: the level and the standard error are bitwise equal to the unrestricted row."]
-record_sha256 = "fed4d86875b7e1088eb86ec713ee0323c6606d0c3723eaef9e3d53612e17e78d"
+record_sha256 = "f886b1e0ad18932b53328d428f23a5147a9a0626bc106d8e70fb5378af1486b1"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dose_grid_functional.rs"
 items = ["const MINIMUM_ESS_FLOOR", "const Z_95", "enum DoseDesign", "enum DoseFunctional", "enum IntervalCalibration", "enum RowDependence", "fn build_report", "fn contrast_row", "fn count_clusters", "fn declaration_refusal", "fn declared_rows", "fn estimate_dose_grid_functional", "fn estimate_dose_grid_functional_declared", "fn estimate_dose_grid_functional_with_context", "fn estimate_dose_grid_quadratic_mean", "fn estimate_dose_grid_quadratic_mean_declared", "fn estimate_dose_grid_quadratic_mean_with_context", "fn evaluate_prepared", "fn evaluation_points", "fn fit_at", "fn grid_rows", "fn interval", "fn interval_quantile", "fn is_plain", "fn kernel_ess", "fn label_points", "fn observed_range", "fn prepare_rows", "fn refuse", "fn refuse_unsupported", "fn score_standard_error", "fn validate_claims", "fn validate_inputs", "struct ClaimSet", "struct DeclaredRows", "struct DoseContrast", "struct DoseDerivative", "struct DoseGridRequest", "struct DoseGridRow", "struct DoseLevel", "struct NumericalReport", "struct PointwiseInterval", "struct PreparedRows", "struct RowDeclaration", "struct SimultaneousBand"]
-sha256 = "0f5337e72e36e5b844c69bba35b22db36114e91d0569275b9dc1ff6cb4d0f799"
+sha256 = "f862e45b2f96469e3d580b38bbf24fe3718994b951796f8b3d5987ef78fdf93c"
 
 [[method_review.artifacts]]
 role = "assertion"

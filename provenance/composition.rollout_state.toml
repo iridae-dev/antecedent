@@ -27,4 +27,4 @@ sha256 = "f46e5b95b88af892c736feffc50d1e1f906a55f1d728a435b3b12e70bc4c4d03"
 role = "assertion"
 path = "crates/antecedent/tests/rollout_artifact.rs"
 items = ["fn assert_refused", "fn bundle", "fn fixture", "fn pin", "fn quantity", "fn rollout_bundle_verifies_source_rollout_ranking_chain_and_refuses_swapped_metadata", "fn rollout_changed_source_values_and_draw_order_cannot_retain_original_prior", "fn rollout_finite_source_and_ranking_replay_match_independent_bet_truth", "fn rollout_meaning_support_weighting_and_marginal_pairing_refuse", "fn rollout_resealed_prior_terminal_coordinate_and_standing_mutations_refuse", "fn rollout_truncation_corruption_and_nonfinite_prior_refuse", "fn source"]
-sha256 = "f602c41eba8871a8c8487ed21f4be1915a5d8604242d6dc041efcf2087a91d16"
+sha256 = "f94cd977591dcba77dac587095a5e24ef2b3ef82824bbfa1dc6ea416b9de0ebd"

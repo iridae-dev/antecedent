@@ -69,6 +69,10 @@ name = "sequential_evaluation_interval_construction"
 path = "tests/sequential_evaluation_interval_construction.rs"
 
 [[test]]
+name = "sequential_off_policy_interval_calibration"
+path = "tests/sequential_off_policy_interval_calibration.rs"
+
+[[test]]
 name = "suite_01"
 path = "tests/suite_01.rs"
 

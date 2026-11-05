@@ -30,7 +30,7 @@ record_sha256 = "84414a6662f73028fb94a7adbd331c6212e0e6bb520a92ec66db85a14f2c9a4
 role = "implementation"
 path = "crates/antecedent-validate/src/predictive_assessment/calibration.rs"
 items = ["const DIAGNOSTIC_CALIBRATION", "const DIAGNOSTIC_LABEL", "const MAX_BINS", "const PSI_PSEUDOCOUNT", "fn bin_of", "fn distribution_drift", "struct DistributionDrift"]
-sha256 = "cee6b2493353d1d67dd72e35cec63f852de60fb2dbab59bb0f7e638467543ead"
+sha256 = "df7a2929e66079929c4d1ca922b94c2e39f11f71e9bfb3f0191ce96af35e9500"
 
 [[method_review.artifacts]]
 role = "assertion"

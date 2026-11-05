@@ -28,6 +28,11 @@ pub const PAG_CONFIDENCE_SET_VALIDATION_DOMAIN: &str =
 /// SHA256 of the confidence-set validation domain, first eight bytes little-endian.
 pub const PAG_CONFIDENCE_SET_VALIDATION_SALT: u64 = 0x6921_1267_88F4_5DC5;
 
+/// The domain of an ordinary coverage measurement of every current-protocol group.
+pub const COVERAGE_MEASUREMENT_DOMAIN: &str = "coverage_measurement";
+/// SHA256 of the coverage-measurement domain, first eight bytes interpreted little-endian.
+pub const COVERAGE_MEASUREMENT_SALT: u64 = 0x65CE_4784_8881_E65B;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Look {
@@ -71,6 +76,7 @@ impl Config {
             HC3_VALIDATION_DOMAIN => Some(HC3_VALIDATION_SALT),
             PAG_VALIDATION_DOMAIN => Some(PAG_VALIDATION_SALT),
             PAG_CONFIDENCE_SET_VALIDATION_DOMAIN => Some(PAG_CONFIDENCE_SET_VALIDATION_SALT),
+            COVERAGE_MEASUREMENT_DOMAIN => Some(COVERAGE_MEASUREMENT_SALT),
             _ => None,
         }
     }

@@ -42,13 +42,13 @@ redistribution = "Primary works are cited, not redistributed. The reference scri
 limitations = "One heteroskedastic design of 48 rows with an intercept, two adjustment columns (one continuous, one binary) and three treatments (one correlated with an adjustment column), five covariance kinds, three contrasts and two Wald tests; coefficients, covariances, contrast standard errors and Wald statistics agree to a relative 1e-9 and the normal and chi-square tail probabilities to 1e-7. Not exercised: designs near the rank tolerance, a leverage near one for HC2 and HC3 (only its refusal exists, not its boundary value), more than three treatments, clustered or serially dependent rows, offsets of 1e8 in a column. No coverage or Type I error of any interval or test is measured; the fit's calibration stays Not measured. The cited publications were not retrieved."
 sources = ["https://doi.org/10.2307/1912934", "https://doi.org/10.1016/0304-4076(85)90158-7", "https://doi.org/10.2307/1990256", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["No numerical defect was found: the coefficient vector, the five covariances, the contrast variances w'Vw, the naive standard errors, the Holm adjustment, the joint Wald statistic of the identity restriction and the Wald statistic of two declared contrasts agree with the multiprecision reference.", "The HC1 scale n/(n-p) uses the full design width p including the intercept and the adjustment columns, and the HC2 and HC3 leverages are those of the full design; both agree with the reference."]
-record_sha256 = "ab4814939f303fe5e25cd49173861c3a067c25046b5e14f695c19b37c2f19eef"
+record_sha256 = "3b753cb4ab2d9c2213786edba6ff8c9ff6345d2fc3159e811b3454185526bd38"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/vector_treatment.rs"
 items = ["const LEVERAGE_TOLERANCE", "const RANK_TOLERANCE", "const VECTOR_TREATMENT_INTERCEPT", "const VECTOR_TREATMENT_NULL", "enum VectorCovariance", "fn apply_weights", "fn as_str", "fn assemble", "fn build_design", "fn check_design", "fn check_row_structure", "fn degenerate", "fn dependent_meat", "fn evaluate_contrasts", "fn first_dependent_column", "fn fit_joint", "fn fit_joint_retained", "fn fit_joint_retained_declared", "fn fit_ols", "fn fit_vector_treatment", "fn full_covariance", "fn joint_gram_addressable", "fn matmul", "fn new", "fn quadratic_form", "fn robust_meat", "fn row_of", "fn sandwich", "fn scores_of", "fn validate_input", "fn validate_shared", "fn wald_rows", "fn wald_test", "fn weight_vector", "struct CoefficientEstimate", "struct Contrast", "struct ContrastEstimate", "struct Design", "struct JointWald", "struct NamedColumn", "struct Ols", "struct RowStructure", "struct Solved", "struct TreatmentColumn", "struct VectorTreatmentFit", "struct VectorTreatmentInput", "struct VectorTreatmentOptions"]
-sha256 = "b636dc13c62c327cff05e1c77ab6c9baa734da0f5d9c06787a81a43e4bd619d2"
+sha256 = "190342ad0279e3680d7368b53e4fa766eb9915daca5cadc959dcea643d0eac7a"
 
 [[method_review.artifacts]]
 role = "assertion"

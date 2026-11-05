@@ -42,7 +42,7 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "The stage model and planner that decide per stage whether an artifact is reused, recomputed or refused from BLAKE3 stage identities, plus one instrumented route (cross-fitted AIPW) that proves reuse by counts."
 no_independent_algorithm = "recalc.rs and recalc/standing.rs compare identity sets and statuses (no floating-point computation); the route in recalc_receipt.rs calls the AIPW estimator and the retarget and keeps the integer fit counts. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
-record_sha256 = "0068820c63b340e72db1c8bbf0b793854b5fa38f3fddebe8c6263774ffd2754b"
+record_sha256 = "3c24fbd17d87c61914ab155dd827de35b64b8c04418b08d0e1ac41f050b53640"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -54,7 +54,7 @@ sha256 = "29ce33a83596fd0eb05824fdcfb8c4c333809914fa1702c3e04281e6f92303cb"
 role = "implementation"
 path = "crates/antecedent-core/src/recalc/standing.rs"
 items = ["const LABEL", "const STANDING_INPUT_VERSION", "enum CalibrationInput", "enum CouplingInput", "enum ProviderStandingInput", "fn identity", "fn new", "fn tag_word", "struct RepresentationInput"]
-sha256 = "06914d4ca44dde0d26a8671aa87146342ab9aee66a8a4311342369f3829b92ca"
+sha256 = "f9422fb0c7c136e15a900a0bb0cb5b117b3d4e944c7f027235a68740f732335f"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -66,7 +66,7 @@ sha256 = "af1913b7104c133b3e637cb177cc2cb274e106b9d9b2a60d362e39ad8f0bb204"
 role = "assertion"
 path = "crates/antecedent-core/tests/recalc_plan.rs"
 items = ["fn a_calibration_record_that_is_gone_withdraws_what_rested_on_it", "fn a_changed_calibration_record_recomputes_law_and_decision_only", "fn a_coupling_change_recomputes_law_and_decision", "fn a_provider_standing_change_reaches_only_that_provider_and_the_decision", "fn a_representation_version_change_flows_through_scores_law_and_decision", "fn assert_identity_consistency", "fn assert_reused_keep_identity", "fn b", "fn bump", "fn classes", "fn expected", "fn fresh", "fn full_versions", "fn identities", "fn input_cases", "fn native_versions", "fn recalc_added_and_removed_external_studies_reach_only_the_decision", "fn recalc_an_ordinary_loaded_result_never_claims_reuse_of_a_derived_stage", "fn recalc_bound_score_snapshot_reuses_scores_without_claiming_supplied_data", "fn recalc_branch_indices_are_bounded", "fn recalc_every_refusal_detail_is_a_namespaced_literal_with_a_registered_code", "fn recalc_evidence_change_reidentifies_and_rebuilds_every_prior", "fn recalc_external_requests_and_priors_bind_the_full_causal_request", "fn recalc_external_study_change_leaves_unrelated_branches_identical", "fn recalc_first_request_has_nothing_to_reuse", "fn recalc_identity_is_canonical_and_order_independent", "fn recalc_missing_fit_and_snapshot_name_the_specific_dependency", "fn recalc_mutation_tables_are_exact", "fn recalc_off_grid_and_unsupported_requests_refuse_or_name_a_supported_route", "fn recalc_portable_scores_resume_without_data_but_never_reuse_the_law_or_decision", "fn recalc_supplied_data_resumes_by_recomputing_and_a_missing_callback_blocks_the_decision", "fn recalc_unchanged_request_reuses_every_stage", "fn refused_and_fresh_process_statuses_classify_in_the_same_vocabulary", "fn reidentify_overrides", "fn reused_string", "fn run", "fn standing_input_identities_are_typed_and_domain_separated", "fn standing_versions", "fn supported", "fn table", "fn target_cases", "fn undeclared_standing_inputs_do_not_reseal_existing_identities", "fn with_class", "type MutationCase", "type Table", "type Versions"]
-sha256 = "1ac86fe2c296749c596c859c01a2ea0e48cd333f3b73fd9381fd1f6612346fc2"
+sha256 = "230099623bbffc10c14a32b4e4f46bbf8d9ec7ebb810b7867df3b98957aa1733"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

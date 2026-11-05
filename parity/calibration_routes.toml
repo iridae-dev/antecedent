@@ -1,0 +1,309 @@
+# Where each supported interval route's coverage is measured.
+#
+# `scripts/calibration_status.py` reads a route's calibration from the coverage records its
+# capability record allocates (`coverage_records`). A route whose interval is not one of those
+# records, or whose capability record allocates none, is named here instead: `groups` lists the
+# gate groups (`<test file>: <test filter>`, as `scripts/measure_calibration_groups.sh` labels
+# them; a filter is a substring, an empty filter is the whole file) whose coverage records
+# measure it, or `no_interval` says why the route publishes no interval. A route with groups
+# and no record yet is owed: `bash scripts/measure_calibration.sh --owed` runs exactly those
+# groups. `python3 scripts/calibration_status.py intervals` lists a supported interval route
+# that is in neither place as `unmapped`.
+#
+# Hand-edited; nothing here is an attestation. Calibration annotates, it never gates a route.
+
+[[route]]
+record = "sequential_evaluation.policy_evaluation"
+routes = [
+  "antecedent.sequential_evaluation.evaluate_off_policy",
+]
+groups = [
+  "sequential_off_policy_interval_calibration: off_policy_importance_weighted_wald_interval",
+]
+
+[[route]]
+record = "transport.learned_continuous_trial"
+routes = [
+  "antecedent.transport.learned_continuous.uncertainty_joint_outer_bootstrap",
+]
+groups = [
+  "learned_continuous_bootstrap_calibration: learned_trial_aipw_nested_cohort_joint_bootstrap_mean_contrast",
+  "learned_continuous_bootstrap_calibration: learned_trial_aipw_independent_samples_joint_bootstrap_mean_contrast",
+]
+
+[[route]]
+record = "transport.smoothed_dose_response"
+routes = [
+  "antecedent.transport.smoothed_dose.uncertainty_joint_outer_bootstrap",
+]
+groups = [
+  "smoothed_dose_calibration: smoothed_dose_transport_nested_cohort_psi_h",
+  "smoothed_dose_calibration: smoothed_dose_transport_independent_samples_psi_h",
+]
+
+[[route]]
+record = "categorical_treatment.compiled_candidate"
+routes = [
+  "antecedent.python.categorical_treatment.PreparedCategoricalPosteriorCandidate.measured_interval",
+  "antecedent.categorical_posterior_candidate.measured_interval",
+  "antecedent_io.measured_inference.categorical_candidate.measure_source",
+  "antecedent.categorical_posterior_candidate.interval",
+  "antecedent.python.categorical_treatment.PreparedCategoricalPosteriorCandidate.interval",
+]
+groups = [
+  "categorical_posterior_calibration: categorical_conjugate_contrast_prior_predictive_interval",
+]
+
+[[route]]
+record = "estimate.categorical_treatment"
+routes = [
+  "antecedent.treatment.categorical_effects.posterior_interval",
+]
+groups = [
+  "categorical_posterior_calibration: categorical_conjugate_contrast_prior_predictive_interval",
+]
+
+[[route]]
+record = "mnar_fixed_shift.compiled_candidate"
+routes = [
+  "antecedent_io.measured_inference.mnar_candidate.measure_source",
+  "antecedent.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval",
+  "antecedent.python.mnar_fixed_shift.PreparedMnarFixedShift.measured_interval",
+]
+groups = [
+  "mnar_interval_calibration: mnar_compiled_shift_delta_io_interval",
+]
+
+[[route]]
+record = "sensitivity.missing_outcome_departure"
+routes = [
+  "antecedent.sensitivity.mnar_sensitivity.sampling_interval",
+]
+groups = [
+  "mnar_interval_calibration: mnar_compiled_shift_delta_io_interval",
+]
+
+[[route]]
+record = "choice_inference.interval_candidates"
+routes = [
+  "antecedent.choice_inference.measured_interval",
+]
+groups = [
+  "choice_interval_calibration",
+]
+
+[[route]]
+record = "evidence_ledger.overlap_accounting"
+routes = [
+  "antecedent.evidence_ledger.EvidenceLedger.pooled_interval",
+]
+groups = [
+  "evidence_synthesis_calibration",
+]
+
+[[route]]
+record = "composition.release_boundary_fixture"
+routes = [
+  "antecedent.composition_release_fixture.composed_interval",
+]
+groups = [
+  "evidence_synthesis_calibration",
+]
+
+[[route]]
+record = "joint_law.composed_interval_check"
+routes = [
+  "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval.not_measured_coordinate",
+]
+groups = [
+  "joint_law_composed_interval_calibration",
+]
+
+[[route]]
+record = "cohort_decision.mean_contrast"
+routes = [
+  "antecedent.python.cohort_decision.CohortDecisionSource.interval",
+]
+groups = [
+  "cohort_linear_effect_calibration",
+]
+
+[[route]]
+record = "observation_query.finite_law_conditioning"
+routes = [
+  "antecedent.observation_query.ObservationClaim.parameter_interval",
+  "antecedent._native.observation_query_parameter_interval",
+]
+groups = [
+  "count_fitted_posterior_calibration",
+]
+
+[[route]]
+record = "adaptive_inference.bayesian_posterior"
+routes = [
+  "antecedent_estimate.adaptive_inference.bayesian_posterior.credible_interval",
+]
+groups = [
+  "adaptive_inference_calibration: thompson_posterior",
+]
+
+[[route]]
+record = "adaptive_inference.adaptive_weighting"
+routes = [
+  "antecedent_estimate.adaptive_inference.adaptively_weighted_estimate.interval",
+]
+groups = [
+  "adaptive_inference_calibration: epsilon_greedy_weighted",
+]
+
+[[route]]
+record = "adaptive_inference.repeated_measures_weighting"
+routes = [
+  "antecedent_estimate.adaptive_inference.repeated_measures_weighted_estimate.interval",
+]
+groups = [
+  "adaptive_inference_calibration: epsilon_greedy_repeated_measures",
+]
+
+[[route]]
+record = "adaptive_inference.anytime_valid_sequence"
+routes = [
+  "antecedent_estimate.adaptive_inference.anytime_valid_arm_sequences.guarantee",
+  "antecedent_estimate.adaptive_inference.anytime_valid_arm_sequences.betting_martingale",
+]
+groups = [
+  "adaptive_inference_calibration: anytime_valid_sequence_arm_mean_record_l95",
+  "adaptive_inference_calibration: anytime_valid_sequence_contrast_record_l95",
+]
+
+[[route]]
+record = "estimate.matched_case_control_odds_ratio"
+routes = [
+  "antecedent_estimate.refuse_matched_interval",
+]
+no_interval = "The route refuses an interval request; it publishes none."
+
+[[route]]
+record = "estimate.descriptive_comparison"
+routes = [
+  "antecedent_estimate.refuse_transform_interval",
+]
+no_interval = "The route refuses an interval request; it publishes none."
+
+[[route]]
+record = "measurement.model_contract"
+routes = [
+  "antecedent_estimate.measurement.interval_not_supported",
+  "antecedent.measurement_models.MeasurementEstimate.interval",
+]
+no_interval = "Measurement interval requests are refused; the corrected estimates carry an uncalibrated standard error only."
+
+[[route]]
+record = "measurement.classical_continuous_error"
+routes = [
+  "antecedent_estimate.measurement.interval_not_supported.classical_continuous_error",
+]
+no_interval = "The interval request is refused; the correction publishes a point and an uncalibrated standard error."
+
+[[route]]
+record = "measurement.repeated_measurements"
+routes = [
+  "antecedent_estimate.measurement.interval_not_supported.repeated_measurements",
+]
+no_interval = "The interval request is refused; the correction publishes a point and an uncalibrated standard error."
+
+[[route]]
+record = "measurement.binary_misclassification"
+routes = [
+  "antecedent_estimate.measurement.interval_not_supported.binary_misclassification",
+]
+no_interval = "The interval request is refused; the correction publishes a point and an uncalibrated standard error."
+
+[[route]]
+record = "measurement.probabilistic_categorical"
+routes = [
+  "antecedent_estimate.measurement.interval_not_supported.probabilistic_categorical",
+]
+no_interval = "The interval request is refused; the correction publishes a point and an uncalibrated standard error."
+
+[[route]]
+record = "measurement.external_latent_posterior"
+routes = [
+  "antecedent_estimate.measurement.interval_not_supported.external_latent_posterior",
+]
+no_interval = "The interval request is refused; the correction publishes a point and a conditional standard error."
+
+
+[[route]]
+record = "estimate.matched_case_control_odds_ratio"
+routes = [
+  "antecedent.matched.interval",
+]
+groups = [
+  "matched_odds_ratio_interval_calibration",
+]
+
+[[route]]
+record = "estimate.descriptive_comparison"
+routes = [
+  "antecedent.descriptive.interval",
+]
+groups = [
+  "descriptive_comparison_interval_calibration",
+]
+
+[[route]]
+record = "estimate.nonlinear_mediation"
+routes = [
+  "antecedent.mediation.mediation_interval",
+]
+groups = [
+  "nonlinear_mediation_interval_calibration",
+]
+
+[[route]]
+record = "mechanism_composition.acyclic_joint_model"
+routes = [
+  "antecedent_model.compose_parameter_uncertainty_delta",
+  "antecedent.mechanism_composition.PreparedMechanismComposition.interval",
+]
+groups = [
+  "mechanism_composition_interval_calibration: composed_linear_gaussian",
+]
+
+[[route]]
+record = "transport.fitted_linear_gaussian_mechanism"
+routes = [
+  "antecedent.transported_mechanism.interval",
+]
+groups = [
+  "mechanism_composition_interval_calibration: transported_linear_gaussian",
+]
+
+[[route]]
+record = "transport.typed_mechanism_transport"
+routes = [
+  "antecedent.typed_transported_mechanism.interval",
+]
+groups = [
+  "typed_transported_mechanism_interval_calibration",
+]
+
+[[route]]
+record = "estimate.randomized_quantile"
+routes = [
+  "antecedent_estimate.randomized_quantile.interval",
+]
+groups = [
+  "randomized_quantile_interval_calibration",
+]
+
+[[route]]
+record = "estimate.response_gam_derivative"
+routes = [
+  "antecedent_estimate.response_gam_derivative.pointwise_band",
+]
+groups = [
+  "derivative_calibration: response_jacobian_dag_frequentist_nominal_90_coverage",
+  "derivative_calibration: directional_derivative_dag_frequentist_nominal_90_coverage",
+]

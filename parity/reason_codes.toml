@@ -25,7 +25,7 @@ applies_to = ["calibration"]
 meaning = "No coverage record measured this construction (query, graph class, structure, inference, estimator, interval method, SE kind, dependence, posterior, functional)."
 # Reconciled with all existing cells and the validation/structure provenance repair:
 # removing foreign coverage bindings adds 305 uses; no new routes or measurements.
-max_uses = 2361
+max_uses = 2441
 
 [[code]]
 id = "interval_level_not_measured"

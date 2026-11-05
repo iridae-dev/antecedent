@@ -56,6 +56,89 @@ class SimulationBudgetTest(unittest.TestCase):
             self.assertEqual(groups.tail_threads([(group, None)], 2, 6), {group.label: 6})
 
 
+class OwedSelectionTest(unittest.TestCase):
+    """`--owed` runs exactly the owed list: owed records' groups and the groups named for a route."""
+
+    LABELS = [
+        "facade_current: existing",  # its record is current
+        "facade_stale: old_test",  # its record is owed
+        "facade_new: brand_new_test",  # no record; a route names it
+        "facade_unrelated: extra",  # no record, no route
+        "antecedent-prob: sbc",  # a pass/fail gate
+    ]
+
+    def candidates(self) -> list[groups.Group]:
+        return [groups.Group(i, label, False, True) for i, label in enumerate(self.LABELS, 1)]
+
+    def facets(self, items):
+        records = [
+            {"id": "cur", "test": "crates/antecedent/tests/facade_current.rs::existing"},
+            {"id": "stale", "test": "crates/antecedent/tests/facade_stale.rs::old_test"},
+        ]
+        return SimpleNamespace(
+            current_owed=lambda: (items, {}, {}),
+            load_records=lambda: records,
+            split_group=lambda spec: tuple((spec.partition(": ")[0], spec.partition(": ")[2])),
+        )
+
+    def select(self, items):
+        with patch.dict(sys.modules, {"calibration_status": self.facets(items)}):
+            return groups.select_owed(self.candidates())
+
+    def test_only_the_groups_of_owed_records_and_named_routes_run(self):
+        items = [
+            {"kind": "record", "id": "stale", "reason": "fingerprint_changed", "groups": []},
+            {
+                "kind": "route",
+                "id": "route:cap/new",
+                "reason": "no_record",
+                "groups": ["facade_new: brand_new_test"],
+            },
+        ]
+        selection = self.select(items)
+        self.assertEqual([g.index for g in selection.groups], [2, 3])
+        self.assertEqual(selection.reasons[2], "1 record(s) owed")
+        self.assertEqual(selection.reasons[3], "1 interval route(s) with no record")
+        self.assertEqual(selection.owed_records, 2)
+
+    def test_nothing_owed_selects_nothing_not_even_the_pass_fail_gates(self):
+        self.assertEqual(self.select([]).groups, [])
+
+    def test_a_current_record_does_not_select_its_group(self):
+        items = [{"kind": "record", "id": "stale", "reason": "probe_mismatch", "groups": []}]
+        self.assertNotIn(1, [g.index for g in self.select(items).groups])
+
+    def test_a_route_spec_matches_by_file_and_filter_substring(self):
+        group = groups.Group(1, "facade_new: brand_new_test_l95", False, True)
+        self.assertTrue(groups.route_group_matches(group, ("facade_new", "brand_new_test")))
+        self.assertTrue(groups.route_group_matches(group, ("facade_new", "")))
+        self.assertFalse(groups.route_group_matches(group, ("facade_other", "")))
+        self.assertFalse(groups.route_group_matches(group, ("facade_new", "different")))
+
+    def test_an_owed_item_no_group_can_run_is_reported_not_silently_dropped(self):
+        items = [
+            {"kind": "record", "id": "ghost", "reason": "fingerprint_changed", "groups": []},
+            {"kind": "route", "id": "route:cap/lost", "reason": "no_record", "groups": []},
+            {"kind": "route", "id": "route:cap/typo", "reason": "no_record", "groups": ["nobody: x"]},
+        ]
+        import contextlib
+        import io
+
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            selection = self.select(items)
+        self.assertEqual(selection.groups, [])
+        text = err.getvalue()
+        self.assertIn("no gate group measures owed record ghost", text)
+        self.assertIn("route:cap/lost names no gate group", text)
+        self.assertIn("no gate group 'nobody: x' for route:cap/typo", text)
+
+    def test_owed_is_exclusive_with_all_and_missing_only(self):
+        with patch.object(sys, "argv", ["calibration_groups.py", "plan", "--owed", "--all"]):
+            with self.assertRaises(SystemExit):
+                groups.main()
+
+
 class WorkspaceSuiteOwnershipTest(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
@@ -209,15 +292,19 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             "functional": "target_interventional_contrast.v1",
             "interval_method": "percentile_bootstrap",
         }
-        marker = "declared_selection_joint_pretreatment_standardization"
+        marker = "declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set"
         current = {
             **legacy,
-            "functional": "target_interventional_contrast." + marker,
+            "functional": "target_interventional_contrast.declared_selection_joint_pretreatment_standardization.bounded_outcome_confidence_set",
             "id": "cov.new_" + marker,
+            "interval_method": "percentile_bootstrap_or_logical_support",
         }
         self.assertFalse(groups.measures_current_protocol(group, legacy))
         self.assertTrue(groups.measures_current_protocol(group, current))
         self.assertFalse(groups.measures_current_protocol(group, {**current, "id": legacy["id"]}))
+        self.assertFalse(
+            groups.measures_current_protocol(group, {**current, "interval_method": "percentile_bootstrap"})
+        )
 
     def test_upgraded_weighted_protocols_require_new_records_despite_old_gate_success(self) -> None:
         for name, marker in (

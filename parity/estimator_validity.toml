@@ -3892,6 +3892,7 @@ valid = [
   "propensity.matching",
   "propensity.stratification",
   "propensity.weighting",
+  "randomized.quantile",
   "rd.sharp",
 ]
 listed = [
@@ -3912,7 +3913,9 @@ listed = [
   "propensity.weighting",
   "rd.sharp",
 ]
-unlisted_valid = []
+unlisted_valid = [
+  "randomized.quantile",
+]
 listed_not_valid = []
 
 [[cell]]
@@ -4064,6 +4067,7 @@ valid = [
   "propensity.matching",
   "propensity.stratification",
   "propensity.weighting",
+  "randomized.quantile",
   "rd.sharp",
 ]
 listed = [
@@ -4084,7 +4088,9 @@ listed = [
   "propensity.weighting",
   "rd.sharp",
 ]
-unlisted_valid = []
+unlisted_valid = [
+  "randomized.quantile",
+]
 listed_not_valid = []
 
 [[cell]]

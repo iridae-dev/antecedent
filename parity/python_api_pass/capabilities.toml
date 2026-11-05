@@ -16813,6 +16813,11 @@ test = "python/tests/test_advanced_producers.py::test_nested_bayesian_below_meas
 assertion_scopes = ["test_nested_bayesian_below_measured_row_range_is_annotated_not_borrowed"]
 dimensions = ["success", "inspection"]
 assertion_contract = "The nested-Markov Bayesian producer returns a MeasuredInference with the named scalars mean0, mean1 and contrast, each with its interval bracketing its point and a calibration status other than calibrated outside the measured row range."
+[[capability.evidence]]
+test = "python/tests/test_sampled_transport_interval.py::test_a_measured_inference_round_trips_through_its_bytes_against_the_retained_identity"
+assertion_scopes = ["test_a_measured_inference_round_trips_through_its_bytes_against_the_retained_identity"]
+dimensions = ["success", "artifact", "lifecycle"]
+assertion_contract = "A sampled counterfactual-transport MeasuredInference exports and a fresh MeasuredInference.load against the retained identity reads the same point (equal to the estimate's probability), interval, level 0.95, calibration annotation and route; an identity retained for another inference refuses. No calibration record is needed."
 
 [[capability]]
 id = "python.transport.adaptive_trial_source"
@@ -16884,7 +16889,7 @@ assertion_contract = "Shifts from -50 to 40 and unbalanced arms prepare."
 test = "python/tests/test_mnar_fixed_shift.py::test_interval_is_released_only_under_a_covering_record"
 assertion_scopes = ["test_interval_is_released_only_under_a_covering_record"]
 dimensions = ["success", "refusal", "branch"]
-assertion_contract = "The measured interval either brackets the declared-shift point at level 0.95, or the preparation refuses not_supported because no attesting record covers the shift, missingness and row count."
+assertion_contract = "The measured interval at the declared shift 0.8 equals the independently computed Wald interval (point 1.2579 to 1e-12; half-width from the observed-mean variances plus the missing-fraction variance times the squared shift, z = 1.959964, within 1e-4) at level 0.95, reported with calibration status not_measured and reason estimator_grid_not_measured."
 [[capability.evidence]]
 test = "python/tests/test_mnar_fixed_shift.py::test_source_violations_are_refused_with_specific_details"
 assertion_scopes = ["test_source_violations_are_refused_with_specific_details"]
@@ -17894,3 +17899,17 @@ test = "python/tests/test_joint_law_ledger_checks.py::test_inputs_and_options_ar
 assertion_scopes = ["test_inputs_and_options_are_typed"]
 dimensions = ["controls", "refusal"]
 assertion_contract = "A non-ledger, a foreign input, an unknown dependence, a covariance without identity and an unknown operation are refused as typed input errors."
+
+[[capability]]
+id = "journey.temporal_conditional_sustained"
+status = "covered"
+owner = "Python API integration: conditional sustained effect on a temporal series"
+behavior = "Estimates the conditional sustained effect on a single time step of a temporal series, the stratified contrast averaged over the modifier's law on the window."
+python = "antecedent.query.TemporalConditionalSustained"
+supports = ["query:TemporalConditionalSustained"]
+required_dimensions = ["success"]
+[[capability.evidence]]
+test = "python/tests/test_temporal_conditional_sustained.py::test_a_conditional_sustained_effect_equals_the_counted_stratified_contrast"
+assertion_scopes = ["test_a_conditional_sustained_effect_equals_the_counted_stratified_contrast"]
+dimensions = ["success"]
+assertion_contract = "The conditional sustained effect equals the contrast of y between x = 1 and x = 0 within each level of w, counted from the series and averaged over the law of w on the window, to 1e-12; it differs from the unadjusted difference of means and equals the conditional pulse on one step."

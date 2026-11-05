@@ -45,7 +45,7 @@ kind = "wrapper"
 rationale = "Portable composed-result container: a typed directed graph of embedded or referenced nodes whose edges carry the Merkle digest of the upstream node. Each node is decoded by the verifier of its artifact kind."
 no_independent_algorithm = "Graph construction, digest recomputation and cross-edge fact comparison only; no estimator, interval or density appears in the module."
 covered_by = ["composition.verifiers", "composition.provenance"]
-record_sha256 = "1188b265976f491233faa377205fe2b2ca860623ed85105f76f14b18044b1518"
+record_sha256 = "d8e6bfd77912ff6c53dc359f5616bc3f8d88a44f35d47b1a71bb8051509fff20"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

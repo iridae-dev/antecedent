@@ -622,6 +622,22 @@ name = "smoothed_dose_calibration"
 path = "tests/smoothed_dose_calibration.rs"
 
 [[test]]
+name = "learned_continuous_bootstrap_calibration"
+path = "tests/learned_continuous_bootstrap_calibration.rs"
+
+[[test]]
+name = "randomized_quantile_interval_calibration"
+path = "tests/randomized_quantile_interval_calibration.rs"
+
+[[test]]
+name = "mechanism_composition_interval_calibration"
+path = "tests/mechanism_composition_interval_calibration.rs"
+
+[[test]]
+name = "typed_transported_mechanism_interval_calibration"
+path = "tests/typed_transported_mechanism_interval_calibration.rs"
+
+[[test]]
 name = "class_derivative_response"
 path = "tests/class_derivative_response.rs"
 
@@ -672,6 +688,10 @@ path = "tests/derivative_refuter_known_truth.rs"
 [[test]]
 name = "response_curve_validation_known_truth"
 path = "tests/response_curve_validation_known_truth.rs"
+
+[[test]]
+name = "response_curve_validation_routes_known_truth"
+path = "tests/response_curve_validation_routes_known_truth.rs"
 
 [[test]]
 name = "staged_derivatives"

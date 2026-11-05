@@ -43,13 +43,13 @@ redistribution = "The references are repository-authored under MIT OR Apache-2.0
 limitations = "The primary sources were not re-read in this review (no downloads were made and no copy was read from this environment); the statistic definitions are the standard ones and a mistake in how they are stated would not be detected here, though the reference evaluates them directly. Eight cases (two to eight partitions) are compared, one with a supplied covariance; higher dimensions, indefinite or nearly singular covariances (refused by existing tests) and ties between raw p-values in Holm are not exercised here. The reference uses a regularized incomplete gamma function and erfc from mpmath, which this review did not itself verify. The test's error rates remain not measured, so a pass is arithmetic correctness, not calibration."
 sources = ["Cochran (1954), The Combination of Estimates from Different Experiments, Biometrics 10(1); Wald (1943), Transactions of the American Mathematical Society 54(3); Holm (1979), Scandinavian Journal of Statistics 6(2) (titles as listed in papers; no identifier is recorded and the texts were not read)", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["Against 60-digit evaluation the global statistic, its chi-square tail (down to about 1e-276 at k = 5), the pooled effect, every contrast's difference, standard error, z, normal p-value and Holm-adjusted value agree to 1e-9 relative in all eight cases: precisions over six decades, effects of 1e150, a near-null, a far tail at z about 28, correlated partitions supplied out of label order, and both contrast families.", "No defect was found and no product code changed."]
-record_sha256 = "8375a0d8300b3cbdf358a3512d3e7ff66e3b38cb2d0dceb05287004d4951ef50"
+record_sha256 = "1fa256d43aac0003c334eda50bbddeb44bbe38c3e00892a7f77e18ecff6bbbd8"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/effect_constancy.rs"
 items = ["const COVARIANCE_TOLERANCE", "const EFFECT_CONSTANCY_INFERENCE_CLAIM", "const EFFECT_CONSTANCY_NULL", "const NON_REJECTION_CAVEAT", "const POWER_CAVEAT", "enum CalibrationStatus", "enum ConstancyConclusion", "enum ContrastFamily", "enum HeterogeneityStatistic", "enum PartitionDependence", "enum PartitionSupport", "fn canonical_order", "fn cochran_q", "fn contrast_pairs", "fn contrast_reports", "fn holm_adjust", "fn quadratic_form", "fn test_effect_constancy", "fn validate_comparability", "fn validate_covariance", "fn validate_inputs", "fn wald_statistic", "struct ContrastReport", "struct EffectConstancyResult", "struct EffectEstimandIdentity", "struct HeterogeneityTest", "struct PartitionEstimate", "struct PartitionReport"]
-sha256 = "5acd77a2436910e2e72694451715c0b60199a82f3188f0255444b699d5c68fb4"
+sha256 = "8cc559f00d5e2d5c5f42746be6b3962381bbd4e59c576a822906990ac683a924"
 
 [[method_review.artifacts]]
 role = "assertion"

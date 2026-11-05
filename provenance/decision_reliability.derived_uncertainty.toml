@@ -43,13 +43,13 @@ redistribution = "Primary works are cited, not redistributed. The reference scri
 limitations = "Eight scenarios are compared at 1e-8 relative on intervals, critical values and half-widths: two expected-utility problems (independent and shared streams) (3 to 4 candidates, 100 to 150 quarter-grid draws, 0.8 to 0.99 levels, marginal and simultaneous multiplicity, ranking with baseline and top-k), a shared median problem, an independent upper-tail CVaR problem, a shared threshold problem with exact ties, a shared problem with lognormal(0, 1.2) importance weights (Kish effective size about 70), an autocorrelated 900-draw stream with batch means, and a 70-candidate problem that takes the marginal Bonferroni branch. Ranking probabilities are recomputed by direct enumeration over draws with tie sharing. Not exercised against a reference: candidate sets near the 64-candidate switch, searches with unretained candidates, the held-out and split-draw validation paths (the selection-corrected interval is compared for the no-validation path only), effective sizes between 30 and 100 at the refusal boundary other than through the 30 floor itself, and any coverage. Derived-not_measured by design: publication is annotated not measured until a coverage record exists. The cited works were not retrieved."
 sources = ["https://doi.org/10.1080/01621459.1927.10502953", "https://doi.org/10.1201/b15074", "https://doi.org/10.1287/mnsc.1050.0451"]
 findings_resolved = ["No defect found: Wald and Wilson intervals, per-interval levels under simultaneous multiplicity, the paired and marginal best-candidate sets with their critical values, and the selection-corrected half-widths and critical value agree with the reference on all eight scenarios; a simultaneous request is refused at publication."]
-record_sha256 = "fb8b365a33fe8dca5750167c5511cc9eacdfa13cd8a906ace3eb816fa0c34b9e"
+record_sha256 = "5e05eee3f89045bce4e3f49805f70ac1a39a75d4be373fe6ef914c6b6aef0413"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_reliability/interval.rs"
 items = ["const DERIVED_UNCERTAINTY_VERSION", "const MAX_INTERVAL_LEVEL", "const MAX_PAIRED_COMPARISON_CANDIDATES", "const MIN_INTERVAL_LEVEL", "const MIN_NORMAL_ESS", "enum ConfidenceSetBasis", "enum DerivedStanding", "enum IntervalMultiplicity", "enum NumericalIntervalMethod", "enum ProbabilityQuantity", "fn alpha", "fn assumptions", "fn confidence_set", "fn corrected_interval", "fn critical", "fn derive_uncertainty", "fn numerical_component", "fn paired_confidence_set", "fn publish", "fn require_normal_ess", "fn validate", "fn wald", "fn wilson", "struct DerivedUncertainty", "struct IntervalRequest", "struct NumericalComponent", "struct NumericalInterval", "struct OptimalityConfidenceSet", "struct ProbabilityInterval", "struct SelectionComponent", "struct SelectionCorrectedInterval", "struct UtilityInterval"]
-sha256 = "77ee40dde2c323797848f1d3eeccd2ce1af9d29c40642216dc60f4724101dfa2"
+sha256 = "0b390bbe895a8ce86a7acfe3cf296cfa8da5e1eddf1c3772bd0f4e37bed07392"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -4,7 +4,7 @@
   "review_scope": "Frozen coverage compatibility hypotheses; every level/label is a separate cell. Labels and procedures are fixed before their current prospective validation outcomes; method revisions informed by older data require an independent registered domain and a distinct cumulative hypothesis slot.",
   "source_possible_cap_invariant": "Every group/grid has at most256 source-possible asserted cells across all branch outcomes and registered looks, including recordless, conditionally empty and alternate-confidence tallies. Runtime emitted-count enforcement only complements this source review.",
   "transitive_provider_review": "Caller-provided labels, target names and levels were reviewed at fixed test/query construction sites. Imported functional enums and numeric helper values describe fixed algorithms; none select a coverage hypothesis from the current prospective validation outcomes. Older development evidence may motivate a separately allocated method revision before its independent validation. The direct constructor/label footprint and named reviews are an audited invariant, not an automated transitive dataflow proof.",
-  "prospective_validation_domain": "release_2_4_1_pag_confidence_set_validation_v1",
+  "prospective_validation_domain": "coverage_measurement",
   "historical_cardinality_audit": {
     "source_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1",
     "group": "temporal_response_calibration",
@@ -16,27 +16,27 @@
   "sources": [
     {
       "path": "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
-      "sha256": "a0537608e13ab801d03706709cd558d0ffa3d9bc76011f7c177d7713cc40d7fc",
+      "sha256": "46f7f86dda0ba1b057ace0d8e967ac8a0853dd7e8fcb4fbbe624dd5e6eff43fd",
       "labelled_calls": [
         {
-          "line": 269,
+          "line": 301,
           "call": ".labelled(",
           "argument": "label"
         },
         {
-          "line": 307,
+          "line": 339,
           "call": ".labelled(",
           "argument": "\"shared_rho_0.5\""
         }
       ],
       "constructor_calls": [
         {
-          "line": 268,
+          "line": 300,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: interval_method }, LEVEL"
         },
         {
-          "line": 306,
+          "line": 338,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: interval_method }, LEVEL"
         }
@@ -44,8 +44,21 @@
       "review": "Finite declared coupling labels and literal shared-rho construction; selected action remains one fixed procedure target."
     },
     {
+      "path": "crates/antecedent-design/tests/sequential_off_policy_interval_calibration.rs",
+      "sha256": "6e7e2bb7314e2b022d508c2fc76dc83e6ba5726f504a5ae57308639a24995555",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 174,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"off_policy_importance_weighted_wald_interval\",\n            dgp: \"two_action_gaussian_returns_known_target_value\",\n            interval: \"wald_normal\",\n        },\n        LEVEL,"
+        }
+      ],
+      "review": "Fixed two-action off-policy design with declared logging and target policies, known target value and a static record key."
+    },
+    {
       "path": "crates/antecedent-estimate/src/calibration_coverage.rs",
-      "sha256": "ab5e2e429cf5cc4bbee095bea34ebce85a3273419e71ee51dbf2278ab4b0b5fc",
+      "sha256": "1aa5c79ed8c477976b0ac7cd95e968fae4ea4e6033da7dbe99d2b837f33f5242",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -54,32 +67,32 @@
           "argument": "key, LEVEL"
         },
         {
-          "line": 1617,
+          "line": 1607,
           "call": "CoverageTally::for_record(",
           "argument": "key, REPORTED_LEVEL"
         },
         {
-          "line": 1645,
+          "line": 1635,
           "call": "CoverageTally::for_record(",
           "argument": "key, REPORTED_LEVEL"
         },
         {
-          "line": 1676,
+          "line": 1666,
           "call": "CoverageTally::for_record(",
           "argument": "key, REPORTED_LEVEL"
         },
         {
-          "line": 1975,
+          "line": 1958,
           "call": "CoverageTally::new(",
           "argument": "\"reported_level_below_floor\", REPORTED_LEVEL"
         },
         {
-          "line": 1997,
+          "line": 1980,
           "call": "CoverageTally::new(",
           "argument": "\"above_ceiling\", REPORTED_LEVEL"
         },
         {
-          "line": 2011,
+          "line": 1994,
           "call": "CoverageTally::new(",
           "argument": "\"skip_miss\", REPORTED_LEVEL"
         }
@@ -88,36 +101,36 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs",
-      "sha256": "02c674f4b849f6bfb71e2bd05d28352b91ff1c46814a46019e129b1b61532abd",
+      "sha256": "534bb865fd47608a8ba95469e400c3d42caf0c36c11ae9d210abb94367e4348a",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 158,
+          "line": 159,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"posterior_quantile\" }, 0.95"
         },
         {
-          "line": 317,
+          "line": 318,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"analytic_se\" }, 0.95"
         },
         {
-          "line": 473,
+          "line": 474,
           "call": "CoverageTally::new(",
           "argument": "\"group_sequential_overall_type_one_error_is_alpha\", 0.95"
         },
         {
-          "line": 529,
+          "line": 530,
           "call": "CoverageTally::new(",
           "argument": "\"anytime_valid_sequence_covers_the_arm_mean_at_every_look_l95\", 0.95"
         },
         {
-          "line": 578,
+          "line": 579,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"confidence_sequence\" }, 0.95"
         },
         {
-          "line": 704,
+          "line": 705,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"repeated_confidence_interval\" },\n        0.95,"
         }
@@ -126,11 +139,11 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/adaptive_procedure_prior_predictive_calibration.rs",
-      "sha256": "b38462083d6bb5c3f8f436a687f97d200bdbc3dc98085b4a80660d744950eaad",
+      "sha256": "2d367835550a59f36ff3732fb577f5c1207d53ecf4224ba81b05e6184d38d159",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 124,
+          "line": 125,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"posterior_quantile\" }, 0.95"
         }
@@ -157,6 +170,24 @@
       "review": "Literal selected_contrast scores the whole selection algorithm, rather than choosing a hypothesis from observed coverage."
     },
     {
+      "path": "crates/antecedent-estimate/tests/choice_interval_calibration.rs",
+      "sha256": "e6339feab375793ab4eb9145e3eea39bb9d20e782603f76f1e4e08e7913c9ec3",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 59,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: POOLED_DGP, interval: CHOICE_INTERVAL_METHOD },\n        MEASURED_LEVEL,"
+        },
+        {
+          "line": 99,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: HIERARCHICAL_DGP, interval: CHOICE_INTERVAL_METHOD },\n        MEASURED_LEVEL,"
+        }
+      ],
+      "review": "Fixed pooled and hierarchical choice-share cells: option counts, respondents on the sample grid and declared hyperpriors; the scored share is drawn from the declared prior."
+    },
+    {
       "path": "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs",
       "sha256": "979aa05d83a35c9b838a1c27492954be15cd9d755f832d23be2adefcd289b398",
       "labelled_calls": [],
@@ -171,7 +202,7 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/common/candidate_calibration.rs",
-      "sha256": "50ba620b3724c41f227a45117528d223728c4fcbc1e98635b2dc6c878e6ee26b",
+      "sha256": "147ce9231641f1bb8b91eb20096e325e932a1e1d6a0069e4844006ec846d10a4",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared candidate tally constructor takes caller static test/DGP/method identity and declared confidence; callers are source-fixed gate cases."
@@ -191,11 +222,11 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs",
-      "sha256": "3ffcfc87b6c4c4c29407ee54d2dfab3a6c4555234fdc39e858a2bfc55116cf0f",
+      "sha256": "1e9fb6156e32a88846769645c38155600169c7ef4736f67ddc0c6589a608c543",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 931,
+          "line": 1024,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"delta_method_wald\" }, 0.95"
         }
@@ -204,16 +235,16 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/coverage_determinism.rs",
-      "sha256": "cf2922421d2aaa0868e078486b8e1bb15ecd2870a206dd575e2ab80f186f3763",
+      "sha256": "ba3b9794b99539d41aaed9cea7054fc8244e1c201ee77c902bb9dd38853a08df",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 145,
+          "line": 144,
           "call": "CoverageTally::new(",
           "argument": "\"determinism.linear_adjustment\", 0.95"
         },
         {
-          "line": 164,
+          "line": 160,
           "call": "CoverageTally::new(",
           "argument": "\"determinism.ipw_bootstrap\", 0.95"
         }
@@ -221,8 +252,21 @@
       "review": "Small explicit deterministic test constructors; no measured outcome selects a family."
     },
     {
+      "path": "crates/antecedent-estimate/tests/descriptive_comparison_interval_calibration.rs",
+      "sha256": "f70fbb6132a69437f9762d8caf598dfffa39f46913f3bf915ef967dc27cc7c7b",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 79,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test,\n            dgp: \"two_bernoulli_arms_known_population_proportions\",\n            interval: \"delta_method_wald\",\n        },\n        LEVEL,"
+        }
+      ],
+      "review": "Fixed two-arm proportion design scored on two source-declared reporting scales with static record keys."
+    },
+    {
       "path": "crates/antecedent-estimate/tests/joint_bayesian_transport_calibration.rs",
-      "sha256": "7715222be1f87a831ab57b95e9cbdaa2f81a1dddcaf6936033270b8a014fef53",
+      "sha256": "3e11e299af0fd80e49d983f4e7aa3c3b51eebe4578da1f6307f45c7314d18ca6",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -235,11 +279,11 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/knn_matching_calibration.rs",
-      "sha256": "d553e022c192994ac1709e672f5c168650958a7c8728967940709d9fdf631d03",
+      "sha256": "5f029137dffed2039584352305d194f43e8cedb6fe1b7ba35cda58d576a9e527",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 124,
+          "line": 134,
           "call": "CoverageTally::new(",
           "argument": "\"knn_matching_interval\", REPORTED_LEVEL"
         }
@@ -248,7 +292,7 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/learned_joint_calibration.rs",
-      "sha256": "d46426e57016a37f66bfbf85713124644ea855bc1ab75c6611d4b91453384c91",
+      "sha256": "385855bd6eefd12ac6145d4ea83a50a3a6dc16992aa20d3af04bf761aaf8dfdb",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -260,8 +304,21 @@
       "review": "Fixed learned-joint/query cases and declared confidence; the learning algorithm is part of each fixed procedure."
     },
     {
+      "path": "crates/antecedent-estimate/tests/matched_odds_ratio_interval_calibration.rs",
+      "sha256": "9532678a3fa2eda76c7a78cb95e83b3fd3ba3e2f3a35c6fce33ab0544c403f89",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 88,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"matched_pairs_conditional_odds_ratio_wald_interval\",\n            dgp: \"matched_pairs_heterogeneous_baseline_known_conditional_odds_ratio\",\n            interval: \"wald_normal\",\n        },\n        LEVEL,"
+        }
+      ],
+      "review": "Fixed 1:1 matched-pair design with a declared conditional odds ratio and static record key."
+    },
+    {
       "path": "crates/antecedent-estimate/tests/nested_markov_fisher_calibration.rs",
-      "sha256": "48dbdaf56d7e7e0dcbf1da9f738d70f60f4a968b162de6f5683d7b9f619565ae",
+      "sha256": "4533e536449c9db63fd3e414a2c5cb8d43aa4f68215b165a7aa41fe464a925d7",
       "labelled_calls": [
         {
           "line": 57,
@@ -279,8 +336,27 @@
       "review": "Debug rendering of a finite caller-declared functional enum."
     },
     {
+      "path": "crates/antecedent-estimate/tests/nonlinear_mediation_interval_calibration.rs",
+      "sha256": "ceb7d071f4bb6696f2efe301830adf9def4971fbb372b353b906599f1301d65a",
+      "labelled_calls": [
+        {
+          "line": 176,
+          "call": ".labelled(",
+          "argument": "label"
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 168,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n                test: \"nonlinear_mediation_natural_effects_percentile_bootstrap_interval\",\n                dgp: \"gaussian_mediator_quadratic_outcome_closed_form_natural_effects\",\n                interval: \"bootstrap_percentile\",\n            },\n            calibration::REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Fixed Gaussian-mediator quadratic-outcome design with closed-form natural effects; the three effect labels are source-declared and the record keys are the estimate's own calibration basis."
+    },
+    {
       "path": "crates/antecedent-estimate/tests/observational_effects_calibration.rs",
-      "sha256": "fe718457f2eb73251579c4e0b762eb0570248b464cea47fee1e13ebe9ca2c7dc",
+      "sha256": "a8b6a1225e32ff805cdbb6ff32898de5e4c1a2f3513e3739abd0cf634638d944",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -294,12 +370,12 @@
           "argument": "name, LEVEL"
         },
         {
-          "line": 262,
+          "line": 266,
           "call": "CoverageTally::new(",
           "argument": "name, LEVEL"
         },
         {
-          "line": 310,
+          "line": 314,
           "call": "CoverageTally::new(",
           "argument": "name, LEVEL"
         }
@@ -308,7 +384,7 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/quadratic_dose_calibration.rs",
-      "sha256": "1e405e9d8aa6e371c56dc22b375bd3a0a80966ac3f58eb2c7792c9b89afb5cec",
+      "sha256": "4f442ff06060ef940181621b6404509a65cb311ca5a186a2d39cc9bc8fb2007a",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -320,8 +396,21 @@
       "review": "Fixed quadratic-dose contrasts and test-declared confidence."
     },
     {
+      "path": "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs",
+      "sha256": "2fd704f790632809e1533e92dc079a4524c9466036cb6e9ad24cbbfa4e337fa4",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 636,
+          "call": "CoverageTally::new(",
+          "argument": "name, REPORTED_LEVEL"
+        }
+      ],
+      "review": "Fixed held-out clamp regimes of a known cyclic linear truth; coverage designs are source-declared and nothing records a coverage number from outcomes."
+    },
+    {
       "path": "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs",
-      "sha256": "de94ccbeccc5344bdb63823b621a05337019a678d2366eed30cdfeb9e743aaf4",
+      "sha256": "2cdb8dbf634113cf3890f58dbd199359201a72244d1b366e53340868ff639144",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -334,7 +423,7 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/temporal_unit_calibration.rs",
-      "sha256": "218fdaca4d6b195a17030db3422bc1661645c9afdaabcf3cffd946693e8d203d",
+      "sha256": "ed3ed91f08ef3c31e641f96ff32de3f9c67a925ece97a9f38e6377d6173bd810",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -347,14 +436,14 @@
     },
     {
       "path": "crates/antecedent-io-core/src/calibration.rs",
-      "sha256": "59eb6df58689a12d9c6247a68da61b4b7c468c90a84896b3811227b2e542a58f",
+      "sha256": "113f35d8779be044d63b93dde285a7a5827844f2cc2d7702c903644481e058fa",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Runtime calibration lookup and its test fixtures; no Monte Carlo family producer."
     },
     {
       "path": "crates/antecedent-io-core/src/coverage_records_data.rs",
-      "sha256": "0dbdd8bb1fc5920c6170767e552f377ddaf3adf32c35e3b878888f4f256ef828",
+      "sha256": "05e3e9cebaebab1f664f84af218698da99ea7fae09f7b65a941fe409ea6a1810",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Embedded registry consumer/tests only; no calibration hypothesis constructor."
@@ -380,11 +469,11 @@
     },
     {
       "path": "crates/antecedent/tests/batch_retarget_calibration.rs",
-      "sha256": "da2fe74490394f6087c9b331e3fbdcbf8bc96eeef586707a411edb8e5b2720ce",
+      "sha256": "58e7def8b48256e79be7c6e4504c3397805c961d3b8011097e9de45288dcc98b",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 171,
+          "line": 182,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"batch_retarget_max_t_simultaneous_band\",\n            dgp: \"fixture\",\n            interval: INTERVAL,\n        },\n        REPORTED_LEVEL,"
         }
@@ -393,7 +482,7 @@
     },
     {
       "path": "crates/antecedent/tests/bayesian_temporal.rs",
-      "sha256": "ccbe6d87d44f7883d39e455ca2cbc53a0857f54cea6f9872bc74b68605c6383d",
+      "sha256": "40189f3d51754f5fd1484b525a9c897558b75a28d2202786534e22def483366f",
       "labelled_calls": [
         {
           "line": 516,
@@ -428,12 +517,12 @@
           "argument": "key, REPORTED_LEVEL"
         },
         {
-          "line": 898,
+          "line": 919,
           "call": "CoverageTally::for_record(",
           "argument": "key, LEVEL"
         },
         {
-          "line": 899,
+          "line": 920,
           "call": "CoverageTally::for_record(",
           "argument": "key, REPORTED_LEVEL"
         }
@@ -442,7 +531,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_admg.rs",
-      "sha256": "f278fc1cb31dc486605095f027082f500c1c00268b52c290faae5915b7cf0c62",
+      "sha256": "e10cec37b6a34678ee24db12b6cddf88165987670ac6d848680741c09462de8b",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -455,11 +544,11 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_anomaly_bayesian.rs",
-      "sha256": "075f032884fd0cb68e2b06640ef11d175bfe20eb72816844ca3c3069ffd73bd6",
+      "sha256": "13602b23a2660d42ffaaebc0912b6332da57dd648f39e57df6a6e6dfa50b3244",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 130,
+          "line": 135,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"anomaly_dag_data\", interval: \"posterior_quantile\" },\n        level,"
         }
@@ -468,7 +557,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_attribution_bayesian.rs",
-      "sha256": "d433d3f49ad03936781069a8fceb78636215fb0b0e6ff6d27efeb7ec4f5cc37b",
+      "sha256": "cb252ce2adeeb147f4aa8abb8c1562f31a5fe150d8374bb18fea99c6cc0851a8",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -481,40 +570,40 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_backlog.rs",
-      "sha256": "30752dbb5d822e39463278e9c6ea1b7023f1712ca835b5ced1538981eac62944",
+      "sha256": "9751760ebd2ca1dc1ff24d6bb4d8dc069fdb6cc8bc8fccf5085e77e8d46d1254",
       "labelled_calls": [
         {
-          "line": 209,
+          "line": 221,
           "call": ".labelled(",
           "argument": "*label"
         },
         {
-          "line": 517,
+          "line": 531,
           "call": ".labelled(",
           "argument": "label"
         },
         {
-          "line": 727,
+          "line": 749,
           "call": ".labelled(",
           "argument": "format!(\"a={a}\")"
         },
         {
-          "line": 765,
+          "line": 787,
           "call": ".labelled(",
           "argument": "format!(\"a={a}\")"
         },
         {
-          "line": 810,
+          "line": 832,
           "call": ".labelled(",
           "argument": "label"
         },
         {
-          "line": 1125,
+          "line": 1147,
           "call": ".labelled(",
           "argument": "format!(\"a={a}\")"
         },
         {
-          "line": 1488,
+          "line": 1516,
           "call": ".labelled(",
           "argument": "format!(\"a={dose}\")"
         }
@@ -526,42 +615,42 @@
           "argument": "RecordKey { test, dgp, interval: \"posterior_quantile\" }, level"
         },
         {
-          "line": 516,
+          "line": 530,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"analytic_se\" }, REPORTED_LEVEL"
         },
         {
-          "line": 719,
+          "line": 741,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n                    test: \"response_curve_admg_bayesian_pointwise_nominal_coverage\",\n                    dgp: \"frontdoor_data\",\n                    interval: \"posterior_quantile\",\n                },\n                REPORTED_LEVEL,"
         },
         {
-          "line": 757,
+          "line": 779,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n                    test: \"response_curve_admg_bayesian_accepted_pointwise_nominal_coverage\",\n                    dgp: \"frontdoor_data\",\n                    interval: \"posterior_quantile\",\n                },\n                REPORTED_LEVEL,"
         },
         {
-          "line": 809,
+          "line": 831,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"bootstrap_se\" }, REPORTED_LEVEL"
         },
         {
-          "line": 1117,
+          "line": 1139,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n                    test: \"response_curve_admg_graph_posterior_bayesian_pointwise_nominal_coverage\",\n                    dgp: \"frontdoor_data\",\n                    interval: \"posterior_quantile\",\n                },\n                REPORTED_LEVEL,"
         },
         {
-          "line": 1215,
+          "line": 1243,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"average_effect_unknown_frequentist_joint_band_nominal_coverage\",\n            dgp: \"unknown_data\",\n            interval: \"simultaneous_band\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1444,
+          "line": 1472,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"agreeing_temporal_series\", interval },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1484,
+          "line": 1512,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"agreeing_temporal_series\", interval },\n                REPORTED_LEVEL,"
         }
@@ -570,7 +659,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_bayesian_static.rs",
-      "sha256": "56939f19fcf5b10b7d6ef85451e9de281b1a5962a38ebd1e30c3d71bbf40af89",
+      "sha256": "b7e52f8c65ea248a2b2d3e489ad7180aa5badf4f92b1968a411c346a6ed02639",
       "labelled_calls": [
         {
           "line": 100,
@@ -588,18 +677,51 @@
       "review": "Optional labels supplied by declared static query coordinates; finite source case/dose arrays."
     },
     {
+      "path": "crates/antecedent/tests/calibration_binding.rs",
+      "sha256": "65f144d12e64f4bc76aa3ee3ac0a1dc5124cd95ac4b81ea4fb40baaaf9a4af86",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 551,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, 0.95"
+        },
+        {
+          "line": 555,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, 0.95"
+        },
+        {
+          "line": 558,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, 0.95"
+        },
+        {
+          "line": 563,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, 0.95"
+        },
+        {
+          "line": 574,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, 0.95"
+        }
+      ],
+      "review": "Facade-key binding check of the estimator-level record constructions; runs no Monte Carlo hypothesis and selects no label."
+    },
+    {
       "path": "crates/antecedent/tests/calibration_counterfactual.rs",
-      "sha256": "b2766b34cf26faed904ff849b7c7a8080c32d79569f16189834d4e761e7fbb0e",
+      "sha256": "a20b69255bd612db4af1b064d86405b133c909b47cb4137df3919c0622f7667c",
       "labelled_calls": [
         {
-          "line": 179,
+          "line": 180,
           "call": ".labelled(",
           "argument": "label"
         }
       ],
       "constructor_calls": [
         {
-          "line": 179,
+          "line": 180,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval }, level"
         }
@@ -608,7 +730,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_design.rs",
-      "sha256": "c9a0fecbf522d968ae95f3cc22a9ac3c4448b5bd970514065f37d337d3a4cee5",
+      "sha256": "1edfe59a5835fd32ca427fb5b11422052b3f7de15ade9c083a6df49cb2e0837f",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -621,7 +743,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_design_bayesian.rs",
-      "sha256": "745b59cf1a858c5f6ebb33cc1ce80215ca163f2de3df65e8f61194ffe50cbe97",
+      "sha256": "54c988baa1af56f0d0869ab922cf1cc1fbe7b7c840f978dd68a05829f1160ece",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -634,7 +756,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_distribution_admg.rs",
-      "sha256": "91827067956c167853d88e5f1700de1f2635283dfdc896b024ce09a8409907cb",
+      "sha256": "38111f98bed467def51b8c4315ca8ad54d91509ea421f89d105e0f954d99d7a4",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -652,7 +774,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_estimate.rs",
-      "sha256": "838fa703df17a7a4c25597e004509be9dfd622c6dc8e9d1ee936b7b5cf228a43",
+      "sha256": "5c53d6840f68681bce399fbe0a79bf6015d66223956ab49df945ea29ed01be79",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -665,7 +787,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_posterior_draws.rs",
-      "sha256": "5af3c50076d5cfb4e7b54aa76c8e394b321379f62cb3f9c6f55ecd8bb9b2bcbd",
+      "sha256": "446e187090538c13508bcc69aff874ebeb438dc31b3f8d39f964a1e64390e6ae",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -678,35 +800,35 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_response.rs",
-      "sha256": "0c5583daa205c79c246822c4df741242c1a7945dce8ad06d54efae43b2c436f1",
+      "sha256": "683158a83f1cf196e547f66a5d320997c63d6e28e542ad0c6dd8375f4883aab1",
       "labelled_calls": [
-        {
-          "line": 723,
-          "call": ".labelled(",
-          "argument": "label.clone()"
-        },
         {
           "line": 724,
           "call": ".labelled(",
-          "argument": "label"
+          "argument": "label.clone()"
         },
         {
-          "line": 818,
+          "line": 725,
           "call": ".labelled(",
-          "argument": "label.clone()"
+          "argument": "label"
         },
         {
           "line": 819,
           "call": ".labelled(",
+          "argument": "label.clone()"
+        },
+        {
+          "line": 820,
+          "call": ".labelled(",
           "argument": "label"
         },
         {
-          "line": 1096,
+          "line": 1097,
           "call": ".labelled(",
           "argument": "label.clone()"
         },
         {
-          "line": 1097,
+          "line": 1098,
           "call": ".labelled(",
           "argument": "label"
         }
@@ -722,7 +844,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_temporal.rs",
-      "sha256": "1ec5e201790b974c6c6a69b310215a37fa53d7fd0cc1c3222d607357f1da1f78",
+      "sha256": "75fc2edbe510b22bebcbf5386e68470ad1e75af32822afd26068aac0cbe5623e",
       "labelled_calls": [
         {
           "line": 60,
@@ -741,7 +863,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_temporal_class.rs",
-      "sha256": "effcd04b452181e7e593e0b66b75caa1d32485c7ddb049c4aac4e97a267d7280",
+      "sha256": "c5ecd7c722e9361f77efe94205642847b9fe98a2b32a529959152c7357ce98ee",
       "labelled_calls": [
         {
           "line": 378,
@@ -769,8 +891,27 @@
       "review": "Optional labels from finite caller-declared query contrast cases."
     },
     {
+      "path": "crates/antecedent/tests/categorical_posterior_calibration.rs",
+      "sha256": "02449fe3cc519b7087031c36ce9f66b25310c6b1b34e73c44e845c2149391ff2",
+      "labelled_calls": [
+        {
+          "line": 151,
+          "call": ".labelled(",
+          "argument": "format!(\"k{levels}\")"
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 143,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n                test: \"categorical_conjugate_contrast_prior_predictive_interval\",\n                dgp: \"declared_levels_normal_inverse_gamma_prior_predictive_imbalance_grid\",\n                interval: \"posterior_quantile\",\n            },\n            0.95,"
+        }
+      ],
+      "review": "Level-count labels k2 to k8 from a finite source loop; the nine settings cycled inside a record are fixed multipliers and imbalances, not outcomes."
+    },
+    {
       "path": "crates/antecedent/tests/class_posterior_calibration.rs",
-      "sha256": "02f5fa30a5eb5b09859dba05d4b4857397ad3c70bfecd952c3fb93edb03366af",
+      "sha256": "ec2575374af9ede7eda6b9547bc4623c699ee864874c739bb6bc4b3908448dfc",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -788,11 +929,11 @@
     },
     {
       "path": "crates/antecedent/tests/cluster_dml_calibration.rs",
-      "sha256": "8b38a08035bb50c3a10464b1ff01da9a904d29b63a58a513ef8f0ee8b4ded3e9",
+      "sha256": "62d3514f3cfae00e366e4fc3390e7c9662c2a0327db0e493f36ba93f32b592bb",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 116,
+          "line": 125,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"cluster_dml_t_wald_interval\",\n            dgp: \"cluster_random_effect\",\n            interval: INTERVAL,\n        },\n        REPORTED_LEVEL,"
         }
@@ -801,28 +942,28 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration.rs",
-      "sha256": "d94deb477d38be3074a5af3a4b0681ba748f75e171e5e34ebb6d3c9f569b7f71",
+      "sha256": "1d8247112cc0bdaac080782be3620afa6d084a8a84e310ac8e2044395e569be5",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources."
     },
     {
       "path": "crates/antecedent/tests/common/calibration_bind.rs",
-      "sha256": "906a4c6e4f28e3c8fa2b5d5ea8c68326169df5a8a0586aa016712bb276235365",
+      "sha256": "e2fb0b8e7cce1698cd91559e9122b0f159f8163cf5c3f512d08e3d8b54bc7fa5",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared immutable construction/record-key binding, no calibration outcomes choose hypotheses."
     },
     {
       "path": "crates/antecedent/tests/common/reported.rs",
-      "sha256": "3ce496fc2ba2c93820f4802d1a3b5904ea9f5f9eaf9ed78844cedffd74296dad",
+      "sha256": "55e20c31d1116fd31ca193830162b894da27e095b70fb407a82143cc73a58870",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared per-test reporting wrapper; one source-fixed test execution context, no empirical hypothesis selection."
     },
     {
       "path": "crates/antecedent/tests/cross_world_interval_calibration.rs",
-      "sha256": "b099ae1ccc19531270152e2c97cb43c6eed9a4d57b1c1e636833ea024198091b",
+      "sha256": "ada54225b72e1f028c8712184aea5763ce2f36de5cac70bb25b9bb3a9cefda13",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -835,7 +976,7 @@
     },
     {
       "path": "crates/antecedent/tests/derivative_calibration.rs",
-      "sha256": "85e24c68e8ee3ff0034779152d4d7db77e5bef3f7338e6c8e67bc3e498ebda6d",
+      "sha256": "a18d6753633cd16f2b6f825bbc3151f29976bf933569eccd90220b1abca8b975",
       "labelled_calls": [
         {
           "line": 883,
@@ -848,7 +989,7 @@
           "argument": "format!(\"j={j}\")"
         },
         {
-          "line": 1125,
+          "line": 1124,
           "call": ".labelled(",
           "argument": "format!(\"j={j}\")"
         }
@@ -890,7 +1031,7 @@
           "argument": "key, REPORTED_LEVEL"
         },
         {
-          "line": 1125,
+          "line": 1124,
           "call": "CoverageTally::for_record(",
           "argument": "key, LEVEL"
         }
@@ -899,7 +1040,7 @@
     },
     {
       "path": "crates/antecedent/tests/discovered_transport_calibration.rs",
-      "sha256": "26e26a01b86687749ce8113dcfc32762cb892befffd703c1e584d9600d330aa9",
+      "sha256": "b69cfb38b4db30d529d60260a476a9ef61c08554cae77c245ac4e2acd2ddd8e5",
       "labelled_calls": [
         {
           "line": 344,
@@ -907,12 +1048,12 @@
           "argument": "\"fci_cutoff_0_05_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set\","
         },
         {
-          "line": 486,
+          "line": 501,
           "call": ".labelled(",
           "argument": "\"full_allowed_edge_holm_including_contemporaneous_v1\""
         },
         {
-          "line": 583,
+          "line": 599,
           "call": ".labelled(",
           "argument": "\"full_allowed_edge_holm_including_contemporaneous_v1\""
         }
@@ -924,12 +1065,12 @@
           "argument": "RecordKey {\n            test: \"discovered_pag_transport_contrast_complete_procedure_coverage\",\n            dgp: \"latent_confounded_selection_on_z\",\n            interval: INTERVAL,\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 478,
+          "line": 493,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"discovered_temporal_transport_contrast_complete_procedure_coverage\",\n            dgp: \"lagged_selection_on_autoregressive_z\",\n            interval: \"block_percentile_bootstrap\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 575,
+          "line": 591,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage\",\n            dgp: \"lag_two_selection_on_autoregressive_z_six_variables\",\n            interval: \"block_percentile_bootstrap\",\n        },\n        REPORTED_LEVEL,"
         }
@@ -938,7 +1079,7 @@
     },
     {
       "path": "crates/antecedent/tests/evidence_synthesis_calibration.rs",
-      "sha256": "1b715ce15ba35c208d6cd3c936ef492735320656c8581a6f15a2ae7749ee6719",
+      "sha256": "47512d50118564e595db5b936c4f50b0dd881534fa5c9abf8c52c8777edd531f",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -950,17 +1091,35 @@
       "review": "Fixed6 study counts across4 declared heterogeneity regimes; distinct source-fixed legacy/new pooling methods and confidence."
     },
     {
-      "path": "crates/antecedent/tests/joint_law_composed_interval_calibration.rs",
-      "sha256": "1641dd1b0cc6f05a9be9a045354f6cff631e139c9a59cadbfa6208ccf4fddd57",
+      "path": "crates/antecedent/tests/graph_imputation_interval_calibration.rs",
+      "sha256": "c9a85a94f3c3c7939374fcd1b1eaea9c0329cecd3de3136387cd0b5fecdd162e",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 179,
+          "line": 89,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"graph_imputation_mar_bic_nearest_rank_candidate\",\n            dgp: \"randomized_binary_covariate_linear_normal_mar_by_treatment\",\n            interval: \"nearest_rank_95\",\n        },\n        0.95,"
+        },
+        {
+          "line": 143,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: \"nearest_rank_95\" }, 0.95"
+        }
+      ],
+      "review": "Fixed graph-imputation prior-predictive cells with declared priors and effects; candidate measurements, no label chosen from outcomes."
+    },
+    {
+      "path": "crates/antecedent/tests/joint_law_composed_interval_calibration.rs",
+      "sha256": "23295b4233b46a2f09c827d7d36f47406df51d013f4d62192df85740468a10ed",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 180,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: NORMAL_APPROXIMATION_CONSTRUCTION },\n        LEVEL,"
         },
         {
-          "line": 337,
+          "line": 338,
           "call": "CoverageTally::new(",
           "argument": "\"a_violated_declared_independence_under_covers\", LEVEL"
         }
@@ -969,21 +1128,21 @@
     },
     {
       "path": "crates/antecedent/tests/joint_sensitivity_calibration.rs",
-      "sha256": "70c815460bee1569ae54441ca530f41716439270fa25569299912055ad569af8",
+      "sha256": "841deb181e399854ec87aa3b9ee4837b8f3b921d30268616a95ace22a3918300",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 338,
+          "line": 339,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"z_joint_surrogate_counts\", interval: INTERVAL },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 380,
+          "line": 382,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"z_joint_sensitivity_zero_box\",\n            dgp: \"z_joint_surrogate_counts\",\n            interval: INTERVAL,\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 396,
+          "line": 398,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"z_joint_sensitivity_positive_box\",\n            dgp: \"z_joint_surrogate_counts\",\n            interval: INTERVAL,\n        },\n        REPORTED_LEVEL,"
         }
@@ -991,8 +1150,21 @@
       "review": "Fixed sensitivity parameters, model/grid families and named confidence targets."
     },
     {
+      "path": "crates/antecedent/tests/learned_continuous_bootstrap_calibration.rs",
+      "sha256": "165f27ad7983feadf53e96d4332aa6ea82268e0f61f34c362a886f6002247fdc",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 92,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: dgp_name, interval: INTERVAL },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Fixed learned-continuous joint outer bootstrap procedure, the Good scenario of the declared DGP under both sampling designs and static record keys."
+    },
+    {
       "path": "crates/antecedent/tests/learned_continuous_calibration.rs",
-      "sha256": "19a1912f55e3f3bcfe57d26b0cabc418c8d79e64051d97336bcd10a1a6bea1b6",
+      "sha256": "ea9778a4d2f7a4166f06c0f712945413dd402633597ad23baffe1033e3ad3c38",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1004,8 +1176,21 @@
       "review": "Fixed learned continuous procedures and generative configurations; learning is inside each fixed scoring procedure."
     },
     {
+      "path": "crates/antecedent/tests/mechanism_composition_interval_calibration.rs",
+      "sha256": "904bfc715927a20c2806184bcabf132cb4d6b231a4cb3d66125c35e6029adbb7",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 326,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: \"delta_method_wald\" },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Fixed recursive Gaussian chain with closed-form interventional means, composed and transported variants, and static record keys."
+    },
+    {
       "path": "crates/antecedent/tests/missing_outcome_calibration.rs",
-      "sha256": "088ca979ff0527c6376fbab6202a5f071a04c4d7b2010d631f257f69a3961327",
+      "sha256": "904536174a0fb61c2f0101f74032d4b685ee3ab725c9ab2fce2fddf1193a33be",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1018,7 +1203,7 @@
     },
     {
       "path": "crates/antecedent/tests/mixture_interval_calibration.rs",
-      "sha256": "28258cd0214342903793e0b7c33a3fb6647a07393c3cbbe3a87343ef3bedc66b",
+      "sha256": "7ca5e8399a0a540510290ecd5b72d6f9354d97fd51c5804b98d898efd77d0bfc",
       "labelled_calls": [
         {
           "line": 984,
@@ -1196,12 +1381,31 @@
       "review": "Literal x=1, fixed dose grids, and finite direct/mediated/total contrast tuples."
     },
     {
+      "path": "crates/antecedent/tests/mnar_interval_calibration.rs",
+      "sha256": "defa2516c6b9350af36fa313c379cb76bb6808fcbc554be99e304a80ca3f66cd",
+      "labelled_calls": [
+        {
+          "line": 148,
+          "call": ".labelled(",
+          "argument": "scope_functional(shift_band, missing_band)"
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 140,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n                    test: \"mnar_compiled_shift_delta_io_interval\",\n                    dgp: \"independent_arms_declared_treated_shift_gaussian_or_exponential\",\n                    interval: \"delta_normal\",\n                },\n                0.95,"
+        }
+      ],
+      "review": "Declared-shift and arm-missingness band labels from a finite source grid; a replicate whose realized cell differs from the measured one is redrawn, so observed data never choose a label."
+    },
+    {
       "path": "crates/antecedent/tests/multilevel_interval_calibration.rs",
-      "sha256": "7301c8bc45ab9b1f85ee545ad542f900e557bc7403fcbc70fbaa667b4630dfa9",
+      "sha256": "eec733f86bad61cc8f47fc8a95975063bfede949aa598328bc9ff7c73ce8d548",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 195,
+          "line": 202,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"multilevel_generalized_propensity_interval\",\n            dgp: \"confounded_three_level_treatment\",\n            interval: INTERVAL,\n        },\n        REPORTED_LEVEL,"
         }
@@ -1210,16 +1414,16 @@
     },
     {
       "path": "crates/antecedent/tests/mz_transport_calibration.rs",
-      "sha256": "000d853cc3a1aedd230bfee1ef81d46024e46f037f0d96629bfc4c53542e760d",
+      "sha256": "78f627be9983a45872d45f9bdc9e91c23f3d9874505c8d32d527a5df7217fa4d",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 236,
+          "line": 237,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"multi_source_mz_independent_studies\",\n            dgp: \"mz_figure_1_independent_studies\",\n            interval: INTERVAL,\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 259,
+          "line": 260,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"multi_source_mz_shared_units\",\n            dgp: \"mz_figure_1_shared_units\",\n            interval: INTERVAL,\n        },\n        REPORTED_LEVEL,"
         }
@@ -1228,7 +1432,7 @@
     },
     {
       "path": "crates/antecedent/tests/panel_calibration.rs",
-      "sha256": "d32d0fa74239a5fcd8742e9690f5d5c99d7510ecc1d6ab9b1261b9d43b8cb27e",
+      "sha256": "52aed037853e246643bca54b247d2a93defe753b62360d1e465f900b7745050d",
       "labelled_calls": [
         {
           "line": 127,
@@ -1267,25 +1471,25 @@
     },
     {
       "path": "crates/antecedent/tests/practitioner_scale_calibration.rs",
-      "sha256": "45892f652a5ceed82319f12e34d556689e577701e9664df878ee666fa862d9ef",
+      "sha256": "290fc5cc21eea756eb461f5db8952397a9f9c6bf829b1980923f7a29ab1e44ab",
       "labelled_calls": [
         {
-          "line": 701,
+          "line": 721,
           "call": ".labelled(",
           "argument": "*name"
         },
         {
-          "line": 706,
+          "line": 726,
           "call": ".labelled(",
           "argument": "*name"
         },
         {
-          "line": 801,
+          "line": 823,
           "call": ".labelled(",
           "argument": "*name"
         },
         {
-          "line": 806,
+          "line": 828,
           "call": ".labelled(",
           "argument": "*name"
         }
@@ -1302,32 +1506,32 @@
           "argument": "key, GATE_LEVEL"
         },
         {
-          "line": 579,
+          "line": 599,
           "call": "CoverageTally::for_record(",
           "argument": "key, 0.9"
         },
         {
-          "line": 580,
+          "line": 600,
           "call": "CoverageTally::for_record(",
           "argument": "key, REPORTED_LEVEL"
         },
         {
-          "line": 701,
+          "line": 721,
           "call": "CoverageTally::for_record(",
           "argument": "key, 0.9"
         },
         {
-          "line": 706,
+          "line": 726,
           "call": "CoverageTally::for_record(",
           "argument": "key, REPORTED_LEVEL"
         },
         {
-          "line": 801,
+          "line": 823,
           "call": "CoverageTally::for_record(",
           "argument": "key, GATE_LEVEL"
         },
         {
-          "line": 806,
+          "line": 828,
           "call": "CoverageTally::for_record(",
           "argument": "key, REPORTED_LEVEL"
         }
@@ -1336,11 +1540,11 @@
     },
     {
       "path": "crates/antecedent/tests/predictive_score_interval_calibration.rs",
-      "sha256": "641486185611b7a431ee9f6b4ff9e6dce15402bb172f2fd7f329e5c2bf5f0776",
+      "sha256": "55f280e8a2ec603312a1d868bd531cb2d7627ef613ee50579d4e39e1c5eea3da",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 289,
+          "line": 291,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: interval_method(design) },\n        LEVEL,"
         }
@@ -1349,7 +1553,7 @@
     },
     {
       "path": "crates/antecedent/tests/randomized_interval_calibration.rs",
-      "sha256": "26f88b5b5ce757d38c5db746755e070e88a8e368ff96d1e9c90e0167c1ecbf75",
+      "sha256": "447dbedb0f60809fa920ba74540997fe51a20def1d90f2e408f68e26f048be06",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1358,16 +1562,59 @@
           "argument": "RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL"
         },
         {
-          "line": 336,
+          "line": 539,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL"
+        },
+        {
+          "line": 667,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test,\n            dgp: \"cluster_margin_fixed_population\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 815,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"decision_margin_matched_pair_delta_interval\",\n            dgp: \"fixed_matched_pair_margin\",\n            interval: \"delta_method_student_95\",\n        },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 907,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"decision_margin_switchback_delta_interval\",\n            dgp: \"fixed_switchback_margin\",\n            interval: \"delta_method_student_95\",\n        },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 1024,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"decision_margin_lagged_excursion_delta_interval\",\n            dgp: \"fixed_lagged_excursion_margin\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 1107,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"decision_margin_static_regime_bootstrap_delta_interval\",\n            dgp: \"fixed_single_period_regime_margin\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 1199,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"decision_margin_adaptive_regime_jackknife_delta_interval\",\n            dgp: \"randomized_treatment_affected_binary_state\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         }
       ],
       "review": "Fixed randomized procedures and source-declared interval levels."
     },
     {
+      "path": "crates/antecedent/tests/randomized_quantile_interval_calibration.rs",
+      "sha256": "d5487d8e566f671b18e3c250756cd19807746e03a41f5ffd7e8d385ccca97ac0",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 106,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"randomized_quantile_median_effect_analytic_interval\",\n            dgp: \"bernoulli_half_gaussian_arms_known_median_effect\",\n            interval: \"analytic_se\",\n        },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Fixed randomized-quantile median-effect design with a known truth and static record key; the quantile and arms are source-declared."
+    },
+    {
       "path": "crates/antecedent/tests/sample_split_effect_calibration.rs",
-      "sha256": "67e18f6f9e6472e1514da8cba37d968323e8aea10c219a537a0a0d9122e7ecd4",
+      "sha256": "3bce1ede568e489e960c8d6967957caa12a630277678cacd5469c4d6a36e78c4",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1390,7 +1637,7 @@
     },
     {
       "path": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs",
-      "sha256": "58ee55b47e26dd452d06ced6442e39838deec10707914ba7a8c8a12cb8e57622",
+      "sha256": "cdd014e8213056ed5d758c1ba81fa42fa9043817274086174cba96799ebd533b",
       "labelled_calls": [
         {
           "line": 460,
@@ -1439,7 +1686,7 @@
     },
     {
       "path": "crates/antecedent/tests/sample_split_weighted_effect_calibration.rs",
-      "sha256": "11917d0677b6776e9dcd515d872ec515927ee3a5f3a1ba11faf6d83f06a7c8e2",
+      "sha256": "9cbd1ea924e7eed93bfdbb9df57f0d19e123a01030dfe0d4ba613d110a23b6c0",
       "labelled_calls": [
         {
           "line": 257,
@@ -1463,11 +1710,11 @@
     },
     {
       "path": "crates/antecedent/tests/scientific_bridge_interval_calibration.rs",
-      "sha256": "6cd3a28baf045d2317d131caf717cc1d444c4067551725044eefb35b812d5546",
+      "sha256": "309ffd53f480d1095ee89fb18f51143cb2769e694f42b436a9d2b94481fda133",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 345,
+          "line": 353,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: interval_method }, LEVEL"
         }
@@ -1476,7 +1723,7 @@
     },
     {
       "path": "crates/antecedent/tests/smoothed_dose_calibration.rs",
-      "sha256": "c25f39b56f058a865a21128ba6b0bb086064647988349c78d43c0b723afa66c0",
+      "sha256": "0b4f56031ebc7591d2b61d50f47ec19e6b51e76f3019cb648fd25cc5337488b6",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1489,7 +1736,7 @@
     },
     {
       "path": "crates/antecedent/tests/static_calibration.rs",
-      "sha256": "abf20062cac903727a5912d45ceac92b6fbdb28b1a5767b80e9edfd28e11a6c7",
+      "sha256": "e373d82813d9b9dd1e4078f690ade60f449a3e2f179b3f08a8372e9676fcd46b",
       "labelled_calls": [
         {
           "line": 250,
@@ -1648,7 +1895,7 @@
     },
     {
       "path": "crates/antecedent/tests/static_envelope_calibration.rs",
-      "sha256": "82693fd1e63985f0495bd09be3a194e4f54fe8f2f68c4d876b198f2579730a56",
+      "sha256": "93adc87d06202339d12dbcbf45e7d00ddfa1213971a6a66396cb39d6bc7fe736",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1691,7 +1938,7 @@
     },
     {
       "path": "crates/antecedent/tests/static_mixture_calibration.rs",
-      "sha256": "b064a2a7784c5de77bf09231130ad760d8bccecba66836123ca5ac24c5edabe1",
+      "sha256": "caaae919282cc7a567dc25cbb0f68ff5da0fce212759aea27ffa2a80432c670c",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1719,7 +1966,7 @@
     },
     {
       "path": "crates/antecedent/tests/temporal_class_calibration.rs",
-      "sha256": "72468a5cf87d41d9976d48c7d29f661eb43e2c71529c84030e119ffede1d0824",
+      "sha256": "63fa07292e868e380924466e496b9ab3f1613b9bed455c59181db590b4d2b013",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1767,7 +2014,7 @@
     },
     {
       "path": "crates/antecedent/tests/temporal_frequentist.rs",
-      "sha256": "687bc6611b1cc2c942026f808dba053eb46f6f59d41782ed1c9fd080653d0da3",
+      "sha256": "9bd3b6dd0ba70afc121ec2639c28e7ba38d3960d7c1426c9e2cbdebfe0a83eed",
       "labelled_calls": [
         {
           "line": 141,
@@ -1811,7 +2058,7 @@
     },
     {
       "path": "crates/antecedent/tests/temporal_recalc_calibration.rs",
-      "sha256": "74da00051c0a60eb03d585529e0c47168926f1b078223bd51f96d4f8baeb4e3b",
+      "sha256": "88baa2b9292193a80c28cfd392b012ff8ef7b736d10662f35146cc8e3e9f8207",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1824,7 +2071,7 @@
     },
     {
       "path": "crates/antecedent/tests/temporal_response_calibration.rs",
-      "sha256": "ce0ad698b7abbd0f291a1800f25f4bb8923fddb2d2f5c026657feb734b0ba78f",
+      "sha256": "12227cc4e388aadefd3ebf173a375480342762a574a05df0647023bfe2d6e539",
       "labelled_calls": [
         {
           "line": 261,
@@ -1863,7 +2110,7 @@
     },
     {
       "path": "crates/antecedent/tests/transport_statistical_calibration.rs",
-      "sha256": "0cf5b9c0bcf5e0f3a578458a63ee648922c5c226421f6dc15bd3983df86f2c6c",
+      "sha256": "fc36b73334f48c5c65063a047901a79ce70c19c96e967dfd069802cfa1afecae",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1875,43 +2122,56 @@
       "review": "Finite source-declared transport construction/target cases and confidence."
     },
     {
+      "path": "crates/antecedent/tests/typed_transported_mechanism_interval_calibration.rs",
+      "sha256": "fe3d6f7996fdd68d8b7b1a07f688bc189bdb6facec8f642d015f795965dda9b1",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 220,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"typed_transported_poisson_mechanism_first_order_interval\",\n            dgp: \"source_and_shifted_target_poisson_count_closed_form_interventional_mean\",\n            interval: \"delta_method_wald\",\n        },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Fixed Poisson source and shifted target design with closed-form interventional mean and a static record key."
+    },
+    {
       "path": "crates/antecedent/tests/weighted_interval_calibration.rs",
-      "sha256": "165bd09e3c6876144b963d67112b7b75a236ac0ec905051ddb9057768f4a70d4",
+      "sha256": "2731df5951edb0e03914875133d9f773a5241f112599b7f27c6108952cff0a82",
       "labelled_calls": [
         {
-          "line": 616,
+          "line": 617,
           "call": ".labelled(",
           "argument": "\"population_linear\""
         },
         {
-          "line": 618,
+          "line": 619,
           "call": ".labelled(",
           "argument": "\"regression_linear_hc3\""
         }
       ],
       "constructor_calls": [
         {
-          "line": 614,
+          "line": 615,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
         },
         {
-          "line": 674,
+          "line": 675,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n                test: \"weighted_ipw_hajek_interval\",\n                dgp: \"identity_probe\",\n                interval: method,\n            },\n            REPORTED_LEVEL,"
         },
         {
-          "line": 835,
+          "line": 844,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: method }, REPORTED_LEVEL"
         },
         {
-          "line": 918,
+          "line": 928,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"informative_sampling_heterogeneous_effect\", interval: method },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1247,
+          "line": 1258,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"weighted_aipw_atc_interval\",\n            dgp: \"informative_sampling_constant_effect\",\n            interval: method,\n        },\n        REPORTED_LEVEL,"
         }
@@ -1920,7 +2180,7 @@
     },
     {
       "path": "crates/antecedent/tests/z_transport_surrogate_calibration.rs",
-      "sha256": "6e68ac012dc825c0861872d70f56836516bb20154e5d50154edfca1b53dafa34",
+      "sha256": "ee119b9c515ccd9a433b55a3e3c7446e68367ab5ef95cce9c34c539211c03583",
       "labelled_calls": [],
       "constructor_calls": [
         {

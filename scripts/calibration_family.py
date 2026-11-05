@@ -54,6 +54,8 @@ LABEL_REVIEW = {
     "practitioner_scale_calibration.rs": "Source-fixed named dose/horizon coordinates and two declared confidence levels.",
     "adaptive_whole_procedure_calibration.rs": "Literal selected_contrast scores the whole selection algorithm, rather than choosing a hypothesis from observed coverage.",
     "nested_markov_fisher_calibration.rs": "Debug rendering of a finite caller-declared functional enum.",
+    "mnar_interval_calibration.rs": "Declared-shift and arm-missingness band labels from a finite source grid; a replicate whose realized cell differs from the measured one is redrawn, so observed data never choose a label.",
+    "categorical_posterior_calibration.rs": "Level-count labels k2 to k8 from a finite source loop; the nine settings cycled inside a record are fixed multipliers and imbalances, not outcomes.",
 }
 
 
@@ -109,6 +111,18 @@ SOURCE_REVIEW = {
     "temporal_recalc_calibration.rs": "Fixed temporal recalculation scenarios/queries and static keys.",
     "transport_statistical_calibration.rs": "Finite source-declared transport construction/target cases and confidence.",
     "z_transport_surrogate_calibration.rs": "Fixed surrogate/transport procedures and static producer test identities.",
+    "choice_interval_calibration.rs": "Fixed pooled and hierarchical choice-share cells: option counts, respondents on the sample grid and declared hyperpriors; the scored share is drawn from the declared prior.",
+    "graph_imputation_interval_calibration.rs": "Fixed graph-imputation prior-predictive cells with declared priors and effects; candidate measurements, no label chosen from outcomes.",
+    "recovery_held_out_regimes.rs": "Fixed held-out clamp regimes of a known cyclic linear truth; coverage designs are source-declared and nothing records a coverage number from outcomes.",
+    "calibration_binding.rs": "Facade-key binding check of the estimator-level record constructions; runs no Monte Carlo hypothesis and selects no label.",
+    "learned_continuous_bootstrap_calibration.rs": "Fixed learned-continuous joint outer bootstrap procedure, the Good scenario of the declared DGP under both sampling designs and static record keys.",
+    "randomized_quantile_interval_calibration.rs": "Fixed randomized-quantile median-effect design with a known truth and static record key; the quantile and arms are source-declared.",
+    "matched_odds_ratio_interval_calibration.rs": "Fixed 1:1 matched-pair design with a declared conditional odds ratio and static record key.",
+    "descriptive_comparison_interval_calibration.rs": "Fixed two-arm proportion design scored on two source-declared reporting scales with static record keys.",
+    "nonlinear_mediation_interval_calibration.rs": "Fixed Gaussian-mediator quadratic-outcome design with closed-form natural effects; the three effect labels are source-declared and the record keys are the estimate's own calibration basis.",
+    "mechanism_composition_interval_calibration.rs": "Fixed recursive Gaussian chain with closed-form interventional means, composed and transported variants, and static record keys.",
+    "typed_transported_mechanism_interval_calibration.rs": "Fixed Poisson source and shifted target design with closed-form interventional mean and a static record key.",
+    "sequential_off_policy_interval_calibration.rs": "Fixed two-action off-policy design with declared logging and target policies, known target value and a static record key.",
 }
 PATH_REVIEW = {
     "crates/antecedent-io-core/src/calibration.rs": "Runtime calibration lookup and its test fixtures; no Monte Carlo family producer.",
@@ -350,9 +364,24 @@ def build_manifest(root: Path = ROOT, audit: dict | None = None) -> dict:
     return manifest
 
 
+def original_roster(root: Path = ROOT) -> list[dict]:
+    """The complete roster of the original frozen family, read from its immutable source."""
+    manifest = json.loads(read_source(root, MANIFEST_PATH, allocations.ORIGINAL_SOURCE))
+    return manifest["groups"]
+
+
 def allocation_digest(root: Path, sha: str | None, groups: list[dict]) -> str:
+    """Digest of the cumulative allocation receipt, validated against the original roster.
+
+    The receipt's risk budget, slot owners and indices belong to the original family
+    (`allocations.ROSTER_DIGEST` is the digest of that roster, so it never moves when the
+    gate gains a group). `groups`, the roster of the tree being frozen, only has to still
+    contain every allocation owner by label."""
     raw = read_source(root, allocations.PATH, sha)
-    allocations.validate(json.loads(raw), groups, source_validation_domain(root, sha))
+    allocations.validate(json.loads(raw), original_roster(root), source_validation_domain(root, sha))
+    owners = {allocations.GROUP, allocations.PAG_EXTENSION["group"]["label"]}
+    if not owners <= {group["label"] for group in groups}:
+        raise ValueError("an allocation owner group is absent from the gate roster")
     return _sha(raw)
 
 
@@ -395,7 +424,7 @@ def followup_allocation(config: dict) -> tuple[str, dict] | None:
     """A new random domain spends only its explicitly reserved construction slot."""
     decision.validate_config(config)
     domain = config["validation_domain"]
-    if domain == decision.LEGACY_DOMAIN:
+    if domain in (decision.LEGACY_DOMAIN, decision.MEASUREMENT_DOMAIN):
         return None
     if domain == decision.HC3_DOMAIN:
         return allocations.GROUP, {
@@ -427,6 +456,12 @@ def validate_measurement_selection(config: dict, labels: list[str]) -> None:
             and os.environ.get("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL", "3") != "3"
         ):
             raise ValueError("HC3 validation requires its allocated protocol3 construction")
+        return
+    if config["validation_domain"] == decision.MEASUREMENT_DOMAIN:
+        # An ordinary measurement admits every group of the frozen current roster.
+        current = json.loads(read_source(ROOT, MANIFEST_PATH))
+        if not labels or not set(labels) <= {group["label"] for group in current["groups"]}:
+            raise ValueError("measurement group is absent from the frozen current roster")
         return
     original = json.loads(read_source(ROOT, MANIFEST_PATH, allocations.ORIGINAL_SOURCE))
     roster = {group["label"] for group in original["groups"]}

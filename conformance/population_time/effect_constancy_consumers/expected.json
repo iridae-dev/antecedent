@@ -48,10 +48,10 @@
             "fn original",
             "fn original_covariance_aware_contrast_replays_and_does_not_support_transport"
           ],
-          "sha256": "b5787a7d9ba51bbdc5c83fb277f1d70cd60436765e65362ce4d2abf045182b1e"
+          "sha256": "b199274a59b1d1a81f53d1babcaee1404652eab82c76cdbc671e1faf486152a2"
         }
       ],
-      "fixture_payload_sha256": "f44610bdf8fc89f557eb863d125918d3f80a5d461dc60eda452403e8d32c43e3"
+      "fixture_payload_sha256": "7f093f2fd74058a03606caffaffdc875ed1d979b66c21c96bdfe2333d152ebae"
     }
   },
   "transport": {

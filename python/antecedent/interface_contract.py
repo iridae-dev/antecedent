@@ -78,8 +78,10 @@ __all__ = [
     "InterfaceContract",
     "InterfaceContractExport",
     "InterfaceContractRefusal",
+    "PortFacts",
     "ProducedPort",
     "SupportDomain",
+    "bridge_contract",
     "check_composition",
     "check_composition_with_cyclic",
     "check_composition_with_ledger",
@@ -88,6 +90,8 @@ __all__ = [
     "contract_identity",
     "export_interface_contract",
     "inspect_interface_contract_artifact",
+    "measurement_contract",
+    "mechanism_contract",
 ]
 
 #: The operations a port offers or requires. None implies another.
@@ -679,6 +683,198 @@ def check_composition_with_cyclic(
         ledger_handle,
     )
     return _composed(wire, refusal)
+
+
+# --------------------------------------------------------------------------- component adapters
+
+
+@dataclass(frozen=True, slots=True)
+class PortFacts:
+    """What a component's own declaration does not state but its port needs.
+
+    The adapters (:func:`mechanism_contract`, :func:`bridge_contract`,
+    :func:`measurement_contract`) take these explicitly and infer nothing: an omitted ``support``
+    is the real line, an omitted ``uncertainty`` states no meaning and an omitted
+    ``measurement_models`` claims none. ``semantic_identity`` names the estimand the value answers
+    (the variable, when omitted); ``measurement_models`` are the hex identities of the
+    measurement models the value is established under (produced) or must be established under
+    (consumed).
+    """
+
+    support: SupportDomain = field(default_factory=SupportDomain.real)
+    semantic_identity: str | None = None
+    uncertainty: DistributionMeaning | None = None
+    measurement_models: tuple[str, ...] = ()
+
+    def _wire(self) -> dict[str, Any]:
+        support = self.support
+        return {
+            "support": {
+                "kind": support.kind,
+                "lower": support.lower,
+                "upper": support.upper,
+                "levels": list(support.levels) if support.kind == "categorical" else None,
+            },
+            "semantic_identity": None
+            if self.semantic_identity is None
+            else _name(self.semantic_identity, "semantic_identity"),
+            "uncertainty": None
+            if self.uncertainty is None
+            else _choice(self.uncertainty, "uncertainty", UNCERTAINTY_MEANINGS),
+            "measurement_models": list(_set(self.measurement_models, "measurement model")),
+        }
+
+
+def _calibration_wire(calibration: Calibration | None) -> dict[str, Any] | None:
+    return None if calibration is None else calibration._wire()
+
+
+def _evidence_wire(evidence: Iterable[str] | None) -> dict[str, Any] | None:
+    if evidence is None:
+        return None
+    return {"declared": True, "sources": list(_set(evidence, "evidence source"))}
+
+
+def _adapted(wire: str | None) -> InterfaceContract:
+    assert wire is not None
+    return InterfaceContract._from_wire(json.loads(wire))
+
+
+def mechanism_contract(
+    declaration: Any,
+    *,
+    origin: Literal["fitted", "declared", "external_binding"],
+    output: PortFacts | None = None,
+    offered: Iterable[OperationsName] = ("mean",),
+    parents: Mapping[str, PortFacts] | None = None,
+    parent_operation: OperationsName = "mean",
+    calibration: Calibration | None = None,
+    evidence: Iterable[str] | None = None,
+    disjoint_parent_evidence: bool = False,
+) -> InterfaceContract:
+    """A declared mechanism as one component of the interface-contract check.
+
+    ``declaration`` is a :class:`~antecedent.mechanism_composition.MechanismDeclaration`. Its
+    output becomes the produced port ``mechanism_output`` and each parent a consumed port named by
+    the parent's variable; ``origin`` says how the numbers came about (a fitted mechanism supplies
+    the ``evidence`` stage, an external binding the ``external_provider`` stage, a declared one
+    none). The mechanism-composition rules about populations, regimes and admission stay that
+    module's; the same connection check that decides a callback's connection decides this one's.
+
+    ``output`` and ``parents`` (by parent variable) state the port facts the declaration does not;
+    ``offered`` the operations the output supports; ``parent_operation`` what is required of every
+    parent (the mean by default, which demands no meaning of a parent's uncertainty).
+    ``evidence`` is the ledger sources (64-hex) the output rests on; omitted, the declaration's
+    ``evidence_id`` is read as a ledger source identity. ``calibration`` defaults to
+    ``not_measured`` for an offering that carries uncertainty and ``point_only`` otherwise, never
+    measured. With ``disjoint_parent_evidence`` the parents must rest on disjoint evidence (the
+    composition declares the mechanism estimates independent).
+
+    Raises:
+        CausalValueError: an unknown operation, origin or meaning.
+    """
+    from .mechanism_composition import MechanismDeclaration
+
+    if not isinstance(declaration, MechanismDeclaration):
+        raise CausalTypeError("declaration must be a mechanism_composition.MechanismDeclaration")
+    basis = {
+        "origin": _choice(origin, "origin", ("fitted", "declared", "external_binding")),
+        "output": (output or PortFacts())._wire(),
+        "offered": list(_operations(tuple(offered), "offered")),
+        "parents": [[name, facts._wire()] for name, facts in (parents or {}).items()],
+        "parent_operation": _choice(parent_operation, "parent_operation", OPERATIONS),
+        "calibration": _calibration_wire(calibration),
+        "evidence": _evidence_wire(evidence),
+        "disjoint_parent_evidence": bool(disjoint_parent_evidence),
+    }
+    wire, _ = _native.mechanism_interface_contract(_dumps(declaration.to_wire()), _dumps(basis))
+    return _adapted(wire)
+
+
+def bridge_contract(
+    contract: Any,
+    component: str,
+    *,
+    source: PortFacts | None = None,
+    target: PortFacts | None = None,
+    calibration: Calibration | None = None,
+    evidence: Iterable[str] | None = None,
+) -> InterfaceContract:
+    """A scientific bridge as one component of the interface-contract check.
+
+    The bridge's source quantity is the consumed port ``bridge_source`` and its target quantity
+    the produced port ``bridge_target`` (supplying the ``transformation`` stage), the operations
+    following the bridge's declared value kinds, so the one connection check decides what feeds
+    and what is fed by a bridge. Support stays the bridge's own (its principal assumption, mapping
+    and transportability premise); the projection states only the two ports. ``calibration`` is
+    the label the target holds; a bridge never raises a calibration its source did not hold.
+
+    Raises:
+        CausalTypeError: ``contract`` is not a :class:`~antecedent.scientific_bridge.BridgeContract`.
+    """
+    from .scientific_bridge import BridgeContract
+
+    if not isinstance(contract, BridgeContract):
+        raise CausalTypeError("contract must be a scientific_bridge.BridgeContract")
+    basis = {
+        "source": (source or PortFacts())._wire(),
+        "target": (target or PortFacts())._wire(),
+        "calibration": _calibration_wire(calibration),
+        "evidence": _evidence_wire(evidence),
+    }
+    wire, _ = _native.bridge_interface_contract(
+        _dumps(contract.to_wire()), _name(component, "component"), _dumps(basis)
+    )
+    return _adapted(wire)
+
+
+def measurement_contract(
+    component: str,
+    model: Any,
+    indicator: ScientificQuantity,
+    construct: ScientificQuantity,
+    *,
+    operations: Iterable[OperationsName] = ("mean",),
+    indicator_facts: PortFacts | None = None,
+    construct_facts: PortFacts | None = None,
+    calibration: Calibration | None = None,
+    evidence: Iterable[str] | None = None,
+) -> InterfaceContract:
+    """A measurement model as one component of the interface-contract check.
+
+    The recorded ``indicator`` is the consumed port ``indicator`` and the corrected ``construct``
+    the produced port ``construct``, established under the model's identity, so a consumer that
+    relies on a corrected value states the model it relies on and the one connection check
+    compares them. The model must bind both quantities (its indicator and construct identities,
+    and its population and regime for both ends).
+
+    Raises:
+        InterfaceContractRefusal: a model that is malformed or that does not bind the quantities
+            (``measurement_model.indicator_mismatch``, ``.construct_mismatch``,
+            ``.population_mismatch``, ``.regime_mismatch``) or an interval offered by a route
+            that does not support one (``measurement_model.operation_not_supported``), each with
+            its registered reason code.
+    """
+    from .measurement_models import MeasurementModel
+
+    if not isinstance(model, MeasurementModel):
+        raise CausalTypeError("model must be a measurement_models.MeasurementModel")
+    basis = {
+        "indicator": (indicator_facts or PortFacts())._wire(),
+        "construct": (construct_facts or PortFacts())._wire(),
+        "operations": list(_operations(tuple(operations), "operations")),
+        "calibration": _calibration_wire(calibration),
+        "evidence": _evidence_wire(evidence),
+    }
+    wire, refusal = _native.measurement_interface_contract_of(
+        _name(component, "component"),
+        _dumps(model.to_wire()),
+        _dumps(_quantity_wire(indicator, "indicator")),
+        _dumps(_quantity_wire(construct, "construct")),
+        _dumps(basis),
+    )
+    _raise(refusal)
+    return _adapted(wire)
 
 
 # --------------------------------------------------------------------------- artifact

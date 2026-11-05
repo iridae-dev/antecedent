@@ -16,15 +16,32 @@ when it was measured. A record is
                        (`scripts/measure_calibration.sh`) makes it current.
 
 A record without a stored `fingerprint` is never current through its
-measurement. Nothing here fails because of a code change: the exit status is 0
+measurement.
+
+What is owed, and why, is the one list the measurement queue runs
+(`bash scripts/measure_calibration.sh --owed`). An owed item has one reason:
+
+* `no_record`           an interval route has no coverage record of its own: a supported
+                        interval route with no measured record, whether the record is
+                        allocated to it or the group that will measure it is named in
+                        `parity/calibration_routes.toml`;
+* `fingerprint_changed` a coverage record whose stored dependency fingerprint is not the
+                        tree's (or was never stored);
+* `probe_mismatch`      a coverage record with a probe attestation that does not cover the
+                        tree (a failing or other-tree probe row).
+
+Every supported interval route names the group that measures it in
+`parity/calibration_routes.toml` (or says why it publishes no interval); a route that does
+neither is `unmapped` in `intervals` and cannot be queued. Nothing here fails because of a code change: the exit status is 0
 whatever is owed. Calibration is measured on a development machine; engineering
 checks never read this.
 
     python3 scripts/calibration_status.py status            # counts, then the owed ids
-    python3 scripts/calibration_status.py status --owed     # ids of the owed records, one per line
+    python3 scripts/calibration_status.py status --owed     # every owed item, one per line: record ids, then
+                                                            #   `route:<capability record>/<route>` for a route with no record
     python3 scripts/calibration_status.py status --json     # machine-readable
     python3 scripts/calibration_status.py intervals         # per interval route: calibrated, outside_measured_scope,
-                                                            #   measured_below_nominal or not_measured
+                                                            #   measured_below_nominal, not_measured or unmapped
     python3 scripts/calibration_status.py backlog           # cells whose interval has no measurement yet
     python3 scripts/calibration_status.py readiness         # which of those have measurement wiring
     python3 scripts/calibration_status.py plan              # records owning coverage ids, with their status
@@ -146,49 +163,23 @@ def summary(statuses: dict[str, Status]) -> dict[str, int]:
     return counts
 
 
-def cmd_status(args: argparse.Namespace) -> int:
-    records = load_records()
-    statuses = classify(
-        records, load_attestations(), tree_fingerprints(records, tree_fingerprinter())
-    )
-    counts = summary(statuses)
-    owed = {rid: s.status for rid, s in sorted(statuses.items()) if s.status != CURRENT}
-    if args.json:
-        json.dump(
-            {
-                "counts": counts,
-                "records": {r: s.status for r, s in sorted(statuses.items())},
-            },
-            sys.stdout,
-            indent=2,
-        )
-        print()
-    elif args.owed:
-        for rid in owed:
-            print(rid)
-    else:
-        print(
-            f"calibration records: {counts[CURRENT]} current "
-            f"({counts['current_by_probe']} by probe), {counts[PROBE_OWED]} probe owed, "
-            f"{counts[MEASUREMENT_OWED]} measurement owed of {len(statuses)}"
-        )
-        for rid, status in owed.items():
-            print(f"  {status}: {rid}")
-    return 0
-
-
 # ---------------------------------------------------------------- interval routes
 CALIBRATED = "calibrated"
 OUTSIDE_MEASURED_SCOPE = "outside_measured_scope"
 MEASURED_BELOW_NOMINAL = "measured_below_nominal"
 NOT_MEASURED = "not_measured"
+UNMAPPED = "unmapped"  # no record, no allocated slot, no group: it cannot be owed
+NO_INTERVAL = "no_interval"  # the route is declared to publish no interval
 INTERVAL_STATES = (
     CALIBRATED,
     OUTSIDE_MEASURED_SCOPE,
     MEASURED_BELOW_NOMINAL,
     NOT_MEASURED,
+    UNMAPPED,
+    NO_INTERVAL,
 )
 CAPABILITY_RECORDS = ROOT / "parity" / "capability_records.toml"
+ROUTES = ROOT / "parity" / "calibration_routes.toml"
 
 
 def interval_state(allocated: list[str], by_id: dict[str, dict]) -> str:
@@ -210,8 +201,53 @@ def interval_state(allocated: list[str], by_id: dict[str, dict]) -> str:
     return CALIBRATED
 
 
-def interval_routes(capability: list[dict], records: list[dict]) -> list[dict]:
-    """One row per supported route that reports an interval, with its annotation."""
+def split_group(spec: str) -> tuple[str, str]:
+    """`<test file>: <test filter>` (or just `<test file>`) -> (head, filter)."""
+    head, _, test_filter = spec.partition(": ")
+    return head, test_filter
+
+
+def load_route_map(path: Path = ROUTES) -> dict[tuple[str, str], dict]:
+    """(capability record, route) -> {"groups": [(head, filter)], "no_interval": reason}.
+
+    Each `[[route]]` row names a capability record, the routes it covers and either the
+    gate groups (`<test file>: <test filter>`) whose coverage records measure them or
+    the reason they publish no interval."""
+    if not path.is_file():
+        return {}
+    out: dict[tuple[str, str], dict] = {}
+    for row in tomllib.loads(read_text(path)).get("route", []):
+        entry = {
+            "groups": [split_group(str(g)) for g in row.get("groups", [])],
+            "no_interval": str(row.get("no_interval", "")),
+        }
+        for route in row.get("routes", []):
+            out[(str(row.get("record", "")), str(route))] = entry
+    return out
+
+
+def group_records(groups: list[tuple[str, str]], records: list[dict]) -> list[dict]:
+    """The coverage records the named gate groups measure."""
+    import calibration_groups
+
+    return [
+        rec
+        for rec in records
+        if any(calibration_groups.measures(head, test_filter, rec) for head, test_filter in groups)
+    ]
+
+
+def interval_routes(
+    capability: list[dict],
+    records: list[dict],
+    route_map: dict[tuple[str, str], dict] | None = None,
+) -> list[dict]:
+    """One row per supported route that reports an interval, with its annotation.
+
+    A route the route map names is measured by the records of its named groups; any other
+    route by the records its capability record allocates. A route with neither a measured
+    record nor a slot nor a group is `unmapped`."""
+    route_map = route_map or {}
     by_id = {str(rec.get("id")): rec for rec in records}
     rows = []
     for rec in capability:
@@ -222,22 +258,37 @@ def interval_routes(capability: list[dict], records: list[dict]) -> list[dict]:
                 or (route.get("claim") or claim) != "interval"
             ):
                 continue
+            name = str(route.get("name", ""))
             allocated = [str(x) for x in rec.get("coverage_records") or []]
-            rows.append(
-                {
-                    "record": str(rec["id"]),
-                    "route": str(route.get("name", "")),
-                    "allocated": len(allocated),
-                    "measured": sum(1 for rid in allocated if rid in by_id),
-                    "state": interval_state(allocated, by_id),
-                }
-            )
+            mapping = route_map.get((str(rec["id"]), name))
+            row = {
+                "record": str(rec["id"]),
+                "route": name,
+                "allocated": len(allocated),
+                "measured": sum(1 for rid in allocated if rid in by_id),
+                "mapped_groups": [],
+                "missing_slots": [rid for rid in allocated if rid not in by_id],
+            }
+            if mapping and mapping["no_interval"] and not mapping["groups"]:
+                row["state"] = NO_INTERVAL
+            elif mapping and mapping["groups"]:
+                produced = group_records(mapping["groups"], records)
+                row["mapped_groups"] = [f"{h}: {f}" if f else h for h, f in mapping["groups"]]
+                row["measured"] = len(produced)
+                row["state"] = interval_state(
+                    [str(r.get("id")) for r in produced], {str(r.get("id")): r for r in produced}
+                )
+            elif allocated:
+                row["state"] = interval_state(allocated, by_id)
+            else:
+                row["state"] = UNMAPPED
+            rows.append(row)
     return rows
 
 
 def cmd_intervals(args: argparse.Namespace) -> int:
     capability = tomllib.loads(read_text(CAPABILITY_RECORDS)).get("record", [])
-    rows = interval_routes(capability, load_records())
+    rows = interval_routes(capability, load_records(), load_route_map())
     counts = collections.Counter(row["state"] for row in rows)
     if args.json:
         json.dump({"counts": dict(counts), "routes": rows}, sys.stdout, indent=2)
@@ -249,15 +300,138 @@ def cmd_intervals(args: argparse.Namespace) -> int:
         + f" of {len(rows)}"
     )
     for row in rows:
+        groups = f" -> {'; '.join(row['mapped_groups'])}" if row["mapped_groups"] else ""
         print(
-            f"  {row['state']}: {row['record']} / {row['route']} ({row['measured']}/{row['allocated']} records)"
+            f"  {row['state']}: {row['record']} / {row['route']} "
+            f"({row['measured']}/{row['allocated']} records){groups}"
         )
+    return 0
+
+
+# ---------------------------------------------------------------- what is owed
+NO_RECORD = "no_record"
+FINGERPRINT_CHANGED = "fingerprint_changed"
+PROBE_MISMATCH = "probe_mismatch"
+OWED_REASONS = (NO_RECORD, FINGERPRINT_CHANGED, PROBE_MISMATCH)
+ROUTE_PREFIX = "route:"
+
+
+def record_reason(rec: dict, rows: list[dict], now: str | None) -> str:
+    """Why a record that is not current is owed: a probe attestation that does not cover
+    the tree is `probe_mismatch`; a changed or never stored fingerprint, `fingerprint_changed`."""
+    if rows and not covered_by_probe(rec, rows, now):
+        return PROBE_MISMATCH
+    return FINGERPRINT_CHANGED
+
+
+def owed_items(
+    records: list[dict],
+    attestations: list[dict],
+    fingerprints: dict[str, str | None],
+    route_rows: list[dict],
+) -> list[dict]:
+    """Everything the calibration task owes, each item with exactly one reason.
+
+    * a record not current (`fingerprint_changed`, or `probe_mismatch`);
+    * an interval route with no measured record (`no_record`): the route itself when the
+      group that will measure it (`parity/calibration_routes.toml`) has produced no record,
+      or a slot id its capability record allocates and no record exists for. `groups` is
+      what the measurement queue runs for a route item."""
+    statuses = classify(records, attestations, fingerprints)
+    by_record: dict[str, list[dict]] = {}
+    for row in attestations:
+        by_record.setdefault(str(row.get("record_id", "")), []).append(row)
+    items: list[dict] = []
+    for rec in records:
+        rid = str(rec.get("id"))
+        if statuses[rid].status != CURRENT:
+            items.append(
+                {
+                    "kind": "record",
+                    "id": rid,
+                    "reason": record_reason(rec, by_record.get(rid, []), fingerprints.get(rid)),
+                    "stored_fingerprint": bool(rec.get("fingerprint")),
+                    "groups": [],
+                }
+            )
+    seen_slots: set[str] = set()
+    for route in route_rows:
+        if route["state"] not in (NOT_MEASURED, UNMAPPED):
+            continue
+        if route["mapped_groups"] or not route["missing_slots"]:
+            items.append(
+                {
+                    "kind": "route",
+                    "id": f"{ROUTE_PREFIX}{route['record']}/{route['route']}",
+                    "reason": NO_RECORD,
+                    "groups": route["mapped_groups"],
+                    "unwired": not route["mapped_groups"],
+                }
+            )
+            continue
+        for slot in route["missing_slots"]:
+            if slot not in seen_slots:
+                seen_slots.add(slot)
+                items.append({"kind": "slot", "id": slot, "reason": NO_RECORD, "groups": []})
+    return items
+
+
+def owed_counts(items: list[dict]) -> dict[str, int]:
+    counts = {reason: 0 for reason in OWED_REASONS}
+    for item in items:
+        counts[item["reason"]] += 1
+    return counts
+
+
+def current_owed() -> tuple[list[dict], dict[str, Status], dict[str, int]]:
+    records = load_records()
+    attestations = load_attestations()
+    fingerprints = tree_fingerprints(records, tree_fingerprinter())
+    statuses = classify(records, attestations, fingerprints)
+    capability = tomllib.loads(read_text(CAPABILITY_RECORDS)).get("record", [])
+    route_rows = interval_routes(capability, records, load_route_map())
+    items = owed_items(records, attestations, fingerprints, route_rows)
+    return items, statuses, summary(statuses)
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    items, statuses, counts = current_owed()
+    reasons = owed_counts(items)
+    if args.json:
+        json.dump(
+            {
+                "counts": counts,
+                "owed_by_reason": reasons,
+                "records": {r: s.status for r, s in sorted(statuses.items())},
+                "owed": items,
+            },
+            sys.stdout,
+            indent=2,
+        )
+        print()
+    elif args.owed:
+        for item in items:
+            print(item["id"])
+    else:
+        print(
+            f"calibration records: {counts[CURRENT]} current "
+            f"({counts['current_by_probe']} by probe), {counts[PROBE_OWED]} probe owed, "
+            f"{counts[MEASUREMENT_OWED]} measurement owed of {len(statuses)}"
+        )
+        never = sum(1 for i in items if i["kind"] == "record" and not i["stored_fingerprint"])
+        print(
+            f"owed: {len(items)} item(s): "
+            + ", ".join(f"{reasons[name]} {name}" for name in OWED_REASONS)
+            + f" ({never} record(s) never stored a fingerprint)"
+        )
+        for item in items:
+            print(f"  {item['reason']}: {item['id']}")
     return 0
 
 
 # ---------------------------------------------------------------- inventories
 SUPPORT_CELLS = ROOT / "parity" / "support_cells.toml"
-NOT_MEASURED = "estimator_grid_not_measured"
+BACKLOG_REASON = "estimator_grid_not_measured"
 AXES = ("query", "graph_class", "structure", "inference")
 
 
@@ -265,7 +439,7 @@ def not_measured_coordinates() -> dict[tuple[str, ...], list[dict]]:
     cells = tomllib.loads(read_text(SUPPORT_CELLS)).get("cell", [])
     grouped: dict[tuple[str, ...], list[dict]] = collections.defaultdict(list)
     for cell in cells:
-        if cell.get("calibration_reason") == NOT_MEASURED:
+        if cell.get("calibration_reason") == BACKLOG_REASON:
             grouped[tuple(cell[axis] for axis in AXES)].append(cell)
     return dict(sorted(grouped.items()))
 
@@ -635,6 +809,39 @@ def shape_problems(root: Path = ROOT) -> list[str]:
     ids = [rec.get("id") for rec in records]
     if len(set(ids)) != len(ids):
         problems.append("parity/coverage_records.toml: duplicate record ids")
+    problems.extend(route_map_problems(root))
+    return problems
+
+
+def route_map_problems(root: Path = ROOT) -> list[str]:
+    """Shape of `parity/calibration_routes.toml`, and that every group it names has a test file."""
+    path = root / "parity" / "calibration_routes.toml"
+    if not path.is_file():
+        return []
+    problems: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    for row in tomllib.loads(read_text(path)).get("route", []):
+        where = f"calibration_routes.toml {row.get('record')}"
+        routes = row.get("routes")
+        groups = row.get("groups", [])
+        reason = row.get("no_interval", "")
+        if not row.get("record") or not isinstance(routes, list) or not routes:
+            problems.append(f"{where}: needs `record` and a non-empty `routes` list")
+            continue
+        if bool(groups) == bool(reason):
+            problems.append(f"{where}: give either `groups` or `no_interval`, not both or neither")
+        for route in routes:
+            if (row["record"], route) in seen:
+                problems.append(f"{where}: route {route} is mapped twice")
+            seen.add((row["record"], route))
+        for spec in groups:
+            head, _ = split_group(str(spec))
+            if not (
+                any(root.glob(f"crates/*/tests/{head}.rs"))
+                or any(root.glob(f"crates/*/tests/{head}/main.rs"))
+                or (root / "crates" / head).is_dir()
+            ):
+                problems.append(f"{where}: group {spec!r} names no test file")
     return problems
 
 

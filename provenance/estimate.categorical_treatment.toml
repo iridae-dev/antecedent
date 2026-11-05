@@ -40,19 +40,19 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Eight tables of 7 to 25 rows with four levels (three in the smallest, two rows per level there), one adjustment column, an outcome offset of 1e8 and an adjustment within 1e-4 of a level indicator; covariances model-based, HC0, HC1, HC2 and HC3; coefficients, the covariance block, contrast estimates and standard errors are asserted to 1e-10 relative (1e-6 for the near-collinear adjustment, 3e-6 for the 1e8 offset), p-values to 1e-6 relative to a 50-digit reference. The product forms (X'X)^-1 explicitly from the normal equations without centring the outcome, which costs about 4e-7 relative in the standard errors at a 1e8 offset with unit noise; that loss is not removed. The reference does not exercise a rank-deficient adjustment, weights or the replay summaries. Test size and power of the omnibus and monotonicity tests are not measured."
 sources = ["https://mpmath.org/"]
 findings_resolved = ["Documentation defect repaired: the record stated the monotonicity p-value as min(1, 2 Phi(.)), but the product (and its docs) use the Bonferroni factor m, the number of adjacent steps, which equals 2 only for three levels; the record now states min(1, m Phi(T)) and the reference verifies m Phi(T) with m = 3 for four levels.", "No numerical defect found: coefficients, full covariance blocks, contrasts, Holm adjustment across the declared family, the omnibus statistic and its chi-square p-value and the monotonicity statistic match the exact rational and 50-digit reference for all five covariance estimators, with an unbalanced design, a reference level inside the list, a 1e8 outcome offset and a near-collinear adjustment."]
-record_sha256 = "4b0c363442283904a6aebd56a181c516c28bc1b501a9ba4656dba312016e5172"
+record_sha256 = "f1d74bdd9683681642d025d376347cc953208eb5fd52dd3c5475de6b9eb70953"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/categorical_treatment.rs"
 items = ["const MONOTONICITY_NON_DECREASING_NULL", "const MONOTONICITY_NON_INCREASING_NULL", "enum LevelScale", "enum MonotonicityDirection", "fn assemble_categorical", "fn count_levels", "fn declared_contrasts", "fn dummy_columns", "fn dummy_name", "fn fit_categorical_treatment", "fn monotonicity_result", "fn pair_contrast", "fn validate_spec", "struct AdjacentStep", "struct CategoricalTreatmentFit", "struct CategoricalTreatmentInput", "struct CategoricalTreatmentSpec", "struct LevelContrast", "struct LevelCount", "struct MonotonicityResult", "struct PairContrast"]
-sha256 = "8460976f30c032d3c4338332b14f64933c22bfd83c8045838f188f0baf318729"
+sha256 = "31d7b2ea694c64f076d7e606ed487107402f17ec27d13c5b2615401a665b777f"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/vector_treatment.rs"
 items = ["const LEVERAGE_TOLERANCE", "const RANK_TOLERANCE", "const VECTOR_TREATMENT_INTERCEPT", "const VECTOR_TREATMENT_NULL", "enum VectorCovariance", "fn apply_weights", "fn as_str", "fn assemble", "fn build_design", "fn check_design", "fn check_row_structure", "fn degenerate", "fn dependent_meat", "fn evaluate_contrasts", "fn first_dependent_column", "fn fit_joint", "fn fit_joint_retained", "fn fit_joint_retained_declared", "fn fit_ols", "fn full_covariance", "fn joint_gram_addressable", "fn matmul", "fn new", "fn quadratic_form", "fn robust_meat", "fn row_of", "fn sandwich", "fn scores_of", "fn validate_input", "fn validate_shared", "fn wald_rows", "fn weight_vector", "struct CoefficientEstimate", "struct Contrast", "struct ContrastEstimate", "struct Design", "struct JointWald", "struct NamedColumn", "struct Ols", "struct RowStructure", "struct Solved", "struct TreatmentColumn", "struct VectorTreatmentFit", "struct VectorTreatmentInput", "struct VectorTreatmentOptions"]
-sha256 = "e58da90906a4993ebcd3277992df16e06c2a37f8a11ee9aceb968562553c8f61"
+sha256 = "f326dbee37864e91096a13a606ae86420abcfb141e2468a9a4783e837f7e5846"
 
 [[method_review.artifacts]]
 role = "assertion"

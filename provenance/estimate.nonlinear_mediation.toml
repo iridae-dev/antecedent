@@ -43,7 +43,7 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Seven noisy tables of 80 to 120 rows with one or two covariates and outcome degree two, three or four: a mediator offset of 1e6, a covariate offset of 1e3, an outcome offset of 1e7, an exponential (skewed) mediator and a mediator residual 1e-3 of its scale. Effects are asserted to 1e-6 relative, the residual variance to 1e-9 and the mediator coefficients to 1e-6. The reference integrates the polynomial exactly over the normal law where the product uses a Gauss-Hermite rule, so quadrature error is exercised through the node count the degree demands. The bootstrap, the overlap check and misspecification of either model are not examined. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
 sources = ["https://mpmath.org/"]
 findings_resolved = ["No defect found: the natural direct, indirect and total effects, the mediator coefficients and the residual variance equal the 80-digit reference in every case, including the three offsets, a skewed mediator and a nearly deterministic mediator."]
-record_sha256 = "8566d61d52cb3feccf6732d688b0ee34cb26b5d755604275c7b271b153a92a4c"
+record_sha256 = "fef0fead4de862dc64cc91e8845824b928c6af51663620ae50cb1b3b02564bf8"
 
 [[method_review.artifacts]]
 role = "implementation"

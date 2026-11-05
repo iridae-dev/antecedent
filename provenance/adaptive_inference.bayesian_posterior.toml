@@ -44,7 +44,7 @@ sha256 = "f8ab8163872ccc60063615023668042daa10156103cb11d5d1477f11aee37733"
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/mod.rs"
 items = ["module"]
-sha256 = "edb4323e11153516b6f2685d0cbbe0eb4ec3de306c9a97508a808085b0dd64a0"
+sha256 = "8b1e886d7a19684decb182f5b2fa14f788616b088d28fa89dc1606756f0128d0"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -36,13 +36,13 @@ redistribution = "The reference script and its frozen output are repository-auth
 limitations = "One 70-row table of three searched columns and one unsearched column with four missing searched cells, four masked rows (one also incomplete, where the mask wins), six exact zero weights and weights spread over about two orders of magnitude; seeded and explicit rules; one weighted run (29 rows of positive weight, Kish size 18.4, interval degrees of freedom 15.4) and one unweighted run, with the interval at levels 0.9, 0.95 and 0.99. Part rows, exclusions, carried weights (bitwise), Kish sizes (1e-12 relative), effect and sandwich standard error (1e-9 relative) and interval endpoints (1e-7 relative, set by the quantile solver's tolerance) agree with the references. Not covered: clustered analysis parts, the historical HC1 entry point, many adjustment columns, extreme weight spread, near-singular analysis designs (the shared regression kernel refuses by its own rule), interval levels near 0 or 1, a mask that removes a whole part, or any coverage claim (the weighted whole-method calibration is explicitly not measured in the code). The Cox (1975) note on data splitting was not retrieved in this review; it is cited as context for the single-split idea and the executed check is of the stated conventions."
 sources = ["crates/antecedent/tests/sample_split_analysis_reference.rs", "crates/antecedent/tests/oracle_data/sample_split_analysis_reference.py", "https://mpmath.org/"]
 findings_resolved = ["No defect found: the split, the carried weights, the Kish sizes, the weighted and unweighted HC3 effects and the effective-size Student interval agree with the exact references.", "The existing floating-point weighted-least-squares oracle in sample_split_weighted_acceptance.rs is now complemented by an exact rational reference with a masked, incomplete and zero-weight table."]
-record_sha256 = "0fe584ffb23dbb341a77897ddbfe1117000959e4590c96c6a1037cbd714083ee"
+record_sha256 = "1be0aa534060e2e13581b929d78dc05f4a51fb45fb9725986a58a99cfde46166"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/sample_split_analysis.rs"
 items = ["const BINDING_TAG", "const WEIGHTED_TESTS", "const WHOLE_METHOD_CALIBRATION", "fn analysis_effective_sample_size", "fn analysis_row_ids", "fn analysis_rows", "fn analysis_weights", "fn check_analysis_table", "fn contract_on_part", "fn discover_on_split", "fn discovery_row_ids", "fn discovery_rows", "fn estimate_analysis_effect", "fn estimate_analysis_effect_with_kind", "fn interval", "fn outcome", "fn receipt", "fn report", "struct AnalysisBinding", "struct AnalysisEffectRequest", "struct SplitAnalysisEffect", "struct SplitDiscovery", "struct SplitEffectInterval"]
-sha256 = "9177eedb994dcf0f2be294e47f806a76050736fd89ba907e05abab5ef366d545"
+sha256 = "d12658c0e9d20d52ba9a90bd87d732b3f4ae91e4f91ed29d29ca9a7211eac96c"
 
 [[method_review.artifacts]]
 role = "implementation"

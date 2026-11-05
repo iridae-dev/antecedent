@@ -13094,61 +13094,6 @@ review_basis = "attested score invokes evidence-ledger pooling session and binds
 
 [[binding]]
 review_status = "approved"
-record_id = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_strong_heterogeneity_fifteen_studies"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_strong_heterogeneity_fifteen_studies"
-validation = "not_applicable"
-test_source_blob = "045acfa7c89237fabb853af01c135f25ffc42c4b"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/evidence_synthesis_calibration.rs:198"
-review_basis = "attested score invokes evidence-ledger pooling session and binds candidate construction directly; no Study::run or RefuteSuite validation axis on this path"
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_strong_heterogeneity_five_studies"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_strong_heterogeneity_five_studies"
-validation = "not_applicable"
-test_source_blob = "045acfa7c89237fabb853af01c135f25ffc42c4b"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/evidence_synthesis_calibration.rs:198"
-review_basis = "attested score invokes evidence-ledger pooling session and binds candidate construction directly; no Study::run or RefuteSuite validation axis on this path"
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_thirty_studies"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_thirty_studies"
-validation = "not_applicable"
-test_source_blob = "045acfa7c89237fabb853af01c135f25ffc42c4b"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/evidence_synthesis_calibration.rs:198"
-review_basis = "attested score invokes evidence-ledger pooling session and binds candidate construction directly; no Study::run or RefuteSuite validation axis on this path"
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_twenty_five_studies"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_twenty_five_studies"
-validation = "not_applicable"
-test_source_blob = "045acfa7c89237fabb853af01c135f25ffc42c4b"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/evidence_synthesis_calibration.rs:198"
-review_basis = "attested score invokes evidence-ledger pooling session and binds candidate construction directly; no Study::run or RefuteSuite validation axis on this path"
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.pooled_effect.no_graph.frequentist.hksj_t.l95.pooled_random_effects_twenty_studies"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/evidence_synthesis_calibration.rs::pooled_random_effects_twenty_studies"
-validation = "not_applicable"
-test_source_blob = "045acfa7c89237fabb853af01c135f25ffc42c4b"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/evidence_synthesis_calibration.rs:198"
-review_basis = "attested score invokes evidence-ledger pooling session and binds candidate construction directly; no Study::run or RefuteSuite validation axis on this path"
-
-[[binding]]
-review_status = "approved"
 record_id = "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_aligned_bootstrap_gaussian_l95"
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 test = "crates/antecedent/tests/joint_law_composed_interval_calibration.rs::composed_contrast_aligned_bootstrap_gaussian_l95"
@@ -14764,116 +14709,6 @@ review_basis = "Historical test binds the scored direct native candidate/measure
 
 [[binding]]
 review_status = "approved"
-record_id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_cancelling_path_boundary_95"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_cancelling_path_boundary_95"
-validation = "not_applicable"
-test_source_blob = "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs:401"
-review_basis = "Historical test binds the scored direct native candidate/measurement basis; this path does not execute a Study or RefuteSuite."
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_confounded_direct_and_mediated_nominal_95_coverage"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_knowledge_required_edges_confounded_direct_and_mediated_nominal_95_coverage"
-validation = "not_applicable"
-test_source_blob = "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs:401"
-review_basis = "Historical test binds the scored direct native candidate/measurement basis; this path does not execute a Study or RefuteSuite."
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_knowledge_required_edges_hub_confounded_multi_path_nominal_95_coverage"
-validation = "not_applicable"
-test_source_blob = "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs:401"
-review_basis = "Historical test binds the scored direct native candidate/measurement basis; this path does not execute a Study or RefuteSuite."
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_knowledge_required_edges_layered_multi_mediator_nuisance_nominal_95_coverage"
-validation = "not_applicable"
-test_source_blob = "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs:401"
-review_basis = "Historical test binds the scored direct native candidate/measurement basis; this path does not execute a Study or RefuteSuite."
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_tiers_layered_multi_mediator_nuisance_nominal_95_coverage"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_knowledge_tiers_layered_multi_mediator_nuisance_nominal_95_coverage"
-validation = "not_applicable"
-test_source_blob = "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs:401"
-review_basis = "Historical test binds the scored direct native candidate/measurement basis; this path does not execute a Study or RefuteSuite."
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage"
-validation = "not_applicable"
-test_source_blob = "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs:401"
-review_basis = "Historical test binds the scored direct native candidate/measurement basis; this path does not execute a Study or RefuteSuite."
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage"
-validation = "not_applicable"
-test_source_blob = "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs:401"
-review_basis = "Historical test binds the scored direct native candidate/measurement basis; this path does not execute a Study or RefuteSuite."
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage"
-validation = "not_applicable"
-test_source_blob = "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs:401"
-review_basis = "Historical test binds the scored direct native candidate/measurement basis; this path does not execute a Study or RefuteSuite."
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage"
-validation = "not_applicable"
-test_source_blob = "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs:401"
-review_basis = "Historical test binds the scored direct native candidate/measurement basis; this path does not execute a Study or RefuteSuite."
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_misspecified_test_boundary_95"
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
-test = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_misspecified_test_boundary_95"
-validation = "not_applicable"
-test_source_blob = "baa9b5d6ecab5e6255c9dd53da9a5b172b1961af"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs:401"
-review_basis = "Historical test binds the scored direct native candidate/measurement basis; this path does not execute a Study or RefuteSuite."
-
-[[binding]]
-review_status = "approved"
 record_id = "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_low_prevalence_boundary_l95"
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 test = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs::latent_measured_correction_low_prevalence_boundary_l95"
@@ -15303,42 +15138,9 @@ review_basis = "Historical test binds the scored direct native candidate/measure
 
 [[binding]]
 review_status = "approved"
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_cluster_dml_interval"
-calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
-test = "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_aipw_cluster_dml_interval"
-validation = "not_applicable"
-test_source_blob = "050850bd7a08142bcb935193037522370de71bff"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/weighted_interval_calibration.rs:509"
-review_basis = "Historical weighted non-panel test scores the named lower-level estimator directly; only the separately named panel test uses Study."
-
-[[binding]]
-review_status = "approved"
 record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_distance_matching_interval.population_linear"
 calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
 test = "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_distance_matching_interval"
-validation = "not_applicable"
-test_source_blob = "050850bd7a08142bcb935193037522370de71bff"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/weighted_interval_calibration.rs:509"
-review_basis = "Historical weighted non-panel test scores the named lower-level estimator directly; only the separately named panel test uses Study."
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_cluster_interval"
-calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
-test = "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_dml_cluster_interval"
-validation = "not_applicable"
-test_source_blob = "050850bd7a08142bcb935193037522370de71bff"
-bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"
-evidence = "crates/antecedent/tests/weighted_interval_calibration.rs:509"
-review_basis = "Historical weighted non-panel test scores the named lower-level estimator directly; only the separately named panel test uses Study."
-
-[[binding]]
-review_status = "approved"
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dr_learner_cluster_interval"
-calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
-test = "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_dr_learner_cluster_interval"
 validation = "not_applicable"
 test_source_blob = "050850bd7a08142bcb935193037522370de71bff"
 bridge_source_blob = "b9fa84372e21837ec6835afafbf72941c43eee10"

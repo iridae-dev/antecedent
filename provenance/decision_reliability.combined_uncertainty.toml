@@ -28,7 +28,7 @@ record_sha256 = "768a89c3ba68611de53c9f5f238c21033b67b4b464da9d07131bbf5d6ffdd0b
 role = "implementation"
 path = "crates/antecedent-design/src/decision_reliability/interval.rs"
 items = ["const DERIVED_UNCERTAINTY_VERSION", "const MAX_INTERVAL_LEVEL", "const MAX_PAIRED_COMPARISON_CANDIDATES", "const MIN_INTERVAL_LEVEL", "const MIN_NORMAL_ESS", "enum ConfidenceSetBasis", "enum DerivedStanding", "enum IntervalMultiplicity", "enum NumericalIntervalMethod", "enum ProbabilityQuantity", "fn alpha", "fn assumptions", "fn combined_uncertainty", "fn confidence_set", "fn corrected_interval", "fn critical", "fn derive_uncertainty", "fn numerical_component", "fn paired_confidence_set", "fn require_normal_ess", "fn validate", "fn verify", "fn wald", "fn wilson", "struct DerivedUncertainty", "struct IntervalRequest", "struct NumericalComponent", "struct NumericalInterval", "struct OptimalityConfidenceSet", "struct ProbabilityInterval", "struct SelectionComponent", "struct SelectionCorrectedInterval", "struct UtilityInterval"]
-sha256 = "db04a698f8059ab03b09991ca08b5080ecdd78b4b509d68cdcb09e103ef0c093"
+sha256 = "8be7083924732d71f4d728dce0ba1f635b61651b6192df524278fbd1f4e991b0"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

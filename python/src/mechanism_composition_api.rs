@@ -263,7 +263,7 @@ fn parse_source(value: &Json) -> PyResult<MechanismSource> {
     }
 }
 
-fn parse_declaration(value: &Json) -> PyResult<MechanismDeclaration> {
+pub(crate) fn parse_declaration(value: &Json) -> PyResult<MechanismDeclaration> {
     let map = object(value, "mechanism declaration")?;
     let mut latent_causes = Vec::new();
     for entry in list(map, "latent_causes")? {

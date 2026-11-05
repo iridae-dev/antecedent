@@ -28,16 +28,38 @@ def _prepare(
 
 
 def test_interval_is_released_only_under_a_covering_record() -> None:
-    prepared = _prepare()
-    try:
-        measured = prepared.measured_interval()
-    except mnar_fixed_shift.MnarFixedShiftRefusal as refusal:
-        # No attesting record covers this shift, missingness and row count.
-        assert refusal.code == "not_supported"
-    else:
-        scalar = measured.scalar("treated_minus_control_at_declared_shift")
-        assert scalar.interval[0] < scalar.point < scalar.interval[1]
-        assert scalar.level == 0.95
+    # Reference. Treated: 28 of 40 observed, observed mean 74/28, so the missing 12 are
+    # shifted by 0.8 and the arm mean is ybar + (12/40) * 0.8; control: 24 of 30 observed, no
+    # shift, mean 1.625. The variance is the sum of the observed-mean variances s^2 / n_obs
+    # (sample variances of the observed outcomes) plus the variance of the treated missing
+    # fraction times the squared shift, p (1 - p) / n * 0.8^2 with p = 12/40. The interval is
+    # the Wald interval with z = 1.959964; the calibration status only annotates it.
+    ids, arm, outcome = _design()
+    treated = [v for a, v in zip(arm, outcome, strict=True) if a == 1.0 and v is not None]
+    control = [v for a, v in zip(arm, outcome, strict=True) if a == 0.0 and v is not None]
+
+    def mean(v: list[float]) -> float:
+        return sum(v) / len(v)
+
+    def var(v: list[float]) -> float:
+        m = mean(v)
+        return sum((x - m) ** 2 for x in v) / (len(v) - 1)
+
+    point = (mean(treated) + 0.3 * 0.8) - mean(control)
+    variance = (
+        var(treated) / len(treated)
+        + var(control) / len(control)
+        + (0.3 * 0.7 / 40.0) * 0.8**2
+    )
+    half = 1.959964 * variance**0.5
+
+    scalar = _prepare().measured_interval().scalar("treated_minus_control_at_declared_shift")
+    assert scalar.point == pytest.approx(point, abs=1e-12)
+    assert scalar.level == 0.95
+    assert scalar.interval[0] == pytest.approx(point - half, abs=1e-4)
+    assert scalar.interval[1] == pytest.approx(point + half, abs=1e-4)
+    assert scalar.calibration == "not_measured"
+    assert scalar.calibration_reason == "estimator_grid_not_measured"
 
 
 @pytest.mark.parametrize("shift", [-50.0, -1.5, 0.0, 0.8, 1.9, 40.0])

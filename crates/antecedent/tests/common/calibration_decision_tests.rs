@@ -38,6 +38,17 @@ fn registered_domains_keep_distinct_fixed_streams_and_unknown_domains_fail_close
     for previous in [VALIDATION_SALT, HC3_VALIDATION_SALT, PAG_VALIDATION_SALT] {
         assert_ne!(PAG_CONFIDENCE_SET_VALIDATION_SALT, previous);
     }
+    c.validation_domain = COVERAGE_MEASUREMENT_DOMAIN.into();
+    assert_eq!(c.validation_salt(), Some(0x65CE_4784_8881_E65B));
+    assert!(c.validate().is_ok());
+    for previous in [
+        VALIDATION_SALT,
+        HC3_VALIDATION_SALT,
+        PAG_VALIDATION_SALT,
+        PAG_CONFIDENCE_SET_VALIDATION_SALT,
+    ] {
+        assert_ne!(COVERAGE_MEASUREMENT_SALT, previous);
+    }
     for unknown in ["", "release_2_4_1_weighted_hc3_validation_v2", "arbitrary_retry"] {
         c.validation_domain = unknown.into();
         assert_eq!(c.validation_salt(), None);

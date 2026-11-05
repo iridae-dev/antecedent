@@ -23,7 +23,7 @@
         {
           "path": "conformance/response/joint_panel/reference.py",
           "role": "generator",
-          "sha256": "2f1201ab9ef4025a4a5273885c43f58357d87d7fe277b42db4776a4a3893c4d7"
+          "sha256": "cdd507d3fb9aee99927086919972c7b0205e0a858c0c64fa3d882ee73ca53275"
         },
         {
           "path": "conformance/response/joint_panel/reference.py.lock",
@@ -46,10 +46,10 @@
             "fn shared_draw_response_matches_independent_panel_truth_and_initial_histories",
             "fn source_identity_covers_data_histories_group_order_and_static_specialization"
           ],
-          "sha256": "79355b33b8d5d12767fdb370c7c1fb116f3a4390c9e1bcf82ebae3a350301a9c"
+          "sha256": "72e01d645ca5a75f1259e0055dd9bbd3c014b59627fc7c049d113ec059df55dc"
         }
       ],
-      "fixture_payload_sha256": "ab42dd79e08ae665b1307ba5c59df8cd19d167041a6c0d2c916fb241222271af",
+      "fixture_payload_sha256": "004fe1f22e93735e2ce6ff482ad99ed70708be2fb652d1d3fa317131fae1bdc8",
       "historical_exposure": "The original generator's authorship is unrecorded; its source was read in full during this review and the product implementation was not consulted. The generator was edited here only to add the identity check, the locked-environment header and review carry-through.",
       "independence_basis": "Only the Python standard library is used; no estimator, simulator or identification routine is imported. Truth is the structural mean with noise integrated out. The cancellation identity is a second derivation of the delta from the lag weights and saturation alone.",
       "limitations": "Finite-population conditional truth (four retained groups, retained pre-period histories); not a predictive distribution or superpopulation contrast. random.Random stream stability across interpreters is assumed (CSV is byte-exact; JSON truth has a 1e-13 tolerance). The experiment_reference and acceptance records are not covered by this review. No calibration.",

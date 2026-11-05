@@ -58,7 +58,7 @@
             "fn temporal_history_uncertainty_rejects_not_measured_scope_and_checks_graph",
             "fn temporal_history_unchanged_utility_and_initial_law_reuse_actual_source_fits"
           ],
-          "sha256": "3aaab23474b6eff0bdf6c85db9e83ce329a22fb92f3cfadb6634f4a830d6a866"
+          "sha256": "14854138b7c230d0e673b369055237d912166c26ebda33fba319eb922ffdeffc"
         },
         {
           "role": "assertion_source",
@@ -69,7 +69,7 @@
           "sha256": "87d76c500882f7d0194f7fb97974656b361f99fb05f760d0d9e8f3f4725aacff"
         }
       ],
-      "fixture_payload_sha256": "5cb250f33597c7c4ef405392ef7c6fd2e94fe72cabac03ec796b535cf4384b1e"
+      "fixture_payload_sha256": "79d2a5245aac4810b0724df3c7d68a30bd306293584dc006afaed69d942d7284"
     }
   },
   "case": "observational_dag_root_initial_state_shift",

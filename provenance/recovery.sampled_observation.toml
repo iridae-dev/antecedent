@@ -58,7 +58,7 @@ record_sha256 = "ffb81f5b61e907af9ba6fb50f14878a5534d2821761fcef4feeda199f8c7bff
 role = "implementation"
 path = "crates/antecedent-estimate/src/recovery_sampled.rs"
 items = ["const SAMPLED_RECOVERY_CALIBRATION", "const SAMPLED_RECOVERY_INTERVAL_LEVEL", "const SAMPLED_RECOVERY_MAX_ROWS", "enum Role", "enum SampledIntervalMethod", "enum SampledRecoveryDetail", "fn bca", "fn bca_receipt", "fn bootstrap", "fn cancelled", "fn cell", "fn check_input", "fn covariance", "fn derive_sampled_recovery", "fn detail", "fn diagnostics", "fn effect_variables", "fn estimate_sampled_recovery", "fn from_recovery", "fn hex_digest", "fn input_digest", "fn jackknife", "fn level", "fn level_probability", "fn name", "fn new", "fn outcome_one_probability", "fn pattern", "fn recompute_digest", "fn recover", "fn refusal", "fn replicate", "fn resample", "fn tabulate", "fn to_u64", "fn too_many_failed", "fn type7_quantile", "fn unrecoverable", "fn valid", "fn validate_config", "fn write_pattern", "fn zero_complete_cells", "struct Bootstrap", "struct Layout", "struct ObservationPattern", "struct ObservationRow", "struct Replicated", "struct Run", "struct SampledBcaReceipt", "struct SampledEffectInterval", "struct SampledJackknifeRecord", "struct SampledObservationInput", "struct SampledRecoveryConfig", "struct SampledRecoveryDiagnostics", "struct SampledRecoveryError", "struct SampledRecoveryReceipt", "struct SampledRecoveryResult", "struct SampledReplicateRecord"]
-sha256 = "486743c0472cfde1372569d274e493e5c23adec535dbbbec66c6ab3ab14b5fe9"
+sha256 = "5e00654b5ee6f4e164b1a5f1b3eb52f671669440bf3e869ad59f0cdb17c5edfb"
 
 [[method_review.artifacts]]
 role = "assertion"

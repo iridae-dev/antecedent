@@ -229,6 +229,12 @@ grid_group() {
     multilevel_interval_calibration:*) return 0 ;;
     # Randomized-trial intervals at 300 participants, including the small-arm Student intervals.
     randomized_interval_calibration:*) return 0 ;;
+    # Randomized quantile treatment effect interval, the off-policy sequential-evaluation Wald
+    # interval and the learned continuous-outcome transport joint bootstrap interval.
+    randomized_quantile_interval_calibration:*|sequential_off_policy_interval_calibration:*|learned_continuous_bootstrap_calibration:*) return 0 ;;
+    # Matched-pair odds ratio, descriptive delta-method, nonlinear mediation bootstrap and the composed,
+    # transported and typed-transported mechanism intervals.
+    matched_odds_ratio_interval_calibration:*|descriptive_comparison_interval_calibration:*|nonlinear_mediation_interval_calibration:*|mechanism_composition_interval_calibration:*|typed_transported_mechanism_interval_calibration:*) return 0 ;;
     # Practitioner-scale intervals: 1,000 to 100,000 rows and 320 to 4,160 steps, each record
     # measured at the three points of its own grid and limited to that span.
     practitioner_scale_calibration:*) return 0 ;;
@@ -1736,6 +1742,56 @@ run_graph_imputation_candidate graph_imputation_prior_predictive_uniform_effect_
 run_graph_imputation_candidate graph_imputation_prior_predictive_confounded_candidate
 run_graph_imputation_candidate graph_imputation_prior_predictive_four_variable_candidate
 run_graph_imputation_candidate graph_imputation_prior_predictive_four_variable_confounded_candidate
+
+echo "== interval routes whose coverage designs were added after the frozen roster (appended: indices of earlier groups never move) =="
+run_randomized_quantile() {
+  local filter="$1"
+  echo "== antecedent: randomized_quantile_interval_calibration ${filter} =="
+  check "randomized_quantile_interval_calibration: ${filter}" \
+    cargo test --release -p antecedent --test randomized_quantile_interval_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_randomized_quantile randomized_quantile_median_effect_analytic_interval
+run_sequential_off_policy() {
+  local filter="$1"
+  echo "== antecedent-design: sequential_off_policy_interval_calibration ${filter} =="
+  check "sequential_off_policy_interval_calibration: ${filter}" \
+    cargo test --release -p antecedent-design --test sequential_off_policy_interval_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_sequential_off_policy off_policy_importance_weighted_wald_interval
+run_learned_continuous_bootstrap() {
+  local filter="$1"
+  echo "== antecedent: learned_continuous_bootstrap_calibration ${filter} =="
+  check "learned_continuous_bootstrap_calibration: ${filter}" \
+    cargo test --release -p antecedent --test learned_continuous_bootstrap_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_learned_continuous_bootstrap learned_trial_aipw_nested_cohort_joint_bootstrap_mean_contrast
+run_learned_continuous_bootstrap learned_trial_aipw_independent_samples_joint_bootstrap_mean_contrast
+
+echo "== matched, descriptive, mediation and mechanism intervals (appended) =="
+run_est_calibration() {
+  local suite="$1" filter="$2"
+  echo "== antecedent-estimate: ${suite} ${filter} =="
+  check "${suite}: ${filter}" \
+    cargo test --release -p antecedent-estimate --test "$suite" "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_est_calibration matched_odds_ratio_interval_calibration matched_pairs_conditional_odds_ratio_wald_interval
+run_est_calibration descriptive_comparison_interval_calibration descriptive_risk_difference_delta_method_interval
+run_est_calibration descriptive_comparison_interval_calibration descriptive_log_risk_ratio_delta_method_interval
+run_est_calibration nonlinear_mediation_interval_calibration nonlinear_mediation_natural_effects_percentile_bootstrap_interval
+run_facade_calibration() {
+  local suite="$1" filter="$2"
+  echo "== antecedent: ${suite} ${filter} =="
+  check "${suite}: ${filter}" \
+    cargo test --release -p antecedent --test "$suite" "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_facade_calibration mechanism_composition_interval_calibration composed_linear_gaussian_mechanisms_first_order_interval
+run_facade_calibration mechanism_composition_interval_calibration transported_linear_gaussian_mechanisms_first_order_interval
+run_facade_calibration typed_transported_mechanism_interval_calibration typed_transported_poisson_mechanism_first_order_interval
 
 if [ "$FAILED_COUNT" -gt 0 ]; then
   echo "measure_calibration_groups: ${FAILED_COUNT} group(s) failed:"

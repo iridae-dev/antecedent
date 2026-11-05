@@ -14,6 +14,7 @@ Which records are not current is decided by `scripts/calibration_status.py`
 (the only status computation); this module maps those records to groups.
 
     python3 scripts/calibration_groups.py plan [--all]          # what would run
+    python3 scripts/calibration_groups.py plan --owed           # exactly the owed list, nothing alongside
     python3 scripts/calibration_groups.py pilot [--all] [--jobs N]
     python3 scripts/calibration_groups.py plan [--all]          # pilot-based projection
     python3 scripts/calibration_groups.py run [--all] [--jobs N]
@@ -36,7 +37,11 @@ each suite's grid points the last measurement rechecked.
 refuses a dirty tree, runs `run`, collects the records and prints the
 calibration status.
 
-Selection without `--all`:
+Selection with `--owed` is exactly `calibration_status.py status --owed`: the groups that
+measure an owed record, and the groups named for an interval route that has no record.
+No pass/fail gate and no other group is added.
+
+Selection without `--all` or `--owed`:
 
 * every group that measures a record that is not current
   (`scripts/calibration_status.py`);
@@ -231,11 +236,15 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
         group.head == "discovered_transport_calibration"
         and group.test_filter == "discovered_pag_transport_contrast_complete_procedure_coverage"
     ):
-        marker = "declared_selection_joint_pretreatment_standardization"
+        # The producer reports the bounded-outcome confidence set over the declared joint
+        # pretreatment standardization; its earlier percentile-only construction is retired.
+        marker = "declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set"
         return (
-            str(record.get("functional", "")).endswith("." + marker)
+            str(record.get("functional", "")).endswith(
+                ".declared_selection_joint_pretreatment_standardization.bounded_outcome_confidence_set"
+            )
             and str(record.get("id", "")).endswith("_" + marker)
-            and record.get("interval_method") == "percentile_bootstrap"
+            and record.get("interval_method") == "percentile_bootstrap_or_logical_support"
         )
     if group.head == "sample_split_parent_set_effect_calibration":
         return ".discovery_fraction_0_75" in str(record.get("functional", ""))
@@ -429,6 +438,64 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
         print(f"warning: no gate group measures {test}", file=sys.stderr)
     chosen = [g for g in groups if g.index in reasons]
     return Selection(chosen, len({str(r["id"]) for r in wanted}), reasons)
+
+
+def route_group_matches(group: Group, spec: tuple[str, str]) -> bool:
+    """Does the gate group serve a route's `<test file>: <filter>` group spec? A cargo filter is a substring."""
+    head, test_filter = spec
+    return group.head == head and (not test_filter or test_filter in group.test_filter)
+
+
+def select_owed(groups: list[Group]) -> Selection:
+    """Exactly the owed work, nothing alongside it.
+
+    The owed list is `scripts/calibration_status.py status --owed`: a coverage record whose
+    fingerprint is not the tree's (or whose probe does not cover it), and an interval
+    route with no measured record. A record selects the groups that measure it; a route
+    selects the groups `parity/calibration_routes.toml` names for it. No pass/fail gate and no
+    unrelated group in a record-emitting suite is added."""
+    ensure_scripts_on_path()
+    import calibration_status as status
+
+    items, _statuses, _counts = status.current_owed()
+    records = {str(rec["id"]): rec for rec in status.load_records()}
+    owed_ids = {i["id"] for i in items if i["kind"] == "record"}
+    reasons: dict[int, str] = {}
+    matched: set[str] = set()
+    for group in groups:
+        why = []
+        owing = [
+            rid
+            for rid in owed_ids
+            if rid in records and measures_current_protocol(group, records[rid])
+        ]
+        if owing:
+            matched.update(owing)
+            why.append(f"{len(owing)} record(s) owed")
+        routed = [
+            i
+            for i in items
+            if i["kind"] == "route"
+            and any(
+                route_group_matches(group, status.split_group(spec)) for spec in i["groups"]
+            )
+        ]
+        if routed:
+            why.append(f"{len(routed)} interval route(s) with no record")
+        if why:
+            reasons[group.index] = "; ".join(why)
+    for rid in sorted(owed_ids - matched):
+        print(f"warning: no gate group measures owed record {rid}", file=sys.stderr)
+    for item in items:
+        if item["kind"] == "route":
+            for spec in item["groups"]:
+                parsed = status.split_group(spec)
+                if not any(route_group_matches(g, parsed) for g in groups):
+                    print(f"warning: no gate group {spec!r} for {item['id']}", file=sys.stderr)
+        if item["kind"] != "record" and not item["groups"]:
+            print(f"warning: owed {item['id']} names no gate group", file=sys.stderr)
+    chosen = [g for g in groups if g.index in reasons]
+    return Selection(chosen, len(items), reasons)
 
 
 def filter_selection(selection: Selection, patterns: list[str]) -> Selection:
@@ -1028,6 +1095,11 @@ def main() -> int:
         mode = p.add_mutually_exclusive_group()
         mode.add_argument("--all", action="store_true", help="every group, not only the owed ones")
         mode.add_argument(
+            "--owed",
+            action="store_true",
+            help="exactly the groups that measure what `calibration_status.py status --owed` lists",
+        )
+        mode.add_argument(
             "--missing-only",
             action="store_true",
             help="only groups without coverage records or complete passed gate evidence; ignore drift",
@@ -1059,7 +1131,10 @@ def main() -> int:
     FIRST_NSIM = args.replicates
     RECHECK_NSIM = max(2000, FIRST_NSIM + 1)
     groups = gate_groups()
-    selection = filter_selection(select(groups, args.all, args.missing_only), args.group)
+    chosen = (
+        select_owed(groups) if args.owed else select(groups, args.all, args.missing_only)
+    )
+    selection = filter_selection(chosen, args.group)
     print_plan(selection, groups, args.jobs)
     if args.command == "plan":
         return 0

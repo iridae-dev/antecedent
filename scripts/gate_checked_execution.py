@@ -57,7 +57,7 @@ from test_evidence import checked_execution_body_problems, closure
 ROOT = Path(__file__).resolve().parents[1]
 SUPPORTED = ROOT / "parity" / "support_cells.toml"
 SUPPORTED_ROUTES = ROOT / "parity" / "supported_routes.toml"
-SUPPORTED_ROUTE_COUNT = 2696
+SUPPORTED_ROUTE_COUNT = 2776
 FACADE = ROOT / "crates" / "antecedent" / "src"
 REGISTRY = FACADE / "analysis" / "lowering" / "registry.rs"
 LOWERING_SOURCES = (

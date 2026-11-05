@@ -30,19 +30,19 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "The Howard et al. paper was not retrieved (nothing downloaded, no local copy); the radius is evaluated at 60 digits from the formula the module documents, so the check is of the code against that formula, not against the paper's theorem. Six procedures of at most 7 units (fixed, Thompson with a probability-best stop, a three-arm UCB run under a cap, lagged epsilon-greedy with random loss, a truth on the boundary of the support, exposure failure) give exclusion probabilities that agree with the exact rational law at 1e-12, and six count vectors give bounds that agree at 1e-12 (levels 0.01 to 0.99, tuning 0.5 to 1000, unobserved cells, clipping to [0, 1]). With so few units the radius is wide and three of the six exclusion probabilities are small or zero, so the exclusion check is weak evidence that the arithmetic is right and no evidence about the size of the exclusion probability at realistic sample sizes (where the module's own binomial enumeration test applies). The smallest distance of any bound end to its truth is 5e-3, so no comparison is decided by rounding. The result reports derived_not_measured: no coverage of the whole procedure is measured."
 sources = ["https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/decimal.html", "https://doi.org/10.1214/20-AOS1991"]
 findings_resolved = ["No defect found: bounds, level split, unobserved cells, clipping and the exclusion probability agree with the independent evaluation; the exclusion probability is computed over the exact law and not assumed equal to alpha."]
-record_sha256 = "44fe2b9a789f57da30702c8e73b60fda4f77bc95a49c5b679a058b7599b1d988"
+record_sha256 = "61a336d1e667d2802fc8c70ab5fb914c8a1d9d76cbba58337469da5939f4d827"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
 items = ["const DERIVED_NOT_MEASURED", "enum EstimandStatement", "enum UncertaintyParadigm", "fn admit", "fn anytime_exclusion_probability", "fn anytime_valid_report", "fn as_str", "fn check_paradigm", "fn defined_mass", "fn mean", "fn premise", "struct AnytimeCellBound", "struct AnytimeReport"]
-sha256 = "68e081abf4a387759096f529e62c558cc420a71b9325f08793de2801f7d07c04"
+sha256 = "d8d843005e67405462cb49ba0ec0ed1d63638ebd02862af04c6090052e69368b"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_anytime_exclusion_reference.rs"
 items = ["fn exclusion_probabilities_match_the_exact_enumeration", "fn level", "fn reference", "fn reported_bounds_match_the_reference_radius"]
-sha256 = "f633093825117774fac4e6aa0b33cdd5b53e2de4a9e3f9b5763e0583bacbe183"
+sha256 = "0ff92a2bf8eba7e8ba4cbf1af274930a970718c816fd8b1f6485d32b1288b8b0"
 
 [[method_review.artifacts]]
 role = "assertion"

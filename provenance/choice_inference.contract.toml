@@ -32,7 +32,7 @@ rationale = "The contract, qualification and routing layers of choice inference:
 no_independent_algorithm = "Scope comparison, ledger overlap refusal, matrix lookup, threshold comparison, artifact sealing and replay, and enumeration of a closed-form predictive distribution for the study value; the posterior, hierarchical posterior and procedure law are separate method records."
 covered_by = ["adaptive_inference.dirichlet_choice", "adaptive_inference.hierarchical_choice", "adaptive_inference.choice_procedure_law", "adaptive_inference.analysis_contract", "adaptive_inference.procedure_matrix", "design.evsi"]
 inline_tests = true
-record_sha256 = "323d678955b97ff986f26d8a442f6648f8ca694b8035b0dd80a84c8fa2bd0870"
+record_sha256 = "d5f65233f2dacca5741d5ae53441609e851d11296f2451f01a205e2380806b39"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -44,19 +44,19 @@ sha256 = "eb8bf658fd5789176fa1b5acd9610208e65c8198dcf43425875de3c01ac19691"
 role = "implementation"
 path = "crates/antecedent-estimate/src/choice_inference.rs"
 items = ["module"]
-sha256 = "e24e862f1b01bdc9690bcb78c12dca5fa9f7f0ec6c0442a67f20e359557d293c"
+sha256 = "eebe0b35896a1fb312b240ceada2f3fc7b61600e722ea9b7b4a2bd501bfdbc94"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/choice_inference_result_artifact.rs"
 items = ["const ARTIFACT_KIND", "const CHOICE_INFERENCE_CALIBRATION", "const CHOICE_INFERENCE_RESULT_ARTIFACT_FEATURE", "const CHOICE_INFERENCE_RESULT_ARTIFACT_VERSION", "const CHOICE_RESULT_REPLAY_TOLERANCE", "const MAX_CHOICE_INFERENCE_RESULT_BYTES", "const META_SECTION", "const REPLAY", "const SOURCE_DEPTH", "enum ChoiceResultSpec", "fn bits", "fn check", "fn compute_choice_result", "fn compute_identity", "fn contract", "fn contract_from", "fn contract_refusal", "fn declaration_from_wire", "fn declaration_to_wire", "fn decode_meta", "fn decode_unchecked", "fn drop", "fn encode_meta", "fn from", "fn from_bytes", "fn from_meta", "fn hierarchical_inputs", "fn identity", "fn look", "fn malformed", "fn outcome", "fn paradigm", "fn reals", "fn request_invalid", "fn reseal_identity", "fn result", "fn result_refusal", "fn retained_choice_source_from_artifact", "fn seal", "fn spec", "fn spec_from_wire", "fn spec_to_wire", "fn to_bytes", "fn verify_retained_choice_sources", "struct ChoiceDeclarationWire", "struct ChoiceInferenceResultArtifact", "struct ChoiceResult", "struct ChoiceResultError", "struct ChoiceResultMeta", "struct ChoiceSpecWire", "struct DepthGuard", "struct RespondentWire", "struct SourceWire", "type Error"]
-sha256 = "f272c176115e859a70b6a47fd7e57d08edd81180fe70785f73adcc0cb76c7489"
+sha256 = "f68769ad26561dea06d2e93aa393c4e6e08342f94240ec3ba6581860bab4b9e1"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/choice_evsi.rs"
 items = ["module"]
-sha256 = "2724d05b0fa63dd5835387a6ce676b4409664976b98ec4272868560ae848623e"
+sha256 = "42873a8b07c104f7aa0e03886519e37ec3d804b3466acd987def98e2598bde1f"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

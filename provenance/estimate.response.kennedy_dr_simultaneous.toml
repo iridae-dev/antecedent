@@ -79,4 +79,4 @@ sha256 = "dfb54b2fd26a5505b0cd1be23fcc289c6a87c7a2aab6f0ea21fc1b5bb39670b2"
 role = "implementation"
 path = "crates/antecedent/src/analysis/builder/finish.rs"
 items = ["module"]
-sha256 = "d8a2392d8ba44ac2ab20981572fe4cb9c387eacc57ab00cd280ee1d03ab98caa"
+sha256 = "c2761c81837f13210ccffb4caf412f1d224f16b2631bf46eda86e27e1039221c"

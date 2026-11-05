@@ -37,7 +37,7 @@ record_sha256 = "a37687f30033dc86d2b3d31f35475043139624cae5775ee77a856cf56a15ffb
 role = "implementation"
 path = "crates/antecedent/src/analysis/evidence_ledger.rs"
 items = ["const MEASURED_STUDY_COUNTS", "const POOLED_INTERVAL_LEVEL", "enum BetweenStudy", "enum PoolingDeclaration", "enum SynthesisValue", "fn add_source", "fn cancelled", "fn check_cancelled", "fn combine_numeric", "fn evidence_ledger", "fn from", "fn from_ledger", "fn from_synthesis", "fn invalid", "fn ledger", "fn new", "fn pool_gaussian_studies", "fn pool_summaries", "fn pooled_interval", "fn pooled_interval_candidate", "fn random_effects", "fn result", "fn smallest_study_rows", "fn studies", "fn too_many", "struct EvidenceLedgerRefusal", "struct EvidenceLedgerSession", "struct IntervalConstruction", "struct PooledInterval", "struct PooledIntervalCandidate", "struct PoolingRequest", "struct StudySummary", "struct SynthesisOutcome", "type StudyColumns"]
-sha256 = "ebcc6419036b20f3f34193b148098af1a968956c8a916a51582ee4cb432e2447"
+sha256 = "7b5dbbb5495bad849a679206a47d27944bf8c1b16e2aabc1f3d40f1518939ccf"
 
 [[method_review.artifacts]]
 role = "implementation"

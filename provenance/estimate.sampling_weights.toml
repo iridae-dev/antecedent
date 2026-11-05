@@ -43,7 +43,7 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Five weight vectors of 4 to 30 rows: a mixed mask with two zero-weight rows, a scale of 1e308 (the sum overflows binary64), a scale of 5e-320 (denormal weights whose sum has an overflowing reciprocal), a spread of 1e300 between the largest and smallest weight, and thirty weights spread over 16 decades. Normalised weights and the Kish size are asserted to 1e-12 relative, and to 1e-3 at the denormal scale where binary64 keeps only a few bits. The weighted estimators that consume the normalised weights are reviewed, if at all, in their own records. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
 sources = ["https://doi.org/10.2307/1402588"]
 findings_resolved = ["Defect repaired: normalisation divided by the plain sum of the weights, so finite weights near 1e308 summed to infinity and every normalised weight became zero, and denormal weights (1e-320) made the reciprocal of the sum overflow and produced infinities and NaN; either silently corrupted every weighted estimate. When the sum or its reciprocal is not finite the weights are now normalised relative to the largest weight, which changes only the order of rounding.", "Zero-weight accounting and the Kish size equal the exact rational values at every scale, including a 1e300 spread."]
-record_sha256 = "449ebec630bddc3df91c50e6be03b69d84454f8cca7913546c9138f3bf46fb12"
+record_sha256 = "130ee13eeff6be95da1bdc46e667bd3cb9dcf6c6ba389f7f06cd164f828fe8dc"
 
 [[method_review.artifacts]]
 role = "implementation"

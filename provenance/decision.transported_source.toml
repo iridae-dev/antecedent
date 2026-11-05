@@ -32,7 +32,7 @@ record_sha256 = "f495b709987f184ae34e1acd57bfec302b89c9b9143a9a2f0f2f8a599e45971
 role = "implementation"
 path = "crates/antecedent-design/src/decision_transported_source.rs"
 items = ["const DETAIL_CALIBRATION_INFLATED", "const DETAIL_IDENTITY_INCOMPLETE", "const DETAIL_IDENTITY_NOT_DIGEST", "const DETAIL_INTERVAL_NOT_SUPPORTED", "const DETAIL_INVALID_VALUE", "const DETAIL_LAW_NOT_SUPPLIED", "const DETAIL_MIXED_TRANSPORTS", "const DETAIL_NATIVE_LABEL", "const DETAIL_NOT_IN_TARGET", "const DETAIL_NOT_TRANSPORTED", "const DETAIL_ROUTE_NEEDS_TYPED_SOURCE", "const DETAIL_SUPPORT_BELOW_POLICY", "const DETAIL_SUPPORT_INFLATED", "const STAGE", "const TAG_DECISION", "const TAG_MERGE", "const TAG_RECEIPT", "const TRANSPORTED_RESPONSE_INFERENCE", "const TRANSPORTED_RESPONSE_VERSION", "enum TransportedDemand", "enum TransportedRefusal", "enum TransportedRepresentation", "enum TransportedRoute", "enum TransportedValue", "fn as_str", "fn at_stage_of", "fn build_point", "fn canonical_identity", "fn check_in_target", "fn code", "fn contract_needs_law", "fn coordinates", "fn declared_law", "fn declared_point", "fn detail", "fn evaluate_transported_decision", "fn finalize", "fn from_transported_policy", "fn from_transported_synthesis", "fn is_digest_hex", "fn merge_points", "fn receipt", "fn representation", "fn require_declarable_route", "fn support_status", "fn to_refusal", "fn validate", "fn value", "struct TransportDeclaration", "struct TransportReceipt", "struct TransportedDecision", "struct TransportedResponse"]
-sha256 = "90725a4cd8fd0502b86c4ffff1998c9e2620a88f43a0067fdbd4ecc81e81d5f1"
+sha256 = "13537ea43597e9a9444e124fe56ad98dc8c678233c25bf10dff9dcda75a84d22"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

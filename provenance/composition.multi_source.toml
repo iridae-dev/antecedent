@@ -36,7 +36,7 @@ kind = "wrapper"
 rationale = "A hand-derived three-action acceptance story (a native response claim and two external studies over one program, a joint law, a design ranking and a bundle) exercised only through routes the composition records already support."
 no_independent_algorithm = "composition.rs re-exports the bundle builder and consumer; the story's expected values are written by hand in the acceptance test from the stated means and law rows and the numbers come from the covered routes."
 covered_by = ["composition.bundle", "composition.native_response_claims", "composition.source_evidence", "composition.verifiers"]
-record_sha256 = "f4b12e05c19c518c507fb8d3c199eb592179e7ca8583232b25917efea71507c7"
+record_sha256 = "e0e3b3489f34977fd69607ecf6a83a92a22964985ecf29c85ed49287dddee313"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -48,4 +48,4 @@ sha256 = "910398a380422a87487a3285644c7212047a19630e945b39e0e5bd850c79e845"
 role = "assertion"
 path = "crates/antecedent/tests/multi_source_acceptance.rs"
 items = ["const CONTRACT", "const IDS", "const LAW_ROWS", "const NATIVE_DIGEST", "const NATIVE_SNAPSHOT", "fn acceptance_all_actions_unsupported_is_a_state_not_an_error", "fn acceptance_an_unsupported_action_is_reported_and_the_rest_are_compared", "fn acceptance_another_source_answers_the_action_the_native_claim_cannot", "fn acceptance_native_claim_is_native_and_withholds_the_unsupported_dose", "fn acceptance_overlapping_evidence_fails_the_declared_independence", "fn acceptance_probability_and_quantile_come_only_from_the_joint_law", "fn acceptance_shared_data_refuses_pooling_and_a_supported_route_lifts_it", "fn acceptance_the_composed_bundle_is_consumed_independently_with_the_hand_values", "fn acceptance_the_joint_law_decision_matches_the_hand_derived_values", "fn acceptance_the_point_only_decision_is_an_attested_result_with_the_hand_values", "fn acceptance_the_ranking_matches_the_hand_derived_evsi_and_net_values", "fn action", "fn add", "fn attested", "fn candidates_json", "fn claim", "fn close", "fn compare", "fn composed_builder", "fn consumed", "fn contract", "fn contract_of", "fn failed_stage", "fn independent", "fn lab_one_claim", "fn lab_one_input", "fn lab_two_claim", "fn lab_two_law_input", "fn lab_two_mean_input", "fn law", "fn law_columns", "fn law_contract", "fn mean_input", "fn mean_source", "fn native_context", "fn native_input", "fn native_response", "fn observation_quantity", "fn program", "fn quantity", "fn quantity_json", "fn ranking_request", "fn rollout_contract", "fn schema", "fn shared", "fn signal_json", "fn state_quantity", "struct ClaimSpec"]
-sha256 = "36502a1cb30cc3005d3ed686fdb126b1ffc7ce585848694f433cc1e7c713b59a"
+sha256 = "3ede74cd23acebcfebadfbf99cffdb39dfe338163259a0f2a21cf4a9c7127c19"

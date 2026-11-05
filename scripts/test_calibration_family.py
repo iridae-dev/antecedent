@@ -285,8 +285,32 @@ CoverageTally::for_record(key.with_dgp("a(b)"), level(0.95)).labelled("a\\\"b");
         with patch.object(family, "read_source", return_value=source):
             self.assertEqual(
                 family.source_validation_domain(family.ROOT, "0" * 40),
-                family.decision.PAG_CONFIDENCE_SET_DOMAIN,
+                family.decision.MEASUREMENT_DOMAIN,
             )
+
+    def test_the_measurement_domain_admits_every_group_of_the_current_roster(self):
+        config = family.current_config()
+        self.assertEqual(config["validation_domain"], "coverage_measurement")
+        roster = json.loads((family.ROOT / family.MANIFEST_PATH).read_text(encoding="utf-8"))
+        labels = [group["label"] for group in roster["groups"]]
+        family.validate_measurement_selection(config, labels)
+        family.validate_measurement_selection(config, labels[-3:])
+        with self.assertRaisesRegex(ValueError, "absent from the frozen current roster"):
+            family.validate_measurement_selection(config, ["not_a_group: nothing"])
+        with self.assertRaises(ValueError):
+            family.validate_measurement_selection(config, [])
+        self.assertIsNone(family.followup_allocation(config))
+
+    def test_the_spent_pag_confidence_set_domain_still_admits_only_its_group(self):
+        config = dict(
+            family.current_config(),
+            validation_domain=family.decision.PAG_CONFIDENCE_SET_DOMAIN,
+            family_groups=757,
+            family_cells=581376,
+        )
+        family.validate_measurement_selection(config, [family.allocations.PAG_EXTENSION["group"]["label"]])
+        with self.assertRaises(ValueError):
+            family.validate_measurement_selection(config, ["effect_constancy_calibration: known_gaussian_null_power_and_holm"])
 
     def test_pag_confidence_set_reserves_distinct_slot_without_resetting_spent_risk(self):
         allocations = family.allocations

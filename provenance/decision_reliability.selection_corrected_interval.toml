@@ -32,7 +32,7 @@ record_sha256 = "60dd82d8533e4c1f85b555b272950e1204d2492d8adaf24716aad078145a020
 role = "implementation"
 path = "crates/antecedent-design/src/decision_reliability/interval.rs"
 items = ["const DERIVED_UNCERTAINTY_VERSION", "const MAX_INTERVAL_LEVEL", "const MAX_PAIRED_COMPARISON_CANDIDATES", "const MIN_INTERVAL_LEVEL", "const MIN_NORMAL_ESS", "enum ConfidenceSetBasis", "enum DerivedStanding", "enum IntervalMultiplicity", "enum NumericalIntervalMethod", "enum ProbabilityQuantity", "fn alpha", "fn assumptions", "fn combined_uncertainty", "fn confidence_set", "fn corrected_interval", "fn critical", "fn derive_uncertainty", "fn marginal", "fn numerical_component", "fn paired_confidence_set", "fn publish", "fn require_normal_ess", "fn validate", "fn verify", "fn wald", "fn wilson", "struct DerivedUncertainty", "struct IntervalRequest", "struct NumericalComponent", "struct NumericalInterval", "struct OptimalityConfidenceSet", "struct ProbabilityInterval", "struct SelectionComponent", "struct SelectionCorrectedInterval", "struct UtilityInterval"]
-sha256 = "e4657207eeb39b1560ce1d583e6b01d2ba1bd6cd27d080d69c779bd47f90f5d5"
+sha256 = "40fbf379291e23f78a452f0a031aa6ccd0614b6b71c90ae5109b9434367e29c7"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -44,4 +44,4 @@ sha256 = "139c2f8f30fe23d05904e1f23858e67c7f4b2462d4801b41b71f8c832513e9bf"
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_reliability_intervals.rs"
 items = ["fn a_derivation_is_annotated_by_the_record_that_covers_its_coordinate", "fn a_derivation_is_not_measured_but_every_route_is_published_and_the_combined_number_is_not_supported", "fn a_fresh_consumer_rederives_and_refuses_edited_draws_or_edited_intervals", "fn a_pre_specified_decision_has_no_selection_corrected_interval", "fn alternating", "fn an_adaptive_search_enters_the_critical_value_but_not_the_confidence_set", "fn an_effective_sample_size_below_the_floor_refuses_with_a_typed_detail", "fn assert_recompute_refusal", "fn carrier_of", "fn common_random_numbers_narrow_the_difference_interval", "fn confidence_set_excludes_the_clearly_worse_candidate_with_the_paired_critical_value", "fn ctx", "fn expected_utility_request", "fn held_out_interval_comes_from_the_independent_stream_and_is_purely_numerical", "fn independent", "fn levels_outside_the_derived_range_and_undeclared_dependence_are_refused", "fn many_candidates_use_the_dependence_free_marginal_construction", "fn se_alternating", "fn selection_corrected_interval_reports_the_extra_width_the_selection_costs", "fn series_stream", "fn simultaneous_multiplicity_widens_every_numerical_interval_by_bonferroni", "fn the_coverage_design_names_a_truth_and_a_grid_for_every_derived_route", "fn three", "fn wilson_interval_at_the_effective_sample_size_matches_hand_arithmetic", "fn z"]
-sha256 = "05bc564e83fa24d7588f92a640f1a0f66775aad982493b99607ed1683b120485"
+sha256 = "34ff3ba21374a5c86421de0b5175625591bca36fb6afe3a487d9925c620dfdc8"

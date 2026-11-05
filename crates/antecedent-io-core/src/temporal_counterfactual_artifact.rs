@@ -26,6 +26,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
+use antecedent_counterfactual::temporal_cross_world::staged::{
+    TemporalExecution, TemporalExecutor,
+};
 use antecedent_counterfactual::temporal_cross_world::{
     FactualUnitHistory, HistoryId, MAX_UNITS, MECHANISM_CLASS, NamedActionHistory, NodeMechanism,
     RefusingWitness, SharedAbductionReceipt, SnapshotId, TemporalCounterfactualError,
@@ -984,6 +987,66 @@ impl TemporalCounterfactualArtifact {
         }
         Ok(Self { meta, request, result })
     }
+}
+
+/// One selective execution of the fixed-population row: the report an artifact of the same
+/// request would carry, with the stage receipts and the work observed by this execution.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SelectiveTemporalReport {
+    /// The self-describing report, bit-identical to the one-shot evaluator's.
+    pub report: TemporalCounterfactualReportWire,
+    /// Stage identities, how each was obtained (declared, computed or reused) and the work.
+    pub execution: TemporalExecution,
+}
+
+/// Execute `request` on a selective executor that retains abductions across calls.
+///
+/// A request whose graph, mechanism fit, snapshot and factual histories are unchanged reuses the
+/// retained abduction and replays only the named action histories; a change of any of those four
+/// is a different abduction identity and abduces again. The answer is bit-identical to
+/// [`TemporalCounterfactualArtifact::seal`] on the same request.
+///
+/// # Errors
+/// The one-shot evaluator's refusals, cancellation and the format's bounds.
+pub fn execute_selective(
+    executor: &mut TemporalExecutor,
+    request: &TemporalCounterfactualRequestWire,
+    ctx: &ExecutionContext,
+) -> Result<SelectiveTemporalReport, TemporalCounterfactualArtifactError> {
+    if request.factual.len() > MAX_UNITS {
+        return Err(TemporalCounterfactualArtifactError::LimitsExceeded("units"));
+    }
+    let mut request = request.clone();
+    request.factual.sort_by(|a, b| a.unit.cmp(&b.unit));
+    let spec = spec_of(&request)?;
+    let execution = executor.execute(&spec, ctx).map_err(from_core)?;
+    let result = &execution.result;
+    let report = TemporalCounterfactualReportWire {
+        version: TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION,
+        feature: TEMPORAL_COUNTERFACTUAL_ARTIFACT_FEATURE.to_owned(),
+        mechanism_class: MECHANISM_CLASS.to_owned(),
+        inference_claim: TEMPORAL_COUNTERFACTUAL_INFERENCE_CLAIM.to_owned(),
+        snapshot: request.snapshot.clone(),
+        plus_name: request.plus.name.clone(),
+        minus_name: request.minus.name.clone(),
+        units: result
+            .units
+            .iter()
+            .map(|u| UnitOutcomeWire {
+                unit: u.unit.as_str().to_owned(),
+                history: u.history.as_str().to_owned(),
+                factual_outcome: u.factual_outcome,
+                plus_outcome: u.plus_outcome,
+                minus_outcome: u.minus_outcome,
+            })
+            .collect(),
+        mean_plus: result.mean_plus,
+        mean_minus: result.mean_minus,
+        mean_contrast: result.mean_contrast,
+        receipt: ReceiptWire::from_receipt(&result.receipt)?,
+        identity: identity_of(&request, &result.receipt),
+    };
+    Ok(SelectiveTemporalReport { report, execution })
 }
 
 #[cfg(test)]

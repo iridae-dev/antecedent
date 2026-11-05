@@ -22,8 +22,9 @@
 # Then commit the registry and the files the collector regenerates, and push.
 #
 #   bash scripts/measure_calibration.sh                # only what is owed
-#   bash scripts/measure_calibration.sh --owed         # the same, spelled out: the list
-#                                                      # `calibration_status.py status --owed` prints
+#   bash scripts/measure_calibration.sh --owed         # exactly the list `calibration_status.py status --owed`
+#                                                      # prints (owed records, interval routes with no record),
+#                                                      # and no other group; --dry-run shows it
 #   bash scripts/measure_calibration.sh --all          # every group
 #   bash scripts/measure_calibration.sh --missing-only # only missing records/gate evidence; preserve prior evidence
 #   bash scripts/measure_calibration.sh --missing-only --group 'weighted_interval_calibration:*'
@@ -98,6 +99,7 @@ fi
 MODE=()
 if [[ "$MISSING_ONLY" == "1" ]]; then MODE+=(--missing-only); fi
 if [[ -n "$ALL" ]]; then MODE+=(--all); fi
+if [[ "$OWED" == "1" ]]; then MODE+=(--owed); fi
 if [[ -z "$JOBS" ]]; then
   # One job per core: scripts/calibration_groups.py gives each job
   # floor(cores / jobs), at least one, simulation workers, so the

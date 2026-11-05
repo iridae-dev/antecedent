@@ -38,7 +38,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_estimate::ContinuousResponseOptions;
-use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId};
+use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Pag};
 use serde_json::Value;
 
 const ROWS: u32 = 600;
@@ -233,6 +233,15 @@ fn published(result: &antecedent::StudyResult) -> Vec<f64> {
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
             mean.to_vec()
         }
+        // An identified set of curves (the completions of an equivalence class) is checked
+        // through its bounds: both must lie within the band of the closed form, and the
+        // midpoint is returned.
+        ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(envelope)) => envelope
+            .lower
+            .iter()
+            .zip(envelope.upper.iter())
+            .map(|(lower, upper)| 0.5 * (lower + upper))
+            .collect(),
         other => panic!("unexpected response {other:?}"),
     }
 }
@@ -303,53 +312,69 @@ fn balanced_table() -> TabularData {
 fn response_curve_validation_class_known_truth() {
     let data = balanced_table();
     let grid = [-0.9, 0.0, 0.9];
-    for accepted in [false, true] {
-        for bayes in [false, true] {
-            for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
-                let label = format!("cpdag accepted={accepted} bayesian={bayes} {suite:?}");
-                let base = Study::tabular(data.clone());
-                let builder = if accepted {
-                    base.graph(AcceptedGraph::from(two_completion_cpdag()))
-                } else {
-                    base.graph(two_completion_cpdag())
-                };
-                let builder = builder
-                    .query(curve(&grid))
-                    .response_options(ContinuousResponseOptions {
-                        bandwidth: Some(0.6),
-                        ..Default::default()
-                    })
-                    .refute(suite)
-                    .bootstrap_replicates(0);
-                let builder = if bayes { builder.inference(bayesian()) } else { builder };
-                let result = builder
-                    .build()
-                    .unwrap()
-                    .run(&ExecutionContext::for_tests(917))
-                    .unwrap_or_else(|e| panic!("{label}: {e:?}"));
-                assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
-                for (value, x) in published(&result).iter().zip(&grid) {
-                    assert!((value - (1.0 + 2.0 * x)).abs() <= 0.25, "{label}: {value} at {x}");
+    for pag in [false, true] {
+        for accepted in [false, true] {
+            for bayes in [false, true] {
+                for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+                    class_case(&data, &grid, (pag, accepted, bayes), suite);
                 }
-                // Each completion is refuted against its own adjustment estimand: every report
-                // of every name passes, and each name is present.
-                for name in
-                    ["curve.support", "curve.placebo_treatment", "curve.random_common_cause"]
-                {
-                    let mut found = reports(&result, name).peekable();
-                    assert!(found.peek().is_some(), "{label}: no {name}");
-                    for each in found {
-                        assert!(each.passed, "{label}: {name}: {:?}", each.failure_condition);
-                    }
-                }
-                assert_eq!(
-                    reports(&result, "curve.data_subset").count() > 0,
-                    suite == RefuteSuite::Full,
-                    "{label}"
-                );
             }
         }
     }
+}
+
+/// A fully oriented PAG `z -> t`, `z -> y`, `t -> y`: one completion adjusting for `z`.
+fn oriented_pag() -> Pag {
+    let mut g = Pag::with_variables(3);
+    for (source, target) in [(0, 1), (0, 2), (1, 2)] {
+        g.insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target)).unwrap();
+    }
+    g
+}
+
+fn class_case(
+    data: &TabularData,
+    grid: &[f64],
+    (pag, accepted, bayes): (bool, bool, bool),
+    suite: RefuteSuite,
+) {
+    let label = format!("pag={pag} accepted={accepted} bayesian={bayes} {suite:?}");
+    let base = Study::tabular(data.clone());
+    let builder = match (pag, accepted) {
+        (false, true) => base.graph(AcceptedGraph::from(two_completion_cpdag())),
+        (false, false) => base.graph(two_completion_cpdag()),
+        (true, true) => base.graph(AcceptedGraph::from(oriented_pag())),
+        (true, false) => base.graph(oriented_pag()),
+    };
+    let builder = builder
+        .query(curve(grid))
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.6), ..Default::default() })
+        .refute(suite)
+        .bootstrap_replicates(0);
+    let builder = if bayes { builder.inference(bayesian()) } else { builder };
+    let result = builder
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(917))
+        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+    assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
+    for (value, x) in published(&result).iter().zip(grid) {
+        assert!((value - (1.0 + 2.0 * x)).abs() <= 0.25, "{label}: {value} at {x}");
+    }
+    // Each completion is refuted against its own adjustment estimand: every report
+    // of every name passes, and each name is present.
+    for name in ["curve.support", "curve.placebo_treatment", "curve.random_common_cause"] {
+        let mut found = reports(&result, name).peekable();
+        assert!(found.peek().is_some(), "{label}: no {name}");
+        for each in found {
+            assert!(each.passed, "{label}: {name}: {:?}", each.failure_condition);
+        }
+    }
+    assert_eq!(
+        reports(&result, "curve.data_subset").count() > 0,
+        suite == RefuteSuite::Full,
+        "{label}"
+    );
 }
 
 /// The ADMG front-door fixture: the curve is the ID-algorithm plug-in, refit whole under a
@@ -397,6 +422,38 @@ fn admg_fixture() -> (TabularData, Admg, ResponseQuery) {
     (data, graph, query)
 }
 
+/// An ADMG with no bidirected edge is identified by back-door adjustment and runs the
+/// adjustment-based curve fit: the same three perturbations apply, including the random common cause.
+#[test]
+fn response_curve_validation_adjustable_admg_known_truth() {
+    let (data, _) = table();
+    let mut graph = Admg::with_variables(3);
+    for (source, target) in [(0, 1), (0, 2), (1, 2)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    let result = Study::tabular(data.clone())
+        .graph(graph)
+        .query(curve(&[-0.8, 0.0, 0.8]))
+        .refute(RefuteSuite::Full)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(919))
+        .unwrap();
+    assert_eq!(result.support_status(), Some(CellStatus::Supported));
+    for name in [
+        "curve.support",
+        "curve.placebo_treatment",
+        "curve.random_common_cause",
+        "curve.data_subset",
+    ] {
+        let found = report(&result, name).unwrap_or_else(|| panic!("no {name} report"));
+        assert!(found.passed, "{name}: {:?}", found.failure_condition);
+    }
+}
+
 #[test]
 fn response_curve_validation_admg_known_truth() {
     let (data, graph, query) = admg_fixture();
@@ -440,9 +497,11 @@ fn response_curve_validation_admg_known_truth() {
                 );
                 assert!(report(&result, "curve.random_common_cause").is_none(), "{label}");
                 assert!(
-                    result.diagnostics.iter().any(|d| d.code.as_ref()
-                        == "refute.curve.check_not_applicable"
-                        && d.message.contains("no adjustment set")),
+                    result
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code.as_ref() == "refute.curve.check_not_applicable"
+                            && d.message.contains("no adjustment set")),
                     "{label}: the inapplicable random common cause is not stated"
                 );
             }

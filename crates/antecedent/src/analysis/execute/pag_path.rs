@@ -751,7 +751,10 @@ impl super::Study {
             .map(|level| admg_response_at_level(query, run.treatment, run.outcome, *level))
             .collect();
         let width = grid.len();
-        let fit = |data: &TabularData, extra: &[VariableId]| -> Option<Vec<f64>> {
+        let fit = |data: &TabularData,
+                   extra: &[VariableId],
+                   rctx: &ExecutionContext|
+         -> Option<Vec<f64>> {
             if !extra.is_empty() {
                 return None;
             }
@@ -765,7 +768,7 @@ impl super::Study {
                 treatment: run.treatment,
                 outcome: run.outcome,
                 physical: run.physical,
-                ctx: run.ctx,
+                ctx: rctx,
             };
             let fits = self.fit_admg_response_levels(&refit, &level_queries).ok()?;
             let refit_response = fits.into_response(query, true).response;
@@ -777,14 +780,21 @@ impl super::Study {
                     .all(|(a, b)| (a - b).abs() <= 1e-9 * b.abs().max(1.0));
             (same && curve.iter().all(|value| value.is_finite())).then_some(curve)
         };
+        let published = super::curve_refutation::published_curve(response)
+            .map(|(_, mean)| mean)
+            .unwrap_or_default();
+        let placebo = super::curve_refutation::tabular_placebo(run.treatment, run.ctx);
+        let subset = super::curve_refutation::tabular_subset(run.ctx);
         super::curve_refutation::refute_curve_run(
             &super::curve_refutation::CurveRun {
                 data: run.data,
-                treatment: run.treatment,
                 response,
+                published: &published,
                 suite: self.settings.refute,
                 replicates: self.settings.bootstrap_replicates,
                 fit: &fit,
+                placebo: &placebo,
+                subset: &subset,
                 common_cause: Err(
                     "the ADMG curve is the ID-algorithm plug-in over the graph's discrete \
                      variables, so there is no adjustment set to which an independent \

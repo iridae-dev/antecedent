@@ -194,6 +194,7 @@ mod temporal_design_api;
 mod tiered_identify_api;
 mod unsupported_design_api;
 pub(crate) use registry::transport_defaults;
+mod interface_adapters_api;
 mod interface_contract_api;
 mod intervention_callback_api;
 mod intervention_program_api;

@@ -34,13 +34,13 @@ redistribution = "Primary work is cited, not redistributed. The reference script
 limitations = "Bayesian Data Analysis (Gelman et al.) was not retrieved (nothing downloaded, no local copy); the ignorability argument is checked numerically, not read. The reference expands every path of eight procedures (Thompson with a probability-best stop, lagged epsilon-greedy with administrative loss, a futility stop with posterior-mean selection, three-arm UCB under a cap, outcome-dependent loss with fixed and adaptive assignment, and exposure failure with the counts attributed to the assigned and the delivered arm) under the prior predictive in exact rational arithmetic: the gap is exactly zero for the four ignorable procedures and for delivered attribution, and nonzero where a premise fails (-0.0484 for lost successes, +0.0736 and +0.0520 for lost failures under epsilon-greedy, -0.0406 for the assigned-attribution cell with failures); the product agrees to 1e-12. Eighteen report rows (priors (1,1), (2,3), (4,1); counts to 12 per cell, empty and one-sided) agree on shapes exactly and on probability best and expected loss to 1e-9. Procedures of at most 6 units and two or three arms; the gap is a diagnostic from the exact law, not a test, and the report is exact for the declared prior only."
 sources = ["https://docs.python.org/3/library/fractions.html", "https://docs.python.org/3/library/decimal.html", "https://doi.org/10.1201/b16018"]
 findings_resolved = ["No defect found: the gap is zero exactly where the ignorability premises hold and equals the exact prior-predictive value where they fail; the report matches the exact Beta quantities."]
-record_sha256 = "932876a2e3aaaa83e1cd586474c6f9fc63f9a7a0785998c1c7269deafc356c78"
+record_sha256 = "6c04d91b35528df759e30862943cb48f91db08d7c6f46ad3e42b6230f3d51add"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
 items = ["const DERIVED_NOT_MEASURED", "enum EstimandStatement", "enum UncertaintyParadigm", "fn admit", "fn as_str", "fn bayesian_report", "fn check_paradigm", "fn posterior_mean_gaps", "fn premise", "struct BayesianReport", "struct PosteriorMeanGap"]
-sha256 = "1384027a6ad36d2e8c57c460dc2fcef1e927a7454292135cbe11b2202a24edfc"
+sha256 = "ce33baddf04764a92e1a815132e4a72b183fe84321b6ba152f6056c1c4c4e8f2"
 
 [[method_review.artifacts]]
 role = "assertion"

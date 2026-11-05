@@ -37,7 +37,7 @@ kind = "wrapper"
 rationale = "Typed adapter from a native response to the claim a decision or inverse flow consumes: one scientific quantity per grid point derived from the response's own estimand and checked against the program binding."
 no_independent_algorithm = "The module reads values the response estimator already computed and attaches coordinates, support labels, trust and program identity; it computes no estimate."
 covered_by = ["composition.program_binding", "support.native_response_coordinates"]
-record_sha256 = "52814d6df1c390ae7a6e754e943e79a9b806b274b024ef2dc546abaf2e7385a7"
+record_sha256 = "2851b103a0024e1005ec0441a21171e39b915f8f8e75d618a21850af5cfee45c"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -49,4 +49,4 @@ sha256 = "5b4713ea0423433494a38b53a0aa4337bcf158e6ddce58ffb1d25bc73f39c953"
 role = "assertion"
 path = "crates/antecedent/tests/native_claims.rs"
 items = ["fn artifact_contract", "fn close", "fn context", "fn contract", "fn contract_expected_utility", "fn joint_response", "fn mean_response", "fn native_joint_response_supplies_an_aligned_law_for_nonlinear_functionals", "fn native_mean_only_result_is_refused_for_probability_and_quantile_sources", "fn native_mean_response_feeds_an_affine_decision_on_hand_values", "fn native_non_point_or_unlabeled_responses_are_refused", "fn native_response_exposes_coordinates_support_and_native_trust", "fn native_response_for_another_request_is_refused_against_the_program", "fn native_unsupported_coordinates_are_withheld_not_silently_used", "fn program", "fn quantity", "fn response_on", "fn schema", "fn supported"]
-sha256 = "96c9fd90dc407161357493fe3473f7f3134d55ff08ea76a46c528b17f4271d88"
+sha256 = "1332ea557f2fa07b40d19b37ea9f580f4b8f69ff56d8090c28c44a5fe7de7553"

@@ -33,8 +33,8 @@ covered_by = ["decision.contract"]
 inline_tests = true
 record_sha256 = "6bbe02c9fb7abebb1973231068c2d1f61f60721b097d6e91003af8d75797d02a"
 artifacts = [
- { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/derive.rs", items = ["module"], sha256 = "ef582def49d6d60fa97e49407159c9c00ad00aa4b41f5ebc181a7d4e8dc898ca" },
- { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/mod.rs", items = ["module"], sha256 = "042526c95fd4d2a96e470a91c6cb74aa2b5961d8872a5a77513b02b4371f1b3f" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/derive.rs", items = ["module"], sha256 = "6ae79b59d9ebd9d35e7c1a5fa2ba3d438d45d7beb8ff21db38f18c57e3ba366a" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/mod.rs", items = ["module"], sha256 = "5259aabfa9a98ca56610eb0d1f983f7e7b64d716d7db55cfb490a89574eedf52" },
  { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/plan.rs", items = ["module"], sha256 = "8b41edabdc83fbfc5772fa72c50239d7d1ba9a2bc3070eb028b8208b6b209b8f" },
  { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/reuse.rs", items = ["module"], sha256 = "8d1dfede9a0f805f41616142afc2bf9d70d62e9bbd7f65f9c0267719584196ea" },
 ]
