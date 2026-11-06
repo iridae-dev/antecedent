@@ -3,16 +3,76 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    AdmgDerivativeClaim, AdmgDerivativeFits, AdmgDerivativeInputs, CausalError, CausalResponse,
-    DagDerivativeFit, DerivativeResponseInputs, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    EffectEstimate, EstimandMethod, EstimatorId, ExecuteRun, ExecutionContext,
-    IdentificationResult, IdentifiedClaim, IdentifiedEstimand, IdentifiedExecuteFinish,
-    IdentifierId, InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan, RefuteSuite,
-    ResponseFunctional, ResponseQuery, Strategy, StudyResult, TableView, TemporalFrontDoorFit,
-    TimeSeriesData, VariableId, aggregate_temporal_horizon_evidence, combine_horizon_derivatives,
-    elapsed_ns, horizon_note, report_identify_compute, temporal_dag_derivative_response,
-    unit_contrast_query,
+    CausalError, CausalResponse, DagDerivativeFit, DerivativeResponseInputs, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimandMethod, EstimatorId, ExecuteRun,
+    ExecutionContext, IdentificationResult, IdentifiedClaim, IdentifiedEstimand,
+    IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant, OverlapPolicy,
+    PhysicalExecutionPlan, RefuteSuite, ResponseFunctional, ResponseQuery, Strategy, StudyResult,
+    TableView, TemporalIndexer, TimeSeriesData, VariableId, aggregate_temporal_horizon_evidence,
+    combine_horizon_derivatives, elapsed_ns, horizon_note, report_identify_compute,
+    temporal_dag_derivative_response, unit_contrast_query,
 };
+
+/// One horizon's immutable identification and whether preparation supplied it.
+struct AdmgDerivativeClaim {
+    horizon: u32,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    indexer: TemporalIndexer,
+    cached: bool,
+}
+
+impl AdmgDerivativeClaim {
+    /// A derivative's adjustment refuter uses the unit contrast at this same horizon.
+    fn pulse_witness(
+        &self,
+        input: AdmgDerivativeInputs<'_>,
+    ) -> super::super::temporal_response_refutation::PulseWitnessSite {
+        super::super::temporal_response_refutation::PulseWitnessSite {
+            key: u64::from(self.horizon),
+            horizon: self.horizon,
+            weight: 1.0,
+            witness: unit_contrast_query(
+                input.temporal,
+                input.reported,
+                self.horizon,
+                input.query.target_population.clone(),
+            ),
+            estimand: self.estimand.clone(),
+            indexer: self.indexer.clone(),
+            status: self.identification.status,
+            assumptions: self.identification.required_assumptions.clone(),
+        }
+    }
+}
+
+/// Native fits and refuter state in the requested horizon order.
+struct AdmgDerivativeFits {
+    responses: Vec<CausalResponse>,
+    witness_sites: Vec<super::super::temporal_response_refutation::PulseWitnessSite>,
+    horizon_reports: Vec<antecedent_validate::RefutationReport>,
+    horizon_notes: Vec<Diagnostic>,
+}
+
+/// Shared source/target and reporting frame for native ADMG derivative phases.
+#[derive(Clone, Copy)]
+struct AdmgDerivativeInputs<'a> {
+    data: &'a TimeSeriesData,
+    template: &'a antecedent_graph::TemporalAdmg,
+    query: &'a ResponseQuery,
+    temporal: &'a antecedent_core::TemporalResponseSpec,
+    reported: (VariableId, VariableId),
+    run: ExecuteRun<'a>,
+}
+
+/// A front-door derivative of one horizon of a temporal ADMG with the window table, the
+/// window-coordinate query and the resampling block it was estimated on.
+struct TemporalFrontDoorFit {
+    response: CausalResponse,
+    table: crate::analysis::temporal_admg_contrast::AdmittedWindowTable,
+    window_query: ResponseQuery,
+    block: usize,
+}
 
 impl super::super::Study {
     /// A temporal derivative response: the local slope of the linear unfolded

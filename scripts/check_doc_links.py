@@ -28,10 +28,9 @@ from __future__ import annotations
 
 import re
 import sys
-import tomllib
 from pathlib import Path
 
-from _repo import REPO_ROOT as ROOT
+from _repo import REPO_ROOT as ROOT, load_toml
 
 PAGES = (
     ["README.md", "CONTRIBUTING.md", "SECURITY.md", "ROADMAP.md", "examples/README.md"]
@@ -75,10 +74,10 @@ def heading_anchors(text: str) -> set[str]:
 def documented_ref(root: Path = ROOT) -> str:
     prep = root / "docs/release-notes/preparation.toml"
     if prep.is_file():
-        target = tomllib.loads(prep.read_text(encoding="utf-8")).get("target_version")
+        target = load_toml(prep).get("target_version")
         if isinstance(target, str):
             return f"v{target}"
-    cargo = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
+    cargo = load_toml(root / "Cargo.toml")
     return "v" + cargo["workspace"]["package"]["version"]
 
 

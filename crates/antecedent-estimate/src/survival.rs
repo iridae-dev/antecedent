@@ -192,12 +192,13 @@ pub fn randomized_survival_bootstrap_difference_band(
             .fold(0.0_f64, f64::max);
         suprema.push(sup);
     }
-    let ok = u32::try_from(suprema.len()).map_err(|_| "too many survival band draws")?;
-    if ok < 399 || ok < replicates.saturating_sub(replicates / 10) {
-        return Err(
-            "survival simultaneous band lost more than 10% of subject draws to support failures",
-        );
-    }
+    let ok = bootstrap_support_count(
+        suprema.len(),
+        replicates,
+        399,
+        "too many survival band draws",
+        "survival simultaneous band lost more than 10% of subject draws to support failures",
+    )?;
     suprema.sort_by(f64::total_cmp);
     #[allow(
         clippy::cast_possible_truncation,
@@ -301,10 +302,13 @@ pub fn randomized_survival_bootstrap_intervals(
             }
         }
     }
-    let ok = u32::try_from(draws_tau.len()).map_err(|_| "too many survival bootstrap draws")?;
-    if ok < 199 || ok < replicates.saturating_sub(replicates / 10) {
-        return Err("survival bootstrap lost more than 10% of subject draws to support failures");
-    }
+    let ok = bootstrap_support_count(
+        draws_tau.len(),
+        replicates,
+        199,
+        "too many survival bootstrap draws",
+        "survival bootstrap lost more than 10% of subject draws to support failures",
+    )?;
     if endpoint == SurvivalEndpoint::Survival && draws_rmst.len() != draws_tau.len() {
         return Err("survival bootstrap lost RMST estimates");
     }
@@ -319,7 +323,7 @@ pub fn randomized_survival_bootstrap_intervals(
 
 /// The 95% bootstrap percentile interval of `draws`: type-7 quantiles at 2.5% and 97.5%,
 /// the crate's rule for resampling percentiles (`statistical_transport::percentile_interval`).
-fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
+pub(crate) fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
     draws.sort_by(f64::total_cmp);
     let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
         draws,
@@ -327,6 +331,21 @@ fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
         antecedent_stats::QuantileRule::Interpolated,
     );
     [lower, upper]
+}
+
+/// Apply the survival bootstrap's minimum count and maximum support-loss policy.
+pub(crate) fn bootstrap_support_count(
+    draws: usize,
+    requested: u32,
+    minimum: u32,
+    overflow_error: &'static str,
+    support_error: &'static str,
+) -> Result<u32, &'static str> {
+    let ok = u32::try_from(draws).map_err(|_| overflow_error)?;
+    if ok < minimum || ok < requested.saturating_sub(requested / 10) {
+        return Err(support_error);
+    }
+    Ok(ok)
 }
 
 /// Compute randomized arm curves with optional left truncation.
@@ -713,6 +732,22 @@ mod tests {
         )
     )]
     use super::*;
+
+    #[test]
+    fn bootstrap_support_count_preserves_thresholds_and_errors() {
+        let check = |draws, requested, minimum| {
+            bootstrap_support_count(draws, requested, minimum, "overflow", "support")
+        };
+        assert_eq!(check(199, 199, 199), Ok(199));
+        assert_eq!(check(198, 199, 199), Err("support"));
+        assert_eq!(check(900, 1000, 199), Ok(900));
+        assert_eq!(check(899, 1000, 199), Err("support"));
+        assert_eq!(check(399, 399, 399), Ok(399));
+        assert_eq!(check(398, 399, 399), Err("support"));
+        if let Ok(overflow) = usize::try_from(u64::from(u32::MAX) + 1) {
+            assert_eq!(check(overflow, 199, 199), Err("overflow"));
+        }
+    }
 
     #[test]
     fn subject_draws_keep_arm_order_and_stream_position() {

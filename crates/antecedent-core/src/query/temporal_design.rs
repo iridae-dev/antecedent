@@ -351,6 +351,13 @@ fn grid_valid(grid: &[f64]) -> bool {
     !grid.is_empty() && grid.iter().all(|value| value.is_finite())
 }
 
+fn columns_are_unique(columns: &[VariableId]) -> bool {
+    let mut sorted = columns.to_vec();
+    sorted.sort_unstable();
+    sorted.dedup();
+    sorted.len() == columns.len()
+}
+
 impl TemporalDesignQuery {
     /// Number of table rows the query's arrays describe.
     #[must_use]
@@ -547,10 +554,7 @@ impl TemporalDesignQuery {
                 }
                 let mut columns = vec![self.outcome, *treatment, *censored];
                 columns.extend(confounders.iter().copied());
-                let mut sorted = columns.clone();
-                sorted.sort_unstable();
-                sorted.dedup();
-                if sorted.len() != columns.len() {
+                if !columns_are_unique(&columns) {
                     return Err(invalid(TemporalDesignFault::RegimeSurvivalColumns));
                 }
             }
@@ -560,10 +564,7 @@ impl TemporalDesignQuery {
                 }
                 let mut columns = vec![self.outcome, *treatment];
                 columns.extend(history.iter().copied());
-                let mut sorted = columns.clone();
-                sorted.sort_unstable();
-                sorted.dedup();
-                if sorted.len() != columns.len() {
+                if !columns_are_unique(&columns) {
                     return Err(invalid(TemporalDesignFault::ExcursionColumns));
                 }
             }
@@ -587,10 +588,7 @@ impl TemporalDesignQuery {
                 }
                 let mut columns = vec![self.outcome, *treatment];
                 columns.extend(confounders.iter().copied());
-                let mut sorted = columns.clone();
-                sorted.sort_unstable();
-                sorted.dedup();
-                if sorted.len() != columns.len() {
+                if !columns_are_unique(&columns) {
                     return Err(invalid(TemporalDesignFault::WholeRegimeColumns));
                 }
             }

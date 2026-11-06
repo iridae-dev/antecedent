@@ -12,9 +12,9 @@ import importlib
 import json
 import os
 import sys
-import tomllib
 from pathlib import Path
 
+from _repo import load_toml
 from check_python_capabilities import EXECUTING, MANIFEST, ROOT, digest, source_digest
 
 
@@ -68,7 +68,7 @@ def main() -> int:
     parser.add_argument("--build-receipt", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    manifest = tomllib.loads((ROOT / MANIFEST).read_text(encoding="utf-8"))
+    manifest = load_toml(ROOT / MANIFEST)
     selectors = sorted(
         {
             item["test"]

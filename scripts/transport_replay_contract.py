@@ -1,7 +1,7 @@
 """Strict evidence for stateless measured factories with retained native source replay."""
 
 import ast
-import tomllib
+from _repo import load_toml
 
 CONTRACTS = {
     "antecedent.transport.joint_bayesian": (
@@ -192,7 +192,7 @@ def source_replay_problems(root, route, body):
             "source-bound replay is only defined for the six exact measured uncertainty factories"
         ]
     record_id, producer = contract
-    records = tomllib.loads((root / "parity/capability_records.toml").read_text(encoding="utf-8"))["record"]
+    records = load_toml(root / "parity/capability_records.toml")["record"]
     record = next((r for r in records if r["id"] == record_id), {})
     if (
         route.get("capability_record") != record_id
@@ -210,7 +210,7 @@ def source_replay_problems(root, route, body):
         for r in record.get("routes", [])
     ):
         return ["source-bound replay must match the owning interval public uncertainty route"]
-    proof = tomllib.loads((root / f"provenance/{record_id}.toml").read_text(encoding="utf-8"))
+    proof = load_toml(root / f"provenance/{record_id}.toml")
     if route["evidence_test"] not in proof.get("test_sources", []):
         return ["source-bound replay evidence must be registered in its original method provenance"]
     return replay_body_problems(body, route["evidence_assertion"], producer)

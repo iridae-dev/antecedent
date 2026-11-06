@@ -22,6 +22,17 @@ mod least_squares;
 mod refusal;
 mod scratch;
 
+/// Validate a strictly positive finite prior scale with the caller's refusal text.
+pub(crate) fn validate_prior_scale(
+    scale: f64,
+    message: &'static str,
+) -> Result<(), crate::EstimationError> {
+    if !(scale.is_finite() && scale > 0.0) {
+        return Err(crate::EstimationError::unsupported(message));
+    }
+    Ok(())
+}
+
 /// Validate a maximum matching distance without changing its boundary semantics.
 pub(crate) fn validate_matching_caliper(
     caliper: Option<f64>,

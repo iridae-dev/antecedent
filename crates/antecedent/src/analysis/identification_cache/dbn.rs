@@ -12,7 +12,7 @@ use antecedent_graph::TemporalDag;
 use antecedent_identify::{IdentificationResult, TemporalBackdoorIdentifier};
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
-use super::{dbn_envelope_key, map_posterior_graphs};
+use super::{dbn_envelope_key, map_posterior_graphs, temporal_atom_bytes, temporal_atom_lease};
 use crate::analysis::prepared::{
     CachedTemporalIdentification, TemporalResponseIdentificationRequest,
     identify_temporal_response_horizons, single_step_dose,
@@ -77,20 +77,11 @@ pub(crate) fn admitted_temporal_dag_atom(
         })
         .ok_or_else(|| CausalError::Resource { message: "DBN template work overflow".into() })?;
     budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
-    let bytes = nodes
-        .checked_mul(512)
-        .and_then(|v| edges.checked_mul(256).and_then(|e| v.checked_add(e)))
-        .and_then(|v| v.checked_add(4096))
-        .ok_or_else(|| CausalError::Resource { message: "DBN template bytes overflow".into() })?;
+    let bytes = temporal_atom_bytes(nodes, edges, "DBN template bytes overflow")?;
     if bytes > budget.limits().max_bytes {
         return Err(CausalError::Resource { message: "DBN template byte limit".into() });
     }
-    let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-        antecedent_core::execution::AdmissionError::Cancelled => {
-            CausalError::Cancelled { stage: "temporal atom" }
-        }
-        other => CausalError::Resource { message: other.to_string() },
-    })?;
+    let lease = temporal_atom_lease(ctx, bytes, "temporal atom")?;
     let graph = antecedent_discovery::dbn_posterior::temporal_dag_from_dbn_atoms_cancellable(
         cmask,
         lmask,

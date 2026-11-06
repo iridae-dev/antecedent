@@ -5,9 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import tomllib
 
-from _repo import REPO_ROOT as ROOT
+from _repo import REPO_ROOT as ROOT, load_toml
 
 SOURCE = ROOT / "parity/support_graphless.toml"
 RUST = ROOT / "crates/antecedent-io-core/src/support_graphless_data.rs"
@@ -41,7 +40,7 @@ BOOLEAN_REQUIREMENTS = (
 
 
 def load_rows() -> list[dict]:
-    rows = tomllib.loads(SOURCE.read_text(encoding="utf-8"))["support"]
+    rows = load_toml(SOURCE)["support"]
     seen: set[tuple[str, ...]] = set()
     for row in rows:
         key = tuple(row[field] for field in KEYS)

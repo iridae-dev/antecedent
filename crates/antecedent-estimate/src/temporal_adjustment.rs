@@ -1409,9 +1409,7 @@ fn slope_ridge_coefficients(
     scale: f64,
     invalid_scale: &'static str,
 ) -> Result<Vec<f64>, EstimationError> {
-    if !(scale.is_finite() && scale > 0.0) {
-        return Err(EstimationError::unsupported(invalid_scale));
-    }
+    crate::util::validate_prior_scale(scale, invalid_scale)?;
     let sigma2 = crate::util::ols_sigma2(design, n, ncols, y, ols_coef);
     if !sigma2.is_finite() {
         return Err(EstimationError::stats_msg(
@@ -1861,11 +1859,10 @@ pub fn nested_direct_fit_moments(
         }
     }
     if let Some(scale) = prior_scale {
-        if !(scale.is_finite() && scale > 0.0) {
-            return Err(EstimationError::unsupported(
-                "temporal slope prior scale must be finite and positive",
-            ));
-        }
+        crate::util::validate_prior_scale(
+            scale,
+            "temporal slope prior scale must be finite and positive",
+        )?;
         let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
         let coef = SequentialRegression::solve_design(&design, n, ncols, y, None, &mut ws)
             .map_err(crate::error::EstimationError::from)?

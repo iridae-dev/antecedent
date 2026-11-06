@@ -17,10 +17,9 @@ the committed file differs from a fresh derivation.
 """
 
 import sys
-import tomllib
 from pathlib import Path
 
-from _repo import REPO_ROOT as root
+from _repo import REPO_ROOT as root, load_toml
 from capability_source import scan_refusal_details
 from route_behaviour import GENERATED, REASON_DETAILS, derive, load_details, render
 
@@ -59,7 +58,7 @@ def build(records: list[dict]) -> tuple[str, list[str]]:
 def main(argv: list[str]) -> int:
     if any(a not in ("--check",) for a in argv):
         raise SystemExit("usage: generate_route_behaviour.py [--check]")
-    records = tomllib.loads((root / "parity/capability_records.toml").read_text(encoding="utf-8")).get("record", [])
+    records = load_toml(root / "parity/capability_records.toml").get("record", [])
     text, problems = build(records)
     if problems:
         print("route behaviour cannot be derived:", file=sys.stderr)

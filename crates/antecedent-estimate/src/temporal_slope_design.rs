@@ -556,11 +556,10 @@ impl TemporalSlopeDesign {
                  Frequentist inference for a weighted least-squares point",
             ));
         }
-        if !(scale.is_finite() && scale > 0.0) {
-            return Err(EstimationError::unsupported(
-                "temporal slope prior scale must be finite and positive",
-            ));
-        }
+        crate::util::validate_prior_scale(
+            scale,
+            "temporal slope prior scale must be finite and positive",
+        )?;
         let (n, p) = (self.rows, self.cols);
         let sigma2 = crate::util::ols_sigma2(&self.matrix, n, p, &self.outcome, ols);
         if !sigma2.is_finite() {

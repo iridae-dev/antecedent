@@ -373,9 +373,7 @@ pub fn fit_regime_survival(
     replicates: usize,
     ctx: &ExecutionContext,
 ) -> Result<SurvivalFit, EstimationError> {
-    if !(floor.is_finite() && floor > 0.0 && floor <= 0.5) {
-        return Err(invalid("the positivity floor must be in (0, 0.5]"));
-    }
+    super::validate_floor(floor)?;
     if replicates < MIN_REPLICATES {
         return Err(refuse(
             antecedent_core::reason_code!("required_option_missing"),
@@ -388,32 +386,10 @@ pub fn fit_regime_survival(
     let (estimate, minimum) = ipw_procedure(data, None, floor)?;
     let n = data.subjects();
     let _lease = crate::util::admit_array::<f64>(ctx, replicates, 3 + n)?;
-    let mut columns: [Vec<f64>; 3] = [
-        Vec::with_capacity(replicates),
-        Vec::with_capacity(replicates),
-        Vec::with_capacity(replicates),
-    ];
-    let mut counts = vec![0.0; n];
-    let mut failed = 0_usize;
-    for replicate in 0..replicates {
-        if ctx.cancellation.is_cancelled() {
-            return Err(antecedent_stats::StatsError::Cancelled.into());
-        }
-        let mut rng =
-            ctx.rng.stream_for(StreamDomain::Resample, BOOTSTRAP_STREAM | replicate as u64);
-        counts.iter_mut().for_each(|value| *value = 0.0);
-        for _ in 0..n {
-            counts[antecedent_kernels::unbiased_index(&mut rng, n)] += 1.0;
-        }
-        match ipw_procedure(data, Some(&counts), floor) {
-            Ok((values, _)) => {
-                for (column, value) in columns.iter_mut().zip(values) {
-                    column.push(value);
-                }
-            }
-            Err(_) => failed += 1,
-        }
-    }
+    let (mut columns, failed) =
+        super::bootstrap_unit_draws(n, replicates, BOOTSTRAP_STREAM, ctx, |counts| {
+            ipw_procedure(data, Some(counts), floor).ok().map(|(values, _)| values)
+        })?;
     if failed as f64 > MAX_FAILED_SHARE * replicates as f64 {
         return Err(refuse(
             antecedent_core::reason_code!("arm_not_populated"),
@@ -534,9 +510,7 @@ pub fn fit_regime_survival_posterior(
     if !(prior_scale.is_finite() && prior_scale > 0.0) || draws < 2 {
         return Err(invalid("the prior scale must be positive and at least two draws taken"));
     }
-    if !(floor.is_finite() && floor > 0.0 && floor <= 0.5) {
-        return Err(invalid("the positivity floor must be in (0, 0.5]"));
-    }
+    super::validate_floor(floor)?;
     let precision = 1.0 / (prior_scale * prior_scale);
     let joint = fit_joint(data, precision)?;
     let n = data.subjects();

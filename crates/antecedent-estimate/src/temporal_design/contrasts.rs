@@ -52,14 +52,6 @@ fn checked_probability(p: f64, floor: f64) -> Result<f64, EstimationError> {
     Ok(p)
 }
 
-fn validate_floor(floor: f64) -> Result<(), EstimationError> {
-    if floor.is_finite() && floor > 0.0 && floor <= 0.5 {
-        Ok(())
-    } else {
-        Err(invalid("the positivity floor must be in (0, 0.5]"))
-    }
-}
-
 fn require_aligned(rows: usize, lengths: &[usize]) -> Result<(), EstimationError> {
     if lengths.iter().any(|len| *len != rows) {
         return Err(invalid("design arrays must be aligned with the table rows"));
@@ -91,7 +83,7 @@ pub fn two_arm_scores(
     cluster: &[usize],
     floor: f64,
 ) -> Result<DesignScores, EstimationError> {
-    validate_floor(floor)?;
+    super::validate_floor(floor)?;
     let rows = outcome.len();
     require_aligned(rows, &[assignment.len(), probability.len(), cluster.len()])?;
     let mut scores = Vec::with_capacity(3 * pairs.decision.len());
@@ -156,7 +148,7 @@ pub fn multi_arm_scores(
     ordered: bool,
     floor: f64,
 ) -> Result<DesignScores, EstimationError> {
-    validate_floor(floor)?;
+    super::validate_floor(floor)?;
     let k = arms.len();
     if k < 3 {
         return Err(invalid("a multi-arm design declares at least three arms"));
@@ -243,7 +235,7 @@ pub fn factorial_scores(
     cluster: &[usize],
     floor: f64,
 ) -> Result<DesignScores, EstimationError> {
-    validate_floor(floor)?;
+    super::validate_floor(floor)?;
     let rows = outcome.len();
     require_aligned(
         rows,
@@ -334,7 +326,7 @@ pub fn interference_scores(
     period: &[i64],
     floor: f64,
 ) -> Result<DesignScores, EstimationError> {
-    validate_floor(floor)?;
+    super::validate_floor(floor)?;
     let rows = outcome.len();
     require_aligned(rows, &[assignment.len(), probability.len(), group.len(), period.len()])?;
     if probability.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p >= 1.0) {
@@ -486,6 +478,10 @@ mod tests {
         let pairs = lagged_pairs(PanelRows { unit: &unit, period: &period }, 0).unwrap();
         let result = two_arm_scores(&pairs, &outcome, &assignment, &probability, &unit, 0.05);
         assert!(matches!(result, Err(EstimationError::Refused { .. })));
+        assert!(super::super::validate_floor(0.5).is_ok());
+        for floor in [0.0, -0.0, 0.500_001, f64::NAN, f64::INFINITY] {
+            assert!(super::super::validate_floor(floor).is_err());
+        }
     }
 
     #[test]

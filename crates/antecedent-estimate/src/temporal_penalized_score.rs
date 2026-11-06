@@ -36,6 +36,7 @@ use antecedent_stats::{
 };
 
 use crate::error::EstimationError;
+use crate::temporal_validation::{binary_outcomes, column_is_ones, finite_column, positive_finite};
 
 /// How the lag-aligned rows were sampled.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -89,7 +90,7 @@ impl<'a> TemporalPropensityDesignRef<'a> {
         if !column_is_ones(&x_colmajor[..nrows]) {
             return Err(shape("column 0 is the intercept and must be identically one"));
         }
-        binary_outcomes(y)?;
+        binary_outcomes(y, "treatment must be coded 0 or 1")?;
         finite_column("design", x_colmajor)?;
         Ok(Self { x_colmajor, y, nrows, ncols, dependence })
     }
@@ -568,35 +569,6 @@ fn linear_predictor(beta: &[f64], lags: &[f64]) -> Result<f64, EstimationError> 
 
 fn shape(message: &str) -> EstimationError {
     EstimationError::data_msg(message)
-}
-
-fn positive_finite(value: f64, message: &str) -> Result<(), EstimationError> {
-    if value.is_finite() && value > 0.0 { Ok(()) } else { Err(shape(message)) }
-}
-
-#[allow(
-    clippy::float_cmp,
-    reason = "the intercept column and Bernoulli outcomes are exact codes, not measurements"
-)]
-fn column_is_ones(column: &[f64]) -> bool {
-    column.iter().all(|&value| value == 1.0)
-}
-
-#[allow(clippy::float_cmp, reason = "treatment is coded exactly 0 or 1")]
-fn binary_outcomes(y: &[f64]) -> Result<(), EstimationError> {
-    if y.iter().all(|&value| value == 0.0 || value == 1.0) {
-        Ok(())
-    } else {
-        Err(shape("treatment must be coded 0 or 1"))
-    }
-}
-
-fn finite_column(name: &str, values: &[f64]) -> Result<(), EstimationError> {
-    if values.iter().all(|value| value.is_finite()) {
-        Ok(())
-    } else {
-        Err(shape(&format!("{name} values must be finite")))
-    }
 }
 
 #[cfg(test)]

@@ -27,7 +27,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExecutionContext, StreamDomain};
+use antecedent_core::ExecutionContext;
 
 use super::{LaggedPairs, PosteriorSummary, invalid, posterior_by_cluster_weights};
 use crate::error::EstimationError;
@@ -225,32 +225,10 @@ pub fn fit_quantile(
     }
     let g_count = prepared.clusters;
     let _lease = crate::util::admit_array::<f64>(ctx, replicates, 3 + g_count)?;
-    let mut columns: [Vec<f64>; 3] = [
-        Vec::with_capacity(replicates),
-        Vec::with_capacity(replicates),
-        Vec::with_capacity(replicates),
-    ];
-    let mut counts = vec![0.0; g_count];
-    let mut failed = 0_usize;
-    for replicate in 0..replicates {
-        if ctx.cancellation.is_cancelled() {
-            return Err(antecedent_stats::StatsError::Cancelled.into());
-        }
-        let mut rng =
-            ctx.rng.stream_for(StreamDomain::Resample, BOOTSTRAP_STREAM | replicate as u64);
-        counts.iter_mut().for_each(|value| *value = 0.0);
-        for _ in 0..g_count {
-            counts[antecedent_kernels::unbiased_index(&mut rng, g_count)] += 1.0;
-        }
-        match evaluate(&prepared, Some(&counts), tau) {
-            Some(values) => {
-                for (column, value) in columns.iter_mut().zip(values) {
-                    column.push(value);
-                }
-            }
-            None => failed += 1,
-        }
-    }
+    let (mut columns, failed) =
+        super::bootstrap_unit_draws(g_count, replicates, BOOTSTRAP_STREAM, ctx, |counts| {
+            evaluate(&prepared, Some(counts), tau)
+        })?;
     if failed as f64 > MAX_FAILED_SHARE * replicates as f64 {
         return Err(refuse(
             antecedent_core::reason_code!("arm_not_populated"),

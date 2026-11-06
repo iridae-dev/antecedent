@@ -122,22 +122,19 @@ pub(super) fn temporal_mixed_member(
                 message: "temporal DAG work overflow".into(),
             })?;
         budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
-        let bytes = nodes
-            .checked_mul(512)
-            .and_then(|v| edges.checked_mul(256).and_then(|e| v.checked_add(e)))
-            .and_then(|v| v.checked_add(4096))
-            .ok_or_else(|| CausalError::Resource {
-                message: "temporal DAG bytes overflow".into(),
-            })?;
+        let bytes = crate::analysis::identification_cache::temporal_atom_bytes(
+            nodes,
+            edges,
+            "temporal DAG bytes overflow",
+        )?;
         if bytes > budget.limits().max_bytes {
             return Err(CausalError::Resource { message: "temporal DAG byte limit".into() });
         }
-        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: "temporal attribution" }
-            }
-            other => CausalError::Resource { message: other.to_string() },
-        })?;
+        let lease = crate::analysis::identification_cache::temporal_atom_lease(
+            ctx,
+            bytes,
+            "temporal attribution",
+        )?;
         let mut dag = TemporalDag::empty();
         for node in template.nodes() {
             if ctx.cancellation.is_cancelled() {

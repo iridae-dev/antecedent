@@ -43,7 +43,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExecutionContext, StreamDomain};
+use antecedent_core::ExecutionContext;
 
 use super::linalg::{cholesky, cholesky_solve, fit_logistic};
 use super::{MIN_CLUSTERS, PosteriorSummary, dense_labels, invalid, posterior_by_cluster_weights};
@@ -505,14 +505,6 @@ fn check_regimes(panel: &RegimePanel, regimes: StaticRegimes<'_>) -> Result<(), 
     Ok(())
 }
 
-fn check_floor(floor: f64) -> Result<(), EstimationError> {
-    if floor.is_finite() && floor > 0.0 && floor <= 0.5 {
-        Ok(())
-    } else {
-        Err(invalid("the positivity floor must be in (0, 0.5]"))
-    }
-}
-
 /// The full-data estimate of `[active - reference, active, reference]` and the smallest fitted
 /// probability of a path action, with no uncertainty.
 ///
@@ -525,7 +517,7 @@ pub fn regime_point_estimate(
     method: RegimeMethod,
     floor: f64,
 ) -> Result<([f64; 3], f64), EstimationError> {
-    check_floor(floor)?;
+    super::validate_floor(floor)?;
     check_regimes(panel, regimes)?;
     let point = evaluate(panel, regimes, method, None, 0.0, floor)?;
     Ok((point.values, point.minimum_probability))
@@ -543,7 +535,7 @@ pub fn regime_point_estimate_weighted(
     floor: f64,
     weights: &[f64],
 ) -> Result<([f64; 3], f64), EstimationError> {
-    check_floor(floor)?;
+    super::validate_floor(floor)?;
     check_regimes(panel, regimes)?;
     if weights.len() != panel.units
         || weights.iter().any(|v| !v.is_finite() || *v < 0.0)
@@ -580,7 +572,7 @@ pub fn fit_static_regimes(
     posterior_draws: Option<usize>,
     ctx: &ExecutionContext,
 ) -> Result<RegimeFit, EstimationError> {
-    check_floor(floor)?;
+    super::validate_floor(floor)?;
     check_regimes(panel, regimes)?;
     let (units, periods) = (panel.units, panel.periods);
     if let Some(draws) = posterior_draws {
@@ -619,32 +611,12 @@ pub fn fit_static_regimes(
     }
     let point = evaluate(panel, regimes, method, None, 0.0, floor)?;
     let _lease = crate::util::admit_array::<f64>(ctx, replicates, 3 + units)?;
-    let mut columns: [Vec<f64>; 3] = [
-        Vec::with_capacity(replicates),
-        Vec::with_capacity(replicates),
-        Vec::with_capacity(replicates),
-    ];
-    let mut counts = vec![0.0; units];
-    let mut failed = 0_usize;
-    for replicate in 0..replicates {
-        if ctx.cancellation.is_cancelled() {
-            return Err(antecedent_stats::StatsError::Cancelled.into());
-        }
-        let mut rng =
-            ctx.rng.stream_for(StreamDomain::Resample, BOOTSTRAP_STREAM | replicate as u64);
-        counts.iter_mut().for_each(|value| *value = 0.0);
-        for _ in 0..units {
-            counts[antecedent_kernels::unbiased_index(&mut rng, units)] += 1.0;
-        }
-        match evaluate(panel, regimes, method, Some(&counts), 0.0, floor) {
-            Ok(evaluation) => {
-                for (column, value) in columns.iter_mut().zip(evaluation.values) {
-                    column.push(value);
-                }
-            }
-            Err(_) => failed += 1,
-        }
-    }
+    let (mut columns, failed) =
+        super::bootstrap_unit_draws(units, replicates, BOOTSTRAP_STREAM, ctx, |counts| {
+            evaluate(panel, regimes, method, Some(counts), 0.0, floor)
+                .ok()
+                .map(|evaluation| evaluation.values)
+        })?;
     if failed as f64 > MAX_FAILED_SHARE * replicates as f64 {
         return Err(refuse(
             antecedent_core::reason_code!("positivity_violated"),

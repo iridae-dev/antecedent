@@ -7,9 +7,8 @@ Frozen cells may allocate pending evidence. Implemented cells may not.
 from __future__ import annotations
 
 import sys
-import tomllib
 
-from _repo import REPO_ROOT as ROOT
+from _repo import REPO_ROOT as ROOT, load_toml
 from route_behaviour import load_stage_routes
 
 LEDGER = ROOT / "parity/evidence_ledger.toml"
@@ -170,11 +169,11 @@ def main() -> int:
         return 0
     if len(sys.argv) != 1:
         raise SystemExit("usage: check_evidence_ledger.py [--self-test]")
-    ledger = tomllib.loads(LEDGER.read_text(encoding="utf-8"))
+    ledger = load_toml(LEDGER)
     if ledger.get("version") != 1 or "release" in ledger:
         print("evidence ledger: unsupported header", file=sys.stderr)
         return 1
-    records = tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"]
+    records = load_toml(RECORDS)["record"]
     stages = load_stage_routes(ROOT, STAGES)
     errors = problems(ledger["cell"], records, stages)
     if errors:

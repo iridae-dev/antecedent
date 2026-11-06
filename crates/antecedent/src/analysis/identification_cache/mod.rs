@@ -183,6 +183,31 @@ fn dbn_envelope_key(index: usize) -> Result<u64, CausalError> {
     })
 }
 
+/// Bytes for the identical retained DAG and class template graph layouts.
+pub(super) fn temporal_atom_bytes(
+    nodes: u64,
+    edges: u64,
+    overflow: &'static str,
+) -> Result<u64, CausalError> {
+    nodes
+        .checked_mul(512)
+        .and_then(|value| edges.checked_mul(256).and_then(|edges| value.checked_add(edges)))
+        .and_then(|value| value.checked_add(4096))
+        .ok_or_else(|| CausalError::Resource { message: overflow.into() })
+}
+
+/// Acquire the template lease without changing its route-specific cancellation stage.
+pub(super) fn temporal_atom_lease(
+    ctx: &ExecutionContext,
+    bytes: u64,
+    stage: &'static str,
+) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => CausalError::Cancelled { stage },
+        other => CausalError::Resource { message: other.to_string() },
+    })
+}
+
 /// One admitted temporal class template; the lease must follow the graph owner.
 pub(crate) enum AdmittedTemporalClassAtom {
     Cpdag(antecedent_graph::TemporalCpdag, antecedent_core::execution::AdmissionLease),
@@ -241,20 +266,11 @@ pub(crate) fn admitted_temporal_class_atom(
             .and_then(|v| v.checked_add(scans))
             .ok_or_else(|| CausalError::Resource { message: "class atom work overflow".into() })?;
     budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
-    let bytes = nodes
-        .checked_mul(512)
-        .and_then(|v| edges.checked_mul(256).and_then(|e| v.checked_add(e)))
-        .and_then(|v| v.checked_add(4096))
-        .ok_or_else(|| CausalError::Resource { message: "class atom byte overflow".into() })?;
+    let bytes = temporal_atom_bytes(nodes, edges, "class atom byte overflow")?;
     if bytes > budget.limits().max_bytes {
         return Err(CausalError::Resource { message: "class atom byte limit".into() });
     }
-    let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-        antecedent_core::execution::AdmissionError::Cancelled => {
-            CausalError::Cancelled { stage: "temporal class atom" }
-        }
-        other => CausalError::Resource { message: other.to_string() },
-    })?;
+    let lease = temporal_atom_lease(ctx, bytes, "temporal class atom")?;
     match posterior.atom_kind() {
         antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
             match antecedent_discovery::dbn_posterior::temporal_cpdag_from_dbn_atoms_cancellable(

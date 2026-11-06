@@ -21,6 +21,7 @@
 use std::fmt::Write as _;
 use std::sync::Arc;
 
+use crate::content_identity::hash_framed_text as text;
 use crate::global_index::GlobalId;
 
 use super::FileColumnKind;
@@ -185,9 +186,4 @@ impl FileContentIdentity {
         }
         out
     }
-}
-
-fn text(hasher: &mut blake3::Hasher, value: &str) {
-    hasher.update(&(value.len() as u64).to_le_bytes());
-    hasher.update(value.as_bytes());
 }

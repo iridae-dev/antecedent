@@ -646,7 +646,40 @@ pub fn diagnose_data(
         if policy.duplicate_rows { k } else { 0 },
         sampled,
     );
-    for (index, (variable, view)) in data.schema().variables().iter().zip(&views).enumerate() {
+    diagnose_columns(data, &views, &missing, &sample, policy, context, ctx, &mut report)?;
+    bind_context(data, &mut report, context, ctx)?;
+    report.check(
+        "data.relationships",
+        None,
+        "not_evaluated",
+        Some("requires prepared preflight adapter"),
+        0,
+        false,
+    );
+    report.seal();
+    Ok(report)
+}
+
+/// Profile each column of the already admitted sample, preserving report order.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "one column profiling pass shares the sampled rows and report ordering"
+)]
+fn diagnose_columns(
+    data: &TabularData,
+    views: &[ColumnView<'_>],
+    missing: &[usize],
+    sample: &[usize],
+    policy: &DataDiagnostics,
+    context: &DataDiagnosticContext,
+    ctx: &ExecutionContext,
+    report: &mut DataDiagnosticsReport,
+) -> Result<(), DataDiagnosticsError> {
+    let n = data.row_count();
+    let k = sample.len();
+    let sampled = k < n;
+    for (index, (variable, view)) in data.schema().variables().iter().zip(views).enumerate() {
         let name = variable.name.to_string();
         let mut frequencies = BTreeMap::new();
         let mut values = vec![];
@@ -823,17 +856,7 @@ pub fn diagnose_data(
             );
         }
     }
-    bind_context(data, &mut report, context, ctx)?;
-    report.check(
-        "data.relationships",
-        None,
-        "not_evaluated",
-        Some("requires prepared preflight adapter"),
-        0,
-        false,
-    );
-    report.seal();
-    Ok(report)
+    Ok(())
 }
 
 /// Bind an existing profile to new scientific roles and contrasts without repeating profiling.

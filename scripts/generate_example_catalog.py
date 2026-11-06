@@ -3,8 +3,9 @@
 
 import argparse
 import html
-import tomllib
 from pathlib import Path
+
+from _repo import load_toml
 
 ROOT = Path(__file__).resolve().parents[1]
 BEGIN = "<!-- generated:example-catalog:begin -->"
@@ -31,16 +32,16 @@ TOPIC_ORDER = [
 def version():
     prep = ROOT / "docs/release-notes/preparation.toml"
     if prep.exists():
-        target = tomllib.loads(prep.read_text(encoding="utf-8")).get("target_version")
+        target = load_toml(prep).get("target_version")
         if target:
             return target
-    return tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))[
+    return load_toml(ROOT / "Cargo.toml")[
         "workspace"
     ]["package"]["version"]
 
 
 def entries():
-    return tomllib.loads((ROOT / "examples/catalog.toml").read_text(encoding="utf-8"))[
+    return load_toml(ROOT / "examples/catalog.toml")[
         "example"
     ]
 

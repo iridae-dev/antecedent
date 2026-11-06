@@ -1769,6 +1769,58 @@ fn the_temporal_design_kind_appends_its_tag_and_every_field_reaches_the_bytes() 
     let mut quantile_multi = temporal_design();
     quantile_multi.functional = TemporalDesignFunctional::Quantile { level: 1.5 };
     assert!(quantile_multi.validate().is_err());
+
+    let mut observational = temporal_design();
+    observational.lag = 0;
+    observational.assignment = TemporalAssignment::RegimeSurvival {
+        treatment: v(2),
+        censored: v(3),
+        confounders: Arc::from([v(4)]),
+        horizon: 2,
+    };
+    assert!(observational.validate().is_ok());
+    if let TemporalAssignment::RegimeSurvival { confounders, .. } = &mut observational.assignment {
+        *confounders = Arc::from([v(3)]);
+    }
+    assert!(matches!(
+        observational.validate(),
+        Err(QueryError::InvalidTemporalDesign(TemporalDesignFault::RegimeSurvivalColumns))
+    ));
+    observational.lag = 1;
+    assert!(matches!(
+        observational.validate(),
+        Err(QueryError::InvalidTemporalDesign(TemporalDesignFault::RegimeSurvivalHorizon))
+    ));
+    observational.lag = 0;
+    observational.assignment =
+        TemporalAssignment::ObservationalExcursion { treatment: v(2), history: Arc::from([v(3)]) };
+    assert!(observational.validate().is_ok());
+    if let TemporalAssignment::ObservationalExcursion { history, .. } =
+        &mut observational.assignment
+    {
+        *history = Arc::from([v(1)]);
+    }
+    assert!(matches!(
+        observational.validate(),
+        Err(QueryError::InvalidTemporalDesign(TemporalDesignFault::ExcursionColumns))
+    ));
+    observational.assignment = TemporalAssignment::ObservationalRegime {
+        treatment: v(2),
+        confounders: Arc::from([v(3)]),
+        active: Arc::from([true]),
+        reference: Arc::from([false]),
+        method: TemporalRegimeMethod::GFormula,
+    };
+    assert!(observational.validate().is_ok());
+    if let TemporalAssignment::ObservationalRegime { confounders, .. } =
+        &mut observational.assignment
+    {
+        *confounders = Arc::from([v(2)]);
+    }
+    assert!(matches!(
+        observational.validate(),
+        Err(QueryError::InvalidTemporalDesign(TemporalDesignFault::WholeRegimeColumns))
+    ));
 }
 
 fn iv_bounds() -> IvBoundsQuery {

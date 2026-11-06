@@ -75,6 +75,47 @@ fn bootstrap_intervals(columns: &mut [Vec<f64>; 3]) -> ([f64; 3], [(f64, f64); 3
     (standard_error, interval)
 }
 
+// Shared unit-bootstrap traversal. Each caller retains its own admission lease,
+// stream tag, evaluation and failure policy.
+fn bootstrap_unit_draws(
+    units: usize,
+    replicates: usize,
+    stream: u64,
+    ctx: &ExecutionContext,
+    mut evaluate: impl FnMut(&[f64]) -> Option<[f64; 3]>,
+) -> Result<([Vec<f64>; 3], usize), EstimationError> {
+    let mut columns: [Vec<f64>; 3] = std::array::from_fn(|_| Vec::with_capacity(replicates));
+    let mut counts = vec![0.0; units];
+    let mut failed = 0_usize;
+    for replicate in 0..replicates {
+        if ctx.cancellation.is_cancelled() {
+            return Err(antecedent_stats::StatsError::Cancelled.into());
+        }
+        let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream | replicate as u64);
+        counts.iter_mut().for_each(|value| *value = 0.0);
+        for _ in 0..units {
+            counts[antecedent_kernels::unbiased_index(&mut rng, units)] += 1.0;
+        }
+        if let Some(values) = evaluate(&counts) {
+            for (column, value) in columns.iter_mut().zip(values) {
+                column.push(value);
+            }
+        } else {
+            failed += 1;
+        }
+    }
+    Ok((columns, failed))
+}
+
+/// Require the declared positivity floor used across temporal designs.
+fn validate_floor(floor: f64) -> Result<(), EstimationError> {
+    if floor.is_finite() && floor > 0.0 && floor <= 0.5 {
+        Ok(())
+    } else {
+        Err(invalid("the positivity floor must be in (0, 0.5]"))
+    }
+}
+
 /// Fewest independent clusters an interval is computed from.
 pub const MIN_CLUSTERS: usize = 2;
 /// Default Gaussian multiplier replicates of a simultaneous band.
@@ -662,6 +703,35 @@ pub fn dense_labels<T: Eq + std::hash::Hash + Clone>(labels: &[T]) -> (Vec<usize
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unit_bootstrap_preserves_streams_and_failure_accounting() {
+        let ctx = ExecutionContext::for_tests(4);
+        let stream = 0x7e5d_1234_0000_0000;
+        let evaluate =
+            |counts: &[f64]| (counts[0] > 0.0).then_some([counts[0], counts[1], counts[2]]);
+        let (actual, failed) = bootstrap_unit_draws(3, 40, stream, &ctx, evaluate).unwrap();
+        let mut expected: [Vec<f64>; 3] = std::array::from_fn(|_| Vec::new());
+        let mut failures = 0;
+        for replicate in 0..40 {
+            let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream | replicate as u64);
+            let mut counts = [0.0; 3];
+            for _ in 0..3 {
+                counts[antecedent_kernels::unbiased_index(&mut rng, 3)] += 1.0;
+            }
+            if let Some(values) = evaluate(&counts) {
+                for (column, value) in expected.iter_mut().zip(values) {
+                    column.push(value);
+                }
+            } else {
+                failures += 1;
+            }
+        }
+        assert_eq!(actual, expected);
+        assert_eq!(failed, failures);
+        ctx.cancellation.cancel();
+        assert!(bootstrap_unit_draws(3, 1, stream, &ctx, evaluate).is_err());
+    }
 
     #[test]
     fn bootstrap_intervals_summarize_each_coordinate() {

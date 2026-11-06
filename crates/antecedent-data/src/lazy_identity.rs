@@ -14,6 +14,7 @@
 
 use std::ops::Range;
 
+use crate::content_identity::hash_framed_text as text;
 use crate::error::DataError;
 use crate::source::{
     CohortOrder, OwnedSource, RowChunk, SegmentedSource, SnapshotContract, SourceIdentity,
@@ -283,10 +284,6 @@ fn lazy_digest(
 /// Digest of every scientific field of a contract except the content identity, which the
 /// storage digest already carries.
 fn contract_binding(contract: &SnapshotContract) -> [u8; 32] {
-    fn text(hasher: &mut blake3::Hasher, value: &str) {
-        hasher.update(&(value.len() as u64).to_le_bytes());
-        hasher.update(value.as_bytes());
-    }
     fn word(hasher: &mut blake3::Hasher, value: usize) {
         hasher.update(&(value as u64).to_le_bytes());
     }

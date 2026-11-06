@@ -17,11 +17,10 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-import tomllib
 from collections import defaultdict
 from itertools import product
 
-from _repo import REPO_ROOT as ROOT
+from _repo import REPO_ROOT as ROOT, load_toml as load_toml_file
 
 CLAIM_FILES = ("README.md", "docs/capabilities.md", "docs/comparison.md")
 CATALOG_FILE = "docs/capabilities.md"
@@ -40,7 +39,7 @@ CLAIM_FIELDS = ("id", "text", "supported_by")
 
 
 def load_toml(rel: str) -> dict:
-    return tomllib.loads((ROOT / rel).read_text(encoding="utf-8"))
+    return load_toml_file(ROOT / rel)
 
 
 def load_claims() -> list[dict]:

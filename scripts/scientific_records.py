@@ -31,11 +31,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 
-from _repo import REPO_ROOT, cargo_target_feature_args, read_text
+from _repo import REPO_ROOT, cargo_target_feature_args, load_toml
 from evidence_fingerprint import Fingerprinter, UnresolvedInput, locate
 
 RECORDS = "parity/scientific_records.toml"
@@ -69,7 +68,7 @@ def load_records(root: Path) -> dict[str, dict]:
     path = root / RECORDS
     if not path.is_file():
         return {}
-    data = tomllib.loads(read_text(path))
+    data = load_toml(path)
     return {r["test"]: r for r in data.get("record", [])}
 
 

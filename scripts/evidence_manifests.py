@@ -25,7 +25,6 @@ from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import time
-import tomllib
 import _repo
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -198,7 +197,7 @@ class Checker:
     @property
     def pin(self) -> dict:
         if not hasattr(self, "_pin"):
-            self._pin = tomllib.loads((self.root / "tools/evidence-analyzer/pin.toml").read_text(encoding="utf-8"))
+            self._pin = _repo.load_toml(self.root / "tools/evidence-analyzer/pin.toml")
         return self._pin
 
     def path(self, rel: str) -> Path:

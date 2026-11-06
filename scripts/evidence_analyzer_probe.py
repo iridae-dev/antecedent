@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
-import tomllib
+from _repo import load_toml
 from evidence_projection import from_compiler_coverage, matches
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,7 +45,7 @@ def inventory(driver: Path, sysroot: str, directory: Path, source: str) -> tuple
 
 
 def probe(root: Path = ROOT) -> dict:
-    pin = tomllib.loads((root / "tools/evidence-analyzer/pin.toml").read_text(encoding="utf-8"))
+    pin = load_toml(root / "tools/evidence-analyzer/pin.toml")
     version = subprocess.check_output(["rustc", "-vV"], text=True)
     identity = dict(line.split(": ", 1) for line in version.splitlines() if ": " in line)
     if identity.get("release") != pin["release"] or identity.get("commit-hash") != pin["commit"]:

@@ -22,6 +22,7 @@ use std::sync::Arc;
 use antecedent_core::{CausalSchema, VariableId};
 
 use crate::column::ValidityBitmap;
+use crate::content_identity::hash_framed_text as text;
 use crate::dataset::{TabularData, TimeSeriesData};
 use crate::error::DataError;
 use crate::event::EventData;
@@ -576,10 +577,6 @@ fn contract_for(
 /// domain and measurement of every variable.
 #[must_use]
 pub fn schema_digest(schema: &CausalSchema) -> [u8; 32] {
-    fn text(hasher: &mut blake3::Hasher, value: &str) {
-        hasher.update(&(value.len() as u64).to_le_bytes());
-        hasher.update(value.as_bytes());
-    }
     fn optional(hasher: &mut blake3::Hasher, value: Option<&str>) {
         match value {
             None => {

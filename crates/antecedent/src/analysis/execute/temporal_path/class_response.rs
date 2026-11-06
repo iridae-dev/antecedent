@@ -3,15 +3,16 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    Arc, CausalError, CausalPosterior, CausalResponse, ClassBandLayout, ClassBandRequest,
-    ClassBootstrapTargets, ClassObservationAtom, ClassObservationKind, ClassResponseAssembly,
-    ClassResponseHorizonFits, ClassResponseInput, ClassResponseParts, ClassResponseRun,
-    ClassResponseSite, ClassResponseSweep, ClassResponseTail, ClassSequenceRun, ClassSequenceSweep,
-    EffectEstimate, EstimatorId, ExecutionContext, IdentificationStatus, IdentifiedEstimand,
-    IdentifierId, InferenceMode, Instant, ObservationBootstrap, ObservationMechanismEstimator,
-    ObservationSpec, OverlapPolicy, PhysicalExecutionPlan, RefuteSuite, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StudyResult,
-    TemporalClassWeights, TemporalDag, TemporalResponseEstimator, TimeSeriesData, VariableId,
+    Arc, BayesianGComputationAte, BayesianResponseFit, CausalError, CausalPosterior,
+    CausalResponse, ClassBandLayout, ClassBootstrapTargets, ClassObservationAtom,
+    ClassObservationKind, ClassResponseAssembly, ClassResponseInput, ClassResponseParts,
+    ClassResponseTail, CompletionFitMemo, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    EffectEstimate, EstimatorId, ExecutionContext, IdentificationResult, IdentificationStatus,
+    IdentifiedEstimand, IdentifierId, InferenceMode, Instant, ObservationBootstrap,
+    ObservationMechanismEstimator, ObservationSpec, OverlapPolicy, PhysicalExecutionPlan,
+    RefuteSuite, ResponseFitKey, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, StudyResult, TemporalClassWeights, TemporalDag,
+    TemporalIndexer, TemporalResponseEstimator, TimeSeriesData, VariableId,
     append_temporal_observation_assumptions, apply_class_observation_bootstrap, bare_class_atom,
     bayesian_gcomp, class_atom_adjustment, class_completion_key, class_horizon_witness,
     class_observation_band_note, class_response_identified_set_diagnostics,
@@ -21,6 +22,128 @@ use super::{
     temporal_class_envelope_diagnostic, temporal_class_response_masses,
     temporal_class_response_mean,
 };
+
+/// The series, query and context every completion of a class temporal
+/// response sweep is fitted with.
+#[derive(Clone, Copy)]
+struct ClassResponseSweep<'a> {
+    data: &'a TimeSeriesData,
+    query: &'a ResponseQuery,
+    temporal: &'a antecedent_core::TemporalResponseSpec,
+    treatment: VariableId,
+    outcome: VariableId,
+    ctx: &'a ExecutionContext,
+}
+
+/// The completion of a class temporal response sweep being fitted: its
+/// position, class weight, identification case and unfold indexer.
+#[derive(Clone, Copy)]
+struct ClassResponseSite<'a> {
+    horizon_index: usize,
+    horizon: u32,
+    case_index: usize,
+    weight: f64,
+    case: &'a antecedent_identify::GraphIdentificationCase<
+        antecedent_identify::TemporalCompletionGraph,
+    >,
+    indexer: &'a TemporalIndexer,
+    envelope: &'a Arc<antecedent_identify::TemporalClassEnvelope>,
+}
+
+/// Accumulators of a class temporal response sweep: the assembly the atoms
+/// join and the first completion's identification products.
+struct ClassResponseRun {
+    assembly: ClassResponseAssembly,
+    primary_estimand: Option<IdentifiedEstimand>,
+    primary_identification: Option<IdentificationResult>,
+    primary_envelope: Option<Arc<antecedent_identify::TemporalClassEnvelope>>,
+    assumptions: antecedent_core::AssumptionSet,
+    diagnostics: Vec<Diagnostic>,
+    observation_atoms: Vec<ClassObservationAtom>,
+    /// Pulse witnesses of the evaluated completions, kept when an intervention level
+    /// runs its cheap/full refuter state.
+    witness_sites: Vec<super::super::temporal_response_refutation::PulseWitnessSite>,
+    checked_witnesses: Vec<crate::result::TemporalResponseWitness>,
+    checked_witness_leases: Vec<antecedent_core::execution::AdmissionLease>,
+}
+
+/// Completions given the same estimand, indexer, status and assumptions run
+/// one fit at a horizon; every other fit input is fixed per horizon.
+#[derive(Default)]
+struct ClassResponseHorizonFits {
+    bayesian: CompletionFitMemo<BayesianResponseFit, ResponseFitKey>,
+    frequentist: CompletionFitMemo<CausalResponse, ResponseFitKey>,
+}
+
+impl ClassSequenceRun {
+    fn new() -> Self {
+        Self {
+            lower: Vec::new(),
+            upper: Vec::new(),
+            structural_atoms: Vec::new(),
+            primary_estimand: None,
+            primary_identification: None,
+            primary_envelope: None,
+            assumptions: antecedent_core::AssumptionSet::new(),
+            full_mass_scope: true,
+            truncated_atoms: 0,
+            horizon_fingerprints: Vec::new(),
+            observation_atoms: Vec::new(),
+            diagnostics: vec![Diagnostic::new(
+                "estimate.temporal.sequence_overlay",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "class-aware Sequence runs per directed completion; a joint-coordinate miss \
+                 unidentifies that completion, not the class; no last-step collapse",
+            )],
+        }
+    }
+}
+
+/// What the observation circular-block band of a class response reads.
+#[derive(Clone, Copy)]
+struct ClassBandRequest<'a> {
+    data: &'a TimeSeriesData,
+    query: &'a ResponseQuery,
+    atoms: &'a [ClassObservationAtom],
+    cells_per_horizon: usize,
+    n_horizons: usize,
+    full_mass_scope: bool,
+    unidentified_mass: f64,
+    unevaluable_mass: f64,
+    ctx: &'a ExecutionContext,
+}
+
+/// The series, query, overlays and Bayesian composition every directed
+/// completion of a class Sequence sweep is estimated with.
+#[derive(Clone, Copy)]
+struct ClassSequenceSweep<'a> {
+    data: &'a TimeSeriesData,
+    query: &'a ResponseQuery,
+    temporal: &'a antecedent_core::TemporalResponseSpec,
+    overlays: &'a antecedent_estimate::AdmittedMechanismOverlays,
+    bayes: Option<&'a BayesianGComputationAte>,
+    treatment: VariableId,
+    outcome: VariableId,
+    ctx: &'a ExecutionContext,
+}
+
+/// Accumulators of a class Sequence sweep: per-horizon envelope bounds, the
+/// structural atoms and the first completion's identification products.
+struct ClassSequenceRun {
+    lower: Vec<f64>,
+    upper: Vec<f64>,
+    structural_atoms: Vec<crate::result::StructuralResponseAtom>,
+    primary_estimand: Option<IdentifiedEstimand>,
+    primary_identification: Option<IdentificationResult>,
+    primary_envelope: Option<Arc<antecedent_identify::TemporalClassEnvelope>>,
+    assumptions: antecedent_core::AssumptionSet,
+    full_mass_scope: bool,
+    truncated_atoms: usize,
+    horizon_fingerprints: Vec<Vec<u64>>,
+    observation_atoms: Vec<ClassObservationAtom>,
+    diagnostics: Vec<Diagnostic>,
+}
 
 impl super::super::Study {
     pub(in crate::analysis::execute) fn execute_temporal_class_response(

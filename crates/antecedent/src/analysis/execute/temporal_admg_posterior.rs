@@ -350,22 +350,19 @@ pub(crate) fn temporal_admg_posterior_window_namespace(
             budget
                 .charge_work(work)
                 .map_err(|e| CausalError::Resource { message: e.to_string() })?;
-            let bytes = nodes
-                .checked_mul(512)
-                .and_then(|v| edges.checked_mul(256).and_then(|e| v.checked_add(e)))
-                .and_then(|v| v.checked_add(4096))
-                .ok_or_else(|| CausalError::Resource {
-                    message: "PAG atom bytes overflow".into(),
-                })?;
+            let bytes = crate::analysis::identification_cache::temporal_atom_bytes(
+                nodes,
+                edges,
+                "PAG atom bytes overflow",
+            )?;
             if bytes > budget.limits().max_bytes {
                 return Err(CausalError::Resource { message: "PAG atom byte limit".into() });
             }
-            let _lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-                antecedent_core::execution::AdmissionError::Cancelled => {
-                    CausalError::Cancelled { stage: "temporal namespace" }
-                }
-                other => CausalError::Resource { message: other.to_string() },
-            })?;
+            let _lease = crate::analysis::identification_cache::temporal_atom_lease(
+                ctx,
+                bytes,
+                "temporal namespace",
+            )?;
             let template =
                 match antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_atoms_cancellable(
                     &gp.atoms()[index],

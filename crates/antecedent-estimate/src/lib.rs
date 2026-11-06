@@ -188,6 +188,7 @@ pub mod temporal_sequential;
 mod temporal_sequential_tuples;
 mod temporal_slope_design;
 pub mod temporal_transport;
+mod temporal_validation;
 mod tiled_prediction;
 pub use tiled_prediction::TileError;
 pub mod trajectory_survival;

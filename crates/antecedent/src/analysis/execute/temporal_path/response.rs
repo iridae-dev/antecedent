@@ -3,26 +3,293 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    Arc, CausalError, CausalQuery, CausalResponse, DerivativeResponseInputs, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatedTemporalResponse, EstimatorId,
-    ExecuteRun, ExecutionContext, IdentificationBasis, IdentificationResult, IdentifiedClaim,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
-    ObservationBootstrap, ObservationMechanismEstimator, ObservationSpec, OverlapPolicy,
-    PhysicalExecutionPlan, RefuteSuite, ResponseIdentification, ResponseObservation,
-    ResponseObservationInput, ResponseQuery, ResponseUncertainty, ResponseValue,
-    SEQUENCE_LINEAR_SEM, SequenceFinish, SequenceHorizonSurface, SequenceMechanisms,
-    SequenceResponseInputs, Strategy, StudyResult, TemporalDag, TemporalResponseEstimation,
-    TemporalResponseEstimator, TimeSeriesData, TupleBandSource, VariableId,
-    aggregate_temporal_horizon_evidence, append_temporal_observation_assumptions,
+    Arc, BayesianGComputationAte, CausalError, CausalPosterior, CausalQuery, CausalResponse,
+    DerivativeResponseInputs, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
+    EstimatorId, ExecuteRun, ExecutionContext, IdentificationBasis, IdentificationResult,
+    IdentificationStatus, IdentifiedClaim, IdentifiedEstimand, IdentifiedExecuteExtras,
+    IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant, ObservationBootstrap,
+    ObservationMechanismEstimator, ObservationSpec, OverlapPolicy, PhysicalExecutionPlan,
+    RefuteSuite, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
+    SEQUENCE_LINEAR_SEM, SequenceMechanisms, SequenceResponseInputs, Strategy, StudyResult,
+    TemporalDag, TemporalIndexer, TemporalResponseEstimator, TimeSeriesData, TupleBandSource,
+    VariableId, aggregate_temporal_horizon_evidence, append_temporal_observation_assumptions,
     apply_observation_bootstrap, apply_temporal_observation_result, apply_tuple_bootstrap_band,
     bayesian_gcomp, bootstrap_observation_adjusted_temporal_response, bootstrap_sequence_response,
     contemporaneous_adjustment_variables, elapsed_ns, enforce_temporal_response_memory_budget,
-    estimate_sequence_horizons, identified_horizon_entries, identify_cached_diagnostic,
-    lag_aligned_analysis_rows, posterior_note_diagnostics, provenance_ids, push_unique_diagnostic,
-    report_identify_compute, resolve_temporal_response_prior, sequence_overlay_support,
-    sequential_linear_sem_assumption, temporal_observation_outcome_regressors,
-    temporal_response_diagnostics,
+    horizon_adjustment_sets_differ, identified_horizon_entries, identify_cached_diagnostic,
+    lag_aligned_analysis_rows, named_adjustment_keys, posterior_note_diagnostics, provenance_ids,
+    push_conflict_diagnostics, push_unique_diagnostic, report_identify_compute, require_identified,
+    resolve_temporal_response_prior, sequential_linear_sem_assumption,
+    temporal_observation_outcome_regressors,
 };
+
+/// What the observation preparation of a temporal response reads.
+#[derive(Clone, Copy)]
+struct ResponseObservationInput<'a> {
+    data: &'a TimeSeriesData,
+    graph: &'a TemporalDag,
+    query: &'a ResponseQuery,
+    outcome: VariableId,
+    aligned: &'a [&'a crate::analysis::prepared::CachedTemporalHorizonIdentification],
+    observed_bayes: bool,
+}
+
+/// The observation-adjusted series and working query of a temporal response;
+/// the series and adjustment are absent when the data is complete or the
+/// observation is modelled inside the Bayesian fit.
+struct ResponseObservation {
+    series: Option<TimeSeriesData>,
+    adjusted: Option<antecedent_estimate::ObservationAdjustedOutcome>,
+    working_query: ResponseQuery,
+}
+
+/// Everything the temporal response surface estimation reads.
+#[derive(Clone, Copy)]
+struct TemporalResponseEstimation<'a> {
+    data: &'a TimeSeriesData,
+    source_data: &'a TimeSeriesData,
+    graph: &'a TemporalDag,
+    query: &'a ResponseQuery,
+    working_query: &'a ResponseQuery,
+    temporal: &'a antecedent_core::TemporalResponseSpec,
+    aligned: &'a [&'a crate::analysis::prepared::CachedTemporalHorizonIdentification],
+    identifications: &'a [(&'a IdentifiedEstimand, &'a TemporalIndexer)],
+    status: IdentificationStatus,
+    assumptions: &'a antecedent_core::AssumptionSet,
+    observation_adjusted: Option<&'a antecedent_estimate::ObservationAdjustedOutcome>,
+    observed_bayes: bool,
+    treatment: VariableId,
+    outcome: VariableId,
+}
+
+/// A temporal response surface with the prior-conflict summary and observed
+/// posterior its estimation produced.
+struct EstimatedTemporalResponse {
+    response: CausalResponse,
+    conflict_summary: Option<antecedent_prob::ConflictSummary>,
+    observed_posterior: Option<antecedent_estimate::CausalPosterior>,
+}
+
+/// The diagnostics a temporal response result carries, in publication order.
+fn temporal_response_diagnostics(
+    aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
+    response: &CausalResponse,
+    conflict_summary: Option<&antecedent_prob::ConflictSummary>,
+    identify_cached: bool,
+) -> Vec<Diagnostic> {
+    let scalar = super::super::response_path::response_scalar_summary(response).0;
+    let mut diagnostics = Vec::new();
+    for entry in aligned {
+        diagnostics.extend(entry.identification.diagnostics.iter().cloned());
+    }
+    if horizon_adjustment_sets_differ(aligned) {
+        diagnostics.push(Diagnostic::new(
+            "identify.temporal_response.horizon_dependent",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "adjustment sets differ across requested horizons; each cell uses I(h) \
+             identified for that horizon, not a shared max-horizon set",
+        ));
+    }
+    if identify_cached {
+        diagnostics.push(identify_cached_diagnostic());
+    }
+    if let Some(summary) = conflict_summary {
+        push_conflict_diagnostics(&mut diagnostics, summary);
+    }
+    diagnostics.push(Diagnostic::new(
+        "refute.temporal_response.skipped",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "scalar ATE refuters are not applicable to a function-valued temporal response",
+    ));
+    if !scalar.is_finite() {
+        diagnostics.push(Diagnostic::new(
+            "estimate.response.no_scalar_summary",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "this response is function-valued; the scalar effect summary is not applicable \
+             and the result is carried by the response payload",
+        ));
+    }
+    for warning in &response.support.warnings {
+        diagnostics.push(warning.clone());
+    }
+    diagnostics
+}
+
+/// The per-horizon surface of a Sequence response: pointwise means and bands,
+/// each horizon's identification record, and the posteriors kept for
+/// disclosure.
+struct SequenceHorizonSurface {
+    mean: Vec<f64>,
+    lower: Vec<f64>,
+    upper: Vec<f64>,
+    horizons: Vec<antecedent_core::HorizonIdentification>,
+    uncertainty_complete: bool,
+    last_posterior: Option<CausalPosterior>,
+    /// Every horizon's posterior notes are kept (not just the scalar artifact's),
+    /// so a `tempering_capped` / `tempering_inestimable` disclosure raised at an
+    /// earlier horizon still reaches the result even when only the last horizon's
+    /// posterior is attached as the scalar summary.
+    horizon_posteriors: Vec<CausalPosterior>,
+    bootstrap_cancelled: bool,
+}
+
+/// What a Sequence response is finished from once its band is final.
+struct SequenceFinish {
+    response: CausalResponse,
+    horizon_posteriors: Vec<CausalPosterior>,
+    last_posterior: Option<CausalPosterior>,
+    bootstrap_cancelled: bool,
+    attach_scalar_posterior: bool,
+}
+
+/// Fits the sequential mechanisms at every requested horizon and collects the
+/// pointwise surface (Wald bounds, or posterior quantiles under Bayesian
+/// inference).
+fn estimate_sequence_horizons(
+    inputs: &SequenceResponseInputs<'_>,
+    outcome: VariableId,
+    bayes: Option<&BayesianGComputationAte>,
+    assumptions: &antecedent_core::AssumptionSet,
+    ctx: &ExecutionContext,
+) -> Result<SequenceHorizonSurface, CausalError> {
+    let SequenceResponseInputs { data, graph, temporal, overlays, aligned, .. } = *inputs;
+    let horizon_count = temporal.horizons.len();
+    let mut surface = SequenceHorizonSurface {
+        mean: Vec::with_capacity(horizon_count),
+        lower: Vec::with_capacity(horizon_count),
+        upper: Vec::with_capacity(horizon_count),
+        horizons: Vec::with_capacity(horizon_count),
+        uncertainty_complete: true,
+        last_posterior: None,
+        horizon_posteriors: Vec::with_capacity(horizon_count),
+        bootstrap_cancelled: false,
+    };
+    let attach_scalar_posterior = horizon_count == 1;
+    let z = antecedent_stats::NORMAL_Q975;
+    for (horizon_steps, entry) in temporal.horizons.iter().copied().zip(aligned.iter()) {
+        require_identified(&entry.identification)?;
+        let outcome_offset = i32::try_from(horizon_steps.saturating_sub(1)).unwrap_or(i32::MAX);
+        let (effect, posterior) = antecedent_estimate::estimate_sequence_mechanisms(
+            &antecedent_estimate::SequentialProblem {
+                data,
+                graph,
+                indexer: &entry.indexer,
+                estimand: &entry.estimand,
+            },
+            &antecedent_estimate::SequenceTarget { outcome, outcome_offset, overlays },
+            antecedent_estimate::SequentialInference { status: entry.identification.status, assumptions: assumptions.clone(), bootstrap_replicates: // Frequentist bands: the joint tuple bootstrap below.
+            0, bayesian: bayes },
+            ctx,
+        )
+        .map_err(CausalError::from)?;
+        surface.bootstrap_cancelled |= effect.uncertainty.bootstrap.cancelled;
+        let (point, lo, hi) = if let Some(post) = posterior.as_ref() {
+            (post.summaries.mean[0], post.summaries.q025[0], post.summaries.q975[0])
+        } else {
+            let se = effect.se_bootstrap().unwrap_or(effect.se_analytic());
+            (effect.ate, effect.ate - z * se, effect.ate + z * se)
+        };
+        if let Some(post) = posterior.as_ref() {
+            surface.horizon_posteriors.push(post.clone());
+        }
+        if attach_scalar_posterior {
+            surface.last_posterior = posterior;
+        }
+        surface.mean.push(point);
+        surface.uncertainty_complete &= lo.is_finite() && hi.is_finite();
+        surface.lower.push(lo);
+        surface.upper.push(hi);
+        surface.horizons.push(antecedent_core::HorizonIdentification {
+            horizon: horizon_steps,
+            status: entry.identification.status,
+            method: Arc::clone(&entry.estimand.method),
+            adjustment: Arc::from(named_adjustment_keys(entry)),
+        });
+    }
+    Ok(surface)
+}
+
+/// The support report of a Sequence overlay response: extrapolative by
+/// construction, with the overlays recorded and the band disclosures attached.
+fn sequence_overlay_support(
+    overlays: &[antecedent_estimate::SequentialMechanismOverlay],
+    temporal: &antecedent_core::TemporalResponseSpec,
+    uncertainty_complete: bool,
+) -> antecedent_core::SupportReport {
+    let first_horizon = f64::from(temporal.horizons.first().copied().unwrap_or(1));
+    let last_horizon = f64::from(temporal.horizons.last().copied().unwrap_or(1));
+    let mut support = antecedent_core::SupportReport {
+        // Joint longitudinal support is not established by univariate
+        // ranges. Until a sequential-positivity diagnostic exists, do not
+        // label an arbitrary overlay schedule empirically supported.
+        status: antecedent_core::SupportStatus::Extrapolative,
+        query_region: antecedent_core::SupportRegion {
+            minima: Arc::from([first_horizon]),
+            maxima: Arc::from([last_horizon]),
+        },
+        diagnostics: vec![antecedent_core::SupportDiagnostic {
+            id: Arc::from("response.temporal.sequence_overlay"),
+            values: Arc::from(
+                overlays
+                    .iter()
+                    .flat_map(|overlay| {
+                        [
+                            f64::from(overlay.node.variable.raw()),
+                            f64::from(overlay.node.offset),
+                            if overlay.node.level.is_some() { 1.0 } else { 0.0 },
+                            overlay.node.level.unwrap_or(0.0),
+                            overlay.node.shift,
+                            overlay.multiplier,
+                            if overlay.bounds.is_some() { 1.0 } else { 0.0 },
+                            overlay.bounds.map_or(0.0, |bounds| bounds.0),
+                            overlay.bounds.map_or(0.0, |bounds| bounds.1),
+                        ]
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            detail: Arc::from(
+                "sequential Sequence overlays as \
+                 [variable, offset, is_fixed_level, level_or_zero, shift, multiplier, \
+                 has_bounds, lower_or_zero, upper_or_zero, …]; \
+                 transforms apply to deterministic propagated means, not stochastic draws",
+            ),
+            scope: antecedent_core::DiagnosticScope::Global,
+        }],
+        warnings: vec![Diagnostic::new(
+            "response.temporal.sequence_joint_support_unassessed",
+            DiagnosticKind::Support,
+            DiagnosticSeverity::Warning,
+            "joint longitudinal positivity for the requested Sequence overlay is not \
+             estimated; support is conservatively marked extrapolative",
+        )],
+        point_status: Some(Arc::from(vec![
+            antecedent_core::SupportStatus::Extrapolative;
+            temporal.horizons.len()
+        ])),
+    };
+    antecedent_estimate::publish_simultaneous_band(
+        &mut support,
+        Err(antecedent_estimate::EstimationError::unsupported(
+            "Sequence overlays publish a simultaneous band only from the Frequentist joint \
+             tuple bootstrap (request bootstrap replicates); Bayesian Sequence overlays are \
+             sampled one horizon at a time, so there is no joint draw surface",
+        )),
+        "",
+    );
+    if !uncertainty_complete {
+        support.warnings.push(Diagnostic::new(
+            "response.temporal.sequence_uncertainty_unavailable",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "a complete pointwise Sequence band was unavailable; uncertainty is omitted \
+             rather than represented by non-finite endpoints",
+        ));
+    }
+    support
+}
 
 impl super::super::Study {
     #[allow(

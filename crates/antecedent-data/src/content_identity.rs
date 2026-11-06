@@ -13,6 +13,14 @@
 
 use crate::{CategoryCode, ColumnView, OwnedColumn, UnknownCategoryPolicy, ValidityBitmap};
 
+/// Hash UTF-8 text with its little-endian u64 byte length.
+///
+/// Each caller supplies its own domain and surrounding field order.
+pub(crate) fn hash_framed_text(hasher: &mut blake3::Hasher, value: &str) {
+    hasher.update(&(value.len() as u64).to_le_bytes());
+    hasher.update(value.as_bytes());
+}
+
 /// Bytes staged before one BLAKE3 `update` call.
 const CHUNK: usize = 64 * 1024;
 

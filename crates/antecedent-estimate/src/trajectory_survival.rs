@@ -28,6 +28,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::splitmix::splitmix64;
+use crate::survival::{bootstrap_support_count, percentile_95};
 
 /// Subject-major discrete-time trajectories.
 ///
@@ -264,26 +265,19 @@ pub fn trajectory_survival_bootstrap(
             restricted.push(contrast.restricted_mean_difference);
         }
     }
-    let ok = u32::try_from(survival.len()).map_err(|_| "too many trajectory bootstrap draws")?;
-    if ok < 199 || ok < replicates.saturating_sub(replicates / 10) {
-        return Err("trajectory bootstrap lost more than 10% of subject draws to empty risk sets");
-    }
+    let ok = bootstrap_support_count(
+        survival.len(),
+        replicates,
+        199,
+        "too many trajectory bootstrap draws",
+        "trajectory bootstrap lost more than 10% of subject draws to empty risk sets",
+    )?;
     Ok(TrajectoryBootstrapIntervals {
         survival_difference: percentile_95(&mut survival),
         restricted_mean_difference: percentile_95(&mut restricted),
         replicates_requested: replicates,
         replicates_ok: ok,
     })
-}
-
-fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
-    draws.sort_by(f64::total_cmp);
-    let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
-        draws,
-        0.95,
-        antecedent_stats::QuantileRule::Interpolated,
-    );
-    [lower, upper]
 }
 
 /// Credible interval for the trajectory survival contrast: refused.
