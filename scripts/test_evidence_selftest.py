@@ -243,6 +243,9 @@ def build(tmp: Path) -> None:
     for helper in (
         "test_evidence.py",
         "evidence_kinds.py",
+        "detail_constants.py",
+        "review_items.py",
+        "route_behaviour.py",
         "run_evidence_rows.py",
         "_py_closure.py",
         "_rust_source.py",

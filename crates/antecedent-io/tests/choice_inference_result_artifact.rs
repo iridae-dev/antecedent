@@ -497,6 +497,22 @@ fn retained_native_posterior_is_replayed_and_bound_to_its_original_rows() {
     target.retained_sources = vec![retained.clone()];
     let target = ChoiceDesignContract::new(target).unwrap();
     verify_retained_choice_sources(&target, &ctx).unwrap();
+    // Both entry points must retain the source-specific cancellation and resource refusals.
+    let limited = ExecutionContext::for_tests(19)
+        .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 0));
+    let cancelled = ExecutionContext::for_tests(19);
+    cancelled.cancellation.cancel();
+    for (authority, detail) in [
+        (&limited, "choice_inference.source_resource_limit"),
+        (&cancelled, "choice_inference.source_cancelled"),
+    ] {
+        let source_error =
+            retained_choice_source_from_artifact(&bytes, &identity, "old", 0.5, authority)
+                .unwrap_err();
+        let verify_error = verify_retained_choice_sources(&target, authority).unwrap_err();
+        assert_eq!(source_error.refusal().unwrap().1, detail);
+        assert_eq!(verify_error.refusal().unwrap().1, detail);
+    }
     let next = ChoiceInferenceResultArtifact::to_bytes(
         &target,
         &ChoiceResultSpec::Posterior { look: 0 },

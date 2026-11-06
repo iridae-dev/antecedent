@@ -161,7 +161,7 @@ impl ZDesign {
 ///
 /// [`StatsError::Shape`] on the first invalid weight.
 pub(crate) fn ensure_valid_weights(weights: &[f64]) -> Result<(), StatsError> {
-    if weights.iter().all(|w| w.is_finite() && *w >= 0.0) {
+    if crate::weight_validation::finite_nonnegative(weights) {
         Ok(())
     } else {
         Err(StatsError::Shape { message: "observation weights must be finite and non-negative" })

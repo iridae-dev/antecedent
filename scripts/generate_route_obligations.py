@@ -18,11 +18,10 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
-import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, load_toml
 
 ensure_scripts_on_path()
 import gate_recipe_obligations as gate  # noqa: E402
@@ -57,7 +56,7 @@ def digest(value: object) -> str:
 
 def load_sources(root: Path = ROOT) -> dict:
     def toml(rel: str) -> dict:
-        return tomllib.loads((root / rel).read_text(encoding="utf-8"))
+        return load_toml(root / rel)
 
     axes = toml("parity/support_axes.toml")
     return {

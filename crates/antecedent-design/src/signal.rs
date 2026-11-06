@@ -434,54 +434,91 @@ pub enum SignalError {
     PosteriorIncoherent,
 }
 
-/// Adapter for building a contract refusal with optional fields.
-pub(crate) struct RefusalBuilder(ExternalRefusal);
+/// The one place this crate fills an [`ExternalRefusal`].
+///
+/// The contract constructor owns the field set. Call sites set the optional fields
+/// here, and [`Self::build`] forwards them to `ExternalRefusal::new`.
+pub(crate) struct RefusalBuilder {
+    code: &'static str,
+    stage: &'static str,
+    detail: String,
+    offending: Option<String>,
+    expected: Option<String>,
+    supplied: Option<String>,
+    capability: Option<ExternalCapability>,
+    remedy: Option<&'static str>,
+}
 
 impl RefusalBuilder {
     /// A refusal with no optional fields.
     pub(crate) fn new(code: &'static str, stage: &'static str, detail: &str) -> Self {
-        Self(ExternalRefusal::new(code, stage, detail))
+        Self {
+            code,
+            stage,
+            detail: detail.to_owned(),
+            offending: None,
+            expected: None,
+            supplied: None,
+            capability: None,
+            remedy: None,
+        }
     }
 
     /// Name the offending coordinate.
     pub(crate) fn offending(mut self, value: impl Into<String>) -> Self {
-        self.0.offending = Some(value.into());
+        self.offending = Some(value.into());
         self
     }
 
     /// Name the offending coordinate when there is one.
     pub(crate) fn offending_opt(mut self, value: Option<String>) -> Self {
-        self.0.offending = value;
+        self.offending = value;
         self
     }
 
     /// Record the expected semantics.
     pub(crate) fn expected(mut self, value: impl Into<String>) -> Self {
-        self.0.expected = Some(value.into());
+        self.expected = Some(value.into());
         self
     }
 
     /// Record the supplied semantics.
     pub(crate) fn supplied(mut self, value: impl Into<String>) -> Self {
-        self.0.supplied = Some(value.into());
+        self.supplied = Some(value.into());
         self
     }
 
     /// Record the missing operation.
     pub(crate) fn capability(mut self, value: ExternalCapability) -> Self {
-        self.0.capability = Some(value);
+        self.capability = Some(value);
         self
     }
 
     /// Record a remedy.
     pub(crate) fn remedy(mut self, value: &'static str) -> Self {
-        self.0.remedy = Some(value);
+        self.remedy = Some(value);
         self
     }
 
     /// The structured refusal.
     pub(crate) fn build(self) -> ExternalRefusal {
-        self.0
+        let mut value = ExternalRefusal::new(self.code, self.stage, self.detail);
+        if let Some(offending) = self.offending {
+            value = value.with_offending(offending);
+        }
+        if let Some(expected) = self.expected {
+            value = value.with_expected(expected);
+        }
+        if let Some(supplied) = self.supplied {
+            value = value.with_supplied(supplied);
+        }
+        if let Some(capability) = self.capability {
+            value = value.with_capability(capability);
+        }
+        if let Some(remedy) = self.remedy {
+            value = value.with_remedy(remedy);
+        }
+        value
     }
 }
 

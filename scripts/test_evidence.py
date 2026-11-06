@@ -38,7 +38,7 @@ from pathlib import Path
 import _py_closure
 import _rust_source as _rust
 from _repo import REPO_ROOT as ROOT
-from _repo import cargo_target_feature_args
+from _repo import cargo_target_feature_args, load_toml
 from _repo import test_target as cargo_test_target
 from _source_cache import source_cache
 from detail_constants import resolve_rust
@@ -605,7 +605,7 @@ def registered_calibration_simulations(root: Path = ROOT) -> list[dict]:
 
 def _registered_calibration_assertions(root: Path, field: str) -> list[dict]:
     registry = root / "parity/test_registry.toml"
-    rows = tomllib.loads(registry.read_text(encoding="utf-8")).get("test", [])
+    rows = load_toml(registry).get("test", [])
     found = []
     seen = set()
     for row in rows:
@@ -616,7 +616,7 @@ def _registered_calibration_assertions(root: Path, field: str) -> list[dict]:
             continue
         path = root / row["path"]
         crate = root / "crates" / row["crate"]
-        manifest = tomllib.loads((crate / "Cargo.toml").read_text(encoding="utf-8"))
+        manifest = load_toml(crate / "Cargo.toml")
         target = row["cargo_target"]
         if target == "lib":
             source = manifest.get("lib", {}).get("path", "src/lib.rs")
@@ -656,7 +656,7 @@ def _unregistered_target(path_text: str, root: Path) -> dict | None:
 @functools.lru_cache(maxsize=4)
 def _registry_rows_at(root: Path, stamp: tuple[int, int]) -> dict[str, dict]:
     registry = root / "parity/test_registry.toml"
-    return {row["path"]: row for row in tomllib.loads(registry.read_text(encoding="utf-8")).get("test", [])}
+    return {row["path"]: row for row in load_toml(registry).get("test", [])}
 
 
 def _registry_rows(root: Path) -> dict[str, dict]:
@@ -692,7 +692,7 @@ def registered_rust_assertions(cited: list[tuple[str, str]], root: Path = ROOT) 
             continue
         crate = root / "crates" / row["crate"]
         manifest = manifests.setdefault(
-            row["crate"], tomllib.loads((crate / "Cargo.toml").read_text(encoding="utf-8"))
+            row["crate"], load_toml(crate / "Cargo.toml")
         )
         target = row["cargo_target"]
         if target == "lib":
@@ -1607,7 +1607,7 @@ def main(argv: list[str]) -> int:
     if argv[:1] == ["rows"] and len(argv) == 2:
         failed = 0
         for i, row in enumerate(
-            tomllib.loads(Path(argv[1]).read_text(encoding="utf-8")).get("cell", []), 1
+            load_toml(Path(argv[1])).get("cell", []), 1
         ):
             problems = row_evidence_problems(row)
             if "checked_execution" in row:

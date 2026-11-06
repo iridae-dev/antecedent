@@ -54,7 +54,6 @@ builds the declaration and presents the result.
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -64,6 +63,7 @@ import numpy as np
 from . import _native
 from ._freeze import thaw
 from ._refusal import StructuredRefusal, raise_refusal
+from ._validate import finite_number as _number
 from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
@@ -130,15 +130,6 @@ class TypedMechanismRefusal(StructuredRefusal):
 
 
 # --------------------------------------------------------------------------- helpers
-
-
-def _number(value: object, what: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError(f"{what} must be finite")
-    return number
 
 
 def _dumps(value: object) -> str:

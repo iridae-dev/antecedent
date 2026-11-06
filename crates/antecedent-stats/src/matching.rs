@@ -38,6 +38,29 @@ pub(crate) fn validate_query_values(query: &[f64]) -> Result<(), StatsError> {
     Ok(())
 }
 
+/// Validate the shape of a row-major batch without changing later refusal ordering.
+pub(crate) fn validate_batch_query_length(
+    queries: &[f64],
+    n_queries: usize,
+    dim: usize,
+) -> Result<(), StatsError> {
+    if queries.len() != n_queries.saturating_mul(dim) {
+        return Err(StatsError::Shape { message: "queries length != n_queries * dim" });
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_batch_outputs(
+    n_queries: usize,
+    donor_rows: &[usize],
+    distances: &[f64],
+) -> Result<(), StatsError> {
+    if donor_rows.len() < n_queries || distances.len() < n_queries {
+        return Err(StatsError::Shape { message: "output buffers too short" });
+    }
+    Ok(())
+}
+
 /// Distance metric for matching.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum MatchingDistance {
@@ -303,9 +326,7 @@ impl MatchingIndex {
         if k == 0 {
             return Err(StatsError::Shape { message: "k must be > 0" });
         }
-        if queries_rowmajor.len() != n_queries.saturating_mul(self.dim) {
-            return Err(StatsError::Shape { message: "queries length != n_queries * dim" });
-        }
+        validate_batch_query_length(queries_rowmajor, n_queries, self.dim)?;
         if out.len() < n_queries {
             return Err(StatsError::Shape { message: "output too short" });
         }
@@ -313,9 +334,7 @@ impl MatchingIndex {
         if n_donors < k {
             return Err(StatsError::Shape { message: "not enough donors for k" });
         }
-        if queries_rowmajor.iter().any(|v| !v.is_finite()) {
-            return Err(StatsError::Shape { message: "matching query must be finite" });
-        }
+        validate_query_values(queries_rowmajor)?;
         let mut dists = vec![0.0; n_donors];
         for q in 0..n_queries {
             let query = &queries_rowmajor[q * self.dim..(q + 1) * self.dim];
@@ -391,12 +410,8 @@ impl MatchingIndex {
         out_distance: &mut [f64],
         ctx: &ExecutionContext,
     ) -> Result<u32, StatsError> {
-        if queries_rowmajor.len() != n_queries.saturating_mul(self.dim) {
-            return Err(StatsError::Shape { message: "queries length != n_queries * dim" });
-        }
-        if out_donor_row.len() < n_queries || out_distance.len() < n_queries {
-            return Err(StatsError::Shape { message: "output buffers too short" });
-        }
+        validate_batch_query_length(queries_rowmajor, n_queries, self.dim)?;
+        validate_batch_outputs(n_queries, out_donor_row, out_distance)?;
         let mut matched = 0u32;
         for q in 0..n_queries {
             if q % QUERY_CHUNK == 0 && ctx.cancellation.is_cancelled() {
@@ -1372,6 +1387,23 @@ mod tests {
         assert!(matches!(
             boxed.nearest(&[f64::NAN], None),
             Err(StatsError::Shape { message: "matching query must be finite" })
+        ));
+        // Batch shape precedes output capacity in both index routes.
+        assert!(matches!(
+            empty.match_all_within(&[], 1, None, &mut [], &mut [], &ctx),
+            Err(StatsError::Shape { message: "queries length != n_queries * dim" })
+        ));
+        assert!(matches!(
+            boxed.match_all_within(&[], 1, None, &mut [], &mut [], &ctx),
+            Err(StatsError::Shape { message: "queries length != n_queries * dim" })
+        ));
+        assert!(matches!(
+            empty.match_all_within(&[0.0], 1, None, &mut [], &mut [], &ctx),
+            Err(StatsError::Shape { message: "output buffers too short" })
+        ));
+        assert!(matches!(
+            boxed.match_all_within(&[0.0], 1, None, &mut [], &mut [], &ctx),
+            Err(StatsError::Shape { message: "output buffers too short" })
         ));
     }
 

@@ -33,11 +33,10 @@ import argparse
 import json
 import re
 import sys
-import tomllib
 from collections import Counter
 from pathlib import Path
 
-from _repo import REPO_ROOT
+from _repo import REPO_ROOT, load_toml
 from test_evidence import libtest_name, rust_items, target_files
 
 REGISTRY = "parity/slow_correctness_tests.toml"
@@ -117,7 +116,7 @@ def _target_of(root: Path, rel: str) -> tuple[str, str, Path] | None:
     else:
         return None
     path = (root / rel).resolve()
-    manifest = tomllib.loads((crate_dir / "Cargo.toml").read_text(encoding="utf-8"))
+    manifest = load_toml(crate_dir / "Cargo.toml")
     crate = manifest["package"]["name"]
     if rest[0] == "src":
         lib = crate_dir / manifest.get("lib", {}).get("path", "src/lib.rs")
@@ -140,7 +139,7 @@ def _target_of(root: Path, rel: str) -> tuple[str, str, Path] | None:
 
 
 def load_registry(root: Path) -> tuple[list[dict], list[dict]]:
-    data = tomllib.loads((root / REGISTRY).read_text(encoding="utf-8"))
+    data = load_toml(root / REGISTRY)
     unknown = set(data) - {"slow", "other"}
     if unknown:
         raise ValueError(f"{REGISTRY}: unknown tables {sorted(unknown)}")

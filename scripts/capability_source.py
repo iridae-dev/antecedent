@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from _py_closure import closure_nodes
-from _repo import REPO_ROOT
+from _repo import REPO_ROOT, load_toml
 from _source_cache import source_cache
 from detail_constants import parse_python
 from test_evidence import (
@@ -939,7 +939,7 @@ def external_surface_ownership(root: Path, record: dict, checked: list[tuple[str
     if not registry.is_relative_to(root.resolve()) or not source.is_relative_to(root.resolve()):
         return set(), ["external ownership paths escape the repository"]
     try:
-        document = tomllib.loads(registry.read_text(encoding="utf-8"))
+        document = load_toml(registry)
     except (OSError, UnicodeError, tomllib.TOMLDecodeError):
         return set(), ["external ownership registry cannot be read"]
     capabilities = document.get("capability", [])

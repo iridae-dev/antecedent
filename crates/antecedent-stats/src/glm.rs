@@ -510,7 +510,7 @@ fn check_prior_weights(design: GlmDesignRef<'_>, weights: &[f64]) -> Result<(), 
     if weights.len() != design.nrows {
         return Err(StatsError::Shape { message: "weights length != nrows" });
     }
-    if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+    if !crate::weight_validation::finite_nonnegative(weights) {
         return Err(StatsError::Shape { message: "prior weights must be finite and non-negative" });
     }
     Ok(())

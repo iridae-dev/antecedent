@@ -146,6 +146,16 @@ def count(
     return number
 
 
+def finite_number(value: object, what: str) -> float:
+    """Validate the finite int/float/NumPy numeric policy used by typed models."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
+        raise CausalTypeError(f"{what} must be a real number")
+    number = float(value)
+    if not math.isfinite(number):
+        raise CausalValueError(f"{what} must be finite")
+    return number
+
+
 def nonempty_name(value: object, what: str) -> str:
     """Validate a nonempty name, retaining whitespace-only values."""
     if not isinstance(value, str) or not value:

@@ -211,7 +211,7 @@ fn sandwich_from_multipliers(
     if x_colmajor[..nrows * ncols].iter().chain(multipliers).any(|v| !v.is_finite()) {
         return Err(StatsError::Backend("covariance inputs must be finite".into()));
     }
-    if fisher_weights.is_some_and(|w| w.iter().any(|v| !v.is_finite() || *v < 0.0)) {
+    if fisher_weights.is_some_and(|w| !crate::weight_validation::finite_nonnegative(w)) {
         return Err(StatsError::Backend("Fisher weights must be finite and nonnegative".into()));
     }
 

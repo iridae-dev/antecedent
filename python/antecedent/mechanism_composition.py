@@ -89,6 +89,7 @@ from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
+from ._validate import finite_number as _number
 from ._validate import name as _name
 from .counterfactual import native_gcm
 from .errors import CausalTypeError, CausalValueError
@@ -155,15 +156,6 @@ class MechanismCompositionRefusal(StructuredRefusal):
 
 
 # --------------------------------------------------------------------------- helpers
-
-
-def _number(value: object, what: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError(f"{what} must be finite")
-    return number
 
 
 def _dumps(value: object) -> str:

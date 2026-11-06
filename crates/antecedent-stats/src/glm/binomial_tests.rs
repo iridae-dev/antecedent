@@ -329,6 +329,38 @@ fn laplace_fit_penalizes_every_coefficient_and_returns_the_inverse_information()
 }
 
 #[test]
+fn binomial_routes_refuse_nonbinary_outcomes() {
+    let mut workspace = LeastSquaresWorkspace::default();
+    let options = GlmOptions::new(10, 1e-6);
+    for outcome in [f64::NAN, f64::INFINITY, -0.5, 2.0] {
+        let design = GlmDesignRef { x_colmajor: &[1.0], nrows: 1, ncols: 1, y: &[outcome] };
+        let ordinary = fit_glm_ridge(
+            GlmFamily::BinomialLogit,
+            design,
+            &FaerBackend,
+            &mut workspace,
+            &options,
+            1.0,
+        );
+        let weighted = fit_glm_ridge_weighted(
+            GlmFamily::BinomialLogit,
+            design,
+            &[1.0],
+            &FaerBackend,
+            &mut workspace,
+            &options,
+            1.0,
+        );
+        for result in [ordinary, weighted] {
+            assert!(matches!(
+                result,
+                Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" })
+            ));
+        }
+    }
+}
+
+#[test]
 fn ridge_routes_preserve_validation_precedence() {
     let mut workspace = LeastSquaresWorkspace::default();
     let options = GlmOptions::new(10, 1e-6);

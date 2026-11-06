@@ -215,14 +215,7 @@ fn bayesian_surface_draws(
             }
         }
     }
-    if draws.len() < 2 {
-        return None;
-    }
-    let failed = f64::from(attempted) - draws.len() as f64;
-    if failed / f64::from(attempted) > BOOTSTRAP_MAX_FAILURE_FRAC {
-        return None;
-    }
-    Some(SurfaceBootstrap { draws, ncols: refit.ncols, cancelled })
+    finish_surface_draws(draws, attempted, cancelled, refit.ncols)
 }
 
 /// [`bootstrap_surface`] for horizons fit on a series with missing time points: one block plan
@@ -368,17 +361,26 @@ impl SurfaceRefit {
     }
 
     fn finish(self, boot: RowBlockDraws) -> Option<SurfaceBootstrap> {
-        if boot.draws.len() < 2 {
-            return None;
-        }
-        // Unattempted replicates after cancellation are not failures (mirrors
-        // `finalize_bootstrap_se_ex`); singular resamples among those attempted are.
-        let failed = f64::from(boot.attempted) - boot.draws.len() as f64;
-        if failed / f64::from(boot.attempted) > BOOTSTRAP_MAX_FAILURE_FRAC {
-            return None;
-        }
-        Some(SurfaceBootstrap { draws: boot.draws, ncols: self.ncols, cancelled: boot.cancelled })
+        finish_surface_draws(boot.draws, boot.attempted, boot.cancelled, self.ncols)
     }
+}
+
+// Unattempted replicates after cancellation are not failures. Both surface
+// routes require two successful draws and limit failures among attempts.
+fn finish_surface_draws(
+    draws: Vec<Vec<f64>>,
+    attempted: u32,
+    cancelled: bool,
+    ncols: Vec<usize>,
+) -> Option<SurfaceBootstrap> {
+    if draws.len() < 2 {
+        return None;
+    }
+    let failed = f64::from(attempted) - draws.len() as f64;
+    if failed / f64::from(attempted) > BOOTSTRAP_MAX_FAILURE_FRAC {
+        return None;
+    }
+    Some(SurfaceBootstrap { draws, ncols, cancelled })
 }
 
 /// Unbiased sample SD of column `cell` across `draws`.

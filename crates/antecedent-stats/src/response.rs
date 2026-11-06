@@ -195,7 +195,7 @@ impl GaussianMixtureDensity {
             }
             None => vec![1.0; means.len()],
         };
-        if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+        if !crate::weight_validation::finite_nonnegative(&weights) {
             return Err(StatsError::Shape { message: "mixture weights must be finite and >= 0" });
         }
         let weight_sum: f64 = weights.iter().sum();
@@ -367,7 +367,7 @@ pub fn gaussian_local_quadratic_influence_weighted_with(
     bandwidth: f64,
     weights: &[f64],
 ) -> Result<LocalPolynomialInfluence, StatsError> {
-    if weights.len() != x.len() || weights.iter().any(|v| !v.is_finite() || *v < 0.0) {
+    if weights.len() != x.len() || !crate::weight_validation::finite_nonnegative(weights) {
         return Err(StatsError::Shape { message: "invalid local quadratic weights" });
     }
     fit_local_quadratic(workspace, x, y, at, bandwidth, true, Some(weights), false)
@@ -420,7 +420,7 @@ pub fn gaussian_local_quadratic_weighted(
     weights: &[f64],
 ) -> Result<LocalPolynomialPoint, StatsError> {
     if weights.len() != x.len()
-        || weights.iter().any(|v| !v.is_finite() || *v < 0.0)
+        || !crate::weight_validation::finite_nonnegative(weights)
         || (weights.iter().sum::<f64>() - x.len() as f64).abs() > 1e-8 * x.len() as f64
     {
         return Err(StatsError::Shape { message: "invalid local quadratic weights" });
@@ -844,7 +844,7 @@ pub fn gaussian_local_quadratic_bias_corrected_influence(
         return Err(StatsError::Shape { message: "local bias-correction inputs must be finite" });
     }
     if let Some(weights) = observation_weights {
-        if weights.len() != x.len() || weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+        if weights.len() != x.len() || !crate::weight_validation::finite_nonnegative(weights) {
             return Err(StatsError::Shape { message: "invalid local bias-correction weights" });
         }
     }

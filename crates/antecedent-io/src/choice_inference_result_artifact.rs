@@ -745,6 +745,28 @@ fn check(
     Ok(ChoiceInferenceResultArtifact { contract, spec, result: recomputed, identity })
 }
 
+// Keep source replay's cancellation-versus-resource refusal mapping in one place.
+fn admit_retained_source(
+    ctx: &ExecutionContext,
+    quote: u64,
+) -> Result<antecedent_core::execution::AdmissionLease, Error> {
+    ctx.acquire_admission(0, quote).map_err(|error| {
+        if ctx.cancellation.is_cancelled() {
+            Error::refused(
+                antecedent_core::reason_code!("execution_cancelled"),
+                "choice_inference.source_cancelled",
+                error.to_string(),
+            )
+        } else {
+            Error::refused(
+                antecedent_core::reason_code!("execution_resource_limit"),
+                "choice_inference.source_resource_limit",
+                error.to_string(),
+            )
+        }
+    })
+}
+
 /// Reconstruct a same-population pooled source from an independently identified native result.
 /// The source's replayed ancestors and their discounts are retained, and its original observations
 /// enter once. The base prior is not counted twice; ancestry is bounded by depth and artifact size.
@@ -770,21 +792,7 @@ pub fn retained_choice_source_from_artifact(
         .ok()
         .and_then(|n| n.checked_mul(8))
         .ok_or_else(|| malformed("retained posterior admission size overflow"))?;
-    let _lease = ctx.acquire_admission(0, quote).map_err(|error| {
-        if ctx.cancellation.is_cancelled() {
-            Error::refused(
-                antecedent_core::reason_code!("execution_cancelled"),
-                "choice_inference.source_cancelled",
-                error.to_string(),
-            )
-        } else {
-            Error::refused(
-                antecedent_core::reason_code!("execution_resource_limit"),
-                "choice_inference.source_resource_limit",
-                error.to_string(),
-            )
-        }
-    })?;
+    let _lease = admit_retained_source(ctx, quote)?;
     let meta = decode_meta(bytes)?;
     let source = check(&meta, Some(expected_identity), ctx)?;
     let ChoiceResultSpec::Posterior { look } = source.spec() else {
@@ -869,21 +877,7 @@ pub fn verify_retained_choice_sources(
             .ok()
             .and_then(|n| n.checked_mul(2))
             .ok_or_else(|| malformed("retained posterior admission size overflow"))?;
-        let _lease = ctx.acquire_admission(0, quote).map_err(|error| {
-            if ctx.cancellation.is_cancelled() {
-                Error::refused(
-                    antecedent_core::reason_code!("execution_cancelled"),
-                    "choice_inference.source_cancelled",
-                    error.to_string(),
-                )
-            } else {
-                Error::refused(
-                    antecedent_core::reason_code!("execution_resource_limit"),
-                    "choice_inference.source_resource_limit",
-                    error.to_string(),
-                )
-            }
-        })?;
+        let _lease = admit_retained_source(ctx, quote)?;
         let meta = decode_meta(&proof.artifact)?;
         if reals(&meta.declaration.initial_prior_bits) != target.initial_prior {
             return Err(malformed("retained posterior and target must have the same base prior"));

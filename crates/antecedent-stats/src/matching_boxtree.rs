@@ -27,7 +27,10 @@ use antecedent_core::ExecutionContext;
 use antecedent_core::execution::AdmissionLease;
 
 use crate::error::StatsError;
-use crate::matching::{check_budget, validate_query_length, validate_query_values};
+use crate::matching::{
+    check_budget, validate_batch_outputs, validate_batch_query_length, validate_query_length,
+    validate_query_values,
+};
 
 /// Donors at or below which a node is a leaf scanned directly.
 const BOX_LEAF: usize = 16;
@@ -292,12 +295,8 @@ impl BoxTreeIndex {
         out_distance: &mut [f64],
         ctx: &ExecutionContext,
     ) -> Result<u32, StatsError> {
-        if queries_rowmajor.len() != n_queries.saturating_mul(self.dim) {
-            return Err(StatsError::Shape { message: "queries length != n_queries * dim" });
-        }
-        if out_donor_row.len() < n_queries || out_distance.len() < n_queries {
-            return Err(StatsError::Shape { message: "output buffers too short" });
-        }
+        validate_batch_query_length(queries_rowmajor, n_queries, self.dim)?;
+        validate_batch_outputs(n_queries, out_donor_row, out_distance)?;
         let mut matched = 0u32;
         for (q, query) in queries_rowmajor.chunks_exact(self.dim).enumerate() {
             if q % QUERY_CHUNK == 0 && ctx.cancellation.is_cancelled() {
