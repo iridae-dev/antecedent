@@ -13,7 +13,6 @@ import html
 import json
 import re
 import time
-import tomllib
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -22,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from _repo import REPO_ROOT
+import _repo
 
 CACHE = "provenance/citation_metadata.json"
 
@@ -38,7 +38,7 @@ def citations(root: Path) -> list[dict]:
     for path in sorted(root.glob("provenance/*.toml")):
         if path.name == "_template.toml":
             continue
-        record = tomllib.loads(path.read_text(encoding="utf-8"))
+        record = _repo.load_toml(path)
         for index, paper in enumerate(record.get("papers", [])):
             result.append(
                 {

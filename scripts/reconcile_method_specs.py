@@ -39,6 +39,7 @@ ensure_scripts_on_path()
 import generate_counterparts as counterparts  # noqa: E402
 import provenance_links  # noqa: E402
 from method_evidence import UNLISTED, Evidence  # noqa: E402
+import _repo
 
 SPECS = "parity/method_specs/specs.toml"
 CHILDREN = "parity/method_children/children.toml"
@@ -612,7 +613,7 @@ def main(argv: list[str]) -> int:
         print(report(specs))
         return 0
     if "--check" in argv:
-        committed = tomllib.loads(path.read_text(encoding="utf-8"))["spec"]
+        committed = _repo.load_toml(path)["spec"]
         stale = False
         for line in stale_structure(committed, specs):
             stale = True

@@ -49,6 +49,8 @@ with it. Nothing here reads a ledger or runs a test.
 
 from __future__ import annotations
 
+import _repo
+
 import ast
 import hashlib
 import json
@@ -963,7 +965,7 @@ class Fingerprinter:
             path = self.root / INPUT_DECLARATIONS
             rows: list[dict] = []
             if path.is_file():
-                for row in tomllib.loads(path.read_text(encoding="utf-8")).get("input", []):
+                for row in _repo.load_toml(path).get("input", []):
                     if (
                         not isinstance(row.get("source"), str)
                         or not isinstance(row.get("why"), str)

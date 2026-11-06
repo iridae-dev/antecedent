@@ -19,7 +19,6 @@ Fails when
 from __future__ import annotations
 
 import sys
-import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
@@ -28,6 +27,7 @@ from _repo import ensure_scripts_on_path
 ensure_scripts_on_path()
 import gate_recipe_obligations as gate  # noqa: E402
 import generate_route_obligations as gen  # noqa: E402
+import _repo
 
 
 def citations(row: dict) -> list[tuple[str, str]]:
@@ -155,7 +155,7 @@ def run(root: Path = ROOT) -> list[str]:
     path = root / gen.OUTPUT
     if not path.is_file():
         return [f"missing: {gen.OUTPUT} does not exist; run scripts/generate_route_obligations.py"]
-    rows = tomllib.loads(path.read_text(encoding="utf-8")).get("obligation", [])
+    rows = _repo.load_toml(path).get("obligation", [])
     problems = check(
         rows,
         gen.load_sources(root),

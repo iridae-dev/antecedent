@@ -40,6 +40,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
+import _repo
 
 SCOPE = "parity/release_scope/scope.toml"
 EVIDENCE = "parity/release_scope/evidence.toml"
@@ -118,7 +119,7 @@ class Repo:
         if crate_dir not in self._cargo:
             path = self.root / crate_dir / "Cargo.toml"
             self._cargo[crate_dir] = (
-                tomllib.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+                _repo.load_toml(path) if path.is_file() else {}
             )
         return self._cargo[crate_dir]
 

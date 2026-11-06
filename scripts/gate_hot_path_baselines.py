@@ -16,6 +16,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from _repo import load_toml
+
 ROOT = Path(".")
 REGISTRY = Path("benches/baselines/baselines.toml")
 BASELINE_DIR = Path("benches/baselines")
@@ -30,7 +32,7 @@ COMMIT_LINE = re.compile(r"(?i)^commit:\s*[0-9a-f]{7,}")
 
 def load_registry(path: Path | None = None) -> dict:
     path = path or (ROOT / REGISTRY)
-    return tomllib.loads(path.read_text(encoding="utf-8"))
+    return load_toml(path)
 
 
 def render_markdown(rec: dict) -> str:

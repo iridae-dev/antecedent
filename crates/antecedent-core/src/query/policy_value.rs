@@ -380,6 +380,8 @@ impl PolicyValueQuery {
         if self.propensity.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p >= 1.0) {
             return Err(QueryError::InvalidPolicyValue(PolicyValueFault::PropensityRange));
         }
+        let evaluation_ids =
+            self.evaluation_subject_ids.iter().collect::<std::collections::HashSet<_>>();
         if self.mu0.iter().chain(self.mu1.iter()).any(|x| !x.is_finite())
             || self
                 .costs
@@ -387,8 +389,7 @@ impl PolicyValueQuery {
                 .chain(self.reference_costs.iter())
                 .any(|x| !x.is_finite() || *x < 0.0)
             || self.evaluation_subject_ids.iter().any(|id| id.trim().is_empty())
-            || self.evaluation_subject_ids.iter().collect::<std::collections::HashSet<_>>().len()
-                != n
+            || evaluation_ids.len() != n
         {
             return Err(QueryError::InvalidPolicyValue(PolicyValueFault::PredictionInputs));
         }
@@ -405,16 +406,23 @@ impl PolicyValueQuery {
             || self
                 .uplift_training_subject_ids
                 .iter()
-                .any(|id| id.trim().is_empty() || self.evaluation_subject_ids.contains(id))
+                .any(|id| id.trim().is_empty() || evaluation_ids.contains(id))
             || self
                 .uplift_training_subject_ids
                 .iter()
                 .collect::<std::collections::HashSet<_>>()
                 .len()
                 != self.uplift_training_subject_ids.len()
-            || self.uplift_bins.iter().any(|&bin| bin >= self.uplift_bin_count)
-            || (0..self.uplift_bin_count)
-                .any(|bin| self.uplift_bins.iter().filter(|&&x| x == bin).count() < 2)
+            || {
+                let mut counts = vec![0usize; self.uplift_bin_count];
+                self.uplift_bins.iter().any(|&bin| match counts.get_mut(bin) {
+                    Some(count) => {
+                        *count += 1;
+                        false
+                    }
+                    None => true,
+                }) || counts.iter().any(|&count| count < 2)
+            }
         {
             return Err(QueryError::InvalidPolicyValue(PolicyValueFault::UpliftBinCoverage));
         }
@@ -431,9 +439,7 @@ impl PolicyValueQuery {
                 || regret.candidates.iter().any(|actions| actions.len() != n)
                 || regret.candidates[regret.selected_index].as_ref() != self.actions.as_ref()
                 || training.is_empty()
-                || training
-                    .iter()
-                    .any(|id| id.trim().is_empty() || self.evaluation_subject_ids.contains(id))
+                || training.iter().any(|id| id.trim().is_empty() || evaluation_ids.contains(id))
                 || training.iter().collect::<std::collections::HashSet<_>>().len() != training.len()
             {
                 return Err(QueryError::InvalidPolicyValue(PolicyValueFault::FiniteClassRegret));
@@ -474,6 +480,23 @@ mod tests {
     fn accepts_aligned_held_out_contract() {
         // Acceptance baseline for the refusal tests that mutate this query.
         assert!(valid().validate().is_ok());
+    }
+
+    #[test]
+    fn uplift_bins_require_coverage_and_disjoint_training() {
+        let mut query = valid();
+        query.uplift_bin_count = 1;
+        query.uplift_bins = Arc::from([0, 0]);
+        query.uplift_training_subject_ids = Arc::from([Arc::<str>::from("training")]);
+        assert!(query.validate().is_ok());
+        query.uplift_bins = Arc::from([0, 1]);
+        assert!(query.validate().is_err());
+        query.uplift_bin_count = 2;
+        assert!(query.validate().is_err());
+        query.uplift_bin_count = 1;
+        query.uplift_bins = Arc::from([0, 0]);
+        query.uplift_training_subject_ids = Arc::from([Arc::<str>::from("a")]);
+        assert!(query.validate().is_err());
     }
 
     #[test]

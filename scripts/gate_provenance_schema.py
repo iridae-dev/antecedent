@@ -12,6 +12,7 @@ from provenance_links import (  # noqa: E402  # noqa: E402
     method_review_problems,
     non_algorithm_review_problems,
 )
+import _repo
 
 root = Path(".")
 records = sorted((root / "provenance").glob("*.toml"))
@@ -44,7 +45,7 @@ for path in records:
     checked += 1
     rel = path.relative_to(root)
     try:
-        record = tomllib.loads(path.read_text(encoding="utf-8"))
+        record = _repo.load_toml(path)
     except (OSError, tomllib.TOMLDecodeError) as error:
         problems.append(f"{rel}: cannot parse: {error}")
         continue
@@ -204,7 +205,7 @@ for name in sorted(factory_names):
 for path in records:
     if path.name == "_template.toml":
         continue
-    record = tomllib.loads(path.read_text(encoding="utf-8"))
+    record = _repo.load_toml(path)
     for module in record.get("modules", []):
         if not (root / module).exists():
             problems.append(

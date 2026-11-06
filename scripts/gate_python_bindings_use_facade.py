@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import re
 import sys
-import tomllib
 from pathlib import Path
+import _repo
 
 DEFAULT_ROOT = Path(__file__).resolve().parent.parent
 INTERNAL_IDENT = re.compile(r"\bantecedent_[A-Za-z0-9_]+(?=\s*::)|(?<=extern crate )antecedent_[A-Za-z0-9_]+")
@@ -86,7 +86,7 @@ def check_source(path: Path, rel: str) -> list[str]:
 
 def check_manifest(path: Path, rel: str) -> list[str]:
     errors = []
-    manifest = tomllib.loads(path.read_text(encoding="utf-8"))
+    manifest = _repo.load_toml(path)
 
     def tables(doc):
         for t in DEP_TABLES:

@@ -55,6 +55,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
+import _repo
 
 ATTESTATIONS = ROOT / "parity" / "calibration_probe_attestations.toml"
 PROBE_LOG_DIR = ROOT / "target" / "calibration-probe"
@@ -250,7 +251,7 @@ def prune_attestations(records: list[dict], path: Path = ATTESTATIONS) -> int:
     """Drop rows whose record is gone or was measured again; returns how many."""
     if not path.is_file():
         return 0
-    rows = tomllib.loads(path.read_text(encoding="utf-8")).get("attestation", [])
+    rows = _repo.load_toml(path).get("attestation", [])
     current = {str(r.get("id")): r.get("calibration_sha") for r in records}
     kept = [
         row for row in rows if current.get(str(row.get("record_id"))) == row.get("calibration_sha")

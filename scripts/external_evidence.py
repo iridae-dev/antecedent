@@ -30,6 +30,7 @@ from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
 from evidence_kinds import EXTERNAL_KINDS
+import _repo
 
 SUPPORTED = ROOT / "parity/support_cells.toml"
 ROUTES = ROOT / "parity/supported_routes.toml"
@@ -55,7 +56,7 @@ def component_rows() -> dict[str, list[dict]]:
     """`kind:id` -> the parity rows whose external oracle exercises it."""
     out: dict[str, list[dict]] = {}
     for path in _manifests():
-        for row in tomllib.loads(path.read_text(encoding="utf-8")).get("capabilities", []):
+        for row in _repo.load_toml(path).get("capabilities", []):
             for component in row.get("oracle_components") or []:
                 out.setdefault(str(component), []).append({**row, "_manifest": path.name})
     return out

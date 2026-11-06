@@ -32,6 +32,7 @@ from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
 import generate_acceptance_inventory as gen  # noqa: E402
+import _repo
 
 SOURCE_BOUND = (
     ("status", "status"),
@@ -128,7 +129,7 @@ def run(root: Path = ROOT) -> list[str]:
         return [
             f"missing: {gen.OUTPUT} does not exist; run scripts/generate_acceptance_inventory.py"
         ]
-    rows = tomllib.loads(path.read_text(encoding="utf-8")).get("row", [])
+    rows = _repo.load_toml(path).get("row", [])
     sources = gen.load_sources(root)
     problems = check(rows, sources)
     if path.read_text(encoding="utf-8") != gen.render(gen.build(sources)):

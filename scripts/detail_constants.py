@@ -9,9 +9,9 @@ The replacement never contains a newline, so line numbers are preserved.
 
 import ast
 import re
-import tomllib
 
 from _repo import REPO_ROOT
+import _repo
 
 _IDS: set[str] | None = None
 
@@ -20,7 +20,7 @@ def registered_detail_ids() -> set[str]:
     global _IDS
     if _IDS is None:
         path = REPO_ROOT / "parity/reason_details.toml"
-        rows = tomllib.loads(path.read_text(encoding="utf-8")).get("detail", []) if path.is_file() else []
+        rows = _repo.load_toml(path).get("detail", []) if path.is_file() else []
         _IDS = {row["id"] for row in rows}
     return _IDS
 

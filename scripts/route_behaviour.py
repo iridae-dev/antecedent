@@ -18,6 +18,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT
+import _repo
 
 GENERATED = "parity/generated/route_behaviour.toml"
 REASON_DETAILS = "parity/reason_details.toml"
@@ -33,7 +34,7 @@ HEADER = (
 
 def load_details(path: Path) -> dict[str, list[str]]:
     """Detail id -> the reason codes it is refused under."""
-    rows = tomllib.loads(path.read_text(encoding="utf-8")).get("detail", [])
+    rows = _repo.load_toml(path).get("detail", [])
     return {row["id"]: list(row.get("codes", [])) for row in rows}
 
 

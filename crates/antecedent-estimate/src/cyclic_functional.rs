@@ -206,8 +206,9 @@ pub fn evaluate_finite_cyclic_functional(
     let mut strides = Vec::new();
     let mut cells = 1usize;
     for values in &law.support {
+        let mut seen = std::collections::HashSet::with_capacity(values.len());
         if values.is_empty()
-            || values.iter().enumerate().any(|(i, v)| !v.is_finite() || values[..i].contains(v))
+            || values.iter().any(|v| !v.is_finite() || !seen.insert((v + 0.0).to_bits()))
         {
             return Err(invalid("finite variable support"));
         }

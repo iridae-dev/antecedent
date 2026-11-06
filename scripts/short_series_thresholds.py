@@ -35,11 +35,10 @@ import argparse
 import csv
 import re
 import sys
-import tomllib
 from collections import defaultdict
 from pathlib import Path
 
-from _repo import REPO_ROOT as ROOT
+from _repo import REPO_ROOT as ROOT, load_toml
 
 REGISTRY = ROOT / "parity" / "short_series_thresholds.toml"
 DOC = ROOT / "docs" / "short-series-thresholds.md"
@@ -113,7 +112,7 @@ def derive(csv_path: Path) -> dict[str, int]:
 
 
 def load(path: Path = REGISTRY) -> tuple[list[dict], int]:
-    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    data = load_toml(path)
     try:
         response_rows = data["response"]["rows"]
     except KeyError:

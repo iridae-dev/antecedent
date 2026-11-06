@@ -20,6 +20,8 @@ performance acceptance measurements.
 
 from __future__ import annotations
 
+import _repo
+
 import argparse
 import hashlib
 import json
@@ -173,7 +175,7 @@ def claim_rows(root: Path) -> list[dict]:
     for path in sorted(root.glob("parity/**/*.toml")):
         if path.name == "coverage_records.toml":
             continue
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        data = _repo.load_toml(path)
         for loc, row in tables(data):
             if "evidence_kind" not in row:
                 continue
@@ -442,7 +444,7 @@ def build_report(root: Path) -> dict:
     for path in sorted(root.glob("provenance/*.toml")):
         if path.name == "_template.toml":
             continue
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        data = _repo.load_toml(path)
         provenance.append(
             {
                 "path": path.relative_to(root).as_posix(),
@@ -808,7 +810,7 @@ def scientific_test_problems(root: Path) -> list[str]:
     if not path.is_file():
         return []
     problems, seen = [], set()
-    for i, row in enumerate(tomllib.loads(path.read_text(encoding="utf-8")).get("test", [])):
+    for i, row in enumerate(_repo.load_toml(path).get("test", [])):
         where = f"{SCIENTIFIC_TESTS}[{i}]"
         test, name = row.get("evidence_test"), row.get("evidence_assertion")
         if not isinstance(test, str) or not test or not isinstance(name, str) or not name:
@@ -857,7 +859,7 @@ def generated_python_tests(root: Path) -> set[str]:
     path = root / GENERATED_PYTHON_TESTS
     if not path.is_file():
         return set()
-    table = tomllib.loads(path.read_text(encoding="utf-8"))
+    table = _repo.load_toml(path)
     return {
         row["test"]
         for kind in ("route", "refusal")
@@ -883,7 +885,7 @@ def registered_scientific_tests(root: Path) -> list[dict]:
             "fixtures": sorted(set(row.get("fixtures", []))),
             "kind": row["kind"],
         }
-        for row in tomllib.loads(path.read_text(encoding="utf-8")).get("test", [])
+        for row in _repo.load_toml(path).get("test", [])
     ]
 
 

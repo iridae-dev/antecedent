@@ -17,6 +17,8 @@ other than design_inference or uncertainty are findings, and the cell stays a ga
 
 from __future__ import annotations
 
+import _repo
+
 import re
 import sys
 import tomllib
@@ -213,7 +215,7 @@ def _apply_pending(root: Path, cells: list[dict], findings: list[str]) -> None:
     path = root / "parity/pending_measurement.toml"
     if not path.is_file():
         return
-    entries = tomllib.loads(path.read_text(encoding="utf-8")).get("pending", [])
+    entries = _repo.load_toml(path).get("pending", [])
     seen: set[str] = set()
     for entry in entries:
         row = entry.get("row", "")

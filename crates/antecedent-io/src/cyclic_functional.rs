@@ -197,6 +197,19 @@ mod tests {
         assert!(answer.values[2].value.is_none());
         assert!(answer.values[2].failure.is_some());
         assert_eq!(consume_cyclic_family(&artifact, &report.identity, &ctx).unwrap(), report);
+        let mut repeated_zero = law.clone();
+        repeated_zero.support[0] = vec![0.0, -0.0];
+        assert!(
+            evaluate_cyclic_functional(
+                &source,
+                &source_report.identity,
+                &program,
+                &repeated_zero,
+                assignments,
+                &ctx
+            )
+            .is_err()
+        );
         let CyclicFamilyRequest::Functional { law, assignments, .. } = request else {
             unreachable!()
         };

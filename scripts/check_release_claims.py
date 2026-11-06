@@ -46,6 +46,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as REPO
+import _repo
 
 ROOT = Path(os.environ.get("RELEASE_CLAIMS_ROOT", REPO))
 RECORDS = "parity/capability_records.toml"
@@ -190,7 +191,7 @@ def load_snapshot(root: Path, version: str) -> dict | None:
     path = root / snapshot_rel(version)
     if not path.is_file():
         return None
-    return tomllib.loads(path.read_text(encoding="utf-8"))
+    return _repo.load_toml(path)
 
 
 def snapshot_ids(root: Path, skip: str | None = None) -> set[str]:
@@ -202,7 +203,7 @@ def snapshot_ids(root: Path, skip: str | None = None) -> set[str]:
         version = path.name[1:-5]
         if skip is not None and version == skip:
             continue
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        data = _repo.load_toml(path)
         ids.update(rec["id"] for rec in data.get("record", []) if rec.get("id"))
     return ids
 
@@ -342,7 +343,7 @@ def load_required(root: Path, rel: str) -> dict:
     path = root / rel
     if not path.is_file():
         raise ValueError(f"required current-release registry is missing: {rel}")
-    return tomllib.loads(path.read_text(encoding="utf-8"))
+    return _repo.load_toml(path)
 
 
 def effective_claim(rec: dict, present: set[str]) -> tuple[str, bool]:

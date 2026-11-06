@@ -120,18 +120,17 @@ impl OverlapDeclaration {
             ));
         }
         let (a, b) = if a < b { (a, b) } else { (b, a) };
-        if let Some(existing) = self.pairs.iter().find(|p| p.a == a && p.b == b) {
-            if existing.relation != relation {
+        match self.pairs.binary_search_by(|pair| (&pair.a, &pair.b).cmp(&(&a, &b))) {
+            Ok(index) if self.pairs[index].relation != relation => {
                 return Err(refused(
                     antecedent_core::reason_code!("invalid_argument"),
                     DETAIL_OVERLAP_INVALID,
                     "a pair of tables is declared with two relations",
                 ));
             }
-            return Ok(self);
+            Ok(_) => return Ok(self),
+            Err(index) => self.pairs.insert(index, OverlapPair { a, b, relation }),
         }
-        self.pairs.push(OverlapPair { a, b, relation });
-        self.pairs.sort_by(|x, y| (&x.a, &x.b).cmp(&(&y.a, &y.b)));
         Ok(self)
     }
 
@@ -579,5 +578,27 @@ mod tests {
             .with_pair(a, absent, DatasetOverlap::Unknown)
             .unwrap();
         assert_eq!(code(&resolve_overlap(&tables, &names_absent).unwrap_err()), "invalid_argument");
+    }
+
+    #[test]
+    fn pair_declarations_are_canonical_in_any_insertion_order() {
+        let a = table("a", 0, vec![1, 1, 1]).key();
+        let b = table("b", 1, vec![1, 1, 1]).key();
+        let c = table("c", 2, vec![1, 1, 1]).key();
+        let declaration = OverlapDeclaration::undeclared()
+            .with_pair(b.clone(), c.clone(), DatasetOverlap::Independent)
+            .unwrap()
+            .with_pair(a.clone(), c.clone(), DatasetOverlap::SharedUnits)
+            .unwrap()
+            .with_pair(a.clone(), b.clone(), DatasetOverlap::Unknown)
+            .unwrap();
+        assert_eq!(
+            declaration.pairs().iter().map(|p| (&p.a, &p.b)).collect::<Vec<_>>(),
+            vec![(&a, &b), (&a, &c), (&b, &c)]
+        );
+        assert_eq!(
+            declaration.clone().with_pair(c, a, DatasetOverlap::SharedUnits).unwrap(),
+            declaration
+        );
     }
 }

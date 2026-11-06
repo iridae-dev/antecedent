@@ -12519,7 +12519,7 @@ gates = ["inventory", "named"]
 id = "audit-crates-antecedent-src-analysis-transport-grid-rs"
 crate = "antecedent"
 cargo_target = "lib"
-path = "crates/antecedent/src/analysis/transport_grid.rs"
+path = "crates/antecedent/src/analysis/transport_grid/tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]

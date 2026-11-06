@@ -28,13 +28,13 @@ import argparse
 import json
 import re
 import sys
-import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _repo import REPO_ROOT as ROOT  # noqa: E402
 from provenance_links import ALIAS, FAMILY, method_review_digest  # noqa: E402
 from verify_provenance_citations import verdict  # noqa: E402
+import _repo
 
 SNAPSHOT = ROOT / "crates/antecedent-io-core/data/method_provenance.json"
 IDS = ROOT / "crates/antecedent/src/strategy_table/ids.rs"
@@ -51,7 +51,7 @@ NOT_COVERED = re.compile(r"(?:^|(?<=[.;]\s))Not (?P<rest>[^.]+(?:\.[0-9][^.]*)*)
 
 
 def load(path: Path) -> dict:
-    return tomllib.loads(path.read_text(encoding="utf-8"))
+    return _repo.load_toml(path)
 
 
 def strategy_rows() -> dict[str, dict[str, tuple[str, str]]]:

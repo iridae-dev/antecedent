@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
+import _repo
 
 root = Path(".")
 permitted_path = root / "parity/permitted_upstream_name_files.toml"
@@ -33,7 +34,7 @@ def load_spec(path: Path) -> tuple[set[str], set[str]]:
     if not path.is_file():
         fail(f"upstream-name permitted files: missing {path}")
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        data = _repo.load_toml(path)
     except tomllib.TOMLDecodeError as exc:
         fail(f"upstream-name permitted files: {path} is not valid TOML: {exc}")
     out = []
@@ -86,9 +87,9 @@ def pyproject_dependency_names(data: dict) -> set[str]:
 
 def manifest_names(path: Path) -> set[str]:
     if path.name == "Cargo.toml":
-        return cargo_dependency_names(tomllib.loads(path.read_text(encoding="utf-8")))
+        return cargo_dependency_names(_repo.load_toml(path))
     if path.name == "pyproject.toml":
-        return pyproject_dependency_names(tomllib.loads(path.read_text(encoding="utf-8")))
+        return pyproject_dependency_names(_repo.load_toml(path))
     if path.name.startswith("requirements") and path.suffix == ".txt":
         names = set()
         for line in path.read_text(encoding="utf-8").splitlines():

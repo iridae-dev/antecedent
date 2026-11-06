@@ -29,10 +29,11 @@ confirmed by reading the wrappers. Run directly or via scripts/gate_public_api.s
 
 from __future__ import annotations
 
+import _repo
+
 import ast
 import re
 import sys
-import tomllib
 from collections import Counter
 from pathlib import Path
 
@@ -187,7 +188,7 @@ class PythonIndex:
 
 
 def load_registry(path: Path) -> list[dict[str, str]]:
-    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    data = _repo.load_toml(path)
     return list(data.get("entry", []))
 
 

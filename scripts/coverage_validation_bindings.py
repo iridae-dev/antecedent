@@ -8,6 +8,7 @@ from functools import cache, lru_cache
 from pathlib import Path
 
 from _repo import REPO_ROOT
+import _repo
 
 PATH = Path("parity/coverage_validation_bindings.toml")
 BRIDGE = "crates/antecedent/src/support/bridge.rs"
@@ -82,7 +83,7 @@ def load_bindings(root: Path = REPO_ROOT):
     path = root / PATH
     if not path.is_file():
         return []
-    document = tomllib.loads(path.read_text(encoding="utf-8"))
+    document = _repo.load_toml(path)
     records = tomllib.loads((root / "parity/coverage_records.toml").read_text(encoding="utf-8")).get("record", [])
     return checked_bindings(records, document, lambda sha, name: _blob_at(root, sha, name))
 

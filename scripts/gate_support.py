@@ -91,6 +91,7 @@ from transport_replay_contract import (  # noqa: E402
     shared_evidence_problems,
     source_replay_problems,
 )
+import _repo
 
 CELLS = "parity/support_cells.toml"
 GRAPHLESS = "parity/support_graphless.toml"
@@ -693,7 +694,7 @@ def matrix_problems(shard: str = "all", *, resolve: bool = False) -> tuple[list[
             fail.append(f"{rel}: missing")
             return {}
         try:
-            return tomllib.loads(path.read_text(encoding="utf-8"))
+            return _repo.load_toml(path)
         except tomllib.TOMLDecodeError as exc:
             fail.append(f"{rel}: not valid TOML: {exc}")
             return {}

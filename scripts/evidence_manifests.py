@@ -26,6 +26,7 @@ import re
 import subprocess
 import time
 import tomllib
+import _repo
 
 ROOT = Path(__file__).resolve().parents[1]
 STORE = "parity/evidence_manifests"
@@ -364,7 +365,7 @@ def inventory(root: Path, kind: str = "all") -> list[tuple[dict, object]]:
         if kind != "all" and category != kind:
             continue
         path = root / "parity" / filename
-        rows = tomllib.loads(path.read_text(encoding="utf-8")).get(table, []) if path.exists() else []
+        rows = _repo.load_toml(path).get(table, []) if path.exists() else []
         for row in rows:
             if category == "scientific":
                 bound = binding("scientific", row.get("test"), row.get("fingerprint"))
