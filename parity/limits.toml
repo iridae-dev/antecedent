@@ -1650,3 +1650,35 @@ implementation = [{ path = "crates/antecedent-io-core/src/contract_section/repla
 guard = { path = "crates/antecedent-io-core/src/contract_section/replay.rs", pattern = 'values\.len\(\) > MAX_RESPONSE_GRID_POINTS' }
 refusal = { path = "crates/antecedent-io-core/src/contract_section/replay.rs", pattern = 'values\.len\(\) > MAX_RESPONSE_GRID_POINTS \{\s*return Err\(' }
 scope_fixture = { path = "crates/antecedent-io-core/src/contract_section/tests.rs", pattern = '\ban_explicit_response_grid_past_the_point_bound_is_refused_before_any_member_replays\b' }
+
+[[bound]]
+record = "decision.compiled_joint_scenarios"
+key = "max_scenarios"
+implementation = [{ path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", constant = "MAX_COMPILED_ROBUST_ITEMS" }]
+guard = { path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", pattern = 'adapted\.atoms\.len\(\) > MAX_COMPILED_ROBUST_ITEMS' }
+refusal = { path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", pattern = 'adapted\.atoms\.len\(\) > MAX_COMPILED_ROBUST_ITEMS[\s\S]{0,1800}?return Err\(' }
+scope_fixture = { path = "crates/antecedent/tests/compiled_robust_decisions.rs", pattern = '\bbounded_requests_and_wrong_binding_refuse_and_failed_evaluation_stays_incomplete\b' }
+
+[[bound]]
+record = "decision.compiled_joint_scenarios"
+key = "max_actions"
+implementation = [{ path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", constant = "MAX_COMPILED_ROBUST_ITEMS" }]
+guard = { path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", pattern = 'contract\.contract\.actions\.len\(\) > MAX_COMPILED_ROBUST_ITEMS' }
+refusal = { path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", pattern = 'contract\.contract\.actions\.len\(\) > MAX_COMPILED_ROBUST_ITEMS[\s\S]{0,1800}?return Err\(' }
+scope_fixture = { path = "crates/antecedent/tests/compiled_robust_decisions.rs", pattern = '\bbounded_requests_and_wrong_binding_refuse_and_failed_evaluation_stays_incomplete\b' }
+
+[[bound]]
+record = "decision.compiled_joint_scenarios"
+key = "max_constraints"
+implementation = [{ path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", constant = "MAX_COMPILED_ROBUST_ITEMS" }]
+guard = { path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", pattern = 'contract\.contract\.constraints\.len\(\) > MAX_COMPILED_ROBUST_ITEMS' }
+refusal = { path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", pattern = 'contract\.contract\.constraints\.len\(\) > MAX_COMPILED_ROBUST_ITEMS[\s\S]{0,1800}?return Err\(' }
+scope_fixture = { path = "crates/antecedent/tests/compiled_robust_decisions.rs", pattern = '\bbounded_requests_and_wrong_binding_refuse_and_failed_evaluation_stays_incomplete\b' }
+
+[[bound]]
+record = "decision.compiled_joint_scenarios"
+key = "max_source_bytes"
+implementation = [{ path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", constant = "MAX_SCENARIO_CARRIER_BYTES" }]
+guard = { path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", pattern = 'bytes\.len\(\) > MAX_SCENARIO_CARRIER_BYTES' }
+refusal = { path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", pattern = 'bytes\.len\(\) > MAX_SCENARIO_CARRIER_BYTES[\s\S]{0,1800}?return Err\(' }
+scope_fixture = { path = "crates/antecedent/tests/compiled_robust_decisions.rs", pattern = '\bbounded_requests_and_wrong_binding_refuse_and_failed_evaluation_stays_incomplete\b' }

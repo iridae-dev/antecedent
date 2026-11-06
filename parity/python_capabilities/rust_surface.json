@@ -664,6 +664,38 @@
       "declaration": "pub fn <antecedent::CompiledExecution>::fn run(study: &antecedent::Study, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::CausalError>",
       "kind": "method"
     },
+    "<antecedent::CompiledRobustDecision>::consume": {
+      "declaration": "pub fn <antecedent::CompiledRobustDecision>::fn consume(&self, bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_robust_artifact::scenario_carrier::ScenarioDecision, antecedent::CausalError>",
+      "kind": "method"
+    },
+    "<antecedent::CompiledRobustDecision>::decision_contract": {
+      "declaration": "pub fn <antecedent::CompiledRobustDecision>::fn decision_contract(&self) -> &antecedent::BoundDecisionContract",
+      "kind": "method"
+    },
+    "<antecedent::CompiledRobustDecision>::execute": {
+      "declaration": "pub fn <antecedent::CompiledRobustDecision>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_robust_artifact::scenario_carrier::ScenarioDecision, antecedent::CausalError>",
+      "kind": "method"
+    },
+    "<antecedent::CompiledRobustDecision>::export": {
+      "declaration": "pub fn <antecedent::CompiledRobustDecision>::fn export(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::CausalError>",
+      "kind": "method"
+    },
+    "<antecedent::CompiledRobustDecision>::plan": {
+      "declaration": "pub fn <antecedent::CompiledRobustDecision>::fn plan(&self) -> &antecedent::planner::PhysicalExecutionPlan",
+      "kind": "method"
+    },
+    "<antecedent::CompiledRobustDecision>::program_identity": {
+      "declaration": "pub fn <antecedent::CompiledRobustDecision>::fn program_identity(&self) -> &str",
+      "kind": "method"
+    },
+    "<antecedent::CompiledRobustDecision>::source": {
+      "declaration": "pub fn <antecedent::CompiledRobustDecision>::fn source(&self) -> &antecedent_design::decision_robust_artifact::scenario_carrier::JointScenarioCarrier",
+      "kind": "method"
+    },
+    "<antecedent::CompiledRobustDecision>::standing": {
+      "declaration": "pub fn <antecedent::CompiledRobustDecision>::const fn standing(&self) -> &'static str",
+      "kind": "method"
+    },
     "<antecedent::CompletedBatch>::bibliography": {
       "declaration": "pub fn <antecedent::CompletedBatch>::fn bibliography(&self) -> alloc::vec::Vec<antecedent_io_core::method_provenance::CitationWire>",
       "kind": "method"
@@ -2868,6 +2900,10 @@
       "declaration": "pub fn <antecedent::PreparedStudy>::fn capability(&self) -> core::result::Result<antecedent_contract::capability::OperationReport, antecedent::CausalError>",
       "kind": "method"
     },
+    "<antecedent::PreparedStudy>::compile_for_robust_decision": {
+      "declaration": "pub fn <antecedent::PreparedStudy>::fn compile_for_robust_decision(&self, decision: antecedent::BoundDecisionContract, source: antecedent_design::decision_robust_artifact::scenario_carrier::JointScenarioCarrier, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CompiledRobustDecision, antecedent::CausalError>",
+      "kind": "method"
+    },
     "<antecedent::PreparedStudy>::compile_joint_response": {
       "declaration": "pub fn <antecedent::PreparedStudy>::fn compile_joint_response(&self, target: &antecedent_core::scientific_target::identity::ScientificTarget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedJointResponse, antecedent::CausalError>",
       "kind": "method"
@@ -3826,6 +3862,10 @@
     },
     "<antecedent::Study>::compile_for_planning": {
       "declaration": "pub fn <antecedent::Study>::fn compile_for_planning(&self, request: &antecedent_design::planning::request::PlanningRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::planning::PlanningPlan, antecedent::CausalError>",
+      "kind": "method"
+    },
+    "<antecedent::Study>::compile_for_robust_decision": {
+      "declaration": "pub fn <antecedent::Study>::fn compile_for_robust_decision(&self, decision: antecedent::BoundDecisionContract, source: antecedent_design::decision_robust_artifact::scenario_carrier::JointScenarioCarrier, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CompiledRobustDecision, antecedent::CausalError>",
       "kind": "method"
     },
     "<antecedent::Study>::compile_logical": {
@@ -10112,6 +10152,10 @@
       "declaration": "pub fn <antecedent::planner::lowered::DecisionProgram>::const fn information_value(&self) -> core::option::Option<&antecedent::planner::lowered::EvsiProgram>",
       "kind": "method"
     },
+    "<antecedent::planner::lowered::DecisionProgram>::scenario_source_identity": {
+      "declaration": "pub fn <antecedent::planner::lowered::DecisionProgram>::fn scenario_source_identity(&self) -> core::option::Option<&str>",
+      "kind": "method"
+    },
     "<antecedent::planner::lowered::DecisionProgram>::utility": {
       "declaration": "pub fn <antecedent::planner::lowered::DecisionProgram>::const fn utility(&self) -> &UtilityForm",
       "kind": "method"
@@ -11390,6 +11434,14 @@
     },
     "antecedent::CompiledExecution#385373a2ef1f": {
       "declaration": "pub struct antecedent::CompiledExecution has private fields",
+      "kind": "type"
+    },
+    "antecedent::CompiledRobustDecision": {
+      "declaration": "pub struct antecedent::CompiledRobustDecision",
+      "kind": "type"
+    },
+    "antecedent::CompiledRobustDecision#48cfffaa2015": {
+      "declaration": "pub struct antecedent::CompiledRobustDecision has private fields",
       "kind": "type"
     },
     "antecedent::CompletedBatch": {
@@ -18529,6 +18581,11 @@
       "kind": "reexport",
       "target": "super::ClaimProfile"
     },
+    "export:antecedent::CompiledRobustResult": {
+      "declaration": "pub use antecedent::CompiledRobustResult = super::robust_decision::CompiledRobustResult",
+      "kind": "reexport",
+      "target": "super::robust_decision::CompiledRobustResult"
+    },
     "export:antecedent::ConditionalEffectQuery": {
       "declaration": "pub use antecedent::ConditionalEffectQuery = query::ConditionalEffectQuery",
       "kind": "reexport",
@@ -18719,6 +18776,11 @@
       "kind": "reexport",
       "target": "query::IvBoundsQuery"
     },
+    "export:antecedent::JointScenarioCarrier": {
+      "declaration": "pub use antecedent::JointScenarioCarrier = super::robust_decision::JointScenarioCarrier",
+      "kind": "reexport",
+      "target": "super::robust_decision::JointScenarioCarrier"
+    },
     "export:antecedent::LocalPolynomialRatioQuery": {
       "declaration": "pub use antecedent::LocalPolynomialRatioQuery = query::LocalPolynomialRatioQuery",
       "kind": "reexport",
@@ -18728,6 +18790,16 @@
       "declaration": "pub use antecedent::LongitudinalRegimeQuery = query::LongitudinalRegimeQuery",
       "kind": "reexport",
       "target": "query::LongitudinalRegimeQuery"
+    },
+    "export:antecedent::MAX_COMPILED_ROBUST_ITEMS": {
+      "declaration": "pub use antecedent::MAX_COMPILED_ROBUST_ITEMS = super::robust_decision::MAX_COMPILED_ROBUST_ITEMS",
+      "kind": "reexport",
+      "target": "super::robust_decision::MAX_COMPILED_ROBUST_ITEMS"
+    },
+    "export:antecedent::MAX_SCENARIO_CARRIER_BYTES": {
+      "declaration": "pub use antecedent::MAX_SCENARIO_CARRIER_BYTES = super::robust_decision::MAX_SCENARIO_CARRIER_BYTES",
+      "kind": "reexport",
+      "target": "super::robust_decision::MAX_SCENARIO_CARRIER_BYTES"
     },
     "export:antecedent::MechanismChangeQuery": {
       "declaration": "pub use antecedent::MechanismChangeQuery = query::MechanismChangeQuery",
@@ -21134,6 +21206,16 @@
       "kind": "reexport",
       "target": "antecedent::CompiledExecution"
     },
+    "export:antecedent::analysis::api::CompiledRobustDecision": {
+      "declaration": "pub use antecedent::analysis::api::CompiledRobustDecision = antecedent::CompiledRobustDecision",
+      "kind": "reexport",
+      "target": "antecedent::CompiledRobustDecision"
+    },
+    "export:antecedent::analysis::api::CompiledRobustResult": {
+      "declaration": "pub use antecedent::analysis::api::CompiledRobustResult = super::robust_decision::CompiledRobustResult",
+      "kind": "reexport",
+      "target": "super::robust_decision::CompiledRobustResult"
+    },
     "export:antecedent::analysis::api::CompletedBatch": {
       "declaration": "pub use antecedent::analysis::api::CompletedBatch = antecedent::CompletedBatch",
       "kind": "reexport",
@@ -21639,6 +21721,11 @@
       "kind": "reexport",
       "target": "antecedent::JointSamplingWire"
     },
+    "export:antecedent::analysis::api::JointScenarioCarrier": {
+      "declaration": "pub use antecedent::analysis::api::JointScenarioCarrier = super::robust_decision::JointScenarioCarrier",
+      "kind": "reexport",
+      "target": "super::robust_decision::JointScenarioCarrier"
+    },
     "export:antecedent::analysis::api::JointSensitivityArtifactWire": {
       "declaration": "pub use antecedent::analysis::api::JointSensitivityArtifactWire = antecedent::JointSensitivityArtifactWire",
       "kind": "reexport",
@@ -21698,6 +21785,16 @@
       "declaration": "pub use antecedent::analysis::api::LedgerRefresh = antecedent::LedgerRefresh",
       "kind": "reexport",
       "target": "antecedent::LedgerRefresh"
+    },
+    "export:antecedent::analysis::api::MAX_COMPILED_ROBUST_ITEMS": {
+      "declaration": "pub use antecedent::analysis::api::MAX_COMPILED_ROBUST_ITEMS = super::robust_decision::MAX_COMPILED_ROBUST_ITEMS",
+      "kind": "reexport",
+      "target": "super::robust_decision::MAX_COMPILED_ROBUST_ITEMS"
+    },
+    "export:antecedent::analysis::api::MAX_SCENARIO_CARRIER_BYTES": {
+      "declaration": "pub use antecedent::analysis::api::MAX_SCENARIO_CARRIER_BYTES = super::robust_decision::MAX_SCENARIO_CARRIER_BYTES",
+      "kind": "reexport",
+      "target": "super::robust_decision::MAX_SCENARIO_CARRIER_BYTES"
     },
     "export:antecedent::analysis::api::MeasurementAnalysisBinding": {
       "declaration": "pub use antecedent::analysis::api::MeasurementAnalysisBinding = antecedent::MeasurementAnalysisBinding",
@@ -28408,6 +28505,31 @@
       "declaration": "pub use antecedent::analysis::retained_source_from_artifact = antecedent::analysis::api::retained_source_from_artifact",
       "kind": "reexport",
       "target": "antecedent::analysis::api::retained_source_from_artifact"
+    },
+    "export:antecedent::analysis::robust_decision::CompiledRobustDecision": {
+      "declaration": "pub use antecedent::analysis::robust_decision::CompiledRobustDecision = antecedent::CompiledRobustDecision",
+      "kind": "reexport",
+      "target": "antecedent::CompiledRobustDecision"
+    },
+    "export:antecedent::analysis::robust_decision::CompiledRobustResult": {
+      "declaration": "pub use antecedent::analysis::robust_decision::CompiledRobustResult = antecedent_design::decision_robust_artifact::ScenarioDecision",
+      "kind": "reexport",
+      "target": "antecedent_design::decision_robust_artifact::ScenarioDecision"
+    },
+    "export:antecedent::analysis::robust_decision::JointScenarioCarrier": {
+      "declaration": "pub use antecedent::analysis::robust_decision::JointScenarioCarrier = antecedent_design::decision_robust_artifact::JointScenarioCarrier",
+      "kind": "reexport",
+      "target": "antecedent_design::decision_robust_artifact::JointScenarioCarrier"
+    },
+    "export:antecedent::analysis::robust_decision::MAX_COMPILED_ROBUST_ITEMS": {
+      "declaration": "pub use antecedent::analysis::robust_decision::MAX_COMPILED_ROBUST_ITEMS = antecedent_design::decision_robust_artifact::MAX_COMPILED_ROBUST_ITEMS",
+      "kind": "reexport",
+      "target": "antecedent_design::decision_robust_artifact::MAX_COMPILED_ROBUST_ITEMS"
+    },
+    "export:antecedent::analysis::robust_decision::MAX_SCENARIO_CARRIER_BYTES": {
+      "declaration": "pub use antecedent::analysis::robust_decision::MAX_SCENARIO_CARRIER_BYTES = antecedent_design::decision_robust_artifact::MAX_SCENARIO_CARRIER_BYTES",
+      "kind": "reexport",
+      "target": "antecedent_design::decision_robust_artifact::MAX_SCENARIO_CARRIER_BYTES"
     },
     "export:antecedent::analysis::route_missing_support": {
       "declaration": "pub use antecedent::analysis::route_missing_support = antecedent::analysis::api::route_missing_support",

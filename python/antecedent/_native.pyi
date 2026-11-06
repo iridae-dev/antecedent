@@ -7872,11 +7872,10 @@ def consume_latent_class_artifact(
     data: tuple[NDArray[np.float64], NDArray[np.float64], list[str], list[NDArray[np.float64]]]
     | None = None,
 ) -> tuple[str | None, str | None]: ...
+
 class TemporalExecutorHandle:
     def __init__(self) -> None: ...
-    def execute(
-        self, request_json: str, *, seed: int = 0
-    ) -> tuple[str | None, str | None]: ...
+    def execute(self, request_json: str, *, seed: int = 0) -> tuple[str | None, str | None]: ...
     def retained_len(self) -> int: ...
     def counters(self) -> str: ...
 
@@ -12080,5 +12079,102 @@ class CompiledCategoricalPosteriorCandidateHandle:
     ) -> CompiledCategoricalPosteriorCandidateHandle: ...
 
 # Separately versioned endpoint-bootstrap artifact, independent from range v3.
-def export_z_transport_joint_interval(stage: PreparedZTransportStage, factors: list[tuple[str, float]], *, seed: int, replicates: int = 199, level: float = 0.95, decision_threshold: float | None = None, total_budget: float | None = None, tolerance: float = 1e-9, frontier_points: int = 17, max_operations: int = 100_000, max_depth: int = 64, max_memory_bytes: int = 67_108_864, memory_bytes: int | None = None, cancel: CancellationToken | None = None) -> bytes: ...
-def consume_z_transport_joint_interval(artifact: bytes, *, max_replicates: int = 2000, max_bytes: int = 67_108_864, max_search_operations: int = 100_000, max_search_depth: int = 64, max_memory_bytes: int = 67_108_864, memory_bytes: int | None = None, cancel: CancellationToken | None = None) -> dict[str, object]: ...
+def export_z_transport_joint_interval(
+    stage: PreparedZTransportStage,
+    factors: list[tuple[str, float]],
+    *,
+    seed: int,
+    replicates: int = 199,
+    level: float = 0.95,
+    decision_threshold: float | None = None,
+    total_budget: float | None = None,
+    tolerance: float = 1e-9,
+    frontier_points: int = 17,
+    max_operations: int = 100_000,
+    max_depth: int = 64,
+    max_memory_bytes: int = 67_108_864,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> bytes: ...
+def consume_z_transport_joint_interval(
+    artifact: bytes,
+    *,
+    max_replicates: int = 2000,
+    max_bytes: int = 67_108_864,
+    max_search_operations: int = 100_000,
+    max_search_depth: int = 64,
+    max_memory_bytes: int = 67_108_864,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> dict[str, object]: ...
+
+# Immutable joint source data; no fit or posterior is reconstructed on load.
+class JointScenarioCarrier:
+    @property
+    def identity(self) -> str: ...
+    @property
+    def causal_target(self) -> str: ...
+    @property
+    def causal_identification(self) -> str: ...
+    @property
+    def joint_structure(self) -> str: ...
+    @property
+    def complete(self) -> bool: ...
+    @property
+    def search_stop(self) -> str | None: ...
+    @property
+    def n_scenarios(self) -> int: ...
+    def export(
+        self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> bytes: ...
+
+class CompiledRobustReadout:
+    def json(self) -> str: ...
+
+class CompiledRobustDecision:
+    @property
+    def program_identity(self) -> str: ...
+    @property
+    def source_identity(self) -> str: ...
+    def describe(self) -> str: ...
+    def evaluate(
+        self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> CompiledRobustReadout: ...
+    def export(
+        self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> bytes: ...
+    def consume(
+        self,
+        artifact: bytes,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> CompiledRobustReadout: ...
+
+def joint_scenario_carrier_for_study(
+    study: PreparedAnalysis,
+    declaration_json: str,
+    claims_json: str,
+    sources: list[JointDistributionArtifact | None],
+    joint_structure: str,
+    exhaustive: bool,
+    *,
+    search_stop: str | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[JointScenarioCarrier | None, str | None]: ...
+def consume_joint_scenario_carrier(
+    artifact: bytes,
+    expected_identity: str,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> JointScenarioCarrier: ...
+def compile_robust_for_study(
+    study: PreparedAnalysis,
+    declaration_json: str,
+    source: JointScenarioCarrier,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[CompiledRobustDecision | None, str | None]: ...

@@ -22788,3 +22788,17 @@ crate = "antecedent"
 cargo_target = "prepared_adjusted_retarget_calibration"
 path = "crates/antecedent/tests/prepared_adjusted_retarget_calibration.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-robust-decisions"
+crate = "antecedent"
+cargo_target = "compiled_robust_decisions"
+path = "crates/antecedent/tests/compiled_robust_decisions.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "python-compiled-robust"
+crate = "python"
+cargo_target = "pytest"
+path = "python/tests/test_compiled_robust.py"
+gates = ["inventory", "named"]

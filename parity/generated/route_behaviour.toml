@@ -1207,6 +1207,7 @@ routes = [
 id = "decision.functionals"
 status = "supported"
 refusals = [
+  { code = "route_not_supported", detail = "decision_evaluation.analytic_law_unsupported" },
   { code = "joint_law_required", detail = "decision_evaluation.joint_law_required" },
   { code = "quantity_semantics_mismatch", detail = "decision_evaluation.quantity_not_found" },
   { code = "quantity_semantics_mismatch", detail = "decision_evaluation.unsupported_coordinate" },
@@ -7688,4 +7689,18 @@ refusals = [
 routes = [
   { route = "antecedent.PreparedStudy.retarget.adjusted_fit", stage = "evaluate", status = "supported", claim = "interval" },
   { route = "antecedent.python.prepared.retarget.adjusted_fit", stage = "evaluate", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "decision.compiled_joint_scenarios"
+status = "supported"
+refusals = [
+  { code = "decision_contract_unsatisfied", detail = "decision_joint_scenarios.carrier" },
+]
+routes = [
+  { route = "antecedent.PreparedStudy.compile_for_robust_decision", stage = "representation", status = "supported", claim = "none" },
+  { route = "antecedent.CompiledRobustDecision.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.CompiledRobustDecision.consume", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.python.decision_robust.compile_robust_decision", stage = "representation", status = "supported", claim = "none" },
+  { route = "antecedent.python.decision_robust.consume_compiled_robust_decision", stage = "consume", status = "supported", claim = "none" },
 ]

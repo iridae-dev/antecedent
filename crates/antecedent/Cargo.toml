@@ -1505,3 +1505,7 @@ path = "tests/prepared_adjusted_retarget.rs"
 [[test]]
 name = "prepared_adjusted_retarget_calibration"
 path = "tests/prepared_adjusted_retarget_calibration.rs"
+
+[[test]]
+name = "compiled_robust_decisions"
+path = "tests/compiled_robust_decisions.rs"

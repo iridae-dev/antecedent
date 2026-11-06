@@ -1203,3 +1203,9 @@ impl RobustResultArtifact {
         })
     }
 }
+
+#[path = "decision_robust_artifact/scenario_carrier.rs"]
+mod scenario_carrier;
+pub use scenario_carrier::{
+    JointScenarioCarrier, MAX_COMPILED_ROBUST_ITEMS, MAX_SCENARIO_CARRIER_BYTES, ScenarioDecision,
+};

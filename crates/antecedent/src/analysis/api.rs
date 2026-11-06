@@ -176,3 +176,10 @@ pub use super::{
     JOINT_INTERVAL_ARTIFACT_VERSION, JointIntervalConsumeLimits, JointIntervalConsumption,
     JointIntervalNumerics, JointSensitivityIntervalArtifact,
 };
+
+pub use super::robust_decision::{
+    CompiledRobustDecision, JointScenarioCarrier, MAX_COMPILED_ROBUST_ITEMS,
+    MAX_SCENARIO_CARRIER_BYTES,
+};
+
+pub use super::robust_decision::CompiledRobustResult;

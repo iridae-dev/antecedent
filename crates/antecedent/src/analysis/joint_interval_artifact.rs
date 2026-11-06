@@ -19,7 +19,7 @@ const DOMAIN: &str = "antecedent.joint_sensitivity.interval.v1";
 
 fn refused(detail: &str, message: &str) -> IoError {
     IoError::Refused {
-        code: if detail == "joint_sensitivity.consumer_limits" {
+        code: if detail == antecedent_core::reason_details::joint_sensitivity::CONSUMER_LIMITS {
             reason_code!("route_not_supported")
         } else {
             reason_code!("transport_not_certified")
@@ -31,7 +31,7 @@ fn refused(detail: &str, message: &str) -> IoError {
 fn admission_error(error: antecedent_core::execution::AdmissionError) -> IoError {
     IoError::Refused {
         code: reason_code!("transport_budget_cancel"),
-        message: format!("joint_sensitivity.budget: {error}"),
+        message: format!("{}: {error}", antecedent_core::reason_details::joint_sensitivity::BUDGET),
     }
 }
 
@@ -145,7 +145,13 @@ impl JointSensitivityIntervalArtifact {
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
         if !(2..=2000).contains(&replicates) || !level.is_finite() || level <= 0.0 || level >= 1.0 {
-            return Err(IoError::Refused {code:reason_code!("route_not_supported"),message:"joint_sensitivity.bounds_exceeded: interval requires 2..=2000 replicates and a level strictly inside (0,1)".into()});
+            return Err(IoError::Refused {
+                code: reason_code!("route_not_supported"),
+                message: format!(
+                    "{}: interval requires 2..=2000 replicates and a level strictly inside (0,1)",
+                    antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED
+                ),
+            });
         }
         let range = JointSensitivityArtifactWire::checked(baseline, spec, ctx)?;
         let mut seeded = ctx.clone();
@@ -224,7 +230,7 @@ impl JointSensitivityIntervalArtifact {
     ) -> Result<JointIntervalConsumption, IoError> {
         if bytes.len() > limits.max_bytes {
             return Err(refused(
-                "joint_sensitivity.consumer_limits",
+                antecedent_core::reason_details::joint_sensitivity::CONSUMER_LIMITS,
                 "interval exceeds maximum encoded bytes",
             ));
         }
@@ -232,7 +238,7 @@ impl JointSensitivityIntervalArtifact {
             ctx.acquire_admission_product(0, bytes.len() as u64, 3).map_err(admission_error)?;
         let body = bytes.strip_prefix(MAGIC).ok_or_else(|| {
             refused(
-                "joint_sensitivity.replay_mismatch",
+                antecedent_core::reason_details::joint_sensitivity::REPLAY_MISMATCH,
                 "not a separately framed interval artifact",
             )
         })?;
@@ -245,7 +251,7 @@ impl JointSensitivityIntervalArtifact {
         })?;
         if artifact.procedure != PROCEDURE || artifact.rng != RNG {
             return Err(refused(
-                "joint_sensitivity.replay_mismatch",
+                antecedent_core::reason_details::joint_sensitivity::REPLAY_MISMATCH,
                 "unsupported interval procedure or RNG version",
             ));
         }
@@ -253,13 +259,13 @@ impl JointSensitivityIntervalArtifact {
             || artifact.numerical.counts[0] > 2000
         {
             return Err(refused(
-                "joint_sensitivity.consumer_limits",
+                antecedent_core::reason_details::joint_sensitivity::CONSUMER_LIMITS,
                 "stored bootstrap count exceeds consumer maximum",
             ));
         }
         if artifact.computed_digest()? != artifact.digest {
             return Err(refused(
-                "joint_sensitivity.premises_mismatch",
+                antecedent_core::reason_details::joint_sensitivity::PREMISES_MISMATCH,
                 "interval content digest differs",
             ));
         }
@@ -282,7 +288,7 @@ impl JointSensitivityIntervalArtifact {
         )?;
         if to_cbor(&JointIntervalNumerics::from(&interval))? != to_cbor(&artifact.numerical)? {
             return Err(refused(
-                "joint_sensitivity.replay_mismatch",
+                antecedent_core::reason_details::joint_sensitivity::REPLAY_MISMATCH,
                 "endpoint bootstrap numbers or replicate counts differ",
             ));
         }

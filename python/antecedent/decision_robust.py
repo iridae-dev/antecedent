@@ -52,6 +52,15 @@ from ._artifact_protocol import (
     container_bytes,
 )
 from ._columns import coerce_fields
+from ._compiled_robust import (
+    CompiledRobustDecision,
+    CompiledRobustResult,
+    JointScenarioCarrier,
+    compile_robust_decision,
+    consume_compiled_robust_decision,
+    consume_joint_scenarios,
+    joint_scenario_carrier,
+)
 from ._native import admissible_contract_normalize as _normalize
 from ._native import evaluate_identified_set_decision as _evaluate_sets
 from ._native import evaluate_robust_decision as _evaluate_robust
@@ -1202,4 +1211,15 @@ __all__ = [
     "replay",
     "robust",
     "weighted_atoms",
+]
+
+
+__all__ += [
+    "JointScenarioCarrier",
+    "CompiledRobustDecision",
+    "CompiledRobustResult",
+    "joint_scenario_carrier",
+    "consume_joint_scenarios",
+    "compile_robust_decision",
+    "consume_compiled_robust_decision",
 ]

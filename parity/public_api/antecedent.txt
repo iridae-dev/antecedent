@@ -292,6 +292,7 @@ impl core::clone::Clone for antecedent::ColumnWeight
 impl core::clone::Clone for antecedent::CompileCause
 impl core::clone::Clone for antecedent::CompileFailure
 impl core::clone::Clone for antecedent::CompiledExecution
+impl core::clone::Clone for antecedent::CompiledRobustDecision
 impl core::clone::Clone for antecedent::CompletedBatch
 impl core::clone::Clone for antecedent::ComputeBudget
 impl core::clone::Clone for antecedent::ConstituentRole
@@ -2252,6 +2253,7 @@ impl core::fmt::Debug for antecedent::ColumnWeight
 impl core::fmt::Debug for antecedent::CompileCause
 impl core::fmt::Debug for antecedent::CompileFailure
 impl core::fmt::Debug for antecedent::CompiledExecution
+impl core::fmt::Debug for antecedent::CompiledRobustDecision
 impl core::fmt::Debug for antecedent::CompletedBatch
 impl core::fmt::Debug for antecedent::ComputeBudget
 impl core::fmt::Debug for antecedent::ConstituentRole
@@ -3498,6 +3500,7 @@ impl core::marker::Freeze for antecedent::ColumnWeight [auto]
 impl core::marker::Freeze for antecedent::CompileCause [auto]
 impl core::marker::Freeze for antecedent::CompileFailure [auto]
 impl core::marker::Freeze for antecedent::CompiledExecution [auto]
+impl core::marker::Freeze for antecedent::CompiledRobustDecision [auto]
 impl core::marker::Freeze for antecedent::CompletedBatch [auto]
 impl core::marker::Freeze for antecedent::ComputeBudget [auto]
 impl core::marker::Freeze for antecedent::ConstituentRole [auto]
@@ -4467,6 +4470,7 @@ impl core::marker::Send for antecedent::ColumnWeight [auto]
 impl core::marker::Send for antecedent::CompileCause [auto]
 impl core::marker::Send for antecedent::CompileFailure [auto]
 impl core::marker::Send for antecedent::CompiledExecution [auto]
+impl core::marker::Send for antecedent::CompiledRobustDecision [auto]
 impl core::marker::Send for antecedent::CompletedBatch [auto]
 impl core::marker::Send for antecedent::ComputeBudget [auto]
 impl core::marker::Send for antecedent::ConstituentRole [auto]
@@ -6012,6 +6016,7 @@ impl core::marker::Sync for antecedent::ColumnWeight [auto]
 impl core::marker::Sync for antecedent::CompileCause [auto]
 impl core::marker::Sync for antecedent::CompileFailure [auto]
 impl core::marker::Sync for antecedent::CompiledExecution [auto]
+impl core::marker::Sync for antecedent::CompiledRobustDecision [auto]
 impl core::marker::Sync for antecedent::CompletedBatch [auto]
 impl core::marker::Sync for antecedent::ComputeBudget [auto]
 impl core::marker::Sync for antecedent::ConstituentRole [auto]
@@ -6992,6 +6997,7 @@ impl core::marker::Unpin for antecedent::ColumnWeight [auto]
 impl core::marker::Unpin for antecedent::CompileCause [auto]
 impl core::marker::Unpin for antecedent::CompileFailure [auto]
 impl core::marker::Unpin for antecedent::CompiledExecution [auto]
+impl core::marker::Unpin for antecedent::CompiledRobustDecision [auto]
 impl core::marker::Unpin for antecedent::CompletedBatch [auto]
 impl core::marker::Unpin for antecedent::ComputeBudget [auto]
 impl core::marker::Unpin for antecedent::ConstituentRole [auto]
@@ -7977,6 +7983,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ColumnPriority [aut
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ColumnWeight [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CompileCause [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CompileFailure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CompiledRobustDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ComputeBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConstituentRole [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConsumedAdaptiveResult [auto]
@@ -8906,6 +8913,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::ColumnPriority [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ColumnWeight [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::CompileCause [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::CompileFailure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::CompiledRobustDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ComputeBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ConstituentRole [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ConsumedAdaptiveResult [auto]
@@ -13737,6 +13745,14 @@ pub fn <antecedent::CompiledExecution>::fn lowered_identity(&self) -> core::opti
 pub fn <antecedent::CompiledExecution>::fn prepared(&self) -> &antecedent::PreparedStudy
 pub fn <antecedent::CompiledExecution>::fn result(&self) -> &antecedent::StudyResult
 pub fn <antecedent::CompiledExecution>::fn run(study: &antecedent::Study, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::CausalError>
+pub fn <antecedent::CompiledRobustDecision>::const fn standing(&self) -> &'static str
+pub fn <antecedent::CompiledRobustDecision>::fn consume(&self, bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_robust_artifact::scenario_carrier::ScenarioDecision, antecedent::CausalError>
+pub fn <antecedent::CompiledRobustDecision>::fn decision_contract(&self) -> &antecedent::BoundDecisionContract
+pub fn <antecedent::CompiledRobustDecision>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_robust_artifact::scenario_carrier::ScenarioDecision, antecedent::CausalError>
+pub fn <antecedent::CompiledRobustDecision>::fn export(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::CausalError>
+pub fn <antecedent::CompiledRobustDecision>::fn plan(&self) -> &antecedent::planner::PhysicalExecutionPlan
+pub fn <antecedent::CompiledRobustDecision>::fn program_identity(&self) -> &str
+pub fn <antecedent::CompiledRobustDecision>::fn source(&self) -> &antecedent_design::decision_robust_artifact::scenario_carrier::JointScenarioCarrier
 pub fn <antecedent::CompletedBatch>::fn bibliography(&self) -> alloc::vec::Vec<antecedent_io_core::method_provenance::CitationWire>
 pub fn <antecedent::CompletedBatch>::fn bound_table(&self) -> core::result::Result<&antecedent_data::dataset::TabularData, antecedent::CausalError>
 pub fn <antecedent::CompletedBatch>::fn into_parts(self) -> (antecedent::PreparedBatch, alloc::vec::Vec<alloc::sync::Arc<antecedent::StudyResult>>, antecedent::BatchScores)
@@ -14290,6 +14306,7 @@ pub fn <antecedent::PreparedStudy>::fn apply_retarget(&self, preview: &anteceden
 pub fn <antecedent::PreparedStudy>::fn batch_share_identity(&self) -> core::result::Result<core::option::Option<antecedent_core::identity::SemanticDigest>, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn candidate_templates(&self, sensitivity: core::option::Option<&antecedent_design::identification_repair::SensitivityFinding>) -> core::result::Result<antecedent_design::candidate_generation::CandidateGeneration, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>
 pub fn <antecedent::PreparedStudy>::fn capability(&self) -> core::result::Result<antecedent_contract::capability::OperationReport, antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn compile_for_robust_decision(&self, decision: antecedent::BoundDecisionContract, source: antecedent_design::decision_robust_artifact::scenario_carrier::JointScenarioCarrier, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CompiledRobustDecision, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn compile_joint_response(&self, target: &antecedent_core::scientific_target::identity::ScientificTarget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedJointResponse, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn compiled_linear_program(&self) -> core::option::Option<&antecedent::analysis::compiled_linear::CompiledLinearProgram>
 pub fn <antecedent::PreparedStudy>::fn contract(&self) -> core::result::Result<antecedent::CausalContract, antecedent::CausalError>
@@ -14530,6 +14547,7 @@ pub fn <antecedent::Study>::fn compile(&self, ctx: &antecedent_core::execution::
 pub fn <antecedent::Study>::fn compile_for_decision<A, O>(&self, problem: &antecedent_design::decision::DecisionProblem<A, O>, request: &antecedent::analysis::DecisionCompileRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_for_evsi<A, O>(&self, problem: &antecedent_design::decision::DecisionProblem<A, O>, request: &antecedent_design::evsi::EvsiRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_for_planning(&self, request: &antecedent_design::planning::request::PlanningRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::planning::PlanningPlan, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_for_robust_decision(&self, decision: antecedent::BoundDecisionContract, source: antecedent_design::decision_robust_artifact::scenario_carrier::JointScenarioCarrier, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CompiledRobustDecision, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_logical(&self) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_logical_within(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
 pub fn <antecedent::Study>::fn events(data: &antecedent_data::event::EventData, align_interval_ns: u64) -> core::result::Result<antecedent::StudyBuilder, antecedent::CausalError>
@@ -16100,6 +16118,7 @@ pub fn <antecedent::planner::lowered::DecisionProgram>::const fn constraints(&se
 pub fn <antecedent::planner::lowered::DecisionProgram>::const fn information_value(&self) -> core::option::Option<&antecedent::planner::lowered::EvsiProgram>
 pub fn <antecedent::planner::lowered::DecisionProgram>::const fn utility(&self) -> &UtilityForm
 pub fn <antecedent::planner::lowered::DecisionProgram>::fn contract_identity(&self) -> core::option::Option<&str>
+pub fn <antecedent::planner::lowered::DecisionProgram>::fn scenario_source_identity(&self) -> core::option::Option<&str>
 pub fn <antecedent::planner::lowered::DecisionProgram>::fn utility_unit(&self) -> core::option::Option<&str>
 pub fn <antecedent::planner::lowered::DesignShape>::const fn columns(&self) -> core::option::Option<u64>
 pub fn <antecedent::planner::lowered::DesignShape>::const fn direct(&self) -> bool
@@ -16917,6 +16936,7 @@ pub mod antecedent::analysis::recipe_glm
 pub mod antecedent::analysis::recovery_chain
 pub mod antecedent::analysis::repair
 pub mod antecedent::analysis::repeated_measures_posterior_report
+pub mod antecedent::analysis::robust_decision
 pub mod antecedent::analysis::sample_split_analysis
 pub mod antecedent::analysis::sample_split_effect
 pub mod antecedent::analysis::sample_split_parent_set_effect
@@ -17246,6 +17266,8 @@ pub struct antecedent::CompileFailure
 pub struct antecedent::CompileFailure has private fields
 pub struct antecedent::CompiledExecution
 pub struct antecedent::CompiledExecution has private fields
+pub struct antecedent::CompiledRobustDecision
+pub struct antecedent::CompiledRobustDecision has private fields
 pub struct antecedent::CompletedBatch
 pub struct antecedent::CompletedBatch has private fields
 pub struct antecedent::ComputeBudget
@@ -18276,6 +18298,7 @@ pub use antecedent::CausalQuery = query::CausalQuery
 pub use antecedent::ChangeAttributionQuery = query::ChangeAttributionQuery
 pub use antecedent::ClaimProbability = super::ClaimProbability
 pub use antecedent::ClaimProfile = super::ClaimProfile
+pub use antecedent::CompiledRobustResult = super::robust_decision::CompiledRobustResult
 pub use antecedent::ConditionalEffectQuery = query::ConditionalEffectQuery
 pub use antecedent::ContinuousDomain = query::ContinuousDomain
 pub use antecedent::CounterfactualQuery = query::CounterfactualQuery
@@ -18314,8 +18337,11 @@ pub use antecedent::IvBoundsEstimate = antecedent_estimate::IvBoundsEstimate
 pub use antecedent::IvBoundsInterval = antecedent_estimate::IvBoundsInterval
 pub use antecedent::IvBoundsPosterior = antecedent_estimate::IvBoundsPosterior
 pub use antecedent::IvBoundsQuery = query::IvBoundsQuery
+pub use antecedent::JointScenarioCarrier = super::robust_decision::JointScenarioCarrier
 pub use antecedent::LocalPolynomialRatioQuery = query::LocalPolynomialRatioQuery
 pub use antecedent::LongitudinalRegimeQuery = query::LongitudinalRegimeQuery
+pub use antecedent::MAX_COMPILED_ROBUST_ITEMS = super::robust_decision::MAX_COMPILED_ROBUST_ITEMS
+pub use antecedent::MAX_SCENARIO_CARRIER_BYTES = super::robust_decision::MAX_SCENARIO_CARRIER_BYTES
 pub use antecedent::MechanismChangeQuery = query::MechanismChangeQuery
 pub use antecedent::MediationContrast = query::MediationContrast
 pub use antecedent::MediationQuery = query::MediationQuery
@@ -18797,6 +18823,8 @@ pub use antecedent::analysis::api::ColumnMissingness = antecedent::ColumnMissing
 pub use antecedent::analysis::api::ColumnPriority = antecedent::ColumnPriority
 pub use antecedent::analysis::api::ColumnWeight = antecedent::ColumnWeight
 pub use antecedent::analysis::api::CompiledExecution = antecedent::CompiledExecution
+pub use antecedent::analysis::api::CompiledRobustDecision = antecedent::CompiledRobustDecision
+pub use antecedent::analysis::api::CompiledRobustResult = super::robust_decision::CompiledRobustResult
 pub use antecedent::analysis::api::CompletedBatch = antecedent::CompletedBatch
 pub use antecedent::analysis::api::ComputeBudget = antecedent::ComputeBudget
 pub use antecedent::analysis::api::ConstituentRole = antecedent::ConstituentRole
@@ -18898,6 +18926,7 @@ pub use antecedent::analysis::api::JointProvenanceWire = antecedent::JointProven
 pub use antecedent::analysis::api::JointReceiptWire = antecedent::JointReceiptWire
 pub use antecedent::analysis::api::JointResponseResult = antecedent::JointResponseResult
 pub use antecedent::analysis::api::JointSamplingWire = antecedent::JointSamplingWire
+pub use antecedent::analysis::api::JointScenarioCarrier = super::robust_decision::JointScenarioCarrier
 pub use antecedent::analysis::api::JointSensitivityArtifactWire = antecedent::JointSensitivityArtifactWire
 pub use antecedent::analysis::api::JointSensitivityBodyWire = antecedent::JointSensitivityBodyWire
 pub use antecedent::analysis::api::JointSensitivityConsumeLimits = antecedent::JointSensitivityConsumeLimits
@@ -18910,6 +18939,8 @@ pub use antecedent::analysis::api::LearnedTrialResult = antecedent::LearnedTrial
 pub use antecedent::analysis::api::LearnedTrialState = antecedent::LearnedTrialState
 pub use antecedent::analysis::api::LedgerExport = antecedent::LedgerExport
 pub use antecedent::analysis::api::LedgerRefresh = antecedent::LedgerRefresh
+pub use antecedent::analysis::api::MAX_COMPILED_ROBUST_ITEMS = super::robust_decision::MAX_COMPILED_ROBUST_ITEMS
+pub use antecedent::analysis::api::MAX_SCENARIO_CARRIER_BYTES = super::robust_decision::MAX_SCENARIO_CARRIER_BYTES
 pub use antecedent::analysis::api::MeasurementAnalysisBinding = antecedent::MeasurementAnalysisBinding
 pub use antecedent::analysis::api::MeasurementDetail = antecedent::MeasurementDetail
 pub use antecedent::analysis::api::MeasurementEstimate = antecedent::MeasurementEstimate
@@ -20252,6 +20283,11 @@ pub use antecedent::analysis::repair::identification_failure_obligations = antec
 pub use antecedent::analysis::repair::latent_expansion = antecedent_design::latent_expansion
 pub use antecedent::analysis::replay_decision = antecedent::analysis::composition_verification::replay_decision
 pub use antecedent::analysis::retained_source_from_artifact = antecedent::analysis::api::retained_source_from_artifact
+pub use antecedent::analysis::robust_decision::CompiledRobustDecision = antecedent::CompiledRobustDecision
+pub use antecedent::analysis::robust_decision::CompiledRobustResult = antecedent_design::decision_robust_artifact::ScenarioDecision
+pub use antecedent::analysis::robust_decision::JointScenarioCarrier = antecedent_design::decision_robust_artifact::JointScenarioCarrier
+pub use antecedent::analysis::robust_decision::MAX_COMPILED_ROBUST_ITEMS = antecedent_design::decision_robust_artifact::MAX_COMPILED_ROBUST_ITEMS
+pub use antecedent::analysis::robust_decision::MAX_SCENARIO_CARRIER_BYTES = antecedent_design::decision_robust_artifact::MAX_SCENARIO_CARRIER_BYTES
 pub use antecedent::analysis::route_missing_support = antecedent::analysis::api::route_missing_support
 pub use antecedent::analysis::sample_split_analysis::SampleSplitReceipt = antecedent_discovery::selective::reuse::SampleSplitReceipt
 pub use antecedent::analysis::sample_split_analysis::SplitRows = antecedent_discovery::selective::reuse::SplitRows
@@ -23923,16 +23959,19 @@ pub variant antecedent::planner::RouteFamily::StaticEffect
 pub variant antecedent::planner::RouteFamily::StaticResponse
 pub variant antecedent::planner::RouteFamily::Structural
 pub variant antecedent::planner::RouteFamily::Temporal
+pub variant antecedent::planner::lowered::CarrierDemand::IdentifiedSet
 pub variant antecedent::planner::lowered::CarrierDemand::Mean
 pub variant antecedent::planner::lowered::CarrierDemand::OutcomeLaw
 pub variant antecedent::planner::lowered::CarrierDemand::ParameterPosterior
 pub variant antecedent::planner::lowered::Composition::AtomMixture { atoms: usize }
 pub variant antecedent::planner::lowered::Composition::Chained { stages: usize }
 pub variant antecedent::planner::lowered::Composition::Pooled { sources: usize }
+pub variant antecedent::planner::lowered::Composition::ScenarioSet { scenarios: usize }
 pub variant antecedent::planner::lowered::Composition::Single
 pub variant antecedent::planner::lowered::Composition::Transported
 pub variant antecedent::planner::lowered::EvidenceRole::ChainSource
 pub variant antecedent::planner::lowered::EvidenceRole::DiscoveredStructure
+pub variant antecedent::planner::lowered::EvidenceRole::JointScenarios
 pub variant antecedent::planner::lowered::EvidenceRole::Observations
 pub variant antecedent::planner::lowered::EvidenceRole::PriorArtifact
 pub variant antecedent::planner::lowered::EvidenceRole::TransportSource

@@ -249,6 +249,10 @@ markers below and compares it. Prose outside those markers is not read.
 | decision.sensitivity_composition | max_scenario_node_evaluations | 268435456 | `crates/antecedent-io-core/src/sensitivity_artifact.rs` |
 | composition.verifiers | max_family_covariance_dim | 1024 | `crates/antecedent-io-core/src/analysis_result_artifact/validate.rs` |
 | composition.verifiers | max_response_grid_points | 100000 | `crates/antecedent-io-core/src/contract_section/replay.rs` |
+| decision.compiled_joint_scenarios | max_scenarios | 256 | `crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs` |
+| decision.compiled_joint_scenarios | max_actions | 256 | `crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs` |
+| decision.compiled_joint_scenarios | max_constraints | 256 | `crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs` |
+| decision.compiled_joint_scenarios | max_source_bytes | 67108864 | `crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

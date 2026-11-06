@@ -769,6 +769,10 @@ class decision_evidence:  # noqa: N801
     UNSUPPORTED_ASSIGNMENT_DESIGN: Final = "decision_evidence.unsupported_assignment_design"
 
 
+class decision_joint_scenarios:  # noqa: N801
+    CARRIER: Final = "decision_joint_scenarios.carrier"
+
+
 class decision_posterior:  # noqa: N801
     BAND_NOT_CONSTRUCTED: Final = "decision_posterior.band_not_constructed"
     EMPTY_LAW: Final = "decision_posterior.empty_law"
@@ -4036,6 +4040,7 @@ ALL: Final[tuple[str, ...]] = (
     "decision_evidence.resource_limit",
     "decision_evidence.too_many_unknowns",
     "decision_evidence.unsupported_assignment_design",
+    "decision_joint_scenarios.carrier",
     "decision_posterior.band_not_constructed",
     "decision_posterior.empty_law",
     "decision_posterior.external_power_prior",
@@ -6762,6 +6767,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "decision_evidence.resource_limit": (),
     "decision_evidence.too_many_unknowns": (),
     "decision_evidence.unsupported_assignment_design": (),
+    "decision_joint_scenarios.carrier": ("decision_contract_unsatisfied",),
     "decision_posterior.band_not_constructed": ("route_not_supported",),
     "decision_posterior.empty_law": ("invalid_argument",),
     "decision_posterior.external_power_prior": ("route_not_supported",),

@@ -51,6 +51,7 @@ not (
   (package(=antecedent) and binary(=class_graph_posterior_derivative_known_truth) and test(/^(?:class_graph_posterior_derivative_planted_off_support_point_is_detected|class_graph_posterior_derivative_routes_and_refuter_states_known_truth)$/)) or
   (package(=antecedent) and binary(=class_posterior_known_truth) and test(/^(?:class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell|class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell|class_graph_posterior_responses_match_the_closed_form_curves|dag_graph_posterior_intervention_response_matches_the_closed_form_levels_under_refuters)$/)) or
   (package(=antecedent) and binary(=codetermined_bayesian_response_truth) and test(=codetermined_bayesian_joint_level_matches_the_closed_form_additive_law)) or
+  (package(=antecedent) and binary(=compiled_robust_decisions) and test(=joint_dependence_and_maximin_match_independent_finite_enumeration)) or
   (package(=antecedent) and binary(=conditional_effect_admg_bayesian_interval) and test(=conditional_effect_admg_bayesian_cells_execute_with_a_posterior_quantile_interval)) or
   (package(=antecedent) and binary(=conditional_effect_admg_validation_truth) and test(/^(?:conditional_effect_admg_explicit_and_accepted_match_the_stratified_difference|conditional_effect_admg_graph_posterior_states_its_mass_and_matches_the_stratified_difference)$/)) or
   (package(=antecedent) and binary(=counterfactual_accepted_known_truth) and test(=accepted_counterfactual_matches_the_closed_form_mean_effect)) or

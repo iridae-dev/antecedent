@@ -472,6 +472,8 @@ def _load(
                 b"ANTBOUNDPRIOR1",
                 b"ANTSTALEBASE1",
                 b"ANTE-JOINT-INTERVAL-1",
+                b"ANTE-JOINT-SCENARIOS-1",
+                b"ANTE-COMPILED-ROBUST-1",
             )
         )
         or encoded.startswith(

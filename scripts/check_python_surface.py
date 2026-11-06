@@ -44,7 +44,7 @@ STATUSES = {"bound", "internal", "missing", "unverified"}
 KINDS = {"fn", "type"}
 
 # A prepared or session type is an entry point of its own; builders and result types are not.
-TYPE_SUFFIX = re.compile(r"::(Prepared[A-Za-z]*|[A-Za-z]*Session|[A-Za-z]*Study)$")
+TYPE_SUFFIX = re.compile(r"::(Prepared[A-Za-z]*|[A-Za-z]*Session|[A-Za-z]*Study|CompiledRobustDecision)$")
 
 
 def snapshot_entries(text: str) -> dict[str, str]:
@@ -245,6 +245,7 @@ def self_test() -> int:
         "pub struct antecedent::PreparedThing\n"
         "pub struct antecedent::Plain\n"
     )
+    assert snapshot_entries("pub struct antecedent::CompiledRobustDecision\n") == {"antecedent::CompiledRobustDecision": "type"}
     entries = snapshot_entries(snapshot)
     assert entries == {
         "antecedent::analysis::tier_diagnostics::read_tier_diagnostics": "fn",

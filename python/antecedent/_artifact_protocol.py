@@ -26,6 +26,7 @@ _PERIOD_ARTIFACT_KINDS = frozenset(
 
 
 if TYPE_CHECKING:
+    from ._compiled_robust import CompiledRobustDecision
     from .recalc_composite import CompositeSession
 
 
@@ -101,10 +102,18 @@ class LoadContext:
     actual_claims: Mapping[str, Any] | None = None
     execution: Execution | None = None
     composite_source: CompositeSession | None = None
+    robust_source: CompiledRobustDecision | None = None
 
     def __post_init__(self) -> None:
         from .execution import Execution
 
+        if self.robust_source is not None:
+            from ._compiled_robust import CompiledRobustDecision
+
+            if not isinstance(self.robust_source, CompiledRobustDecision):
+                raise CausalTypeError(
+                    "LoadContext.robust_source must be an independently compiled CompiledRobustDecision or None"
+                )
         if self.composite_source is not None:
             from .recalc_composite import CompositeSession
 
@@ -244,6 +253,18 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
     from . import _native
 
     data = container_bytes(value)
+    for magic, kind in (
+        (b"ANTE-JOINT-SCENARIOS-1", "joint_scenarios_v1"),
+        (b"ANTE-COMPILED-ROBUST-1", "compiled_robust_decision_v1"),
+    ):
+        if data.startswith(magic):
+            return ArtifactInspection(
+                kind,
+                {"artifact_kind": kind, "format_version": 1},
+                {},
+                ArtifactAcceptance("unavailable", False, False, False),
+                data,
+            )
     if data.startswith(b"ANTE-JOINT-INTERVAL-1"):
         return ArtifactInspection(
             "joint_sensitivity_interval_v1",
@@ -445,6 +466,8 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
     "causal_posterior": ("_posterior_artifact", "consume_posterior"),
     "ANTECEDENT-PERIOD-REFRESH": ("transport.advanced", "consume_period_refresh_artifact"),
     "ANTECEDENT-PERIOD-REFRESH-SUMMARY": ("transport.advanced", "PeriodRefreshSummary.consume"),
+    "joint_scenarios_v1": ("decision_robust", "consume_joint_scenarios"),
+    "compiled_robust_decision_v1": ("decision_robust", "consume_compiled_robust_decision"),
     "joint_sensitivity_interval_v1": ("transport.advanced", "consume_joint_sensitivity_interval"),
     "policy_program_v1": ("intervention_programs", "consume_policy_program"),
     "cyclic_equilibrium": ("cyclic", "consume_artifact"),
@@ -606,6 +629,14 @@ def load_scientific(
             if unknown:
                 raise CausalValueError(f"unknown expectation fields: {sorted(unknown)}")
             kwargs.update(expected)
+    if view.kind == "compiled_robust_decision_v1":
+        if context is None or context.robust_source is None:
+            raise CausalValueError(
+                "compiled robust results require context=LoadContext(robust_source=an_independently_compiled_owner)"
+            )
+        kwargs["compiled"] = context.robust_source
+    elif context is not None and context.robust_source is not None:
+        raise CausalValueError(f"{view.kind} does not consume a compiled robust source context")
     if context is not None:
         if context.composite_source is not None:
             if view.kind != "conditional_study_ranking_v1":

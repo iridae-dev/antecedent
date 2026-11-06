@@ -504,3 +504,10 @@ evidence_assertion = "interval_artifact_matches_frozen_independent_vertex_refere
 kind = "known_truth"
 fixtures = ["crates/antecedent-validate/tests/oracle_data/joint_uncertainty_reference.json"]
 why = "Persisted and independently consumed interval against the saved rational exhaustive-vertex/type-7 reference at the frozen source count law and seed. Registered and owed after freeze."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/compiled_robust_decisions.rs"
+evidence_assertion = "joint_dependence_and_maximin_match_independent_finite_enumeration"
+kind = "known_truth"
+fixtures = []
+why = "Independent enumeration of equal and opposite Bernoulli joint states with identical marginals, nonlinear product utility and maximin/invariant decisions. Registered and owed after freeze."

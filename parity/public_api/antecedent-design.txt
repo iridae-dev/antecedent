@@ -1,6 +1,8 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[doc(hidden)] pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn admit(self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+#[doc(hidden)] pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn result_json(&self, result: &antecedent_design::decision_robust_artifact::ScenarioDecision) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 #[doc(hidden)] pub fn <antecedent_design::source_evidence::SourceEvidence>::fn original_consumption(&self) -> core::result::Result<&antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_design::source_evidence::SourceEvidenceError>
 #[doc(hidden)] pub fn antecedent_design::composition_verifiers::projection_node_description(kind: antecedent_design::composition_bundle::NodeKind, artifact: &antecedent_design::source_projection_artifact::SourceProjectionArtifact, upstream: &[antecedent_design::composition_bundle::UpstreamNode<'_>]) -> core::result::Result<antecedent_design::composition_bundle::VerifiedNode, antecedent_design::composition_bundle::NodeFailure>
 #[doc(hidden)] pub fn antecedent_design::composition_verifiers::register_standard_verifiers(consumer: antecedent_design::composition_bundle::BundleConsumer) -> antecedent_design::composition_bundle::BundleConsumer
@@ -495,8 +497,10 @@ impl core::clone::Clone for antecedent_design::decision_reliability::WithinStrea
 impl core::clone::Clone for antecedent_design::decision_robust_artifact::AdmissibleContractArtifact
 impl core::clone::Clone for antecedent_design::decision_robust_artifact::ExternalCallbackReceipt
 impl core::clone::Clone for antecedent_design::decision_robust_artifact::ExternalTrustLimit
+impl core::clone::Clone for antecedent_design::decision_robust_artifact::JointScenarioCarrier
 impl core::clone::Clone for antecedent_design::decision_robust_artifact::ReplayReceipt
 impl core::clone::Clone for antecedent_design::decision_robust_artifact::RobustResultArtifact
+impl core::clone::Clone for antecedent_design::decision_robust_artifact::ScenarioDecision
 impl core::clone::Clone for antecedent_design::decision_robustness::ActionRobustness
 impl core::clone::Clone for antecedent_design::decision_robustness::AtomSupport
 impl core::clone::Clone for antecedent_design::decision_robustness::ClaimProfile
@@ -2402,8 +2406,10 @@ impl core::fmt::Debug for antecedent_design::decision_reliability::WithinStreamD
 impl core::fmt::Debug for antecedent_design::decision_robust_artifact::AdmissibleContractArtifact
 impl core::fmt::Debug for antecedent_design::decision_robust_artifact::ExternalCallbackReceipt
 impl core::fmt::Debug for antecedent_design::decision_robust_artifact::ExternalTrustLimit
+impl core::fmt::Debug for antecedent_design::decision_robust_artifact::JointScenarioCarrier
 impl core::fmt::Debug for antecedent_design::decision_robust_artifact::ReplayReceipt
 impl core::fmt::Debug for antecedent_design::decision_robust_artifact::RobustResultArtifact
+impl core::fmt::Debug for antecedent_design::decision_robust_artifact::ScenarioDecision
 impl core::fmt::Debug for antecedent_design::decision_robustness::ActionRobustness
 impl core::fmt::Debug for antecedent_design::decision_robustness::AtomSupport
 impl core::fmt::Debug for antecedent_design::decision_robustness::ClaimProfile
@@ -3471,8 +3477,10 @@ impl core::marker::Freeze for antecedent_design::decision_reliability::WithinStr
 impl core::marker::Freeze for antecedent_design::decision_robust_artifact::AdmissibleContractArtifact [auto]
 impl core::marker::Freeze for antecedent_design::decision_robust_artifact::ExternalCallbackReceipt [auto]
 impl core::marker::Freeze for antecedent_design::decision_robust_artifact::ExternalTrustLimit [auto]
+impl core::marker::Freeze for antecedent_design::decision_robust_artifact::JointScenarioCarrier [auto]
 impl core::marker::Freeze for antecedent_design::decision_robust_artifact::ReplayReceipt [auto]
 impl core::marker::Freeze for antecedent_design::decision_robust_artifact::RobustResultArtifact [auto]
+impl core::marker::Freeze for antecedent_design::decision_robust_artifact::ScenarioDecision [auto]
 impl core::marker::Freeze for antecedent_design::decision_robustness::ActionRobustness [auto]
 impl core::marker::Freeze for antecedent_design::decision_robustness::AtomSupport [auto]
 impl core::marker::Freeze for antecedent_design::decision_robustness::ClaimProfile [auto]
@@ -4247,8 +4255,10 @@ impl core::marker::Send for antecedent_design::decision_reliability::WithinStrea
 impl core::marker::Send for antecedent_design::decision_robust_artifact::AdmissibleContractArtifact [auto]
 impl core::marker::Send for antecedent_design::decision_robust_artifact::ExternalCallbackReceipt [auto]
 impl core::marker::Send for antecedent_design::decision_robust_artifact::ExternalTrustLimit [auto]
+impl core::marker::Send for antecedent_design::decision_robust_artifact::JointScenarioCarrier [auto]
 impl core::marker::Send for antecedent_design::decision_robust_artifact::ReplayReceipt [auto]
 impl core::marker::Send for antecedent_design::decision_robust_artifact::RobustResultArtifact [auto]
+impl core::marker::Send for antecedent_design::decision_robust_artifact::ScenarioDecision [auto]
 impl core::marker::Send for antecedent_design::decision_robustness::ActionRobustness [auto]
 impl core::marker::Send for antecedent_design::decision_robustness::AtomSupport [auto]
 impl core::marker::Send for antecedent_design::decision_robustness::ClaimProfile [auto]
@@ -5698,8 +5708,10 @@ impl core::marker::Sync for antecedent_design::decision_reliability::WithinStrea
 impl core::marker::Sync for antecedent_design::decision_robust_artifact::AdmissibleContractArtifact [auto]
 impl core::marker::Sync for antecedent_design::decision_robust_artifact::ExternalCallbackReceipt [auto]
 impl core::marker::Sync for antecedent_design::decision_robust_artifact::ExternalTrustLimit [auto]
+impl core::marker::Sync for antecedent_design::decision_robust_artifact::JointScenarioCarrier [auto]
 impl core::marker::Sync for antecedent_design::decision_robust_artifact::ReplayReceipt [auto]
 impl core::marker::Sync for antecedent_design::decision_robust_artifact::RobustResultArtifact [auto]
+impl core::marker::Sync for antecedent_design::decision_robust_artifact::ScenarioDecision [auto]
 impl core::marker::Sync for antecedent_design::decision_robustness::ActionRobustness [auto]
 impl core::marker::Sync for antecedent_design::decision_robustness::AtomSupport [auto]
 impl core::marker::Sync for antecedent_design::decision_robustness::ClaimProfile [auto]
@@ -6475,8 +6487,10 @@ impl core::marker::Unpin for antecedent_design::decision_reliability::WithinStre
 impl core::marker::Unpin for antecedent_design::decision_robust_artifact::AdmissibleContractArtifact [auto]
 impl core::marker::Unpin for antecedent_design::decision_robust_artifact::ExternalCallbackReceipt [auto]
 impl core::marker::Unpin for antecedent_design::decision_robust_artifact::ExternalTrustLimit [auto]
+impl core::marker::Unpin for antecedent_design::decision_robust_artifact::JointScenarioCarrier [auto]
 impl core::marker::Unpin for antecedent_design::decision_robust_artifact::ReplayReceipt [auto]
 impl core::marker::Unpin for antecedent_design::decision_robust_artifact::RobustResultArtifact [auto]
+impl core::marker::Unpin for antecedent_design::decision_robust_artifact::ScenarioDecision [auto]
 impl core::marker::Unpin for antecedent_design::decision_robustness::ActionRobustness [auto]
 impl core::marker::Unpin for antecedent_design::decision_robustness::AtomSupport [auto]
 impl core::marker::Unpin for antecedent_design::decision_robustness::ClaimProfile [auto]
@@ -7251,8 +7265,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_rel
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robust_artifact::AdmissibleContractArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robust_artifact::ExternalCallbackReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robust_artifact::ExternalTrustLimit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robust_artifact::JointScenarioCarrier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robust_artifact::ReplayReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robust_artifact::RobustResultArtifact [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robust_artifact::ScenarioDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robustness::ActionRobustness [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robustness::AtomSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_robustness::ClaimProfile [auto]
@@ -8017,8 +8033,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliab
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robust_artifact::AdmissibleContractArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robust_artifact::ExternalCallbackReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robust_artifact::ExternalTrustLimit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robust_artifact::JointScenarioCarrier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robust_artifact::ReplayReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robust_artifact::RobustResultArtifact [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robust_artifact::ScenarioDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robustness::ActionRobustness [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robustness::AtomSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_robustness::ClaimProfile [auto]
@@ -9029,6 +9047,8 @@ pub const antecedent_design::decision_reliability::interval::MAX_PAIRED_COMPARIS
 pub const antecedent_design::decision_reliability::interval::MIN_INTERVAL_LEVEL: f64
 pub const antecedent_design::decision_reliability::report::RELIABILITY_REPORT_VERSION: u32
 pub const antecedent_design::decision_reliability::selection::MAX_QUADRATURE_GROUPS: usize
+pub const antecedent_design::decision_robust_artifact::MAX_COMPILED_ROBUST_ITEMS: usize
+pub const antecedent_design::decision_robust_artifact::MAX_SCENARIO_CARRIER_BYTES: usize
 pub const antecedent_design::decision_transported_source::DETAIL_CALIBRATION_INFLATED: &str
 pub const antecedent_design::decision_transported_source::DETAIL_IDENTITY_INCOMPLETE: &str
 pub const antecedent_design::decision_transported_source::DETAIL_IDENTITY_NOT_DIGEST: &str
@@ -12270,6 +12290,20 @@ pub fn <antecedent_design::decision_robust_artifact::AdmissibleContractArtifact>
 pub fn <antecedent_design::decision_robust_artifact::AdmissibleContractArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::decision_robust_artifact::ExternalTrustLimit>::fn is_native(&self) -> bool
 pub fn <antecedent_design::decision_robust_artifact::ExternalTrustLimit>::fn label(&self) -> &'static str
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn causal_identification(&self) -> &str
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn causal_target(&self) -> &str
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn checked(causal_target: &str, causal_identification: &str, joint_structure: &str, exhaustive: bool, stop: core::option::Option<antecedent_core::search::SearchStop>, adapted: antecedent_design::decision_adapters::AdaptedClaims, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn complete(&self) -> bool
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn consume(bytes: &[u8], expected_identity: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn evaluate(&self, contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_robust_artifact::ScenarioDecision, antecedent_io_core::error::IoError>
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn export(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn identity(&self) -> &str
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn is_empty(&self) -> bool
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn joint_structure(&self) -> &str
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn len(&self) -> usize
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn replay_decision(&self, contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, program_identity: &str, bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_robust_artifact::ScenarioDecision, antecedent_io_core::error::IoError>
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn seal_decision(&self, contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, program_identity: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn search_stop(&self) -> core::option::Option<&str>
 pub fn <antecedent_design::decision_robust_artifact::RobustResultArtifact>::fn atom_digests(&self) -> alloc::vec::Vec<(alloc::string::String, core::option::Option<alloc::string::String>)>
 pub fn <antecedent_design::decision_robust_artifact::RobustResultArtifact>::fn from_bytes(bytes: &[u8], expected_contract_identity: &str, expected_atom_digests: &[(alloc::string::String, core::option::Option<alloc::string::String>)]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::decision_robust_artifact::RobustResultArtifact>::fn native_verified(&self) -> bool
@@ -12281,6 +12315,11 @@ pub fn <antecedent_design::decision_robust_artifact::RobustResultArtifact>::fn r
 pub fn <antecedent_design::decision_robust_artifact::RobustResultArtifact>::fn result(&self) -> &antecedent_design::decision_robustness::RobustDecisionResult
 pub fn <antecedent_design::decision_robust_artifact::RobustResultArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::decision_robust_artifact::RobustResultArtifact>::fn to_json(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent_design::decision_robust_artifact::ScenarioDecision>::const fn complete(&self) -> bool
+pub fn <antecedent_design::decision_robust_artifact::ScenarioDecision>::fn decision(&self) -> &antecedent_design::decision_adapters::AdaptedDecision
+pub fn <antecedent_design::decision_robust_artifact::ScenarioDecision>::fn joint_structure(&self) -> &str
+pub fn <antecedent_design::decision_robust_artifact::ScenarioDecision>::fn search_stop(&self) -> core::option::Option<&str>
+pub fn <antecedent_design::decision_robust_artifact::ScenarioDecision>::fn source_identity(&self) -> &str
 pub fn <antecedent_design::decision_robustness::AtomSupport>::const fn supported() -> Self
 pub fn <antecedent_design::decision_robustness::AtomSupport>::const fn unassessed() -> Self
 pub fn <antecedent_design::decision_robustness::AtomSupport>::const fn uniform(status: antecedent_core::response::SupportStatus) -> Self
@@ -13191,9 +13230,13 @@ pub struct antecedent_design::decision_reliability::WinnersCurseBound
 pub struct antecedent_design::decision_robust_artifact::AdmissibleContractArtifact
 pub struct antecedent_design::decision_robust_artifact::AdmissibleContractArtifact has private fields
 pub struct antecedent_design::decision_robust_artifact::ExternalCallbackReceipt
+pub struct antecedent_design::decision_robust_artifact::JointScenarioCarrier
+pub struct antecedent_design::decision_robust_artifact::JointScenarioCarrier has private fields
 pub struct antecedent_design::decision_robust_artifact::ReplayReceipt
 pub struct antecedent_design::decision_robust_artifact::RobustResultArtifact
 pub struct antecedent_design::decision_robust_artifact::RobustResultArtifact has private fields
+pub struct antecedent_design::decision_robust_artifact::ScenarioDecision
+pub struct antecedent_design::decision_robust_artifact::ScenarioDecision has private fields
 pub struct antecedent_design::decision_robustness::ActionRobustness
 pub struct antecedent_design::decision_robustness::AtomSupport
 pub struct antecedent_design::decision_robustness::ClaimProfile

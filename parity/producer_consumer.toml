@@ -2643,3 +2643,29 @@ status = "DIRECT"
 detail = "Python: `interface_contract.check_composition_with_cyclic` declares a prepared cyclic family or system as one component from its native contract; the composition identity binds the product, and feedback among components stays `interface_contract_cyclic_composition`"
 evidence_test = "python/tests/test_cyclic.py"
 evidence_assertion = "test_a_prepared_cyclic_product_composes_as_one_component"
+
+[[rust_producer]]
+key = "compiled_joint_scenarios"
+object = "conditional finite joint scenario source and compiler-bound robust readout"
+built_from = "`JointScenarioCarrier::checked`, `PreparedStudy::compile_for_robust_decision`, `CompiledRobustDecision::export`; Python `decision_robust.joint_scenario_carrier` and `compile_robust_decision`"
+
+[[rust_consumer]]
+key = "compiled_robust_replay"
+entry = "`JointScenarioCarrier::consume` with independent source digest; `CompiledRobustDecision::consume` with independent compiled owner"
+note = "Reconstructs typed source and recomputes readout, conditional on declared joint laws; cannot authenticate scientific premises or resume a fit."
+
+[[rust_cell]]
+producer = "compiled_joint_scenarios"
+consumer = "compiled_robust_replay"
+status = "DIRECT"
+detail = "Separately bound source, program and contract identities plus recomputed terminal; Python `ant.load` requires `LoadContext(robust_source=independent)` for result replay."
+evidence_test = "crates/antecedent/tests/compiled_robust_decisions.rs"
+evidence_assertion = "compiler_binds_joint_source_without_scalar_fit_and_replays_under_independent_owner"
+
+[[rust_cell]]
+producer = "compiled_joint_scenarios"
+consumer = "compiled_robust_replay"
+status = "REFUSED"
+detail = "Marginal-only dependence, Bayes policy, missing joint structure, incompatible owner, tampered readout, insufficient admission and cancellation refuse."
+evidence_test = "crates/antecedent/tests/compiled_robust_decisions.rs"
+evidence_assertion = "joint_policy_identity_admission_and_cancellation_refusals_preserve_the_owner"

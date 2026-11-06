@@ -28,6 +28,8 @@ pub enum EvidenceRole {
     DiscoveredStructure,
     /// A source of a propagation chain: a column of draws, an interval or a point.
     ChainSource,
+    /// Explicitly joint states of a compiled robust scenario terminal.
+    JointScenarios,
 }
 
 impl EvidenceRole {
@@ -41,6 +43,7 @@ impl EvidenceRole {
             Self::TransportSource => "transport_source",
             Self::DiscoveredStructure => "discovered_structure",
             Self::ChainSource => "chain_source",
+            Self::JointScenarios => "joint_scenarios",
         }
     }
 }
@@ -76,6 +79,11 @@ pub enum Composition {
         /// Number of atoms.
         atoms: usize,
     },
+    /// A finite set of joint scenarios; membership does not imply mixing weights.
+    ScenarioSet {
+        /// Number of declared scenarios.
+        scenarios: usize,
+    },
     /// A source population transported to a target.
     Transported,
     /// Several sources pooled under a declared dependence.
@@ -90,7 +98,7 @@ pub enum Composition {
     },
 }
 
-/// The evidence a decision needs the statistical program to publish.
+/// Evidence a decision needs: a published statistical answer or an explicit joint scenario set.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum CarrierDemand {
     /// An affine utility of the mean; a point estimate carries it.
@@ -99,6 +107,8 @@ pub enum CarrierDemand {
     ParameterPosterior,
     /// Risk or a threshold of an individual outcome; only an outcome law carries it.
     OutcomeLaw,
+    /// A declared joint identified-set/scenario carrier for robust evaluation.
+    IdentifiedSet,
 }
 
 impl CarrierDemand {
@@ -109,6 +119,7 @@ impl CarrierDemand {
             Self::Mean => "mean",
             Self::ParameterPosterior => "parameter_posterior",
             Self::OutcomeLaw => "outcome_law",
+            Self::IdentifiedSet => "identified_set",
         }
     }
 
@@ -120,7 +131,7 @@ impl CarrierDemand {
     #[must_use]
     pub const fn evidence_request(self) -> Option<DecisionRequest> {
         match self {
-            Self::Mean => None,
+            Self::Mean | Self::IdentifiedSet => None,
             Self::ParameterPosterior => Some(DecisionRequest::ParameterPosterior),
             Self::OutcomeLaw => Some(DecisionRequest::IndividualOutcomeRisk),
         }
@@ -465,6 +476,7 @@ pub struct DecisionProgram {
     pub(crate) utility_unit: Option<Arc<str>>,
     pub(crate) contract_identity: Option<Arc<str>>,
     pub(crate) information_value: Option<EvsiProgram>,
+    pub(crate) scenario_source: Option<Arc<str>>,
 }
 
 impl DecisionProgram {
@@ -522,6 +534,12 @@ impl DecisionProgram {
         self.information_value.as_ref()
     }
 
+    /// Exact explicit joint scenario carrier, when this is a robust terminal.
+    #[must_use]
+    pub fn scenario_source_identity(&self) -> Option<&str> {
+        self.scenario_source.as_deref()
+    }
+
     fn write(&self, writer: &mut CanonicalWriter) {
         writer.text(self.carrier.as_str());
         self.utility.write(writer);
@@ -531,6 +549,10 @@ impl DecisionProgram {
             .real(self.chance_threshold)
             .opt_text(self.utility_unit.as_deref())
             .opt_text(self.contract_identity.as_deref());
+        // Absent for existing programs: preserve their identities byte for byte.
+        if let Some(source) = &self.scenario_source {
+            writer.text("joint_scenarios_v1").text(source);
+        }
         match &self.information_value {
             Some(evsi) => {
                 writer.word(1);
@@ -598,6 +620,9 @@ impl EvidenceDecisionProgram {
         match self.composition {
             Composition::Single => writer.text("single"),
             Composition::AtomMixture { atoms } => writer.text("atom_mixture").word(atoms as u64),
+            Composition::ScenarioSet { scenarios } => {
+                writer.text("scenario_set").word(scenarios as u64)
+            }
             Composition::Transported => writer.text("transported"),
             Composition::Pooled { sources } => writer.text("pooled").word(sources as u64),
             Composition::Chained { stages } => writer.text("chained").word(stages as u64),

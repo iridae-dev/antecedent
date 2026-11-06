@@ -634,3 +634,5 @@ pub use data_diagnostics::{
 };
 
 pub mod checked_claim_composition;
+
+pub mod robust_decision;

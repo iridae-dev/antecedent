@@ -2058,6 +2058,7 @@ fn composition_label(composition: Composition) -> String {
     match composition {
         Composition::Single => "single".to_owned(),
         Composition::AtomMixture { atoms } => format!("atom_mixture({atoms})"),
+        Composition::ScenarioSet { scenarios } => format!("scenario_set({scenarios})"),
         Composition::Transported => "transported".to_owned(),
         Composition::Pooled { sources } => format!("pooled({sources})"),
         Composition::Chained { stages } => format!("chained({stages})"),
@@ -2224,6 +2225,9 @@ fn composition_json(composition: Composition) -> Fact {
     match composition {
         Composition::Single => fact!({"kind": "single"}),
         Composition::AtomMixture { atoms } => fact!({"kind": "atom_mixture", "atoms": atoms}),
+        Composition::ScenarioSet { scenarios } => {
+            fact!({"kind": "scenario_set", "scenarios": scenarios})
+        }
         Composition::Transported => fact!({"kind": "transported"}),
         Composition::Pooled { sources } => fact!({"kind": "pooled", "sources": sources}),
         Composition::Chained { stages } => fact!({"kind": "chained", "stages": stages}),
@@ -2323,6 +2327,7 @@ fn evidence_json(program: &EvidenceDecisionProgram) -> Fact {
             "chance_threshold": decision.chance_threshold(),
             "utility_unit": decision.utility_unit(),
             "contract_identity": decision.contract_identity(),
+            "scenario_source_identity": decision.scenario_source_identity(),
             "information_value": evsi,
         })
     });

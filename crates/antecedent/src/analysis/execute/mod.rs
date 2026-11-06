@@ -537,3 +537,6 @@ mod quasi_plan_self_check_tests;
 
 #[cfg(test)]
 mod tests;
+
+mod compile_robust;
+pub use compile_robust::CompiledRobustDecision;

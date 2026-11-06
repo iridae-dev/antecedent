@@ -3294,3 +3294,9 @@ rust = "antecedent::refusal::sampling_weights_unsupported_route"
 kind = "fn"
 status = "internal"
 reason = "sampling-weight refusal raised by python/src/prepare_request.rs; Python sees it when weights are given to a route that does not accept them."
+
+[[entry]]
+rust = "antecedent::CompiledRobustDecision"
+kind = "type"
+status = "bound"
+python = "antecedent.decision_robust.CompiledRobustDecision"

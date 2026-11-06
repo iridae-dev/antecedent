@@ -8196,6 +8196,7 @@ pub const antecedent_core::reason_details::decision_evidence::INVALID_DECLARATIO
 pub const antecedent_core::reason_details::decision_evidence::RESOURCE_LIMIT: &str
 pub const antecedent_core::reason_details::decision_evidence::TOO_MANY_UNKNOWNS: &str
 pub const antecedent_core::reason_details::decision_evidence::UNSUPPORTED_ASSIGNMENT_DESIGN: &str
+pub const antecedent_core::reason_details::decision_joint_scenarios::CARRIER: &str
 pub const antecedent_core::reason_details::decision_posterior::BAND_NOT_CONSTRUCTED: &str
 pub const antecedent_core::reason_details::decision_posterior::EMPTY_LAW: &str
 pub const antecedent_core::reason_details::decision_posterior::EXTERNAL_POWER_PRIOR: &str
@@ -12879,6 +12880,7 @@ pub mod antecedent_core::reason_details::decision_claims
 pub mod antecedent_core::reason_details::decision_contract
 pub mod antecedent_core::reason_details::decision_evaluation
 pub mod antecedent_core::reason_details::decision_evidence
+pub mod antecedent_core::reason_details::decision_joint_scenarios
 pub mod antecedent_core::reason_details::decision_posterior
 pub mod antecedent_core::reason_details::decision_reliability
 pub mod antecedent_core::reason_details::decision_robustness

@@ -620,6 +620,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "decision_evidence.resource_limit",
     "decision_evidence.too_many_unknowns",
     "decision_evidence.unsupported_assignment_design",
+    "decision_joint_scenarios.carrier",
     "decision_posterior.band_not_constructed",
     "decision_posterior.empty_law",
     "decision_posterior.external_power_prior",
@@ -3341,6 +3342,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("decision_evidence.resource_limit", &[]),
     ("decision_evidence.too_many_unknowns", &[]),
     ("decision_evidence.unsupported_assignment_design", &[]),
+    ("decision_joint_scenarios.carrier", &["decision_contract_unsatisfied"]),
     ("decision_posterior.band_not_constructed", &["route_not_supported"]),
     ("decision_posterior.empty_law", &["invalid_argument"]),
     ("decision_posterior.external_power_prior", &["route_not_supported"]),
@@ -6837,6 +6839,12 @@ pub mod decision_evidence {
     pub const TOO_MANY_UNKNOWNS: &str = "decision_evidence.too_many_unknowns";
     /// Detail `decision_evidence.unsupported_assignment_design`.
     pub const UNSUPPORTED_ASSIGNMENT_DESIGN: &str = "decision_evidence.unsupported_assignment_design";
+}
+
+/// Details in the `decision_joint_scenarios` family.
+pub mod decision_joint_scenarios {
+    /// Detail `decision_joint_scenarios.carrier`.
+    pub const CARRIER: &str = "decision_joint_scenarios.carrier";
 }
 
 /// Details in the `decision_posterior` family.

@@ -1233,8 +1233,9 @@ coverage_records = ["cov.classical_transport.admg.frequentist.percentile_bootstr
 inference_inventory_disposition = "outputs_listed_historical_measurements_current_surface_unattested"
 search = false
 surface = ["python/antecedent/transport/_joint_sensitivity_uncertainty.py", "python/antecedent/transport/_joint_interval_artifact.py"]
+surface_pyo3 = ["python/src/transport_joint_sensitivity_api/interval.rs"]
 surface_rust = ["crates/antecedent/src/analysis/joint_sensitivity_uncertainty.rs", "crates/antecedent/src/analysis/joint_interval_artifact.rs"]
-surface_values = ["JointSamplingWire", "JointSensitivityInterval", "JointSensitivityIntervalArtifact", "JointIntervalConsumption"]
+surface_values = ["JointSamplingWire", "JointSensitivityInterval", "JointSensitivityIntervalArtifact", "JointIntervalConsumption", "JointIntervalNumerics", "JointIntervalConsumeLimits"]
 surface_exports = ["python/antecedent/transport/advanced.py"]
 owned_exports = ["joint_mechanism_sensitivity_interval", "JointSensitivityIntervalArtifact", "export_joint_sensitivity_interval", "consume_joint_sensitivity_interval"]
 bounds = { max_bootstrap_internal = 2000, cancellation = true }
@@ -1246,9 +1247,9 @@ refusals = [
 ]
 routes = [
   { name = "antecedent.JointSensitivityIntervalArtifact.checked", stage = "representation", status = "supported", claim = "interval" },
-  { name = "antecedent.JointSensitivityIntervalArtifact.consume", stage = "consume", status = "supported", claim = "interval" },
-  { name = "antecedent.python.transport.advanced.export_joint_sensitivity_interval", stage = "representation", status = "supported", claim = "interval" },
-  { name = "antecedent.python.transport.advanced.consume_joint_sensitivity_interval", stage = "consume", status = "supported", claim = "interval" },
+  { name = "antecedent.JointSensitivityIntervalArtifact.consume", stage = "consume", status = "supported", claim = "interval", covers = ["JointSensitivityIntervalArtifact.consume_with_limits"] },
+  { name = "antecedent.python.transport.advanced.export_joint_sensitivity_interval", stage = "representation", status = "supported", claim = "interval", covers = ["export_z_transport_joint_interval"] },
+  { name = "antecedent.python.transport.advanced.consume_joint_sensitivity_interval", stage = "consume", status = "supported", claim = "interval", covers = ["consume_z_transport_joint_interval"] },
   { name = "antecedent.PreparedZTransport.joint_mechanism_sensitivity_interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { name = "antecedent.transport.advanced.joint_mechanism_sensitivity_interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { name = "antecedent.transport.joint_sensitivity.uncertainty_conservative_endpoint_bootstrap", stage = "uncertainty", status = "supported", claim = "interval" },
@@ -3842,6 +3843,7 @@ compatibility = "Existing routes keep their exact scope."
 search = false
 bounds = { cancellation = true, max_actions = 1024, max_inputs = 256, max_utility_depth = 64 }
 refusals = [
+  { detail = "decision_evaluation.analytic_law_unsupported" },
   { detail = "decision_evaluation.joint_law_required" },
   { detail = "decision_evaluation.quantity_not_found" },
   { detail = "decision_evaluation.unsupported_coordinate" },
@@ -21585,8 +21587,9 @@ routes = [
  { name = "antecedent.python.prepared.retarget.adjusted_fit", stage = "evaluate", status = "supported", claim = "interval" },
 ]
 fixtures = [
- { id = "recalculation.prepared_adjusted.truth", role = "truth", intent = "Independent exact-binomial logit standardization and Fisher delta covariance; registered, not earned.", evidence_test = "crates/antecedent/tests/prepared_adjusted_retarget.rs", evidence_assertion = "adjusted_retarget_matches_independent_logit_standardization_and_fisher_covariance" },
- { id = "recalculation.prepared_adjusted.reuse.positive", role = "positive", intent = "All eligible models reuse a successful retained fit with zero model solves and the original SE kind.", evidence_test = "crates/antecedent/tests/prepared_adjusted_retarget.rs", evidence_assertion = "prepared_models_retarget_without_refits_and_keep_their_own_uncertainty" },
+ { id = "recalculation.prepared_adjusted.construction", role = "construction", shared_evidence = true, intent = "Independently formed binomial Fisher information and adjugate delta covariance construct the fixed-target interval; registered and owed.", evidence_test = "crates/antecedent/tests/prepared_adjusted_retarget.rs", evidence_assertion = "adjusted_retarget_matches_independent_logit_standardization_and_fisher_covariance" },
+ { id = "recalculation.prepared_adjusted.truth", role = "truth", shared_evidence = true, intent = "Independent exact-binomial logit standardization and Fisher delta covariance; registered, not earned.", evidence_test = "crates/antecedent/tests/prepared_adjusted_retarget.rs", evidence_assertion = "adjusted_retarget_matches_independent_logit_standardization_and_fisher_covariance" },
+ { id = "recalculation.prepared_adjusted.reuse.positive", role = "positive", shared_evidence = true, intent = "All eligible models reuse a successful retained fit with zero model solves and the original SE kind.", evidence_test = "crates/antecedent/tests/prepared_adjusted_retarget.rs", evidence_assertion = "prepared_models_retarget_without_refits_and_keep_their_own_uncertainty" },
  { id = "recalculation.prepared_adjusted.refusal.negative", role = "negative", intent = "Illegal parents, weights, cancellation and insufficient memory refuse.", evidence_test = "crates/antecedent/tests/prepared_adjusted_retarget.rs", evidence_assertion = "adjusted_retarget_refuses_invalid_parents_weights_cancellation_and_budget" },
  { id = "recalculation.prepared_adjusted.replay.artifact", role = "artifact", intent = "Distinct fitted-model bindings replay only with matching live fitted state; no numerical attestation from hashes.", evidence_test = "crates/antecedent/tests/prepared_adjusted_retarget.rs", evidence_assertion = "fitted_retarget_artifacts_keep_distinct_reuse_payloads_and_reexecute_on_the_live_snapshot" },
 ]
@@ -21615,3 +21618,39 @@ truth_design = "Four fixed binomial design cells with probabilities 1/4, 1/2, 2/
 method_source = "crates/antecedent/src/analysis/prepared/adjusted_retarget.rs; crates/antecedent-estimate/src/glm_adjustment/retained.rs"
 nominal_level = "0.95"
 measurement_suite = "crates/antecedent/tests/prepared_adjusted_retarget_calibration.rs"
+
+[[record]]
+id = "decision.compiled_joint_scenarios"
+capability = "decision.compiled_joint_scenarios"
+status = "supported"
+consumer_question = "Which action remains admissible under explicitly supplied joint scenarios, and what remains unresolved?"
+theorem = "The shared compiler binds a finite joint scenario carrier to the anchor causal target and identification, decision declaration and source content. The existing structural/robust evaluator evaluates joint rows within each scenario and applies invariant, maximin or report-only policy across scenarios. No posterior is inferred. Scientific standing is conditional on the declared joint laws and exhaustiveness; incomplete search or unidentified states force an incomplete verdict while retaining per-state values and unrenormalized mass."
+reference = "provenance/decision.compiled_joint_scenarios.toml"
+guarantee = "conditional_finite_joint_scenario_robust_decision"
+graph_class = "Supported anchor study plus an explicit finite joint scenario source; no Cartesian completion of marginal bounds."
+population_semantics = "Quantities must match each action's declared population, regime and horizon; causal binding names the anchor target and identification."
+evidence_family = "Finite supplied joint scenario laws, preserved support and declared search standing."
+provider = "Existing native robust evaluator over conditional supplied joint laws; source trust is not upgraded."
+estimand = "Per-scenario decision values and robust choice conditional on explicit joint scenarios."
+inference_claim = "none"
+inference_notes = "No sampling interval or calibration claim. Joint model premises and exhaustiveness remain declarations; native_verified is false. Independent numerical assertion is registered and owed."
+owners = ["antecedent", "antecedent-design"]
+identity_inputs = ["causal target and identification", "bound admissible decision", "typed joint laws and support", "declared dependence", "completion counts", "exhaustiveness and search stop", "lowered program"]
+wire_changes = ["Additive closed ANTE-JOINT-SCENARIOS-1 source and ANTE-COMPILED-ROBUST-1 readout frames."]
+compatibility = "Existing scalar compilation and marginal identified-set evaluation retain their contracts; scalar means cannot supply this carrier. Replay requires a separately compiled compatible owner."
+search = false
+bounds = { cancellation = true, max_scenarios = 256, max_actions = 256, max_constraints = 256, max_source_bytes = 67108864 }
+refusals = [{ detail = "decision_joint_scenarios.carrier" }]
+routes = [
+ { name = "antecedent.PreparedStudy.compile_for_robust_decision", stage = "representation", status = "supported" },
+ { name = "antecedent.CompiledRobustDecision.execute", stage = "evaluate", status = "supported" },
+ { name = "antecedent.CompiledRobustDecision.consume", stage = "consume", status = "supported" },
+ { name = "antecedent.python.decision_robust.compile_robust_decision", stage = "representation", status = "supported" },
+ { name = "antecedent.python.decision_robust.consume_compiled_robust_decision", stage = "consume", status = "supported" },
+]
+fixtures = [
+ { id = "decision.compiled_joint_scenarios.truth", role = "truth", intent = "Independent finite enumeration with identical marginals and opposite dependence; registered, owed.", evidence_test = "crates/antecedent/tests/compiled_robust_decisions.rs", evidence_assertion = "joint_dependence_and_maximin_match_independent_finite_enumeration" },
+ { id = "decision.compiled_joint_scenarios.positive", role = "positive", shared_evidence = true, intent = "Shared compilation and replay under independent owner with zero scalar fits.", evidence_test = "crates/antecedent/tests/compiled_robust_decisions.rs", evidence_assertion = "compiler_binds_joint_source_without_scalar_fit_and_replays_under_independent_owner" },
+ { id = "decision.compiled_joint_scenarios.negative", role = "negative", intent = "Missing dependence, marginal laws, Bayes, admission and cancellation refuse.", evidence_test = "crates/antecedent/tests/compiled_robust_decisions.rs", evidence_assertion = "joint_policy_identity_admission_and_cancellation_refusals_preserve_the_owner" },
+ { id = "decision.compiled_joint_scenarios.artifact", role = "artifact", shared_evidence = true, intent = "Source identity, separately compiled program and recomputed readout verified; resealed changes refused.", evidence_test = "crates/antecedent/tests/compiled_robust_decisions.rs", evidence_assertion = "compiler_binds_joint_source_without_scalar_fit_and_replays_under_independent_owner" },
+]

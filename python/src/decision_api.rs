@@ -927,6 +927,7 @@ fn identified_utility_interval(
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    compiled_scenarios::register(m)?;
     m.add_function(wrap_pyfunction!(admissible_contract_normalize, m)?)?;
     m.add_function(wrap_pyfunction!(export_admissible_contract, m)?)?;
     m.add_function(wrap_pyfunction!(load_admissible_contract, m)?)?;
@@ -945,3 +946,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(composition_lineage, m)?)?;
     m.add_function(wrap_pyfunction!(decision_source_digest, m)?)
 }
+
+#[path = "decision_api/compiled_scenarios.rs"]
+mod compiled_scenarios;

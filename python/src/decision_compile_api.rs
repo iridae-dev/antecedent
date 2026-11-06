@@ -25,8 +25,9 @@ fn carrier_of(name: &str) -> PyResult<CarrierDemand> {
         "mean" => Ok(CarrierDemand::Mean),
         "parameter_posterior" => Ok(CarrierDemand::ParameterPosterior),
         "outcome_law" => Ok(CarrierDemand::OutcomeLaw),
+        "identified_set" => Ok(CarrierDemand::IdentifiedSet),
         other => Err(value_err(format!(
-            "unknown carrier `{other}`; use mean, parameter_posterior or outcome_law"
+            "unknown carrier `{other}`; use mean, parameter_posterior, outcome_law or identified_set"
         ))),
     }
 }

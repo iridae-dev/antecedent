@@ -511,3 +511,43 @@ status `closed_calibration_not_measured`: no interval is produced.
   [joint distributions](joint-distributions.md).
 
 For a complete marketing investigation using a shared panel fit, see [beyond the marketing mix](tutorials/beyond-marketing-mix.md).
+
+### Compile explicit joint scenarios
+
+`decision_robust.joint_scenario_carrier(prepared, contract, claims,
+joint_structure=..., exhaustive=...)` validates finite scenario laws against a
+prepared study's causal binding. Each evaluated law must explicitly carry joint
+rows, including the cross-action dependence. The compiler does not construct
+that dependence from marginal intervals. `exhaustive` and `search_stop` state the
+scope of the supplied search; replay cannot establish their scientific truth.
+
+Pass the source to `decision_robust.compile_robust_decision(prepared, contract,
+source)`, then `require_success(compiled.evaluate())`. Rust exposes the same path
+through `JointScenarioCarrier::checked`, `Study::compile_for_robust_decision` or
+`PreparedStudy::compile_for_robust_decision`, and `CompiledRobustDecision::execute`.
+The shared lowered program names `identified_set`, the exact source identity and
+`scenario_set` composition. It does not fit the anchor's scalar estimator.
+
+This narrow terminal supports invariant-best, maximin and report-only policies.
+Bayes-over-structures, independent marginals and unsupported anchor routes refuse
+with `decision_joint_scenarios.carrier`; quantity and support failures retain the robust
+engine's own refusal details. Incomplete search, unidentified/unevaluated states
+or missing probability mass force an incomplete verdict. Per-scenario values,
+support, completion counts and unresolved mass remain available. Counts never
+become probabilities. Each result states
+`conditional_on_declared_joint_scenarios`, with `native_verified=false`.
+
+The source frame `ANTE-JOINT-SCENARIOS-1` binds the typed laws, causal identities,
+support, dependence and search standing. Loading it requires a separately retained
+source digest. The result frame `ANTE-COMPILED-ROBUST-1` is replayed only under an
+independently compiled compatible owner, verifying source, program and contract
+identities and recomputing the robust readout. In Python, use
+`ant.load(compiled.export(), context=antecedent.artifacts.LoadContext(robust_source=independent))`.
+Bytes alone cannot reconstruct a prepared study or resume a fit.
+
+The source is bounded to 64 MiB and 256 scenarios; the terminal permits at most
+256 actions and 256 constraints and its result frame at most 128 MiB. Source and
+readout storage hold distinct admission leases, shared by clones, until their
+last owner drops. Evaluation, export and consumption honor cancellation and
+execution memory limits. The independent finite-enumeration scientific check is
+registered and owed; this route adds no sampling interval or calibration claim.

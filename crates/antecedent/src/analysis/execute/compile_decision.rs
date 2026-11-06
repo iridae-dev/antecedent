@@ -58,8 +58,8 @@ pub const INTERVENTIONAL_LAW: NextAttempt = NextAttempt::new(
 /// Evaluate the decision robustly over the identified set.
 pub const ROBUST_OVER_IDENTIFIED_SET: NextAttempt = NextAttempt::new(
     "robust_over_identified_set",
-    "evaluate the decision over the identified set with evaluate_identified_sets; a robust \
-     verdict is not an expected utility",
+    "use compile_for_robust_decision with explicit joint scenarios, or evaluate_identified_sets \
+     for supported set comparisons; a robust verdict is not an expected utility",
 );
 
 /// Demand a distributional carrier, or declare the utility's affine form.
@@ -132,7 +132,7 @@ impl MissingCarrier {
     #[must_use]
     pub const fn of(carrier: CarrierDemand) -> Option<Self> {
         match carrier {
-            CarrierDemand::Mean => None,
+            CarrierDemand::Mean | CarrierDemand::IdentifiedSet => None,
             CarrierDemand::ParameterPosterior => Some(Self::ParameterPosterior),
             CarrierDemand::OutcomeLaw => Some(Self::OutcomeLaw),
         }
@@ -346,6 +346,12 @@ pub(crate) fn require_carrier(
         if envelope { ROBUST_OVER_IDENTIFIED_SET } else { otherwise }
     };
     match demanded {
+        CarrierDemand::IdentifiedSet => Err(DecisionCarrierError::contract(
+            "compile_for_robust_decision requires an explicit joint scenario carrier; a marginal envelope cannot establish cross-action dependence",
+            demanded,
+            name,
+            ROBUST_OVER_IDENTIFIED_SET,
+        )),
         CarrierDemand::Mean if !program.utility().is_affine() => {
             Err(DecisionCarrierError::contract(
                 "a mean carries only a utility affine in the state; this utility declares no \
@@ -468,6 +474,7 @@ impl Study {
             utility_unit,
             contract_identity,
             information_value: None,
+            scenario_source: None,
         };
         self.compile_for_goal(&CompileGoal::Decision(program), ctx)
     }
@@ -517,6 +524,7 @@ impl Study {
                 "contract identity",
             )?,
             information_value: Some(information_value),
+            scenario_source: None,
         };
         self.compile_for_goal(&CompileGoal::Evsi(program), ctx)
     }
@@ -694,9 +702,12 @@ mod graph_imputation_carrier_tests {
 
     #[test]
     fn graph_imputation_candidate_refuses_decision_carriers() {
-        for carrier in
-            [CarrierDemand::Mean, CarrierDemand::ParameterPosterior, CarrierDemand::OutcomeLaw]
-        {
+        for carrier in [
+            CarrierDemand::Mean,
+            CarrierDemand::ParameterPosterior,
+            CarrierDemand::OutcomeLaw,
+            CarrierDemand::IdentifiedSet,
+        ] {
             let program = DecisionProgram {
                 carrier,
                 utility: DecisionProgram::utility_form(Some(vec![(0.0, 1.0)])),
@@ -706,6 +717,7 @@ mod graph_imputation_carrier_tests {
                 utility_unit: None,
                 contract_identity: None,
                 information_value: None,
+                scenario_source: None,
             };
             let refusal =
                 require_carrier(RouteCell::StaticAteDag, &Realization::GraphImputationV1, &program)

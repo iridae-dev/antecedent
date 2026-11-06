@@ -16307,3 +16307,9 @@ id = "decision_evaluation.analytic_law_unsupported"
 family = "decision_evaluation"
 codes = ["route_not_supported"]
 meaning = "The analytic law is invalid or cannot evaluate the requested utility or functional without unsupported approximation or an undeclared joint law."
+
+[[detail]]
+id = "decision_joint_scenarios.carrier"
+family = "decision_joint_scenarios"
+codes = ["decision_contract_unsatisfied"]
+meaning = "The requested decision carrier is unavailable, incompatible or lacks explicit joint scenario structure."

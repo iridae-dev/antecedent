@@ -10571,36 +10571,44 @@ notes = "The source-bound adapter replays the source and reports the interval wi
 
 [[routes]]
 route = "antecedent.PreparedStudy.retarget.adjusted_fit"
-stage = "evaluate"
-status = "supported"
 notes = "Compatible successfully retained OLS/GLM mean standardization over frozen rows; original covariance conditional on fixed Q. Changed-target calibration is separately keyed and owed."
 
 [[routes]]
 route = "antecedent.python.prepared.retarget.adjusted_fit"
-stage = "evaluate"
-status = "supported"
 notes = "The common prepared Python workflow delegates to the matching sealed fitted-mean operation; no refit, DR score or portable fit is manufactured."
 
 [[routes]]
 route = "antecedent.JointSensitivityIntervalArtifact.checked"
-stage = "representation"
-status = "supported"
 notes = "Separate v1 endpoint-bootstrap artifact, replaying the existing procedure with current calibration derived independently from stored history; current scientific/calibration earning remains owed."
 
 [[routes]]
 route = "antecedent.JointSensitivityIntervalArtifact.consume"
-stage = "consume"
-status = "supported"
 notes = "Separate v1 endpoint-bootstrap artifact, replaying the existing procedure with current calibration derived independently from stored history; current scientific/calibration earning remains owed."
 
 [[routes]]
 route = "antecedent.python.transport.advanced.export_joint_sensitivity_interval"
-stage = "representation"
-status = "supported"
 notes = "Separate v1 endpoint-bootstrap artifact, replaying the existing procedure with current calibration derived independently from stored history; current scientific/calibration earning remains owed."
 
 [[routes]]
 route = "antecedent.python.transport.advanced.consume_joint_sensitivity_interval"
-stage = "consume"
-status = "supported"
 notes = "Separate v1 endpoint-bootstrap artifact, replaying the existing procedure with current calibration derived independently from stored history; current scientific/calibration earning remains owed."
+
+[[routes]]
+route = "antecedent.PreparedStudy.compile_for_robust_decision"
+notes = "Conditional finite explicit joint scenarios; independent scientific enumeration remains owed. No posterior or sampling interval is inferred."
+
+[[routes]]
+route = "antecedent.CompiledRobustDecision.execute"
+notes = "Conditional finite explicit joint scenarios; independent scientific enumeration remains owed. No posterior or sampling interval is inferred."
+
+[[routes]]
+route = "antecedent.CompiledRobustDecision.consume"
+notes = "Conditional finite explicit joint scenarios; independent scientific enumeration remains owed. No posterior or sampling interval is inferred."
+
+[[routes]]
+route = "antecedent.python.decision_robust.compile_robust_decision"
+notes = "Conditional finite explicit joint scenarios; independent scientific enumeration remains owed. No posterior or sampling interval is inferred."
+
+[[routes]]
+route = "antecedent.python.decision_robust.consume_compiled_robust_decision"
+notes = "Conditional finite explicit joint scenarios; independent scientific enumeration remains owed. No posterior or sampling interval is inferred."

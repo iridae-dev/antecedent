@@ -27,6 +27,8 @@ pub(crate) enum CompileGoal {
     Estimate,
     /// A terminal decision over the route's answer.
     Decision(DecisionProgram),
+    /// A robust terminal supplied by an explicit validated joint source.
+    RobustDecision { program: DecisionProgram, source: [u8; 32], atoms: usize },
     /// A preposterior value-of-information request. The program's
     /// [`DecisionProgram::information_value`] is always present.
     Evsi(DecisionProgram),
@@ -39,7 +41,9 @@ impl CompileGoal {
     pub(crate) const fn decision(&self) -> Option<&DecisionProgram> {
         match self {
             Self::Estimate | Self::Planning(_) => None,
-            Self::Decision(program) | Self::Evsi(program) => Some(program),
+            Self::Decision(program)
+            | Self::Evsi(program)
+            | Self::RobustDecision { program, .. } => Some(program),
         }
     }
 
@@ -47,7 +51,9 @@ impl CompileGoal {
     pub(crate) const fn planning(&self) -> Option<&PlanningProgram> {
         match self {
             Self::Planning(program) => Some(program),
-            Self::Estimate | Self::Decision(_) | Self::Evsi(_) => None,
+            Self::Estimate | Self::Decision(_) | Self::Evsi(_) | Self::RobustDecision { .. } => {
+                None
+            }
         }
     }
 }
@@ -63,7 +69,7 @@ pub(super) fn evidence_program(
     source_digest: Option<[u8; 32]>,
     statistical: &StatisticalProgram,
 ) -> Result<EvidenceDecisionProgram, CausalError> {
-    let composition = match cx.cell {
+    let mut composition = match cx.cell {
         RouteCell::GraphPosterior(_) => Composition::AtomMixture {
             atoms: cx
                 .study
@@ -76,11 +82,24 @@ pub(super) fn evidence_program(
     };
     let decision = cx.goal.decision().cloned();
     if let Some(program) = &decision {
-        require_carrier(cx.cell, statistical.realization(), program)
-            .map_err(CausalError::rejected)?;
+        if !matches!(cx.goal, CompileGoal::RobustDecision { .. })
+            || matches!(
+                statistical.realization(),
+                crate::planner::statistical::Realization::GraphImputationV1
+                    | crate::planner::statistical::Realization::CategoricalPosteriorCandidateV1
+            )
+        {
+            require_carrier(cx.cell, statistical.realization(), program)
+                .map_err(CausalError::rejected)?;
+        }
     }
     let mut sources =
         vec![EvidenceSourceRef { role: EvidenceRole::Observations, digest: source_digest }];
+    if let CompileGoal::RobustDecision { source, atoms, .. } = cx.goal {
+        sources
+            .push(EvidenceSourceRef { role: EvidenceRole::JointScenarios, digest: Some(*source) });
+        composition = Composition::ScenarioSet { scenarios: *atoms };
+    }
     // A structure accepted from a compiled discovery is evidence the program reads:
     // its provenance (search, bounds, snapshot, program, claim, review) enters the
     // lowered identity. A supplied structure adds nothing, so its identity is unchanged.
