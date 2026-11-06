@@ -269,7 +269,7 @@ guard, not a record.
 
 ## What these records do not measure
 
-No coverage record measures the fallback interval, so it is reported as `not_measured`. The estimate is a point under the identification assumptions of the
+No coverage record supports the fallback interval. The estimate is a point under the identification assumptions of the
 AIPW average effect plus consistency of the penalized and OLS nuisances; none of that, and not
 (RC), is checked by the library.
 
