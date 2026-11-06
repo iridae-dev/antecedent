@@ -122,10 +122,14 @@ fn refusal(
     remedy: &'static str,
 ) -> ExternalRefusal {
     ExternalRefusal {
+        code,
+        stage,
+        detail: detail.to_owned(),
+        offending: None,
         expected,
         supplied,
+        capability: None,
         remedy: Some(remedy),
-        ..ExternalRefusal::new(code, stage, detail)
     }
 }
 

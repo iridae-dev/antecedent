@@ -1562,3 +1562,112 @@ use class_fits::{
     fit_class_frequentist_mediation, fit_class_frequentist_response, plan_class_bayesian_atoms,
     refute_class_mediation,
 };
+
+use class_response::ClassSequenceRun;
+use cpdag_mediation::{CpdagHorizonState, CpdagMediationRun};
+
+impl ClassResponseAssembly {
+    /// Start an assembly for `query`'s functional over `temporal.horizons`.
+    ///
+    /// # Errors
+    ///
+    /// A functional that is neither a mean curve nor an intervention response, or an
+    /// unreadable dose grid.
+    pub(super) fn new(
+        query: &ResponseQuery,
+        temporal: &antecedent_core::TemporalResponseSpec,
+    ) -> Result<Self, CausalError> {
+        let cells_per_horizon = match &query.functional {
+            ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?.len(),
+            ResponseFunctional::InterventionResponse { .. } => 1,
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "class-aware temporal response supports curves and intervention responses",
+                });
+            }
+        };
+        let n_horizons = temporal.horizons.len();
+        Ok(Self {
+            cells_per_horizon,
+            n_horizons,
+            lower: vec![f64::NAN; cells_per_horizon * n_horizons],
+            upper: vec![f64::NAN; cells_per_horizon * n_horizons],
+            structural_atoms: Vec::new(),
+            supports: Vec::new(),
+            horizon_supports: Vec::new(),
+            horizon_fingerprints: Vec::new(),
+            full_mass_scope: true,
+            truncated_atoms: 0,
+            horizon_values: Vec::new(),
+            support_start: 0,
+        })
+    }
+}
+
+impl CpdagMediationRun {
+    fn new(horizon_count: usize) -> Self {
+        Self {
+            slices: Vec::with_capacity(horizon_count),
+            primary: None,
+            primary_envelope: None,
+            refutations: Vec::new(),
+            aggregate_graph_dependent: false,
+            structural_atoms: Vec::new(),
+            full_mass_scope: true,
+            truncated_atoms: 0,
+            block_replicates_ok: None,
+            shared_contrast: None,
+            shared_posterior: None,
+            shared_horizons: 0,
+            block_cancelled: false,
+            diagnostics: vec![Diagnostic::new(
+                "estimate.temporal_mediation.class_identified_set",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "completion-specific mediation effects are returned as per-horizon identified \
+                 sets; completion enumeration is not averaged",
+            )],
+        }
+    }
+}
+
+impl CpdagHorizonState {
+    fn new(hit_cap: bool, completion_count: usize) -> Self {
+        Self {
+            bayesian_fits: CompletionFitMemo::default(),
+            point_fits: CompletionFitMemo::default(),
+            refute_fits: CompletionFitMemo::default(),
+            shared_design: None,
+            shared_status: None,
+            designs_agree: true,
+            effects: Vec::new(),
+            hit_cap,
+            completion_count,
+        }
+    }
+}
+
+impl ClassSequenceRun {
+    fn new() -> Self {
+        Self {
+            lower: Vec::new(),
+            upper: Vec::new(),
+            structural_atoms: Vec::new(),
+            primary_estimand: None,
+            primary_identification: None,
+            primary_envelope: None,
+            assumptions: antecedent_core::AssumptionSet::new(),
+            full_mass_scope: true,
+            truncated_atoms: 0,
+            horizon_fingerprints: Vec::new(),
+            observation_atoms: Vec::new(),
+            diagnostics: vec![Diagnostic::new(
+                "estimate.temporal.sequence_overlay",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "class-aware Sequence runs per directed completion; a joint-coordinate miss \
+                 unidentifies that completion, not the class; no last-step collapse",
+            )],
+        }
+    }
+}

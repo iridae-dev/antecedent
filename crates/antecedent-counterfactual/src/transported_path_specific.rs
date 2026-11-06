@@ -336,9 +336,14 @@ fn refuse_with(
 ) -> Box<TransportedPathSpecificRefusal> {
     Box::new(TransportedPathSpecificRefusal {
         refusal: StructuredRefusal {
+            code,
+            stage: "identify",
+            detail: detail.to_owned(),
             offending,
+            expected: None,
+            supplied: None,
+            capability: None,
             remedy: Some(remedy),
-            ..StructuredRefusal::new(code, "identify", detail)
         },
         witness: None,
         missing_factors: Vec::new(),

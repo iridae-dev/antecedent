@@ -83,184 +83,12 @@ impl<'a> PreparedIdentificationView<'a> {
     /// aggregate verdict, adjustment union or first-case assumption count.
     #[must_use]
     #[allow(
-        clippy::too_many_lines,
-        reason = "each retained identification variant has its own bounded summary"
+        clippy::missing_panics_doc,
+        reason = "the bounded summary serializes only JSON-compatible fields"
     )]
     pub fn summary(&self) -> Value {
-        let mut value = json!({"kind": self.node.kind(), "children": self.child_count(),
-            "status": null, "status_unavailable": "composite_identification"});
-        match self.node {
-            Node::Root => {
-                value["graph_class"] = json!(self.study.study().graph.class().as_str());
-                value["cache_kind"] = json!(
-                    self.study.study().identification.as_ref().map(IdentificationCache::kind)
-                );
-                value["max_completions"] = json!(self.study.study().declared.max_completions);
-                value["method"] = json!(
-                    self.study
-                        .plan()
-                        .binding()
-                        .identifier
-                        .named()
-                        .map(|identifier| identifier.as_str())
-                );
-                if let Some(plan) = self.study.plan().lowered() {
-                    let layer = PreparedIdentificationView {
-                        study: self.study,
-                        node: Node::Layer(plan.identification_layer()),
-                    }
-                    .summary();
-                    value["layer"] = layer["layer"].clone();
-                    value["status_unavailable"] = layer["status_unavailable"].clone();
-                    value["layer_details"] = layer;
-                }
-                if let Some(cache) = self.study.study().identification.as_ref() {
-                    let retained =
-                        PreparedIdentificationView { study: self.study, node: Node::Cache(cache) }
-                            .summary();
-                    value["status"] = retained["status"].clone();
-                    value["status_unavailable"] = retained["status_unavailable"].clone();
-                    value["status_domain"] = retained["status_domain"].clone();
-                    value["retained"] = retained;
-                }
-            }
-            Node::Layer(layer) => {
-                value["layer"] = json!(match layer {
-                    IdentificationLayer::Retained(_) => "retained",
-                    IdentificationLayer::Deferred { .. } => "deferred",
-                    IdentificationLayer::PerExecution { .. } => "per_execution",
-                    IdentificationLayer::NonGraphical(_) => "non_graphical",
-                    IdentificationLayer::NotClaimed { .. } => "not_claimed",
-                });
-                value["status_unavailable"] = json!(match layer {
-                    IdentificationLayer::Retained(_) => "composite_identification",
-                    IdentificationLayer::Deferred { .. } => "deferred_identification",
-                    IdentificationLayer::PerExecution { .. } => "per_execution_identification",
-                    IdentificationLayer::NonGraphical(_) => "non_graphical_identification",
-                    IdentificationLayer::NotClaimed { .. } => "identification_not_claimed",
-                });
-                match layer {
-                    IdentificationLayer::Deferred { reason, .. }
-                    | IdentificationLayer::PerExecution { reason } => {
-                        value["reason"] = json!(reason)
-                    }
-                    IdentificationLayer::NotClaimed { refusal } => {
-                        value["refusal"] = json!(refusal)
-                    }
-                    IdentificationLayer::NonGraphical(proof) => {
-                        value["non_graphical"] = json!(proof.as_str())
-                    }
-                    IdentificationLayer::Retained(_) => {}
-                }
-            }
-            Node::Cache(cache) => match cache {
-                IdentificationCache::Static(c) => status(&mut value, c.identification.status),
-                IdentificationCache::Pag(c) => envelope_summary(&mut value, &c.envelope),
-                IdentificationCache::Cpdag(c) => envelope_summary(&mut value, &c.envelope),
-                IdentificationCache::TemporalClass(c) => {
-                    envelope_summary(&mut value, &c.envelope.envelope);
-                    value["horizon_count"] = json!(c.by_horizon.len());
-                }
-                IdentificationCache::Temporal(c) => {
-                    value["horizon_count"] = json!(c.by_horizon.len())
-                }
-                IdentificationCache::GraphPosterior(c) => {
-                    value["sample_count"] = json!(c.graphs.n_samples);
-                    value["atom_count"] = json!(c.atoms.len());
-                    value["class_atom_count"] = json!(c.class_atoms.len());
-                    value["mass_available"] = json!("per_sample");
-                }
-                IdentificationCache::DbnPosterior(c) => {
-                    value["sample_count"] = json!(c.graphs.n_samples);
-                    value["atom_count"] = json!(c.atoms.len());
-                    value["horizon_demotion_count"] = json!(c.horizon_demotions.len());
-                    value["mass_available"] = json!("per_sample");
-                }
-                IdentificationCache::TemporalClassPosterior(c) => {
-                    value["sample_count"] = json!(c.graphs.n_samples);
-                    value["class_atom_count"] = json!(c.class_atoms.len());
-                    value["mass_available"] = json!("per_sample");
-                }
-                IdentificationCache::Transport(proof) => {
-                    transport_outcome_summary(&mut value, proof)
-                }
-            },
-            Node::Transport(proof) => transport_outcome_summary(&mut value, proof),
-            Node::Proof(proof, indexer, weight) => {
-                status(&mut value, proof.status);
-                value["assumption_count"] = json!(proof.required_assumptions.len());
-                value["derivation_step_count"] = json!(proof.derivation.steps.len());
-                value["estimand_count"] = json!(proof.estimands.len());
-                value["estimand_claim_count"] = json!(proof.estimand_claims.len());
-                value["candidates_examined"] = json!(proof.performance.candidates_examined);
-                value["sets_returned"] = json!(proof.performance.sets_returned);
-                value["weight"] = json!(weight);
-                value["temporal_namespace"] = indexer_value(indexer);
-            }
-            Node::Pag(envelope) => envelope_summary(&mut value, envelope),
-            Node::Cpdag(envelope) => envelope_summary(&mut value, envelope),
-            Node::TemporalEnvelope(envelope) | Node::HorizonEnvelope(_, envelope) => {
-                envelope_summary(&mut value, &envelope.envelope)
-            }
-            Node::Horizon(entry) => {
-                value["horizon"] = json!(entry.horizon);
-                status(&mut value, entry.identification.status);
-            }
-            Node::ClassAtom(atom) => {
-                value["key"] = json!(atom.key);
-                status(&mut value, atom.identification.status);
-                value["identified_weight"] = json!(atom.identified_weight);
-                value["truncated_completions"] = json!(atom.truncated_completions);
-            }
-            Node::TemporalAtom(atom) => {
-                value["key"] = json!(atom.key);
-                status(&mut value, atom.identification.status);
-                value["identified_weight"] = json!(atom.identified_weight);
-                value["truncated_completions"] = json!(atom.truncated_completions);
-            }
-            Node::GraphAtom(atom) => {
-                value["key"] = json!(atom.key);
-                status(&mut value, atom.identification.status);
-            }
-            Node::DbnAtom(atom) => {
-                value["key"] = json!(atom.key);
-                status(&mut value, atom.identification.status);
-            }
-            Node::ClassCase(atom, index) => {
-                let case = &atom.cases[index];
-                status(&mut value, case.status);
-                value["weight"] = json!(case.weight);
-            }
-            Node::PagCase(case) => {
-                status(&mut value, case.result.status);
-                value["weight"] = json!(case.weight.0);
-            }
-            Node::DagCase(case) => {
-                status(&mut value, case.result.status);
-                value["weight"] = json!(case.weight.0);
-            }
-            Node::TemporalCase(case, indexer) => {
-                status(&mut value, case.result.status);
-                value["weight"] = json!(case.weight.0);
-                value["temporal_namespace"] = indexer_value(indexer);
-            }
-            Node::Absent => value["status_unavailable"] = json!("component_not_identified"),
-            Node::Sample(graphs, index) => {
-                value["key"] = json!(graphs.graph_keys.get(index));
-                value["weight"] = json!(graphs.weights.get(index));
-                value["identified"] = json!(
-                    graphs
-                        .identified
-                        .get(index)
-                        .map(|flag| matches!(flag, antecedent_prob::GraphIdentFlag::Identified))
-                );
-            }
-            _ => {}
-        }
-        if let Node::HorizonEnvelope(horizon, _) = self.node {
-            value["horizon"] = json!(horizon);
-        }
-        value
+        serde_json::to_value(borrowed_summary::BorrowedSummary::new(self))
+            .expect("identification summary uses JSON-compatible fields")
     }
 
     /// Number of immediate children, without enumerating or serializing them.
@@ -620,39 +448,9 @@ fn accessor_page_end(
 fn accessor_page(total: usize, offset: usize, end: usize, items: &[Value]) -> Value {
     json!({"available":true,"total":total,"offset":offset,"items":items,"next_offset":(end<total).then_some(end)})
 }
-fn transport_outcome_summary(
-    value: &mut Value,
-    proof: &antecedent_identify::TransportIdentification,
-) {
-    let outcome = proof.outcome();
-    value["status"] = json!(outcome.kind.as_str());
-    value["status_domain"] = json!("transport_outcome");
-    value["status_unavailable"] = Value::Null;
-    value["reason"] = json!(outcome.reason);
-    value["location_factor"] = json!(outcome.location.as_ref().and_then(|l| l.factor.as_ref()));
-    value["location_node_count"] =
-        json!(outcome.location.as_ref().map_or(0, |l| l.graph_nodes.len()));
-}
-
 #[allow(clippy::needless_pass_by_value, reason = "map_err passes its owned serialization error")]
 fn serialization(error: serde_json::Error) -> crate::CausalError {
     crate::CausalError::Compile { message: error.to_string() }
-}
-fn status(value: &mut Value, status: antecedent_core::IdentificationStatus) {
-    value["status"] = json!(status.as_str());
-    value["status_domain"] = json!("identification");
-    value["status_unavailable"] = Value::Null;
-}
-fn envelope_summary<G>(
-    value: &mut Value,
-    envelope: &antecedent_identify::IdentificationEnvelope<G>,
-) {
-    status(value, envelope.status);
-    value["identified_weight"] = json!(envelope.identified_weight.0);
-    value["unidentified_weight"] = json!(envelope.unidentified_weight.0);
-    value["truncated_completions"] = json!(envelope.truncated_completions);
-    value["case_count"] = json!(envelope.cases.len());
-    value["has_invariant"] = json!(envelope.invariant.is_some());
 }
 fn envelope_details<G>(
     value: &mut Value,

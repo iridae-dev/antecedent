@@ -16,7 +16,6 @@ import json
 import re
 import subprocess
 import sys
-import tomllib
 from itertools import product
 from pathlib import Path
 
@@ -25,7 +24,7 @@ import coverage_validation_bindings
 import external_evidence
 import gate_support
 from _repo import REPO_ROOT as ROOT
-from _repo import read_text
+from _repo import load_toml, read_text
 
 OUT = ROOT / "docs" / "support-matrix.md"
 SUPPORT_SNAPSHOT = ROOT / "crates" / "antecedent" / "data" / "support_matrix.json"
@@ -76,7 +75,7 @@ def release_notes_path(version: str) -> Path:
 def documentation_release_version() -> str:
     preparation = NOTES_DIR / "preparation.toml"
     if preparation.is_file():
-        target = tomllib.loads(read_text(preparation)).get("target_version")
+        target = load_toml(preparation).get("target_version")
         if isinstance(target, str) and re.fullmatch(r"\d+\.\d+\.\d+", target):
             return target
         raise SystemExit(f"{preparation}: target_version must be X.Y.Z")
@@ -126,7 +125,7 @@ def assert_historical_notes_are_frozen(version: str) -> None:
 
 
 def load(rel: str) -> dict:
-    return tomllib.loads(read_text(ROOT / rel))
+    return load_toml(ROOT / rel)
 
 
 def matches(rule: dict, cell: dict) -> bool:

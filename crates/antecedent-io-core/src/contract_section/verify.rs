@@ -1945,13 +1945,10 @@ pub(in crate::contract_section) fn verify_graph_posterior_mixture(
         return;
     };
     let mut consistent = mixture.atoms.len() == programs.atoms.len();
-    let mut published_by_key = std::collections::HashMap::with_capacity(mixture.atoms.len());
-    for atom in &mixture.atoms {
-        published_by_key.entry(atom.graph_key).or_insert(atom);
-    }
     let mut uncovered = 0.0_f64;
     for atom in &programs.atoms {
-        let Some(published) = published_by_key.get(&atom.graph_key) else {
+        let Some(published) = mixture.atoms.iter().find(|item| item.graph_key == atom.graph_key)
+        else {
             consistent = false;
             continue;
         };

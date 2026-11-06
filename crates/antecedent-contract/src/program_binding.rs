@@ -241,23 +241,27 @@ fn refuse(
     remedy: &'static str,
 ) -> ExternalRefusal {
     ExternalRefusal {
+        code,
+        stage: "bind",
+        detail: detail.to_owned(),
         offending,
         expected: Some(expected),
         supplied: Some(supplied),
+        capability: None,
         remedy: Some(remedy),
-        ..ExternalRefusal::new(code, "bind", detail)
     }
 }
 
 fn invalid(field: &str) -> ExternalRefusal {
     ExternalRefusal {
+        code: antecedent_core::reason_code!("invalid_argument"),
+        stage: "bind",
+        detail: antecedent_core::reason_details::program_binding::INVALID_BINDING.to_owned(),
         offending: Some(field.to_owned()),
+        expected: None,
+        supplied: None,
+        capability: None,
         remedy: Some("name every program identity and give a strictly increasing finite grid"),
-        ..ExternalRefusal::new(
-            antecedent_core::reason_code!("invalid_argument"),
-            "bind",
-            antecedent_core::reason_details::program_binding::INVALID_BINDING,
-        )
     }
 }
 

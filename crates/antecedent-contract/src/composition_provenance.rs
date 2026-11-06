@@ -98,8 +98,14 @@ pub enum ProvenanceChainError {
 
 fn refusal(code: &'static str, detail: &str, link: &str) -> crate::ExternalRefusal {
     crate::ExternalRefusal {
+        code,
+        stage: "provenance",
+        detail: detail.to_owned(),
         offending: Some(link.to_owned()),
-        ..crate::ExternalRefusal::new(code, "provenance", detail)
+        expected: None,
+        supplied: None,
+        capability: None,
+        remedy: None,
     }
 }
 

@@ -26,7 +26,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from _repo import REPO_ROOT as ROOT
+from _repo import REPO_ROOT as ROOT, load_toml
 from check_acceptance_manifest import evidence_problems
 
 REGISTRY = "parity/gcm_conformance.toml"
@@ -115,7 +115,7 @@ def performance_problems(benches: Any, covered: set[str], root: Path) -> list[st
             errors.append(f"{bid}: {path} must assert `ratio <= MAX_REGRESSION`")
         manifest = root / "crates" / package / "Cargo.toml"
         declared = (
-            tomllib.loads(manifest.read_text(encoding="utf-8")).get("bench", [])
+            load_toml(manifest).get("bench", [])
             if manifest.is_file()
             else []
         )

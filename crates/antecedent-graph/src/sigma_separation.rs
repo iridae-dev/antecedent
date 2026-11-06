@@ -255,12 +255,12 @@ fn prepare(
     y: DenseNodeId,
     conditioning: &[DenseNodeId],
 ) -> Result<QueryEnds, GraphError> {
-    crate::types::validate_node_index(n, x)?;
-    crate::types::validate_node_index(n, y)?;
+    known(n, x)?;
+    known(n, y)?;
     let mut set = Vec::new();
     let mut conditioned = BitSet::with_len(n);
     for &node in conditioning {
-        crate::types::validate_node_index(n, node)?;
+        known(n, node)?;
         if conditioned.contains(node) {
             continue;
         }
@@ -269,6 +269,10 @@ fn prepare(
     }
     set.sort_unstable();
     Ok(QueryEnds { x, y, conditioning: set, conditioned })
+}
+
+const fn known(n: usize, id: DenseNodeId) -> Result<(), GraphError> {
+    if id.as_usize() >= n { Err(GraphError::UnknownNode { id: id.raw() }) } else { Ok(()) }
 }
 
 /// Definition A.16, clause 1, and the trivial one-node walk.

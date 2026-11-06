@@ -44,8 +44,9 @@ import hashlib
 import json
 import re
 import sys
-import tomllib
 from pathlib import Path
+
+from _repo import load_toml
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = Path("parity/python_capabilities/capabilities.toml")
@@ -526,9 +527,7 @@ def check(
     from check_python_surface import PythonIndex
 
     python_index = PythonIndex(root)
-    registry = tomllib.loads(
-        (root / "parity/python_facade_surface.toml").read_text(encoding="utf-8")
-    )["entry"]
+    registry = load_toml(root / "parity/python_facade_surface.toml")["entry"]
     internal = {row["rust"] for row in registry if row["status"] == "internal"}
     seen, old_internal = set(), set()
     unit_ids = {unit["id"] for unit in universe or []}
@@ -628,7 +627,7 @@ def main() -> int:
     args = parser.parse_args()
     if args.write_surface:
         write_surface(ROOT)
-    manifest = tomllib.loads((ROOT / MANIFEST).read_text(encoding="utf-8"))
+    manifest = load_toml(ROOT / MANIFEST)
     inventory = json.loads((ROOT / SURFACE).read_text(encoding="utf-8"))
     execution = json.loads(args.execution.read_text(encoding="utf-8")) if args.execution else None
     problems, gaps = check(

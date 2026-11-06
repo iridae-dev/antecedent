@@ -33,18 +33,6 @@ pub(crate) fn validate_prior_scale(
     Ok(())
 }
 
-/// Validate a maximum matching distance without changing its boundary semantics.
-pub(crate) fn validate_matching_caliper(
-    caliper: Option<f64>,
-) -> Result<(), crate::EstimationError> {
-    match caliper {
-        Some(limit) if !(limit.is_finite() && limit >= 0.0) => Err(
-            crate::EstimationError::data_msg("matching caliper must be finite and non-negative"),
-        ),
-        _ => Ok(()),
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod interval_test_support;
 

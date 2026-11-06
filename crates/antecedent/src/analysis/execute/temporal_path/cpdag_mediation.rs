@@ -50,53 +50,28 @@ fn last_mediation_atom(
 
 /// Accumulators the CPDAG mediation sweep threads across horizons and
 /// completions and folds into the result.
-struct CpdagMediationRun {
-    slices: Vec<antecedent_estimate::TemporalMediationSlice>,
-    primary: Option<(IdentificationResult, IdentifiedEstimand)>,
-    primary_envelope: Option<Arc<antecedent_identify::TemporalClassEnvelope>>,
-    refutations: Vec<antecedent_validate::RefutationReport>,
-    aggregate_graph_dependent: bool,
-    structural_atoms: Vec<crate::result::StructuralResponseAtom>,
-    full_mass_scope: bool,
-    truncated_atoms: usize,
-    block_replicates_ok: Option<u32>,
+pub(super) struct CpdagMediationRun {
+    pub(super) slices: Vec<antecedent_estimate::TemporalMediationSlice>,
+    pub(super) primary: Option<(IdentificationResult, IdentifiedEstimand)>,
+    pub(super) primary_envelope: Option<Arc<antecedent_identify::TemporalClassEnvelope>>,
+    pub(super) refutations: Vec<antecedent_validate::RefutationReport>,
+    pub(super) aggregate_graph_dependent: bool,
+    pub(super) structural_atoms: Vec<crate::result::StructuralResponseAtom>,
+    pub(super) full_mass_scope: bool,
+    pub(super) truncated_atoms: usize,
+    pub(super) block_replicates_ok: Option<u32>,
     /// The contrast the completions share, when the shared-design branch
     /// fires: at one horizon it is the result's scalar estimate. The Bayesian
     /// arm also keeps the composed posterior that contrast was taken from, so
     /// the reported interval is its quantile.
-    shared_contrast: Option<TemporalMediationEstimate>,
-    shared_posterior: Option<antecedent_estimate::CausalPosterior>,
-    shared_horizons: usize,
-    block_cancelled: bool,
-    diagnostics: Vec<Diagnostic>,
+    pub(super) shared_contrast: Option<TemporalMediationEstimate>,
+    pub(super) shared_posterior: Option<antecedent_estimate::CausalPosterior>,
+    pub(super) shared_horizons: usize,
+    pub(super) block_cancelled: bool,
+    pub(super) diagnostics: Vec<Diagnostic>,
 }
 
 impl CpdagMediationRun {
-    fn new(horizon_count: usize) -> Self {
-        Self {
-            slices: Vec::with_capacity(horizon_count),
-            primary: None,
-            primary_envelope: None,
-            refutations: Vec::new(),
-            aggregate_graph_dependent: false,
-            structural_atoms: Vec::new(),
-            full_mass_scope: true,
-            truncated_atoms: 0,
-            block_replicates_ok: None,
-            shared_contrast: None,
-            shared_posterior: None,
-            shared_horizons: 0,
-            block_cancelled: false,
-            diagnostics: vec![Diagnostic::new(
-                "estimate.temporal_mediation.class_identified_set",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "completion-specific mediation effects are returned as per-horizon identified \
-                 sets; completion enumeration is not averaged",
-            )],
-        }
-    }
-
     /// One horizon whose completions all fit the same mediation design: the
     /// identified set is that single contrast, so it is the result's scalar
     /// estimate. Frequentist reports the design's circular-block SE; Bayesian
@@ -143,38 +118,25 @@ impl CpdagMediationRun {
 }
 
 /// One horizon's completion fit memos and shared-design bookkeeping.
-struct CpdagHorizonState {
+pub(super) struct CpdagHorizonState {
     /// Completions with one method, mediator, adjustment and status run one
     /// fit at this horizon; every other input of a fit is fixed per horizon.
-    bayesian_fits: CompletionFitMemo<BayesianMediationFit, MediationFitKey>,
-    point_fits: CompletionFitMemo<TemporalMediationEstimate, MediationFitKey>,
-    refute_fits: CompletionFitMemo<Vec<antecedent_validate::RefutationReport>, MediationFitKey>,
+    pub(super) bayesian_fits: CompletionFitMemo<BayesianMediationFit, MediationFitKey>,
+    pub(super) point_fits: CompletionFitMemo<TemporalMediationEstimate, MediationFitKey>,
+    pub(super) refute_fits:
+        CompletionFitMemo<Vec<antecedent_validate::RefutationReport>, MediationFitKey>,
     /// Completions (frequentist or Bayesian) that all fit the same mediation
     /// design (same estimand, same S(h)) estimate one contrast; that design is
     /// kept for the class interval.
-    shared_design: Option<(IdentifiedEstimand, Arc<[antecedent_data::LaggedColumn]>)>,
-    shared_status: Option<IdentificationStatus>,
-    designs_agree: bool,
-    effects: Vec<f64>,
-    hit_cap: bool,
-    completion_count: usize,
+    pub(super) shared_design: Option<(IdentifiedEstimand, Arc<[antecedent_data::LaggedColumn]>)>,
+    pub(super) shared_status: Option<IdentificationStatus>,
+    pub(super) designs_agree: bool,
+    pub(super) effects: Vec<f64>,
+    pub(super) hit_cap: bool,
+    pub(super) completion_count: usize,
 }
 
 impl CpdagHorizonState {
-    fn new(hit_cap: bool, completion_count: usize) -> Self {
-        Self {
-            bayesian_fits: CompletionFitMemo::default(),
-            point_fits: CompletionFitMemo::default(),
-            refute_fits: CompletionFitMemo::default(),
-            shared_design: None,
-            shared_status: None,
-            designs_agree: true,
-            effects: Vec::new(),
-            hit_cap,
-            completion_count,
-        }
-    }
-
     fn bounds(&self) -> (f64, f64) {
         let lower = self.effects.iter().copied().fold(f64::INFINITY, f64::min);
         let upper = self.effects.iter().copied().fold(f64::NEG_INFINITY, f64::max);

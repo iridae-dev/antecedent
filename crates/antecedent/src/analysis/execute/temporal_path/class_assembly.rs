@@ -25,19 +25,19 @@ use super::{
 /// the horizon count.
 pub(in crate::analysis::execute) struct ClassResponseAssembly {
     /// Cells of one horizon: the dose grid, or one intervention-response cell.
-    cells_per_horizon: usize,
-    n_horizons: usize,
-    lower: Vec<f64>,
-    upper: Vec<f64>,
+    pub(super) cells_per_horizon: usize,
+    pub(super) n_horizons: usize,
+    pub(super) lower: Vec<f64>,
+    pub(super) upper: Vec<f64>,
     pub(in crate::analysis::execute) structural_atoms: Vec<crate::result::StructuralResponseAtom>,
-    supports: Vec<antecedent_core::SupportReport>,
-    horizon_supports: Vec<antecedent_core::SupportReport>,
-    horizon_fingerprints: Vec<Vec<u64>>,
+    pub(super) supports: Vec<antecedent_core::SupportReport>,
+    pub(super) horizon_supports: Vec<antecedent_core::SupportReport>,
+    pub(super) horizon_fingerprints: Vec<Vec<u64>>,
     /// No horizon capped its completion enumeration.
     pub(in crate::analysis::execute) full_mass_scope: bool,
     pub(in crate::analysis::execute) truncated_atoms: usize,
-    horizon_values: Vec<Vec<f64>>,
-    support_start: usize,
+    pub(super) horizon_values: Vec<Vec<f64>>,
+    pub(super) support_start: usize,
 }
 
 /// What [`ClassResponseAssembly::finish`] publishes.
@@ -140,42 +140,6 @@ impl super::super::Study {
 }
 
 impl ClassResponseAssembly {
-    /// Start an assembly for `query`'s functional over `temporal.horizons`.
-    ///
-    /// # Errors
-    ///
-    /// A functional that is neither a mean curve nor an intervention response, or an
-    /// unreadable dose grid.
-    pub(in crate::analysis::execute) fn new(
-        query: &ResponseQuery,
-        temporal: &antecedent_core::TemporalResponseSpec,
-    ) -> Result<Self, CausalError> {
-        let cells_per_horizon = match &query.functional {
-            ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?.len(),
-            ResponseFunctional::InterventionResponse { .. } => 1,
-            _ => {
-                return Err(CausalError::Unsupported {
-                    message: "class-aware temporal response supports curves and intervention responses",
-                });
-            }
-        };
-        let n_horizons = temporal.horizons.len();
-        Ok(Self {
-            cells_per_horizon,
-            n_horizons,
-            lower: vec![f64::NAN; cells_per_horizon * n_horizons],
-            upper: vec![f64::NAN; cells_per_horizon * n_horizons],
-            structural_atoms: Vec::new(),
-            supports: Vec::new(),
-            horizon_supports: Vec::new(),
-            horizon_fingerprints: Vec::new(),
-            full_mass_scope: true,
-            truncated_atoms: 0,
-            horizon_values: Vec::new(),
-            support_start: 0,
-        })
-    }
-
     pub(in crate::analysis::execute) const fn cells_per_horizon(&self) -> usize {
         self.cells_per_horizon
     }

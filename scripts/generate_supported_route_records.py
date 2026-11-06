@@ -24,6 +24,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from _repo import load_toml
+
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "parity/capabilities/route_manifest.toml"
 SUPPORTED = ROOT / "parity/support_cells.toml"
@@ -71,7 +73,7 @@ def record(query: str, graph_class: str, cells: list[dict]) -> str:
 
 
 def render(text: str) -> str:
-    supported = tomllib.loads(SUPPORTED.read_text(encoding="utf-8"))["cell"]
+    supported = load_toml(SUPPORTED)["cell"]
     by_pair: dict[tuple[str, str], list[dict]] = collections.defaultdict(list)
     for cell in supported:
         by_pair[(cell["query"], cell["graph_class"])].append(cell)

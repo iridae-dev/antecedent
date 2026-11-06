@@ -6,16 +6,15 @@ use super::{
     Arc, BayesianGComputationAte, BayesianResponseFit, CausalError, CausalPosterior,
     CausalResponse, ClassBandLayout, ClassBootstrapTargets, ClassObservationAtom,
     ClassObservationKind, ClassResponseAssembly, ClassResponseInput, ClassResponseParts,
-    ClassResponseTail, CompletionFitMemo, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    EffectEstimate, EstimatorId, ExecutionContext, IdentificationResult, IdentificationStatus,
-    IdentifiedEstimand, IdentifierId, InferenceMode, Instant, ObservationBootstrap,
-    ObservationMechanismEstimator, ObservationSpec, OverlapPolicy, PhysicalExecutionPlan,
-    RefuteSuite, ResponseFitKey, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, StudyResult, TemporalClassWeights, TemporalDag,
-    TemporalIndexer, TemporalResponseEstimator, TimeSeriesData, VariableId,
-    append_temporal_observation_assumptions, apply_class_observation_bootstrap, bare_class_atom,
-    bayesian_gcomp, class_atom_adjustment, class_completion_key, class_horizon_witness,
-    class_observation_band_note, class_response_identified_set_diagnostics,
+    ClassResponseTail, CompletionFitMemo, Diagnostic, EffectEstimate, EstimatorId,
+    ExecutionContext, IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifierId,
+    InferenceMode, Instant, ObservationBootstrap, ObservationMechanismEstimator, ObservationSpec,
+    OverlapPolicy, PhysicalExecutionPlan, RefuteSuite, ResponseFitKey, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StudyResult,
+    TemporalClassWeights, TemporalDag, TemporalIndexer, TemporalResponseEstimator, TimeSeriesData,
+    VariableId, append_temporal_observation_assumptions, apply_class_observation_bootstrap,
+    bare_class_atom, bayesian_gcomp, class_atom_adjustment, class_completion_key,
+    class_horizon_witness, class_observation_band_note, class_response_identified_set_diagnostics,
     enforce_temporal_response_memory_budget, fit_class_bayesian_response,
     fit_class_frequentist_response, identification_status_ok_for_case, nan_effect,
     push_conflict_diagnostics, select_estimand, temporal_class_complete_values,
@@ -75,30 +74,7 @@ struct ClassResponseHorizonFits {
     frequentist: CompletionFitMemo<CausalResponse, ResponseFitKey>,
 }
 
-impl ClassSequenceRun {
-    fn new() -> Self {
-        Self {
-            lower: Vec::new(),
-            upper: Vec::new(),
-            structural_atoms: Vec::new(),
-            primary_estimand: None,
-            primary_identification: None,
-            primary_envelope: None,
-            assumptions: antecedent_core::AssumptionSet::new(),
-            full_mass_scope: true,
-            truncated_atoms: 0,
-            horizon_fingerprints: Vec::new(),
-            observation_atoms: Vec::new(),
-            diagnostics: vec![Diagnostic::new(
-                "estimate.temporal.sequence_overlay",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "class-aware Sequence runs per directed completion; a joint-coordinate miss \
-                 unidentifies that completion, not the class; no last-step collapse",
-            )],
-        }
-    }
-}
+impl ClassSequenceRun {}
 
 /// What the observation circular-block band of a class response reads.
 #[derive(Clone, Copy)]
@@ -130,19 +106,19 @@ struct ClassSequenceSweep<'a> {
 
 /// Accumulators of a class Sequence sweep: per-horizon envelope bounds, the
 /// structural atoms and the first completion's identification products.
-struct ClassSequenceRun {
-    lower: Vec<f64>,
-    upper: Vec<f64>,
-    structural_atoms: Vec<crate::result::StructuralResponseAtom>,
-    primary_estimand: Option<IdentifiedEstimand>,
-    primary_identification: Option<IdentificationResult>,
-    primary_envelope: Option<Arc<antecedent_identify::TemporalClassEnvelope>>,
-    assumptions: antecedent_core::AssumptionSet,
-    full_mass_scope: bool,
-    truncated_atoms: usize,
-    horizon_fingerprints: Vec<Vec<u64>>,
-    observation_atoms: Vec<ClassObservationAtom>,
-    diagnostics: Vec<Diagnostic>,
+pub(super) struct ClassSequenceRun {
+    pub(super) lower: Vec<f64>,
+    pub(super) upper: Vec<f64>,
+    pub(super) structural_atoms: Vec<crate::result::StructuralResponseAtom>,
+    pub(super) primary_estimand: Option<IdentifiedEstimand>,
+    pub(super) primary_identification: Option<IdentificationResult>,
+    pub(super) primary_envelope: Option<Arc<antecedent_identify::TemporalClassEnvelope>>,
+    pub(super) assumptions: antecedent_core::AssumptionSet,
+    pub(super) full_mass_scope: bool,
+    pub(super) truncated_atoms: usize,
+    pub(super) horizon_fingerprints: Vec<Vec<u64>>,
+    pub(super) observation_atoms: Vec<ClassObservationAtom>,
+    pub(super) diagnostics: Vec<Diagnostic>,
 }
 
 /// Admit the graph digest work before retaining a completion witness.

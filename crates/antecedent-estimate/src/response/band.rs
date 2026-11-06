@@ -66,7 +66,22 @@ pub(super) fn simultaneous_multiplier_band(
     // collinear (the shared covariate-marginalization term makes them so); a
     // simultaneous band narrower than the pointwise band would be incoherent.
     let critical = monte_carlo_critical(&maxima, level).max(normal_ppf(0.5 + level / 2.0));
-    let (lower, upper) = band_endpoints(mean, standard_errors, critical)?;
+    let lower = mean
+        .iter()
+        .zip(standard_errors)
+        .map(|(estimate, se)| estimate - critical * se)
+        .collect::<Vec<_>>();
+    let upper = mean
+        .iter()
+        .zip(standard_errors)
+        .map(|(estimate, se)| estimate + critical * se)
+        .collect::<Vec<_>>();
+    // An unavailable Monte Carlo rank deliberately produces the whole real
+    // line. Keep that exact finite-replicate convention; only a finite critical
+    // value with overflowing endpoints, or NaNs, is a numerical failure.
+    if !valid_band_endpoints(critical, &lower, &upper) {
+        return Err(EstimationError::unsupported("simultaneous band has non-finite endpoints"));
+    }
     Ok(ResponseUncertainty::SimultaneousBand {
         level,
         lower: Arc::from(lower),
@@ -142,7 +157,16 @@ pub(super) fn simultaneous_posterior_band(
         }
         critical = critical.max(low).max(high);
     }
-    let (lower, upper) = band_endpoints(mean, standard_deviations, critical)?;
+    let lower: Vec<f64> =
+        mean.iter().zip(standard_deviations).map(|(m, sd)| m - critical * sd).collect();
+    let upper: Vec<f64> =
+        mean.iter().zip(standard_deviations).map(|(m, sd)| m + critical * sd).collect();
+    // An unavailable Monte Carlo rank deliberately produces the whole real
+    // line. Keep that exact finite-replicate convention; only a finite critical
+    // value with overflowing endpoints, or NaNs, is a numerical failure.
+    if !valid_band_endpoints(critical, &lower, &upper) {
+        return Err(EstimationError::unsupported("simultaneous band has non-finite endpoints"));
+    }
     Ok(ResponseUncertainty::SimultaneousBand {
         level,
         lower: Arc::from(lower),
@@ -152,21 +176,6 @@ pub(super) fn simultaneous_posterior_band(
         })?,
         interpretation: IntervalInterpretation::Credible,
     })
-}
-
-// An unavailable Monte Carlo rank deliberately produces the whole real line.
-// Finite critical values with overflowing endpoints, or NaNs, are failures.
-fn band_endpoints(
-    mean: &[f64],
-    scales: &[f64],
-    critical: f64,
-) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
-    let lower: Vec<f64> = mean.iter().zip(scales).map(|(m, scale)| m - critical * scale).collect();
-    let upper: Vec<f64> = mean.iter().zip(scales).map(|(m, scale)| m + critical * scale).collect();
-    if !valid_band_endpoints(critical, &lower, &upper) {
-        return Err(EstimationError::unsupported("simultaneous band has non-finite endpoints"));
-    }
-    Ok((lower, upper))
 }
 
 fn valid_band_endpoints(critical: f64, lower: &[f64], upper: &[f64]) -> bool {

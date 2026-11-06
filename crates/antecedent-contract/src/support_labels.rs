@@ -28,10 +28,14 @@ pub fn check_static_point_labels(
 ) -> Result<(), ExternalRefusal> {
     let refuse =
         |code: &'static str, detail: &str, expected: String, supplied: String| ExternalRefusal {
+            code,
+            stage: "support",
+            detail: detail.to_owned(),
+            offending: None,
             expected: Some(expected),
             supplied: Some(supplied),
+            capability: None,
             remedy: Some("label every coordinate and report the worst label as the summary"),
-            ..ExternalRefusal::new(code, "support", detail)
         };
     if labels.len() != value_len {
         return Err(refuse(

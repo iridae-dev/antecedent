@@ -13,14 +13,8 @@ use super::{
     parametric_scm_identification, provenance_ids, shared_identification_from_cache_or,
 };
 mod contrast_set;
-mod counterfactual_uncertainty;
-use counterfactual_uncertainty::{
-    CounterfactualRefit, bootstrap_counterfactual_estimate, counterfactual_posterior_columns,
-    dirichlet_counterfactual_estimate, unit_effect_posterior_summary,
-};
-mod plan;
+use crate::analysis::proof_support::proof_supplies_full;
 use antecedent_core::StreamDomain;
-pub(crate) use plan::{CheckedCounterfactualPlan, CounterfactualProcedure};
 
 /// The complete-case table of an attribution, the submitted position of each retained row and
 /// the accounting of what was dropped.
@@ -28,6 +22,145 @@ pub(super) struct AttributionRows {
     table: TabularData,
     kept: Vec<usize>,
     report: crate::result::MissingDataReport,
+}
+
+/// Inference procedure over the heterogeneity best-score counterfactual fit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum CounterfactualProcedure {
+    Point,
+    DirichletRowWeights {
+        draws: usize,
+    },
+    /// Frequentist whole-procedure multinomial row bootstrap of the mean ITE.
+    RowBootstrap {
+        replicates: u32,
+    },
+}
+
+impl CounterfactualProcedure {
+    pub(crate) fn for_inference(inference: &InferenceMode) -> Result<Self, CausalError> {
+        match inference {
+            InferenceMode::Frequentist => Ok(Self::Point),
+            InferenceMode::Bayesian(config) => {
+                if config.has_transfer() {
+                    return Err(CausalError::Unsupported {
+                        message: "Bayesian counterfactuals require a declared mechanism mapping; a coefficient artifact cannot be applied as an isotropic GCM prior or hydrated onto fitted GCM mechanisms",
+                    });
+                }
+                let draws = bayesian_draw_count(inference)?;
+                if draws < 2 {
+                    return Err(CausalError::Unsupported {
+                        message: "Bayesian counterfactuals require at least two posterior draws",
+                    });
+                }
+                Ok(Self::DirichletRowWeights { draws })
+            }
+        }
+    }
+
+    /// The Frequentist point procedure becomes the mechanism-refit row bootstrap when a
+    /// replicate count is requested and the declared design resamples subjects.
+    ///
+    /// # Errors
+    ///
+    /// A declared design that does not allow a subject resample.
+    pub(crate) fn with_bootstrap(
+        self,
+        replicates: u32,
+        design: Option<antecedent_core::DeclaredSamplingDesign>,
+    ) -> Result<Self, CausalError> {
+        match self {
+            Self::Point if replicates > 0 => {
+                super::gcm_bootstrap::require_subject_resampling(design)?;
+                Ok(Self::RowBootstrap { replicates })
+            }
+            other => Ok(other),
+        }
+    }
+
+    fn matches_inference(&self, inference: &InferenceMode) -> bool {
+        match (self, inference) {
+            (Self::Point | Self::RowBootstrap { .. }, InferenceMode::Frequentist) => true,
+            (Self::DirichletRowWeights { draws }, InferenceMode::Bayesian(config)) => {
+                *draws == config.n_draws
+            }
+            _ => false,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct CheckedCounterfactualPlan {
+    operation: crate::gcm::CheckedCounterfactualOperation,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
+    identify_cached: bool,
+    inference: InferenceMode,
+    procedure: CounterfactualProcedure,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
+    result_context: IdentifiedResultContext,
+}
+
+impl std::fmt::Debug for CheckedCounterfactualPlan {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("CheckedCounterfactualPlan")
+            .field("operation", &self.operation)
+            .field("identification", &self.cache.identification)
+            .field("estimand", &self.cache.estimand)
+            .field("identify_cached", &self.identify_cached)
+            .field("inference", &self.inference)
+            .field("procedure", &self.procedure)
+            .field("physical", &self.physical)
+            .finish_non_exhaustive()
+    }
+}
+
+impl CheckedCounterfactualPlan {
+    pub(crate) fn new(
+        operation: crate::gcm::CheckedCounterfactualOperation,
+        cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
+        identify_cached: bool,
+        inference: InferenceMode,
+        procedure: CounterfactualProcedure,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
+        result_context: IdentifiedResultContext,
+    ) -> Result<Self, CausalError> {
+        let (identification, estimand) = (&cache.identification, &cache.estimand);
+        if !matches!(&identification.query, CausalQuery::Counterfactual(query) if query == operation.query())
+            || result_context.query != CausalQuery::Counterfactual(operation.query().clone())
+            || result_context.inference != inference
+            || !procedure.matches_inference(&inference)
+            || !matches!(
+                identification.status,
+                IdentificationStatus::IdentifiedUnderParametricRestrictions
+            )
+            || !proof_supplies_full(identification, estimand)
+            || !physical.binding().names(IdentifierId::GcmParametric, EstimatorId::GcmFit)
+        {
+            return Err(CausalError::Compile { message: "checked counterfactual plan components do not agree on target, inference, identification, or procedure".into() });
+        }
+        Ok(Self {
+            operation,
+            cache,
+            identify_cached,
+            inference,
+            procedure,
+            physical,
+            result_context,
+        })
+    }
+
+    pub(crate) fn operation(&self) -> &crate::gcm::CheckedCounterfactualOperation {
+        &self.operation
+    }
+
+    pub(crate) fn execute(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        execute_checked_counterfactual_plan(self, data, ctx)
+    }
 }
 
 #[cfg(test)]
@@ -221,6 +354,183 @@ fn observed_range(values: &[f64]) -> (f64, f64) {
     let min = values.iter().copied().fold(f64::INFINITY, f64::min);
     let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     (min, max)
+}
+
+/// Inputs every Dirichlet row-weight refit of a counterfactual contrast reads.
+struct CounterfactualRefit<'a> {
+    data: &'a TabularData,
+    fitted: &'a crate::gcm::FittedGcm,
+    contrast: UnitContrast,
+    assumptions: &'a antecedent_core::AssumptionSet,
+    status: IdentificationStatus,
+}
+
+/// Bayesian-bootstrap refit of the mechanisms per draw, publishing the mean-ITE posterior and per-unit intervals.
+fn dirichlet_counterfactual_estimate(
+    refit: &CounterfactualRefit<'_>,
+    ite: crate::gcm::IteResult,
+    n_draws: usize,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, Option<CausalPosterior>, crate::gcm::IteResult), CausalError> {
+    let CounterfactualRefit { data, fitted, contrast, assumptions, status } = *refit;
+    let UnitContrast { treatment, outcome, active, control } = contrast;
+    let base_model = &fitted.model;
+    let mechanism_assignments = &fitted.assignments;
+    let n_units = ite.unit_effects.len();
+    let mut values = Vec::with_capacity(n_draws);
+    // Column-major `units × draws`: one posterior column per unit, read by
+    // the same summary that publishes the mean-ITE interval.
+    let mut unit_draws = vec![0.0; n_units * n_draws];
+    let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0x0CF0);
+    // One stream through every draw: a categorical node's rank-preserving noise is drawn once
+    // per posterior draw of the mechanisms, independently across draws.
+    let mut noise_rng = ctx.rng.stream_for(StreamDomain::Counterfactual, 0x0CF1);
+    let n = data.row_count();
+    for draw in 0..n_draws {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled {
+                stage: super::super::stage::STAGE_ESTIMATE_POINT,
+            });
+        }
+        let weights = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, n, false);
+        // The same registry the point fit selected from, so every family a
+        // node can have selected is one `refit_weighted` accepts.
+        let store = crate::gcm::MechanismRegistry::with_heterogeneity_families()
+            .refit_weighted(base_model, data, mechanism_assignments, &weights)
+            .map_err(|e| match e {
+                crate::gcm::ModelError::NotConverged { .. } => map_mechanism_fit(e),
+                other => CausalError::rejected(other),
+            })?;
+        let draw_model = base_model.clone().with_mechanisms(store);
+        let draw_ite = crate::gcm::counterfactual_ite_with_noise(
+            draw_model,
+            data,
+            (treatment, outcome, active, control),
+            ctx,
+            &mut noise_rng,
+        )?;
+        if draw_ite.unit_effects.len() != n_units {
+            return Err(CausalError::Compile {
+                message: "counterfactual Bayesian draw changed the unit set".into(),
+            });
+        }
+        values.push(draw_ite.mean_ite);
+        for (unit, effect) in draw_ite.unit_effects.iter().enumerate() {
+            unit_draws[unit * n_draws + draw] = *effect;
+        }
+    }
+    let posterior = counterfactual_posterior(values, assumptions.clone(), status)?;
+    let eq = posterior.effect_column().ok_or_else(|| CausalError::Compile {
+        message: "counterfactual posterior missing effect column".into(),
+    })?;
+    // Published unit effects stay the plain draw average (sequential sum,
+    // divided once), exactly as before per-unit intervals existed.
+    let scale = n_draws.max(1) as f64;
+    let unit_means: Vec<f64> = (0..n_units)
+        .map(|unit| {
+            unit_draws[unit * n_draws..(unit + 1) * n_draws].iter().fold(0.0, |s, v| s + v) / scale
+        })
+        .collect();
+    let unit_summary = unit_effect_posterior_summary(unit_draws, n_units, n_draws)?;
+    let mut ite = ite;
+    ite.unit_effects = std::sync::Arc::from(unit_means);
+    ite.unit_effect_intervals = Some(crate::gcm::UnitEffectIntervals {
+        lower: std::sync::Arc::clone(&unit_summary.q025),
+        upper: std::sync::Arc::clone(&unit_summary.q975),
+        level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+        method: antecedent_core::IntervalMethod::UnitPosteriorQuantile.as_str(),
+    });
+    ite.mean_ite = posterior.summaries.mean[eq];
+    let mut estimate = EffectEstimate::new(
+        posterior.summaries.mean[eq],
+        posterior.summaries.sd[eq],
+        posterior.assumptions.clone(),
+        OverlapPolicy::ExplicitOverride,
+    );
+    estimate.uncertainty.analytic.se = posterior.summaries.sd[eq];
+    Ok((estimate, Some(posterior), ite))
+}
+
+/// Frequentist whole-procedure row bootstrap of the mean ITE: each replicate refits every
+/// mechanism under multinomial row counts (conditional on the selected families) and
+/// abducts–acts–predicts on the original units. The point stays the original fit's mean
+/// ITE; the replicates give its bootstrap standard error. Per-unit intervals are not
+/// formed. Failed replicates are retained as failed mass.
+fn bootstrap_counterfactual_estimate(
+    refit: &CounterfactualRefit<'_>,
+    ite: &crate::gcm::IteResult,
+    replicates: u32,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, Diagnostic), CausalError> {
+    let CounterfactualRefit { data, fitted, contrast, assumptions, status: _ } = *refit;
+    let UnitContrast { treatment, outcome, active, control } = contrast;
+    let n = data.row_count();
+    let _admitted = super::gcm_bootstrap::admit_replicates(ctx, replicates, 1, n)?;
+    let registry = crate::gcm::MechanismRegistry::with_heterogeneity_families();
+    let cancelled = || ctx.cancellation.is_cancelled();
+    let mut values = Vec::with_capacity(usize::try_from(replicates).unwrap_or(0));
+    let mut failed = 0_u32;
+    for replicate in 0..replicates {
+        if cancelled() {
+            return Err(CausalError::Cancelled { stage: super::super::stage::STAGE_UNCERTAINTY });
+        }
+        let mut rng = super::gcm_bootstrap::replicate_stream(ctx, 0x0CF0_B007, replicate);
+        let counts = super::gcm_bootstrap::bootstrap_counts(&mut rng, n);
+        let store = match registry.refit_frequency_weighted_polled(
+            &fitted.model,
+            data,
+            &fitted.assignments,
+            &counts,
+            &cancelled,
+        ) {
+            Ok(store) => store,
+            Err(_) if cancelled() => {
+                return Err(CausalError::Cancelled {
+                    stage: super::super::stage::STAGE_UNCERTAINTY,
+                });
+            }
+            Err(_) => {
+                failed += 1;
+                continue;
+            }
+        };
+        // One noise stream per replicate: a categorical node's rank-preserving noise is
+        // drawn once per replicate, keyed by the replicate.
+        let mut noise_rng = ctx.rng.stream_for(
+            StreamDomain::Counterfactual,
+            0x0CF1_B007_u64.wrapping_add(u64::from(replicate)),
+        );
+        match crate::gcm::counterfactual_ite_with_noise(
+            fitted.model.clone().with_mechanisms(store),
+            data,
+            (treatment, outcome, active, control),
+            ctx,
+            &mut noise_rng,
+        ) {
+            Ok(draw) if draw.unit_effects.len() == ite.unit_effects.len() => {
+                values.push(draw.mean_ite);
+            }
+            Err(_) if cancelled() => {
+                return Err(CausalError::Cancelled {
+                    stage: super::super::stage::STAGE_UNCERTAINTY,
+                });
+            }
+            _ => failed += 1,
+        }
+    }
+    let accounting = super::gcm_bootstrap::accounting(&values, failed, replicates);
+    let mut estimate = EffectEstimate::new(
+        ite.mean_ite,
+        f64::NAN,
+        assumptions.clone(),
+        OverlapPolicy::ExplicitOverride,
+    );
+    estimate.uncertainty.bootstrap = accounting;
+    let note = super::gcm_bootstrap::bootstrap_diagnostic(
+        "mean ITE over the observed units (per-unit intervals are not formed)",
+        &accounting,
+    );
+    Ok((estimate, note))
 }
 
 /// Explains why no frequentist interval exists, or what the Bayesian interval does and does not carry.
@@ -1243,6 +1553,86 @@ fn unit_support(
         }
     }
     Ok(UnitSupport { parent_cell, disturbance, covariates, disturbance_nodes })
+}
+
+/// Posterior summary of per-unit ITE draws, through the same summary that
+/// publishes the mean-ITE interval, so a unit interval and the mean interval
+/// share one quantile rule.
+fn unit_effect_posterior_summary(
+    unit_draws: Vec<f64>,
+    n_units: usize,
+    n_draws: usize,
+) -> Result<antecedent_prob::PosteriorSummary, CausalError> {
+    let quantities: Vec<antecedent_prob::PosteriorQuantityKind> = (0..n_units)
+        .map(|unit| antecedent_prob::PosteriorQuantityKind::Effect {
+            name: std::sync::Arc::from(format!("ite[{unit}]")),
+        })
+        .collect();
+    let schema = antecedent_prob::PosteriorSchema { quantities: std::sync::Arc::from(quantities) };
+    let draws = antecedent_prob::PosteriorDraws::from_column_major(
+        schema,
+        n_draws,
+        std::sync::Arc::<[f64]>::from(unit_draws),
+    )?;
+    Ok(draws.summarize())
+}
+
+fn counterfactual_posterior(
+    values: Vec<f64>,
+    assumptions: antecedent_core::AssumptionSet,
+    identification: antecedent_core::IdentificationStatus,
+) -> Result<CausalPosterior, CausalError> {
+    counterfactual_posterior_columns(vec![("ite".into(), values)], assumptions, identification)
+}
+
+/// [`counterfactual_posterior`] with one `Effect` column per contrast, each a named series of the
+/// same number of draws. The first column is the result's primary effect.
+fn counterfactual_posterior_columns(
+    columns: Vec<(String, Vec<f64>)>,
+    mut assumptions: antecedent_core::AssumptionSet,
+    identification: antecedent_core::IdentificationStatus,
+) -> Result<CausalPosterior, CausalError> {
+    assumptions.push(antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
+            id: Arc::from("counterfactual.weighted_mechanisms"),
+            description: Arc::from("Dirichlet row-weight posterior of standard mechanism fits, conditional on selected mechanism families and empirical support; abduction is repeated on the original units for every draw, the factual and counterfactual worlds sharing that draw's disturbances (a categorical node's disturbance is drawn once per posterior draw). This is not a parametric coefficient-prior posterior. The interval is for mean_ite over the observed units and reflects mechanism-refit uncertainty, plus the rank-preserving noise posterior of categorical nodes where present; it is not a unit-level predictive interval."),
+        }),
+        source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("gcm.fit.bayesian") },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    });
+    let quantities: Vec<antecedent_prob::PosteriorQuantityKind> = columns
+        .iter()
+        .map(|(name, _)| antecedent_prob::PosteriorQuantityKind::Effect {
+            name: std::sync::Arc::from(name.as_str()),
+        })
+        .collect();
+    let schema = antecedent_prob::PosteriorSchema { quantities: std::sync::Arc::from(quantities) };
+    let n = columns.first().map_or(0, |(_, values)| values.len());
+    let values: Vec<f64> = columns.into_iter().flat_map(|(_, values)| values).collect();
+    let draws = antecedent_prob::PosteriorDraws::from_column_major(
+        schema,
+        n,
+        std::sync::Arc::<[f64]>::from(values),
+    )?;
+    let summaries = draws.summarize();
+    Ok(CausalPosterior {
+        subsampled_out_mass: 0.0,
+        draws,
+        summaries,
+        identification,
+        prior_sensitivity: None,
+        conflict_summary: None,
+        diagnostics: antecedent_prob::InferenceDiagnostics::analytic(
+            super::COUNTERFACTUAL_DIRICHLET_BACKEND,
+        ),
+        assumptions,
+        unidentified_mass: 0.0,
+        unevaluable_mass: 0.0,
+        early_stopped: false,
+        treatment_contrast: None,
+        preparation: None,
+    })
 }
 
 #[cfg(test)]

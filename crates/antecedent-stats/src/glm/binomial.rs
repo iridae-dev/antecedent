@@ -98,7 +98,12 @@ pub(super) fn fit_logistic(
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
     validate_glm_shape(design)?;
-    validate_binary_outcomes(design.y)?;
+    let GlmDesignRef { y, .. } = design;
+    for &yi in y {
+        if !(yi == 0.0 || yi == 1.0) {
+            return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+        }
+    }
 
     let (beta, iterations, converged) =
         irls_fit(design, backend, workspace, options, false, |eta, yi| {
@@ -139,8 +144,16 @@ pub fn fit_logistic_weighted(
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
-    check_prior_weights(design, weights)?;
-    validate_binary_outcomes(design.y)?;
+    validate_glm_shape(design)?;
+    if weights.len() != design.nrows {
+        return Err(StatsError::Shape { message: "weights length != nrows" });
+    }
+    if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+        return Err(StatsError::Shape { message: "prior weights must be finite and non-negative" });
+    }
+    if design.y.iter().any(|&yi| !(yi == 0.0 || yi == 1.0)) {
+        return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+    }
     let root_weights: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
     let (beta, iterations, converged) = irls_fit_scaled(
         design,
@@ -177,7 +190,9 @@ pub(super) fn fit_probit_weighted(
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
     check_prior_weights(design, weights)?;
-    validate_binary_outcomes(design.y)?;
+    if design.y.iter().any(|&yi| !(yi == 0.0 || yi == 1.0)) {
+        return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+    }
     let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
     let (beta, iterations, converged) = irls_fit_scaled(
         design,
@@ -263,7 +278,12 @@ pub(super) fn fit_probit(
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
     validate_glm_shape(design)?;
-    validate_binary_outcomes(design.y)?;
+    let GlmDesignRef { y, .. } = design;
+    for &yi in y {
+        if !(yi == 0.0 || yi == 1.0) {
+            return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+        }
+    }
 
     let (beta, iterations, converged) =
         irls_fit(design, backend, workspace, options, false, |eta, yi| {
@@ -527,7 +547,9 @@ pub fn fit_logit_laplace(
                     message: "prior precision must be finite and positive",
                 });
             }
-            validate_binary_outcomes(design.y)?;
+            if design.y.iter().any(|&yi| yi != 0.0 && yi != 1.0) {
+                return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+            }
             let (fit, covariance) = fit_binomial_penalized(
                 GlmFamily::BinomialLogit,
                 design,
@@ -541,30 +563,6 @@ pub fn fit_logit_laplace(
             Ok(GlmLaplaceFit { fit, covariance })
         },
     )
-}
-
-#[allow(clippy::float_cmp, reason = "the binomial outcome must be exactly zero or one")]
-fn validate_binary_outcomes(values: &[f64]) -> Result<(), StatsError> {
-    if values.iter().any(|&value| value != 0.0 && value != 1.0) {
-        return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
-    }
-    Ok(())
-}
-
-fn validate_ridge_family(family: GlmFamily) -> Result<(), StatsError> {
-    if !matches!(family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
-        return Err(StatsError::Shape {
-            message: "ridge GLM currently requires a binomial family",
-        });
-    }
-    Ok(())
-}
-
-fn validate_ridge_lambda(lambda: f64) -> Result<(), StatsError> {
-    if !lambda.is_finite() || lambda <= 0.0 {
-        return Err(StatsError::Shape { message: "ridge lambda must be finite and positive" });
-    }
-    Ok(())
 }
 
 /// Fit a binomial GLM with an always-active ridge penalty.
@@ -588,10 +586,20 @@ pub fn fit_glm_ridge(
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::GlmFit,
         || {
-            validate_ridge_family(family)?;
+            if !matches!(family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
+                return Err(StatsError::Shape {
+                    message: "ridge GLM currently requires a binomial family",
+                });
+            }
             validate_glm_shape(design)?;
-            validate_ridge_lambda(lambda)?;
-            validate_binary_outcomes(design.y)?;
+            if !lambda.is_finite() || lambda <= 0.0 {
+                return Err(StatsError::Shape {
+                    message: "ridge lambda must be finite and positive",
+                });
+            }
+            if design.y.iter().any(|&yi| yi != 0.0 && yi != 1.0) {
+                return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+            }
             fit_binomial_ridge(family, design, workspace, options, lambda, None, None)
         },
     )
@@ -616,8 +624,16 @@ pub fn fit_glm_ridge_weighted(
 ) -> Result<GlmFit, StatsError> {
     check_prior_weights(design, weights)?;
     let _ = backend;
-    validate_ridge_family(family)?;
-    validate_ridge_lambda(lambda)?;
-    validate_binary_outcomes(design.y)?;
+    if !matches!(family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
+        return Err(StatsError::Shape {
+            message: "ridge GLM currently requires a binomial family",
+        });
+    }
+    if !lambda.is_finite() || lambda <= 0.0 {
+        return Err(StatsError::Shape { message: "ridge lambda must be finite and positive" });
+    }
+    if design.y.iter().any(|&yi| yi != 0.0 && yi != 1.0) {
+        return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+    }
     fit_binomial_ridge(family, design, workspace, options, lambda, None, Some(weights))
 }

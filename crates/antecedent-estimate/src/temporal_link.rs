@@ -34,7 +34,6 @@ use antecedent_stats::{
 
 use crate::error::EstimationError;
 use crate::glm_adjustment::FamilyKernel;
-use crate::temporal_validation::{binary_outcomes, column_is_ones, finite_column, positive_finite};
 
 /// How the lag-aligned rows were sampled.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -152,7 +151,7 @@ impl TemporalContrastDesign {
         if !column_is_ones(&x_colmajor[..nrows]) {
             return Err(shape("column 0 is the intercept and must be identically one"));
         }
-        binary_outcomes(&y, "a Bernoulli outcome must be coded 0 or 1")?;
+        binary_outcomes(&y)?;
         finite_column("design", &x_colmajor)?;
         let mut slots: Vec<Option<(Vec<f64>, Vec<f64>)>> = (0..ncols).map(|_| None).collect();
         for regime in regimes {
@@ -542,6 +541,35 @@ fn shape(message: &str) -> EstimationError {
 
 fn stats(message: &str) -> EstimationError {
     EstimationError::stats_msg(message)
+}
+
+fn positive_finite(value: f64, message: &str) -> Result<(), EstimationError> {
+    if value.is_finite() && value > 0.0 { Ok(()) } else { Err(shape(message)) }
+}
+
+#[allow(
+    clippy::float_cmp,
+    reason = "the intercept column and Bernoulli outcomes are exact codes, not measurements"
+)]
+fn column_is_ones(column: &[f64]) -> bool {
+    column.iter().all(|&value| value == 1.0)
+}
+
+#[allow(clippy::float_cmp, reason = "Bernoulli outcomes are coded exactly 0 or 1")]
+fn binary_outcomes(y: &[f64]) -> Result<(), EstimationError> {
+    if y.iter().all(|&value| value == 0.0 || value == 1.0) {
+        Ok(())
+    } else {
+        Err(shape("a Bernoulli outcome must be coded 0 or 1"))
+    }
+}
+
+fn finite_column(name: &str, values: &[f64]) -> Result<(), EstimationError> {
+    if values.iter().all(|value| value.is_finite()) {
+        Ok(())
+    } else {
+        Err(shape(&format!("{name} values must be finite")))
+    }
 }
 
 #[cfg(test)]

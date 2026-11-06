@@ -416,6 +416,15 @@ impl DirectedStore {
         self.parents.get(id.as_usize()).map_or(&[], Vec::as_slice)
     }
 
+    /// Whether `id` indexes a graph of `node_count` nodes.
+    pub(crate) fn known(node_count: usize, id: DenseNodeId) -> Result<(), GraphError> {
+        if id.as_usize() >= node_count {
+            Err(GraphError::UnknownNode { id: id.raw() })
+        } else {
+            Ok(())
+        }
+    }
+
     /// Append `node` and one empty adjacency row.
     ///
     /// # Errors

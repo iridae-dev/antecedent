@@ -301,8 +301,14 @@ fn refuse(
 ) -> TemporalCounterfactualError {
     TemporalCounterfactualError::Refused(Box::new(TemporalRefusal {
         refusal: StructuredRefusal {
+            code,
+            stage: "evaluate",
+            detail: detail.to_owned(),
             offending,
-            ..StructuredRefusal::new(code, "evaluate", detail)
+            expected: None,
+            supplied: None,
+            capability: None,
+            remedy: None,
         },
         witness,
     }))

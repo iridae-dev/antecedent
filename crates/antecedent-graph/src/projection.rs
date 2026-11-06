@@ -22,7 +22,9 @@ use crate::workspace::{BitSet, GraphWorkspace};
 /// Unknown or duplicate observed node ids.
 pub fn latent_project(dag: &Dag, observed: &[DenseNodeId]) -> Result<Admg, GraphError> {
     for &o in observed {
-        crate::types::validate_node_index(dag.node_count(), o)?;
+        if o.as_usize() >= dag.node_count() {
+            return Err(GraphError::UnknownNode { id: o.raw() });
+        }
     }
     let mut observed_set = BitSet::with_len(dag.node_count());
     let mut admg = Admg::empty();
