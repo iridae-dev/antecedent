@@ -15872,6 +15872,13 @@ path = "crates/antecedent-io/src/estimate_wire.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "audit-crates-antecedent-io-src-joint-panel-artifact-support-rs"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/joint_panel_artifact_support.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "audit-crates-antecedent-io-src-joint-response-artifact-rs"
 crate = "antecedent-io"
 cargo_target = "lib"
@@ -17421,6 +17428,13 @@ id = "audit-crates-antecedent-stats-src-synthesis-transport-rs"
 crate = "antecedent-stats"
 cargo_target = "lib"
 path = "crates/antecedent-stats/src/synthesis_transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-src-weight-validation-rs"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/weight_validation.rs"
 gates = ["inventory", "named"]
 
 [[test]]

@@ -1518,15 +1518,7 @@ pub fn mz_transport_bootstrap_law_draws(
         Ok(tables) => tables,
         Err(reason) => return Ok(Err(reason)),
     };
-    let mut drawer = TableDrawer::new(&tables, data.max_support_rows());
-    let mut out = Vec::with_capacity(replicates as usize);
-    for replicate in 0..replicates {
-        crate::transport::refuse_cancelled(ctx, spec.stage)?;
-        out.push(drawer.draw(&spec, replicate, ctx, &mut |counts, rng, p, resampled| {
-            bootstrap_draw(counts, rng, p, resampled, ctx)
-        })?);
-    }
-    Ok(Ok(out))
+    bootstrap_law_draws(&tables, data.max_support_rows(), &spec, ctx).map(Ok)
 }
 
 /// The law sets of the iid row bootstrap of a single-source z functional's cited
@@ -1566,15 +1558,26 @@ pub fn z_transport_bootstrap_law_draws(
         .map_err(|error| refuse_eval(&error))?;
     let tables = CitedTables::new(functional, data, AliasPolicy::Identical)?
         .map_err(EstimationError::data_msg)?;
-    let mut drawer = TableDrawer::new(&tables, data.max_support_rows());
-    let mut out = Vec::with_capacity(replicates as usize);
-    for replicate in 0..replicates {
+    bootstrap_law_draws(&tables, data.max_support_rows(), &spec, ctx).map(Ok)
+}
+
+// Draw each cited table once per replicate. Route-specific validation and
+// dependence policies are resolved before entering this shared loop.
+fn bootstrap_law_draws(
+    tables: &CitedTables<'_>,
+    max_support_rows: usize,
+    spec: &ZDrawSpec,
+    ctx: &ExecutionContext,
+) -> Result<Vec<Option<antecedent_expr::ExactTransportData>>, EstimationError> {
+    let mut drawer = TableDrawer::new(tables, max_support_rows);
+    let mut out = Vec::with_capacity(spec.replicates as usize);
+    for replicate in 0..spec.replicates {
         crate::transport::refuse_cancelled(ctx, spec.stage)?;
-        out.push(drawer.draw(&spec, replicate, ctx, &mut |counts, rng, p, resampled| {
+        out.push(drawer.draw(spec, replicate, ctx, &mut |counts, rng, p, resampled| {
             bootstrap_draw(counts, rng, p, resampled, ctx)
         })?);
     }
-    Ok(Ok(out))
+    Ok(out)
 }
 
 /// Joint percentile bootstrap of a multi-source mz functional over `requests`.

@@ -650,12 +650,7 @@ fn cancelled(ctx: &ExecutionContext) -> Result<(), JointResponseArtifactError> {
     }
 }
 fn admit(ctx: &ExecutionContext, bytes: u64) -> Result<AdmissionLease, JointResponseArtifactError> {
-    let limit = ctx.memory_limit_bytes();
-    if limit.is_some_and(|limit| bytes > limit) {
-        return Err(JointResponseArtifactError::Resource("configured memory limit".into()));
-    }
-    ctx.acquire_admission(0, bytes)
-        .map_err(|error| JointResponseArtifactError::Resource(error.to_string()))
+    crate::artifact_budget::admit_bytes(ctx, bytes).map_err(JointResponseArtifactError::Resource)
 }
 
 struct ByteCounter(usize);
@@ -675,6 +670,18 @@ impl std::io::Write for ByteCounter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn response_admission_keeps_limit_refusal_and_lease_lifetime() {
+        let ctx = ExecutionContext::for_tests(0).with_memory_limit(Some(32));
+        let lease = admit(&ctx, 32).unwrap();
+        assert!(matches!(
+            admit(&ctx, 33),
+            Err(JointResponseArtifactError::Resource(message)) if message == "configured memory limit"
+        ));
+        drop(lease);
+        assert!(admit(&ctx, 32).is_ok());
+    }
 
     #[test]
     fn joint_response_prior_wire_preserves_all_prior_fields_and_ieee_values() {

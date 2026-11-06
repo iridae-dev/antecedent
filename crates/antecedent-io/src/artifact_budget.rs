@@ -135,6 +135,18 @@ pub(crate) fn admit_computation(
     }
 }
 
+/// Acquire a byte-only lease after checking the context's configured hard limit.
+/// Callers map the returned message into their own artifact error type.
+pub(crate) fn admit_bytes(
+    ctx: &ExecutionContext,
+    bytes: u64,
+) -> Result<antecedent_core::execution::AdmissionLease, String> {
+    if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
+        return Err("configured memory limit".into());
+    }
+    ctx.acquire_admission(0, bytes).map_err(|error| error.to_string())
+}
+
 /// Admit the working set of a dense regression of `rows` rows on `columns` design columns: the
 /// request's columns, the design built from them, the residuals and a few `columns`-square
 /// matrices. A conservative planning estimate, not allocator accounting.

@@ -67,6 +67,7 @@ from ._freeze import thaw
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution, resolve_execution
 
@@ -136,12 +137,6 @@ def _dumps(value: object) -> str:
         return json.dumps(thaw(value), allow_nan=False, separators=(",", ":"))
     except ValueError as error:
         raise CausalValueError("a predictive assessment declares only finite numbers") from error
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _floats(values: Iterable[object], what: str) -> list[float]:

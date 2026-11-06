@@ -109,6 +109,7 @@ from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _shared_count
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
 from .outcomes import Answer, outcome_operation
@@ -206,12 +207,6 @@ class MeasurementModelRefusal(StructuredRefusal):
 
 
 # --------------------------------------------------------------------------- validation
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _number(value: object, what: str) -> float:

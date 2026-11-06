@@ -72,6 +72,7 @@ from ._artifact_protocol import (
 )
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .execution import Execution, resolve_execution
 from .measurement_models import MeasurementModel
@@ -136,12 +137,6 @@ class SequentialEvaluationRefusal(StructuredRefusal):
 
 
 # --------------------------------------------------------------------------- validation
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _number(value: object, what: str) -> float:

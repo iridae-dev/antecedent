@@ -64,6 +64,7 @@ import numpy as np
 from . import _native
 from ._freeze import thaw
 from ._refusal import StructuredRefusal, raise_refusal
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
 from .mechanism_composition import (
@@ -129,12 +130,6 @@ class TypedMechanismRefusal(StructuredRefusal):
 
 
 # --------------------------------------------------------------------------- helpers
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _number(value: object, what: str) -> float:

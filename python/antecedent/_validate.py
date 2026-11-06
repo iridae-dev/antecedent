@@ -146,6 +146,13 @@ def count(
     return number
 
 
+def name(value: object, what: str) -> str:
+    """Validate a non-blank name with the shared name-type refusal."""
+    if not isinstance(value, str) or not value.strip():
+        raise CausalTypeError(f"{what} must be a non-empty string")
+    return value
+
+
 def text(
     value: object,
     what: str,

@@ -16,11 +16,7 @@ pub(crate) fn admit(
     ctx: &ExecutionContext,
     bytes: u64,
 ) -> Result<AdmissionLease, PanelArtifactError> {
-    let limit = ctx.memory_limit_bytes();
-    if limit.is_some_and(|limit| bytes > limit) {
-        return Err(PanelArtifactError::Resource("configured memory limit".into()));
-    }
-    ctx.acquire_admission(0, bytes).map_err(|error| PanelArtifactError::Resource(error.to_string()))
+    crate::artifact_budget::admit_bytes(ctx, bytes).map_err(PanelArtifactError::Resource)
 }
 pub(crate) struct Counter(pub(crate) usize);
 impl std::io::Write for Counter {

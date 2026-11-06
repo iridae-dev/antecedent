@@ -42,6 +42,7 @@ from typing import Any
 from . import _native
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
+from ._validate import name as _name
 from .composition_verification import (
     CompositionVerification,
     consume_composition_verification_artifact,
@@ -78,12 +79,6 @@ def _finite(value: object, what: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
         raise CausalValueError(f"{what} must be a finite number")
     return float(value)
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 @dataclass(frozen=True, slots=True)

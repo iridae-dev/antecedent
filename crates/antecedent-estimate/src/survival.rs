@@ -107,6 +107,24 @@ pub struct SurvivalDifferenceBand {
     pub replicates_ok: u32,
 }
 
+/// Visit each within-arm bootstrap draw in arm order, advancing the caller's stream once per draw.
+fn for_each_resampled_subject(
+    arms: &[Vec<usize>; 2],
+    rng: &mut u64,
+    mut visit: impl FnMut(usize, bool),
+) {
+    for (arm_index, arm) in arms.iter().enumerate() {
+        for _ in 0..arm.len() {
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "u64 PRNG output is reduced modulo arm length to a valid index"
+            )]
+            let i = arm[(splitmix64(rng) as usize) % arm.len()];
+            visit(i, arm_index == 1);
+        }
+    }
+}
+
 /// Build a simultaneous curve-difference band by subject resampling within arms.
 ///
 /// At least 80 subjects per arm and 399 valid replicates are required. The
@@ -153,18 +171,11 @@ pub fn randomized_survival_bootstrap_difference_band(
         let mut d = Vec::with_capacity(duration.len());
         let mut e = Vec::with_capacity(duration.len());
         let mut a = Vec::with_capacity(duration.len());
-        for (arm_index, arm) in arms.iter().enumerate() {
-            for _ in 0..arm.len() {
-                #[allow(
-                    clippy::cast_possible_truncation,
-                    reason = "u64 PRNG output is reduced modulo arm length to a valid index"
-                )]
-                let i = arm[(splitmix64(&mut rng) as usize) % arm.len()];
-                d.push(duration[i]);
-                e.push(event_code[i]);
-                a.push(arm_index == 1);
-            }
-        }
+        for_each_resampled_subject(&arms, &mut rng, |i, arm| {
+            d.push(duration[i]);
+            e.push(event_code[i]);
+            a.push(arm);
+        });
         let rows = SurvivalRows { duration: &d, event_code: &e, treated: &a, delayed_entry: None };
         let Ok(sample) = randomized_survival_summary(&rows, tau, endpoint) else {
             continue;
@@ -250,24 +261,17 @@ pub fn randomized_survival_bootstrap_intervals(
         let mut a = Vec::with_capacity(duration.len());
         let mut left = delayed_entry.map(|_| Vec::with_capacity(duration.len()));
         let mut g = known_censoring.map(|_| Vec::with_capacity(duration.len() * grid_width));
-        for (arm_index, arm) in arms.iter().enumerate() {
-            for _ in 0..arm.len() {
-                #[allow(
-                    clippy::cast_possible_truncation,
-                    reason = "u64 PRNG output is reduced modulo arm length to a valid index"
-                )]
-                let i = arm[(splitmix64(&mut rng) as usize) % arm.len()];
-                d.push(duration[i]);
-                e.push(event_code[i]);
-                a.push(arm_index == 1);
-                if let (Some(source), Some(out)) = (delayed_entry, left.as_mut()) {
-                    out.push(source[i]);
-                }
-                if let (Some(known), Some(out)) = (known_censoring, g.as_mut()) {
-                    out.extend_from_slice(&known.survival[i * grid_width..(i + 1) * grid_width]);
-                }
+        for_each_resampled_subject(&arms, &mut rng, |i, arm| {
+            d.push(duration[i]);
+            e.push(event_code[i]);
+            a.push(arm);
+            if let (Some(source), Some(out)) = (delayed_entry, left.as_mut()) {
+                out.push(source[i]);
             }
-        }
+            if let (Some(known), Some(out)) = (known_censoring, g.as_mut()) {
+                out.extend_from_slice(&known.survival[i * grid_width..(i + 1) * grid_width]);
+            }
+        });
         let replicate = SurvivalRows {
             duration: &d,
             event_code: &e,
@@ -709,6 +713,23 @@ mod tests {
         )
     )]
     use super::*;
+
+    #[test]
+    fn subject_draws_keep_arm_order_and_stream_position() {
+        let arms = [vec![10, 20], vec![30, 40, 50]];
+        let mut seed = 0;
+        let mut draws = Vec::new();
+        for_each_resampled_subject(&arms, &mut seed, |index, treated| {
+            draws.push((index, treated));
+        });
+        let expected = if usize::BITS == 32 {
+            [(20, false), (10, false), (30, true), (30, true), (40, true)]
+        } else {
+            [(20, false), (10, false), (40, true), (40, true), (40, true)]
+        };
+        assert_eq!(draws, expected);
+        assert_eq!(seed, 0x1715_609F_7C74_6C69);
+    }
 
     #[test]
     #[allow(

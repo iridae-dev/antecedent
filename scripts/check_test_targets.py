@@ -11,10 +11,10 @@ transitively, relative to the including file, so a file pulled in by another inc
 from __future__ import annotations
 
 import sys
-import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 from test_evidence import target_files
 
 
@@ -27,7 +27,7 @@ def included_files(root_file: Path) -> set[Path]:
 
 
 def orphans_of(crate: Path) -> list[str]:
-    data = tomllib.loads((crate / "Cargo.toml").read_text(encoding="utf-8"))
+    data = load_toml(crate / "Cargo.toml")
     if data.get("package", {}).get("autotests", True):
         return []
     compiled: set[Path] = set()

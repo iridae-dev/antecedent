@@ -33,7 +33,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 import check_evidence_ledger
-from _repo import REPO_ROOT
+from _repo import REPO_ROOT, load_toml
 from evidence_kinds import (
     EVIDENCE_KINDS,
     KNOWN_TRUTH_KINDS,
@@ -390,7 +390,7 @@ def build_report(root: Path) -> dict:
         if claim.get("evidence_test"):
             claims_by_test[claim["evidence_test"]].append(claim["key"])
     registry = root / "parity/test_registry.toml"
-    registered = tomllib.loads(registry.read_text(encoding="utf-8")).get("test", [])
+    registered = load_toml(registry).get("test", [])
     tests = []
     roles_by_test = defaultdict(set)
     for claim in claims:
@@ -407,7 +407,7 @@ def build_report(root: Path) -> dict:
         if crate not in manifests:
             manifest = crate / "Cargo.toml"
             manifests[crate] = (
-                tomllib.loads(manifest.read_text(encoding="utf-8"))
+                load_toml(manifest)
                 if manifest.is_file()
                 else {}
             )
@@ -475,13 +475,13 @@ def build_report(root: Path) -> dict:
         )
     specs_path = root / "parity/method_specs/specs.toml"
     specs = (
-        tomllib.loads(specs_path.read_text(encoding="utf-8")).get("spec", [])
+        load_toml(specs_path).get("spec", [])
         if specs_path.is_file()
         else []
     )
     routes_path = root / "parity/capabilities/route_manifest.toml"
     route_data = (
-        tomllib.loads(routes_path.read_text(encoding="utf-8"))
+        load_toml(routes_path)
         if routes_path.is_file()
         else {}
     )
@@ -613,12 +613,8 @@ def build_report(root: Path) -> dict:
         "scientific_test_registry_findings": scientific_test_problems(root),
         "route_evidence_ledger_findings": (
             check_evidence_ledger.problems(
-                tomllib.loads(
-                    (root / "parity/evidence_ledger.toml").read_text(encoding="utf-8")
-                ).get("cell", []),
-                tomllib.loads(
-                    (root / "parity/capability_records.toml").read_text(encoding="utf-8")
-                ).get("record", []),
+                load_toml(root / "parity/evidence_ledger.toml").get("cell", []),
+                load_toml(root / "parity/capability_records.toml").get("record", []),
                 load_stage_routes(root),
             )
             if root == REPO_ROOT.resolve()

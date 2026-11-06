@@ -73,6 +73,7 @@ from ._freeze import thaw
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
 from .outcomes import outcome_operation, require_success
 from .scientific_bridge import _quantity_wire
@@ -204,12 +205,6 @@ def _raise(payload: str | None) -> None:
             request_attempts=int(wire["request_attempts"]),
         )
     raise CallbackRefusal(wire)
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _choice(value: object, what: str, allowed: Iterable[str]) -> str:

@@ -114,6 +114,7 @@ from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
 from .measurement_models import MeasurementModel
 from .outcomes import Answer, Outcome, outcome_operation
@@ -295,12 +296,6 @@ class ScientificBridgeRefusal(StructuredRefusal):
 
 
 # --------------------------------------------------------------------------- validation
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _choice(value: object, what: str, allowed: Sequence[str]) -> str:

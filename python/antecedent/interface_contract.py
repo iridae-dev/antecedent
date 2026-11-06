@@ -58,6 +58,7 @@ from ._artifact_protocol import (
 from ._freeze import thaw
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
 from .joint_distribution import DistributionMeaning, QuantityCondition, ScientificQuantity
 from .scientific_bridge import _quantity_wire
@@ -195,12 +196,6 @@ def _raise(payload: str | None) -> None:
     first = built[0]
     first.refusals = built
     raise first
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _choice(value: object, what: str, allowed: Iterable[str]) -> str:

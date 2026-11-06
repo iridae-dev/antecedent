@@ -24,6 +24,20 @@ const KD_LEAF: usize = 16;
 /// Queries one worker evaluates between cancellation checks.
 const QUERY_CHUNK: usize = 1024;
 
+pub(crate) fn validate_query_length(query: &[f64], dim: usize) -> Result<(), StatsError> {
+    if query.len() != dim {
+        return Err(StatsError::Shape { message: "query length != dim" });
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_query_values(query: &[f64]) -> Result<(), StatsError> {
+    if query.iter().any(|v| !v.is_finite()) {
+        return Err(StatsError::Shape { message: "matching query must be finite" });
+    }
+    Ok(())
+}
+
 /// Distance metric for matching.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum MatchingDistance {
@@ -163,15 +177,11 @@ impl MatchingIndex {
         query: &[f64],
         caliper: Option<f64>,
     ) -> Result<Option<(usize, f64)>, StatsError> {
-        if query.len() != self.dim {
-            return Err(StatsError::Shape { message: "query length != dim" });
-        }
+        validate_query_length(query, self.dim)?;
         if self.donor_rows.is_empty() {
             return Err(StatsError::Shape { message: "empty matching index" });
         }
-        if query.iter().any(|v| !v.is_finite()) {
-            return Err(StatsError::Shape { message: "matching query must be finite" });
-        }
+        validate_query_values(query)?;
         let (best_i, best_d) = match &self.layout {
             Layout::Sorted { values, first_position } => {
                 nearest_sorted(values, first_position, query[0])
@@ -211,12 +221,8 @@ impl MatchingIndex {
         let Layout::Tree(tree) = &self.layout else {
             return Err(StatsError::Shape { message: "nearest_k requires a Euclidean index" });
         };
-        if query.len() != self.dim {
-            return Err(StatsError::Shape { message: "query length != dim" });
-        }
-        if query.iter().any(|v| !v.is_finite()) {
-            return Err(StatsError::Shape { message: "matching query must be finite" });
-        }
+        validate_query_length(query, self.dim)?;
+        validate_query_values(query)?;
         let mut found = Nearest::new(k.min(self.donor_rows.len()));
         tree.search(&self.features, self.dim, query, usize::MAX, &mut found);
         out.clear();
@@ -1342,6 +1348,31 @@ mod tests {
         assert!(matches!(error, StatsError::ResourceLimit { .. }));
         assert!(out.iter().all(|value| value.total_cmp(&1.0).is_eq()));
         assert_eq!(many.memory_limit_bytes(), Some(serial_bytes));
+    }
+
+    #[test]
+    fn matching_query_refusals_keep_route_specific_order() {
+        let ctx = ctx();
+        let empty =
+            MatchingIndex::exact_within(&[], 1, &[], MatchingDistance::Euclidean, &ctx).unwrap();
+        assert!(matches!(
+            empty.nearest(&[], None),
+            Err(StatsError::Shape { message: "query length != dim" })
+        ));
+        assert!(matches!(
+            empty.nearest(&[f64::NAN], None),
+            Err(StatsError::Shape { message: "empty matching index" })
+        ));
+        let mut out = Vec::new();
+        assert!(matches!(
+            empty.nearest_k(&[f64::NAN], 1, &mut out),
+            Err(StatsError::Shape { message: "matching query must be finite" })
+        ));
+        let boxed = crate::matching_boxtree::BoxTreeIndex::exact_within(&[], 1, &ctx).unwrap();
+        assert!(matches!(
+            boxed.nearest(&[f64::NAN], None),
+            Err(StatsError::Shape { message: "matching query must be finite" })
+        ));
     }
 
     #[test]

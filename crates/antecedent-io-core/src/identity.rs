@@ -1186,16 +1186,12 @@ impl GraphPosteriorProgramsWire {
         mixing: &str,
         atoms: &[GraphPosteriorAtomProgramWire],
     ) -> Result<[u8; 32], IoError> {
-        let mut hasher =
-            blake3::Hasher::new_derive_key("antecedent.identity.graph_posterior_programs.v1");
-        hasher.update(&to_cbor(&(mixing, u64::try_from(atoms.len()).unwrap_or(u64::MAX)))?);
-        let mut link = *hasher.finalize().as_bytes();
+        const DOMAIN: &str = "antecedent.identity.graph_posterior_programs.v1";
+        let header = to_cbor(&(mixing, u64::try_from(atoms.len()).unwrap_or(u64::MAX)))?;
+        let mut link = antecedent_core::derive_key_digest(DOMAIN, &[&header]);
         for atom in atoms {
-            let mut hasher =
-                blake3::Hasher::new_derive_key("antecedent.identity.graph_posterior_programs.v1");
-            hasher.update(&link);
-            hasher.update(&to_cbor(atom)?);
-            link = *hasher.finalize().as_bytes();
+            let encoded = to_cbor(atom)?;
+            link = antecedent_core::derive_key_digest(DOMAIN, &[&link, &encoded]);
         }
         Ok(link)
     }
@@ -2173,6 +2169,55 @@ mod tests {
     use super::*;
     use crate::{causal_query_to_wire, from_cbor, to_cbor};
     use antecedent_discovery::SamplingSummary;
+
+    #[test]
+    fn graph_posterior_program_chain_matches_direct_framing() {
+        let atoms = [
+            GraphPosteriorAtomProgramWire {
+                graph_key: 3,
+                weight_bits: 0.25_f64.to_bits(),
+                samples: vec![0, 2],
+                functional_program: None,
+                identification_product: None,
+            },
+            GraphPosteriorAtomProgramWire {
+                graph_key: 7,
+                weight_bits: 0.75_f64.to_bits(),
+                samples: vec![1],
+                functional_program: None,
+                identification_product: None,
+            },
+        ];
+        let mixing = GRAPH_POSTERIOR_MIXING_RULE;
+        let reference = |items: &[GraphPosteriorAtomProgramWire]| {
+            let mut hasher =
+                blake3::Hasher::new_derive_key("antecedent.identity.graph_posterior_programs.v1");
+            hasher.update(&to_cbor(&(mixing, u64::try_from(items.len()).unwrap())).unwrap());
+            let mut link = *hasher.finalize().as_bytes();
+            for atom in items {
+                let mut hasher = blake3::Hasher::new_derive_key(
+                    "antecedent.identity.graph_posterior_programs.v1",
+                );
+                hasher.update(&link);
+                hasher.update(&to_cbor(atom).unwrap());
+                link = *hasher.finalize().as_bytes();
+            }
+            link
+        };
+        assert_eq!(GraphPosteriorProgramsWire::compute_chain(mixing, &[]).unwrap(), reference(&[]));
+        assert_eq!(
+            GraphPosteriorProgramsWire::compute_chain(mixing, &atoms).unwrap(),
+            reference(&atoms)
+        );
+        assert_ne!(
+            GraphPosteriorProgramsWire::compute_chain(mixing, &atoms).unwrap(),
+            GraphPosteriorProgramsWire::compute_chain(
+                mixing,
+                &[atoms[1].clone(), atoms[0].clone()]
+            )
+            .unwrap()
+        );
+    }
 
     fn schema_and_query() -> (CausalSchema, CausalQuery, Dag) {
         let mut builder = CausalSchemaBuilder::new();

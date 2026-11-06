@@ -9,20 +9,19 @@ dependencies must obey the same rules under every feature/platform selection.
 from __future__ import annotations
 
 import sys
-import tomllib
 from collections import deque
 from pathlib import Path
 
-from _repo import REPO_ROOT
+from _repo import REPO_ROOT, load_toml
 
 
 def dependency_graph(root: Path) -> dict[str, set[str]]:
-    workspace = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]
+    workspace = load_toml(root / "Cargo.toml")["workspace"]
     inherited = workspace.get("dependencies", {})
     graph: dict[str, set[str]] = {}
     for member in workspace["members"]:
         for directory in root.glob(member):
-            data = tomllib.loads((directory / "Cargo.toml").read_text(encoding="utf-8"))
+            data = load_toml(directory / "Cargo.toml")
             dependencies: set[str] = set()
             for table in [data, *data.get("target", {}).values()]:
                 for kind in ("dependencies", "build-dependencies"):

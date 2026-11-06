@@ -27,6 +27,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 from test_evidence import (
     mask_rust,
     registered_calibration_acceptance,
@@ -228,7 +229,7 @@ def problems(root: Path, head: str | None) -> list[str]:
     if not registry.is_file():
         return [f"FAIL: {REGISTRY} does not exist"]
     try:
-        data = tomllib.loads(registry.read_text(encoding="utf-8"))
+        data = load_toml(registry)
     except tomllib.TOMLDecodeError as exc:
         return [f"FAIL: {REGISTRY} is not valid TOML: {exc}"]
     errors: list[str] = []
@@ -322,7 +323,7 @@ def problems(root: Path, head: str | None) -> list[str]:
         if not rel.startswith(prefix):
             errors.append(f"FAIL: {entry_id}: path {rel} is not in crate {crate}")
             continue
-        manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = load_toml(manifest_path)
         if manifest.get("package", {}).get("autotests", True) is not False:
             if suite_line is not None:
                 errors.append(f"FAIL: {entry_id}: suite_map_line set but test is not consolidated")
@@ -386,7 +387,7 @@ def check(root: Path) -> int:
     if found:
         print("\n".join(found))
         return 1
-    count = len(tomllib.loads((root / REGISTRY).read_text(encoding="utf-8"))["test"])
+    count = len(load_toml(root / REGISTRY)["test"])
     print(f"test registry OK: {count} registered test")
     return 0
 

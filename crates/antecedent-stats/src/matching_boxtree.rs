@@ -27,7 +27,7 @@ use antecedent_core::ExecutionContext;
 use antecedent_core::execution::AdmissionLease;
 
 use crate::error::StatsError;
-use crate::matching::check_budget;
+use crate::matching::{check_budget, validate_query_length, validate_query_values};
 
 /// Donors at or below which a node is a leaf scanned directly.
 const BOX_LEAF: usize = 16;
@@ -222,13 +222,8 @@ impl BoxTreeIndex {
     }
 
     fn check_query(&self, query: &[f64]) -> Result<(), StatsError> {
-        if query.len() != self.dim {
-            return Err(StatsError::Shape { message: "query length != dim" });
-        }
-        if query.iter().any(|v| !v.is_finite()) {
-            return Err(StatsError::Shape { message: "matching query must be finite" });
-        }
-        Ok(())
+        validate_query_length(query, self.dim)?;
+        validate_query_values(query)
     }
 
     /// The `k` nearest donors to `query`, nearest first, as `(donor position, distance)` in
