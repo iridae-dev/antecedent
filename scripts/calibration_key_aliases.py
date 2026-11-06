@@ -182,9 +182,7 @@ def validated_aliases(root: Path) -> list[dict[str, str]]:
     original = next(
         record for record in tomllib.loads(original_text)["record"] if record["id"] == RECORD_ID
     )
-    current_records = tomllib.loads(
-        (root / "parity/coverage_records.toml").read_text(encoding="utf-8")
-    )["record"]
+    current_records = load_toml(root / "parity/coverage_records.toml")["record"]
     current = [record for record in current_records if record["id"] == RECORD_ID]
     if len(current) != 1 or current[0] != original or canonical_digest(original) != RECORD_SHA256:
         raise ValueError("original recovery coverage record must remain unchanged")

@@ -33,9 +33,9 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "derivation"
-rationale = "A finite inverse decision query: enumerate a declared ordered action grid, evaluate the forward functional at each action and compare to a target."
-no_independent_algorithm = "Enumeration over at most 4096 grid points through the forward evaluator; finite_enumeration_baseline is the in-module cross-check. No search or optimization."
-covered_by = ["decision.functionals"]
+rationale = "A finite inverse decision query: enumerate a declared ordered action grid, evaluate the forward functional at each action and compare to a target. Forward sources may be finite laws, means, or separately derived analytic Gaussian laws."
+no_independent_algorithm = "Enumeration over at most 4096 grid points through the forward evaluator; finite_enumeration_baseline is the in-module cross-check. Gaussian functional evaluation is delegated to the composed forward-source implementation; there is no inverse search or optimization."
+covered_by = ["decision.functionals", "inverse.composed_forward_source"]
 derivation = "For each declared action a, evaluate the forward functional F(a) (mean, left-inverse quantile, threshold probability or utility) with the decision engine and report whether F(a) meets the target; feasibility is relative to the grid."
 record_sha256 = "41d6a52b4e1f5dc5b9b94c8c9cced6e8c0451f328af2bf03ae6441fc98e398df"
 
@@ -43,7 +43,7 @@ record_sha256 = "41d6a52b4e1f5dc5b9b94c8c9cced6e8c0451f328af2bf03ae6441fc98e398d
 role = "implementation"
 path = "crates/antecedent-design/src/inverse_query.rs"
 items = ["const BUDGET_REASON", "const INVERSE_QUERY_SCOPE_NOTE", "const STAGE", "enum Comparison", "enum ExistenceClaim", "enum FeasibilityStatus", "enum ForwardClaim", "enum GridScope", "enum InverseConstraint", "enum InverseQueryError", "enum Prepared", "enum SelectionOutcome", "enum SelectionRule", "enum Source", "fn aggregate_members", "fn as_str", "fn assemble_result", "fn atom_members", "fn charge", "fn conjunction", "fn constraint_value", "fn engine_value", "fn evaluate_inverse_query", "fn evaluate_member", "fn finite_enumeration_baseline", "fn functional", "fn holds", "fn mean_value", "fn new", "fn posterior", "fn reason_code", "fn receipt", "fn refusal", "fn report_action", "fn require_declared_complete", "fn screen", "fn select", "fn single_action_contract", "fn source", "fn statuses", "fn target", "fn to_refusal", "fn unresolved", "fn valid", "fn validate_atom_ids", "fn validate_grid", "fn validate_probabilities", "fn validate_query", "struct ActionReport", "struct ConstraintValue", "struct EnumeratedForwardValue", "struct ForwardEvidence", "struct IdentifiedSet", "struct IntervalRegion", "struct InverseQuery", "struct InverseResult", "struct Member", "struct MemberStatus", "struct Meter", "struct PosteriorFeasibility", "struct Selection"]
-sha256 = "b5523d72c0133806b6f28902697a517305d232020cf7b95ebaf83bfed9bbe5ea"
+sha256 = "cc487add777a06e11a137a25ca4e96b6d9772c768d7a5d0ae5975581e5253096"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

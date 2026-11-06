@@ -240,8 +240,7 @@ impl FullContentIdentity {
             let full = Self::try_from_source(part)?;
             let label = part.contract().unit.as_deref().unwrap_or("");
             for hasher in [&mut digest, &mut binding] {
-                hasher.update(&(label.len() as u64).to_le_bytes());
-                hasher.update(label.as_bytes());
+                text(hasher, label);
                 hasher.update(&full.binding);
             }
             digest.update(&full.digest);

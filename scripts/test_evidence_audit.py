@@ -1257,6 +1257,24 @@ class TargetDiscovery(unittest.TestCase):
             with patch.object(evidence, "ROOT", root):
                 self.assertIn("2 + 3", evidence.rust_closure(path, "native_boundary"))
 
+    def test_symlinked_python_source_resolves_to_overlay_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            source = root / "source_python"
+            (source / "src").mkdir(parents=True)
+            (source / "Cargo.toml").write_text('[package]\nname = "native"\n', encoding="utf-8")
+            (source / "src/lib.rs").write_text("", encoding="utf-8")
+            overlay = root / "overlay"
+            overlay.mkdir()
+            (overlay / "python").symlink_to(source, target_is_directory=True)
+            outside = root / "unrelated.rs"
+            outside.write_text("", encoding="utf-8")
+            with patch.object(evidence, "ROOT", overlay):
+                expected = (overlay / "python/src/lib.rs", "native", ["--lib"])
+                self.assertEqual(evidence.target_root(overlay / "python/src/lib.rs"), expected)
+                self.assertEqual(evidence.target_root(source / "src/lib.rs"), expected)
+                self.assertIsNone(evidence.target_root(outside))
+
     def test_nested_include_has_its_actual_target_and_orphans_have_none(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()

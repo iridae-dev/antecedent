@@ -25,8 +25,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 
 use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, ResponseFunctional, VariableId, reason_code,
@@ -43,6 +41,17 @@ use super::builder::DataInput;
 use super::execute::Study;
 use super::prepared::PreparedStudy;
 use crate::error::CausalError;
+
+mod drop;
+mod rank;
+
+use drop::{column_priority_order, rank_drop_refusal};
+pub(super) use drop::{kept_adjustment_ids, verify_span_preserved};
+
+use rank::{
+    dependent_columns, design_names, duplicate_groups, r_squared, scan_rank, tolerance,
+    unexplained_ratio,
+};
 
 const STAGE_PREFLIGHT: &str = "preflight";
 const STAGE_RANK_DROP: &str = "rank_drop";
@@ -546,225 +555,6 @@ fn arm_refusal(subject: &str, arms: &[ArmCount], empty: &[String]) -> CausalErro
         fields,
     )
     .into()
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-
-fn l2(a: &[f64]) -> f64 {
-    dot(a, a).sqrt()
-}
-
-/// A unit column and its norm as scale times factor. The ordinary path is
-/// unchanged; the scaled path avoids squaring very small or large entries.
-fn normalized_column(col: &[f64]) -> Option<(Vec<f64>, (f64, f64))> {
-    let squared = dot(col, col);
-    if squared.is_normal() {
-        let norm = squared.sqrt();
-        return Some((col.iter().map(|v| v / norm).collect(), (norm, 1.0)));
-    }
-    let scale = col.iter().fold(0.0_f64, |s, v| s.max(v.abs()));
-    if scale == 0.0 || !scale.is_finite() {
-        return None;
-    }
-    let mut unit: Vec<f64> = col.iter().map(|v| v / scale).collect();
-    let factor = l2(&unit);
-    for value in &mut unit {
-        *value /= factor;
-    }
-    Some((unit, (scale, factor)))
-}
-
-/// Result of scanning columns in priority order with twice-applied Gram-Schmidt.
-struct RankScan {
-    /// Orthonormal basis of the kept columns.
-    basis: Vec<Vec<f64>>,
-    /// Per scanned column.
-    columns: Vec<ScannedColumn>,
-}
-
-struct ScannedColumn {
-    kept: bool,
-    /// Residual norm over own norm.
-    ratio: f64,
-    /// `(scanned column index, coefficient in original units)` of the exact relation, for a
-    /// dependent column.
-    explained_by: Vec<(usize, f64)>,
-}
-
-/// Scan `cols` in order: a column is kept when its residual after projecting out the earlier
-/// kept columns exceeds `tol` times its own norm. Dependent columns record the relation that
-/// explains them, obtained by back-substitution in the triangular factor of the kept columns.
-#[allow(
-    clippy::float_cmp,
-    reason = "exact equality preserves the declared boundary and identity semantics"
-)]
-fn scan_rank(cols: &[&[f64]], tol: f64, ctx: &ExecutionContext) -> Result<RankScan, CausalError> {
-    let mut basis: Vec<Vec<f64>> = Vec::new();
-    // Upper-triangular factor, one column per kept column: `r_kept[k][l] = <q_l, a_k>`.
-    let mut r_kept: Vec<Vec<f64>> = Vec::new();
-    let mut kept_index: Vec<usize> = Vec::new();
-    let mut norms = Vec::with_capacity(cols.len());
-    let mut scanned = Vec::with_capacity(cols.len());
-    for (j, col) in cols.iter().enumerate() {
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: STAGE_PREFLIGHT });
-        }
-        let Some((mut w, norm)) = normalized_column(col) else {
-            norms.push((0.0, 1.0));
-            scanned.push(ScannedColumn { kept: false, ratio: 0.0, explained_by: Vec::new() });
-            continue;
-        };
-        norms.push(norm);
-        let mut coef = vec![0.0; basis.len()];
-        for _ in 0..2 {
-            for (k, q) in basis.iter().enumerate() {
-                let c = dot(q, &w);
-                for (wi, qi) in w.iter_mut().zip(q) {
-                    *wi -= c * qi;
-                }
-                coef[k] += c;
-            }
-        }
-        let ratio = l2(&w);
-        if ratio > tol {
-            basis.push(w.iter().map(|v| v / ratio).collect());
-            coef.push(ratio);
-            r_kept.push(coef);
-            kept_index.push(j);
-            scanned.push(ScannedColumn { kept: true, ratio, explained_by: Vec::new() });
-        } else {
-            // Solve R c = coef for the coefficients on the kept (unit-norm) columns.
-            let m = kept_index.len();
-            let mut c = vec![0.0; m];
-            for k in (0..m).rev() {
-                let tail: f64 = ((k + 1)..m).map(|i| r_kept[i][k] * c[i]).sum();
-                c[k] = (coef[k] - tail) / r_kept[k][k];
-            }
-            let explained_by = c
-                .iter()
-                .zip(&kept_index)
-                .filter_map(|(&ck, &i)| {
-                    let (scale, factor) = norm;
-                    let (prior_scale, prior_factor) = norms[i];
-                    // Preserve ordinary arithmetic; scaled cases retain the original
-                    // units without first forming an unrepresentable column norm.
-                    let original = if factor.to_bits() == 1.0_f64.to_bits()
-                        && prior_factor.to_bits() == 1.0_f64.to_bits()
-                    {
-                        ck * scale / prior_scale
-                    } else {
-                        ((ck * factor / prior_factor) * scale) / prior_scale
-                    };
-                    (original.abs() > COEFFICIENT_FLOOR).then_some((i, original))
-                })
-                .collect();
-            scanned.push(ScannedColumn { kept: false, ratio, explained_by });
-        }
-    }
-    Ok(RankScan { basis, columns: scanned })
-}
-
-/// `1 - R²` of `values` regressed on the scanned basis (which spans the intercept first),
-/// as the square root: the unexplained share of the centered norm. `None` for a constant.
-fn unexplained_ratio(basis: &[Vec<f64>], values: &[f64]) -> Option<f64> {
-    if values.is_empty() {
-        return None;
-    }
-    let mean = antecedent_kernels::mean(values);
-    let centered: f64 = values.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>().sqrt();
-    if !(centered.is_finite() && centered > 0.0) {
-        return None;
-    }
-    let mut w = values.to_vec();
-    for _ in 0..2 {
-        for q in basis {
-            let c = dot(q, &w);
-            for (wi, qi) in w.iter_mut().zip(q) {
-                *wi -= c * qi;
-            }
-        }
-    }
-    Some(l2(&w) / centered)
-}
-
-/// Squared Pearson correlation; `None` when either side is constant.
-fn r_squared(a: &[f64], b: &[f64]) -> Option<f64> {
-    if a.is_empty() || b.is_empty() {
-        return None;
-    }
-    let ma = antecedent_kernels::mean(a);
-    let mb = antecedent_kernels::mean(b);
-    let (mut saa, mut sbb, mut sab) = (0.0, 0.0, 0.0);
-    for (x, y) in a.iter().zip(b) {
-        saa += (x - ma) * (x - ma);
-        sbb += (y - mb) * (y - mb);
-        sab += (x - ma) * (y - mb);
-    }
-    if saa > 0.0 && sbb > 0.0 { Some(sab * sab / (saa * sbb)) } else { None }
-}
-
-/// Normalized bit pattern of a value (`-0.0` equals `0.0`).
-fn bits(value: f64) -> u64 {
-    super::recalc_common::canonical_bits(value)
-}
-
-fn duplicate_groups(columns: &[Vec<f64>]) -> Vec<Vec<usize>> {
-    // Bucket columns by an in-process hash, then verify bit equality only against the
-    // representative of each group in the bucket: linear in the columns for distinct data.
-    let mut buckets: std::collections::HashMap<u64, Vec<usize>> = std::collections::HashMap::new();
-    let mut groups: Vec<Vec<usize>> = Vec::new();
-    for (j, col) in columns.iter().enumerate() {
-        let mut hasher = DefaultHasher::new();
-        for &v in col {
-            bits(v).hash(&mut hasher);
-        }
-        let bucket = buckets.entry(hasher.finish()).or_default();
-        let found = bucket.iter().copied().find(|&group| {
-            let first = groups[group][0];
-            columns[first].len() == col.len()
-                && columns[first].iter().zip(col).all(|(a, b)| bits(*a) == bits(*b))
-        });
-        if let Some(group) = found {
-            groups[group].push(j);
-        } else {
-            bucket.push(groups.len());
-            groups.push(vec![j]);
-        }
-    }
-    groups.retain(|group| group.len() > 1);
-    groups
-}
-
-fn tolerance(rows: usize, design_columns: usize) -> f64 {
-    rows.max(design_columns) as f64 * f64::EPSILON
-}
-
-/// Names of the design columns for a scan: the intercept, then `adjustment` in scan order.
-fn design_names(adjustment: &[String]) -> Vec<String> {
-    let mut names = Vec::with_capacity(adjustment.len() + 1);
-    names.push("(intercept)".to_string());
-    names.extend(adjustment.iter().cloned());
-    names
-}
-
-fn dependent_columns(scan: &RankScan, names: &[String], skip: usize) -> Vec<DependentColumn> {
-    scan.columns
-        .iter()
-        .enumerate()
-        .skip(skip)
-        .filter(|(_, c)| !c.kept)
-        .map(|(j, c)| DependentColumn {
-            column: names[j].clone(),
-            residual_ratio: c.ratio,
-            explained_by: c
-                .explained_by
-                .iter()
-                .map(|&(i, coefficient)| ColumnWeight { column: names[i].clone(), coefficient })
-                .collect(),
-        })
-        .collect()
 }
 
 /// One review finding per group of exactly duplicated columns, worded by whether it touches the query or the adjustment set.
@@ -1319,76 +1109,6 @@ pub struct RankDropPlan {
     pub design_identity: String,
 }
 
-fn rank_drop_refusal(
-    subject: &str,
-    reason: &str,
-    implicated: Vec<String>,
-    remedy: &str,
-) -> CausalError {
-    let fields = RefusalFields {
-        stage: Some(STAGE_RANK_DROP.to_string()),
-        subject: Some(subject.to_string()),
-        reason: Some(reason.to_string()),
-        implicated_columns: implicated,
-        remedy: Some(remedy.to_string()),
-        ..RefusalFields::default()
-    };
-    EstimationError::refused_detail_with_fields(
-        reason_code!("rank_drop_not_supported"),
-        subject,
-        format!("{reason}; nothing was dropped"),
-        fields,
-    )
-    .into()
-}
-
-/// Resolves the declared column priority to adjustment-column positions, refusing a priority that does not cover the set.
-fn column_priority_order(
-    input: &PreflightInput<'_>,
-    policy: &RankDropPolicy,
-    frame: &Frame<'_>,
-) -> Result<Vec<usize>, CausalError> {
-    let p = input.adjustment.len();
-    Ok(match &policy.priority {
-        ColumnPriority::AdjustmentOrder => (0..p).collect(),
-        ColumnPriority::Declared(ids) => {
-            let mut used = vec![false; p];
-            let mut order = Vec::with_capacity(p);
-            for id in ids {
-                let slot = (0..p).find(|&k| !used[k] && input.adjustment[k] == *id);
-                match slot {
-                    Some(k) => {
-                        used[k] = true;
-                        order.push(k);
-                    }
-                    None => {
-                        return Err(rank_drop_refusal(
-                            &frame.subject,
-                            "the declared column priority names a column that is not in the \
-                             adjustment set (or names it twice)",
-                            Vec::new(),
-                            "declare every adjustment column exactly once, highest priority first",
-                        ));
-                    }
-                }
-            }
-            if order.len() != p {
-                let missing: Vec<String> = (0..p)
-                    .filter(|&k| !used[k])
-                    .map(|k| frame.adjustment_names()[k].clone())
-                    .collect();
-                return Err(rank_drop_refusal(
-                    &frame.subject,
-                    "the declared column priority does not cover the adjustment set",
-                    missing,
-                    "declare every adjustment column exactly once, highest priority first",
-                ));
-            }
-            order
-        }
-    })
-}
-
 /// Plan an opt-in rank-deficiency drop under a declared column priority.
 ///
 /// # Errors
@@ -1489,10 +1209,6 @@ pub fn plan_rank_drop(
     })
 }
 
-/// A dropped column's residual after projecting onto the retained span must stay within
-/// this multiple of the scan tolerance (rounding slack for the second projection).
-const SPAN_SLACK: f64 = 10.0;
-
 /// Numerical evidence that a rank drop kept the column space of the `[1 | Z]` design.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SpanCheck {
@@ -1505,118 +1221,6 @@ pub struct SpanCheck {
     pub max_dropped_residual_ratio: f64,
     /// Scan tolerance the ratios were compared with, after the rounding slack.
     pub tolerance: f64,
-}
-
-/// The adjustment columns a plan keeps, in the input's order.
-pub(super) fn kept_adjustment_ids(
-    input: &PreflightInput<'_>,
-    plan: &RankDropPlan,
-) -> Result<Vec<VariableId>, CausalError> {
-    let schema = input.data.schema();
-    let mut kept = Vec::with_capacity(plan.kept_adjustment.len());
-    for &id in &input.adjustment {
-        let meta = schema.get(id)?;
-        if plan.kept_adjustment.iter().any(|name| name.as_str() == &*meta.name) {
-            kept.push(id);
-        }
-    }
-    Ok(kept)
-}
-
-/// Residual norm over own norm of `values` after projecting out an orthonormal `basis`
-/// (twice, for orthogonality). A zero column lies in every span.
-fn residual_over_norm(basis: &[Vec<f64>], values: &[f64]) -> f64 {
-    let squared = dot(values, values);
-    if squared.is_normal() {
-        let norm = squared.sqrt();
-        let mut w = values.to_vec();
-        for _ in 0..2 {
-            for q in basis {
-                let c = dot(q, &w);
-                for (wi, qi) in w.iter_mut().zip(q) {
-                    *wi -= c * qi;
-                }
-            }
-        }
-        return l2(&w) / norm;
-    }
-    let Some((mut w, _)) = normalized_column(values) else {
-        return 0.0;
-    };
-    for _ in 0..2 {
-        for q in basis {
-            let c = dot(q, &w);
-            for (wi, qi) in w.iter_mut().zip(q) {
-                *wi -= c * qi;
-            }
-        }
-    }
-    l2(&w)
-}
-
-/// Verify, independently of the plan's scan, that dropping `plan.dropped` left the column
-/// space unchanged: the retained design has full numerical rank equal to the original's, and
-/// every dropped column lies in the retained span within the scan tolerance.
-///
-/// # Errors
-///
-/// `rank_drop_not_supported` when the retained design is still rank deficient, its rank
-/// differs from the original, or a dropped column is not in the retained span; the
-/// preflight errors (unknown column, size limit, cancellation).
-pub(super) fn verify_span_preserved(
-    input: &PreflightInput<'_>,
-    plan: &RankDropPlan,
-    kept: &[VariableId],
-    ctx: &ExecutionContext,
-) -> Result<SpanCheck, CausalError> {
-    let frame = Frame::new(input, ctx)?;
-    let columns = frame.adjustment_columns();
-    let ones = vec![1.0; frame.rows_complete];
-    let keep_mask: Vec<bool> = input.adjustment.iter().map(|id| kept.contains(id)).collect();
-    let mut design: Vec<&[f64]> = vec![&ones];
-    design.extend(
-        columns.iter().zip(&keep_mask).filter(|(_, keep)| **keep).map(|(c, _)| c.as_slice()),
-    );
-    let tol = tolerance(frame.rows_complete, input.adjustment.len() + 1);
-    let scan = scan_rank(&design, tol, ctx)?;
-    let retained_rank = scan.basis.len();
-    if retained_rank != design.len() || retained_rank != plan.numerical_rank {
-        return Err(rank_drop_refusal(
-            &frame.subject,
-            "rank_drop_estimate.span_not_preserved: the retained design does not span the \
-             original column space (its numerical rank differs from the original's or it is \
-             still rank deficient)",
-            Vec::new(),
-            "the drop would change the fitted projection; keep the original adjustment set",
-        ));
-    }
-    let mut worst = 0.0_f64;
-    let mut worst_column = String::new();
-    for ((column, keep), name) in columns.iter().zip(&keep_mask).zip(frame.adjustment_names()) {
-        if *keep {
-            continue;
-        }
-        let ratio = residual_over_norm(&scan.basis, column);
-        if ratio > worst {
-            worst = ratio;
-            worst_column.clone_from(name);
-        }
-    }
-    if worst > SPAN_SLACK * tol {
-        return Err(rank_drop_refusal(
-            &frame.subject,
-            "rank_drop_estimate.span_not_preserved: a dropped column is not an exact linear \
-             combination of the retained columns",
-            vec![worst_column],
-            "the drop would change the fitted projection; keep the original adjustment set",
-        ));
-    }
-    Ok(SpanCheck {
-        original_rank: plan.numerical_rank,
-        retained_rank,
-        max_dropped_residual_ratio: worst,
-        tolerance: SPAN_SLACK * tol,
-    })
 }
 
 fn outside_cell() -> CausalError {

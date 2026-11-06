@@ -13,15 +13,16 @@ import json
 import os
 import re
 import subprocess
-import tomllib
 from pathlib import Path
+
+from _repo import load_toml
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "parity/joint_response_calibration.toml"
 
 
 def procedures() -> list[dict]:
-    document = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
+    document = load_toml(MANIFEST)
     if document["schema"] != 1 or document["grants_release_support"]:
         raise ValueError("invalid not_measured procedure registry")
     rows = document["procedure"]

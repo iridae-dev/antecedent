@@ -49,6 +49,12 @@ def load_toml(path: Path | str) -> dict[str, Any]:
     return tomllib.loads(read_text(path))
 
 
+def load_toml_binary(path: Path | str) -> dict[str, Any]:
+    """Parse a binary TOML file without universal-newline translation."""
+    with Path(path).open("rb") as handle:
+        return tomllib.load(handle)
+
+
 def cargo_target_feature_args(
     manifest: Path | str, target_args: list[str] | tuple[str, ...]
 ) -> list[str]:

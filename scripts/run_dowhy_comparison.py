@@ -17,9 +17,10 @@ import json
 import os
 import subprocess
 import sys
-import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+from _repo import load_toml
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -51,9 +52,7 @@ def result_problems(path: Path, required: set[str]) -> list[str]:
 
 
 def main() -> int:
-    baseline = tomllib.loads(
-        (ROOT / "parity/baselines/dowhy.toml").read_text(encoding="utf-8")
-    )
+    baseline = load_toml(ROOT / "parity/baselines/dowhy.toml")
     if importlib.metadata.version("dowhy") != baseline["version"]:
         raise SystemExit(
             "DoWhy version does not match the baseline; use the frozen script environment"

@@ -31,7 +31,7 @@ record_sha256 = "8f9856feea6034e7cf6ae1b1443aa7b045f7ffb65c670e8b575aed50f506269
 role = "implementation"
 path = "crates/antecedent-design/src/decision_eval.rs"
 items = ["const MASS_TOLERANCE", "enum DecisionEvalError", "enum Verdict", "fn build_table", "fn build_table_with", "fn check_functional", "fn constraint_fails", "fn evaluate_contract", "fn evaluate_contract_validated", "fn evaluate_functional", "fn fractional_tail_mean", "fn from_table", "fn functional", "fn law_criterion_label", "fn left_inverse", "fn locate", "fn parsed_quantities", "fn positive_mass_max", "fn rank_table", "fn reason_code", "fn resolve_action", "fn weighted_mean", "struct ActionLaw", "struct ActionOutcome", "struct ConstraintExclusion", "struct DecisionResult", "struct FunctionalValue", "struct SourceReceipt", "struct Table"]
-sha256 = "6cd931e052f87b4292db828476625437682ca8c6cfee7317e6bd3fb1dbbcc3ea"
+sha256 = "f19c868a90b10a860c4a147401477fc98d438dcc9eed6fb73cf6c655701efbca"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

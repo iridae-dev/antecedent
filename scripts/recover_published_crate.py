@@ -10,6 +10,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from _repo import load_toml
+
 REPOSITORY = "iridae-dev/antecedent"
 NEW_DEPENDENCY = 'antecedent = { path = ".", features = ["calibration-internal"] }'
 
@@ -156,9 +158,9 @@ def recover(source: Path, release: Release, execute: bool) -> None:
         raise ValueError("CARGO_REGISTRY_TOKEN is required for publication")
     verify_release(source, release)
     workspace_manifest = source / "Cargo.toml"
-    if workspace_manifest.exists() and "antecedent-test-support" in tomllib.loads(
-        workspace_manifest.read_text(encoding="utf-8")
-    ).get("workspace", {}).get("dependencies", {}):
+    if workspace_manifest.exists() and "antecedent-test-support" in (
+        load_toml(workspace_manifest).get("workspace", {}).get("dependencies", {})
+    ):
         recover_workspace(source, release, execute)
         return
     manifest = source / "crates/antecedent/Cargo.toml"
@@ -190,9 +192,7 @@ def recover_workspace(source: Path, release: Release, execute: bool) -> None:
     manifest = source / "Cargo.toml"
     original = manifest.read_bytes()
     repaired = repair_workspace_manifest(original.decode("utf-8"), release.version)
-    helper = tomllib.loads(
-        (source / "crates/antecedent-test-support/Cargo.toml").read_text(encoding="utf-8")
-    )
+    helper = load_toml(source / "crates/antecedent-test-support/Cargo.toml")
     if helper.get("package", {}).get("publish") is not False:
         raise ValueError("the test helper must remain unpublished")
     try:

@@ -21,11 +21,10 @@ Per method it reports which side is missing and the next attempt.
 from __future__ import annotations
 
 import sys
-import tomllib
 from collections import Counter
 
 import generate_counterparts as gen
-from _repo import REPO_ROOT as ROOT
+from _repo import REPO_ROOT as ROOT, load_toml_binary
 from method_evidence import Evidence
 
 INVENTORY = ROOT / "parity/counterparts.toml"
@@ -111,8 +110,7 @@ def report(rows: list[dict]) -> str:
 
 
 def load_rows() -> tuple[list[dict], dict]:
-    with INVENTORY.open("rb") as handle:
-        data = tomllib.load(handle)
+    data = load_toml_binary(INVENTORY)
     return data["row"], data
 
 

@@ -28,11 +28,12 @@ import itertools
 import json
 import re
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from _repo import load_toml
 
 # Relative to the working directory: every gate runs from the repo root, and a
 # gate self-test runs from an overlay whose ci.yml may be deliberately broken.
@@ -186,7 +187,7 @@ def required_jobs(
     schema gate call it rather than re-parsing the TOML.
     """
     release = RELEASE_TOML if release is None else release
-    rows = tomllib.loads(release.read_text(encoding="utf-8")).get("capabilities", [])
+    rows = load_toml(release).get("capabilities", [])
     wanted: list[str] = []
     problems: list[str] = []
     for row in rows:

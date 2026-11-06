@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import re
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -148,18 +147,18 @@ def manifest_problems(
 
 
 def problems(root: Path = ROOT, require_bound: bool = False) -> list[str]:
-    data = tomllib.loads(_read(root, REGISTRY))
+    data = load_toml(root / REGISTRY)
     errors = registry_problems(data, root)
-    manifest = tomllib.loads(_read(root, MANIFEST))
+    manifest = load_toml(root / MANIFEST)
     errors.extend(manifest_problems(manifest, data, require_bound))
     return errors
 
 
 def self_test() -> int:
-    good = tomllib.loads(_read(ROOT, REGISTRY))
+    good = load_toml(ROOT / REGISTRY)
 
     def corrupted(edit) -> dict[str, Any]:
-        data = tomllib.loads(_read(ROOT, REGISTRY))
+        data = load_toml(ROOT / REGISTRY)
         edit(data)
         return data
 
@@ -256,7 +255,7 @@ def main(argv: list[str]) -> int:
         for error in errors:
             print(f"  {error}")
         return 1
-    data = tomllib.loads(_read(ROOT, REGISTRY))
+    data = load_toml(ROOT / REGISTRY)
     print(
         f"gcm conformance: {len(data['clauses'])} clauses, {len(data['conformance'])} tests, "
         f"{len(data['performance'])} benchmarks"

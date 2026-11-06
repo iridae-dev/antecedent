@@ -2,10 +2,9 @@
 import json
 import re
 import sys
-import tomllib
 from pathlib import Path
 
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, load_toml_binary
 from metadata_integrity import author_orcid_problems, oracle_packages, oracle_rows
 
 root = Path(".")
@@ -13,12 +12,10 @@ fail = []
 
 # ---------------------------------------------------------------- 1. version
 # Canonical: [workspace.package].version in Cargo.toml.
-with open("Cargo.toml", "rb") as handle:
-    cargo = tomllib.load(handle)
+cargo = load_toml_binary("Cargo.toml")
 version = cargo["workspace"]["package"]["version"]
 
-with open("python/pyproject.toml", "rb") as handle:
-    pyproject = tomllib.load(handle)
+pyproject = load_toml_binary("python/pyproject.toml")
 if pyproject["project"]["version"] != version:
     fail.append(
         f"python/pyproject.toml version {pyproject['project']['version']!r} != Cargo.toml {version!r}"
@@ -67,8 +64,7 @@ else:
 # The workspace is `antecedent`; parity manifests that declare a `library` key
 # must name it.
 for path in sorted(root.glob("parity/*.toml")):
-    with open(path, "rb") as handle:
-        data = tomllib.load(handle)
+    data = load_toml_binary(path)
     lib = data.get("library")
     if lib is not None and lib != "antecedent":
         fail.append(f"{path} declares library = {lib!r}; expected 'antecedent'")
@@ -79,8 +75,7 @@ DOI_RE = re.compile(r"^10\.\d{4,9}/\S+$")
 for path in sorted(root.glob("provenance/*.toml")):
     if path.name in ("_template.toml",):
         continue
-    with open(path, "rb") as handle:
-        data = tomllib.load(handle)
+    data = load_toml_binary(path)
     fid = data.get("feature_id")
 
     # Duplicate feature_id across files: the gate checked stem==feature_id but
@@ -132,8 +127,7 @@ UPSTREAM = [
     "arviz",
     "bpbounds",
 ]
-with open("parity/oracle_closure.toml", "rb") as handle:
-    ledger = tomllib.load(handle)
+ledger = load_toml_binary("parity/oracle_closure.toml")
 
 # A closed oracle row is only evidence when an executing conformance test
 # consumes its frozen fixture: a test function (with the helpers it calls) that

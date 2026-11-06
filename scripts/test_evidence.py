@@ -342,7 +342,19 @@ def target_files(root_file: Path, boundary: Path | None = None) -> tuple[Path, .
 def target_root(path: Path) -> tuple[Path, str, list[str]] | None:
     """(crate root file, crate name, cargo target args) for a Rust source file."""
     path = path.resolve()
-    rel = path.relative_to(ROOT.resolve()).parts
+    root = ROOT.resolve()
+    try:
+        rel = path.relative_to(root).parts
+    except ValueError:
+        # Gate self-test overlays may link the Python tree to the checkout.
+        # Rebase only that declared tree; unrelated external paths are not targets.
+        python_tree = root / "python"
+        if not python_tree.is_symlink():
+            return None
+        try:
+            rel = ("python", *path.relative_to(python_tree.resolve()).parts)
+        except ValueError:
+            return None
     if rel[0] == "python" and len(rel) >= 3 and rel[1] == "src":
         crate_dir = ROOT / "python"
         manifest = tomllib.loads(_read(crate_dir / "Cargo.toml"))
@@ -996,7 +1008,7 @@ def _rust_index(root_file: Path) -> dict[str, list[tuple[Path, RustItem]]]:
     # evidence for a test that never calls them.
     root = target_root(root_file)
     if root:
-        parts = root_file.relative_to(ROOT).parts
+        parts = root[0].relative_to(ROOT).parts
         manifest = (ROOT / "python/Cargo.toml" if parts[0] == "python"
                     else ROOT / "crates" / parts[1] / "Cargo.toml")
         data = tomllib.loads(_read(manifest))

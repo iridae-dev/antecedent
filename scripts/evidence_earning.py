@@ -13,8 +13,8 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
-import tomllib
 
+from _repo import load_toml
 from evidence_fingerprint import Fingerprinter, closure, locate, INPUT_DECLARATIONS
 from evidence_manifests import (ANALYZER, BUILD_ENV, NORMALIZATION, SCHEMA, STORE, Checker,
                                 canonical, digest, manifest_id, noncanonical_environment)
@@ -134,8 +134,8 @@ class Snapshot:
         info = locate(root, row)
         names = closure(fp.graph, info['crate']) if info['lang'] == 'rust' else list(fp.graph)
         owned = {fp.crate_dir(name).resolve() for name in fp.graph}
-        configs = [(root, tomllib.loads((root / 'Cargo.toml').read_text(encoding="utf-8")))]
-        configs += [(fp.crate_dir(name), tomllib.loads((fp.crate_dir(name) / 'Cargo.toml').read_text(encoding="utf-8"))) for name in names]
+        configs = [(root, load_toml(root / 'Cargo.toml'))]
+        configs += [(fp.crate_dir(name), load_toml(fp.crate_dir(name) / 'Cargo.toml')) for name in names]
         for base, config in configs:
             custom_build = config.get('package', {}).get('build')
             if isinstance(custom_build, str) and custom_build != 'build.rs':
@@ -151,7 +151,7 @@ class Snapshot:
                         raise RuntimeError('local dependency outside the analyzed workspace must be declared as an input before earning evidence')
         for rel in ('.cargo/config', '.cargo/config.toml'):
             if (root / rel).is_file():
-                config = tomllib.loads((root / rel).read_text(encoding="utf-8"))
+                config = load_toml(root / rel)
                 if config.get('paths') or any(config.get('build', {}).get(key) for key in ('rustc', 'rustc-wrapper', 'rustc-workspace-wrapper')):
                     raise RuntimeError('Cargo compiler/path overrides require explicit dependency analysis before earning evidence')
         # Procedural macros and build scripts run at compile time, where coverage cannot
@@ -164,7 +164,7 @@ class Snapshot:
         required = set().union(*(compile_time.get(name, {name}) for name in names))
         for name in names:
             directory = fp.crate_dir(name)
-            config = tomllib.loads((directory / 'Cargo.toml').read_text(encoding="utf-8"))
+            config = load_toml(directory / 'Cargo.toml')
             if config.get('lib', {}).get('proc-macro') or (directory / 'build.rs').exists():
                 required.add(name)
         if required:

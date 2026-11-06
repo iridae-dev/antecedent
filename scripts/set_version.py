@@ -14,6 +14,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+from _repo import load_toml
+
 ROOT = Path(".")
 
 SUPPORTED_BEGIN = "<!-- generated:release:supported-lines:begin -->"
@@ -150,7 +152,7 @@ def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> 
     )
 
     notebooks = sorted((root / "examples" / "notebooks").glob("*.ipynb"))
-    catalog = tomllib.loads((root / "examples" / "catalog.toml").read_text(encoding="utf-8"))
+    catalog = load_toml(root / "examples" / "catalog.toml")
     declared = sum("notebook" in row for row in catalog["example"])
     if len(notebooks) != declared:
         raise SnippetError(f"expected {declared} catalog notebooks, found {len(notebooks)}")

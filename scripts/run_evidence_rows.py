@@ -25,11 +25,10 @@ import shutil
 import subprocess
 import sys
 import time
-import tomllib
 from collections import defaultdict
 from pathlib import Path
 
-from _repo import WORKSPACE_TEST_FEATURES, cargo_target_feature_args
+from _repo import WORKSPACE_TEST_FEATURES, cargo_target_feature_args, load_toml
 import route_behaviour
 from test_evidence import (
     python_test_markers,
@@ -103,7 +102,7 @@ def workspace_features() -> list[str]:
     for spec in WORKSPACE_TEST_FEATURES:
         package, _, feature = spec.partition("/")
         manifest = root / "crates" / package / "Cargo.toml"
-        if manifest.is_file() and feature in tomllib.loads(manifest.read_text(encoding="utf-8")).get("features", {}):
+        if manifest.is_file() and feature in load_toml(manifest).get("features", {}):
             present.append(spec)
     return present
 
@@ -172,7 +171,7 @@ def python_marker() -> list[str]:
             if run_simulations else "not requires_calibration and not calibration_simulation"]
 
 
-rows = tomllib.loads((root / ledger).read_text(encoding="utf-8")).get(table, [])
+rows = load_toml(root / ledger).get(table, [])
 if table == "routes" and ledger.name == "transport_stages.toml":
     # A record-owned route's stage, status and reason code are generated, not in the row.
     rows = route_behaviour.load_stage_routes(root, root / ledger)

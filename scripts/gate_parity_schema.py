@@ -5,7 +5,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, load_toml, load_toml_binary
 from evidence_kinds import (
     EVIDENCE_KINDS,
     EXTERNAL_KINDS,
@@ -48,8 +48,7 @@ STATISTICAL_QUANTITY = re.compile(
 # reader gate_evidence_reachability.sh uses).
 baseline_versions = {}
 for path in sorted(root.glob("parity/baselines/*.toml")):
-    with open(path, "rb") as handle:
-        baseline = tomllib.load(handle)
+    baseline = load_toml_binary(path)
     project = str(baseline.get("project", "")).lower()
     if not project:
         continue
@@ -341,7 +340,7 @@ if problems:
     sys.exit(1)
 
 total = sum(
-    len(tomllib.loads((root / rel).read_text(encoding="utf-8"))["capabilities"])
+    len(load_toml(root / rel)["capabilities"])
     for rel in MANIFESTS
 )
 print(f"parity manifest schema: ok ({total} rows across {len(MANIFESTS)} manifests)")

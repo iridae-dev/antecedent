@@ -619,8 +619,8 @@ def reachability_cases() -> list[bool]:
             "only_consumer_ignored",
             {
                 consumer: replace(
-                    "#[test]\nfn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
-                    '#[ignore = "off"]\n#[test]\n'
+                    "fn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
+                    '#[ignore = "off"]\n'
                     "fn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
                 )
             },

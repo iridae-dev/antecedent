@@ -49,12 +49,11 @@ import re
 import subprocess
 import sys
 import threading
-import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from _repo import REPO_ROOT as ROOT
+from _repo import REPO_ROOT as ROOT, load_toml
 import _repo
 
 ATTESTATIONS = ROOT / "parity" / "calibration_probe_attestations.toml"
@@ -641,7 +640,7 @@ def main(argv: list[str] | None = None) -> int:
             row['measurement_digest'] = snapshots[row['record_id']].manifest['record']['measurement_digest']
             row['dependency_manifest'] = snapshots[row['record_id']].publish()
     existing = (
-        tomllib.loads(ATTESTATIONS.read_text(encoding="utf-8")).get("attestation", [])
+        load_toml(ATTESTATIONS).get("attestation", [])
         if ATTESTATIONS.is_file()
         else []
     )

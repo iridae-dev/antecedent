@@ -4,10 +4,9 @@ import os
 import re
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, load_toml_binary
 from evidence_kinds import ORACLE_KINDS, fixture_review_problems
 
 root = Path(".")
@@ -33,8 +32,7 @@ def referenced(fixture: str) -> bool:
 declared = {}
 unex_path = root / "conformance/UNEXERCISED.toml"
 if unex_path.exists():
-    with open(unex_path, "rb") as handle:
-        unexercised = tomllib.load(handle).get("unexercised", [])
+    unexercised = load_toml_binary(unex_path).get("unexercised", [])
     for entry in unexercised:
         d = entry.get("dir", "")
         if d in declared:
@@ -63,8 +61,7 @@ for d in declared:
 
 # ------------------------- 2. unexercised fixtures are not "active evidence"
 # (a) No closed oracle-ledger row may point at one.
-with open("parity/oracle_closure.toml", "rb") as handle:
-    ledger = tomllib.load(handle)
+ledger = load_toml_binary("parity/oracle_closure.toml")
 for method in ledger.get("method", []):
     if method.get("fixture_dir") in declared and method.get("status") == "closed":
         fail.append(
@@ -87,8 +84,7 @@ record_ids = set()
 for p in sorted(root.glob("provenance/*.toml")):
     if p.name == "_template.toml":
         continue
-    with open(p, "rb") as handle:
-        d = tomllib.load(handle)
+    d = load_toml_binary(p)
     fid = d["feature_id"]
     record_ids.add(fid)
     has_field = "implementation_deviations" in d

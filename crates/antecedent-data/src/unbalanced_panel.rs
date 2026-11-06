@@ -27,6 +27,7 @@ use antecedent_core::named_variants;
 use antecedent_core::refusal::NextAttempt;
 use antecedent_kernels::Welford;
 
+use crate::content_identity::hash_framed_text;
 use crate::error::DataError;
 use crate::missing::{DropReason, RowAccounting};
 use crate::panel_window::PopulationUnit;
@@ -1165,8 +1166,7 @@ fn layout_digest(
     hasher.update(&(units.len() as u64).to_le_bytes());
     for (unit_index, unit) in units.iter().enumerate() {
         let rows = &order[unit_starts[unit_index]..unit_starts[unit_index + 1]];
-        hasher.update(&(unit.label.len() as u64).to_le_bytes());
-        hasher.update(unit.label.as_bytes());
+        hash_framed_text(&mut hasher, &unit.label);
         hasher.update(&(rows.len() as u64).to_le_bytes());
         for &row in rows {
             hasher.update(&periods[row].to_le_bytes());

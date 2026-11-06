@@ -2,9 +2,10 @@
 import json
 import subprocess
 import sys
-import tomllib
 from collections import defaultdict
 from pathlib import Path
+
+from _repo import load_toml
 
 meta = json.loads(
     subprocess.check_output(
@@ -40,7 +41,7 @@ for name, pkg in members.items():
             # A versioned self dependency survives Cargo packaging and tries to
             # resolve this not-yet-published crate from the registry. A path-only
             # self dependency is omitted from the published dev dependencies.
-            manifest = tomllib.loads(Path(pkg["manifest_path"]).read_text(encoding="utf-8"))
+            manifest = load_toml(Path(pkg["manifest_path"]))
             tables = [manifest.get("dev-dependencies", {})]
             tables.extend(
                 target.get("dev-dependencies", {}) for target in manifest.get("target", {}).values()
@@ -50,7 +51,7 @@ for name, pkg in members.items():
             if any(isinstance(spec, dict) and spec.get("workspace") for spec in specifications):
                 root = Path(meta["workspace_root"]) / "Cargo.toml"
                 specifications.append(
-                    tomllib.loads(root.read_text(encoding="utf-8"))
+                    load_toml(root)
                     .get("workspace", {})
                     .get("dependencies", {})
                     .get(alias)

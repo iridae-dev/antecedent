@@ -26,10 +26,9 @@ from __future__ import annotations
 import json
 import re
 import sys
-import tomllib
 from pathlib import Path
 
-from _repo import REPO_ROOT as ROOT
+from _repo import REPO_ROOT as ROOT, load_toml_binary
 from method_evidence import UNLISTED, Evidence
 
 CHILDREN = ROOT / "parity/method_children/children.toml"
@@ -101,8 +100,7 @@ def toml_str(value: str) -> str:
 
 
 def load(path: Path) -> dict:
-    with path.open("rb") as handle:
-        return tomllib.load(handle)
+    return load_toml_binary(path)
 
 
 def split_id(child_id: str) -> tuple[str, str, str]:

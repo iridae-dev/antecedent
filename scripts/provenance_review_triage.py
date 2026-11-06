@@ -29,7 +29,7 @@ import sys
 import tomllib
 from collections import defaultdict
 
-from _repo import REPO_ROOT
+from _repo import REPO_ROOT, load_toml
 from provenance_links import non_algorithm_review_problems
 
 OUT = REPO_ROOT / "parity" / "provenance_review_triage.toml"
@@ -175,9 +175,7 @@ def load_records() -> dict[str, tuple[dict, str]]:
 
 
 def spec_links() -> dict[str, dict[str, int]]:
-    specs = tomllib.loads(
-        (REPO_ROOT / "parity/method_specs/specs.toml").read_text(encoding="utf-8")
-    )["spec"]
+    specs = load_toml(REPO_ROOT / "parity/method_specs/specs.toml")["spec"]
     links: dict[str, dict[str, int]] = defaultdict(lambda: {"admitted": 0, "supported": 0})
     for spec in specs:
         for stem in spec.get("provenance", []):

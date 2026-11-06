@@ -105,7 +105,7 @@ import calibration_family
 import calibration_probe
 import calibration_status
 from _repo import REPO_ROOT as ROOT
-from _repo import read_text, write_text
+from _repo import load_toml, read_text, write_text
 
 # The schema reader consumes this module's historical configuration reader.
 coverage_family = calibration_family
@@ -1489,7 +1489,7 @@ def main() -> int:
         subprocess.run([sys.executable, str(GENERATOR)], cwd=ROOT, check=True)
         return 0
     previous = (
-        {g["group"]: g for g in tomllib.loads(read_text(GATES)).get("gate", [])}
+        {g["group"]: g for g in load_toml(GATES).get("gate", [])}
         if (args.keep_attested or args.keep_existing) and GATES.is_file()
         else None
     )
