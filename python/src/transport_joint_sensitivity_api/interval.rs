@@ -76,7 +76,6 @@ fn consume_z_transport_joint_interval(
                     max_memory_bytes,
                     ..Default::default()
                 },
-                ..Default::default()
             },
             &ctx,
         )
