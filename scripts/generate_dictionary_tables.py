@@ -13,7 +13,7 @@ import argparse
 import tomllib
 from pathlib import Path
 
-from _repo import REPO_ROOT as ROOT
+from _repo import REPO_ROOT as ROOT, load_toml
 
 IDENTITY = ROOT / "parity" / "identity.toml"
 MATRIX = ROOT / "parity" / "producer_consumer.toml"
@@ -65,7 +65,7 @@ def _cell(text: object, label: str) -> str:
 
 
 def load_identity() -> list[dict]:
-    rows = tomllib.loads(IDENTITY.read_text(encoding="utf-8")).get("identity", [])
+    rows = load_toml(IDENTITY).get("identity", [])
     if not rows:
         raise ValueError("parity/identity.toml has no [[identity]] rows")
     seen: set[str] = set()
@@ -91,7 +91,7 @@ def load_identity() -> list[dict]:
 
 
 def load_matrix() -> dict:
-    data = tomllib.loads(MATRIX.read_text(encoding="utf-8"))
+    data = load_toml(MATRIX)
     producers = data.get("producer", [])
     consumers = data.get("consumer", [])
     cells = data.get("cell", [])

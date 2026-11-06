@@ -2,19 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::{MAX_MEASUREMENT_CATEGORIES, MeasurementErrorError, invert_square, matvec};
+use super::{
+    ConfusionMatrix, CorrectedCategorical, MAX_MEASUREMENT_CATEGORIES, MeasurementErrorError,
+    ObservedClassSummary, invert_square, matvec,
+};
 
 // ---------------------------------------------------------------------------
 // Categorical misclassification
 // ---------------------------------------------------------------------------
-
-/// Column-stochastic confusion matrix `C[observed, true] = P(observed | true)`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ConfusionMatrix {
-    levels: usize,
-    matrix: Vec<f64>,
-    column_counts: Option<Vec<u64>>,
-}
 
 impl ConfusionMatrix {
     /// A matrix from row-major `[observed][true]` probabilities.
@@ -105,39 +100,6 @@ impl ConfusionMatrix {
     pub fn column_counts(&self) -> Option<&[u64]> {
         self.column_counts.as_deref()
     }
-}
-
-/// Observed-category summary of the outcome.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ObservedClassSummary {
-    /// Units observed in the category.
-    pub count: u64,
-    /// Mean outcome among them.
-    pub mean: f64,
-    /// Sample variance of the outcome among them.
-    pub variance: f64,
-}
-
-/// Corrected category proportions and per-category outcome means.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CorrectedCategorical {
-    /// Observed category proportions.
-    pub observed_proportions: Vec<f64>,
-    /// Corrected true-category proportions (not projected onto the simplex).
-    pub proportions: Vec<f64>,
-    /// Covariance of the corrected proportions, row-major, including the
-    /// uncertainty of the confusion columns.
-    pub proportion_covariance: Vec<f64>,
-    /// Corrected expected counts `n * proportions`.
-    pub expected_counts: Vec<f64>,
-    /// Mean outcome among units in each true category.
-    pub outcome_means: Vec<f64>,
-    /// Covariance of the outcome means, row-major.
-    pub outcome_mean_covariance: Vec<f64>,
-    /// 1-norm condition number of the confusion matrix.
-    pub condition_number: f64,
-    /// A corrected proportion left `[0, 1]`.
-    pub outside_unit_interval: bool,
 }
 
 fn one_norm(a: &[f64], d: usize) -> f64 {

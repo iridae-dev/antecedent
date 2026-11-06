@@ -1555,43 +1555,6 @@ fn horizon_note(horizon: u32, state: &str) -> Diagnostic {
     .with_fields([("horizon", horizon.to_string())])
 }
 
-/// The series, query, Bayesian configuration and context a class Bayesian
-/// temporal effect fits and refutes with.
-#[derive(Clone, Copy)]
-struct ClassBayesianInputs<'a> {
-    data: &'a TimeSeriesData,
-    query: &'a TemporalEffectQuery,
-    cfg: &'a BayesianConfig,
-    ctx: &'a ExecutionContext,
-}
-
-/// One identified completion to fit: its fingerprint, estimand, status,
-/// unfold indexer and class weight.
-type ClassBayesianFitAtom = (u64, IdentifiedEstimand, IdentificationStatus, TemporalIndexer, f64);
-
-/// Per-completion weights, identification flags and fingerprints of a class
-/// envelope, with the completions to fit and the first estimand.
-struct ClassBayesianPlan {
-    weights: Vec<f64>,
-    flags: Vec<GraphIdentFlag>,
-    keys: Vec<u64>,
-    fit_atoms: Vec<ClassBayesianFitAtom>,
-    primary_estimand: Option<IdentifiedEstimand>,
-}
-
-/// The fitted completion atoms of a class Bayesian temporal effect with the
-/// seeds, effect draws and means they were fitted under.
-struct ClassBayesianFits {
-    atoms: Vec<EnvelopeAtomFit>,
-    atom_seeds: Vec<u64>,
-    per_graph: Vec<GraphEffectDraws>,
-    atom_means: Vec<f64>,
-    envelope_conflict: Option<antecedent_prob::ConflictSummary>,
-    /// The Bayesian g-computation estimator the atoms were fitted with; each
-    /// refutation replaces its prior and seed.
-    estimator: BayesianGComputationAte,
-}
-
 mod class_fits;
 
 use class_fits::{

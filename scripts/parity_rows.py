@@ -25,8 +25,9 @@ from __future__ import annotations
 
 import re
 import sys
-import tomllib
 from pathlib import Path
+
+from _repo import load_toml
 
 # The gates run from the repository root (or from an overlay of it in a self-test).
 ROOT = Path.cwd()
@@ -92,7 +93,7 @@ def rows(path: str | Path, table: str = "capabilities") -> list[dict]:
     """Rows of `[[table]]` in `path` (relative to the repo root), parsed by tomllib."""
     p = Path(path)
     p = p if p.is_absolute() else ROOT / p
-    return tomllib.loads(p.read_text(encoding="utf-8")).get(table, [])
+    return load_toml(p).get(table, [])
 
 
 def find_row(path: str | Path, cid: str) -> dict | None:

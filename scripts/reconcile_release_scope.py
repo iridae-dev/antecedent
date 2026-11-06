@@ -74,7 +74,7 @@ class Repo:
         self._registered: dict[str, bool] = {}
 
     def load(self, rel: str) -> dict:
-        return tomllib.loads((self.root / rel).read_text(encoding="utf-8"))
+        return _repo.load_toml(self.root / rel)
 
     def exists(self, rel: str) -> bool:
         return (self.root / rel).exists()

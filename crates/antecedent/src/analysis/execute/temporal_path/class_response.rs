@@ -145,6 +145,89 @@ struct ClassSequenceRun {
     diagnostics: Vec<Diagnostic>,
 }
 
+/// Admit the graph digest work before retaining a completion witness.
+fn class_response_witness(
+    site: &ClassResponseSite<'_>,
+    atom_index: usize,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<crate::result::TemporalResponseWitness, CausalError> {
+    let ClassResponseSite { horizon_index, horizon, weight, case, .. } = *site;
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "class response witnesses" });
+    }
+    let nodes = match &case.graph {
+        antecedent_identify::TemporalCompletionGraph::Dag(graph) => graph.node_count(),
+        antecedent_identify::TemporalCompletionGraph::Mag(graph) => graph.node_count(),
+    };
+    let nodes = u64::try_from(nodes)
+        .map_err(|_| CausalError::Resource { message: "completion digest size overflow".into() })?;
+    // First fund and perform a bounded edge count. Every subsequent
+    // successor scan visits at most all nodes and both adjacency entries
+    // of each marked edge; there are at most edges + 1 scans.
+    let initial = nodes
+        .checked_mul(nodes)
+        .and_then(|n| n.checked_add(nodes))
+        .and_then(|n| n.checked_add(1))
+        .ok_or_else(|| CausalError::Resource {
+            message: "completion digest work overflow".into(),
+        })?;
+    budget
+        .charge_work(initial)
+        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+    let mut edges = 0u64;
+    let mut count_edge = || -> Result<(), CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "class response witnesses" });
+        }
+        edges = edges.checked_add(1).ok_or_else(|| CausalError::Resource {
+            message: "completion edge count overflow".into(),
+        })?;
+        Ok(())
+    };
+    match &case.graph {
+        antecedent_identify::TemporalCompletionGraph::Dag(graph) => {
+            for _ in graph.edges() {
+                count_edge()?;
+            }
+        }
+        antecedent_identify::TemporalCompletionGraph::Mag(graph) => {
+            for _ in graph.edges_lazy() {
+                count_edge()?;
+            }
+        }
+    }
+    let scan = edges
+        .checked_mul(2)
+        .and_then(|e| e.checked_add(nodes))
+        .and_then(|n| n.checked_add(1))
+        .ok_or_else(|| CausalError::Resource {
+            message: "completion digest work overflow".into(),
+        })?;
+    let work = scan
+        .checked_mul(edges.checked_add(1).ok_or_else(|| CausalError::Resource {
+            message: "completion digest work overflow".into(),
+        })?)
+        .and_then(|w| nodes.checked_mul(nodes).and_then(|n| w.checked_add(n)))
+        .ok_or_else(|| CausalError::Resource {
+            message: "completion digest work overflow".into(),
+        })?;
+    budget
+        .charge_work(work)
+        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+    let digest = case
+        .graph
+        .digest_without_allocation(&|| ctx.cancellation.is_cancelled())
+        .ok_or(CausalError::Cancelled { stage: "class response witnesses" })?;
+    Ok(crate::result::TemporalResponseWitness {
+        horizon_index,
+        horizon,
+        atom_index,
+        weight,
+        completion_digest: digest,
+    })
+}
+
 impl super::super::Study {
     pub(in crate::analysis::execute) fn execute_temporal_class_response(
         &self,
@@ -395,80 +478,8 @@ impl super::super::Study {
             response,
         )?;
         if self.retain_response_witnesses {
-            if sweep.ctx.cancellation.is_cancelled() {
-                return Err(CausalError::Cancelled { stage: "class response witnesses" });
-            }
-            let nodes = match &case.graph {
-                antecedent_identify::TemporalCompletionGraph::Dag(graph) => graph.node_count(),
-                antecedent_identify::TemporalCompletionGraph::Mag(graph) => graph.node_count(),
-            };
-            let nodes = u64::try_from(nodes).map_err(|_| CausalError::Resource {
-                message: "completion digest size overflow".into(),
-            })?;
-            // First fund and perform a bounded edge count. Every subsequent
-            // successor scan visits at most all nodes and both adjacency entries
-            // of each marked edge; there are at most edges + 1 scans.
-            let initial = nodes
-                .checked_mul(nodes)
-                .and_then(|n| n.checked_add(nodes))
-                .and_then(|n| n.checked_add(1))
-                .ok_or_else(|| CausalError::Resource {
-                    message: "completion digest work overflow".into(),
-                })?;
-            budget
-                .charge_work(initial)
-                .map_err(|error| CausalError::Resource { message: error.to_string() })?;
-            let mut edges = 0u64;
-            let mut count_edge = || -> Result<(), CausalError> {
-                if sweep.ctx.cancellation.is_cancelled() {
-                    return Err(CausalError::Cancelled { stage: "class response witnesses" });
-                }
-                edges = edges.checked_add(1).ok_or_else(|| CausalError::Resource {
-                    message: "completion edge count overflow".into(),
-                })?;
-                Ok(())
-            };
-            match &case.graph {
-                antecedent_identify::TemporalCompletionGraph::Dag(graph) => {
-                    for _ in graph.edges() {
-                        count_edge()?;
-                    }
-                }
-                antecedent_identify::TemporalCompletionGraph::Mag(graph) => {
-                    for _ in graph.edges_lazy() {
-                        count_edge()?;
-                    }
-                }
-            }
-            let scan = edges
-                .checked_mul(2)
-                .and_then(|e| e.checked_add(nodes))
-                .and_then(|n| n.checked_add(1))
-                .ok_or_else(|| CausalError::Resource {
-                    message: "completion digest work overflow".into(),
-                })?;
-            let work = scan
-                .checked_mul(edges.checked_add(1).ok_or_else(|| CausalError::Resource {
-                    message: "completion digest work overflow".into(),
-                })?)
-                .and_then(|w| nodes.checked_mul(nodes).and_then(|n| w.checked_add(n)))
-                .ok_or_else(|| CausalError::Resource {
-                    message: "completion digest work overflow".into(),
-                })?;
-            budget
-                .charge_work(work)
-                .map_err(|error| CausalError::Resource { message: error.to_string() })?;
-            let digest = case
-                .graph
-                .digest_without_allocation(&|| sweep.ctx.cancellation.is_cancelled())
-                .ok_or(CausalError::Cancelled { stage: "class response witnesses" })?;
-            run.checked_witnesses.push(crate::result::TemporalResponseWitness {
-                horizon_index,
-                horizon,
-                atom_index,
-                weight,
-                completion_digest: digest,
-            });
+            run.checked_witnesses
+                .push(class_response_witness(&site, atom_index, budget, sweep.ctx)?);
         }
         if !matches!(self.settings.refute, RefuteSuite::None)
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. })

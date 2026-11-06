@@ -19,8 +19,9 @@ from __future__ import annotations
 import keyword
 import re
 import sys
-import tomllib
 from pathlib import Path
+
+from _repo import load_toml
 
 ROOT = Path(__file__).resolve().parent.parent
 REGISTRY = ROOT / "parity" / "reason_details.toml"
@@ -84,10 +85,10 @@ RUST_KEYWORDS = {
 
 
 def load() -> list[dict]:
-    rows = tomllib.loads(REGISTRY.read_text(encoding="utf-8")).get("detail", [])
+    rows = load_toml(REGISTRY).get("detail", [])
     codes = {
         c["id"]
-        for c in tomllib.loads(REASON_CODES.read_text(encoding="utf-8")).get("code", [])
+        for c in load_toml(REASON_CODES).get("code", [])
     }
     problems: list[str] = []
     seen: set[str] = set()

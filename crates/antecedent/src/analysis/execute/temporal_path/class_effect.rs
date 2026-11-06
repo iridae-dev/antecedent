@@ -4,8 +4,7 @@
 
 use super::{
     Arc, BayesianGCompWorkspace, BayesianGComputationAte, BayesianValidation, CausalError,
-    CausalPosterior, CausalQuery, ClassBayesianFitAtom, ClassBayesianFits, ClassBayesianInputs,
-    ClassBayesianPlan, ClassPosteriorMix, Diagnostic, EffectEstimate, EnvelopeAtomFit,
+    CausalPosterior, CausalQuery, ClassPosteriorMix, Diagnostic, EffectEstimate, EnvelopeAtomFit,
     EnvelopeRefutation, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId, ExecutionContext,
     FitFinishMeta, GraphEffectDraws, GraphIdentFlag, IdentificationStatus, IdentifiedExecuteExtras,
     IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant, OverlapPolicy,
@@ -19,6 +18,10 @@ use super::{
     resolve_envelope_prior_anchor, run_envelope_bayesian_full_validation, same_fit_inputs,
     same_fitted_problem, temporal_class_envelope_diagnostic, temporal_class_structural_mixture,
     temporal_refuter_average, with_conflict_summary,
+};
+
+use super::class_fits::{
+    ClassBayesianFitAtom, ClassBayesianFits, ClassBayesianInputs, ClassBayesianPlan,
 };
 
 impl super::super::Study {

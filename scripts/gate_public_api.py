@@ -19,9 +19,10 @@ import difflib
 import os
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
+
+from _repo import load_toml
 
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "parity" / "public_api"
@@ -35,11 +36,11 @@ HEADER = (
 
 
 def published_crates() -> list[str]:
-    ws = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
+    ws = load_toml(ROOT / "Cargo.toml")
     names: list[str] = []
     for member in ws["workspace"]["members"]:
         manifest = ROOT / member / "Cargo.toml"
-        pkg = tomllib.loads(manifest.read_text(encoding="utf-8"))["package"]
+        pkg = load_toml(manifest)["package"]
         if pkg.get("publish", True) is False:
             continue
         if not (ROOT / member / "src" / "lib.rs").exists():

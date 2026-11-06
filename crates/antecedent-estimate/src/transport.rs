@@ -207,7 +207,7 @@ pub fn transport_augmented_response_grid(
             }
         }
         mean.push(total / target_n_float);
-        effective_sample_size.push(signed_weight_effective_sample_size(&correction_weights));
+        effective_sample_size.push(weight_concentration(&correction_weights, true));
     }
     Ok(TransportResponseGridEstimate {
         grid: grid.to_vec().into(),
@@ -804,7 +804,7 @@ pub(crate) fn diagnostic(probabilities: &[f64], weights: &[f64]) -> TransportOve
     TransportOverlapDiagnostic {
         probability_min: probabilities.iter().copied().fold(f64::INFINITY, f64::min),
         probability_max: probabilities.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-        effective_sample_size: kish_effective_sample_size(weights),
+        effective_sample_size: weight_concentration(weights, false),
         extreme_weight_count: weights
             .iter()
             .filter(|&&weight| weight > EXTREME_WEIGHT_THRESHOLD)
@@ -812,16 +812,15 @@ pub(crate) fn diagnostic(probabilities: &[f64], weights: &[f64]) -> TransportOve
     }
 }
 
-fn kish_effective_sample_size(weights: &[f64]) -> f64 {
-    let sum: f64 = weights.iter().sum();
+/// Concentration diagnostic; signed local-linear weights use absolute mass.
+fn weight_concentration(weights: &[f64], absolute_mass: bool) -> f64 {
+    let sum: f64 = if absolute_mass {
+        weights.iter().map(|weight| weight.abs()).sum()
+    } else {
+        weights.iter().sum()
+    };
     let sum_sq: f64 = weights.iter().map(|weight| weight * weight).sum();
     if sum_sq > 0.0 { sum * sum / sum_sq } else { 0.0 }
-}
-
-fn signed_weight_effective_sample_size(weights: &[f64]) -> f64 {
-    let absolute_sum: f64 = weights.iter().map(|weight| weight.abs()).sum();
-    let sum_sq: f64 = weights.iter().map(|weight| weight * weight).sum();
-    if sum_sq > 0.0 { absolute_sum * absolute_sum / sum_sq } else { 0.0 }
 }
 
 /// Evaluate a checked, catalog-bound transport functional against supplied exact laws.

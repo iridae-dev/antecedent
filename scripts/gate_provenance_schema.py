@@ -213,12 +213,10 @@ for path in records:
             )
 children = {
     c["id"]: c
-    for c in tomllib.loads(
-        (root / "parity/method_children/children.toml").read_text(encoding="utf-8")
-    )["child"]
+    for c in _repo.load_toml(root / "parity/method_children/children.toml")["child"]
 }
 review_checked = 0
-for spec in tomllib.loads((root / "parity/method_specs/specs.toml").read_text(encoding="utf-8"))[
+for spec in _repo.load_toml(root / "parity/method_specs/specs.toml")[
     "spec"
 ]:
     if spec.get("admission") not in ("supported", "not_supported"):
@@ -240,9 +238,7 @@ for spec in tomllib.loads((root / "parity/method_specs/specs.toml").read_text(en
         elif link not in stems:
             problems.append(f"spec {sid}: provenance record {link!r} does not exist")
         else:
-            linked = tomllib.loads(
-                (root / "provenance" / f"{link}.toml").read_text(encoding="utf-8")
-            )
+            linked = _repo.load_toml(root / "provenance" / f"{link}.toml")
             if any(linked.get(flag) is not False for flag in required_booleans):
                 problems.append(f"spec {sid}: provenance record {link!r} is not clean-room")
     if str(spec.get("api_review", "")).startswith("unreviewed") or not spec.get("api_review"):

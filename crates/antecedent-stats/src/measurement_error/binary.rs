@@ -2,24 +2,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::MeasurementErrorError;
+use super::{
+    BinaryErrorRates, CorrectedProportion, CorrectedRiskDifference, MeasurementErrorError,
+    TwoByTwoCounts,
+};
 
 // ---------------------------------------------------------------------------
 // Binary misclassification
 // ---------------------------------------------------------------------------
-
-/// Sensitivity and specificity with the sampling variances of their estimates.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BinaryErrorRates {
-    /// `P(observed = 1 | true = 1)`.
-    pub sensitivity: f64,
-    /// `P(observed = 0 | true = 0)`.
-    pub specificity: f64,
-    /// Variance of the sensitivity estimate; zero when declared exact.
-    pub sensitivity_variance: f64,
-    /// Variance of the specificity estimate; zero when declared exact.
-    pub specificity_variance: f64,
-}
 
 impl BinaryErrorRates {
     /// Validated rates.
@@ -93,26 +83,6 @@ impl BinaryErrorRates {
     }
 }
 
-/// A corrected proportion with its variance components.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CorrectedProportion {
-    /// Observed (misclassified) proportion.
-    pub observed: f64,
-    /// Rogan-Gladen corrected proportion, not truncated to `[0, 1]`.
-    pub corrected: f64,
-    /// Youden's index used.
-    pub youden: f64,
-    /// Total delta-method variance.
-    pub variance: f64,
-    /// Part due to sampling of the observed proportion.
-    pub variance_sampling: f64,
-    /// Part due to the sensitivity and specificity estimates.
-    pub variance_rates: f64,
-    /// The raw correction left `[0, 1]`: a sign of sampling noise or a wrong
-    /// declared rate; the value is reported unclipped.
-    pub outside_unit_interval: bool,
-}
-
 fn check_count(events: u64, total: u64) -> Result<(), MeasurementErrorError> {
     if total == 0 || events > total {
         return Err(MeasurementErrorError::InvalidParameter(
@@ -152,44 +122,6 @@ pub fn corrected_prevalence(
         variance_rates: from_rates,
         outside_unit_interval: !(0.0..=1.0).contains(&pi),
     })
-}
-
-/// Outcome events by exposure arm.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct TwoByTwoCounts {
-    /// Observed events among the exposed.
-    pub exposed_events: u64,
-    /// Exposed units.
-    pub exposed_total: u64,
-    /// Observed events among the unexposed.
-    pub unexposed_events: u64,
-    /// Unexposed units.
-    pub unexposed_total: u64,
-}
-
-/// A corrected risk difference with its variance components.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CorrectedRiskDifference {
-    /// Observed risk difference.
-    pub naive: f64,
-    /// Corrected risk difference.
-    pub corrected: f64,
-    /// Corrected exposed-arm risk.
-    pub risk_exposed: f64,
-    /// Corrected unexposed-arm risk.
-    pub risk_unexposed: f64,
-    /// Total delta-method variance.
-    pub variance: f64,
-    /// Part due to sampling of the observed arm proportions.
-    pub variance_sampling: f64,
-    /// Part due to the error-rate estimates.
-    pub variance_rates: f64,
-    /// Youden's index of the exposed arm (the shared one when non-differential).
-    pub youden_exposed: f64,
-    /// Youden's index of the unexposed arm (equal to the exposed one when non-differential).
-    pub youden_unexposed: f64,
-    /// Either corrected arm risk left `[0, 1]`.
-    pub outside_unit_interval: bool,
 }
 
 /// Risk difference under **non-differential** outcome misclassification: the

@@ -137,9 +137,14 @@ pub fn ipw_pointwise_interval_95(
     {
         return None;
     }
+    normal_regime_interval(summary.value, se)
+}
+
+/// Construct the finite normal interval after route-specific support checks.
+fn normal_regime_interval(value: f64, se: f64) -> Option<[f64; 2]> {
     let span = crate::NORMAL_Q975 * se;
-    let bounds = [summary.value - span, summary.value + span];
-    bounds.iter().all(|value| value.is_finite()).then_some(bounds)
+    let bounds = [value - span, value + span];
+    bounds.iter().all(|bound| bound.is_finite()).then_some(bounds)
 }
 
 /// Backward-recursive sequential doubly robust score. All histories are
@@ -339,9 +344,7 @@ pub fn sequential_dr_pointwise_interval_95(
     if !se.is_finite() || se <= 0.0 {
         return None;
     }
-    let span = crate::NORMAL_Q975 * se;
-    let bounds = [summary.value - span, summary.value + span];
-    bounds.iter().all(|bound| bound.is_finite()).then_some((se, bounds))
+    normal_regime_interval(summary.value, se).map(|bounds| (se, bounds))
 }
 
 /// Evaluate supplied conditional period rewards under a prescribed regime.
@@ -450,9 +453,7 @@ pub fn g_formula_fixed_q_pointwise_interval_95(
     if !se.is_finite() || se <= 0.0 {
         return None;
     }
-    let span = crate::NORMAL_Q975 * se;
-    let bounds = [summary.value - span, summary.value + span];
-    bounds.iter().all(|bound| bound.is_finite()).then_some((se, bounds))
+    normal_regime_interval(summary.value, se).map(|bounds| (se, bounds))
 }
 
 /// Evaluate a caller-prescribed static or history-dependent regime on one row

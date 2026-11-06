@@ -13,7 +13,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, load_toml
 from parity_rows import raw_reason_emissions, reason_obligation, runtime_code_literals
 
 root = Path(".")
@@ -26,7 +26,7 @@ if not vocab_path.is_file():
     problems.append("parity/reason_codes.toml missing")
     vocab = {"code": []}
 else:
-    vocab = tomllib.loads(vocab_path.read_text(encoding="utf-8"))
+    vocab = load_toml(vocab_path)
 codes = {row["id"]: row for row in vocab.get("code", [])}
 uses = {cid: 0 for cid in codes}
 # support_{closed,n_a,axes} `reason` fields are matrix prose, not vocabulary ids.
@@ -92,7 +92,7 @@ pp = root / "parity/python_products.toml"
 if not pp.is_file():
     problems.append("parity/python_products.toml missing")
 else:
-    products = tomllib.loads(pp.read_text(encoding="utf-8"))
+    products = load_toml(pp)
     route_tests = []
     for i, row in enumerate(products.get("route", []), 1):
         for key in ("kind", "data", "structure", "test"):
@@ -139,7 +139,7 @@ else:
 ensure_scripts_on_path()
 
 # --- supported cells: reason-code eligibility comes from the registry row ---
-lic = tomllib.loads((root / "parity/support_cells.toml").read_text(encoding="utf-8")).get(
+lic = load_toml(root / "parity/support_cells.toml").get(
     "cell", []
 )
 for cell in lic:
@@ -162,7 +162,7 @@ for cell in lic:
 
 # ---- [gates] registry scopes name real queries ----
 axes_queries = set(
-    tomllib.loads((root / "parity/support_axes.toml").read_text(encoding="utf-8")).get(
+    load_toml(root / "parity/support_axes.toml").get(
         "queries", []
     )
 )
@@ -218,7 +218,7 @@ REQUIRED_COMPOSITION_ROWS = {
 }
 compiler_rows = {
     row.get("id"): row
-    for row in tomllib.loads((root / "parity/compiler.toml").read_text(encoding="utf-8")).get(
+    for row in load_toml(root / "parity/compiler.toml").get(
         "capabilities", []
     )
 }
@@ -306,7 +306,7 @@ for rel_path in ("parity/identity.toml", "parity/claims.toml"):
         problems.append(f"{rel_path} missing")
 
 # --- every identity row names its layer and its bindings ---
-identity_rows = tomllib.loads((root / "parity/identity.toml").read_text(encoding="utf-8")).get(
+identity_rows = load_toml(root / "parity/identity.toml").get(
     "identity", []
 )
 for row in identity_rows:

@@ -76,11 +76,10 @@ import json
 import os
 import re
 import sys
-import tomllib
 from pathlib import Path
 
 import route_behaviour
-from _repo import REPO_ROOT as root
+from _repo import REPO_ROOT as root, load_toml
 from capability_source import (
     Symbol,
     assertion_problems,
@@ -242,7 +241,7 @@ if len(args) > 1 or (args and args[0].startswith("-")):
 registry_path = Path(args[0]) if args else root / "parity/capability_records.toml"
 if not trusted_testing and registry_path.resolve() != (root / "parity/capability_records.toml").resolve():
     raise SystemExit("check_capability_records: a noncanonical registry requires --trusted-testing")
-registry = tomllib.loads(registry_path.read_text(encoding="utf-8"))
+registry = load_toml(registry_path)
 
 DISABLED = {r for r in os.environ.get("CAPABILITY_DISABLE_RULES", "").split(",") if r}
 STATIC_ONLY = os.environ.get("CAPABILITY_STATIC_ONLY") == "1" or suggest or static_evidence
@@ -299,7 +298,7 @@ SOURCE_GLOBS = ("crates/*/src/**/*.rs", "python/src/**/*.rs", "python/antecedent
 
 codes = {
     row["id"]: row
-    for row in tomllib.loads((root / "parity/reason_codes.toml").read_text(encoding="utf-8"))[
+    for row in load_toml(root / "parity/reason_codes.toml")[
         "code"
     ]
 }
@@ -318,7 +317,7 @@ support_refusal_reasons_path = Path(
 extra_sources = [
     Path(p) for p in os.environ.get("CAPABILITY_EXTRA_SOURCES", "").split(os.pathsep) if p
 ]
-stages_registry = tomllib.loads(stages_path.read_text(encoding="utf-8"))
+stages_registry = load_toml(stages_path)
 # Behaviour a record does not restate lives in parity/generated/route_behaviour.toml (see
 # scripts/route_behaviour.py): the canonical registry requires it, a trusted-testing registry uses
 # the file beside it when there is one and is otherwise self-contained.
@@ -335,18 +334,16 @@ reason_details_path = (
 )
 _stage_rows, _stage_row_problems = route_behaviour.stage_routes(root, stages_registry, generated)
 stage_routes = {row.get("route"): row for row in _stage_rows}
-support_cells = tomllib.loads(support_path.read_text(encoding="utf-8")).get("cell", [])
+support_cells = load_toml(support_path).get("cell", [])
 # The support axes cannot name a contrast, so a closed sub-cell contrast owned by
 # a record is a [[closed_contrast]] row (the support-matrix gates read only
 # [[closed]]).
-support_refusal_reasons_contrasts = tomllib.loads(support_refusal_reasons_path.read_text(encoding="utf-8")).get(
+support_refusal_reasons_contrasts = load_toml(support_refusal_reasons_path).get(
     "closed_contrast", []
 )
 coverage_ids = {
     row.get("id")
-    for row in tomllib.loads(
-        (root / "parity/coverage_records.toml").read_text(encoding="utf-8")
-    ).get("record", [])
+    for row in load_toml(root / "parity/coverage_records.toml").get("record", [])
 }
 
 errors: list[str] = []

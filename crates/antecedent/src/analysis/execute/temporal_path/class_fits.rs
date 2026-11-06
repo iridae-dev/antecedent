@@ -3,13 +3,53 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    BayesianConfig, BayesianGCompWorkspace, BayesianMediationFit, CausalError, CausalResponse,
-    ClassBayesianPlan, ClassMediationInput, ClassResponseInput, CompletionFitMemo, EstimatorId,
-    ExecutionContext, GraphIdentFlag, IdentificationResult, IdentificationStatus, MediationFitKey,
-    ResponseFitKey, TemporalMediationEstimator, TemporalResponseEstimator, VariableId,
-    bayesian_gcomp, identification_status_ok_for_case, mediation_mechanism_seed,
-    resolve_envelope_prior_anchor, resolve_temporal_response_prior, select_estimand,
+    BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, BayesianMediationFit,
+    CausalError, CausalResponse, ClassMediationInput, ClassResponseInput, CompletionFitMemo,
+    EnvelopeAtomFit, EstimatorId, ExecutionContext, GraphEffectDraws, GraphIdentFlag,
+    IdentificationResult, IdentificationStatus, IdentifiedEstimand, MediationFitKey,
+    ResponseFitKey, TemporalEffectQuery, TemporalIndexer, TemporalMediationEstimator,
+    TemporalResponseEstimator, TimeSeriesData, VariableId, bayesian_gcomp,
+    identification_status_ok_for_case, mediation_mechanism_seed, resolve_envelope_prior_anchor,
+    resolve_temporal_response_prior, select_estimand,
 };
+
+/// The series, query, Bayesian configuration and context a class Bayesian
+/// temporal effect fits and refutes with.
+#[derive(Clone, Copy)]
+pub(super) struct ClassBayesianInputs<'a> {
+    pub(super) data: &'a TimeSeriesData,
+    pub(super) query: &'a TemporalEffectQuery,
+    pub(super) cfg: &'a BayesianConfig,
+    pub(super) ctx: &'a ExecutionContext,
+}
+
+/// One identified completion to fit: its fingerprint, estimand, status,
+/// unfold indexer and class weight.
+pub(super) type ClassBayesianFitAtom =
+    (u64, IdentifiedEstimand, IdentificationStatus, TemporalIndexer, f64);
+
+/// Per-completion weights, identification flags and fingerprints of a class
+/// envelope, with the completions to fit and the first estimand.
+pub(super) struct ClassBayesianPlan {
+    pub(super) weights: Vec<f64>,
+    pub(super) flags: Vec<GraphIdentFlag>,
+    pub(super) keys: Vec<u64>,
+    pub(super) fit_atoms: Vec<ClassBayesianFitAtom>,
+    pub(super) primary_estimand: Option<IdentifiedEstimand>,
+}
+
+/// The fitted completion atoms of a class Bayesian temporal effect with the
+/// seeds, effect draws and means they were fitted under.
+pub(super) struct ClassBayesianFits {
+    pub(super) atoms: Vec<EnvelopeAtomFit>,
+    pub(super) atom_seeds: Vec<u64>,
+    pub(super) per_graph: Vec<GraphEffectDraws>,
+    pub(super) atom_means: Vec<f64>,
+    pub(super) envelope_conflict: Option<antecedent_prob::ConflictSummary>,
+    /// The Bayesian g-computation estimator the atoms were fitted with; each
+    /// refutation replaces its prior and seed.
+    pub(super) estimator: BayesianGComputationAte,
+}
 
 /// Classifies each completion of a class envelope: its weight (the class
 /// prior's mass when supplied), whether it is identified, and which to fit.

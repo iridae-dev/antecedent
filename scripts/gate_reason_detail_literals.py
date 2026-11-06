@@ -30,9 +30,10 @@ from __future__ import annotations
 import ast
 import re
 import sys
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+
+from _repo import load_toml
 
 ROOT = Path(__file__).resolve().parent.parent
 REGISTRY = ROOT / "parity" / "reason_details.toml"
@@ -88,7 +89,7 @@ class Site:
 
 def registry_ids() -> dict[str, str]:
     """id -> `family.CONST` path."""
-    rows = tomllib.loads(REGISTRY.read_text(encoding="utf-8")).get("detail", [])
+    rows = load_toml(REGISTRY).get("detail", [])
     return {
         r["id"]: r["id"].split(".", 1)[0] + "." + r["id"].split(".", 1)[1].upper()
         for r in rows
@@ -364,7 +365,7 @@ def all_sites(ids: dict[str, str]) -> list[Site]:
 def load_exemptions() -> list[dict]:
     if not EXEMPTIONS.is_file():
         return []
-    return tomllib.loads(EXEMPTIONS.read_text(encoding="utf-8")).get("exempt", [])
+    return load_toml(EXEMPTIONS).get("exempt", [])
 
 
 def exempt(site: Site, rows: list[dict], text_of: dict[str, list[str]]) -> bool:
@@ -385,9 +386,7 @@ def read_allowlist() -> dict[str, int]:
 
 
 def declared_problems(ids: dict[str, str]) -> list[str]:
-    cap = tomllib.loads(
-        (ROOT / "parity" / "capability_records.toml").read_text(encoding="utf-8")
-    )
+    cap = load_toml(ROOT / "parity" / "capability_records.toml")
     problems = []
     for rec in cap.get("record", []):
         for r in [*(rec.get("refusals") or []), *(rec.get("input_exceptions") or [])]:

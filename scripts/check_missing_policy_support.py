@@ -22,9 +22,8 @@ from __future__ import annotations
 
 import re
 import sys
-import tomllib
 
-from _repo import REPO_ROOT as ROOT
+from _repo import REPO_ROOT as ROOT, load_toml
 
 REGISTRY = ROOT / "parity/missing_policy_support.toml"
 POLICY_SOURCE = ROOT / "crates/antecedent-data/src/sample_policy.rs"
@@ -170,7 +169,7 @@ def self_test() -> int:
 def main() -> int:
     if "--self-test" in sys.argv[1:]:
         return self_test()
-    registry = tomllib.loads(REGISTRY.read_text(encoding="utf-8"))
+    registry = load_toml(REGISTRY)
     errors = problems(
         registry,
         policy_names(POLICY_SOURCE.read_text(encoding="utf-8")),

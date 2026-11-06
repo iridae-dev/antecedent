@@ -14,9 +14,8 @@ crates/antecedent/tests/family_contract_conformance.rs.
 from __future__ import annotations
 
 import sys
-import tomllib
 
-from _repo import REPO_ROOT, read_text, write_text
+from _repo import REPO_ROOT, load_toml, read_text, write_text
 
 MANIFEST = REPO_ROOT / "parity/capabilities/route_manifest.toml"
 ROWS = REPO_ROOT / "parity/capabilities/family_conformance.toml"
@@ -184,7 +183,7 @@ def array(items: list[str]) -> str:
 
 
 def render() -> str:
-    routes = tomllib.loads(read_text(MANIFEST))["route"]
+    routes = load_toml(MANIFEST)["route"]
     owner = {target: family for family, targets in FAMILY_OF_TARGET.items() for target in targets}
     unmapped = sorted({r["target"] for r in routes} - owner.keys())
     if unmapped:

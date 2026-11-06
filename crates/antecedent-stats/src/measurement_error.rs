@@ -43,14 +43,122 @@ mod binary;
 mod categorical;
 
 pub use binary::{
-    BinaryErrorRates, CorrectedProportion, CorrectedRiskDifference, TwoByTwoCounts,
     corrected_prevalence, corrected_risk_difference_differential,
     corrected_risk_difference_nondifferential,
 };
+pub use categorical::corrected_categories;
 
-pub use categorical::{
-    ConfusionMatrix, CorrectedCategorical, ObservedClassSummary, corrected_categories,
-};
+/// Sensitivity and specificity with the sampling variances of their estimates.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BinaryErrorRates {
+    /// `P(observed = 1 | true = 1)`.
+    pub sensitivity: f64,
+    /// `P(observed = 0 | true = 0)`.
+    pub specificity: f64,
+    /// Variance of the sensitivity estimate; zero when declared exact.
+    pub sensitivity_variance: f64,
+    /// Variance of the specificity estimate; zero when declared exact.
+    pub specificity_variance: f64,
+}
+
+/// A corrected proportion with its variance components.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CorrectedProportion {
+    /// Observed (misclassified) proportion.
+    pub observed: f64,
+    /// Rogan-Gladen corrected proportion, not truncated to `[0, 1]`.
+    pub corrected: f64,
+    /// Youden's index used.
+    pub youden: f64,
+    /// Total delta-method variance.
+    pub variance: f64,
+    /// Part due to sampling of the observed proportion.
+    pub variance_sampling: f64,
+    /// Part due to the sensitivity and specificity estimates.
+    pub variance_rates: f64,
+    /// The raw correction left `[0, 1]`: a sign of sampling noise or a wrong
+    /// declared rate; the value is reported unclipped.
+    pub outside_unit_interval: bool,
+}
+
+/// Outcome events by exposure arm.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TwoByTwoCounts {
+    /// Observed events among the exposed.
+    pub exposed_events: u64,
+    /// Exposed units.
+    pub exposed_total: u64,
+    /// Observed events among the unexposed.
+    pub unexposed_events: u64,
+    /// Unexposed units.
+    pub unexposed_total: u64,
+}
+
+/// A corrected risk difference with its variance components.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CorrectedRiskDifference {
+    /// Observed risk difference.
+    pub naive: f64,
+    /// Corrected risk difference.
+    pub corrected: f64,
+    /// Corrected exposed-arm risk.
+    pub risk_exposed: f64,
+    /// Corrected unexposed-arm risk.
+    pub risk_unexposed: f64,
+    /// Total delta-method variance.
+    pub variance: f64,
+    /// Part due to sampling of the observed arm proportions.
+    pub variance_sampling: f64,
+    /// Part due to the error-rate estimates.
+    pub variance_rates: f64,
+    /// Youden's index of the exposed arm (the shared one when non-differential).
+    pub youden_exposed: f64,
+    /// Youden's index of the unexposed arm (equal to the exposed one when non-differential).
+    pub youden_unexposed: f64,
+    /// Either corrected arm risk left `[0, 1]`.
+    pub outside_unit_interval: bool,
+}
+
+/// Column-stochastic confusion matrix `C[observed, true] = P(observed | true)`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConfusionMatrix {
+    levels: usize,
+    matrix: Vec<f64>,
+    column_counts: Option<Vec<u64>>,
+}
+
+/// Observed-category summary of the outcome.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ObservedClassSummary {
+    /// Units observed in the category.
+    pub count: u64,
+    /// Mean outcome among them.
+    pub mean: f64,
+    /// Sample variance of the outcome among them.
+    pub variance: f64,
+}
+
+/// Corrected category proportions and per-category outcome means.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CorrectedCategorical {
+    /// Observed category proportions.
+    pub observed_proportions: Vec<f64>,
+    /// Corrected true-category proportions (not projected onto the simplex).
+    pub proportions: Vec<f64>,
+    /// Covariance of the corrected proportions, row-major, including the
+    /// uncertainty of the confusion columns.
+    pub proportion_covariance: Vec<f64>,
+    /// Corrected expected counts `n * proportions`.
+    pub expected_counts: Vec<f64>,
+    /// Mean outcome among units in each true category.
+    pub outcome_means: Vec<f64>,
+    /// Covariance of the outcome means, row-major.
+    pub outcome_mean_covariance: Vec<f64>,
+    /// 1-norm condition number of the confusion matrix.
+    pub condition_number: f64,
+    /// A corrected proportion left `[0, 1]`.
+    pub outside_unit_interval: bool,
+}
 
 /// Most rows one measurement-error correction accepts.
 pub const MAX_MEASUREMENT_ROWS: usize = 1 << 26;

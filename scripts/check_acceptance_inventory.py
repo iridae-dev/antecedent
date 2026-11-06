@@ -24,7 +24,6 @@ inventory lists it `incomplete` with the reason.
 from __future__ import annotations
 
 import sys
-import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
@@ -144,7 +143,7 @@ def main() -> int:
         for p in problems[:200]:
             print(f"FAIL: {p}")
         return 1
-    rows = tomllib.loads((ROOT / gen.OUTPUT).read_text(encoding="utf-8"))["row"]
+    rows = _repo.load_toml(ROOT / gen.OUTPUT)["row"]
     print(f"acceptance inventory reconciles the records ({gen.summary(rows)})")
     return 0
 

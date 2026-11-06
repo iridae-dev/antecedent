@@ -137,7 +137,7 @@ class Unit:
 
 
 def _load(rel: str) -> dict:
-    return tomllib.loads((ROOT / rel).read_text(encoding="utf-8"))
+    return _repo.load_toml(ROOT / rel)
 
 
 OWED_PREFIX = "owed: "
@@ -1224,7 +1224,7 @@ def transport_problems(registry_path: Path | None = None, *, resolve: bool = Fal
             return list(resolve_python_test(path, assertion))
         return list(resolve_rust_test(path, assertion)[1])
 
-    registry = tomllib.loads(registry_path.read_text(encoding="utf-8"))
+    registry = _repo.load_toml(registry_path)
     # Stage, status, reason code and claim of a record-owned route are generated from its
     # record (scripts/route_behaviour.py); a row states only the contract a stage adds.
     generated = route_behaviour.load(root / route_behaviour.GENERATED)
@@ -1396,9 +1396,7 @@ def transport_problems(registry_path: Path | None = None, *, resolve: bool = Fal
         errors.append("missing current public transport stage")
     coverage_ids = {
         row.get("id")
-        for row in tomllib.loads(
-            (root / "parity/coverage_records.toml").read_text(encoding="utf-8")
-        ).get("record", [])
+        for row in _repo.load_toml(root / "parity/coverage_records.toml").get("record", [])
     }
     for route in registry.get("routes", []):
         for cid in route.get("coverage") or []:

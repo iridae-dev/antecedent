@@ -17,8 +17,9 @@ import re
 import subprocess
 import sys
 import tempfile
-import tomllib
 from pathlib import Path
+
+from _repo import load_toml
 
 ROOT = Path(__file__).resolve().parents[1]
 #: Committed family fixtures: version-two records with contracts, and the version-one
@@ -118,7 +119,7 @@ def run_rust_checks() -> None:
 
 
 def inventory() -> None:
-    record = tomllib.loads((ROOT / "parity/cyclic/acceptance.toml").read_text(encoding="utf-8"))
+    record = load_toml(ROOT / "parity/cyclic/acceptance.toml")
     expected = {"Y18.1", "Y18.2"} | {f"Y19.{i}" for i in range(1, 9)} | {"integrated_families", "nonlinear_sde"}
     if {row["id"] for row in record["capability"]} != expected:
         raise ValueError("cyclic acceptance children differ from the release scope")

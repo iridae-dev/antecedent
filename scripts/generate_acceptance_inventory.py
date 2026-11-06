@@ -28,11 +28,10 @@ from __future__ import annotations
 import json
 import re
 import sys
-import tomllib
 from collections import defaultdict
 from pathlib import Path
 
-from _repo import REPO_ROOT as ROOT
+from _repo import REPO_ROOT as ROOT, load_toml
 
 OUTPUT = "parity/acceptance_inventory.toml"
 CONFORMANCE_SUITE = "crates/antecedent/tests/family_contract_conformance.rs"
@@ -106,7 +105,7 @@ def registered_representatives(text: str) -> set[str]:
 
 def load_sources(root: Path = ROOT, *, with_children: bool = True) -> dict:
     def toml(rel: str) -> dict:
-        return tomllib.loads((root / rel).read_text(encoding="utf-8"))
+        return load_toml(root / rel)
 
     suite = root / CONFORMANCE_SUITE
     child_findings: dict[str, list[str]] = defaultdict(list)
