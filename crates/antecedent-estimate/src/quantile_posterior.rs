@@ -25,7 +25,7 @@ use antecedent_kernels::sample_gamma;
 use antecedent_stats::{QuantileRule, equal_tail_interval_sorted};
 
 use crate::error::EstimationError;
-use crate::quantile::invert_cdf_quantile;
+use crate::quantile::{invert_cdf_quantile, validate_quantile_level};
 
 /// Fewest posterior draws accepted.
 pub const MIN_QUANTILE_POSTERIOR_DRAWS: usize = 200;
@@ -172,9 +172,7 @@ fn validate(
             "the Dirichlet bin concentration must be finite and positive",
         ));
     }
-    if !(tau > 0.0 && tau < 1.0) {
-        return Err(EstimationError::unsupported("quantile level must lie in (0, 1)"));
-    }
+    validate_quantile_level(tau)?;
     if !(MIN_QUANTILE_POSTERIOR_DRAWS..=MAX_QUANTILE_POSTERIOR_DRAWS).contains(&draws) {
         return Err(EstimationError::data_msg("quantile posterior draws must be 200 to 200000"));
     }
@@ -319,8 +317,14 @@ mod tests {
         let tail = randomized_quantile_posterior(&outcome, &treated, &GRID, 0.5, 0.999, 400, 1)
             .unwrap_err();
         assert!(tail.to_string().contains("threshold grid"));
-        let level = randomized_quantile_posterior(&outcome, &treated, &GRID, 0.5, 1.0, 400, 1);
-        assert!(level.is_err());
+        for tau in [0.0, 1.0, f64::NAN, f64::INFINITY] {
+            let level = randomized_quantile_posterior(&outcome, &treated, &GRID, 0.5, tau, 400, 1)
+                .unwrap_err();
+            assert!(level.to_string().contains("quantile level must lie in (0, 1)"));
+        }
+        let prior_before_level =
+            randomized_quantile_posterior(&outcome, &treated, &GRID, 0.0, 1.0, 400, 1).unwrap_err();
+        assert!(prior_before_level.to_string().contains("Dirichlet bin concentration"));
         let prior = randomized_quantile_posterior(&outcome, &treated, &GRID, 0.0, 0.5, 400, 1);
         assert!(prior.is_err());
         let unsorted =

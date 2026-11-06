@@ -146,6 +146,16 @@ def count(
     return number
 
 
+def finite_float_protocol(value: object, what: str) -> float:
+    """Validate a finite value exposing the float protocol, excluding booleans."""
+    if isinstance(value, bool) or not hasattr(value, "__float__"):
+        raise CausalTypeError(f"{what} must be a real number")
+    number = float(value)
+    if not math.isfinite(number):
+        raise CausalValueError(f"{what} must be finite")
+    return number
+
+
 def finite_number(value: object, what: str) -> float:
     """Validate the finite int/float/NumPy numeric policy used by typed models."""
     if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):

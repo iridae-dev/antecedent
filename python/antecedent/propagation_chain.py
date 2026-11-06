@@ -39,7 +39,6 @@ a coverage statement: :meth:`PropagationChain.interval` raises ``uncertainty_rep
 from __future__ import annotations
 
 import json
-import math
 import struct
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -55,6 +54,7 @@ from ._artifact_protocol import (
     container_bytes,
 )
 from ._refusal import StructuredRefusal, raise_refusal
+from ._validate import finite_float_protocol as _real
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
 from .outcomes import outcome_operation
@@ -126,15 +126,6 @@ def _bits(value: float) -> int:
 
 def _float(bits: int) -> float:
     return float(struct.unpack("<d", struct.pack("<Q", int(bits)))[0])
-
-
-def _real(value: object, what: str) -> float:
-    if isinstance(value, bool) or not hasattr(value, "__float__"):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError(f"{what} must be finite")
-    return number
 
 
 def _text(value: object, what: str) -> str:

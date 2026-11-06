@@ -59,6 +59,22 @@ use crate::util::{count, refuse};
 
 /// Nominal level of every pointwise interval and band reported here.
 pub const NOMINAL_LEVEL: f64 = 0.95;
+/// Summarize three bootstrap coordinates using the shared exchangeable-rank rule.
+fn bootstrap_intervals(columns: &mut [Vec<f64>; 3]) -> ([f64; 3], [(f64, f64); 3]) {
+    let mut standard_error = [0.0; 3];
+    let mut interval = [(0.0, 0.0); 3];
+    for (j, column) in columns.iter_mut().enumerate() {
+        standard_error[j] = crate::util::sample_std(column);
+        column.sort_by(f64::total_cmp);
+        interval[j] = antecedent_stats::equal_tail_interval_sorted(
+            column,
+            NOMINAL_LEVEL,
+            antecedent_stats::QuantileRule::ExchangeableRank,
+        );
+    }
+    (standard_error, interval)
+}
+
 /// Fewest independent clusters an interval is computed from.
 pub const MIN_CLUSTERS: usize = 2;
 /// Default Gaussian multiplier replicates of a simultaneous band.
@@ -646,6 +662,18 @@ pub fn dense_labels<T: Eq + std::hash::Hash + Clone>(labels: &[T]) -> (Vec<usize
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bootstrap_intervals_summarize_each_coordinate() {
+        let mut columns =
+            [vec![3.0, 1.0, 4.0, 2.0], vec![4.0, 4.0, 4.0, 4.0], vec![-3.0, -1.0, -4.0, -2.0]];
+        let (errors, intervals) = bootstrap_intervals(&mut columns);
+        let expected = (5.0_f64 / 3.0).sqrt();
+        assert!((errors[0] - expected).abs() < 1e-12);
+        assert_eq!(errors[1], 0.0);
+        assert!((errors[2] - expected).abs() < 1e-12);
+        assert_eq!(intervals, [(1.0, 4.0), (4.0, 4.0), (-4.0, -1.0)]);
+    }
 
     #[test]
     fn pairs_follow_the_lag_within_each_unit() {

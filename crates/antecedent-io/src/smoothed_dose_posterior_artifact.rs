@@ -231,6 +231,17 @@ fn retained_wire_bytes(input: &SmoothedDoseInput, grid: usize, names: &[String])
     u64::try_from(total).ok()
 }
 
+/// Quote and retain one posterior wire under the caller's admission pool.
+fn retain_wire(
+    input: &SmoothedDoseInput,
+    grid: usize,
+    names: &[String],
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Arc<AdmissionLease>, Refusal> {
+    let bytes = retained_wire_bytes(input, grid, names).ok_or_else(|| exhausted(None))?;
+    Ok(Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| exhausted(Some(e)))?))
+}
+
 /// A refusal for retained-result admission; operational exhaustion, never a causal verdict.
 fn exhausted(error: Option<AdmissionError>) -> Refusal {
     match error {
@@ -304,9 +315,8 @@ impl SmoothedDosePosteriorArtifactWire {
         if ctx.cancellation.is_cancelled() {
             return Err(cancelled());
         }
-        let bytes = retained_wire_bytes(input.input, input.query.grid.len(), input.variable_names)
-            .ok_or_else(|| exhausted(None))?;
-        let retention = Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| exhausted(Some(e)))?);
+        let retention =
+            retain_wire(input.input, input.query.grid.len(), input.variable_names, ctx)?;
         antecedent_core::numerical_admission::with_context(ctx, || {
             Self::build(input, Some(retention))
         })
@@ -500,11 +510,8 @@ impl SmoothedDosePosteriorArtifactWire {
         })?;
         wire.check_limits(&limits)?;
         if let Some(ctx) = ctx {
-            let bytes =
-                retained_wire_bytes(&wire.input, wire.query.grid.len(), &wire.variable_names)
-                    .ok_or_else(|| exhausted(None))?;
             wire.retention =
-                Some(Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| exhausted(Some(e)))?));
+                Some(retain_wire(&wire.input, wire.query.grid.len(), &wire.variable_names, ctx)?);
         }
         let undecodable = |e: IoError| Refusal::Undecodable(e.to_string());
         crate::require_digest(

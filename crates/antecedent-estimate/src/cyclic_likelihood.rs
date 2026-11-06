@@ -348,6 +348,30 @@ pub(crate) fn bootstrap_groups(
     }
     groups
 }
+/// Draw within each declared regime in deterministic group order.
+fn resample_regime_rows(
+    rows: &[RegimeRow],
+    groups: &std::collections::BTreeMap<Vec<(usize, u64)>, Vec<usize>>,
+    rng: &mut antecedent_core::CausalRng,
+    index_error: &'static str,
+) -> Result<Vec<RegimeRow>, EquilibriumError> {
+    let mut sampled = Vec::with_capacity(rows.len());
+    for indices in groups.values() {
+        for _ in indices {
+            // Rejection sampling avoids modulo bias for finite regime sizes.
+            let size = indices.len() as u64;
+            let ceiling = u64::MAX - u64::MAX % size;
+            let mut draw = rng.next_u64();
+            while draw >= ceiling {
+                draw = rng.next_u64();
+            }
+            let index = usize::try_from(draw % size).map_err(|_| invalid(index_error))?;
+            sampled.push(rows[indices[index]].clone());
+        }
+    }
+    Ok(sampled)
+}
+
 /// Resample replicated fixed intervention assignments, preserving the existing API.
 pub fn bootstrap_cyclic_fit(
     template: &EquilibriumModel,
@@ -398,20 +422,7 @@ pub fn bootstrap_cyclic_fit_with_design(
         }
         let mut rng =
             ctx.rng.stream(antecedent_core::derive_stream(0x4359_434c_424f_4f54, r as u64));
-        let mut sampled = Vec::with_capacity(rows.len());
-        for indices in groups.values() {
-            for _ in indices {
-                // Rejection sampling avoids modulo bias for finite regime sizes.
-                let size = indices.len() as u64;
-                let ceiling = u64::MAX - u64::MAX % size;
-                let mut draw = rng.next_u64();
-                while draw >= ceiling {
-                    draw = rng.next_u64();
-                }
-                let index = usize::try_from(draw % size).map_err(|_| invalid("row index"))?;
-                sampled.push(rows[indices[index]].clone());
-            }
-        }
+        let sampled = resample_regime_rows(rows, &groups, &mut rng, "row index")?;
         match fit_cyclic_likelihood(template, parameters, &sampled, options, ctx) {
             Ok(fit) if fit.converged => {
                 result.push(Some(parameter_values(&fit.model, parameters)?))
@@ -940,22 +951,7 @@ pub fn bootstrap_cyclic_structure_with_design(
         }
         let mut rng =
             ctx.rng.stream(antecedent_core::derive_stream(0x4359_434c_5345_4c42, r as u64));
-        let mut rows = Vec::with_capacity(training.len());
-        for indices in groups.values() {
-            for _ in indices {
-                let size = indices.len() as u64;
-                let ceiling = u64::MAX - u64::MAX % size;
-                let mut draw = rng.next_u64();
-                while draw >= ceiling {
-                    draw = rng.next_u64();
-                }
-                rows.push(
-                    training[indices
-                        [usize::try_from(draw % size).map_err(|_| invalid("bootstrap index"))?]]
-                    .clone(),
-                );
-            }
-        }
+        let rows = resample_regime_rows(training, &groups, &mut rng, "bootstrap index")?;
         match learn_cyclic_structure(template, &rows, heldout, options, threshold, ctx) {
             Ok(fit) if fit.selection_converged && fit.fit.converged => output.push(Some(fit)),
             Ok(_)
@@ -1290,6 +1286,44 @@ mod joint_abduction_tests {
 #[cfg(test)]
 mod design_tests {
     use super::*;
+    #[test]
+    fn regime_resampling_preserves_order_and_stream_position() {
+        use antecedent_model::nonlinear_equilibrium::Clamp;
+        let rows = vec![
+            RegimeRow { values: vec![0.0], clamps: vec![] },
+            RegimeRow { values: vec![1.0], clamps: vec![Clamp { variable: 0, value: 1.0 }] },
+            RegimeRow { values: vec![2.0], clamps: vec![] },
+            RegimeRow { values: vec![3.0], clamps: vec![Clamp { variable: 0, value: 2.0 }] },
+            RegimeRow { values: vec![4.0], clamps: vec![Clamp { variable: 0, value: 1.0 }] },
+        ];
+        for design in [
+            CyclicBootstrapDesign::FixedAssignments,
+            CyclicBootstrapDesign::RandomizedWithinTargets,
+        ] {
+            let groups = bootstrap_groups(&rows, design);
+            for stream in [0x4359_434c_424f_4f54, 0x4359_434c_5345_4c42] {
+                let mut actual_rng = antecedent_core::CausalRng::from_seed(stream);
+                let mut reference_rng = antecedent_core::CausalRng::from_seed(stream);
+                let sampled =
+                    resample_regime_rows(&rows, &groups, &mut actual_rng, "row index").unwrap();
+                let mut expected = Vec::new();
+                for indices in groups.values() {
+                    let size = indices.len() as u64;
+                    let ceiling = u64::MAX - u64::MAX % size;
+                    for _ in indices {
+                        let mut draw = reference_rng.next_u64();
+                        while draw >= ceiling {
+                            draw = reference_rng.next_u64();
+                        }
+                        expected.push(rows[indices[(draw % size) as usize]].values[0]);
+                    }
+                }
+                assert_eq!(sampled.iter().map(|row| row.values[0]).collect::<Vec<_>>(), expected);
+                assert_eq!(actual_rng.next_u64(), reference_rng.next_u64());
+            }
+        }
+    }
+
     #[test]
     fn randomized_assignments_retain_joint_row_sampling_units() {
         use antecedent_model::nonlinear_equilibrium::Clamp;

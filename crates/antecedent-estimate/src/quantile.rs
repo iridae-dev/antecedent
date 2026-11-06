@@ -19,6 +19,14 @@ use crate::error::EstimationError;
 /// the outcome is measured in.
 pub(crate) const MIN_QUANTILE_DENSITY: f64 = 1e-3;
 
+/// Validate the quantile level shared by inversion and posterior construction.
+pub(crate) fn validate_quantile_level(tau: f64) -> Result<(), EstimationError> {
+    if !(tau > 0.0 && tau < 1.0) {
+        return Err(EstimationError::unsupported("quantile level must lie in (0, 1)"));
+    }
+    Ok(())
+}
+
 /// Invert a monotone CDF on a strictly increasing threshold grid.
 ///
 /// `f_le[j] = P(Y ≤ thresholds[j])`. `phi_f[j]` is the IF of that CDF
@@ -55,9 +63,7 @@ pub(crate) fn invert_cdf_quantile(
             "quantile inversion requires aligned influence columns",
         ));
     }
-    if !(tau > 0.0 && tau < 1.0) {
-        return Err(EstimationError::unsupported("quantile level must lie in (0, 1)"));
-    }
+    validate_quantile_level(tau)?;
     let Some(hi) = f_le.iter().position(|&f| f >= tau) else {
         return Err(EstimationError::unsupported(
             "quantile inversion refused: τ is above the estimated CDF range",

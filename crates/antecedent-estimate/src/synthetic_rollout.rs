@@ -39,7 +39,8 @@ use antecedent_core::{ExecutionContext, SyntheticPanelMethod};
 
 use crate::EstimationError;
 use crate::rollout_resampling::{
-    DesignEffect, DesignEffectKind, ROLLOUT_LEVEL, resample_draws, uniform_index,
+    DesignEffect, DesignEffectKind, ROLLOUT_LEVEL, resample_draws, simultaneous_critical_value,
+    uniform_index,
 };
 
 /// Semantic operation tag of the placebo-variance resample.
@@ -736,16 +737,7 @@ fn attach_placebo(
                 .reduce(f64::max)
         })
         .collect();
-    maxima.sort_by(f64::total_cmp);
-    let critical_value = (maxima.len() >= 20)
-        .then(|| crate::util::monte_carlo_critical(&maxima, ROLLOUT_LEVEL))
-        .filter(|value| value.is_finite())
-        // The pointwise interval is `estimate ± z·se` with the normal quantile, while the
-        // replicate quantile of max|t| measures the band on the replicates' own scale. With
-        // light-tailed or bounded replicate distributions that quantile can fall below `z`,
-        // which would make the simultaneous band narrower than a pointwise interval it must
-        // contain. The band's critical value is therefore never below the pointwise one.
-        .map(|value| value.max(antecedent_stats::NORMAL_Q975));
+    let critical_value = simultaneous_critical_value(&mut maxima, || true);
     let apply = |effect: &mut DesignEffect, moment: Option<(f64, f64)>, band: bool| {
         if let Some((_, se)) = moment {
             effect.standard_error = Some(se);

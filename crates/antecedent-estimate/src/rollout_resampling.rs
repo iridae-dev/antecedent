@@ -384,7 +384,10 @@ pub fn summarize_replicates(
 
 // The simultaneous band must contain the pointwise normal interval, even when the
 // replicate quantile of max|t| is smaller. Eligibility remains specific to each summary.
-fn simultaneous_critical_value(maxima: &mut [f64], eligible: impl FnOnce() -> bool) -> Option<f64> {
+pub(crate) fn simultaneous_critical_value(
+    maxima: &mut [f64],
+    eligible: impl FnOnce() -> bool,
+) -> Option<f64> {
     maxima.sort_by(f64::total_cmp);
     (maxima.len() >= MIN_FINITE_REPLICATES && eligible())
         .then(|| crate::util::monte_carlo_critical(maxima, ROLLOUT_LEVEL))

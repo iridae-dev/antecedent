@@ -37,6 +37,7 @@ use crate::EstimationError;
 use crate::matching_posterior_boundary::{MatchingPosteriorRequest, refuse_matching_posterior};
 use crate::temporal_design::ClusterScores;
 use crate::temporal_design::serial::{newey_west_bandwidth, serial_sampling_summary};
+use crate::util::validate_matching_caliper as validate_caliper;
 
 /// One unit: a history, the outcome contrasted after it, and a sampling weight.
 #[derive(Clone, Debug)]
@@ -624,16 +625,6 @@ struct MatchedHistories {
     collapsed_donors: usize,
     queries: Vec<usize>,
     donors: Vec<usize>,
-}
-
-/// A caliper is a maximum distance: finite and non-negative.
-fn validate_caliper(caliper: Option<f64>) -> Result<(), EstimationError> {
-    match caliper {
-        Some(limit) if !(limit.is_finite() && limit >= 0.0) => {
-            Err(EstimationError::data_msg("matching caliper must be finite and non-negative"))
-        }
-        _ => Ok(()),
-    }
 }
 
 fn match_histories(

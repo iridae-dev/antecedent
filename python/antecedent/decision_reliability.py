@@ -69,7 +69,6 @@ off-policy mean).
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -96,6 +95,7 @@ from ._reliability_records import (
 )
 from ._scientific import ScientificResult
 from ._validate import count as _count
+from ._validate import finite_float_protocol as _real
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution
 from .outcomes import outcome_operation, require_success
@@ -190,15 +190,6 @@ def _check_choice(value: object, allowed: tuple[str, ...], what: str) -> str:
     if not isinstance(value, str) or value not in allowed:
         raise CausalValueError(f"{what} must be one of {allowed}; got {value!r}")
     return value
-
-
-def _real(value: object, what: str) -> float:
-    if isinstance(value, bool) or not hasattr(value, "__float__"):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError(f"{what} must be finite")
-    return number
 
 
 def _dumps(value: object) -> str:

@@ -40,6 +40,7 @@ use crate::sampling_weights::SamplingWeights;
 use crate::se::{AnalyticSeKind, SeSpec};
 #[cfg(test)]
 use crate::util::sample_std;
+use crate::util::validate_matching_caliper as validate_caliper;
 
 /// Queries matched between cancellation checks when several donors are searched per query.
 const MATCH_CANCELLATION_CHUNK: usize = 1024;
@@ -854,16 +855,6 @@ fn matched_outcome_diffs(
         None => first_donors,
     };
     MatchedDiffs { diffs, queries: used_queries, pool, spans }
-}
-
-/// A caliper is a maximum distance: finite and non-negative.
-fn validate_caliper(caliper: Option<f64>) -> Result<(), EstimationError> {
-    match caliper {
-        Some(limit) if !(limit.is_finite() && limit >= 0.0) => {
-            Err(EstimationError::data_msg("matching caliper must be finite and non-negative"))
-        }
-        _ => Ok(()),
-    }
 }
 
 /// Exact nearest-donor index for one scalar score.

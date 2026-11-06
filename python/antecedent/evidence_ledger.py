@@ -51,7 +51,6 @@ declarations and presents the results.
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -69,6 +68,7 @@ from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count
+from ._validate import finite_float_protocol as _number
 from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
@@ -135,15 +135,6 @@ class EvidenceLedgerRefusal(StructuredRefusal):
 
 
 # --------------------------------------------------------------------------- helpers
-
-
-def _number(value: object, what: str) -> float:
-    if isinstance(value, bool) or not hasattr(value, "__float__"):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError(f"{what} must be finite")
-    return number
 
 
 def _dumps(value: object) -> str:

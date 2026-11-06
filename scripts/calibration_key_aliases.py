@@ -12,7 +12,7 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-from _repo import REPO_ROOT, read_text
+from _repo import REPO_ROOT, load_toml, read_text
 
 RECORD_ID = (
     "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95."
@@ -146,7 +146,7 @@ def canonical_digest(value: object) -> str:
 
 def validated_aliases(root: Path) -> list[dict[str, str]]:
     """Return only proven mappings; pending declarations confer no authority."""
-    data = tomllib.loads((root / "parity/calibration_key_aliases.toml").read_text(encoding="utf-8"))
+    data = load_toml(root / "parity/calibration_key_aliases.toml")
     if set(data) != {"version", "alias"} or data["version"] != 1:
         raise ValueError("unsupported calibration identity mapping schema")
     aliases = data["alias"]

@@ -333,17 +333,7 @@ pub fn fit_observational_excursion(
             ),
         ));
     }
-    let mut standard_error = [0.0; 3];
-    let mut interval = [(0.0, 0.0); 3];
-    for (j, column) in columns.iter_mut().enumerate() {
-        standard_error[j] = crate::util::sample_std(column);
-        column.sort_by(f64::total_cmp);
-        interval[j] = antecedent_stats::equal_tail_interval_sorted(
-            column,
-            super::NOMINAL_LEVEL,
-            antecedent_stats::QuantileRule::ExchangeableRank,
-        );
-    }
+    let (standard_error, interval) = super::bootstrap_intervals(&mut columns);
     Ok(ObservationalFit {
         estimate: point.values,
         standard_error: Some(standard_error),

@@ -21,7 +21,6 @@ import _repo
 
 import re
 import sys
-import tomllib
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -246,14 +245,14 @@ def _apply_pending(root: Path, cells: list[dict], findings: list[str]) -> None:
 
 def build(root: Path = REPO_ROOT) -> dict:
     root = root.resolve()
-    counterparts = tomllib.loads((root / "parity/counterparts.toml").read_text(encoding="utf-8"))
+    counterparts = _repo.load_toml(root / "parity/counterparts.toml")
     by_family: dict[str, list[dict]] = defaultdict(list)
     for row in counterparts["row"]:
         if row["kind"] == "method":
             by_family[row["method"]].append(row)
-    curated = tomllib.loads((root / "parity/scenario_matrix.toml").read_text(encoding="utf-8"))
+    curated = _repo.load_toml(root / "parity/scenario_matrix.toml")
     axes = {a["id"]: a for a in curated.get("axis", [])}
-    missing = tomllib.loads((root / "parity/missing_policy_support.toml").read_text(encoding="utf-8"))
+    missing = _repo.load_toml(root / "parity/missing_policy_support.toml")
     missing_queries = {
         r["query"]: r for r in missing.get("route", []) if len(r.get("supported", [])) > 1
     }

@@ -41,7 +41,6 @@ Every rule, number, identity and refusal is computed in Rust.
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
@@ -59,6 +58,7 @@ from ._artifact_protocol import (
 from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
+from ._validate import finite_float_protocol as _real
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
 from .joint_distribution import JointDistributionArtifact
@@ -116,15 +116,6 @@ class JointLawPropagationRefusal(StructuredRefusal):
 
 def _refuse(payload: str | None) -> None:
     raise_refusal(payload, JointLawPropagationRefusal)
-
-
-def _real(value: object, what: str) -> float:
-    if isinstance(value, bool) or not hasattr(value, "__float__"):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError(f"{what} must be finite")
-    return number
 
 
 def _text(value: object, what: str) -> str:
