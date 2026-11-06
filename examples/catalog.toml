@@ -1152,3 +1152,16 @@ level = "advanced"
 dependencies = []
 runtime = "under 10 seconds"
 claim = "Weighted survival, the RMST difference and cumulative incidence are checked against closed forms of the simulation, and the curve that assumes independent censoring is shown biased. The supplied censoring survival is not fitted or verified."
+
+[[example]]
+id = "embed_with_controls"
+title = "Embed Antecedent with limits, observers and cancellation"
+summary = "Run an analysis under one Execution that carries observers, a memory limit and a cancellation token, and read the typed refusals."
+python = "examples/python/embed_with_controls.py"
+notebook = "examples/notebooks/embed_with_controls.ipynb"
+unreleased = true
+topic = "Build with Antecedent"
+level = "intermediate"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "The effect is near the simulated 2 (within 0.2) and observers change nothing; a zero memory limit raises a typed resource error; cancelling before or during a run stops it as reported. Memory limits bound the admitted pool, not process memory."

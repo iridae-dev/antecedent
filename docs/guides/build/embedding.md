@@ -199,6 +199,8 @@ see the [support matrix](../../support-matrix.md).
 
 ### Threads and resource leases
 
+Runnable example: [`examples/python/embed_with_controls.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/embed_with_controls.py).
+
 Parallelism is a budget on an execution context, not a global setting.
 
 * A study runs under an `ExecutionContext` (`ExecutionContext::production(seed, threads)`
