@@ -238,6 +238,8 @@ declared prior and likelihood.
 `antecedent.predictive_assessment` builds the declarations and presents the
 results; every score, identity and refusal is Rust's.
 
+Runnable example: [`examples/python/predictive_assessment.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/predictive_assessment.py).
+
 ```python
 from antecedent import predictive_assessment as pa
 

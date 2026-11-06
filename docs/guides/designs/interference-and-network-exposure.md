@@ -62,6 +62,8 @@ The direct utility is point-only. On the retained `analyze` path, known fixed pr
 
 ## What you are claiming
 
+Runnable example: [`examples/python/network_interference.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/network_interference.py).
+
 An observed-network estimate identifies a causal exposure contrast only if you defend:
 
 - no unmeasured network confounding given the covariates used to build the probabilities,

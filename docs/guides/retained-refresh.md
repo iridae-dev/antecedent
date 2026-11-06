@@ -9,6 +9,8 @@ re-identifies or re-estimates anything on its own.
 
 ## Retained summary refresh
 
+Runnable example: [`examples/python/retained_refresh.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/retained_refresh.py).
+
 Start a refresh from a prepared study. The study's estimator decides the summary family:
 `linear.adjustment.ate` keeps `ols`, `aipw` keeps `weighted_ols` and `bayesian.gcomp` under a
 conjugate backend keeps `conjugate_blocks`.

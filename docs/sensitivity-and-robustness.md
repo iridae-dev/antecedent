@@ -37,6 +37,8 @@ Every route here keeps these apart, and refuses to add them together:
 
 ## Missing outcomes not at random: `mnar_ate_sensitivity`
 
+Runnable example: [`examples/python/missing_outcome_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/missing_outcome_sensitivity.py).
+
 Complete-case analysis and multiple imputation both assume the missing outcomes follow the
 observed ones given what the model conditions on. Nothing in the data tests that, so
 `antecedent.mnar_sensitivity` relaxes it by one explicit, bounded parameter and re-runs the

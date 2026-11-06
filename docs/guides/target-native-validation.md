@@ -220,6 +220,8 @@ characteristics remain not_measured.
 
 ## Sensitivity ranges
 
+Runnable example: [`examples/python/refute_and_bound.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/refute_and_bound.py).
+
 Each analysis returns an `AssumptionRange`: the assumption it relaxes, the
 range of the sensitivity parameter it probed and the target (or its test) at
 each value, and the break-even value at which the conclusion is explained away

@@ -122,6 +122,8 @@ The prepared study freezes unit and period row order; refreshing with changed de
 
 `SyntheticDifferenceInDifferences` weights both donor units and pre-periods on the simplex, then computes the weighted difference-in-differences contrast. It needs a balanced panel with one treated unit, at least two donors, two pre-periods and one post-period, and reports `result.value.synthetic_did` including both weight vectors. It returns no interval or standard error, and refuses a fabricated one in a saved artifact. The randomization test option is refused here, and ridge augmentation cannot be combined with it.
 
+Runnable example: [`examples/python/panel_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/panel_designs.py).
+
 ## Boundaries
 
 - Covariate adjustment at the unit level for synthetic control is not available; use the covariate-adjusted DiD or a rollout estimator.

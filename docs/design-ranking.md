@@ -406,6 +406,8 @@ Runnable examples: [`rank_designs.py`](https://github.com/iridae-dev/antecedent/
 
 ## From a failed identification to a ranked evidence plan
 
+Runnable example: [`examples/python/evidence_plan.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/evidence_plan.py).
+
 A not-identified result owes evidence, and several kinds of study can supply it.
 `repair.FailureContract` freezes the failure (graph, treatment, outcome, the variables
 measured so far and, optionally, a non-robust `repair.SensitivityFinding`) as every

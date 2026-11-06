@@ -57,6 +57,8 @@ The band uses one critical radius from the bootstrap distribution of the maximum
 
 ## Censoring that depends on covariates
 
+Runnable example: [`examples/python/survival_ipcw.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/survival_ipcw.py).
+
 If censoring depends on baseline covariates, supply the probability that each subject is still uncensored at each time (the censoring survival `G`) and the estimator weights by its inverse. You must fit and check `G`; Antecedent does not estimate censoring models or verify where the probabilities came from.
 
 ```python

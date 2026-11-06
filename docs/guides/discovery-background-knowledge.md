@@ -110,6 +110,8 @@ effective sample size `(sum w)^2 / sum w^2` are on the `SampleSplit`
 receipt. See [Selective discovery](../selective-discovery.md#splitting-rows-filter-then-split)
 for the estimands, normalization and what the receipt verifies.
 
+Runnable example: [`examples/python/discovery_methods.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discovery_methods.py).
+
 ## Related
 
 - [Rerun discovery without recomputing it](../selective-discovery.md)

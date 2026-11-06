@@ -219,17 +219,47 @@ The mass of the event no scenario explains is reported, not renormalized away.
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).
 
 
-### Composed Gaussian outcome laws (3.0)
+### Ask a probability or quantile question of a composed model
 
-Use a `GaussianInterventionLaw` query with the action coordinate's `functional_id`
-set to `outcome` to retain the compiler's conditional Gaussian mean and residual
-outcome variance. Mean coordinates and `GaussianMeanContrast` remain estimates.
-An outcome law answers affine probabilities and quantiles, and quadratic expected
-utilities and variances analytically. Other utility forms and joint outcome inputs
-refuse; no coupling of interventions is invented. Its standard error is unavailable:
-outcome noise is distinct from parameter uncertainty and no sampling interval is earned.
-Transport acceptance and receipts remain mandatory for carried mechanisms.
+Use this when you have a composed linear-Gaussian model and the question is about
+the spread of the outcome, not only its mean: which actions give an outcome of at
+least 9 with probability at least one half, or keep the 10th percentile of the
+outcome above a floor? An expected value cannot answer either one.
 
-Python uses the same `ComposedAction` and `derive_composed_source` workflow. Sealed
-inverse artifacts embed `analytic_gaussian_v1` parameters and identities and replay
-without sampling. Refreshing mechanisms changes the law and its claim digest.
+In Python:
+
+1. Compose the mechanisms and declare one `ComposedAction` per action, with the
+   hard intervention as its query.
+2. Give each action the coordinate with `functional_id="outcome"`. This keeps the
+   conditional Gaussian law of the outcome: its mean under the intervention and the
+   noise that remains. A `mean` coordinate keeps the expected value only.
+3. Call `derive_composed_source`, then `evaluate` an inverse query that uses
+   `probability_threshold` or `target_quantile`.
+4. `seal_per_action` writes one artifact per action. `consume` replays each one
+   without sampling.
+
+<!-- example: examples/python/composed_outcome_law.py -->
+
+What the result claims: for each action, the probability or quantile of the
+outcome under the intervention, given the mechanisms you wrote down. An outcome law
+also answers affine and quadratic expected utilities and variances in closed form.
+Sealed artifacts store the Gaussian parameters and the origin of the claim, so a
+replay recomputes the same numbers and the same identity. Refitting a mechanism
+makes a new source with a new claim digest; a sealed answer is never refreshed in
+place.
+
+What it does not claim: the mechanisms are assumptions you declared, and the answer
+and its replay are conditional on them. The outcome law has noise but no parameter
+uncertainty, so its standard error is unavailable and it supplies no interval
+region. Other utility forms, and joint outcome inputs across actions, are refused;
+no coupling between interventions is invented. A mean coordinate stays a point
+estimate, and a mean contrast (`MeanContrast`) needs a declared joint law of the
+parameters. A composition carried from another population still needs its transport
+receipt and an explicit accept.
+
+From Rust, the entry is `composed_forward_source`.
+
+Refusals for this route are in the table above: a quantile or probability on a mean
+coordinate is refused with `decision_contract_unsatisfied`
+(`inverse_forward_source.composed_law_not_materialized`), and the remedy is to ask
+for the `outcome` coordinate.

@@ -115,6 +115,8 @@ likelihood with a permutation baseline. A graph that omits a strong edge is repo
 A passing evaluation does not establish the graph; see
 [check a graph against data](graph-falsification.md).
 
+Runnable example: [`examples/python/root_cause_attribution.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/root_cause_attribution.py).
+
 ## Related
 
 - [Check a graph against data](graph-falsification.md)

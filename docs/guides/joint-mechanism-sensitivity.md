@@ -2,12 +2,10 @@
 
 This note derives the exact joint assumption range that
 `antecedent_validate::z_transport_joint_mechanism_sensitivity` computes and
-states what it claims and what it does not. It also records the sampling
-composition for the range. Two coverage records measure its zero-box
-two-sided and positive-box one-sided targets. The Rust and Python public interval
-routes are now supported for the named level and replicate bounds; the current
-branch wrapper has not been re-attested. The version-3 range artifact remains
-range-only and carries no sampling endpoints.
+states what it claims and what it does not. It also derives the sampling
+interval for the range, whose zero-box two-sided and positive-box one-sided
+targets have coverage records. The range artifact carries the range only; the
+interval has its own [replayable artifact](joint-sensitivity-interval-artifact.md).
 
 Two records in `parity/capability_records.toml` cover this page:
 
@@ -52,7 +50,7 @@ a frontier grid of 1 to {{bound:sensitivity.joint_mechanism.runtime_max_frontier
 64 MiB). The public interval admits 199 to {{bound:sensitivity.joint_uncertainty.max_bootstrap_internal}} bootstrap replicates at level 0.95; the internal estimator retains the same upper cap. A request outside the public bounds refuses as
 `joint_sensitivity.bounds_exceeded`.
 
-The earlier recorded evidence bounds were {{bound:sensitivity.joint_mechanism.historical_evidence_max_parent_levels}} parent levels, {{bound:sensitivity.joint_mechanism.historical_evidence_max_outcome_categories}} outcome categories, and {{bound:sensitivity.joint_mechanism.historical_evidence_max_frontier_points}} frontier points. These historical bounds do not establish numerical verification or calibration for the wider runtime ceilings.
+The numerical evidence covers up to {{bound:sensitivity.joint_mechanism.historical_evidence_max_parent_levels}} parent levels, {{bound:sensitivity.joint_mechanism.historical_evidence_max_outcome_categories}} outcome categories, and {{bound:sensitivity.joint_mechanism.historical_evidence_max_frontier_points}} frontier points. It does not establish numerical verification or calibration up to the wider runtime ceilings.
 
 The parent-level and outcome-category bounds are checked on the law's shape,
 after the proof, formula and provider checks and before any cell of the law is
@@ -196,14 +194,13 @@ cancelled frontier is not exported, because it does not replay.
   covers the range only. Sampling uncertainty is not offered by the range
   record, and the sampling method below is paper-inherited.
 
-## Sampling uncertainty (historical measurements; public tuple route supported)
+## Sampling uncertainty
 
-Record `sensitivity.joint_uncertainty` now has supported Rust and Python
-functions returning the endpoint interval directly. The existing coverage
-records were measured by `scripts/measure_calibration_groups.sh` (`run_js`, over the
-sample-size grid) at the historical source cut. The current public wrapper is
-not attested by those historical records. This section states the composition
-and its measured scope.
+Record `sensitivity.joint_uncertainty` covers the Rust and Python functions that
+return the endpoint interval. Its coverage records are measured by
+`scripts/measure_calibration_groups.sh` (`run_js`, over the sample-size grid); the
+interval's calibration status reports whether a record matches the current
+construction. This section states the composition and its measured scope.
 
 There is one composition: the percentile bootstrap of the exact endpoints,
 
@@ -236,14 +233,10 @@ References, from abstracts only (the theorem statements were not verified):
 The current public interval route is `PreparedZTransport::joint_mechanism_sensitivity_interval`
 and the Python `joint_mechanism_sensitivity_interval`; it returns a Rust
 `JointSensitivityInterval` or Python `(lower, upper, coverage_target)` tuple
-for level 0.95 and 199–2000 replicates. This tuple is not serialized into the
-version-3 range artifact: that artifact retains a withheld sampling descriptor,
-and its consumer refuses a forged interval. The lifecycle test independently
-recomputes the endpoint percentiles from the saved count table, deviation and
-seed, but reuses the law-draw and range primitives; it is a test-side
-recomputation, not an independent public artifact consumer. The zero-box and
-positive-box measurements remain historical, and no external truth or arbitrary
-interior two-sided coverage is claimed.
+for level 0.95 and 199–2000 replicates. The range artifact does not carry this
+interval, and its consumer refuses an interval added to it; export the interval
+as its own [replayable artifact](joint-sensitivity-interval-artifact.md). No
+external truth or arbitrary interior two-sided coverage is claimed.
 
 **How the coverage is measured.** Two records, both measured at the
 extremal-vertex truth:
@@ -321,4 +314,4 @@ are right.
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).
 
-The existing endpoint-bootstrap procedure also has a [separate replayable interval artifact](joint-sensitivity-interval-artifact.md). It does not alter the version-3 range contract or turn an assumption range into a confidence interval.
+The endpoint-bootstrap interval has a [separate replayable artifact](joint-sensitivity-interval-artifact.md). It leaves the range artifact unchanged and does not turn an assumption range into a confidence interval.

@@ -206,6 +206,7 @@ nav:
     - Sampled recovery interval: sampled-recovery-bca.md
   - Technical derivations:
     - Joint mechanism sensitivity: guides/joint-mechanism-sensitivity.md
+    - Replay a sensitivity interval: guides/joint-sensitivity-interval-artifact.md
     - Exact transport: architecture/transport-exact.md
     - Multi-source transport: architecture/transport-meta-grid.md
     - Smoothed transport: architecture/smoothed-dose-response-transport.md

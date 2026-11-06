@@ -206,29 +206,51 @@ Keep `expected_identity` separately from the artifact. A fresh consumer replays 
 
 Method bounds, priors, sample-size ranges and protocol refusals are in [population, time and uncertainty](population-time-uncertainty.md), [transport and counterfactuals](transport-counterfactuals.md) and [supported bounds](supported-bounds.md). Unsupported neighbouring protocols refuse; a measured scalar does not supply the aligned outcome law that distributional decisions need.
 
-## Prepared adjusted-fit retargeting
+## Retarget a fitted adjusted effect to a new population
 
-`PreparedStudy::retarget` and Python `study.retarget(weights, depends_on=("z",))`
-also accept successfully retained OLS and unpenalized GLM mean fits. Prepare/compile
-alone supplies no fitted model: first execute an AllObserved mean with zero
-bootstrap, no effect modifiers and no source sampling weights. Nonconstant weights
-must declare parents inside the certified adjustment set; treatment and descendants
-refuse. Weights cover the frozen complete-case rows in source order. Refreshing
-changed data requires a new successful fit before reuse.
+Use this when you have already fitted an adjusted effect and want the same effect in
+a different population, described by how its units differ in an adjustment
+covariate. The retarget reuses the fit you have: nothing is refit and no data are
+read again.
 
-OLS uses its constant additive contrast and original covariance. GLMs standardize
-response-scale predictions and use the weighted averaging gradient with the original
-coefficient covariance (Fisher, HC or the originally declared dependence adjustment).
-This is conditional on the fixed target law. It does not refit, estimate target-weight
-uncertainty, propagate bootstrap uncertainty or become doubly robust.
+The steps:
 
-The separate `adjusted_fit_reuse` wire binds model/covariance construction, complete-case
-row order, coded design, adjustment roles, identification, inference and source snapshot.
-It occupies the existing generic reuse digest slot historically named `score_reuse`;
-`score_reuse_identity()` remains score-only, while `adjusted_fit_reuse_identity()`
-returns this model key. Target weights bind that key. The artifact is an attestation;
-hashes alone are not a portable numerical fit. `reexecute_retarget` requires the matching
-live retained fit, and older consumers refuse the new typed field. The existing normal interval is conditional on the same fixed target law. Its
-calibration key uses `row_weights.mean` for a changed target and cannot inherit
-all-observed coverage; that coordinate is unmeasured. The independent mean/covariance
-check and fixed-target coverage earning remain owed.
+1. Fit an OLS or unpenalized GLM mean effect over all observed units, with no
+   bootstrap, no effect modifiers and no source sampling weights. Preparing a study
+   is not enough; the retarget needs the completed fit.
+2. Declare the target population with one weight per row, in the order of the
+   complete-case rows the fit used.
+3. Call `study.retarget(weights, depends_on=("z",))`, naming the covariates the
+   weights depend on.
+
+<!-- example: examples/python/retarget_adjusted_fit.py -->
+
+What the result claims: for OLS, the original constant additive contrast with its
+original covariance. For a GLM, the weighted mean of the response-scale difference
+in predictions, with a standard error from the original coefficient covariance (Fisher, HC
+or the dependence adjustment you declared). The result is conditional on the target
+weights being fixed. Its identity records the target weights and the same data
+snapshot as the fit, so a retarget can be told apart from a refit. If you change
+the data, fit again before retargeting.
+
+What it does not claim: it does not estimate the uncertainty of the target weights,
+does not propagate bootstrap uncertainty and is not doubly robust. The interval's
+calibration is recorded under the changed target, so it cannot inherit coverage
+measured for the all-observed fit; that coordinate is not measured and the
+calibration status says so.
+
+Refusals:
+
+| Request | Result |
+| --- | --- |
+| Weights that depend on the treatment or a descendant of it | `target_weights_not_supported` (`weights_depend_on_treatment_or_descendant`); declare weights that depend on adjustment covariates only |
+| Nonconstant weights with no declared dependencies | refused; name the covariates the weights depend on |
+| A study that has not completed a compatible fit, or a fit with bootstrap, effect modifiers or source weights | refused; fit an all-observed OLS or unpenalized GLM mean first |
+| Weights for a different row set or data snapshot | refused; weights are bound to the snapshot they were declared for |
+
+The exported contract stores the weights with the identity of the fit they were
+declared against. `reexecute_retarget` re-runs them only on a study that holds the
+matching retained fit, and refuses another snapshot with `row_weights_bound_to_snapshot`.
+The stored identity is an attestation, not a portable numerical fit.
+
+From Rust, the entry is `PreparedStudy::retarget`.

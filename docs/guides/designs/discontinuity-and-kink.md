@@ -4,6 +4,8 @@ Estimate the effect of a treatment that switches on, or changes its dependence o
 
 The answer is local. It describes units near the cutoff and, for a fuzzy design, the units whose treatment the cutoff changes (local compliers). Antecedent does not extend it to the rest of the range.
 
+Runnable example: [`examples/python/discontinuity_and_iv.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discontinuity_and_iv.py).
+
 ## Sharp design
 
 When the running variable is the only cause of treatment, the structure is fixed, so no graph is needed. A treatment column that is not the threshold rule is refused rather than estimated as an intention-to-treat contrast; use the fuzzy design for imperfect compliance.

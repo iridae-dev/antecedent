@@ -512,42 +512,79 @@ status `closed_calibration_not_measured`: no interval is produced.
 
 For a complete marketing investigation using a shared panel fit, see [beyond the marketing mix](tutorials/beyond-marketing-mix.md).
 
-### Compile explicit joint scenarios
+### Decide robustly from explicit joint scenarios
 
-`decision_robust.joint_scenario_carrier(prepared, contract, claims,
-joint_structure=..., exhaustive=...)` validates finite scenario laws against a
-prepared study's causal binding. Each evaluated law must explicitly carry joint
-rows, including the cross-action dependence. The compiler does not construct
-that dependence from marginal intervals. `exhaustive` and `search_stop` state the
-scope of the supplied search; replay cannot establish their scientific truth.
+Use this when you can write down a handful of scenarios, each a finite law over the outcomes of
+your actions, and you want the action that holds up across all of them. The scenarios must
+state how the actions' outcomes move together. A scenario that says only "action A is worth
+between 0.3 and 0.6" and "action B is worth between 0.5 and 0.6" does not say whether the two
+are high together or one is high when the other is low, and a payoff that uses both outcomes
+(for example, success only if two campaigns both succeed) depends on that. The compiler does not
+build the dependence from marginal intervals. It refuses a scenario that is not a joint law.
 
-Pass the source to `decision_robust.compile_robust_decision(prepared, contract,
-source)`, then `require_success(compiled.evaluate())`. Rust exposes the same path
-through `JointScenarioCarrier::checked`, `Study::compile_for_robust_decision` or
-`PreparedStudy::compile_for_robust_decision`, and `CompiledRobustDecision::execute`.
-The shared lowered program names `identified_set`, the exact source identity and
-`scenario_set` composition. It does not fit the anchor's scalar estimator.
+The example below compares three actions under three scenarios written as tables of joint
+rows. It computes the maximin choice by hand, compiles the same decision, asks for the
+invariant-best action, declares an unfinished search, and replays the sealed result.
 
-This narrow terminal supports invariant-best, maximin and report-only policies.
-Bayes-over-structures, independent marginals and unsupported anchor routes refuse
-with `decision_joint_scenarios.carrier`; quantity and support failures retain the robust
-engine's own refusal details. Incomplete search, unidentified/unevaluated states
-or missing probability mass force an incomplete verdict. Per-scenario values,
-support, completion counts and unresolved mass remain available. Counts never
-become probabilities. Each result states
-`conditional_on_declared_joint_scenarios`, with `native_verified=false`.
+<!-- example: examples/python/robust_joint_scenarios.py -->
 
-The source frame `ANTE-JOINT-SCENARIOS-1` binds the typed laws, causal identities,
-support, dependence and search standing. Loading it requires a separately retained
-source digest. The result frame `ANTE-COMPILED-ROBUST-1` is replayed only under an
-independently compiled compatible owner, verifying source, program and contract
-identities and recomputing the robust readout. In Python, use
-`ant.load(compiled.export(), context=antecedent.artifacts.LoadContext(robust_source=independent))`.
-Bytes alone cannot reconstruct a prepared study or resume a fit.
+#### Walk-through
 
-The source is bounded to 64 MiB and 256 scenarios; the terminal permits at most
-256 actions and 256 constraints and its result frame at most 128 MiB. Source and
-readout storage hold distinct admission leases, shared by clones, until their
-last owner drops. Evaluation, export and consumption honor cancellation and
-execution memory limits. The independent finite-enumeration scientific check is
-registered and owed; this route adds no sampling interval or calibration claim.
+1. **Declare the scenarios.** Each scenario is a `JointDistributionArtifact` whose rows are
+   joint states, wrapped in `decision_robust.Claim.evaluated(...)` with a support label.
+2. **Build the source.** `decision_robust.joint_scenario_carrier(prepared, contract, claims,
+   joint_structure=..., exhaustive=...)` checks every law against the prepared study's causal
+   binding. `joint_structure` names the shared state the rows index. `exhaustive` and
+   `search_stop` state whether the scenario search was finished and, if not, why it stopped.
+3. **Compile and evaluate.** `decision_robust.compile_robust_decision(prepared, contract,
+   source)` binds the source to the decision. `require_success(compiled.evaluate())` returns
+   the verdict, each action's lowest and highest value over the scenarios, and the retained
+   masses. No model is fitted.
+4. **Export and replay.** `compiled.export()` seals the result. Load it with
+   `ant.load(sealed, context=antecedent.artifacts.LoadContext(robust_source=independent))`,
+   where `independent` is the same decision compiled again from the source you kept.
+
+Rust exposes the same path through `JointScenarioCarrier::checked`,
+`Study::compile_for_robust_decision` or `PreparedStudy::compile_for_robust_decision`, and
+`CompiledRobustDecision::execute`.
+
+#### Policies
+
+The route supports `maximin` (the action with the best worst case over the scenarios),
+`require_invariant_best_action` (an action only if it is uniquely best in every scenario; when
+the scenarios disagree the verdict names the leaders and chooses nothing) and `report_only`
+(values without a choice). Bayes over structures, independent marginals and anchors the
+compiler does not support refuse with `decision_joint_scenarios.carrier`. Quantity and support
+failures keep the robust engine's own refusal details.
+
+#### An unfinished search is incomplete
+
+If you declare `exhaustive=False`, or a scenario is unidentified or unevaluated, the verdict is
+incomplete and chooses nothing. The result still reports the values of the scenarios that were
+evaluated, their support, and the probability mass left unresolved. That mass appears only if
+you declared priors for the scenarios. Completion counts are kept as counts and never become
+probabilities.
+
+#### What the result claims
+
+Every result carries `conditional_on_declared_joint_scenarios` and `native_verified=false`.
+
+- A robust verdict is not an expected utility and not a posterior over the scenarios. Maximin
+  and invariant-best use no scenario probabilities.
+- The verdict holds for the scenarios you declared. Replay cannot show that the set is
+  complete or that each table describes the world.
+- The route adds no sampling interval or calibration claim.
+
+#### Artifacts, loading and limits
+
+The source frame `ANTE-JOINT-SCENARIOS-1` holds the typed laws, causal identities, support,
+dependence and search standing. Loading it requires a separately retained source identity
+(`ant.load(source.export(), expected=source.identity)`); a different identity is not accepted.
+The result frame `ANTE-COMPILED-ROBUST-1` replays only under an independently compiled
+compatible owner. Replay checks the source, program and contract identities and recomputes
+the readout. Loading the result without that owner refuses. Bytes alone cannot rebuild a prepared
+study or resume a fit.
+
+The source is limited to 64 MiB and 256 scenarios. The terminal allows at most 256 actions and
+256 constraints, and its result frame at most 128 MiB. Evaluation, export and consumption honor
+cancellation and execution memory limits.

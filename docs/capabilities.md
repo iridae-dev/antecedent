@@ -304,6 +304,8 @@ CBOR artifacts.
 * J-PCMCI+
 * regime-specific RPCMCI workflows
 
+Runnable example: [`examples/python/temporal_discovery.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/temporal_discovery.py).
+
 ### Bayesian structure learning
 
 <!-- generated:claim:exact_dag_posterior_is_enumeration:begin -->* exact DAG posterior;<!-- generated:claim:exact_dag_posterior_is_enumeration:end -->

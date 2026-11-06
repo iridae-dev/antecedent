@@ -146,6 +146,8 @@ A `SwitchbackModel` must name its carryover (`"none"`, `"first_order"`) and its 
 
 ## Variants
 
+Runnable example: [`examples/python/experiment_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/experiment_designs.py).
+
 - **Precision adjustment.** `RandomizedEffect(..., cuped=FixedCUPED(...))` and `ancova_covariates=(...)` use pre-assignment covariates to reduce variance under independent Bernoulli assignment. The covariates must be measured before assignment; they cannot be post-treatment variables. ANCOVA reports an independent-row HC0 variance. Multi-arm designs do not combine with either.
 - **Exact randomization test.** `exact_randomization_test=True` (or `experiment.exact_randomization_test` directly, up to 20 units) tests the sharp null of no effect for any unit by enumerating assignments. It is a test, not a confidence interval.
 - **Sampling weights.** `RandomizedEffect(..., weights="w")` targets the weighted population for an unadjusted Bernoulli or complete design. See [sampling weights](../sampling-weights.md).

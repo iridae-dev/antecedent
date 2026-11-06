@@ -905,3 +905,250 @@ level = "advanced"
 dependencies = ["pandas"]
 runtime = "up to 5 min"
 claim = "Numerical timing; no scientific claim"
+
+[[example]]
+id = "composed_outcome_law"
+title = "Ask probability and quantile questions of a composed model"
+summary = "Compose a small linear-Gaussian mechanism, find which doses reach an outcome floor with a given probability or quantile, see a quantile on a mean coordinate refuse, then seal and replay the answer."
+python = "examples/python/composed_outcome_law.py"
+notebook = "examples/notebooks/composed_outcome_law.ipynb"
+unreleased = true
+topic = "Decisions and study planning"
+level = "advanced"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "Outcome probabilities and quantiles of declared Gaussian mechanisms are checked against closed-form Gaussian values computed from the declared coefficients and noise. The mechanisms are assumptions, not estimates, so the answers and their replay are conditional on them; the outcome law has no standard error and no interval region."
+
+[[example]]
+id = "retarget_adjusted_fit"
+title = "Move a fitted adjusted effect to a new population"
+summary = "Fit a logistic adjusted effect once, retarget it to a population defined by weights on an adjustment covariate without refitting, and see weights that depend on the treatment refuse."
+python = "examples/python/retarget_adjusted_fit.py"
+notebook = "examples/notebooks/retarget_adjusted_fit.ipynb"
+unreleased = true
+topic = "Prepare, branch and reuse"
+level = "intermediate"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "The retargeted effect of a simulated logistic mechanism is checked against an independently computed weighted standardized effect and the declared mechanism's target-population effect. The interval is conditional on fixed target weights; weight uncertainty, bootstrap uncertainty and double robustness are not claimed, and its calibration status is printed as reported."
+
+[[example]]
+id = "joint_sensitivity_interval"
+title = "Replay a joint sensitivity interval"
+summary = "Export the endpoint-bootstrap interval of a joint mechanism sensitivity range, replay it from the bytes alone and see edited or over-limit artifacts refuse."
+python = "examples/python/joint_sensitivity_interval.py"
+notebook = "examples/notebooks/joint_sensitivity_interval.ipynb"
+unreleased = true
+topic = "Transport"
+level = "advanced"
+dependencies = []
+runtime = "up to 1 min"
+claim = "The replayed range and interval equal the exported ones. The interval is a conservative endpoint bootstrap for a fixed true deviation inside the declared box, not a confidence interval for the whole sensitivity set."
+
+[[example]]
+id = "robust_joint_scenarios"
+title = "Choose robustly among explicit joint scenarios"
+summary = "Compile maximin and invariant-best decisions over declared joint scenarios, see an unfinished search stay incomplete and replay the sealed result."
+python = "examples/python/robust_joint_scenarios.py"
+notebook = "examples/notebooks/robust_joint_scenarios.ipynb"
+unreleased = true
+topic = "Decisions and study planning"
+level = "advanced"
+dependencies = []
+runtime = "up to 1 min"
+claim = "The maximin choice is checked against worst cases computed by hand from the declared scenario table. The verdict holds conditional on the declared joint scenarios; it is neither an expected utility nor a posterior, and replay cannot show the scenario set is complete."
+
+[[example]]
+id = "missing_outcome_sensitivity"
+title = "Bound how far missing-not-at-random outcomes could move an effect"
+summary = "Sweep a declared departure for outcomes that go missing because of their own value, and read the effect range, the tipping point and the decision."
+python = "examples/python/missing_outcome_sensitivity.py"
+notebook = "examples/notebooks/missing_outcome_sensitivity.ipynb"
+unreleased = true
+topic = "Estimate effects"
+level = "intermediate"
+dependencies = []
+runtime = "under 5 seconds"
+claim = "The grid matches the closed form, the simulated full-data effect lies in the assumption range and at the true shift, and the decision tipping point matches its closed form. The range is an assumption range under a shift model, not a confidence interval, and the departure is untestable."
+
+[[example]]
+id = "predictive_assessment"
+title = "Assess a fitted model's held-out score and detect drift"
+summary = "Score a line fitted in one period on held-out and later cases, and compare feature drift on a shifted feature with an unshifted control."
+python = "examples/python/predictive_assessment.py"
+notebook = "examples/notebooks/predictive_assessment.ipynb"
+unreleased = true
+topic = "Evidence and composition"
+level = "intermediate"
+dependencies = []
+runtime = "under 5 seconds"
+claim = "CRPS equals the Gaussian closed form and KS equals a numpy reference; the later period scores worse; the shifted feature drifts and the control does not. A score is not causal validity and drift carries no significance level."
+
+[[example]]
+id = "refute_and_bound"
+title = "Refute an adjusted estimate and bound a hidden confounder"
+summary = "Run placebo and random-common-cause refuters on a study with a hidden confounder, then bound it with omitted-variable-bias and Rosenbaum sensitivity."
+python = "examples/python/refute_and_bound.py"
+notebook = "examples/notebooks/refute_and_bound.ipynb"
+unreleased = true
+topic = "Evidence and composition"
+level = "advanced"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "Refuters pass, and the bias bound at the confounder's simulated true strength brackets the full-adjustment coefficient and the simulated truth; Rosenbaum bounds are checked at the simulated odds ratio. Passing refuters is not evidence of no unmeasured confounding."
+
+[[example]]
+id = "branch_and_reuse"
+title = "Branch, rebind and reuse a prepared batch"
+summary = "Prepare several outcomes once, rebind onto a later wave, reconfigure the questions, and check each branch equals a fresh run."
+python = "examples/python/branch_and_reuse.py"
+notebook = "examples/notebooks/branch_and_reuse.ipynb"
+unreleased = true
+topic = "Prepare, branch and reuse"
+level = "intermediate"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "Batch effects match the simulated truth (2, 1, -0.5; then 3, 1.5, -0.5 after rebind) within 0.15, and every reused or branched result equals a fresh run to 1e-9. Reuse is a record of retained and invalidated work, not a timing claim."
+
+[[example]]
+id = "evidence_plan"
+title = "Plan which evidence to collect"
+summary = "Order candidate studies by what they would identify, value them net of cost, and check the chosen plan against a hand computation."
+python = "examples/python/evidence_plan.py"
+notebook = "examples/notebooks/evidence_plan.ipynb"
+unreleased = true
+topic = "Decisions and study planning"
+level = "advanced"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "Verified studies, EVSI, net-value order and structural order equal hand computations, and the adjusted estimate is within 0.15 of the simulated effect 2. Identification of a planned study is hypothetical until its data exist, and the value model is a declared stand-in."
+
+[[example]]
+id = "discovery_methods"
+title = "Compare structure-learning methods against a known graph"
+summary = "Run GES, LiNGAM, FCI and a Bayesian graph posterior on one simulated system, add background knowledge, and score each result against the true graph."
+python = "examples/python/discovery_methods.py"
+notebook = "examples/notebooks/discovery_methods.ipynb"
+unreleased = true
+topic = "Structure and discovery"
+level = "intermediate"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "Recovered skeletons and orientations are checked by structural Hamming distance against the hand-derived equivalence class and the declared DAG, and order-MCMC edge probabilities against exact enumeration. Method assumptions (linearity, no latent variables except for FCI, acyclicity) are not tested."
+
+[[example]]
+id = "temporal_discovery"
+title = "Find lagged and same-time links in a time series"
+summary = "Run PCMCI+ and LPCMCI on a simulated four-variable series with a latent driver and recover the lagged links."
+python = "examples/python/temporal_discovery.py"
+notebook = "examples/notebooks/temporal_discovery.ipynb"
+unreleased = true
+topic = "Structure and discovery"
+level = "intermediate"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "Every declared lagged link and the same-time adjacency are found, checked against the simulated vector autoregression and least-squares slopes. Extra links are reported, not excluded; same-time orientations are not claimed."
+
+[[example]]
+id = "root_cause_attribution"
+title = "Explain an anomaly and a distribution change by root cause"
+summary = "Attribute a shifted outcome to the mechanism that changed and locate the node behind one shocked observation in a simulated chain."
+python = "examples/python/root_cause_attribution.py"
+notebook = "examples/notebooks/root_cause_attribution.ipynb"
+unreleased = true
+topic = "Structural models and feedback"
+level = "intermediate"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "The total change is checked against the period-mean gap and the declared shift, and the changed mechanism carries nearly all of it; anomaly scores are checked against their definition and the injected node is the first out of range. The graph is assumed, not tested."
+
+[[example]]
+id = "panel_designs"
+title = "Estimate a rollout effect with synthetic control and staggered adoption"
+summary = "Fit synthetic control, synthetic difference-in-differences and a staggered event study on one simulated panel."
+python = "examples/python/panel_designs.py"
+notebook = "examples/notebooks/panel_designs.ipynb"
+unreleased = true
+topic = "Experiments and study designs"
+level = "intermediate"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "Each effect is checked against the simulated applied effect within a stated tolerance, and a too-short pre-period and a missing never-treated group refuse. Parallel trends and donor validity are not claimed."
+
+[[example]]
+id = "discontinuity_and_iv"
+title = "Estimate effects at a threshold and bound them with an instrument"
+summary = "Run sharp and fuzzy discontinuity, a regression kink and binary IV bounds on simulated data with known effects."
+python = "examples/python/discontinuity_and_iv.py"
+notebook = "examples/notebooks/discontinuity_and_iv.ipynb"
+unreleased = true
+topic = "Experiments and study designs"
+level = "intermediate"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "The jump, fuzzy ratio and kink ratio are checked against the simulated values, the average effect against the identified IV set and the Wald ratio against the complier effect. Local validity and instrument exclusion are not claimed."
+
+[[example]]
+id = "sequential_regimes"
+title = "Compare treatment regimes over several periods"
+summary = "Value always-treat, never-treat and a rule-based regime with the sequential g-formula and doubly robust estimators."
+python = "examples/python/sequential_regimes.py"
+notebook = "examples/notebooks/sequential_regimes.ipynb"
+unreleased = true
+topic = "Estimate effects"
+level = "advanced"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "Regime values are checked against Monte Carlo values from the declared process and against a numpy recomputation of the estimator's formula. Point values only; sequential exchangeability and model validity are not claimed."
+
+[[example]]
+id = "experiment_designs"
+title = "Analyze switchback, CUPED, exact-test and encouragement experiments"
+summary = "Analyze a switchback with carryover, a CUPED-adjusted test, an exact randomization test and an encouragement design, each with a simulated truth."
+python = "examples/python/experiment_designs.py"
+notebook = "examples/notebooks/experiment_designs.ipynb"
+unreleased = true
+topic = "Experiments and study designs"
+level = "intermediate"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "Switchback, CUPED and complier effects are checked against the simulated 2.0 and 3.0, and the exact p-value against a full enumeration of 4,096 assignments. Designs other than those declared are not claimed."
+
+[[example]]
+id = "network_interference"
+title = "Estimate direct and spillover effects on a network"
+summary = "Separate own-treatment and neighbor effects under Bernoulli and two-stage saturation designs."
+python = "examples/python/network_interference.py"
+notebook = "examples/notebooks/network_interference.ipynb"
+unreleased = true
+topic = "Experiments and study designs"
+level = "advanced"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "Direct, spillover and total contrasts are checked against the simulation's known values within stated tolerances. Interference beyond the declared exposure mapping and network is not claimed."
+
+[[example]]
+id = "retained_refresh"
+title = "Refresh a retained analysis as data arrive"
+summary = "Append, correct and window rows, then spill and reload, keeping the least-squares summary current without refitting from scratch."
+python = "examples/python/retained_refresh.py"
+notebook = "examples/notebooks/retained_refresh.ipynb"
+unreleased = true
+topic = "Prepare, branch and reuse"
+level = "intermediate"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "Refreshed coefficients equal an independent numpy least-squares fit over the held rows to 1e-9, and the treatment effect is near the simulated 2.0. The refresh does not re-identify the question."
+
+[[example]]
+id = "survival_ipcw"
+title = "Estimate survival under covariate-dependent censoring"
+summary = "Weight by the censoring survival to recover survival, restricted mean survival and cumulative incidence."
+python = "examples/python/survival_ipcw.py"
+notebook = "examples/notebooks/survival_ipcw.ipynb"
+unreleased = true
+topic = "Estimate effects"
+level = "advanced"
+dependencies = []
+runtime = "under 10 seconds"
+claim = "Weighted survival, the RMST difference and cumulative incidence are checked against closed forms of the simulation, and the curve that assumes independent censoring is shown biased. The supplied censoring survival is not fitted or verified."
