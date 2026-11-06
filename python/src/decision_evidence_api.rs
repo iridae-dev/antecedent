@@ -203,51 +203,11 @@ impl std::ops::Deref for ParsedEvidence {
         &self.value
     }
 }
-fn evidence_with_context(
-    value: &Json,
-    ctx: &antecedent::prelude::ExecutionContext,
-) -> PyResult<Result<ParsedEvidence, EvidenceRefusal>> {
-    let map = object(value, "evidence")?;
-    let dep = object(member(map, "dependence")?, "dependence")?;
-    let dependence = match text(dep, "kind")?.as_str() {
-        "joint" => {
-            Dependence::Joint { treated: reals(dep, "treated")?, control: reals(dep, "control")? }
-        }
-        "point_only" => Dependence::PointOnly,
-        "joint_arms" => Dependence::JointArms { covariance: reals(dep, "covariance")? },
-        "marginals_only" => Dependence::MarginalsOnly {
-            treated: reals(dep, "treated")?,
-            control: reals(dep, "control")?,
-        },
-        other => return Err(crate::value_err(format!("unknown dependence kind `{other}`"))),
-    };
-    let design = object(member(map, "design")?, "design")?;
-    let supports = match present(map, "marginal_supports") {
-        Some(Json::Array(items)) => {
-            items.iter().map(|v| v.as_str().map(str::to_owned)).collect::<Vec<_>>()
-        }
-        _ => Vec::new(),
-    };
-    let built = JointExperimentEvidence::new(
-        text(map, "evidence_id")?,
-        text(map, "population_id")?,
-        (text(map, "treated_regime_id")?, text(map, "control_regime_id")?),
-        u32::try_from(count(map, "horizon")?).map_err(|_| crate::value_err("horizon too large"))?,
-        components(map, "components")?,
-        (reals(map, "treated_means")?, reals(map, "control_means")?),
-        dependence,
-        DesignRecord {
-            assignment_design: text(design, "assignment_design")?,
-            treated_units: count(design, "treated_units")?,
-            control_units: count(design, "control_units")?,
-            outcome_rows: count(design, "outcome_rows")?,
-        },
-        adjustments(map)?,
-        exposure(map)?,
-    );
-    let details =
-        present(map, "design_details").map(|v| object(v, "design_details")).transpose()?;
-    let design_contract_id = opt_text(map, "design_contract_id")?;
+fn decode_experimental_design_details(
+    details: Option<&Map<String, Json>>,
+    map: &Map<String, Json>,
+    design: &Map<String, Json>,
+) -> PyResult<Result<Option<DesignDetails>, EvidenceRefusal>> {
     let decoded_details = match details {
         Some(m) => match text(m, "kind")?.as_str() {
             "matched_pairs" => {
@@ -402,6 +362,96 @@ fn evidence_with_context(
         },
         None => None,
     };
+    Ok(Ok(decoded_details))
+}
+
+fn replay_compiled_evidence(
+    source: &antecedent::analysis::joint_panel::designs::NativeJointDesignResult,
+    value: &JointExperimentEvidence,
+) -> Result<JointExperimentEvidence, EvidenceRefusal> {
+    let regimes = (&*value.treated_regime_id, &*value.control_regime_id);
+    match value.design.assignment_design.as_str() {
+        "cluster" => evidence_from_compiled_cluster(
+            source.clone(),
+            &value.evidence_id,
+            regimes,
+            value.horizon,
+        )
+        .map(|bound| bound.numerical_evidence().clone()),
+        "adaptive_regime" => {
+            evidence_from_compiled_adaptive_regime(source.clone(), &value.evidence_id)
+                .map(|bound| bound.numerical_evidence().clone())
+        }
+        "temporal_excursion" => evidence_from_compiled_excursion(
+            source.clone(),
+            &value.evidence_id,
+            regimes,
+            value.horizon,
+        )
+        .map(|bound| bound.numerical_evidence().clone()),
+        "temporal_regime" => {
+            evidence_from_compiled_static_regime(source.clone(), &value.evidence_id, regimes)
+                .map(|bound| bound.numerical_evidence().clone())
+        }
+        _ => evidence_from_compiled_experiment(
+            source.clone(),
+            &value.evidence_id,
+            regimes,
+            value.horizon,
+        )
+        .map(|bound| bound.numerical_evidence().clone()),
+    }
+}
+
+fn evidence_with_context(
+    value: &Json,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> PyResult<Result<ParsedEvidence, EvidenceRefusal>> {
+    let map = object(value, "evidence")?;
+    let dep = object(member(map, "dependence")?, "dependence")?;
+    let dependence = match text(dep, "kind")?.as_str() {
+        "joint" => {
+            Dependence::Joint { treated: reals(dep, "treated")?, control: reals(dep, "control")? }
+        }
+        "point_only" => Dependence::PointOnly,
+        "joint_arms" => Dependence::JointArms { covariance: reals(dep, "covariance")? },
+        "marginals_only" => Dependence::MarginalsOnly {
+            treated: reals(dep, "treated")?,
+            control: reals(dep, "control")?,
+        },
+        other => return Err(crate::value_err(format!("unknown dependence kind `{other}`"))),
+    };
+    let design = object(member(map, "design")?, "design")?;
+    let supports = match present(map, "marginal_supports") {
+        Some(Json::Array(items)) => {
+            items.iter().map(|v| v.as_str().map(str::to_owned)).collect::<Vec<_>>()
+        }
+        _ => Vec::new(),
+    };
+    let built = JointExperimentEvidence::new(
+        text(map, "evidence_id")?,
+        text(map, "population_id")?,
+        (text(map, "treated_regime_id")?, text(map, "control_regime_id")?),
+        u32::try_from(count(map, "horizon")?).map_err(|_| crate::value_err("horizon too large"))?,
+        components(map, "components")?,
+        (reals(map, "treated_means")?, reals(map, "control_means")?),
+        dependence,
+        DesignRecord {
+            assignment_design: text(design, "assignment_design")?,
+            treated_units: count(design, "treated_units")?,
+            control_units: count(design, "control_units")?,
+            outcome_rows: count(design, "outcome_rows")?,
+        },
+        adjustments(map)?,
+        exposure(map)?,
+    );
+    let details =
+        present(map, "design_details").map(|v| object(v, "design_details")).transpose()?;
+    let design_contract_id = opt_text(map, "design_contract_id")?;
+    let decoded_details = match decode_experimental_design_details(details, map, design)? {
+        Ok(details) => details,
+        Err(error) => return Ok(Err(error)),
+    };
     let mut value = match built {
         Ok(e) => e,
         Err(error) => return Ok(Err(error)),
@@ -461,50 +511,9 @@ fn evidence_with_context(
                 }
             }
         }
-        let actual = if value.design.assignment_design == "cluster" {
-            match evidence_from_compiled_cluster(
-                source.clone(),
-                &value.evidence_id,
-                (&value.treated_regime_id, &value.control_regime_id),
-                value.horizon,
-            ) {
-                Ok(bound) => bound.numerical_evidence().clone(),
-                Err(error) => return Ok(Err(error)),
-            }
-        } else if value.design.assignment_design == "adaptive_regime" {
-            match evidence_from_compiled_adaptive_regime(source.clone(), &value.evidence_id) {
-                Ok(bound) => bound.numerical_evidence().clone(),
-                Err(error) => return Ok(Err(error)),
-            }
-        } else if value.design.assignment_design == "temporal_excursion" {
-            match evidence_from_compiled_excursion(
-                source.clone(),
-                &value.evidence_id,
-                (&value.treated_regime_id, &value.control_regime_id),
-                value.horizon,
-            ) {
-                Ok(bound) => bound.numerical_evidence().clone(),
-                Err(error) => return Ok(Err(error)),
-            }
-        } else if value.design.assignment_design == "temporal_regime" {
-            match evidence_from_compiled_static_regime(
-                source.clone(),
-                &value.evidence_id,
-                (&value.treated_regime_id, &value.control_regime_id),
-            ) {
-                Ok(bound) => bound.numerical_evidence().clone(),
-                Err(error) => return Ok(Err(error)),
-            }
-        } else {
-            match evidence_from_compiled_experiment(
-                source.clone(),
-                &value.evidence_id,
-                (&value.treated_regime_id, &value.control_regime_id),
-                value.horizon,
-            ) {
-                Ok(bound) => bound.numerical_evidence().clone(),
-                Err(error) => return Ok(Err(error)),
-            }
+        let actual = match replay_compiled_evidence(&source, &value) {
+            Ok(actual) => actual,
+            Err(error) => return Ok(Err(error)),
         };
         let mut compatible = actual == value;
         if !compatible {

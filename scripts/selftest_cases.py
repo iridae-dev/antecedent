@@ -7,8 +7,8 @@
     python3 scripts/selftest_cases.py reachability  # gate_evidence_reachability.sh --self-test
     python3 scripts/selftest_cases.py metadata  # gate_metadata_consistency.sh --self-test
 
-Each case builds a disposable overlay of the repo (every tracked file hard
-linked, `python/` linked so the built extension is reused), copies the files it
+Each case builds a disposable overlay of the repo (files are hard linked where
+possible; most suites link `python/` to reuse the built extension), copies the files it
 breaks into it, runs the unchanged gate script from the overlay, and requires
 the gate to fail with the case's expected message. A positive control (the overlay with no mutation) must pass, so a gate
 that fails on everything cannot satisfy its self-test. The working tree is
@@ -41,12 +41,12 @@ def _repo_files() -> list[str]:
     return [f for f in listed.split("\0") if f and (ROOT / f).is_file()]
 
 
-def build_overlay(tmp: Path) -> Path:
+def build_overlay(tmp: Path, *, link_python: bool = True) -> Path:
     """Hard-link (or copy) every tracked and unignored file into a fresh tree."""
     ov = tmp / "repo"
     ov.mkdir()
     for rel in _repo_files():
-        if rel.startswith("python/"):
+        if link_python and rel.startswith("python/"):
             continue
         dest = ov / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -57,7 +57,8 @@ def build_overlay(tmp: Path) -> Path:
     # `python/` stays a link to the checkout: a gate's `uv run` there resolves
     # to the real project directory (POSIX cwd is canonical) and reuses the
     # built extension instead of rebuilding it once per case.
-    (ov / "python").symlink_to(ROOT / "python")
+    if link_python:
+        (ov / "python").symlink_to(ROOT / "python")
     return ov
 
 
@@ -96,7 +97,11 @@ def case(
 ) -> bool:
     """Run `script` on an overlay with `mutations`; check the verdict and messages."""
     with tempfile.TemporaryDirectory() as tmp:
-        ov = build_overlay(Path(tmp))
+        # Reachability checks that referenced files resolve within the repo.
+        # Its Python inputs must therefore be real overlay entries, not a
+        # directory symlink to the checkout. This gate does not run Python
+        # package tests and does not need the shared built extension.
+        ov = build_overlay(Path(tmp), link_python=script != "gate_evidence_reachability.sh")
         for rel, mutate in mutations.items():
             path = materialize(ov, rel)
             before = path.read_text(encoding="utf-8")

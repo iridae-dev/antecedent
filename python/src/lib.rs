@@ -1352,6 +1352,45 @@ pub(crate) fn mediation_uncertainty_projection(
     }
 }
 
+fn shared_posterior_section(result: &antecedent::StudyResult) -> PyResult<PosteriorSection> {
+    let (
+        posterior_effect_mean,
+        posterior_effect_sd,
+        posterior_q025,
+        posterior_q975,
+        posterior_n_draws,
+        posterior_p_below_zero,
+        posterior_backend,
+    ) = if let Some(post) = result.posterior.as_ref() {
+        let eq = post.effect_column();
+        let p_below = eq.map(|_| post.probability_below(0.0)).transpose().map_err(py_err)?;
+        (
+            eq.map(|i| post.summaries.mean[i]),
+            eq.map(|i| post.summaries.sd[i]),
+            eq.map(|i| post.summaries.q025[i]),
+            eq.map(|i| post.summaries.q975[i]),
+            Some(post.draws.n_draws),
+            p_below,
+            Some(post.diagnostics.backend_id.to_string()),
+        )
+    } else {
+        (None, None, None, None, None, None, None)
+    };
+    let posterior = PosteriorSection {
+        effect_mean: posterior_effect_mean,
+        effect_sd: posterior_effect_sd,
+        q025: posterior_q025,
+        q975: posterior_q975,
+        n_draws: posterior_n_draws,
+        p_below_zero: posterior_p_below_zero,
+        backend: posterior_backend,
+        artifact: None,
+        unidentified_mass: result.posterior.as_ref().map(|p| p.unidentified_mass),
+        subsampled_out_mass: result.posterior.as_ref().map(|p| p.subsampled_out_mass),
+    };
+    Ok(posterior)
+}
+
 pub(crate) fn shared_study_sections(
     names: &[String],
     result: &antecedent::StudyResult,
@@ -1574,41 +1613,7 @@ pub(crate) fn shared_study_sections(
                 )
             }),
     };
-    let (
-        posterior_effect_mean,
-        posterior_effect_sd,
-        posterior_q025,
-        posterior_q975,
-        posterior_n_draws,
-        posterior_p_below_zero,
-        posterior_backend,
-    ) = if let Some(post) = result.posterior.as_ref() {
-        let eq = post.effect_column();
-        let p_below = eq.map(|_| post.probability_below(0.0)).transpose().map_err(py_err)?;
-        (
-            eq.map(|i| post.summaries.mean[i]),
-            eq.map(|i| post.summaries.sd[i]),
-            eq.map(|i| post.summaries.q025[i]),
-            eq.map(|i| post.summaries.q975[i]),
-            Some(post.draws.n_draws),
-            p_below,
-            Some(post.diagnostics.backend_id.to_string()),
-        )
-    } else {
-        (None, None, None, None, None, None, None)
-    };
-    let posterior = PosteriorSection {
-        effect_mean: posterior_effect_mean,
-        effect_sd: posterior_effect_sd,
-        q025: posterior_q025,
-        q975: posterior_q975,
-        n_draws: posterior_n_draws,
-        p_below_zero: posterior_p_below_zero,
-        backend: posterior_backend,
-        artifact: None,
-        unidentified_mass: result.posterior.as_ref().map(|p| p.unidentified_mass),
-        subsampled_out_mass: result.posterior.as_ref().map(|p| p.subsampled_out_mass),
-    };
+    let posterior = shared_posterior_section(result)?;
     let validation = ValidationSection::from_reports(refutations.clone(), &result.diagnostics);
     let performance = PerformanceSection {
         native_execution: result.performance.native_execution.clone(),

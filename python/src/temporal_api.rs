@@ -442,6 +442,16 @@ pub(crate) fn apply_class_prior(
     }
 }
 
+pub(crate) fn apply_class_completion_options(
+    builder: StudyBuilder,
+    ordered: Option<Vec<f64>>,
+    pairs: Option<Vec<(u64, f64)>>,
+    max_completions: Option<usize>,
+) -> PyResult<StudyBuilder> {
+    let builder = apply_class_prior(builder, ordered, pairs)?;
+    Ok(apply_max_completions(builder, max_completions))
+}
+
 pub(crate) fn apply_temporal_inference_transfer(
     builder: antecedent::StudyBuilder,
     inference: Option<&str>,

@@ -330,13 +330,12 @@ impl PyPreparedAnalysis {
                         antecedent::Study::series(series).graph_posterior(gp).query(query),
                         response_options,
                     );
-                    let builder = crate::temporal_api::apply_class_prior(
+                    let builder = crate::temporal_api::apply_class_completion_options(
                         builder,
                         class_prior_ordered,
                         class_prior_pairs,
+                        max_completions,
                     )?;
-                    let builder =
-                        crate::temporal_api::apply_max_completions(builder, max_completions);
                     let builder = req.opts.apply(builder);
                     return req.finish_with(builder, true, &ctx);
                 }
@@ -360,12 +359,12 @@ impl PyPreparedAnalysis {
                     }
                 };
                 let builder = with_response_options(builder.query(query), response_options);
-                let builder = crate::temporal_api::apply_class_prior(
+                let builder = crate::temporal_api::apply_class_completion_options(
                     builder,
                     class_prior_ordered,
                     class_prior_pairs,
+                    max_completions,
                 )?;
-                let builder = crate::temporal_api::apply_max_completions(builder, max_completions);
                 req.finish_applied(builder, true)
             })
         })

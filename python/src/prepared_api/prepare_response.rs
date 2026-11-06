@@ -271,12 +271,12 @@ impl PyPreparedAnalysis {
                 if req.opts.retain_joint_horizons {
                     builder = builder.retain_joint_horizons(true);
                 }
-                builder = crate::temporal_api::apply_class_prior(
+                builder = crate::temporal_api::apply_class_completion_options(
                     builder,
                     class_prior_ordered,
                     class_prior_pairs,
+                    max_completions,
                 )?;
-                builder = crate::temporal_api::apply_max_completions(builder, max_completions);
                 req.compile(builder, true)
             })
         })
@@ -409,12 +409,12 @@ impl PyPreparedAnalysis {
                 };
                 builder = req.opts.apply_inference(builder)?;
                 builder = req.opts.apply_selection(builder);
-                builder = crate::temporal_api::apply_class_prior(
+                builder = crate::temporal_api::apply_class_completion_options(
                     builder,
                     class_prior_ordered,
                     class_prior_pairs,
+                    max_completions,
                 )?;
-                builder = crate::temporal_api::apply_max_completions(builder, max_completions);
                 req.compile(builder, true)
             })
         })
@@ -503,12 +503,12 @@ impl PyPreparedAnalysis {
                 };
                 builder = req.opts.apply(builder.query(CausalQuery::Mediation(q)));
                 builder = req.opts.apply_inference(builder)?;
-                builder = crate::temporal_api::apply_class_prior(
+                builder = crate::temporal_api::apply_class_completion_options(
                     builder,
                     class_prior_ordered,
                     class_prior_pairs,
+                    max_completions,
                 )?;
-                builder = crate::temporal_api::apply_max_completions(builder, max_completions);
                 req.compile(builder, true)
             })
         })

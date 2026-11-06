@@ -11,6 +11,41 @@ use antecedent::schema::RegimeId;
 use pyo3::prelude::*;
 use std::sync::Arc;
 
+fn sensitivity_mechanism_id(
+    names: &[String],
+    name: &str,
+    unknown_message: &'static str,
+) -> PyResult<VariableId> {
+    let index = names
+        .iter()
+        .position(|candidate| candidate == name)
+        .ok_or_else(|| error(unknown_message))?;
+    Ok(VariableId::from_raw(u32::try_from(index).map_err(|_| error(unknown_message))?))
+}
+
+// The two mechanism families share this envelope; their receipt and mechanism key differ.
+macro_rules! mechanism_sensitivity_json {
+    ($result:ident, $outcome:expr, $key:literal, $name:expr, $threshold:expr, $receipt:expr) => {
+        serde_json::to_string(&serde_json::json!({
+            "estimand": $result.estimand,
+            "outcome": $outcome,
+            $key: $name,
+            "source_population": $result.source_population,
+            "target_population": $result.target_population,
+            "source_kernel_binding": {"regime": $result.source_kernel_binding.0.raw(), "snapshot": $result.source_kernel_binding.1},
+            "target_parent_binding": {"regime": $result.target_parent_binding.0.raw(), "snapshot": $result.target_parent_binding.1},
+            "assumptions": $result.assumptions,
+            "baseline": $result.baseline,
+            "assumption_range": {"minimum": $result.minimum, "maximum": $result.maximum},
+            "interval_interpretation": "assumption range; not a sampling interval or sharp causal bound",
+            "decision_threshold": $threshold,
+            "tipping_fraction": $result.tipping_fraction,
+            "fraction_domain": $result.fraction_domain,
+            "optimization_receipt": $receipt,
+        })).map_err(error)
+    };
+}
+
 type ExactStagePayload = (Vec<Vec<f64>>, Vec<f64>, String, Vec<String>);
 
 #[pyclass(skip_from_py_object)]
@@ -624,78 +659,51 @@ impl PreparedExactStage {
             if perturbed_treatment_level.is_some() || perturbed_root_mechanism.is_some() {
                 return Err(error("choose one sensitivity mechanism family"));
             }
-            let mechanism_index = self
-                .graph
-                .names
-                .iter()
-                .position(|name| name == &mechanism_name)
-                .ok_or_else(|| error("unknown conditional mechanism"))?;
-            let mechanism = VariableId::from_raw(
-                u32::try_from(mechanism_index)
-                    .map_err(|_| error("unknown conditional mechanism"))?,
-            );
+            let mechanism = sensitivity_mechanism_id(
+                &self.graph.names,
+                &mechanism_name,
+                "unknown conditional mechanism",
+            )?;
             let result = crate::detach_catch(py, move || {
                 inner
                     .mechanism_sensitivity_conditional_mechanism(&spec, mechanism, &ctx)
                     .map_err(error)
             })?;
-            return serde_json::to_string(&serde_json::json!({
-                "estimand": result.estimand,
-                "outcome": self.graph.names[result.outcome.as_usize()],
-                "perturbed_conditional_mechanism": mechanism_name,
-                "source_population": result.source_population,
-                "target_population": result.target_population,
-                "source_kernel_binding": {"regime": result.source_kernel_binding.0.raw(), "snapshot": result.source_kernel_binding.1},
-                "target_parent_binding": {"regime": result.target_parent_binding.0.raw(), "snapshot": result.target_parent_binding.1},
-                "assumptions": result.assumptions,
-                "baseline": result.baseline,
-                "assumption_range": {"minimum": result.minimum, "maximum": result.maximum},
-                "interval_interpretation": "assumption range; not a sampling interval or sharp causal bound",
-                "decision_threshold": decision_threshold,
-                "tipping_fraction": result.tipping_fraction,
-                "fraction_domain": result.fraction_domain,
-                "optimization_receipt": {
+            return mechanism_sensitivity_json!(
+                result,
+                self.graph.names[result.outcome.as_usize()],
+                "perturbed_conditional_mechanism",
+                mechanism_name,
+                decision_threshold,
+                serde_json::json!({
                     "minimizing_mechanism_level_by_parent_stratum": result.minimizing_mechanism_level_by_parent_stratum,
-                    "maximizing_mechanism_level_by_parent_stratum": result.maximizing_mechanism_level_by_parent_stratum
-                }
-            })).map_err(error);
+                    "maximizing_mechanism_level_by_parent_stratum": result.maximizing_mechanism_level_by_parent_stratum,
+                })
+            );
         }
         if let Some(mechanism_name) = perturbed_root_mechanism {
             if perturbed_treatment_level.is_some() {
                 return Err(error("choose one sensitivity mechanism family"));
             }
-            let mechanism_index = self
-                .graph
-                .names
-                .iter()
-                .position(|name| name == &mechanism_name)
-                .ok_or_else(|| error("unknown root mechanism"))?;
-            let mechanism = VariableId::from_raw(
-                u32::try_from(mechanism_index).map_err(|_| error("unknown root mechanism"))?,
-            );
+            let mechanism = sensitivity_mechanism_id(
+                &self.graph.names,
+                &mechanism_name,
+                "unknown root mechanism",
+            )?;
             let result = crate::detach_catch(py, move || {
                 inner.mechanism_sensitivity_root_mechanism(&spec, mechanism, &ctx).map_err(error)
             })?;
-            return serde_json::to_string(&serde_json::json!({
-                "estimand": result.estimand,
-                "outcome": self.graph.names[result.outcome.as_usize()],
-                "perturbed_root_mechanism": mechanism_name,
-                "source_population": result.source_population,
-                "target_population": result.target_population,
-                "source_kernel_binding": {"regime": result.source_kernel_binding.0.raw(), "snapshot": result.source_kernel_binding.1},
-                "target_parent_binding": {"regime": result.target_parent_binding.0.raw(), "snapshot": result.target_parent_binding.1},
-                "assumptions": result.assumptions,
-                "baseline": result.baseline,
-                "assumption_range": {"minimum": result.minimum, "maximum": result.maximum},
-                "interval_interpretation": "assumption range; not a sampling interval or sharp causal bound",
-                "decision_threshold": decision_threshold,
-                "tipping_fraction": result.tipping_fraction,
-                "fraction_domain": result.fraction_domain,
-                "optimization_receipt": {
+            return mechanism_sensitivity_json!(
+                result,
+                self.graph.names[result.outcome.as_usize()],
+                "perturbed_root_mechanism",
+                mechanism_name,
+                decision_threshold,
+                serde_json::json!({
                     "minimizing_mechanism_level": result.minimizing_mechanism_level,
-                    "maximizing_mechanism_level": result.maximizing_mechanism_level
-                }
-            })).map_err(error);
+                    "maximizing_mechanism_level": result.maximizing_mechanism_level,
+                })
+            );
         }
         let result = crate::detach_catch(py, move || {
             if let Some(level) = perturbed_treatment_level {
