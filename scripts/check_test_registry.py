@@ -691,6 +691,28 @@ autotests = false
             ],
         )
         _expect_fail("named gate on an ignored-only file", root, "has no non-ignored test")
+        _registry(
+            root,
+            [{
+                "id": "ignored-inventory",
+                "crate": "demo",
+                "cargo_target": "suite_01",
+                "path": "crates/demo/tests/foo.rs",
+                "suite_map_line": "suite_01: foo",
+                "gates": ["inventory"],
+            }],
+        )
+        _expect_ok("ignored calibration test inventoried without named gate", root)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write(root, "python/tests/test_example.py", "def test_runs():\n    pass\n")
+        _registry(
+            root,
+            [{"id": "python-test", "crate": "python", "cargo_target": "script",
+              "path": "python/tests/test_example.py", "gates": ["inventory"]}],
+        )
+        _expect_ok("Python test inventoried as script", root)
 
     for decoy in (
         "// #[test] fn only_a_comment() {}\n",

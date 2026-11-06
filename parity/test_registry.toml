@@ -22815,7 +22815,7 @@ id = "prepared-adjusted-retarget-calibration"
 crate = "antecedent"
 cargo_target = "prepared_adjusted_retarget_calibration"
 path = "crates/antecedent/tests/prepared_adjusted_retarget_calibration.rs"
-gates = ["inventory", "named"]
+gates = ["inventory"]
 
 [[test]]
 id = "compiled-robust-decisions"
@@ -22827,6 +22827,34 @@ gates = ["inventory", "named"]
 [[test]]
 id = "python-compiled-robust"
 crate = "python"
-cargo_target = "pytest"
+cargo_target = "script"
 path = "python/tests/test_compiled_robust.py"
-gates = ["inventory", "named"]
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-evidence-earning"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_evidence_earning.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-evidence-manifests"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_evidence_manifests.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-evidence-pipeline"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_evidence_pipeline.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-evidence-projection"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_evidence_projection.py"
+gates = ["inventory"]

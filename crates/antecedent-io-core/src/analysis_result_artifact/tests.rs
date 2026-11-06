@@ -241,6 +241,52 @@ fn distribution_atoms_are_bound_to_query_and_reported_mean() {
 }
 
 #[test]
+fn distribution_duplicate_detection_preserves_zero_equality_and_refusal_order() {
+    let mut result = distribution_fixture();
+    let atoms = &mut result.interventional_distribution.as_mut().unwrap().atoms;
+    atoms[1].outcomes[0].1 = crate::ValueWire::Float64(-0.0);
+    atoms[1].probability = f64::NAN;
+    // The first atom sees the later duplicate before its invalid mass is visited.
+    refused(validate_interventional_distribution(&result), "contains duplicate atoms");
+
+    let mut result = distribution_fixture();
+    let atoms = &mut result.interventional_distribution.as_mut().unwrap().atoms;
+    atoms[0].probability = f64::NAN;
+    atoms[1].outcomes[0].1 = crate::ValueWire::Float64(-0.0);
+    refused(
+        validate_interventional_distribution(&result),
+        "atom does not match its query or has invalid mass",
+    );
+
+    let mut result = distribution_fixture();
+    let atoms = &mut result.interventional_distribution.as_mut().unwrap().atoms;
+    atoms[0].outcomes[0].1 = crate::ValueWire::Float64(f64::NAN);
+    atoms[1].outcomes[0].1 = crate::ValueWire::Float64(f64::NAN);
+    refused(validate_interventional_distribution(&result), "contains a non-finite value");
+}
+
+#[test]
+fn distribution_conditioning_groups_preserve_signed_zero_equality() {
+    let mut result = distribution_fixture();
+    let CausalQueryWire::Distribution(query) = &mut result.query else { unreachable!() };
+    query.conditioning = vec![2];
+    result.estimate = None;
+    let atom = |outcome, condition, probability| DistributionAtomWire {
+        outcomes: vec![(1, crate::ValueWire::Float64(outcome))],
+        conditioning: vec![(2, crate::ValueWire::Float64(condition))],
+        probability,
+    };
+    result.interventional_distribution.as_mut().unwrap().atoms =
+        vec![atom(0.0, 0.0, 0.3), atom(0.0, 1.0, 0.2), atom(1.0, -0.0, 0.7), atom(1.0, 1.0, 0.8)];
+    validate_interventional_distribution(&result).unwrap();
+    result.interventional_distribution.as_mut().unwrap().atoms[2].probability = 0.6;
+    refused(
+        validate_interventional_distribution(&result),
+        "atom masses must sum to one per conditioning assignment",
+    );
+}
+
+#[test]
 fn composite_roundtrip_validates_names_ids_and_nested_posterior() {
     let result = fixture();
     let names = vec!["a".into(), "y".into()];

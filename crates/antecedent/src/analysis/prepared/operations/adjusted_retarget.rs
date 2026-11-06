@@ -36,8 +36,10 @@ impl CheckedLinearOperation {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<(), CausalError> {
+        // A cancelled run still returns its completed (possibly partial) result; it only
+        // forgoes retaining the fit, so a later retarget refuses instead of reusing it.
         if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: "retain_adjusted_fit" });
+            return Ok(());
         }
         if let Some(fit) = lock_frozen_fit(&self.frozen_fit, ctx)?
             .as_mut()
@@ -180,8 +182,10 @@ impl CheckedGlmAdjustmentOperation {
         retention: Arc<antecedent_core::execution::AdmissionLease>,
         ctx: &ExecutionContext,
     ) -> Result<(), CausalError> {
+        // A cancelled run still returns its completed (possibly partial) result; it only
+        // forgoes retaining the fit, so a later retarget refuses instead of reusing it.
         if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: "retain_adjusted_fit" });
+            return Ok(());
         }
         *lock_frozen_fit(&self.frozen_fit, ctx)? = Some(FrozenGlmFit {
             point,

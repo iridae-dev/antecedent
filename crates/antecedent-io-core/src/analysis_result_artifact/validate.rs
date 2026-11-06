@@ -13,6 +13,61 @@ use super::{
     TemporalMediationUncertaintyWire, UnitEffectsWire, identified_set_interval_from_wire,
 };
 use crate::{CausalQueryWire, IdentificationResultWire, IoError};
+use std::collections::HashMap;
+
+// Equality matches `ValueWire` for finite values, including signed zero. Non-finite
+// values never match a valid atom and are refused by the existing validation below.
+#[derive(Clone, Eq, Hash, PartialEq)]
+enum DistributionValueKey<'a> {
+    Float64(u64),
+    Int64(i64),
+    Bool(bool),
+    Category(u32),
+    Label(&'a str),
+}
+
+type DistributionAssignmentKey<'a> = Vec<(u32, DistributionValueKey<'a>)>;
+type DistributionAtomKey<'a> = (DistributionAssignmentKey<'a>, DistributionAssignmentKey<'a>);
+
+fn distribution_assignment_key(
+    assignment: &[(u32, crate::ValueWire)],
+) -> Option<DistributionAssignmentKey<'_>> {
+    assignment
+        .iter()
+        .map(|(id, value)| {
+            let value = match value {
+                crate::ValueWire::Float64(value) if value.is_finite() => {
+                    DistributionValueKey::Float64(
+                        crate::query_wire::canonical_zero(*value).to_bits(),
+                    )
+                }
+                crate::ValueWire::Float64(_) => return None,
+                crate::ValueWire::Int64(value) => DistributionValueKey::Int64(*value),
+                crate::ValueWire::Bool(value) => DistributionValueKey::Bool(*value),
+                crate::ValueWire::Category(value) => DistributionValueKey::Category(*value),
+                crate::ValueWire::Label(value) => DistributionValueKey::Label(value),
+            };
+            Some((*id, value))
+        })
+        .collect()
+}
+
+// Count the entire list before checking each atom. The existing refusal order
+// detects a later duplicate even when that later atom has invalid probability.
+fn distribution_atom_counts(
+    atoms: &[super::DistributionAtomWire],
+) -> HashMap<DistributionAtomKey<'_>, usize> {
+    let mut counts = HashMap::with_capacity(atoms.len());
+    for atom in atoms {
+        if let (Some(conditioning), Some(outcomes)) = (
+            distribution_assignment_key(&atom.conditioning),
+            distribution_assignment_key(&atom.outcomes),
+        ) {
+            *counts.entry((conditioning, outcomes)).or_insert(0) += 1;
+        }
+    }
+    counts
+}
 
 // allow(too_many_lines): single dispatch over every result-variant validator; splitting hides the total contract
 #[allow(
@@ -583,7 +638,9 @@ pub(crate) fn validate_interventional_distribution(
     }
     let expected_outcomes = &query.outcomes;
     let expected_conditioning = &query.conditioning;
-    let mut groups: Vec<(Vec<(u32, crate::ValueWire)>, f64)> = Vec::new();
+    let mut atom_counts = None;
+    let mut groups: Vec<f64> = Vec::new();
+    let mut group_indices = HashMap::new();
     let mut numeric_mean = 0.0;
     for atom in &distribution.atoms {
         if !atom.probability.is_finite()
@@ -616,28 +673,34 @@ pub(crate) fn validate_interventional_distribution(
         } else {
             numeric_mean = f64::NAN;
         }
-        if let Some((_, mass)) =
-            groups.iter_mut().find(|(conditioning, _)| *conditioning == atom.conditioning)
-        {
-            *mass += atom.probability;
-        } else {
-            groups.push((atom.conditioning.clone(), atom.probability));
-        }
-        if distribution
-            .atoms
-            .iter()
-            .filter(|other| {
-                other.conditioning == atom.conditioning && other.outcomes == atom.outcomes
-            })
-            .count()
-            != 1
-        {
+        let Some(conditioning) = distribution_assignment_key(&atom.conditioning) else {
+            return Err(IoError::Convert(
+                "interventional distribution atom contains a non-finite value".into(),
+            ));
+        };
+        let Some(outcomes) = distribution_assignment_key(&atom.outcomes) else {
+            return Err(IoError::Convert(
+                "interventional distribution atom contains a non-finite value".into(),
+            ));
+        };
+        let counts =
+            atom_counts.get_or_insert_with(|| distribution_atom_counts(&distribution.atoms));
+        if counts.get(&(conditioning.clone(), outcomes)) != Some(&1) {
             return Err(IoError::Convert(
                 "interventional distribution contains duplicate atoms".into(),
             ));
         }
+        match group_indices.entry(conditioning) {
+            std::collections::hash_map::Entry::Occupied(entry) => {
+                groups[*entry.get()] += atom.probability;
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(groups.len());
+                groups.push(atom.probability);
+            }
+        }
     }
-    if groups.iter().any(|(_, mass)| (mass - 1.0).abs() > 1e-9) {
+    if groups.iter().any(|mass| (mass - 1.0).abs() > 1e-9) {
         return Err(IoError::Convert(
             "interventional distribution atom masses must sum to one per conditioning assignment"
                 .into(),
