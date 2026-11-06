@@ -2,7 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, AverageEffectQuery, BatchQuery, CandidateScreen, CellFamilyContrast,
+    CrossfitNuisanceCache, ExecutionContext, NuisanceScopeUse, ResponseQuery,
+    ScorePosteriorOptions, SharedBatchDesign, StudyResult, TableView, TabularData, VariableId,
+    attach_candidate_selection, resolve_max_t_critical,
+};
 
 /// Record the shared design and, per result, whether its cross-fitted propensity /
 /// outcome fit was shared with another query of the batch (`uses[i]` is result `i`'s

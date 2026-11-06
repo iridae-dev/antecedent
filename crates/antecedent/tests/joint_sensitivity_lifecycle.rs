@@ -1088,7 +1088,7 @@ fn interval_artifact_roundtrip_retains_seed_and_rejects_resealed_numeric_edits()
     )
     .unwrap();
     let encoded = wire.export().unwrap();
-    let other = ExecutionContext::for_tests(123456);
+    let other = ExecutionContext::for_tests(123_456);
     let consumed = JointSensitivityIntervalArtifact::consume(&encoded, &other).unwrap();
     assert_eq!(consumed.artifact, wire);
     assert_eq!(consumed.artifact.seed, 7);

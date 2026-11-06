@@ -11942,10 +11942,38 @@ path = "crates/antecedent/src/analysis/array_fits.rs"
 gates = ["inventory", "named"]
 
 [[test]]
-id = "audit-crates-antecedent-src-analysis-batch-rs"
+id = "audit-batch-fail-open-regression-tests"
 crate = "antecedent"
 cargo_target = "lib"
-path = "crates/antecedent/src/analysis/batch.rs"
+path = "crates/antecedent/src/analysis/batch/fail_open_regression_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-batch-max-t-diagnostic-tests"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/batch/max_t_diagnostic_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-batch-selection-review-tests"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/batch/selection_review_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-batch-shared-fold-tests"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/batch/shared_fold_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-batch-shared-preparation-legality-tests"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/batch/shared_preparation_legality_tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
