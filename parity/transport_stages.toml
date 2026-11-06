@@ -10580,3 +10580,27 @@ route = "antecedent.python.prepared.retarget.adjusted_fit"
 stage = "evaluate"
 status = "supported"
 notes = "The common prepared Python workflow delegates to the matching sealed fitted-mean operation; no refit, DR score or portable fit is manufactured."
+
+[[routes]]
+route = "antecedent.JointSensitivityIntervalArtifact.checked"
+stage = "representation"
+status = "supported"
+notes = "Separate v1 endpoint-bootstrap artifact, replaying the existing procedure with current calibration derived independently from stored history; current scientific/calibration earning remains owed."
+
+[[routes]]
+route = "antecedent.JointSensitivityIntervalArtifact.consume"
+stage = "consume"
+status = "supported"
+notes = "Separate v1 endpoint-bootstrap artifact, replaying the existing procedure with current calibration derived independently from stored history; current scientific/calibration earning remains owed."
+
+[[routes]]
+route = "antecedent.python.transport.advanced.export_joint_sensitivity_interval"
+stage = "representation"
+status = "supported"
+notes = "Separate v1 endpoint-bootstrap artifact, replaying the existing procedure with current calibration derived independently from stored history; current scientific/calibration earning remains owed."
+
+[[routes]]
+route = "antecedent.python.transport.advanced.consume_joint_sensitivity_interval"
+stage = "consume"
+status = "supported"
+notes = "Separate v1 endpoint-bootstrap artifact, replaying the existing procedure with current calibration derived independently from stored history; current scientific/calibration earning remains owed."

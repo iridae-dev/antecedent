@@ -1069,3 +1069,147 @@ fn source_backed_sensitivity_byte_bound_refuses_one_past_and_admits_the_bound() 
         &SourceBackedSensitivity::consume_with_limits(&envelope, &context, below).unwrap_err(),
     );
 }
+
+/// Synthetic two-draw serialization checks; no coverage measurement or scientific lane.
+#[test]
+fn interval_artifact_roundtrip_retains_seed_and_rejects_resealed_numeric_edits() {
+    use antecedent::{JointIntervalConsumeLimits, JointSensitivityIntervalArtifact};
+    let mut built = builder();
+    built.data = empirical_counts();
+    let prepared = prepare(&built);
+    let ctx = ExecutionContext::for_tests(91);
+    let wire = JointSensitivityIntervalArtifact::checked(
+        baseline_bytes(&prepared),
+        &spec(),
+        7,
+        2,
+        0.9,
+        &ctx,
+    )
+    .unwrap();
+    let encoded = wire.export().unwrap();
+    let other = ExecutionContext::for_tests(123456);
+    let consumed = JointSensitivityIntervalArtifact::consume(&encoded, &other).unwrap();
+    assert_eq!(consumed.artifact, wire);
+    assert_eq!(consumed.artifact.seed, 7);
+    assert_eq!(consumed.artifact.numerical.counts[0], 2);
+    assert_ne!(
+        consumed.calibration.status,
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated
+    );
+    assert!(JointSensitivityArtifactWire::consume(&encoded, &ctx).is_err());
+    assert!(
+        JointSensitivityIntervalArtifact::consume(&wire.range.export().unwrap(), &ctx).is_err()
+    );
+    for field in 0..6 {
+        let mut altered = wire.clone();
+        match field {
+            0 => altered.numerical.endpoints[0] -= 0.01,
+            1 => altered.numerical.counts[1] += 1,
+            2 => altered.numerical.minima[0] += 0.01,
+            3 => altered.procedure = "unsupported".into(),
+            4 => altered.seed += 1,
+            _ => altered.version += 1,
+        }
+        altered.digest = altered.computed_digest().unwrap();
+        assert!(
+            JointSensitivityIntervalArtifact::consume(&altered.export().unwrap(), &ctx).is_err(),
+            "field {field}"
+        );
+    }
+    let mut historical = wire.clone();
+    historical.recorded_calibration.status =
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated;
+    historical.digest = historical.computed_digest().unwrap();
+    let read =
+        JointSensitivityIntervalArtifact::consume(&historical.export().unwrap(), &ctx).unwrap();
+    assert_ne!(
+        read.calibration.status,
+        antecedent_io_core::contract_section::CalibrationStatus::Calibrated,
+        "stored historical annotation is never current coverage authority"
+    );
+    for limits in [
+        JointIntervalConsumeLimits { max_replicates: 1, ..Default::default() },
+        JointIntervalConsumeLimits { max_bytes: 8, ..Default::default() },
+    ] {
+        assert!(
+            JointSensitivityIntervalArtifact::consume_with_limits(&encoded, limits, &ctx).is_err()
+        );
+    }
+    let tiny = ExecutionContext::for_tests(0).with_memory_limit(Some(1));
+    assert!(JointSensitivityIntervalArtifact::consume(&encoded, &tiny).is_err());
+    let cancelled = ExecutionContext::for_tests(0);
+    cancelled.cancellation.cancel();
+    assert!(JointSensitivityIntervalArtifact::consume(&encoded, &cancelled).is_err());
+}
+
+/// Scientific reference: the saved exhaustive rational vertex enumeration, not a second
+/// invocation of the endpoint procedure. Registered and owed; never run in this implementation.
+#[test]
+fn interval_artifact_matches_frozen_independent_vertex_reference() {
+    let reference: serde_json::Value = serde_json::from_str(include_str!(
+        "../../antecedent-validate/tests/oracle_data/joint_uncertainty_reference.json"
+    ))
+    .unwrap();
+    let case = &reference["cases"][0];
+    let counts: Vec<u64> =
+        case["counts"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap()).collect();
+    let total = counts.iter().sum::<u64>() as f64;
+    let binary = |variable| DiscreteAxis {
+        variable,
+        values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+    };
+    let law = ExactDiscreteLaw::try_empirical(
+        "source",
+        RegimeId::from_raw(0),
+        [antecedent_expr::InterventionAssignment::concrete(Z, Value::Bool(false))],
+        [binary(W), binary(X), binary(Y)],
+        counts.iter().map(|n| *n as f64 / total).collect::<Vec<_>>(),
+        "snapshot-0",
+        LawTolerance::default(),
+    )
+    .unwrap()
+    .with_empirical_counts(counts)
+    .unwrap();
+    let mut built = builder();
+    built.data = ExactTransportData::try_new([law], 64).unwrap();
+    let prepared = prepare(&built);
+    let deviation = JointDeviationSpec::new(vec![
+        JointFactorBound {
+            factor: JointFactor::OutcomeKernel,
+            max_fraction: case["kernel_fraction"].as_f64().unwrap(),
+        },
+        JointFactorBound {
+            factor: JointFactor::SharedParentMarginal,
+            max_fraction: case["parent_fraction"].as_f64().unwrap(),
+        },
+    ]);
+    let ctx = ExecutionContext::for_tests(17);
+    let wire = antecedent::JointSensitivityIntervalArtifact::checked(
+        baseline_bytes(&prepared),
+        &deviation,
+        17,
+        u32::try_from(case["replicates"].as_u64().unwrap()).unwrap(),
+        case["level"].as_f64().unwrap(),
+        &ctx,
+    )
+    .unwrap();
+    let consumed =
+        antecedent::JointSensitivityIntervalArtifact::consume(&wire.export().unwrap(), &ctx)
+            .unwrap();
+    let numerical = &consumed.artifact.numerical;
+    for (actual, expected) in numerical
+        .endpoints
+        .iter()
+        .zip([case["lower"].as_f64().unwrap(), case["upper"].as_f64().unwrap()])
+    {
+        assert!((actual - expected).abs() < 1e-9);
+    }
+    for (actual, expected) in
+        numerical.pointwise_at_zero.iter().zip(case["pointwise_at_zero"].as_array().unwrap())
+    {
+        assert!((actual - expected.as_f64().unwrap()).abs() < 1e-9);
+    }
+    assert_eq!(u64::from(numerical.counts[1]), case["replicates_ok"].as_u64().unwrap());
+    assert_eq!(u64::from(numerical.counts[2]), case["replicates_failed"].as_u64().unwrap());
+}

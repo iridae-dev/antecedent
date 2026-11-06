@@ -366,6 +366,9 @@ impl core::clone::Clone for antecedent::InverseOutcomeReport
 impl core::clone::Clone for antecedent::InverseQuery
 impl core::clone::Clone for antecedent::JointCellCostEstimate
 impl core::clone::Clone for antecedent::JointFactorWire
+impl core::clone::Clone for antecedent::JointIntervalConsumeLimits
+impl core::clone::Clone for antecedent::JointIntervalConsumption
+impl core::clone::Clone for antecedent::JointIntervalNumerics
 impl core::clone::Clone for antecedent::JointOutcomeWire
 impl core::clone::Clone for antecedent::JointPerturbationWire
 impl core::clone::Clone for antecedent::JointProvenanceWire
@@ -375,6 +378,7 @@ impl core::clone::Clone for antecedent::JointSamplingWire
 impl core::clone::Clone for antecedent::JointSensitivityArtifactWire
 impl core::clone::Clone for antecedent::JointSensitivityBodyWire
 impl core::clone::Clone for antecedent::JointSensitivityConsumeLimits
+impl core::clone::Clone for antecedent::JointSensitivityIntervalArtifact
 impl core::clone::Clone for antecedent::JointTippingWire
 impl core::clone::Clone for antecedent::LatencyMode
 impl core::clone::Clone for antecedent::LearnedContinuousBootstrapInterval
@@ -1465,6 +1469,7 @@ impl core::cmp::PartialEq for antecedent::InverseOutcomeReport
 impl core::cmp::PartialEq for antecedent::InverseQuery
 impl core::cmp::PartialEq for antecedent::JointCellCostEstimate
 impl core::cmp::PartialEq for antecedent::JointFactorWire
+impl core::cmp::PartialEq for antecedent::JointIntervalNumerics
 impl core::cmp::PartialEq for antecedent::JointOutcomeWire
 impl core::cmp::PartialEq for antecedent::JointPerturbationWire
 impl core::cmp::PartialEq for antecedent::JointProvenanceWire
@@ -1472,6 +1477,7 @@ impl core::cmp::PartialEq for antecedent::JointReceiptWire
 impl core::cmp::PartialEq for antecedent::JointSamplingWire
 impl core::cmp::PartialEq for antecedent::JointSensitivityArtifactWire
 impl core::cmp::PartialEq for antecedent::JointSensitivityBodyWire
+impl core::cmp::PartialEq for antecedent::JointSensitivityIntervalArtifact
 impl core::cmp::PartialEq for antecedent::JointTippingWire
 impl core::cmp::PartialEq for antecedent::LatencyMode
 impl core::cmp::PartialEq for antecedent::LedgerExport
@@ -1950,6 +1956,7 @@ impl core::cmp::PartialOrd for antecedent::SupportQuery
 impl core::cmp::PartialOrd for antecedent::SupportStructure
 impl core::cmp::PartialOrd for antecedent::SupportValidation
 impl core::cmp::PartialOrd for antecedent::analysis::recalc_receipt::RecalcSessionKind
+impl core::convert::From<&antecedent_validate::joint_mechanism_sensitivity::JointSensitivityInterval> for antecedent::JointIntervalNumerics
 impl core::convert::From<alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<f64>)>> for antecedent::analysis::recalc_receipt::Columns
 impl core::convert::From<antecedent::BatchRetargetError> for antecedent::MemberFailure
 impl core::convert::From<antecedent::CausalError> for antecedent::analysis::FlagshipError
@@ -2093,6 +2100,7 @@ impl core::default::Default for antecedent::CounterfactualTransportOptions
 impl core::default::Default for antecedent::EvidenceLedgerSession
 impl core::default::Default for antecedent::FallbackRequest
 impl core::default::Default for antecedent::InferenceMode
+impl core::default::Default for antecedent::JointIntervalConsumeLimits
 impl core::default::Default for antecedent::JointSensitivityConsumeLimits
 impl core::default::Default for antecedent::MechanismProgram
 impl core::default::Default for antecedent::ResultPayload
@@ -2320,6 +2328,9 @@ impl core::fmt::Debug for antecedent::InverseOutcomeReport
 impl core::fmt::Debug for antecedent::InverseQuery
 impl core::fmt::Debug for antecedent::JointCellCostEstimate
 impl core::fmt::Debug for antecedent::JointFactorWire
+impl core::fmt::Debug for antecedent::JointIntervalConsumeLimits
+impl core::fmt::Debug for antecedent::JointIntervalConsumption
+impl core::fmt::Debug for antecedent::JointIntervalNumerics
 impl core::fmt::Debug for antecedent::JointOutcomeWire
 impl core::fmt::Debug for antecedent::JointPerturbationWire
 impl core::fmt::Debug for antecedent::JointProvenanceWire
@@ -2329,6 +2340,7 @@ impl core::fmt::Debug for antecedent::JointSamplingWire
 impl core::fmt::Debug for antecedent::JointSensitivityArtifactWire
 impl core::fmt::Debug for antecedent::JointSensitivityBodyWire
 impl core::fmt::Debug for antecedent::JointSensitivityConsumeLimits
+impl core::fmt::Debug for antecedent::JointSensitivityIntervalArtifact
 impl core::fmt::Debug for antecedent::JointTippingWire
 impl core::fmt::Debug for antecedent::LatencyMode
 impl core::fmt::Debug for antecedent::LearnedContinuousBootstrapInterval
@@ -3262,6 +3274,7 @@ impl core::marker::Copy for antecedent::IntervalMeta
 impl core::marker::Copy for antecedent::IntervalScope
 impl core::marker::Copy for antecedent::InterventionMeaning
 impl core::marker::Copy for antecedent::InverseQuery
+impl core::marker::Copy for antecedent::JointIntervalConsumeLimits
 impl core::marker::Copy for antecedent::JointSensitivityConsumeLimits
 impl core::marker::Copy for antecedent::LatencyMode
 impl core::marker::Copy for antecedent::MissingInference
@@ -3563,6 +3576,9 @@ impl core::marker::Freeze for antecedent::InverseOutcomeReport [auto]
 impl core::marker::Freeze for antecedent::InverseQuery [auto]
 impl core::marker::Freeze for antecedent::JointCellCostEstimate [auto]
 impl core::marker::Freeze for antecedent::JointFactorWire [auto]
+impl core::marker::Freeze for antecedent::JointIntervalConsumeLimits [auto]
+impl core::marker::Freeze for antecedent::JointIntervalConsumption [auto]
+impl core::marker::Freeze for antecedent::JointIntervalNumerics [auto]
 impl core::marker::Freeze for antecedent::JointOutcomeWire [auto]
 impl core::marker::Freeze for antecedent::JointPerturbationWire [auto]
 impl core::marker::Freeze for antecedent::JointProvenanceWire [auto]
@@ -3572,6 +3588,7 @@ impl core::marker::Freeze for antecedent::JointSamplingWire [auto]
 impl core::marker::Freeze for antecedent::JointSensitivityArtifactWire [auto]
 impl core::marker::Freeze for antecedent::JointSensitivityBodyWire [auto]
 impl core::marker::Freeze for antecedent::JointSensitivityConsumeLimits [auto]
+impl core::marker::Freeze for antecedent::JointSensitivityIntervalArtifact [auto]
 impl core::marker::Freeze for antecedent::JointTippingWire [auto]
 impl core::marker::Freeze for antecedent::LatencyMode [auto]
 impl core::marker::Freeze for antecedent::LearnedContinuousBootstrapInterval [auto]
@@ -4530,6 +4547,9 @@ impl core::marker::Send for antecedent::InverseOutcomeReport [auto]
 impl core::marker::Send for antecedent::InverseQuery [auto]
 impl core::marker::Send for antecedent::JointCellCostEstimate [auto]
 impl core::marker::Send for antecedent::JointFactorWire [auto]
+impl core::marker::Send for antecedent::JointIntervalConsumeLimits [auto]
+impl core::marker::Send for antecedent::JointIntervalConsumption [auto]
+impl core::marker::Send for antecedent::JointIntervalNumerics [auto]
 impl core::marker::Send for antecedent::JointOutcomeWire [auto]
 impl core::marker::Send for antecedent::JointPerturbationWire [auto]
 impl core::marker::Send for antecedent::JointProvenanceWire [auto]
@@ -4539,6 +4559,7 @@ impl core::marker::Send for antecedent::JointSamplingWire [auto]
 impl core::marker::Send for antecedent::JointSensitivityArtifactWire [auto]
 impl core::marker::Send for antecedent::JointSensitivityBodyWire [auto]
 impl core::marker::Send for antecedent::JointSensitivityConsumeLimits [auto]
+impl core::marker::Send for antecedent::JointSensitivityIntervalArtifact [auto]
 impl core::marker::Send for antecedent::JointTippingWire [auto]
 impl core::marker::Send for antecedent::LatencyMode [auto]
 impl core::marker::Send for antecedent::LearnedContinuousBootstrapInterval [auto]
@@ -5451,6 +5472,7 @@ impl core::marker::StructuralPartialEq for antecedent::InverseOutcomeReport
 impl core::marker::StructuralPartialEq for antecedent::InverseQuery
 impl core::marker::StructuralPartialEq for antecedent::JointCellCostEstimate
 impl core::marker::StructuralPartialEq for antecedent::JointFactorWire
+impl core::marker::StructuralPartialEq for antecedent::JointIntervalNumerics
 impl core::marker::StructuralPartialEq for antecedent::JointOutcomeWire
 impl core::marker::StructuralPartialEq for antecedent::JointPerturbationWire
 impl core::marker::StructuralPartialEq for antecedent::JointProvenanceWire
@@ -5458,6 +5480,7 @@ impl core::marker::StructuralPartialEq for antecedent::JointReceiptWire
 impl core::marker::StructuralPartialEq for antecedent::JointSamplingWire
 impl core::marker::StructuralPartialEq for antecedent::JointSensitivityArtifactWire
 impl core::marker::StructuralPartialEq for antecedent::JointSensitivityBodyWire
+impl core::marker::StructuralPartialEq for antecedent::JointSensitivityIntervalArtifact
 impl core::marker::StructuralPartialEq for antecedent::JointTippingWire
 impl core::marker::StructuralPartialEq for antecedent::LatencyMode
 impl core::marker::StructuralPartialEq for antecedent::LedgerExport
@@ -6069,6 +6092,9 @@ impl core::marker::Sync for antecedent::InverseOutcomeReport [auto]
 impl core::marker::Sync for antecedent::InverseQuery [auto]
 impl core::marker::Sync for antecedent::JointCellCostEstimate [auto]
 impl core::marker::Sync for antecedent::JointFactorWire [auto]
+impl core::marker::Sync for antecedent::JointIntervalConsumeLimits [auto]
+impl core::marker::Sync for antecedent::JointIntervalConsumption [auto]
+impl core::marker::Sync for antecedent::JointIntervalNumerics [auto]
 impl core::marker::Sync for antecedent::JointOutcomeWire [auto]
 impl core::marker::Sync for antecedent::JointPerturbationWire [auto]
 impl core::marker::Sync for antecedent::JointProvenanceWire [auto]
@@ -6078,6 +6104,7 @@ impl core::marker::Sync for antecedent::JointSamplingWire [auto]
 impl core::marker::Sync for antecedent::JointSensitivityArtifactWire [auto]
 impl core::marker::Sync for antecedent::JointSensitivityBodyWire [auto]
 impl core::marker::Sync for antecedent::JointSensitivityConsumeLimits [auto]
+impl core::marker::Sync for antecedent::JointSensitivityIntervalArtifact [auto]
 impl core::marker::Sync for antecedent::JointTippingWire [auto]
 impl core::marker::Sync for antecedent::LatencyMode [auto]
 impl core::marker::Sync for antecedent::LearnedContinuousBootstrapInterval [auto]
@@ -7045,6 +7072,9 @@ impl core::marker::Unpin for antecedent::InverseOutcomeReport [auto]
 impl core::marker::Unpin for antecedent::InverseQuery [auto]
 impl core::marker::Unpin for antecedent::JointCellCostEstimate [auto]
 impl core::marker::Unpin for antecedent::JointFactorWire [auto]
+impl core::marker::Unpin for antecedent::JointIntervalConsumeLimits [auto]
+impl core::marker::Unpin for antecedent::JointIntervalConsumption [auto]
+impl core::marker::Unpin for antecedent::JointIntervalNumerics [auto]
 impl core::marker::Unpin for antecedent::JointOutcomeWire [auto]
 impl core::marker::Unpin for antecedent::JointPerturbationWire [auto]
 impl core::marker::Unpin for antecedent::JointProvenanceWire [auto]
@@ -7054,6 +7084,7 @@ impl core::marker::Unpin for antecedent::JointSamplingWire [auto]
 impl core::marker::Unpin for antecedent::JointSensitivityArtifactWire [auto]
 impl core::marker::Unpin for antecedent::JointSensitivityBodyWire [auto]
 impl core::marker::Unpin for antecedent::JointSensitivityConsumeLimits [auto]
+impl core::marker::Unpin for antecedent::JointSensitivityIntervalArtifact [auto]
 impl core::marker::Unpin for antecedent::JointTippingWire [auto]
 impl core::marker::Unpin for antecedent::LatencyMode [auto]
 impl core::marker::Unpin for antecedent::LearnedContinuousBootstrapInterval [auto]
@@ -8022,6 +8053,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::InverseOutcomeRepor
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::InverseQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointCellCostEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointFactorWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointIntervalConsumeLimits [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointIntervalConsumption [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointIntervalNumerics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointOutcomeWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointPerturbationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointProvenanceWire [auto]
@@ -8030,6 +8064,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointSamplingWire [
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointSensitivityArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointSensitivityBodyWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointSensitivityConsumeLimits [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointSensitivityIntervalArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::JointTippingWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::LatencyMode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::LearnedContinuousBootstrapInterval [auto]
@@ -8947,6 +8982,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::InverseOutcomeReport [
 impl core::panic::unwind_safe::UnwindSafe for antecedent::InverseQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::JointCellCostEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::JointFactorWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::JointIntervalConsumeLimits [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::JointIntervalConsumption [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::JointIntervalNumerics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::JointOutcomeWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::JointPerturbationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::JointProvenanceWire [auto]
@@ -8955,6 +8993,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::JointSamplingWire [aut
 impl core::panic::unwind_safe::UnwindSafe for antecedent::JointSensitivityArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::JointSensitivityBodyWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::JointSensitivityConsumeLimits [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::JointSensitivityIntervalArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::JointTippingWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::LatencyMode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::LearnedContinuousBootstrapInterval [auto]
@@ -9771,6 +9810,7 @@ impl serde_core::ser::Serialize for antecedent::InferenceDefault
 impl serde_core::ser::Serialize for antecedent::InterventionMeaning
 impl serde_core::ser::Serialize for antecedent::JointCellCostEstimate
 impl serde_core::ser::Serialize for antecedent::JointFactorWire
+impl serde_core::ser::Serialize for antecedent::JointIntervalNumerics
 impl serde_core::ser::Serialize for antecedent::JointOutcomeWire
 impl serde_core::ser::Serialize for antecedent::JointPerturbationWire
 impl serde_core::ser::Serialize for antecedent::JointProvenanceWire
@@ -9778,6 +9818,7 @@ impl serde_core::ser::Serialize for antecedent::JointReceiptWire
 impl serde_core::ser::Serialize for antecedent::JointSamplingWire
 impl serde_core::ser::Serialize for antecedent::JointSensitivityArtifactWire
 impl serde_core::ser::Serialize for antecedent::JointSensitivityBodyWire
+impl serde_core::ser::Serialize for antecedent::JointSensitivityIntervalArtifact
 impl serde_core::ser::Serialize for antecedent::JointTippingWire
 impl serde_core::ser::Serialize for antecedent::NuisanceFitDiagnostics
 impl serde_core::ser::Serialize for antecedent::PreflightFinding
@@ -10020,6 +10061,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent::ExactStudyIdentities
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::ExclusionRule
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::InterventionMeaning
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::JointFactorWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::JointIntervalNumerics
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::JointOutcomeWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::JointPerturbationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::JointProvenanceWire
@@ -10027,6 +10069,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent::JointReceiptWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::JointSamplingWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::JointSensitivityArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::JointSensitivityBodyWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent::JointSensitivityIntervalArtifact
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::JointTippingWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::SourceColumn
 impl<'de> serde_core::de::Deserialize<'de> for antecedent::TemporalPosition
@@ -10152,6 +10195,7 @@ pub const <antecedent::host::HostStatus>::ALL: [Self; 3]
 pub const antecedent::BATCH_RETARGET_SCOPE_NOTE: &str
 pub const antecedent::IDENTIFICATION_REFUSAL_CODES: [&str; 2]
 pub const antecedent::INVERSE_SCOPE_NOTE: &str
+pub const antecedent::JOINT_INTERVAL_ARTIFACT_VERSION: u32
 pub const antecedent::JOINT_SENSITIVITY_ARTIFACT_VERSION: u32
 pub const antecedent::PERCENTILE_95_MIN_REPLICATES: u32
 pub const antecedent::analysis::BAYESIAN_REALIZATION: antecedent_core::refusal::NextAttempt
@@ -10908,6 +10952,20 @@ pub field antecedent::JointCellCostEstimate::seconds: core::option::Option<f64>
 pub field antecedent::JointCellCostEstimate::seconds_basis: alloc::string::String
 pub field antecedent::JointFactorWire::factor: alloc::string::String
 pub field antecedent::JointFactorWire::max_fraction: f64
+pub field antecedent::JointIntervalConsumeLimits::max_bytes: usize
+pub field antecedent::JointIntervalConsumeLimits::max_replicates: u32
+pub field antecedent::JointIntervalConsumeLimits::range: antecedent::JointSensitivityConsumeLimits
+pub field antecedent::JointIntervalConsumption::artifact: antecedent::JointSensitivityIntervalArtifact
+pub field antecedent::JointIntervalConsumption::calibration: antecedent_io_core::contract_section::CalibrationSlotWire
+pub field antecedent::JointIntervalNumerics::baselines: alloc::vec::Vec<f64>
+pub field antecedent::JointIntervalNumerics::counts: [u32; 3]
+pub field antecedent::JointIntervalNumerics::coverage_target: alloc::string::String
+pub field antecedent::JointIntervalNumerics::endpoints: [f64; 2]
+pub field antecedent::JointIntervalNumerics::level: f64
+pub field antecedent::JointIntervalNumerics::maxima: alloc::vec::Vec<f64>
+pub field antecedent::JointIntervalNumerics::method: alloc::string::String
+pub field antecedent::JointIntervalNumerics::minima: alloc::vec::Vec<f64>
+pub field antecedent::JointIntervalNumerics::pointwise_at_zero: [f64; 2]
 pub field antecedent::JointOutcomeWire::axis: alloc::vec::Vec<antecedent::JointTippingWire>
 pub field antecedent::JointOutcomeWire::baseline: f64
 pub field antecedent::JointOutcomeWire::frontier: alloc::vec::Vec<antecedent::JointTippingWire>
@@ -10959,6 +11017,15 @@ pub field antecedent::JointSensitivityConsumeLimits::baseline: antecedent_io::z_
 pub field antecedent::JointSensitivityConsumeLimits::max_depth: usize
 pub field antecedent::JointSensitivityConsumeLimits::max_memory_bytes: u64
 pub field antecedent::JointSensitivityConsumeLimits::max_operations: usize
+pub field antecedent::JointSensitivityIntervalArtifact::digest: alloc::string::String
+pub field antecedent::JointSensitivityIntervalArtifact::kernels: [bool; 3]
+pub field antecedent::JointSensitivityIntervalArtifact::numerical: antecedent::JointIntervalNumerics
+pub field antecedent::JointSensitivityIntervalArtifact::procedure: alloc::string::String
+pub field antecedent::JointSensitivityIntervalArtifact::range: antecedent::JointSensitivityArtifactWire
+pub field antecedent::JointSensitivityIntervalArtifact::recorded_calibration: antecedent_io_core::contract_section::CalibrationSlotWire
+pub field antecedent::JointSensitivityIntervalArtifact::rng: alloc::string::String
+pub field antecedent::JointSensitivityIntervalArtifact::seed: u64
+pub field antecedent::JointSensitivityIntervalArtifact::version: u32
 pub field antecedent::JointTippingWire::analytic: core::option::Option<f64>
 pub field antecedent::JointTippingWire::bracket: core::option::Option<[f64; 2]>
 pub field antecedent::JointTippingWire::factor: alloc::string::String
@@ -13862,6 +13929,11 @@ pub fn <antecedent::JointSensitivityArtifactWire>::fn computed_premises_digest(&
 pub fn <antecedent::JointSensitivityArtifactWire>::fn consume(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::JointSensitivityArtifactWire>::fn consume_with_limits(bytes: &[u8], limits: antecedent::JointSensitivityConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::JointSensitivityArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent::JointSensitivityIntervalArtifact>::fn checked(baseline: alloc::vec::Vec<u8>, spec: &antecedent_validate::joint_mechanism_sensitivity::JointDeviationSpec, seed: u64, replicates: u32, level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
+pub fn <antecedent::JointSensitivityIntervalArtifact>::fn computed_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn <antecedent::JointSensitivityIntervalArtifact>::fn consume(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::JointIntervalConsumption, antecedent_io_core::error::IoError>
+pub fn <antecedent::JointSensitivityIntervalArtifact>::fn consume_with_limits(bytes: &[u8], limits: antecedent::JointIntervalConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::JointIntervalConsumption, antecedent_io_core::error::IoError>
+pub fn <antecedent::JointSensitivityIntervalArtifact>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent::LatencyMode>::const fn as_str(self) -> &'static str
 pub fn <antecedent::LatencyMode>::fn parse(s: &str) -> core::option::Option<Self>
 pub fn <antecedent::LearnedContinuousBootstrapInterval>::const fn calibration(&self) -> &antecedent_io_core::contract_section::CalibrationSlotWire
@@ -17250,6 +17322,10 @@ pub struct antecedent::InverseOutcomeError
 pub struct antecedent::InverseOutcomeReport
 pub struct antecedent::JointCellCostEstimate
 pub struct antecedent::JointFactorWire
+pub struct antecedent::JointIntervalConsumeLimits
+pub struct antecedent::JointIntervalConsumption
+pub struct antecedent::JointIntervalConsumption has private fields
+pub struct antecedent::JointIntervalNumerics
 pub struct antecedent::JointOutcomeWire
 pub struct antecedent::JointPerturbationWire
 pub struct antecedent::JointProvenanceWire
@@ -17260,6 +17336,7 @@ pub struct antecedent::JointSamplingWire
 pub struct antecedent::JointSensitivityArtifactWire
 pub struct antecedent::JointSensitivityBodyWire
 pub struct antecedent::JointSensitivityConsumeLimits
+pub struct antecedent::JointSensitivityIntervalArtifact
 pub struct antecedent::JointTippingWire
 pub struct antecedent::LearnedContinuousBootstrapInterval
 pub struct antecedent::LearnedContinuousBootstrapInterval has private fields
@@ -18445,9 +18522,13 @@ pub use antecedent::analysis::InterventionMeaning = antecedent::InterventionMean
 pub use antecedent::analysis::InverseOutcomeError = antecedent::InverseOutcomeError
 pub use antecedent::analysis::InverseOutcomeReport = antecedent::InverseOutcomeReport
 pub use antecedent::analysis::InverseQuery = antecedent::InverseQuery
+pub use antecedent::analysis::JOINT_INTERVAL_ARTIFACT_VERSION = antecedent::JOINT_INTERVAL_ARTIFACT_VERSION
 pub use antecedent::analysis::JOINT_SENSITIVITY_ARTIFACT_VERSION = antecedent::JOINT_SENSITIVITY_ARTIFACT_VERSION
 pub use antecedent::analysis::JointCellCostEstimate = antecedent::JointCellCostEstimate
 pub use antecedent::analysis::JointFactorWire = antecedent::JointFactorWire
+pub use antecedent::analysis::JointIntervalConsumeLimits = antecedent::JointIntervalConsumeLimits
+pub use antecedent::analysis::JointIntervalConsumption = antecedent::JointIntervalConsumption
+pub use antecedent::analysis::JointIntervalNumerics = antecedent::JointIntervalNumerics
 pub use antecedent::analysis::JointOutcomeWire = antecedent::JointOutcomeWire
 pub use antecedent::analysis::JointPerturbationWire = antecedent::JointPerturbationWire
 pub use antecedent::analysis::JointProvenanceWire = antecedent::JointProvenanceWire
@@ -18457,6 +18538,7 @@ pub use antecedent::analysis::JointSamplingWire = antecedent::JointSamplingWire
 pub use antecedent::analysis::JointSensitivityArtifactWire = antecedent::JointSensitivityArtifactWire
 pub use antecedent::analysis::JointSensitivityBodyWire = antecedent::JointSensitivityBodyWire
 pub use antecedent::analysis::JointSensitivityConsumeLimits = antecedent::JointSensitivityConsumeLimits
+pub use antecedent::analysis::JointSensitivityIntervalArtifact = antecedent::JointSensitivityIntervalArtifact
 pub use antecedent::analysis::JointTippingWire = antecedent::JointTippingWire
 pub use antecedent::analysis::LatencyMode = antecedent::LatencyMode
 pub use antecedent::analysis::LearnedContinuousBootstrapInterval = antecedent::LearnedContinuousBootstrapInterval
@@ -18803,9 +18885,13 @@ pub use antecedent::analysis::api::InterventionMeaning = antecedent::Interventio
 pub use antecedent::analysis::api::InverseOutcomeError = antecedent::InverseOutcomeError
 pub use antecedent::analysis::api::InverseOutcomeReport = antecedent::InverseOutcomeReport
 pub use antecedent::analysis::api::InverseQuery = antecedent::InverseQuery
+pub use antecedent::analysis::api::JOINT_INTERVAL_ARTIFACT_VERSION = antecedent::JOINT_INTERVAL_ARTIFACT_VERSION
 pub use antecedent::analysis::api::JOINT_SENSITIVITY_ARTIFACT_VERSION = antecedent::JOINT_SENSITIVITY_ARTIFACT_VERSION
 pub use antecedent::analysis::api::JointCellCostEstimate = antecedent::JointCellCostEstimate
 pub use antecedent::analysis::api::JointFactorWire = antecedent::JointFactorWire
+pub use antecedent::analysis::api::JointIntervalConsumeLimits = antecedent::JointIntervalConsumeLimits
+pub use antecedent::analysis::api::JointIntervalConsumption = antecedent::JointIntervalConsumption
+pub use antecedent::analysis::api::JointIntervalNumerics = antecedent::JointIntervalNumerics
 pub use antecedent::analysis::api::JointOutcomeWire = antecedent::JointOutcomeWire
 pub use antecedent::analysis::api::JointPerturbationWire = antecedent::JointPerturbationWire
 pub use antecedent::analysis::api::JointProvenanceWire = antecedent::JointProvenanceWire
@@ -18815,6 +18901,7 @@ pub use antecedent::analysis::api::JointSamplingWire = antecedent::JointSampling
 pub use antecedent::analysis::api::JointSensitivityArtifactWire = antecedent::JointSensitivityArtifactWire
 pub use antecedent::analysis::api::JointSensitivityBodyWire = antecedent::JointSensitivityBodyWire
 pub use antecedent::analysis::api::JointSensitivityConsumeLimits = antecedent::JointSensitivityConsumeLimits
+pub use antecedent::analysis::api::JointSensitivityIntervalArtifact = antecedent::JointSensitivityIntervalArtifact
 pub use antecedent::analysis::api::JointTippingWire = antecedent::JointTippingWire
 pub use antecedent::analysis::api::LatencyMode = antecedent::LatencyMode
 pub use antecedent::analysis::api::LearnedContinuousBootstrapInterval = antecedent::LearnedContinuousBootstrapInterval

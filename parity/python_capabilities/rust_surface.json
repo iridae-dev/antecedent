@@ -1432,6 +1432,26 @@
       "declaration": "pub fn <antecedent::JointSensitivityArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
+    "<antecedent::JointSensitivityIntervalArtifact>::checked": {
+      "declaration": "pub fn <antecedent::JointSensitivityIntervalArtifact>::fn checked(baseline: alloc::vec::Vec<u8>, spec: &antecedent_validate::joint_mechanism_sensitivity::JointDeviationSpec, seed: u64, replicates: u32, level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
+      "kind": "method"
+    },
+    "<antecedent::JointSensitivityIntervalArtifact>::computed_digest": {
+      "declaration": "pub fn <antecedent::JointSensitivityIntervalArtifact>::fn computed_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>",
+      "kind": "method"
+    },
+    "<antecedent::JointSensitivityIntervalArtifact>::consume": {
+      "declaration": "pub fn <antecedent::JointSensitivityIntervalArtifact>::fn consume(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::JointIntervalConsumption, antecedent_io_core::error::IoError>",
+      "kind": "method"
+    },
+    "<antecedent::JointSensitivityIntervalArtifact>::consume_with_limits": {
+      "declaration": "pub fn <antecedent::JointSensitivityIntervalArtifact>::fn consume_with_limits(bytes: &[u8], limits: antecedent::JointIntervalConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::JointIntervalConsumption, antecedent_io_core::error::IoError>",
+      "kind": "method"
+    },
+    "<antecedent::JointSensitivityIntervalArtifact>::export": {
+      "declaration": "pub fn <antecedent::JointSensitivityIntervalArtifact>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>",
+      "kind": "method"
+    },
     "<antecedent::LatencyMode>::as_str": {
       "declaration": "pub fn <antecedent::LatencyMode>::const fn as_str(self) -> &'static str",
       "kind": "method"
@@ -2814,6 +2834,10 @@
     },
     "<antecedent::PreparedStudy<antecedent::analysis::joint_panel::PanelExperimentState>>::estimate": {
       "declaration": "pub fn <antecedent::PreparedStudy<antecedent::analysis::joint_panel::PanelExperimentState>>::fn estimate(&self, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::PanelExperimentResult, antecedent::analysis::joint_panel::JointPanelError>",
+      "kind": "method"
+    },
+    "<antecedent::PreparedStudy>::adjusted_fit_reuse_identity": {
+      "declaration": "pub fn <antecedent::PreparedStudy>::fn adjusted_fit_reuse_identity(&self) -> core::result::Result<core::option::Option<antecedent_core::identity::SemanticDigest>, antecedent::CausalError>",
       "kind": "method"
     },
     "<antecedent::PreparedStudy>::apply_period_refresh": {
@@ -11772,6 +11796,22 @@
       "declaration": "pub struct antecedent::JointFactorWire",
       "kind": "type"
     },
+    "antecedent::JointIntervalConsumeLimits": {
+      "declaration": "pub struct antecedent::JointIntervalConsumeLimits",
+      "kind": "type"
+    },
+    "antecedent::JointIntervalConsumption": {
+      "declaration": "pub struct antecedent::JointIntervalConsumption",
+      "kind": "type"
+    },
+    "antecedent::JointIntervalConsumption#2c1c988870cb": {
+      "declaration": "pub struct antecedent::JointIntervalConsumption has private fields",
+      "kind": "type"
+    },
+    "antecedent::JointIntervalNumerics": {
+      "declaration": "pub struct antecedent::JointIntervalNumerics",
+      "kind": "type"
+    },
     "antecedent::JointOutcomeWire": {
       "declaration": "pub struct antecedent::JointOutcomeWire",
       "kind": "type"
@@ -11810,6 +11850,10 @@
     },
     "antecedent::JointSensitivityConsumeLimits": {
       "declaration": "pub struct antecedent::JointSensitivityConsumeLimits",
+      "kind": "type"
+    },
+    "antecedent::JointSensitivityIntervalArtifact": {
+      "declaration": "pub struct antecedent::JointSensitivityIntervalArtifact",
       "kind": "type"
     },
     "antecedent::JointTippingWire": {
@@ -19715,6 +19759,11 @@
       "kind": "reexport",
       "target": "antecedent::InverseQuery"
     },
+    "export:antecedent::analysis::JOINT_INTERVAL_ARTIFACT_VERSION": {
+      "declaration": "pub use antecedent::analysis::JOINT_INTERVAL_ARTIFACT_VERSION = antecedent::JOINT_INTERVAL_ARTIFACT_VERSION",
+      "kind": "reexport",
+      "target": "antecedent::JOINT_INTERVAL_ARTIFACT_VERSION"
+    },
     "export:antecedent::analysis::JOINT_SENSITIVITY_ARTIFACT_VERSION": {
       "declaration": "pub use antecedent::analysis::JOINT_SENSITIVITY_ARTIFACT_VERSION = antecedent::JOINT_SENSITIVITY_ARTIFACT_VERSION",
       "kind": "reexport",
@@ -19729,6 +19778,21 @@
       "declaration": "pub use antecedent::analysis::JointFactorWire = antecedent::JointFactorWire",
       "kind": "reexport",
       "target": "antecedent::JointFactorWire"
+    },
+    "export:antecedent::analysis::JointIntervalConsumeLimits": {
+      "declaration": "pub use antecedent::analysis::JointIntervalConsumeLimits = antecedent::JointIntervalConsumeLimits",
+      "kind": "reexport",
+      "target": "antecedent::JointIntervalConsumeLimits"
+    },
+    "export:antecedent::analysis::JointIntervalConsumption": {
+      "declaration": "pub use antecedent::analysis::JointIntervalConsumption = antecedent::JointIntervalConsumption",
+      "kind": "reexport",
+      "target": "antecedent::JointIntervalConsumption"
+    },
+    "export:antecedent::analysis::JointIntervalNumerics": {
+      "declaration": "pub use antecedent::analysis::JointIntervalNumerics = antecedent::JointIntervalNumerics",
+      "kind": "reexport",
+      "target": "antecedent::JointIntervalNumerics"
     },
     "export:antecedent::analysis::JointOutcomeWire": {
       "declaration": "pub use antecedent::analysis::JointOutcomeWire = antecedent::JointOutcomeWire",
@@ -19774,6 +19838,11 @@
       "declaration": "pub use antecedent::analysis::JointSensitivityConsumeLimits = antecedent::JointSensitivityConsumeLimits",
       "kind": "reexport",
       "target": "antecedent::JointSensitivityConsumeLimits"
+    },
+    "export:antecedent::analysis::JointSensitivityIntervalArtifact": {
+      "declaration": "pub use antecedent::analysis::JointSensitivityIntervalArtifact = antecedent::JointSensitivityIntervalArtifact",
+      "kind": "reexport",
+      "target": "antecedent::JointSensitivityIntervalArtifact"
     },
     "export:antecedent::analysis::JointTippingWire": {
       "declaration": "pub use antecedent::analysis::JointTippingWire = antecedent::JointTippingWire",
@@ -21505,6 +21574,11 @@
       "kind": "reexport",
       "target": "antecedent::InverseQuery"
     },
+    "export:antecedent::analysis::api::JOINT_INTERVAL_ARTIFACT_VERSION": {
+      "declaration": "pub use antecedent::analysis::api::JOINT_INTERVAL_ARTIFACT_VERSION = antecedent::JOINT_INTERVAL_ARTIFACT_VERSION",
+      "kind": "reexport",
+      "target": "antecedent::JOINT_INTERVAL_ARTIFACT_VERSION"
+    },
     "export:antecedent::analysis::api::JOINT_SENSITIVITY_ARTIFACT_VERSION": {
       "declaration": "pub use antecedent::analysis::api::JOINT_SENSITIVITY_ARTIFACT_VERSION = antecedent::JOINT_SENSITIVITY_ARTIFACT_VERSION",
       "kind": "reexport",
@@ -21519,6 +21593,21 @@
       "declaration": "pub use antecedent::analysis::api::JointFactorWire = antecedent::JointFactorWire",
       "kind": "reexport",
       "target": "antecedent::JointFactorWire"
+    },
+    "export:antecedent::analysis::api::JointIntervalConsumeLimits": {
+      "declaration": "pub use antecedent::analysis::api::JointIntervalConsumeLimits = antecedent::JointIntervalConsumeLimits",
+      "kind": "reexport",
+      "target": "antecedent::JointIntervalConsumeLimits"
+    },
+    "export:antecedent::analysis::api::JointIntervalConsumption": {
+      "declaration": "pub use antecedent::analysis::api::JointIntervalConsumption = antecedent::JointIntervalConsumption",
+      "kind": "reexport",
+      "target": "antecedent::JointIntervalConsumption"
+    },
+    "export:antecedent::analysis::api::JointIntervalNumerics": {
+      "declaration": "pub use antecedent::analysis::api::JointIntervalNumerics = antecedent::JointIntervalNumerics",
+      "kind": "reexport",
+      "target": "antecedent::JointIntervalNumerics"
     },
     "export:antecedent::analysis::api::JointOutcomeWire": {
       "declaration": "pub use antecedent::analysis::api::JointOutcomeWire = antecedent::JointOutcomeWire",
@@ -21564,6 +21653,11 @@
       "declaration": "pub use antecedent::analysis::api::JointSensitivityConsumeLimits = antecedent::JointSensitivityConsumeLimits",
       "kind": "reexport",
       "target": "antecedent::JointSensitivityConsumeLimits"
+    },
+    "export:antecedent::analysis::api::JointSensitivityIntervalArtifact": {
+      "declaration": "pub use antecedent::analysis::api::JointSensitivityIntervalArtifact = antecedent::JointSensitivityIntervalArtifact",
+      "kind": "reexport",
+      "target": "antecedent::JointSensitivityIntervalArtifact"
     },
     "export:antecedent::analysis::api::JointTippingWire": {
       "declaration": "pub use antecedent::analysis::api::JointTippingWire = antecedent::JointTippingWire",
@@ -25659,6 +25753,11 @@
       "declaration": "pub use antecedent::analysis::inverse_query::ForwardEvidence = antecedent_design::inverse_query::ForwardEvidence",
       "kind": "reexport",
       "target": "antecedent_design::inverse_query::ForwardEvidence"
+    },
+    "export:antecedent::analysis::inverse_query::GaussianForwardLaw": {
+      "declaration": "pub use antecedent::analysis::inverse_query::GaussianForwardLaw = antecedent_design::gaussian_forward_law::GaussianForwardLaw",
+      "kind": "reexport",
+      "target": "antecedent_design::gaussian_forward_law::GaussianForwardLaw"
     },
     "export:antecedent::analysis::inverse_query::GridScope": {
       "declaration": "pub use antecedent::analysis::inverse_query::GridScope = antecedent_design::inverse_query::GridScope",

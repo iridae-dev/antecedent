@@ -415,3 +415,7 @@ Prepared fitted-mean retargeting uses a distinct producer/consumer contract:
 | --- | --- | --- |
 | Successful prepared OLS/GLM AllObserved mean, zero bootstrap, no source weights/modifiers | Common `retarget` / `reexecute_retarget`, Rust and Python | Same frozen rows/coding/roles; original estimator covariance conditional on fixed Q; no DR label or outcome law. Fresh metadata, changed source and illegal weight parents refuse. |
 | Contracted adjusted retarget result (`adjusted_fit_reuse`) | Independent analysis-result reader | Rehashes typed fit/row/design and target-weight bindings; does not numerically replay a fit from metadata. A matching live prepared handle can reexecute. |
+
+| Producer | Consumer | Standing and refusals |
+| --- | --- | --- |
+| `JointSensitivityIntervalArtifact::checked`; Python `transport.advanced.export_joint_sensitivity_interval` on an executed z baseline | Rust `consume` / `consume_with_limits`; Python artifact `replay` / `consume_joint_sensitivity_interval` | Separate v1 interval: range v3 is unchanged. Replays the exact stored seed, box, count-table procedure and numbers. Current calibration is derived independently of stored historical annotation. Excess limits, unsupported versions/procedures and resealed numerical edits refuse. Broader MNAR/MSM sampling composition remains deferred. |

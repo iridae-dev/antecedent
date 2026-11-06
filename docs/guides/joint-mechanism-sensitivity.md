@@ -320,3 +320,5 @@ Replay proves the numbers follow from the stored premises, not that the premises
 are right.
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).
+
+The existing endpoint-bootstrap procedure also has a [separate replayable interval artifact](joint-sensitivity-interval-artifact.md). It does not alter the version-3 range contract or turn an assumption range into a confidence interval.

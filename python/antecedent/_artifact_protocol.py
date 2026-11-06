@@ -244,6 +244,14 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
     from . import _native
 
     data = container_bytes(value)
+    if data.startswith(b"ANTE-JOINT-INTERVAL-1"):
+        return ArtifactInspection(
+            "joint_sensitivity_interval_v1",
+            {"artifact_kind": "joint_sensitivity_interval_v1", "format_version": 1},
+            {},
+            ArtifactAcceptance("unavailable", False, False, False),
+            data,
+        )
     if data.startswith(b"ANTPOLICYPROG"):
         return ArtifactInspection(
             "policy_program_v1",
@@ -437,6 +445,7 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
     "causal_posterior": ("_posterior_artifact", "consume_posterior"),
     "ANTECEDENT-PERIOD-REFRESH": ("transport.advanced", "consume_period_refresh_artifact"),
     "ANTECEDENT-PERIOD-REFRESH-SUMMARY": ("transport.advanced", "PeriodRefreshSummary.consume"),
+    "joint_sensitivity_interval_v1": ("transport.advanced", "consume_joint_sensitivity_interval"),
     "policy_program_v1": ("intervention_programs", "consume_policy_program"),
     "cyclic_equilibrium": ("cyclic", "consume_artifact"),
     "cyclic_family": ("cyclic", "consume_family_artifact"),

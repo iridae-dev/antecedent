@@ -171,3 +171,8 @@ pub use super::{
 pub use super::checked_claim_composition::{
     CheckedStudyClaim, PreparedClaimParent, compose_checked_study_claims,
 };
+
+pub use super::{
+    JOINT_INTERVAL_ARTIFACT_VERSION, JointIntervalConsumeLimits, JointIntervalConsumption,
+    JointIntervalNumerics, JointSensitivityIntervalArtifact,
+};

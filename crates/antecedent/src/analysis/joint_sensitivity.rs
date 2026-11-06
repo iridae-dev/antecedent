@@ -599,7 +599,7 @@ impl JointSensitivityArtifactWire {
 
     /// The declared spec the replay runs under: stored factors, threshold,
     /// tolerance, grid and limits, with the stored effective memory cap.
-    fn replay_spec(&self) -> Result<JointDeviationSpec, IoError> {
+    pub(super) fn replay_spec(&self) -> Result<JointDeviationSpec, IoError> {
         let declared = &self.body.perturbation;
         let factors = declared
             .factors

@@ -497,3 +497,10 @@ evidence_assertion = "adjusted_retarget_matches_independent_logit_standardizatio
 kind = "known_truth"
 fixtures = []
 why = "Four exact binomial cells: independent logit mean standardization and adjugate Fisher delta covariance on a fixed target; owed after freeze."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs"
+evidence_assertion = "interval_artifact_matches_frozen_independent_vertex_reference"
+kind = "known_truth"
+fixtures = ["crates/antecedent-validate/tests/oracle_data/joint_uncertainty_reference.json"]
+why = "Persisted and independently consumed interval against the saved rational exhaustive-vertex/type-7 reference at the frozen source count law and seed. Registered and owed after freeze."

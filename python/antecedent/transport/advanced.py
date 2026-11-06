@@ -133,6 +133,11 @@ from ._joint_sensitivity import (
     joint_mechanism_sensitivity,
 )
 from ._joint_sensitivity_uncertainty import joint_mechanism_sensitivity_interval
+from ._joint_interval_artifact import (
+    JointSensitivityIntervalArtifact,
+    export_joint_sensitivity_interval,
+    consume_joint_sensitivity_interval,
+)
 from ._learned_continuous import (
     EstimatorMenu,
     EstimatorMenuEntry,
@@ -264,6 +269,9 @@ __all__ = [
     "export_joint_mechanism_sensitivity",
     "joint_mechanism_sensitivity",
     "joint_mechanism_sensitivity_interval",
+    "JointSensitivityIntervalArtifact",
+    "export_joint_sensitivity_interval",
+    "consume_joint_sensitivity_interval",
     "EstimatorMenu",
     "EstimatorMenuEntry",
     "LearnedContinuousEstimate",

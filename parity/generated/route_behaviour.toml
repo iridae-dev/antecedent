@@ -413,6 +413,10 @@ refusals = [
   { code = "invalid_argument", detail = "joint_sensitivity.stage_accounting" },
 ]
 routes = [
+  { route = "antecedent.JointSensitivityIntervalArtifact.checked", stage = "representation", status = "supported", claim = "interval" },
+  { route = "antecedent.JointSensitivityIntervalArtifact.consume", stage = "consume", status = "supported", claim = "interval" },
+  { route = "antecedent.python.transport.advanced.export_joint_sensitivity_interval", stage = "representation", status = "supported", claim = "interval" },
+  { route = "antecedent.python.transport.advanced.consume_joint_sensitivity_interval", stage = "consume", status = "supported", claim = "interval" },
   { route = "antecedent.PreparedZTransport.joint_mechanism_sensitivity_interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent.transport.advanced.joint_mechanism_sensitivity_interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent.transport.joint_sensitivity.uncertainty_conservative_endpoint_bootstrap", stage = "uncertainty", status = "supported", claim = "interval" },

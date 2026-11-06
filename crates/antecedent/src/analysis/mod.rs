@@ -177,10 +177,15 @@ mod inverse_outcome;
 pub mod inverse_query;
 pub mod inverse_sources;
 mod joint_contrast_binding;
+mod joint_interval_artifact;
 pub mod joint_law_composed_basis;
 pub mod joint_law_propagation;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
+pub use joint_interval_artifact::{
+    JOINT_INTERVAL_ARTIFACT_VERSION, JointIntervalConsumeLimits, JointIntervalConsumption,
+    JointIntervalNumerics, JointSensitivityIntervalArtifact,
+};
 pub mod latent_class_effects;
 mod learned_continuous;
 pub mod learned_joint_scope;

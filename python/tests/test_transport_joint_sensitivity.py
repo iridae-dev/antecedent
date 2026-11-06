@@ -364,3 +364,24 @@ def test_a_budget_or_cancellation_stop_keeps_the_exact_range_and_its_receipt():
             prepared, DEVIATION, execution=Execution(cancel=token)
         )
     assert cancelled.value.reason_code == "transport_budget_cancel"
+
+
+def test_interval_artifact_replays_two_draws_and_keeps_current_calibration_separate():
+    prepared = counted_stage()
+    require_success(prepared.estimate())
+    artifact = transport.export_joint_sensitivity_interval(
+        prepared, DEVIATION, seed=7, replicates=2, level=0.9
+    )
+    read = artifact.replay()
+    assert read.acceptance.replayed
+    import antecedent as ant
+
+    assert require_success(ant.load(artifact)).acceptance.replayed
+    assert read["version"] == 1 and read["seed"] == 7
+    assert read["numerical"]["counts"][0] == 2
+    assert read["calibration"]["status"] != "calibrated"
+    with pytest.raises(CausalUnsupportedError) as error:
+        artifact.replay(max_replicates=1)
+    assert error.value.reason_code == "route_not_supported"
+    with pytest.raises(CausalUnsupportedError):
+        artifact.replay(max_search_operations=1)
