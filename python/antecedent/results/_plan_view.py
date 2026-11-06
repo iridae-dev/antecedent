@@ -198,7 +198,7 @@ class ProgramPlanView(ResultModel):
     def operation(self) -> dict[str, Any] | None:
         """The sealed operation preparation retained: ``kind`` and its inspection record.
 
-        A fresh plain ``dict`` with ``list`` sequences on every read, as the
+        A fresh plain dictionary with list sequences on every read, as the
         per-route inspection records it replaces returned.
         """
         return _plain(self._operation)

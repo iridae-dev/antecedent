@@ -1654,6 +1654,16 @@
       "id": "estimate.response_gam_derivative",
       "status": "supported",
       "missing_evidence": []
+    },
+    {
+      "id": "recalculation.prepared_adjusted",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "decision.compiled_joint_scenarios",
+      "status": "supported",
+      "missing_evidence": []
     }
   ]
 }

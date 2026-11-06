@@ -61,6 +61,7 @@ Examples run on simulated data with a declared mechanism, so the known truth can
 | Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
 | --- | --- | --- | --- |
 | **Analyze a table of your own** — Read a temporary CSV, check numeric columns, prepare and inspect an average effect. <details><summary>Claim scope</summary>Reviewed numeric table and declared DAG average effect; missing values require an explicit observation policy.</details> | beginner / up to 1 min | pandas | [python](python/your_data.py) |
+| **Check a table before fitting** — Read the diagnostics a prepared study runs automatically, then run the full suite on every row as a standalone call. <details><summary>Claim scope</summary>Fit-free findings about the table itself, each with its observation and next action; the diagnostics fit no model and make no causal claim.</details> | beginner / up to 1 min | none | [python](python/data_diagnostics.py) |
 | **Analyze a Parquet file in bounded chunks** — Analyze a Parquet file read in bounded chunks, then stream a summary through a pool smaller than the table. <details><summary>Claim scope</summary>The average effect from a Parquet file equals the one from the same table in memory; only the needed columns are decoded, every read is charged to the admission pool, and the content identity tracks the values. Calibration above 100k rows is not assessed.</details> | beginner / up to 1 min | pyarrow | [python](python/parquet_e2e.py) |
 
 ## Estimate effects

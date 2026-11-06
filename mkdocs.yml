@@ -187,6 +187,9 @@ nav:
   - Compiler layers: architecture/compiler-layers.md
   - Compiler crate graph: architecture/compiler-crate-graph.md
   - Thread inventory: architecture/thread-inventory.md
+  - Identity and coupling contract: architecture/identity-contract.md
+  - Counterfactual query scope: architecture/counterfactual-coverage.md
+  - Transport query scope: architecture/transport-coverage.md
   - Test performance: guides/test-performance.md
   - Conformance: conformance/README.md
   - Hot paths: hot_paths.md
@@ -201,7 +204,6 @@ nav:
     - Decision reach: reach-decisions.md
     - Composition release fixture: composition-release-fixture.md
     - Sampled recovery interval: sampled-recovery-bca.md
-    - Compiled execution boundary: migrations/compiled-execution.md
   - Technical derivations:
     - Joint mechanism sensitivity: guides/joint-mechanism-sensitivity.md
     - Exact transport: architecture/transport-exact.md

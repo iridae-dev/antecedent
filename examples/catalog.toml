@@ -204,6 +204,18 @@ runtime = "up to 1 min"
 claim = "Reviewed numeric table and declared DAG average effect; missing values require an explicit observation policy."
 
 [[example]]
+id = "data_diagnostics"
+title = "Check a table before fitting"
+summary = "Read the diagnostics a prepared study runs automatically, then run the full suite on every row as a standalone call."
+python = "examples/python/data_diagnostics.py"
+unreleased = true
+topic = "Data and inputs"
+level = "beginner"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Fit-free findings about the table itself, each with its observation and next action; the diagnostics fit no model and make no causal claim."
+
+[[example]]
 id = "parquet_e2e"
 title = "Analyze a Parquet file in bounded chunks"
 summary = "Analyze a Parquet file read in bounded chunks, then stream a summary through a pool smaller than the table."
