@@ -26,6 +26,7 @@ weights for loss to follow-up, so it is not the same computation; neither number
 
 from __future__ import annotations
 
+# %%
 import csv
 import os
 import sys
@@ -37,8 +38,12 @@ from antecedent import population
 from antecedent import validation as v
 from antecedent.estimators import Aipw, PropensityWeighting
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data"))
-import fetch  # noqa: E402  (examples/data/fetch.py; stdlib only)
+EXAMPLES = Path(__file__).resolve().parents[1] if "__file__" in globals() else Path.cwd().parent
+sys.path.insert(0, str(EXAMPLES / "data"))
+try:
+    import fetch  # noqa: E402  (examples/data/fetch.py; stdlib only)
+except ImportError:  # no repository checkout (for example Colab): synthetic stand-in only
+    fetch = None
 
 DATASET = "nhefs"
 N_ROWS, N_MISSING = 1629, 63
@@ -120,6 +125,9 @@ def standin_raw(seed: int = 3) -> dict[str, np.ndarray]:
 
 def real_raw() -> dict[str, np.ndarray] | None:
     """The eleven used columns from the verified file, NaN where a value is empty; else None."""
+    if fetch is None:
+        print("Real file unavailable (examples/data/fetch.py not found); using the stand-in.")
+        return None
     try:
         if os.environ.get("ANTECEDENT_DATA") == "download":
             paths = fetch.fetch(DATASET)
@@ -134,125 +142,186 @@ def real_raw() -> dict[str, np.ndarray] | None:
     return {k: np.array([float(r[k]) if r[k] != "" else np.nan for r in rows]) for k in RAW}
 
 
-def main() -> None:
-    raw = real_raw()
-    real = raw is not None
-    if raw is None:
-        raw = standin_raw()
-        print(f"DATA: synthetic stand-in (fixture average effect of quitting {FIXTURE_EFFECT} kg).")
-    else:
-        print("DATA: NHEFS smoking-cessation subset (checksum verified).")
-    data = design(raw)
-    qsmk, outcome = data["qsmk"], data["wt82_71"]
-    assert len(qsmk) == N_ROWS and int(np.isnan(outcome).sum()) == N_MISSING
-    observed = ~np.isnan(outcome)
-    unadjusted = outcome[observed & (qsmk == 1)].mean() - outcome[observed & (qsmk == 0)].mean()
-    print(f"Unadjusted difference (quitters minus others): {unadjusted:.2f} kg")
+# %% [markdown]
+# ## Where the data come from
+#
+# By default the script runs on a synthetic stand-in with the same columns and size. The
+# output says which table was used, then prints the unadjusted difference.
 
-    # Declare the graph: every covariate may affect quitting and weight change.
-    covariates = [k for k in data if k not in ("qsmk", "wt82_71")]
-    graph = [(z, "qsmk") for z in covariates] + [(z, "wt82_71") for z in covariates]
-    graph.append(("qsmk", "wt82_71"))
-    query = ant.AverageEffect("qsmk", "wt82_71")
+# %%
+raw = real_raw()
+real = raw is not None
+if raw is None:
+    raw = standin_raw()
+    print(f"DATA: synthetic stand-in (fixture average effect of quitting {FIXTURE_EFFECT} kg).")
+else:
+    print("DATA: NHEFS smoking-cessation subset (checksum verified).")
+data = design(raw)
+qsmk, outcome = data["qsmk"], data["wt82_71"]
+assert len(qsmk) == N_ROWS and int(np.isnan(outcome).sum()) == N_MISSING
+observed = ~np.isnan(outcome)
+unadjusted = outcome[observed & (qsmk == 1)].mean() - outcome[observed & (qsmk == 0)].mean()
+print(f"Unadjusted difference (quitters minus others): {unadjusted:.2f} kg")
 
-    # Prepare and inspect before estimating. Rows without a 1982 weight are dropped by a
-    # declared policy, and the result carries the policy's assumption.
-    study = ant.prepare(
-        data,
-        graph=graph,
-        query=query,
-        estimator=PropensityWeighting(bootstrap=200),
-        missing="complete_case",
-        inference=ant.Frequentist(bootstrap=200),
-        execution=ant.Execution(seed=7),
-    )
-    print(study.inspect())
-    result = ant.outcomes.require_success(ant.estimate(study))
-    est = result.estimate
-    assert result.identification.status == "NonparametricallyIdentified"
-    assert set(result.identification.adjustment_set) == set(covariates)
 
-    missing = result.missing_data
+# %% [markdown]
+# ## Declare the graph
+#
+# Every baseline covariate may affect both quitting and weight change; quitting may affect
+# weight change. No other cause is declared, which nothing here tests.
+
+# %%
+covariates = [k for k in data if k not in ("qsmk", "wt82_71")]
+graph = [(z, "qsmk") for z in covariates] + [(z, "wt82_71") for z in covariates]
+graph.append(("qsmk", "wt82_71"))
+query = ant.AverageEffect("qsmk", "wt82_71")
+
+
+# %% [markdown]
+# ## Prepare and inspect
+#
+# Rows without a 1982 weight are dropped by a declared complete-case policy. The study is
+# compiled and inspected before anything is estimated.
+
+# %%
+study = ant.prepare(
+    data,
+    graph=graph,
+    query=query,
+    estimator=PropensityWeighting(bootstrap=200),
+    missing="complete_case",
+    inference=ant.Frequentist(bootstrap=200),
+    execution=ant.Execution(seed=7),
+)
+print(study.inspect())
+
+
+# %% [markdown]
+# ## Missing outcomes are a declared policy
+#
+# The result carries the policy's assumption and the row accounting: rows kept, rows
+# dropped and why.
+
+# %%
+result = ant.outcomes.require_success(ant.estimate(study))
+est = result.estimate
+assert result.identification.status == "NonparametricallyIdentified"
+assert set(result.identification.adjustment_set) == set(covariates)
+
+missing = result.missing_data
+print(
+    f"Missing data ({missing.policy}): {missing.accounting.rows_kept} of "
+    f"{missing.accounting.rows_total} rows kept, {missing.accounting.rows_dropped} dropped."
+)
+print(f"Assumption: {missing.assumption}")
+assert missing.accounting.rows_total == N_ROWS
+assert missing.accounting.rows_dropped == N_MISSING
+if real:
+    assert missing.accounting.rows_kept == 1566
+
+
+# %% [markdown]
+# ## Estimate and read the diagnostics
+#
+# Read the effect with its interval, the overlap diagnostics (smallest propensity and
+# effective sample size) and the calibration status.
+
+# %%
+se = est.se_bootstrap or est.se_analytic
+assert se is not None and se > 0.0
+effect = result.answer.value
+lo, hi = effect - 2.576 * se, effect + 2.576 * se
+print(
+    f"Propensity weighting, average effect of quitting: {effect:.2f} kg "
+    f"(se {se:.2f}, 99% Wald interval [{lo:.2f}, {hi:.2f}])"
+)
+print(
+    f"Overlap: smallest propensity {est.overlap_propensity_min:.3f}; effective sample "
+    f"size {est.overlap_ess:.0f} of {missing.accounting.rows_kept} rows."
+)
+print("Calibration:", result.calibration.status)
+assert est.overlap_propensity_min > 0.01  # good overlap, unlike the NSW/PSID comparison
+assert np.isfinite([effect, lo, hi]).all() and lo < hi
+
+
+# %% [markdown]
+# ## Continued use: the effect among those who quit
+#
+# Reconfiguring the study with a treated-population query asks a different estimand
+# without re-declaring the graph.
+
+# %%
+treated_query = ant.AverageEffect("qsmk", "wt82_71", target_population=population.Treated())
+among_quitters = ant.outcomes.require_success(
+    ant.estimate(ant.reconfigure(study, query=treated_query))
+)
+print(f"Effect among those who quit: {among_quitters.answer.value:.2f} kg")
+
+
+# %% [markdown]
+# ## Check the answer with other estimators
+#
+# AIPW, outcome regression and multiple imputation of the dropped outcomes should land
+# near the weighting estimate.
+
+# %%
+# Cross-check with other estimators on the same declaration.
+aipw = ant.outcomes.require_success(
+    ant.estimate(ant.reconfigure(study, estimator=Aipw(bootstrap=200)))
+)
+regression = ant.outcomes.require_success(
+    ant.estimate(ant.reconfigure(study, estimator="linear.adjustment.ate"))
+)
+print(
+    f"Cross-checks: AIPW {aipw.answer.value:.2f} kg, "
+    f"outcome regression {regression.answer.value:.2f} kg"
+)
+
+# Check the complete-case choice with multiple imputation of the dropped outcomes.
+imputed = ant.outcomes.require_success(
+    ant.estimate(ant.reconfigure(study, missing="multiple_imputation"))
+)
+print(f"Multiple imputation of the {N_MISSING} missing outcomes: {imputed.answer.value:.2f} kg")
+estimates = [
+    among_quitters.answer.value,
+    aipw.answer.value,
+    regression.answer.value,
+    imputed.answer.value,
+]
+assert np.isfinite(estimates).all()
+
+
+# %% [markdown]
+# ## Sensitivity: how strong would an unmeasured confounder need to be?
+#
+# The E-value reads the effect on a standardized scale (effect over outcome standard
+# deviation) and states the confounder strength needed to explain it away.
+
+# %%
+sd = float(np.nanstd(outcome[qsmk == 0], ddof=1))
+sens = v.evalue(effect / sd, standard_error=se / sd, scale="standardized_mean_difference")
+assert sens.range is not None and sens.range.break_even > 1.0
+print(
+    f"E-value {sens.range.break_even:.2f}: an unmeasured confounder would need at least "
+    "this risk-ratio association with both quitting and weight change to explain the "
+    f"estimate away, under assumption '{sens.range.assumption}'."
+)
+
+
+# %% [markdown]
+# ## Compare with the published analysis, carefully
+#
+# On the stand-in the 99% interval can be checked against the fixture truth. On the real
+# data there is no truth, only a similar published analysis.
+
+# %%
+if not real:
+    # The stand-in has a stated truth, so recovery can be asserted. The real data have none.
+    assert lo <= FIXTURE_EFFECT <= hi, (lo, hi, FIXTURE_EFFECT)
+    print(f"Stand-in: the 99% interval contains the fixture effect, {FIXTURE_EFFECT} kg.")
+else:
     print(
-        f"Missing data ({missing.policy}): {missing.accounting.rows_kept} of "
-        f"{missing.accounting.rows_total} rows kept, {missing.accounting.rows_dropped} dropped."
+        "Hernan and Robins report about 3.4 kg (95% CI about 2.4 to 4.5) by inverse-probability "
+        "weighting. Their analysis also weights for loss to follow-up, so it is close to, "
+        "but not the same as, this one."
     )
-    print(f"Assumption: {missing.assumption}")
-    assert missing.accounting.rows_total == N_ROWS
-    assert missing.accounting.rows_dropped == N_MISSING
-    if real:
-        assert missing.accounting.rows_kept == 1566
-
-    se = est.se_bootstrap or est.se_analytic
-    assert se is not None and se > 0.0
-    effect = result.answer.value
-    lo, hi = effect - 2.576 * se, effect + 2.576 * se
-    print(
-        f"Propensity weighting, average effect of quitting: {effect:.2f} kg "
-        f"(se {se:.2f}, 99% Wald interval [{lo:.2f}, {hi:.2f}])"
-    )
-    print(
-        f"Overlap: smallest propensity {est.overlap_propensity_min:.3f}; effective sample "
-        f"size {est.overlap_ess:.0f} of {missing.accounting.rows_kept} rows."
-    )
-    print("Calibration:", result.calibration.status)
-    assert est.overlap_propensity_min > 0.01  # good overlap, unlike the NSW/PSID comparison
-    assert np.isfinite([effect, lo, hi]).all() and lo < hi
-
-    # Continued use: the effect among the people who quit, a different estimand.
-    treated_query = ant.AverageEffect("qsmk", "wt82_71", target_population=population.Treated())
-    among_quitters = ant.outcomes.require_success(
-        ant.estimate(ant.reconfigure(study, query=treated_query))
-    )
-    print(f"Effect among those who quit: {among_quitters.answer.value:.2f} kg")
-
-    # Cross-check with other estimators on the same declaration.
-    aipw = ant.outcomes.require_success(
-        ant.estimate(ant.reconfigure(study, estimator=Aipw(bootstrap=200)))
-    )
-    regression = ant.outcomes.require_success(
-        ant.estimate(ant.reconfigure(study, estimator="linear.adjustment.ate"))
-    )
-    print(
-        f"Cross-checks: AIPW {aipw.answer.value:.2f} kg, "
-        f"outcome regression {regression.answer.value:.2f} kg"
-    )
-
-    # Check the complete-case choice with multiple imputation of the dropped outcomes.
-    imputed = ant.outcomes.require_success(
-        ant.estimate(ant.reconfigure(study, missing="multiple_imputation"))
-    )
-    print(f"Multiple imputation of the {N_MISSING} missing outcomes: {imputed.answer.value:.2f} kg")
-    estimates = [
-        among_quitters.answer.value,
-        aipw.answer.value,
-        regression.answer.value,
-        imputed.answer.value,
-    ]
-    assert np.isfinite(estimates).all()
-
-    # Sensitivity: how strong must an unmeasured confounder be to explain the estimate away?
-    # The E-value reads the effect on a standardized scale (effect / outcome standard deviation).
-    sd = float(np.nanstd(outcome[qsmk == 0], ddof=1))
-    sens = v.evalue(effect / sd, standard_error=se / sd, scale="standardized_mean_difference")
-    assert sens.range is not None and sens.range.break_even > 1.0
-    print(
-        f"E-value {sens.range.break_even:.2f}: an unmeasured confounder would need at least "
-        "this risk-ratio association with both quitting and weight change to explain the "
-        f"estimate away, under assumption '{sens.range.assumption}'."
-    )
-
-    if not real:
-        # The stand-in has a stated truth, so recovery can be asserted. The real data have none.
-        assert lo <= FIXTURE_EFFECT <= hi, (lo, hi, FIXTURE_EFFECT)
-        print(f"Stand-in: the 99% interval contains the fixture effect, {FIXTURE_EFFECT} kg.")
-    else:
-        print(
-            "Hernan and Robins report about 3.4 kg (95% CI about 2.4 to 4.5) by inverse-probability "
-            "weighting. Their analysis also weights for loss to follow-up, so it is close to, "
-            "but not the same as, this one."
-        )
-
-
-if __name__ == "__main__":
-    main()

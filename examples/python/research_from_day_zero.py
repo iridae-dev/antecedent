@@ -8,6 +8,7 @@ and connects explicitly declared manuscript claims to those results.
 
 from __future__ import annotations
 
+# %%
 import hashlib
 import json
 import math
@@ -339,231 +340,260 @@ def rank_followups(prior_source):
     return ranking
 
 
-def main():
-    started = time.perf_counter()
-    plan, protocol, variants = plan_study()
-    protocol_text = json.dumps(protocol, sort_keys=True)
-    protocol_id = snapshot(protocol)  # frozen before generating any observed data
-    ledger = EvidenceLedger()
-    rows, assigned, pause, ids = generate_study(plan.units, 17)
-    pilot_source = ledger.add_source(
-        SourceDeclaration("pilot_participants", "experiment", [("pilot", i) for i in ids])
+# %% [markdown]
+# ## Beginning: design the study your claim needs
+#
+# Plan the sample size, freeze the protocol before any data exist, then analyze the pilot.
+# Look at the participant-level variance check and the identification summary.
+
+# %%
+started = time.perf_counter()
+plan, protocol, variants = plan_study()
+protocol_text = json.dumps(protocol, sort_keys=True)
+protocol_id = snapshot(protocol)  # frozen before generating any observed data
+ledger = EvidenceLedger()
+rows, assigned, pause, ids = generate_study(plan.units, 17)
+pilot_source = ledger.add_source(
+    SourceDeclaration("pilot_participants", "experiment", [("pilot", i) for i in ids])
+)
+pilot_outcome, pilot, pilot_fit = analyze(rows, assigned, pause, ids)
+# Independent participant-level variance: repeated tasks are not independent participants.
+variance = float(
+    np.var(rows["accuracy"][assigned], ddof=1) / sum(assigned)
+    + np.var(rows["accuracy"][~assigned], ddof=1) / sum(~assigned)
+)
+assert math.isclose(pilot_fit.variance_upper_bound, variance, abs_tol=1e-12)
+assert abs(pilot_fit.effect - 0.08) <= 4 * math.sqrt(variance)
+
+# %% [markdown]
+# ## Secondary outcomes and the pilot's limits
+#
+# Time per task and accuracy on correct-AI tasks are analyzed with the same design. The
+# correct-AI interval includes losses, so no noninferiority claim is available.
+
+# %%
+time_design = ExperimentDesign(
+    CompleteRandomization(int(sum(assigned))), assigned.tolist(), ids, ids
+)
+time_outcome = ant.analyze(
+    rows,
+    query=RandomizedEffect("seconds", time_design),
+    execution=ant.Execution(seed=SEED),
+)
+time_fit = require_success(time_outcome).randomized_effect
+assert (
+    abs(
+        time_fit.effect
+        - (float(np.mean(rows["seconds"][assigned]) - np.mean(rows["seconds"][~assigned])))
     )
-    pilot_outcome, pilot, pilot_fit = analyze(rows, assigned, pause, ids)
-    # Independent participant-level variance: repeated tasks are not independent participants.
-    variance = float(
-        np.var(rows["accuracy"][assigned], ddof=1) / sum(assigned)
-        + np.var(rows["accuracy"][~assigned], ddof=1) / sum(~assigned)
+    < 1e-12
+)
+correct_outcome = ant.analyze(
+    rows,
+    query=RandomizedEffect("correct_ai", time_design),
+    execution=ant.Execution(seed=SEED),
+)
+correct_fit = require_success(correct_outcome).randomized_effect
+assert math.isclose(
+    correct_fit.effect,
+    float(np.mean(rows["correct_ai"][assigned]) - np.mean(rows["correct_ai"][~assigned])),
+    abs_tol=1e-12,
+)
+assert correct_fit.interval_95[0] < 0 < correct_fit.interval_95[1]
+
+# %% [markdown]
+# ## Middle: use the findings to choose the next question
+#
+# Identification checks say which follow-ups could separate content from the review
+# prompt; a value-of-information ranking picks the size; the amendment is frozen next.
+
+# %%
+checked, mechanism = identification_followups(plan.units)
+ranking = rank_followups(pilot_source)
+amendment = {
+    "version": "before_followup",
+    "parent_protocol": protocol_id,
+    "reason": "separate explanatory information from a review prompt",
+    "primary_target": "content main effect averaged over balanced pause conditions",
+    "design_prior": {"mean": 0.04, "sd": 0.04},
+    "cost_per_session": 0.00003,
+    "participants": ranking.best.sample_size,
+    "assignment": "independent fixed-cell factorial randomization",
+    "primary_contrast": "content main effect",
+    "secondary_contrasts": ["pause main effect", "interaction"],
+}
+amendment_id = snapshot(amendment)
+follow_rows, content, pause, follow_ids = generate_study(
+    ranking.best.sample_size, 43, factorial=True
+)
+follow_source = ledger.add_source(
+    SourceDeclaration("followup_participants", "experiment", [("followup", i) for i in follow_ids])
+)
+follow_outcome, follow, follow_fit = analyze(
+    follow_rows, content, pause, follow_ids, factorial=True
+)
+assert math.isclose(TRUTH["content"] + TRUTH["pause"], 0.08, abs_tol=1e-12)
+
+# %% [markdown]
+# ## End: write the paper your evidence supports
+#
+# Each manuscript claim is tied to declared evidence or marked unsupported, contradicted
+# or not established.
+
+# %%
+# A separate native refusal continues to block the inspection-mechanism claim.
+audit = [
+    {
+        "claim": "The assigned explanation interface improved accuracy in the studied tasks",
+        "status": "supported"
+        if pilot_fit.interval_95 and pilot_fit.interval_95[0] > 0
+        else "estimate_only",
+        "evidence": pilot_source,
+        "effect": pilot_fit.effect,
+        "interval": pilot_fit.interval_95,
+    },
+    {
+        "claim": "The factorial study estimates the effect of content separately from the pause",
+        "status": "supported",
+        "evidence": follow_source,
+        "effect": follow_fit.effect,
+        "interval": follow_fit.interval_95,
+    },
+    {
+        "claim": "Explanation content independently improved accuracy",
+        "status": "supported"
+        if follow_fit.interval_95 and follow_fit.interval_95[0] > 0
+        else "inconclusive",
+        "evidence": follow_source,
+        "effect": follow_fit.effect,
+        "interval": follow_fit.interval_95,
+    },
+    {
+        "claim": "The benefit occurred because people inspected and understood the AI",
+        "status": "unsupported",
+        "evidence": "inspection identification check",
+        "reason": mechanism.classification("randomized_components")
+        + "; understanding was not measured",
+    },
+    {
+        "claim": "The interface did not slow participants down",
+        "status": "contradicted"
+        if time_fit.interval_95 and time_fit.interval_95[0] > 0
+        else "unresolved",
+        "evidence": pilot_source,
+        "seconds_added": time_fit.effect,
+        "interval": time_fit.interval_95,
+    },
+    {
+        "claim": "There was no accuracy loss when AI advice was correct",
+        "status": "not_established",
+        "evidence": pilot_source,
+        "effect": correct_fit.effect,
+        "interval": correct_fit.interval_95,
+        "reason": "The pointwise secondary interval includes losses; no noninferiority margin was declared",
+    },
+    {
+        "claim": "The results establish a benefit for all AI users",
+        "status": "unsupported",
+        "reason": "No population transport or task-generalization argument was supplied",
+    },
+    {
+        "claim": "The study establishes improved trust",
+        "status": "unsupported",
+        "reason": "Accuracy and verification behavior are not a validated trust measure",
+    },
+]
+assert audit[0]["status"] == "supported"
+assert (
+    next(c for c in audit if c["claim"] == "The interface did not slow participants down")["status"]
+    == "contradicted"
+)
+assert protocol_text == json.dumps(protocol, sort_keys=True) and protocol_id != amendment_id
+
+# %% [markdown]
+# ## Replay the artifacts and assemble the report
+#
+# Artifacts replay only against their own expectation. The summary prints the protocol,
+# planning, claim audit and the abstract the evidence supports.
+
+# %%
+record = ledger.add_source(
+    SourceDeclaration(
+        "paper_evidence",
+        "fitted_model",
+        [("pilot", i) for i in ids] + [("followup", i) for i in follow_ids],
+        lineage=Lineage.derived_from_used_data([pilot_source, follow_source]),
     )
-    assert math.isclose(pilot_fit.variance_upper_bound, variance, abs_tol=1e-12)
-    assert abs(pilot_fit.effect - 0.08) <= 4 * math.sqrt(variance)
-    time_design = ExperimentDesign(
-        CompleteRandomization(int(sum(assigned))), assigned.tolist(), ids, ids
-    )
-    time_outcome = ant.analyze(
-        rows,
-        query=RandomizedEffect("seconds", time_design),
-        execution=ant.Execution(seed=SEED),
-    )
-    time_fit = require_success(time_outcome).randomized_effect
-    assert (
-        abs(
-            time_fit.effect
-            - (float(np.mean(rows["seconds"][assigned]) - np.mean(rows["seconds"][~assigned])))
-        )
-        < 1e-12
-    )
-    correct_outcome = ant.analyze(
-        rows,
-        query=RandomizedEffect("correct_ai", time_design),
-        execution=ant.Execution(seed=SEED),
-    )
-    correct_fit = require_success(correct_outcome).randomized_effect
-    assert math.isclose(
-        correct_fit.effect,
-        float(np.mean(rows["correct_ai"][assigned]) - np.mean(rows["correct_ai"][~assigned])),
-        abs_tol=1e-12,
-    )
-    assert correct_fit.interval_95[0] < 0 < correct_fit.interval_95[1]
-    checked, mechanism = identification_followups(plan.units)
-    ranking = rank_followups(pilot_source)
-    amendment = {
-        "version": "before_followup",
-        "parent_protocol": protocol_id,
-        "reason": "separate explanatory information from a review prompt",
-        "primary_target": "content main effect averaged over balanced pause conditions",
-        "design_prior": {"mean": 0.04, "sd": 0.04},
-        "cost_per_session": 0.00003,
-        "participants": ranking.best.sample_size,
-        "assignment": "independent fixed-cell factorial randomization",
-        "primary_contrast": "content main effect",
-        "secondary_contrasts": ["pause main effect", "interaction"],
-    }
-    amendment_id = snapshot(amendment)
-    follow_rows, content, pause, follow_ids = generate_study(
-        ranking.best.sample_size, 43, factorial=True
-    )
-    follow_source = ledger.add_source(
-        SourceDeclaration(
-            "followup_participants", "experiment", [("followup", i) for i in follow_ids]
-        )
-    )
-    follow_outcome, follow, follow_fit = analyze(
-        follow_rows, content, pause, follow_ids, factorial=True
-    )
-    assert math.isclose(TRUTH["content"] + TRUTH["pause"], 0.08, abs_tol=1e-12)
-    # A separate native refusal continues to block the inspection-mechanism claim.
-    audit = [
+)
+assert ledger.sources[-1].effective_observations == plan.units + ranking.best.sample_size
+artifact = pilot_outcome.export()
+replayed = ant.load(artifact, expected=artifact.expectation)
+assert replayed.inspect().answer == pilot.inspect().answer
+follow_artifact = follow_outcome.export()
+assert (
+    ant.load(follow_artifact, expected=follow_artifact.expectation).inspect().answer
+    == follow.inspect().answer
+)
+try:
+    ant.load(follow_artifact, expected=artifact.expectation)
+except ant.errors.CausalError:
+    pass
+else:
+    raise AssertionError("The component result must not satisfy the bundle result expectation")
+abstract = (
+    f"In the recruited cohort and tested tasks, assignment to the bundled interface changed accuracy by {100 * pilot_fit.effect:.2f} percentage points "
+    f"(95% interval {100 * pilot_fit.interval_95[0]:.2f} to {100 * pilot_fit.interval_95[1]:.2f}) and added {time_fit.effect:.2f} seconds per task. "
+    f"The independent factorial follow-up estimated a content effect of {100 * follow_fit.effect:.2f} percentage points "
+    f"(95% interval {100 * follow_fit.interval_95[0]:.2f} to {100 * follow_fit.interval_95[1]:.2f}). "
+    "These results do not establish understanding as the mechanism or a benefit beyond the studied population and tasks."
+)
+print(
+    json.dumps(
         {
-            "claim": "The assigned explanation interface improved accuracy in the studied tasks",
-            "status": "supported"
-            if pilot_fit.interval_95 and pilot_fit.interval_95[0] > 0
-            else "estimate_only",
-            "evidence": pilot_source,
-            "effect": pilot_fit.effect,
-            "interval": pilot_fit.interval_95,
-        },
-        {
-            "claim": "The factorial study estimates the effect of content separately from the pause",
-            "status": "supported",
-            "evidence": follow_source,
-            "effect": follow_fit.effect,
-            "interval": follow_fit.interval_95,
-        },
-        {
-            "claim": "Explanation content independently improved accuracy",
-            "status": "supported"
-            if follow_fit.interval_95 and follow_fit.interval_95[0] > 0
-            else "inconclusive",
-            "evidence": follow_source,
-            "effect": follow_fit.effect,
-            "interval": follow_fit.interval_95,
-        },
-        {
-            "claim": "The benefit occurred because people inspected and understood the AI",
-            "status": "unsupported",
-            "evidence": "inspection identification check",
-            "reason": mechanism.classification("randomized_components")
-            + "; understanding was not measured",
-        },
-        {
-            "claim": "The interface did not slow participants down",
-            "status": "contradicted"
-            if time_fit.interval_95 and time_fit.interval_95[0] > 0
-            else "unresolved",
-            "evidence": pilot_source,
-            "seconds_added": time_fit.effect,
-            "interval": time_fit.interval_95,
-        },
-        {
-            "claim": "There was no accuracy loss when AI advice was correct",
-            "status": "not_established",
-            "evidence": pilot_source,
-            "effect": correct_fit.effect,
-            "interval": correct_fit.interval_95,
-            "reason": "The pointwise secondary interval includes losses; no noninferiority margin was declared",
-        },
-        {
-            "claim": "The results establish a benefit for all AI users",
-            "status": "unsupported",
-            "reason": "No population transport or task-generalization argument was supplied",
-        },
-        {
-            "claim": "The study establishes improved trust",
-            "status": "unsupported",
-            "reason": "Accuracy and verification behavior are not a validated trust measure",
-        },
-    ]
-    assert audit[0]["status"] == "supported"
-    assert (
-        next(c for c in audit if c["claim"] == "The interface did not slow participants down")[
-            "status"
-        ]
-        == "contradicted"
-    )
-    assert protocol_text == json.dumps(protocol, sort_keys=True) and protocol_id != amendment_id
-    record = ledger.add_source(
-        SourceDeclaration(
-            "paper_evidence",
-            "fitted_model",
-            [("pilot", i) for i in ids] + [("followup", i) for i in follow_ids],
-            lineage=Lineage.derived_from_used_data([pilot_source, follow_source]),
-        )
-    )
-    assert ledger.sources[-1].effective_observations == plan.units + ranking.best.sample_size
-    artifact = pilot_outcome.export()
-    replayed = ant.load(artifact, expected=artifact.expectation)
-    assert replayed.inspect().answer == pilot.inspect().answer
-    follow_artifact = follow_outcome.export()
-    assert (
-        ant.load(follow_artifact, expected=follow_artifact.expectation).inspect().answer
-        == follow.inspect().answer
-    )
-    try:
-        ant.load(follow_artifact, expected=artifact.expectation)
-    except ant.errors.CausalError:
-        pass
-    else:
-        raise AssertionError("The component result must not satisfy the bundle result expectation")
-    abstract = (
-        f"In the recruited cohort and tested tasks, assignment to the bundled interface changed accuracy by {100 * pilot_fit.effect:.2f} percentage points "
-        f"(95% interval {100 * pilot_fit.interval_95[0]:.2f} to {100 * pilot_fit.interval_95[1]:.2f}) and added {time_fit.effect:.2f} seconds per task. "
-        f"The independent factorial follow-up estimated a content effect of {100 * follow_fit.effect:.2f} percentage points "
-        f"(95% interval {100 * follow_fit.interval_95[0]:.2f} to {100 * follow_fit.interval_95[1]:.2f}). "
-        "These results do not establish understanding as the mechanism or a benefit beyond the studied population and tasks."
-    )
-    print(
-        json.dumps(
-            {
-                "protocol": protocol,
-                "protocol_identity": protocol_id,
-                "planning": {
-                    "participants": plan.units,
-                    "arms": plan.arm_units,
-                    "analytic_power": plan.analytic.value,
-                    "simulated_power": plan.simulation.value,
-                    "simulation_se": plan.simulation.monte_carlo_se,
-                    "sensitivity": variants,
-                },
-                "pilot": {
-                    "effect": pilot_fit.effect,
-                    "participant_neyman_variance": variance,
-                    "identification": pilot.inspect().identification.summary,
-                    "uncertainty": pilot_fit.uncertainty,
-                },
-                "identification_repair": {
-                    name: checked.classification(name)
-                    for name in (
-                        "repeat_bundle",
-                        "questionnaire",
-                        "factorial_128",
-                        "factorial_256",
-                    )
-                },
-                "study_ranking": [
-                    {"id": r.id, "evsi": r.evsi, "net_value": r.net_value}
-                    for r in ranking.candidates
-                ],
-                "amendment": amendment,
-                "amendment_identity": amendment_id,
-                "followup": {
-                    "content_effect": follow_fit.effect,
-                    "pause_effect": follow_fit.second_factor_effect,
-                    "interaction": follow_fit.factorial_interaction,
-                },
-                "claim_audit": audit,
-                "supported_abstract": abstract,
-                "paper_evidence": record,
-                "pilot_artifact_sha256": hashlib.sha256(bytes(artifact)).hexdigest(),
-                "followup_artifact_sha256": hashlib.sha256(bytes(follow_artifact)).hexdigest(),
-                "mismatched_result_expectation": "refused",
-                "distinct_participants": ledger.sources[-1].effective_observations,
-                "elapsed_seconds": time.perf_counter() - started,
+            "protocol": protocol,
+            "protocol_identity": protocol_id,
+            "planning": {
+                "participants": plan.units,
+                "arms": plan.arm_units,
+                "analytic_power": plan.analytic.value,
+                "simulated_power": plan.simulation.value,
+                "simulation_se": plan.simulation.monte_carlo_se,
+                "sensitivity": variants,
             },
-            indent=2,
-        )
+            "pilot": {
+                "effect": pilot_fit.effect,
+                "participant_neyman_variance": variance,
+                "identification": pilot.inspect().identification.summary,
+                "uncertainty": pilot_fit.uncertainty,
+            },
+            "identification_repair": {
+                name: checked.classification(name)
+                for name in (
+                    "repeat_bundle",
+                    "questionnaire",
+                    "factorial_128",
+                    "factorial_256",
+                )
+            },
+            "study_ranking": [
+                {"id": r.id, "evsi": r.evsi, "net_value": r.net_value} for r in ranking.candidates
+            ],
+            "amendment": amendment,
+            "amendment_identity": amendment_id,
+            "followup": {
+                "content_effect": follow_fit.effect,
+                "pause_effect": follow_fit.second_factor_effect,
+                "interaction": follow_fit.factorial_interaction,
+            },
+            "claim_audit": audit,
+            "supported_abstract": abstract,
+            "paper_evidence": record,
+            "pilot_artifact_sha256": hashlib.sha256(bytes(artifact)).hexdigest(),
+            "followup_artifact_sha256": hashlib.sha256(bytes(follow_artifact)).hexdigest(),
+            "mismatched_result_expectation": "refused",
+            "distinct_participants": ledger.sources[-1].effective_observations,
+            "elapsed_seconds": time.perf_counter() - started,
+        },
+        indent=2,
     )
-
-
-if __name__ == "__main__":
-    main()
+)

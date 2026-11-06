@@ -16,17 +16,23 @@ establishes about the held-out whole program.
 
 from __future__ import annotations
 
+# %%
 import csv
+import io
 import json
 import math
 import statistics
+import urllib.request
 from pathlib import Path
 
+import antecedent
 from antecedent import Execution, joint_panel
 from antecedent.intervention_programs import var
 from antecedent.outcomes import require_success
 
-FIXTURE = Path(__file__).resolve().parents[2] / "conformance" / "response" / "joint_panel"
+HERE = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
+ROOT = HERE.parents[1] if len(HERE.parents) > 1 else HERE
+FIXTURE = ROOT / "conformance" / "response" / "joint_panel"
 HORIZON = 24
 WEEK_NS = 604_800_000_000_000
 SEED = 20261021
@@ -39,8 +45,18 @@ KNOWN_EFFECT = 3.0 * SATURATION + 2.0 * SATURATION + 1.5 * SATURATION * SATURATI
 
 
 def read_rows(name: str) -> list[dict[str, str]]:
-    with (FIXTURE / name).open() as source:
-        return list(csv.DictReader(source))
+    """Read a fixture panel from the checkout, or from the matching release tag without one."""
+    local = FIXTURE / name
+    if local.is_file():
+        text = local.read_text(encoding="utf-8")
+    else:
+        url = (
+            "https://raw.githubusercontent.com/iridae-dev/antecedent/"
+            f"v{antecedent.__version__}/conformance/response/joint_panel/{name}"
+        )
+        with urllib.request.urlopen(url, timeout=30) as response:
+            text = response.read().decode("utf-8")
+    return list(csv.DictReader(io.StringIO(text)))
 
 
 def declare(rows: list[dict[str, str]], arms=ARMS):
@@ -146,85 +162,112 @@ def whole_program_attempt(inspection):
     return {a["id"]: a for a in inspection["attempts"]}["randomized.multi_arm_itt.whole_program"]
 
 
-def run() -> dict[str, object]:
-    rows = read_rows("randomized_interaction.csv")
-    prepared = prepare(rows, draws=100, fitted=True)
-    assert prepared.inspect()["fits_performed"] == 0
-    result = require_success(prepared.estimate(execution=Execution(seed=SEED)))
-    report = result.report()
-    assert report["fits_performed"] == 1
-    assert report["diagnostics"]["optimizer_converged"]
-    print("calibration:", report["diagnostics"]["calibration"])
-    assert report["identified"] is False
+# %% [markdown]
+# ## Prepare, then inspect
+#
+# Read the fixture panel and declare the two fitted worlds: the baseline and the joint program.
+# Preparing the question performs no fit, which the inspection confirms.
 
-    contrast = result.scheduled_contrast("terminal_mean", level=0.95)
-    assert contrast["uncertainty"] == "EstimatorSampling"
-    point = report["point"]
-    assert math.isclose(
-        contrast["point"], point[1]["means"][-1] - point[0]["means"][-1], abs_tol=1e-12
+# %%
+rows = read_rows("randomized_interaction.csv")
+prepared = prepare(rows, draws=100, fitted=True)
+assert prepared.inspect()["fits_performed"] == 0
+
+# %% [markdown]
+# ## Run: one fit, one shared uncertainty
+#
+# One fit serves both worlds. The contrast is read from the draws they share, so its
+# uncertainty is smaller than an independent combination of the two worlds would report.
+
+# %%
+result = require_success(prepared.estimate(execution=Execution(seed=SEED)))
+report = result.report()
+assert report["fits_performed"] == 1
+assert report["diagnostics"]["optimizer_converged"]
+print("calibration:", report["diagnostics"]["calibration"])
+assert report["identified"] is False
+
+contrast = result.scheduled_contrast("terminal_mean", level=0.95)
+assert contrast["uncertainty"] == "EstimatorSampling"
+point = report["point"]
+assert math.isclose(contrast["point"], point[1]["means"][-1] - point[0]["means"][-1], abs_tol=1e-12)
+
+complete = [draw for draw in report["draws"] if draw is not None]
+assert complete
+baseline = [draw[0]["means"][-1] for draw in complete]
+program = [draw[1]["means"][-1] for draw in complete]
+differences = [after - before for after, before in zip(program, baseline, strict=True)]
+shared = [value for value in contrast["draws"] if value is not None]
+assert all(
+    math.isclose(left, right, abs_tol=1e-9) for left, right in zip(shared, differences, strict=True)
+)
+covariance = statistics.covariance(program, baseline)
+shared_se = statistics.stdev(differences)
+independent_se = math.sqrt(statistics.variance(program) + statistics.variance(baseline))
+assert math.isclose(
+    shared_se**2,
+    statistics.variance(program) + statistics.variance(baseline) - 2 * covariance,
+    rel_tol=1e-9,
+)
+assert shared_se < independent_se
+assert abs(contrast["point"] - KNOWN_EFFECT) <= 3.0 * shared_se
+if contrast["standard_error"] is not None:
+    assert math.isclose(contrast["standard_error"], shared_se, rel_tol=1e-9)
+
+# %% [markdown]
+# ## What the assignment design establishes
+#
+# Weekly randomization given the observed confounder does not identify the whole program.
+# Randomizing whole programs across independent groups does, provided the context is declared
+# exogenous.
+
+# %%
+per_week = prepare(rows, assignment=weekly_assignment(rows), exogenous_context=True).inspect()
+weekly = whole_program_attempt(per_week)
+assert per_week["fits_performed"] == 0
+assert per_week["identified"] is False
+assert weekly["outcome"] == "Rejected"
+assert weekly["next_attempt"] is not None
+
+experiment = read_rows("whole_program_interaction.csv")
+randomized = prepare(
+    experiment, assignment=whole_program_assignment(), exogenous_context=True
+).inspect()
+assert randomized["identified"] is True
+assert whole_program_attempt(randomized)["outcome"] == "Identified"
+undeclared = prepare(
+    experiment, assignment=whole_program_assignment(), exogenous_context=False
+).inspect()
+assert undeclared["identified"] is False
+assert whole_program_attempt(undeclared)["outcome"] == "Rejected"
+
+# %% [markdown]
+# ## Replay the record
+#
+# Export the fitted result and consume it again. The replay reproduces the point estimates and
+# grants no current authority.
+
+# %%
+replay = require_success(
+    joint_panel.consume(
+        bytes(result.export(execution=Execution(seed=SEED))), execution=Execution(seed=SEED)
     )
-
-    complete = [draw for draw in report["draws"] if draw is not None]
-    assert complete
-    baseline = [draw[0]["means"][-1] for draw in complete]
-    program = [draw[1]["means"][-1] for draw in complete]
-    differences = [after - before for after, before in zip(program, baseline, strict=True)]
-    shared = [value for value in contrast["draws"] if value is not None]
-    assert all(
-        math.isclose(left, right, abs_tol=1e-9)
-        for left, right in zip(shared, differences, strict=True)
+)
+assert replay["point"] == report["point"]
+assert replay["grants_current_authority"] is False
+print(
+    json.dumps(
+        {
+            "known_effect": KNOWN_EFFECT,
+            "estimated_effect": contrast["point"],
+            "shared_fit_standard_error": shared_se,
+            "independent_combination_standard_error": independent_se,
+            "response_covariance": covariance,
+            "failed_draw_slots": len(report["draws"]) - len(complete),
+            "weekly_assignment_identifies_program": per_week["identified"],
+            "weekly_assignment_detail": weekly["detail"],
+            "whole_program_assignment_identifies_program": randomized["identified"],
+        },
+        indent=2,
     )
-    covariance = statistics.covariance(program, baseline)
-    shared_se = statistics.stdev(differences)
-    independent_se = math.sqrt(statistics.variance(program) + statistics.variance(baseline))
-    assert math.isclose(
-        shared_se**2,
-        statistics.variance(program) + statistics.variance(baseline) - 2 * covariance,
-        rel_tol=1e-9,
-    )
-    assert shared_se < independent_se
-    assert abs(contrast["point"] - KNOWN_EFFECT) <= 3.0 * shared_se
-    if contrast["standard_error"] is not None:
-        assert math.isclose(contrast["standard_error"], shared_se, rel_tol=1e-9)
-
-    per_week = prepare(rows, assignment=weekly_assignment(rows), exogenous_context=True).inspect()
-    weekly = whole_program_attempt(per_week)
-    assert per_week["fits_performed"] == 0
-    assert per_week["identified"] is False
-    assert weekly["outcome"] == "Rejected"
-    assert weekly["next_attempt"] is not None
-
-    experiment = read_rows("whole_program_interaction.csv")
-    randomized = prepare(
-        experiment, assignment=whole_program_assignment(), exogenous_context=True
-    ).inspect()
-    assert randomized["identified"] is True
-    assert whole_program_attempt(randomized)["outcome"] == "Identified"
-    undeclared = prepare(
-        experiment, assignment=whole_program_assignment(), exogenous_context=False
-    ).inspect()
-    assert undeclared["identified"] is False
-    assert whole_program_attempt(undeclared)["outcome"] == "Rejected"
-
-    replay = require_success(
-        joint_panel.consume(
-            bytes(result.export(execution=Execution(seed=SEED))), execution=Execution(seed=SEED)
-        )
-    )
-    assert replay["point"] == report["point"]
-    assert replay["grants_current_authority"] is False
-    return {
-        "known_effect": KNOWN_EFFECT,
-        "estimated_effect": contrast["point"],
-        "shared_fit_standard_error": shared_se,
-        "independent_combination_standard_error": independent_se,
-        "response_covariance": covariance,
-        "failed_draw_slots": len(report["draws"]) - len(complete),
-        "weekly_assignment_identifies_program": per_week["identified"],
-        "weekly_assignment_detail": weekly["detail"],
-        "whole_program_assignment_identifies_program": randomized["identified"],
-    }
-
-
-if __name__ == "__main__":
-    print(json.dumps(run(), indent=2))
+)

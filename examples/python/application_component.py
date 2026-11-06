@@ -13,6 +13,7 @@ Run: ``python examples/python/application_component.py``
 
 from __future__ import annotations
 
+# %%
 import json
 from dataclasses import dataclass
 
@@ -140,84 +141,118 @@ def consume(encoded, retained_identity):
     raise AssertionError(f"not accepted as a claim: {loaded.acceptance}")
 
 
-def main():
-    data = make_data()
-    policy = AcceptancePolicy()
+# %% [markdown]
+# ## Prepare and inspect before running
+#
+# The host builds a request from data, a declared graph and one question, compiles it,
+# and reads the plan before spending any compute. Nothing is fitted yet.
 
-    # 1. Prepare, then inspect the plan before running.
-    study = prepare_request(observed_request(data))
-    plan = read_plan(study)
-    print("plan:", json.dumps(plan))
-    assert plan["stage"] == "prepared"
-    assert plan["support_status"] == "supported"
+# %%
+data = make_data()
+policy = AcceptancePolicy()
 
-    # 2. Execute and read the claim, the support status and the calibration status.
-    response, outcome = execute(study)
-    print("response:", json.dumps({k: v for k, v in response.items() if k != "claim"}))
-    assert response["status"] == "supported"
-    assert response["claim"]["kind"] == "point"
-    assert abs(response["value"] - TRUE_EFFECT) < 0.6
-    assert isinstance(response["calibration"], str)
-    decision = decide(response, policy)
-    assert decision == "act"
-    # The same answer under a stricter host policy is not acted on.
-    assert decide(response, AcceptancePolicy(accepted_support=frozenset())) == "send_to_review"
+# 1. Prepare, then inspect the plan before running.
+study = prepare_request(observed_request(data))
+plan = read_plan(study)
+print("plan:", json.dumps(plan))
+assert plan["stage"] == "prepared"
+assert plan["support_status"] == "supported"
 
-    # 3. A typed refusal is scientific information, not an error to retry.
-    refused_study = prepare_request(confounded_request(data))
-    assert read_plan(refused_study)["stage"] == "refused"
-    refused, refused_outcome = execute(refused_study)
-    print("refusal:", json.dumps(refused["refusal"]))
-    assert not refused_outcome.accepted and refused_outcome.answer.kind == "refused"
-    assert refused["refusal"]["reason_code"] == "effect_not_identified"
-    assert refused["refusal"]["reason_code"] in host.refusal_codes()
-    assert decide(refused, policy) == "reject"
 
-    # 4. Branch onto changed data. The earlier result is preserved.
-    changed = {**data, "sessions": data["sessions"] + data["reminder"]}
-    branch = ant.rebind(study, data=changed)
-    branch_response, _ = execute(branch)
-    assert branch is not study
-    assert abs((branch_response["value"] - response["value"]) - 1.0) < 1e-6
-    assert ant.estimate(study).answer.value == outcome.answer.value
-    assert branch.plan_view().identity != study.plan_view().identity
-    assert study.plan_view().identity == plan["program"]
+# %% [markdown]
+# ## Run it and read the claim
+#
+# Execution returns the claim, its support status and the calibration status. The host's
+# own acceptance policy turns that into an action; a stricter policy sends it to review.
 
-    # 5. Export, then consume as an independent consumer.
-    artifact = outcome.export()
-    retained = json.dumps(artifact.expectation.to_dict()["identity"])
-    loaded = consume(bytes(artifact), retained)
-    print("loaded:", loaded.acceptance)
-    assert loaded.answer.value == outcome.answer.value
-    # Loading restores a recorded claim. It does not recreate the live study.
-    assert loaded.study is None
-    assert "refresh" not in loaded.capabilities and "explore" not in loaded.capabilities
+# %%
+# 2. Execute and read the claim, the support status and the calibration status.
+response, outcome = execute(study)
+print("response:", json.dumps({k: v for k, v in response.items() if k != "claim"}))
+assert response["status"] == "supported"
+assert response["claim"]["kind"] == "point"
+assert abs(response["value"] - TRUE_EFFECT) < 0.6
+assert isinstance(response["calibration"], str)
+decision = decide(response, policy)
+assert decision == "act"
+# The same answer under a stricter host policy is not acted on.
+assert decide(response, AcceptancePolicy(accepted_support=frozenset())) == "send_to_review"
 
-    # Bytes that were altered, or a different request's identity, are not accepted.
-    try:
-        consume(b"not an artifact", retained)
-    except ant.CausalError as error:
-        altered = host.refusal_record(error)
-        assert altered["family"] in {family.code for family in host.error_families()}
-    else:
-        raise AssertionError("altered bytes were accepted")
-    flags = np.array([0.0, 1.0] * 80)
-    other = Request(
-        {"reminder": flags, "sessions": 3 * flags},
-        [("reminder", "sessions")],
-        ant.AverageEffect("reminder", "sessions"),
+
+# %% [markdown]
+# ## Handle a refusal
+#
+# A declared unmeasured common cause makes the effect unidentified. The typed refusal is
+# scientific information for the host to act on, not an error to retry.
+
+# %%
+# 3. A typed refusal is scientific information, not an error to retry.
+refused_study = prepare_request(confounded_request(data))
+assert read_plan(refused_study)["stage"] == "refused"
+refused, refused_outcome = execute(refused_study)
+print("refusal:", json.dumps(refused["refusal"]))
+assert not refused_outcome.accepted and refused_outcome.answer.kind == "refused"
+assert refused["refusal"]["reason_code"] == "effect_not_identified"
+assert refused["refusal"]["reason_code"] in host.refusal_codes()
+assert decide(refused, policy) == "reject"
+
+
+# %% [markdown]
+# ## Branch onto changed data
+#
+# Rebinding the study to changed data gives a new study with a new identity; the earlier
+# result is preserved and still reproduces.
+
+# %%
+# 4. Branch onto changed data. The earlier result is preserved.
+changed = {**data, "sessions": data["sessions"] + data["reminder"]}
+branch = ant.rebind(study, data=changed)
+branch_response, _ = execute(branch)
+assert branch is not study
+assert abs((branch_response["value"] - response["value"]) - 1.0) < 1e-6
+assert ant.estimate(study).answer.value == outcome.answer.value
+assert branch.plan_view().identity != study.plan_view().identity
+assert study.plan_view().identity == plan["program"]
+
+
+# %% [markdown]
+# ## Export, then consume as an independent consumer
+#
+# The consumer holds only the bytes and the identity it retained. Altered bytes and a
+# different request's identity are both refused.
+
+# %%
+# 5. Export, then consume as an independent consumer.
+artifact = outcome.export()
+retained = json.dumps(artifact.expectation.to_dict()["identity"])
+loaded = consume(bytes(artifact), retained)
+print("loaded:", loaded.acceptance)
+assert loaded.answer.value == outcome.answer.value
+# Loading restores a recorded claim. It does not recreate the live study.
+assert loaded.study is None
+assert "refresh" not in loaded.capabilities and "explore" not in loaded.capabilities
+
+# Bytes that were altered, or a different request's identity, are not accepted.
+try:
+    consume(b"not an artifact", retained)
+except ant.CausalError as error:
+    altered = host.refusal_record(error)
+    assert altered["family"] in {family.code for family in host.error_families()}
+else:
+    raise AssertionError("altered bytes were accepted")
+flags = np.array([0.0, 1.0] * 80)
+other = Request(
+    {"reminder": flags, "sessions": 3 * flags},
+    [("reminder", "sessions")],
+    ant.AverageEffect("reminder", "sessions"),
+)
+other_artifact = ant.estimate(prepare_request(other)).export()
+try:
+    consume(
+        bytes(artifact),
+        json.dumps(other_artifact.expectation.to_dict()["identity"]),
     )
-    other_artifact = ant.estimate(prepare_request(other)).export()
-    try:
-        consume(
-            bytes(artifact),
-            json.dumps(other_artifact.expectation.to_dict()["identity"]),
-        )
-    except ant.CausalError:
-        pass
-    else:
-        raise AssertionError("a different identity accepted these bytes")
-
-
-if __name__ == "__main__":
-    main()
+except ant.CausalError:
+    pass
+else:
+    raise AssertionError("a different identity accepted these bytes")

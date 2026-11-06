@@ -54,6 +54,8 @@ def on_config(config):
 
 
 EXAMPLE = re.compile(r"<!-- example: ([\w./-]+) -->")
+# Notebook cell markers (scripts/generate_notebooks.py) are not shown in embedded source.
+NOTEBOOK_MARKER = re.compile(r"^# %%.*\n", re.M)
 
 
 def render_examples(markdown):
@@ -61,7 +63,8 @@ def render_examples(markdown):
         path = (ROOT / match.group(1)).resolve()
         if not path.is_relative_to(ROOT / "examples") or not path.is_file():
             raise ValueError(f"Unknown documentation example: {match.group(1)}")
-        return "```python\n" + path.read_text(encoding="utf-8").rstrip() + "\n```"
+        source = NOTEBOOK_MARKER.sub("", path.read_text(encoding="utf-8"))
+        return "```python\n" + source.rstrip() + "\n```"
 
     return EXAMPLE.sub(substitute, markdown)
 

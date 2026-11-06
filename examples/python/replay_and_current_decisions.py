@@ -15,6 +15,7 @@ supported behaviour of this mixed-evidence workflow; it is not a general revocat
 
 from __future__ import annotations
 
+# %%
 from antecedent import mixed_decision as md
 from antecedent.execution import Execution
 
@@ -30,8 +31,12 @@ def refused(call) -> md.MixedDecisionRefusal:
     raise AssertionError("the call should have been refused")
 
 
-# -- 1. Build the decision from three routes ------------------------------------------------
+# %% [markdown]
+# ## Build the decision from three routes
+#
 # The dependence between the routes is declared, never defaulted: here they are independent.
+
+# %%
 workflow = md.run_mixed_decision(md.Dependence.independent(), execution=Execution(seed=SEED))
 routes = workflow.routes
 decision = workflow.decision()
@@ -51,9 +56,14 @@ assert (
 assert decision.evaluation.verdict == "uniquely_optimal"
 assert decision.evaluation.chosen == (("act",) if decision.mean > 0.0 else ("decline",))
 
-# -- 2. Change the utility: the decision is recomputed and nothing is refitted --------------
+# %% [markdown]
+# ## Change the utility, refit nothing
+#
+# The decision is recomputed. The receipt counts every fit, identification and score
+# recomputation the change performed.
+
+# %%
 receipt = workflow.utility_only(2.0)
-# The receipt counts every fit, identification and score recomputation the change performed.
 assert receipt == md.UtilityReplay(0, 0, 0, 0, 0)
 after = workflow.decision()
 current = workflow.routes
@@ -65,16 +75,27 @@ assert current.cluster_effect == routes.cluster_effect
 assert current.temporal_effect == routes.temporal_effect
 assert current.cost_mean == routes.cost_mean
 
-# -- 3. Export the decision, bound to the current standing of its sources -------------------
+# %% [markdown]
+# ## Export the decision
+#
+# The export is bound to the current standing of its sources. Keep the identity apart from
+# the bytes: a consumer checks the bytes against it.
+
+# %%
 exported = workflow.export_decision()
-# Keep the identity apart from the bytes: a consumer checks the bytes against it.
 loaded = workflow.load(exported.artifact, exported.identity)
 assert (loaded.mean, loaded.variance) == (after.mean, after.variance)
 # An independent consumer replays the numbers from the bytes alone and is granted no authority.
 replayed = md.replay_decision(exported.artifact, exported.identity, execution=Execution(seed=SEED))
 assert replayed == (after.mean, after.variance)
 
-# -- 4. Withdraw the trial ------------------------------------------------------------------
+# %% [markdown]
+# ## Withdraw the trial
+#
+# Historical numerical replay still succeeds; every current use refuses and names the ledger
+# standing, not a numerical fault.
+
+# %%
 verification = workflow.withdraw_cluster()
 # The margin and the decision depended on the trial; the temporal and cost claims did not.
 for key in ("cluster_trial", "margin_bridge", "decision"):
@@ -83,13 +104,11 @@ for key in ("temporal_drift", "bayesian_cost"):
     assert verification.classify(key).klass == "still_valid", key
 assert verification.classify("decision").authority_retained is False
 
-# Historical numerical replay still succeeds, and gives exactly the sealed numbers.
 assert (
     md.replay_decision(exported.artifact, exported.identity, execution=Execution(seed=SEED))
     == replayed
 )
 
-# Current use of the decision refuses. Each refusal names the ledger standing, not a numerical fault.
 for current_use in (
     workflow.decision,
     workflow.export_decision,

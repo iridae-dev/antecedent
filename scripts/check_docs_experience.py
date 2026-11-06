@@ -15,6 +15,7 @@ from docs_hooks import (
     split_release,
 )
 from generate_example_catalog import entries, expected_page, version
+from generate_notebooks import expected as expected_notebooks
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -84,6 +85,11 @@ def check():
         for key in ("title", "summary", "topic", "level", "runtime", "claim"):
             if not row.get(key):
                 errors.append(f"{row['id']}: missing catalog {key}")
+    for path, text in expected_notebooks().items():
+        if not path.exists() or path.read_text(encoding="utf-8") != text:
+            errors.append(
+                f"{path.relative_to(ROOT)}: differs from its script; run python scripts/generate_notebooks.py"
+            )
     for site, relative in [(False, "examples/README.md"), (True, "docs/examples.md")]:
         if (ROOT / relative).read_text(encoding="utf-8") != expected_page(site):
             errors.append(f"{relative}: generated catalog stale")

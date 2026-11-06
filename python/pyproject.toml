@@ -111,6 +111,7 @@ raises-require-match-for = ["Exception", "ValueError", "TypeError"]
 "../examples/python/**" = [
   "B",
   "SIM",
+  "E402", # notebook cells import where the step uses it
 ]
 
 [tool.mypy]

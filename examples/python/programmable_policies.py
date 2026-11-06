@@ -8,6 +8,7 @@ checks every counterfactual value against the generating equations.
 
 from __future__ import annotations
 
+# %%
 import json
 import time
 from dataclasses import asdict
@@ -306,195 +307,234 @@ def callback_example(model, conditional):
     }
 
 
-def main():
-    started = time.perf_counter()
-    model = fit_model(23)
-    conditional, policies = programs()
-    # Conventional hard intervention and a compiled constant assignment agree.
-    hard = model.sample_do({"price": 10.0}, 128, execution=EXECUTION)
-    assigned = sample_policy(model, [assign("price", 10)], 128, execution=EXECUTION)
-    np.testing.assert_array_equal(hard.draws, assigned.draws)
-    raw = model.sample_do({}, 128, execution=EXECUTION).draws[NAMES.index("price")]
-    floor = sample_policy(
-        model,
-        [transform("price", maximum(10, 0.85 * generated()))],
-        128,
-        execution=EXECUTION,
-    ).draws[NAMES.index("price")]
-    np.testing.assert_array_equal(floor, np.maximum(10, 0.85 * raw))
-    support = policy_support(model, [conditional])
-    assert support.simulation.supported and support.counterfactual.supported
-    assert not support.identification.supported
-    assert support.identification.reason_code == "policy_route_not_supported"
-    circular = assign("price", var("sales"))
-    cycle = expect_refusal(
-        "policy_dependency_circular",
-        lambda: sample_policy(model, [circular], 8, execution=EXECUTION),
-    )
-    # Reading inventory corrects the dependency: inventory precedes price.
-    sample_policy(model, [conditional], 8, execution=EXECUTION)
-    missing = expect_refusal(
-        "policy_history_unavailable",
-        lambda: sample_temporal_policy(
-            model,
-            policies["adaptive"],
-            n_rows=STORES,
-            n_steps=WEEKS,
-            window=1,
-            execution=EXECUTION,
-        ),
-    )
+# %% [markdown]
+# ## Start with a price you set, then a price you transform
+#
+# Fit the model, then check that a conventional hard intervention and a compiled constant
+# assignment agree draw for draw, and that a transform of the generated price is exact.
 
-    rng = np.random.default_rng(91)
-    price_noise = rng.normal(0, 0.8, (WEEKS, STORES))
-    demand_noise = rng.normal(0, 1.5, (WEEKS, STORES))
-    factual = oracle("baseline", price_noise, demand_noise)
-    results = {}
-    for strategy, program in policies.items():
-        replay = columns(
-            counterfactual_temporal_policy(
-                model,
-                program,
-                factual,
-                window=1,
-                history=history(),
-                execution=EXECUTION,
-            )
-        )
-        expected = oracle(strategy, price_noise, demand_noise)
-        for actual, truth in zip(replay, expected, strict=True):
-            for name in NAMES:
-                np.testing.assert_allclose(actual[name], truth[name], rtol=0, atol=1e-8)
-        # Exactly the same units, disturbances and prehistory in every counterfactual world.
-        values = contribution(replay)
-        delta = values - contribution(factual)
-        results[strategy] = {
-            "mean_contribution": float(np.mean(values)),
-            "mean_paired_change": float(np.mean(delta)),
-            "unit_changes_first_three": delta[:3].tolist(),
-            "mean_units_sold": float(np.mean(sum(s["sales"] for s in replay))),
-            "mean_lost_demand": float(
-                np.mean(sum(np.maximum(s["demand"] - s["sales"], 0) for s in replay))
-            ),
-        }
-        assert np.isclose(
-            np.mean(delta), np.mean(values) - np.mean(contribution(factual)), atol=1e-10
-        )
-    # Forward forecasts are new model draws, not counterfactuals of the factual stores.
-    forecast = sample_temporal_policy(
+# %%
+started = time.perf_counter()
+model = fit_model(23)
+conditional, policies = programs()
+# Conventional hard intervention and a compiled constant assignment agree.
+hard = model.sample_do({"price": 10.0}, 128, execution=EXECUTION)
+assigned = sample_policy(model, [assign("price", 10)], 128, execution=EXECUTION)
+np.testing.assert_array_equal(hard.draws, assigned.draws)
+raw = model.sample_do({}, 128, execution=EXECUTION).draws[NAMES.index("price")]
+floor = sample_policy(
+    model,
+    [transform("price", maximum(10, 0.85 * generated()))],
+    128,
+    execution=EXECUTION,
+).draws[NAMES.index("price")]
+np.testing.assert_array_equal(floor, np.maximum(10, 0.85 * raw))
+
+# %% [markdown]
+# ## Make the discount conditional
+#
+# A policy that reads inventory is supported for simulation and counterfactuals but not
+# for identification. A circular read is refused; reading an earlier variable fixes it.
+
+# %%
+support = policy_support(model, [conditional])
+assert support.simulation.supported and support.counterfactual.supported
+assert not support.identification.supported
+assert support.identification.reason_code == "policy_route_not_supported"
+circular = assign("price", var("sales"))
+cycle = expect_refusal(
+    "policy_dependency_circular",
+    lambda: sample_policy(model, [circular], 8, execution=EXECUTION),
+)
+# Reading inventory corrects the dependency: inventory precedes price.
+sample_policy(model, [conditional], 8, execution=EXECUTION)
+
+# %% [markdown]
+# ## Add history and delayed replenishment
+#
+# Lagged policies need prehistory. Without it the call is refused; with it, each strategy
+# replays the same stores and disturbances and matches the independent recurrence.
+
+# %%
+missing = expect_refusal(
+    "policy_history_unavailable",
+    lambda: sample_temporal_policy(
         model,
         policies["adaptive"],
         n_rows=STORES,
         n_steps=WEEKS,
         window=1,
-        history=history(),
         execution=EXECUTION,
-    )
-    repeated = sample_temporal_policy(
-        model,
-        policies["adaptive"],
-        n_rows=STORES,
-        n_steps=WEEKS,
-        window=1,
-        history=history(),
-        execution=EXECUTION,
-    )
-    for first, second in zip(forecast, repeated, strict=True):
-        np.testing.assert_array_equal(first.draws, second.draws)
-    # Recover retained forward disturbances and independently check their whole recurrence.
-    forward = columns(forecast)
-    baseline_draw = columns(
-        sample_temporal_policy(
-            model,
-            policies["baseline"],
-            n_rows=STORES,
-            n_steps=WEEKS,
-            window=1,
-            history=history(),
-            execution=EXECUTION,
-        )
-    )
-    u_price = np.array(
-        [
-            s["price"] - (TRUTH["price_intercept"] + TRUTH["inventory_slope"] * s["inventory"])
-            for s in baseline_draw
-        ]
-    )
-    u_demand = np.array(
-        [
-            s["demand"] - (TRUTH["demand_intercept"] + TRUTH["price_slope"] * s["price"])
-            for s in baseline_draw
-        ]
-    )
-    for actual, expected in zip(forward, oracle("adaptive", u_price, u_demand), strict=True):
-        for name in NAMES:
-            np.testing.assert_allclose(actual[name], expected[name], rtol=0, atol=1e-8)
+    ),
+)
 
-    artifact = encode_policy_program(NAMES, policies["adaptive"])
-    identity = policy_program_identity(NAMES, policies["adaptive"])
-    verified = consume_policy_program(artifact, expected_identity=identity, supplied=NAMES)
-    assert verified.identity == identity
-    decoded = decode_policy_program(NAMES, artifact)
-    assert encode_policy_program(NAMES, decoded) == artifact
+rng = np.random.default_rng(91)
+price_noise = rng.normal(0, 0.8, (WEEKS, STORES))
+demand_noise = rng.normal(0, 1.5, (WEEKS, STORES))
+factual = oracle("baseline", price_noise, demand_noise)
+results = {}
+for strategy, program in policies.items():
     replay = columns(
         counterfactual_temporal_policy(
             model,
-            decoded,
+            program,
             factual,
             window=1,
             history=history(),
             execution=EXECUTION,
         )
     )
-    np.testing.assert_allclose(
-        contribution(replay),
-        contribution(oracle("adaptive", price_noise, demand_noise)),
-        rtol=0,
-        atol=1e-8,
+    expected = oracle(strategy, price_noise, demand_noise)
+    for actual, truth in zip(replay, expected, strict=True):
+        for name in NAMES:
+            np.testing.assert_allclose(actual[name], truth[name], rtol=0, atol=1e-8)
+    # Exactly the same units, disturbances and prehistory in every counterfactual world.
+    values = contribution(replay)
+    delta = values - contribution(factual)
+    results[strategy] = {
+        "mean_contribution": float(np.mean(values)),
+        "mean_paired_change": float(np.mean(delta)),
+        "unit_changes_first_three": delta[:3].tolist(),
+        "mean_units_sold": float(np.mean(sum(s["sales"] for s in replay))),
+        "mean_lost_demand": float(
+            np.mean(sum(np.maximum(s["demand"] - s["sales"], 0) for s in replay))
+        ),
+    }
+    assert np.isclose(np.mean(delta), np.mean(values) - np.mean(contribution(factual)), atol=1e-10)
+
+# %% [markdown]
+# ## Forecast new worlds and replay the same stores
+#
+# Forward forecasts are new model draws, not counterfactuals of the factual stores. The
+# retained disturbances are recovered and the whole recurrence is checked independently.
+
+# %%
+# Forward forecasts are new model draws, not counterfactuals of the factual stores.
+forecast = sample_temporal_policy(
+    model,
+    policies["adaptive"],
+    n_rows=STORES,
+    n_steps=WEEKS,
+    window=1,
+    history=history(),
+    execution=EXECUTION,
+)
+repeated = sample_temporal_policy(
+    model,
+    policies["adaptive"],
+    n_rows=STORES,
+    n_steps=WEEKS,
+    window=1,
+    history=history(),
+    execution=EXECUTION,
+)
+for first, second in zip(forecast, repeated, strict=True):
+    np.testing.assert_array_equal(first.draws, second.draws)
+# Recover retained forward disturbances and independently check their whole recurrence.
+forward = columns(forecast)
+baseline_draw = columns(
+    sample_temporal_policy(
+        model,
+        policies["baseline"],
+        n_rows=STORES,
+        n_steps=WEEKS,
+        window=1,
+        history=history(),
+        execution=EXECUTION,
     )
-    changed = [*policies["adaptive"][:-1], transform("price", maximum(11, generated()))]
-    other = policy_program_identity(NAMES, changed)
-    assert other != identity
-    try:
-        consume_policy_program(
-            encode_policy_program(NAMES, changed),
-            expected_identity=identity,
-            supplied=NAMES,
-        )
-    except CausalSerializationError as refusal:
-        assert "expected identity" in str(refusal)
-    else:
-        raise AssertionError("A changed program cannot inherit the old identity")
-    prepared = prepare_policy(model, [conditional])
-    np.testing.assert_array_equal(
-        prepared.sample(128, execution=EXECUTION).draws,
-        sample_policy(model, [conditional], 128, execution=EXECUTION).draws,
+)
+u_price = np.array(
+    [
+        s["price"] - (TRUTH["price_intercept"] + TRUTH["inventory_slope"] * s["inventory"])
+        for s in baseline_draw
+    ]
+)
+u_demand = np.array(
+    [
+        s["demand"] - (TRUTH["demand_intercept"] + TRUTH["price_slope"] * s["price"])
+        for s in baseline_draw
+    ]
+)
+for actual, expected in zip(forward, oracle("adaptive", u_price, u_demand), strict=True):
+    for name in NAMES:
+        np.testing.assert_allclose(actual[name], expected[name], rtol=0, atol=1e-8)
+
+# %% [markdown]
+# ## Export the program, verify it, and reuse its compilation
+#
+# The encoded program carries an identity; a changed program cannot inherit it. A prepared
+# policy compiles once and rebinds to a refit model.
+
+# %%
+artifact = encode_policy_program(NAMES, policies["adaptive"])
+identity = policy_program_identity(NAMES, policies["adaptive"])
+verified = consume_policy_program(artifact, expected_identity=identity, supplied=NAMES)
+assert verified.identity == identity
+decoded = decode_policy_program(NAMES, artifact)
+assert encode_policy_program(NAMES, decoded) == artifact
+replay = columns(
+    counterfactual_temporal_policy(
+        model,
+        decoded,
+        factual,
+        window=1,
+        history=history(),
+        execution=EXECUTION,
     )
-    rebound = prepared.rebind(fit_model(24))
-    rebound.sample(128, execution=EXECUTION)
-    assert rebound.identity == prepared.identity
-    assert rebound.program_compilations == 1 and rebound.model_bindings == 2
-    callback = callback_example(model, conditional)
-    print(
-        json.dumps(
-            {
-                "worlds": results,
-                "forward_adaptive_mean_contribution": float(np.mean(contribution(forward))),
-                "support": asdict(support),
-                "refusals": [cycle, missing],
-                "program_identity": identity,
-                "changed_program_identity": other,
-                "reuse": {
-                    "program_compilations": rebound.program_compilations,
-                    "model_bindings": rebound.model_bindings,
-                },
-                "callback": callback,
-                "elapsed_seconds": time.perf_counter() - started,
+)
+np.testing.assert_allclose(
+    contribution(replay),
+    contribution(oracle("adaptive", price_noise, demand_noise)),
+    rtol=0,
+    atol=1e-8,
+)
+changed = [*policies["adaptive"][:-1], transform("price", maximum(11, generated()))]
+other = policy_program_identity(NAMES, changed)
+assert other != identity
+try:
+    consume_policy_program(
+        encode_policy_program(NAMES, changed),
+        expected_identity=identity,
+        supplied=NAMES,
+    )
+except CausalSerializationError as refusal:
+    assert "expected identity" in str(refusal)
+else:
+    raise AssertionError("A changed program cannot inherit the old identity")
+prepared = prepare_policy(model, [conditional])
+np.testing.assert_array_equal(
+    prepared.sample(128, execution=EXECUTION).draws,
+    sample_policy(model, [conditional], 128, execution=EXECUTION).draws,
+)
+rebound = prepared.rebind(fit_model(24))
+rebound.sample(128, execution=EXECUTION)
+assert rebound.identity == prepared.identity
+assert rebound.program_compilations == 1 and rebound.model_bindings == 2
+
+# %% [markdown]
+# ## Use custom batch logic when an expression is not enough
+#
+# A callback runs on whole batches and must be recoverable from source to be exported.
+# The summary below collects every world, refusal and identity as one JSON report.
+
+# %%
+callback = callback_example(model, conditional)
+print(
+    json.dumps(
+        {
+            "worlds": results,
+            "forward_adaptive_mean_contribution": float(np.mean(contribution(forward))),
+            "support": asdict(support),
+            "refusals": [cycle, missing],
+            "program_identity": identity,
+            "changed_program_identity": other,
+            "reuse": {
+                "program_compilations": rebound.program_compilations,
+                "model_bindings": rebound.model_bindings,
             },
-            indent=2,
-        )
+            "callback": callback,
+            "elapsed_seconds": time.perf_counter() - started,
+        },
+        indent=2,
     )
-
-
-if __name__ == "__main__":
-    main()
+)

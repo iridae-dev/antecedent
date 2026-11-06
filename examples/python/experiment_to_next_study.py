@@ -15,6 +15,7 @@ model, and it does not turn the retained law into an identified causal result.
 
 from __future__ import annotations
 
+# %%
 import math
 from dataclasses import replace
 
@@ -25,9 +26,16 @@ from antecedent.evidence_ledger import EvidenceLedger, SourceDeclaration
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.outcomes import require_success
 
-# -- 1. The retained response law ------------------------------------------------------------
-# 32 independent clusters, randomized with probability 1/2 to the reference (arm 0) or the active
-# programme (arm 1). Reference clusters average 1.0 and active clusters 2.0.
+COEFFICIENTS = [-1.0, 1.0]  # the contrast "active minus reference"
+
+# %% [markdown]
+# ## The retained response law
+#
+# 32 independent clusters are randomized with probability 1/2 to the reference (arm 0) or the
+# active programme (arm 1). Reference clusters average 1.0 and active clusters 2.0. The retained
+# law is 512 draws of the two arm means; the prior contrast should sit near 1.0.
+
+# %%
 units = [
     {
         "id": f"unit:{i}",
@@ -67,15 +75,19 @@ result = require_success(
 )
 prior = result.report()
 draws = prior["law"]["Moments"]["Bayesian"]["draws"]
-COEFFICIENTS = [-1.0, 1.0]  # the contrast "active minus reference"
 contrasts = [math.fsum(v * c for v, c in zip(row, COEFFICIENTS, strict=True)) for row in draws]
 prior_contrast = math.fsum(contrasts) / len(contrasts)
 assert abs(prior_contrast - 1.0) < 0.1  # near the fixture's true contrast of 1.0
 
-# -- 2. Map the experiment's estimand onto the retained response ------------------------------
+# %% [markdown]
+# ## Map the experiment's estimand onto the retained response
+#
 # The retained target is the whole-program population mean contrast. The experiment reports a
 # sample mean of the same contrast in the same population and regime. The bridge declares that
-# identity mapping, its premise, and that it carries no extra mapping uncertainty.
+# identity mapping, its premise, and that it carries no extra mapping uncertainty. The ledger
+# names the three sources the update depends on, so authority can follow them.
+
+# %%
 target = result.experiment_quantity(coefficients=COEFFICIENTS, outcome_units="outcome_unit")
 assert target.functional_id.startswith("whole_program_population_mean:linear:")
 setting = sb.ExposureSetting(
@@ -118,13 +130,13 @@ bridge = sb.BridgeContract(
     ),
 )
 
-# The ledger names the three sources the update depends on, so authority can follow them.
 ledger = EvidenceLedger()
 dependency = prior["dependency"]
 model = ledger.add_source(SourceDeclaration(dependency, "fitted_model", [("model", "rows")]))
 experiment = ledger.add_source(SourceDeclaration("new_experiment", "experiment", [("new", "rows")]))
 mapping = ledger.add_source(SourceDeclaration("mapping", "fitted_model", [("mapping", "rows")]))
 
+# %%
 OBSERVED = prior_contrast + 0.3
 OBSERVATION_VARIANCE = 0.2  # of one experimental observation
 SAMPLE_SIZE = 4
@@ -144,11 +156,16 @@ updated = result.condition_experiment(
     mapping=mapping,
 )
 
-# -- 3. The changed response -----------------------------------------------------------------
+# %% [markdown]
+# ## The changed response
+#
+# The update reweights the retained draws by Gaussian likelihood ratios. The assertions recompute
+# the weights independently; the contrast should move up toward the experiment's mean.
+
+# %%
 report = updated.report(ledger)
 weights = report["posterior_weights"]
-# Independent arithmetic for the declared update: Gaussian likelihood ratios against the draw
-# best supported by the experiment, normalised.
+# Gaussian likelihood ratios against the draw best supported by the experiment, normalised.
 variance = OBSERVATION_VARIANCE / SAMPLE_SIZE
 anchor = min(contrasts, key=lambda v: abs(OBSERVED - v))
 raw = [math.exp((v - anchor) * (2 * OBSERVED - v - anchor) / (2 * variance)) for v in contrasts]
@@ -158,8 +175,13 @@ posterior_contrast = math.fsum(v * w for v, w in zip(contrasts, weights, strict=
 assert posterior_contrast > prior_contrast + 0.1
 print(f"contrast: {prior_contrast:.3f} before the experiment, {posterior_contrast:.3f} after")
 
-# -- 4. The changed decision -----------------------------------------------------------------
-# Act when the contrast beats a declared break-even of 1.1 outcome units; otherwise hold.
+# %% [markdown]
+# ## The changed decision
+#
+# Act when the contrast beats a declared break-even of 1.1 outcome units; otherwise hold. The
+# retained law alone holds, and the updated law acts.
+
+# %%
 BREAK_EVEN = 1.1
 assert prior_contrast < BREAK_EVEN < posterior_contrast
 coordinates = tuple(ScientificQuantity.from_wire(q) for q in report["quantities"])
@@ -182,9 +204,14 @@ assert abs(by_id["act"]["expected_utility"] - (posterior_contrast - BREAK_EVEN))
 # The same rule on the retained law alone, which the experiment has not yet touched, holds.
 assert prior_contrast - BREAK_EVEN < 0.0
 
-# -- 5. The next study -----------------------------------------------------------------------
+# %% [markdown]
+# ## Rank the next studies
+#
 # Value each candidate by the decision it could change. The gross value is the same for two
-# studies of the same sampling model, so the cheaper one ranks first.
+# studies of the same sampling model, so the cheaper one ranks first. An independent quadrature
+# checks the library's Monte Carlo value.
+
+# %%
 FUTURE_VARIANCE = 1.0
 actions = [
     {"id": "hold", "intercept": 0.0, "coefficients": [0.0, 0.0]},
@@ -240,16 +267,19 @@ def study_value(sigma: float, cells: int = 1024) -> tuple[float, float]:
     return future - max(sum(gains), 0.0), error
 
 
-# The library's Monte Carlo value agrees with independent numerical integration within the
-# quadrature bound plus six Monte Carlo standard errors.
+# Agreement is within the quadrature bound plus six Monte Carlo standard errors.
 reference, quadrature_error = study_value(math.sqrt(FUTURE_VARIANCE / 4))
 for candidate in ranking:
     tolerance = quadrature_error + 6.0 * candidate["standard_error"] + 1e-9
     assert abs(candidate["gross_evsi"] - reference) <= tolerance, candidate
 
-# -- 6. The status of the update -------------------------------------------------------------
-# The update reweights the retained draws. It re-derives no identification, so the result stays a
-# model-conditional experimental update, with its calibration not_measured.
+# %% [markdown]
+# ## Read the update's status
+#
+# The update re-derives no identification, so the result stays a model-conditional
+# experimental update, with its calibration not_measured.
+
+# %%
 assert report["scope"] == "model_conditional_experimental_update;calibration_not_measured"
 assert report["modular_policy"] == "frozen_joint_importance"
 assert report["calibration"] == "not_measured"

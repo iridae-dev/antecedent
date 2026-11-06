@@ -9,6 +9,7 @@ Nothing here establishes agent/human equivalence.
 
 from __future__ import annotations
 
+# %%
 import itertools
 import json
 import math
@@ -666,91 +667,132 @@ def transfer_sensitivity(prior, agreement):
     return result
 
 
-def main():
-    started = time.perf_counter()
-    data = {
-        name: traces(TRUTH[name], 600 if name == "human_old" else 2000, seed)
-        for name, seed in (("human_old", 11), ("agent_old", 12), ("agent_new", 13))
-    }
-    assert math.isclose(
-        TRUTH["human_old"][2] + TRUTH["agent_new"][2] - TRUTH["agent_old"][2],
-        TRUTH["agreement"][2],
-        abs_tol=1e-12,
-    )
-    assert math.isclose(TRUTH["auth_bypass_checkout"] - TRUTH["conflict"][2], 0.33, abs_tol=1e-12)
-    uniform_grid = (np.arange(10_000) + 0.5) / 10_000
-    untreated = hidden_checkout("conflict", False, uniform_grid)
-    treated = hidden_checkout("conflict", True, uniform_grid)
-    assert np.mean(untreated) == 0.55 and np.mean(treated) == 0.88
-    assert math.isclose(float(np.mean(treated.astype(float) - untreated)), 0.33, abs_tol=1e-12)
-    ledger = EvidenceLedger()
-    transport = inspect_transport(data)
-    prior = make_prior(data, ledger)
-    assert max(abs(prior["predicted"] - np.array(TRUTH["agreement"][:3]))) < 0.05
-    print(
-        "Declared launch contract:",
-        f"checkout probability >= {FLOOR} with posterior probability >= .95; checkpoints {CHECKPOINTS}; full-site exposure price {EXPOSURE_PRICE}",
-        flush=True,
-    )
-    print("Transport inspection:", json.dumps(transport, indent=2), flush=True)
-    print(
-        "Prior provenance and uncertainty:",
-        json.dumps(
-            {
-                key: prior[key]
-                for key in (
-                    "predicted",
-                    "sampling_variance",
-                    "transfer_variance",
-                    "composition",
-                    "source_ids",
-                    "prior_id",
-                    "policy_refusal",
-                )
-            },
-            default=lambda x: x.tolist(),
-            indent=2,
-        ),
-        flush=True,
-    )
-    initial = [
-        pilot_information(prior, np.sum(prior["joint"], axis=0), n).best for n in (8, 16, 32)
-    ]
-    initial_plan = sorted(initial, key=lambda r: r.net_value, reverse=True)
-    assert initial_plan[0].sample_size == 16 and initial_plan[0].net_value > 0
-    agreement = run_branch("agreement", prior, ledger)
-    conflict = run_branch("conflict", prior, ledger)
-    print("Agreement:", agreement["history"], flush=True)
-    print("Conflict:", conflict["history"], flush=True)
-    assert agreement["history"][-1]["status"] == "launch"
-    assert agreement["history"][-1]["exposed"] == 32
-    assert conflict["history"][-1]["status"] == "investigate"
-    assert float(np.sum(conflict["joint"][0])) < float(np.sum(prior["joint"][0]))
-    # Equal likelihoods do not resolve which of these causes is responsible.
-    cause_masses = [sum(conflict["weights"][prior["groups"] == g]) for g in (1, 2, 3)]
-    assert max(cause_masses) - min(cause_masses) < 1e-12
-    comparison = compare_human_only(prior, agreement)
-    sensitivity = transfer_sensitivity(prior, agreement)
-    planned = follow_up(prior, conflict)
-    print(
-        json.dumps(
-            {
-                "initial_pilot_candidates": [
-                    {"users": r.sample_size, "evsi": r.evsi, "net_value": r.net_value}
-                    for r in initial_plan
-                ],
-                "human_only_comparison": comparison,
-                "transfer_sensitivity": sensitivity,
-                "follow_up": planned,
-                "evidence_sources": len(ledger.sources),
-                "model_scope": "declared finite hypothesis menu; historical-baseline stability assumed",
-                "posterior_trust": agreement["trust"],
-                "elapsed_seconds": time.perf_counter() - started,
-            },
-            indent=2,
-        )
-    )
+# %% [markdown]
+# ## 1. Learn what the old site can tell us
+#
+# Generate the old-site and agent traces, check the independent truth relations, and inspect
+# which mechanisms transport. Old-site agreement is checked only on the old site.
 
+# %%
+started = time.perf_counter()
+data = {
+    name: traces(TRUTH[name], 600 if name == "human_old" else 2000, seed)
+    for name, seed in (("human_old", 11), ("agent_old", 12), ("agent_new", 13))
+}
+assert math.isclose(
+    TRUTH["human_old"][2] + TRUTH["agent_new"][2] - TRUTH["agent_old"][2],
+    TRUTH["agreement"][2],
+    abs_tol=1e-12,
+)
+assert math.isclose(TRUTH["auth_bypass_checkout"] - TRUTH["conflict"][2], 0.33, abs_tol=1e-12)
+uniform_grid = (np.arange(10_000) + 0.5) / 10_000
+untreated = hidden_checkout("conflict", False, uniform_grid)
+treated = hidden_checkout("conflict", True, uniform_grid)
+assert np.mean(untreated) == 0.55 and np.mean(treated) == 0.88
+assert math.isclose(float(np.mean(treated.astype(float) - untreated)), 0.33, abs_tol=1e-12)
+ledger = EvidenceLedger()
+transport = inspect_transport(data)
 
-if __name__ == "__main__":
-    main()
+# %% [markdown]
+# ## 2. Construct an informative, revisable prior
+#
+# Compose the agent-derived prior with an explicit transport policy and register its sources
+# in the evidence ledger. Look at the provenance and the refusal without a policy.
+
+# %%
+prior = make_prior(data, ledger)
+assert max(abs(prior["predicted"] - np.array(TRUTH["agreement"][:3]))) < 0.05
+print(
+    "Declared launch contract:",
+    f"checkout probability >= {FLOOR} with posterior probability >= .95; checkpoints {CHECKPOINTS}; full-site exposure price {EXPOSURE_PRICE}",
+    flush=True,
+)
+print("Transport inspection:", json.dumps(transport, indent=2), flush=True)
+print(
+    "Prior provenance and uncertainty:",
+    json.dumps(
+        {
+            key: prior[key]
+            for key in (
+                "predicted",
+                "sampling_variance",
+                "transfer_variance",
+                "composition",
+                "source_ids",
+                "prior_id",
+                "policy_refusal",
+            )
+        },
+        default=lambda x: x.tolist(),
+        indent=2,
+    ),
+    flush=True,
+)
+
+# %% [markdown]
+# ## 3. Let the decision guide the human pilot
+#
+# Rank candidate pilot sizes by net expected value of sample information, before any
+# human is exposed.
+
+# %%
+initial = [pilot_information(prior, np.sum(prior["joint"], axis=0), n).best for n in (8, 16, 32)]
+initial_plan = sorted(initial, key=lambda r: r.net_value, reverse=True)
+assert initial_plan[0].sample_size == 16 and initial_plan[0].net_value > 0
+
+# %% [markdown]
+# ## 4A. Agreement: a small test can be enough for the decision
+#
+# Run the checkpoint controller on the agreement world and read the history of beliefs and
+# status at each checkpoint. Then compare with a human-only analysis under the same contract
+# and with unmodeled human-shift scenarios.
+
+# %%
+agreement = run_branch("agreement", prior, ledger)
+print("Agreement:", agreement["history"], flush=True)
+assert agreement["history"][-1]["status"] == "launch"
+assert agreement["history"][-1]["exposed"] == 32
+comparison = compare_human_only(prior, agreement)
+sensitivity = transfer_sensitivity(prior, agreement)
+
+# %% [markdown]
+# ## 4B. Conflict: stop trusting the prediction, preserve the question
+#
+# Run the conflict world. The transfer component loses mass but the equal likelihoods do not
+# say which cause is responsible.
+
+# %%
+conflict = run_branch("conflict", prior, ledger)
+print("Conflict:", conflict["history"], flush=True)
+assert conflict["history"][-1]["status"] == "investigate"
+assert float(np.sum(conflict["joint"][0])) < float(np.sum(prior["joint"][0]))
+# Equal likelihoods do not resolve which of these causes is responsible.
+cause_masses = [sum(conflict["weights"][prior["groups"] == g]) for g in (1, 2, 3)]
+assert max(cause_masses) - min(cause_masses) < 1e-12
+
+# %% [markdown]
+# ## 5. Repair identification, then choose a targeted study
+#
+# Rank follow-up studies for the conflict branch, restricted to those that verifiably repair
+# identification, and print the full summary.
+
+# %%
+planned = follow_up(prior, conflict)
+print(
+    json.dumps(
+        {
+            "initial_pilot_candidates": [
+                {"users": r.sample_size, "evsi": r.evsi, "net_value": r.net_value}
+                for r in initial_plan
+            ],
+            "human_only_comparison": comparison,
+            "transfer_sensitivity": sensitivity,
+            "follow_up": planned,
+            "evidence_sources": len(ledger.sources),
+            "model_scope": "declared finite hypothesis menu; historical-baseline stability assumed",
+            "posterior_trust": agreement["trust"],
+            "elapsed_seconds": time.perf_counter() - started,
+        },
+        indent=2,
+    )
+)

@@ -22,6 +22,7 @@ mean cannot answer, declare a belief that can, and value another study against i
 
 from __future__ import annotations
 
+# %%
 import math
 from statistics import NormalDist, stdev
 
@@ -36,7 +37,14 @@ from antecedent.joint_distribution import (
 )
 from antecedent.outcomes import require_success
 
-# -- The world and the business, declared -----------------------------------------------------
+# %% [markdown]
+# ## The task
+#
+# The world and the business are declared up front: the true effect, the margin per order, the
+# ad cost and the rollout. The break-even effect is 800 orders per region per day, so the
+# simulated effect of 1,000 clears it. The data are built so the numbers are checkable by hand.
+
+# %%
 BASELINE, EFFECT, REGION_SD = 12_000.0, 1_000.0, 1_750.0
 MARGIN, AD_COST = (
     25.0,
@@ -54,8 +62,13 @@ orders = BASELINE + EFFECT * advertised + regional
 order = rng.permutation(40)
 data = {"advertised": advertised[order], "orders": orders[order]}
 
-# -- 1. The causal result: an effect, its design and its uncertainty -------------------------
+# %% [markdown]
+# ## The causal result, with its design and uncertainty
+#
 # Assignment was randomized, so the graph has no arrow into `advertised` other than chance.
+# The estimate equals the true effect and the test statistic is near 1.8.
+
+# %%
 result = require_success(
     analyze(
         data,
@@ -73,12 +86,18 @@ print(
 )
 assert abs(effect - EFFECT) < 1.0
 assert 0.06 < p_value < 0.08
-# 0.07 is how surprising an effect this large would be if the true effect were zero.
+# A p of 0.07 says how surprising an effect this large would be if the true effect were zero.
 # It is not the probability that the true effect is zero, and it is not a profit statement.
 assert effect * MARGIN > AD_COST  # the point estimate is profitable: 25,000 against 20,000
 
+# %% [markdown]
+# ## The decision contract
+#
+# Actions and utilities are declared in dollars. Deciding on the mean says to continue, because
+# the point estimate is profitable.
 
-# -- 2. A decision contract: actions and utilities in dollars ----------------------------------
+
+# %%
 def profit(orders_effect):
     """Dollars of profit over the rollout, per unit of the orders effect."""
     return (orders_effect * MARGIN - AD_COST) * ROLLOUT
@@ -106,9 +125,14 @@ assert abs(values["continue"] - profit(effect)) < 1e-6 * profit(effect)
 assert values["stop"] == 0.0
 print(f"expected profit if we continue: {values['continue'] / 1e6:.1f} million dollars")
 
-# -- 3. A risk question the mean cannot answer ------------------------------------------------
+# %% [markdown]
+# ## A risk question the result refuses
+#
 # A result that publishes a mean and a standard error carries no distribution over the effect, so
-# a quantile of profit is refused by name rather than computed from an invented law.
+# a quantile of profit is refused by name rather than computed from an invented law. The study
+# compiler asks the same question of the realization before anything is fitted.
+
+# %%
 tenth_percentile = contract_for(effect_quantity, decision.Criterion.quantile(0.1))
 try:
     require_success(tenth_percentile.evaluate(result))
@@ -118,9 +142,8 @@ except decision.DecisionRefusal as refusal:
 else:
     raise AssertionError("a mean-only result must not answer a quantile objective")
 
-# The study compiler asks the same question of the realization, before anything is fitted. The
-# decision needs a parameter posterior; a sampling realization publishes none and the refusal names
-# the next attempt. A mean carrier (an affine utility of the point estimate) is supplied.
+# The decision needs a parameter posterior; a sampling realization publishes none and the refusal
+# names the next attempt. A mean carrier (an affine utility of the point estimate) is supplied.
 state_quantity = ScientificQuantity(
     variable_id="schema:ad_effect",
     variable_name="ad_effect",
@@ -178,11 +201,15 @@ for study in (sampling, bayesian):
     else:
         raise AssertionError("an average-effect study carries no outcome law")
 
-# -- 4. Downside risk, under a belief you declare ---------------------------------------------
-# The belief is a normal law with the estimate as its mean and the standard error as its standard
-# deviation: the posterior of a flat prior and approximately normal sampling error. That is your
-# judgment, stated, and Antecedent labels the source unverified with calibration not_measured. The
-# finite law below holds 4,001 equally weighted atoms, so its mean is the estimate.
+# %% [markdown]
+# ## Downside risk under a belief you declare
+#
+# The belief is a normal law with the estimate as its mean and the standard error as its
+# standard deviation: the posterior of a flat prior and approximately normal sampling error. That
+# is your judgment, stated, and Antecedent labels the source unverified with calibration
+# not_measured. The finite law holds 4,001 equally weighted atoms, so its mean is the estimate.
+
+# %%
 belief_law = NormalDist(belief_mean, standard_error)
 atoms = np.array([[belief_law.inv_cdf((k + 0.5) / 4001)] for k in range(4001)], dtype=np.float64)
 belief = JointDistributionArtifact(
@@ -236,9 +263,14 @@ assert abs(continuing.exclusions[0].required - 0.9) < 1e-12
 assert capped.selected == ("stop",)
 print(f"continuing reaches the loss cap with probability {reached:.2f}; required 0.90")
 
-# -- 5. Is another study worth its cost? ---------------------------------------------------------
+# %% [markdown]
+# ## Is more evidence worth its cost?
+#
 # Each candidate adds region pairs (one advertised, one held back); a pair's difference has
-# variance 2 * 1,750^2, so the current study is 20 such pairs. Cost is in dollars of the same unit.
+# variance 2 * 1,750^2, so the current study is 20 such pairs. Cost is in dollars of the same
+# unit. The ranking is checked against a closed form, and it refuses a hard constraint.
+
+# %%
 PAIR_VARIANCE = 2.0 * REGION_SD**2
 assert abs(belief_variance - PAIR_VARIANCE / 20) < 1e-6 * belief_variance
 candidates = {

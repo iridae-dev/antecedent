@@ -150,8 +150,10 @@ def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> 
     )
 
     notebooks = sorted((root / "examples" / "notebooks").glob("*.ipynb"))
-    if len(notebooks) != 6:
-        raise SnippetError(f"expected 6 notebooks, found {len(notebooks)}")
+    catalog = tomllib.loads((root / "examples" / "catalog.toml").read_text(encoding="utf-8"))
+    declared = sum("notebook" in row for row in catalog["example"])
+    if len(notebooks) != declared:
+        raise SnippetError(f"expected {declared} catalog notebooks, found {len(notebooks)}")
     pin = python_pin(version)
     major, minor = major_minor(version).split(".")
     minor_check = f"!= ({int(major)}, {int(minor)})"

@@ -22,6 +22,7 @@ generator below. It uses the real files only when they are in the verified cache
 
 from __future__ import annotations
 
+# %%
 import os
 import sys
 from pathlib import Path
@@ -31,8 +32,12 @@ import numpy as np
 from antecedent import host, population
 from antecedent.estimators import Aipw, Overlap, PropensityWeighting
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data"))
-import fetch  # noqa: E402  (examples/data/fetch.py; stdlib only)
+EXAMPLES = Path(__file__).resolve().parents[1] if "__file__" in globals() else Path.cwd().parent
+sys.path.insert(0, str(EXAMPLES / "data"))
+try:
+    import fetch  # noqa: E402  (examples/data/fetch.py; stdlib only)
+except ImportError:  # no repository checkout (for example Colab): synthetic stand-in only
+    fetch = None
 
 DATASET = "nsw_psid"
 COLUMNS = [
@@ -97,6 +102,9 @@ def standin_table(seed: int = 5) -> tuple[dict[str, np.ndarray], float]:
 
 def real_tables() -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]] | None:
     """(observational table, experimental table) from verified files, else None."""
+    if fetch is None:
+        print("Real files unavailable (examples/data/fetch.py not found); using the stand-in.")
+        return None
     try:
         if os.environ.get("ANTECEDENT_DATA") == "download":
             paths = fetch.fetch(DATASET)
@@ -143,76 +151,102 @@ def ask(data, estimator):
     )
 
 
-def main() -> None:
-    real = real_tables()
-    if real is None:
-        (data, truth), benchmark = standin_table(), None
-        print(f"DATA: synthetic stand-in (fixture effect on the treated ${truth:,.0f}).")
-    else:
-        data, benchmark = real
-        print("DATA: NSW treated group with the PSID comparison group (checksums verified).")
-    n_treated = int(data["treat"].sum())
-    assert n_treated == 185 and len(data["treat"]) == 2675
+# %% [markdown]
+# ## Where the data come from
+#
+# By default the script runs on a synthetic stand-in with the same columns and the same
+# overlap problem. It uses the real files only when they are verified or downloaded.
 
-    # 1. Ask with no overlap policy. Antecedent will not decide a positivity question for you.
-    refused = ask(data, PropensityWeighting(bootstrap=100))
-    refusal = refused.refusal
-    assert refusal is not None and refusal.code == "positivity_violated"
-    rows = refusal.fields["refusal_fields"]["boundary_count"]
-    assert rows > 0
-    print(f"No overlap policy: {refusal.code}. {refusal.message.split(': ', 2)[-1]}")
-    print(f"Remedy: {refusal.remedy}")
+# %%
+real = real_tables()
+if real is None:
+    (data, truth), benchmark = standin_table(), None
+    print(f"DATA: synthetic stand-in (fixture effect on the treated ${truth:,.0f}).")
+else:
+    data, benchmark = real
+    print("DATA: NSW treated group with the PSID comparison group (checksums verified).")
+n_treated = int(data["treat"].sum())
+assert n_treated == 185 and len(data["treat"]) == 2675
 
-    # 2. Declare a clip. The answer exists, and the claim says it rests on the clip.
-    clipped = ant.outcomes.require_success(
-        ask(data, PropensityWeighting(bootstrap=100, overlap=Overlap(clip=0.01)))
-    )
-    claim = clipped.inspect().contract["claim"]
-    assert claim["support_domain"] == "limited"
-    assert host.claim_status(claim) == "partial"
-    est = clipped.estimate
+
+# %% [markdown]
+# ## Ask, and read the refusal
+#
+# With no overlap policy declared, Antecedent refuses with `positivity_violated` and names
+# a remedy rather than deciding the positivity question for you.
+
+# %%
+refused = ask(data, PropensityWeighting(bootstrap=100))
+refusal = refused.refusal
+assert refusal is not None and refusal.code == "positivity_violated"
+rows = refusal.fields["refusal_fields"]["boundary_count"]
+assert rows > 0
+print(f"No overlap policy: {refusal.code}. {refusal.message.split(': ', 2)[-1]}")
+print(f"Remedy: {refusal.remedy}")
+
+
+# %% [markdown]
+# ## Declare a clip, and read what the claim says about it
+#
+# A declared clip yields an answer, but the claim is marked limited support and the host
+# status is `partial`. Note the effective sample size.
+
+# %%
+clipped = ant.outcomes.require_success(
+    ask(data, PropensityWeighting(bootstrap=100, overlap=Overlap(clip=0.01)))
+)
+claim = clipped.inspect().contract["claim"]
+assert claim["support_domain"] == "limited"
+assert host.claim_status(claim) == "partial"
+est = clipped.estimate
+print(
+    f"Declared clip at 0.01: effect on the treated {clipped.answer.value:,.0f}; "
+    f"effective sample size {est.overlap_ess:.0f} of {len(data['treat'])} rows; "
+    f"support {claim['support_domain']}, host status {host.claim_status(claim)}"
+)
+
+
+# %% [markdown]
+# ## Follow the remedy: declare a trim
+#
+# Trimming changes the target to the treated rows with common support. Weighting and AIPW
+# are compared on those rows.
+
+# %%
+trim = Overlap(clip=None, trim=0.01)
+trimmed = ant.outcomes.require_success(ask(data, PropensityWeighting(bootstrap=100, overlap=trim)))
+aipw = ant.outcomes.require_success(ask(data, Aipw(bootstrap=100, overlap=trim)))
+excluded = trimmed.estimate.overlap_excluded_fraction
+assert excluded is not None and 0.0 < excluded < 1.0
+assert host.claim_status(trimmed.inspect().contract["claim"]) == "partial"
+se = trimmed.estimate.se_bootstrap or trimmed.estimate.se_analytic
+print(
+    f"Declared trim at 0.01: {excluded:.0%} of rows excluded; weighting "
+    f"{trimmed.answer.value:,.0f} (se {se:,.0f}), AIPW {aipw.answer.value:,.0f}, "
+    "on the common-support treated rows."
+)
+
+
+# %% [markdown]
+# ## How far the answer moves is itself the finding
+#
+# The spread across declared overlap choices and estimators is reported, then compared with
+# the fixture truth (stand-in) or the randomised benchmark (real files).
+
+# %%
+answers = [clipped.answer.value, trimmed.answer.value, aipw.answer.value]
+print(f"Spread across declared overlap choices and estimators: {max(answers) - min(answers):,.0f}")
+assert all(np.isfinite(answers))
+
+if benchmark is None:
     print(
-        f"Declared clip at 0.01: effect on the treated {clipped.answer.value:,.0f}; "
-        f"effective sample size {est.overlap_ess:.0f} of {len(data['treat'])} rows; "
-        f"support {claim['support_domain']}, host status {host.claim_status(claim)}"
+        f"Stand-in fixture effect over all treated rows: {truth:,.0f}. The trimmed estimate "
+        "targets only the common-support treated rows, a different population."
     )
-
-    # 3. Declare a trim instead. The target becomes the treated rows with common support.
-    trim = Overlap(clip=None, trim=0.01)
-    trimmed = ant.outcomes.require_success(
-        ask(data, PropensityWeighting(bootstrap=100, overlap=trim))
-    )
-    aipw = ant.outcomes.require_success(ask(data, Aipw(bootstrap=100, overlap=trim)))
-    excluded = trimmed.estimate.overlap_excluded_fraction
-    assert excluded is not None and 0.0 < excluded < 1.0
-    assert host.claim_status(trimmed.inspect().contract["claim"]) == "partial"
-    se = trimmed.estimate.se_bootstrap or trimmed.estimate.se_analytic
+else:
+    exp, exp_se = mean_difference(benchmark)
     print(
-        f"Declared trim at 0.01: {excluded:.0%} of rows excluded; weighting "
-        f"{trimmed.answer.value:,.0f} (se {se:,.0f}), AIPW {aipw.answer.value:,.0f}, "
-        "on the common-support treated rows."
+        f"Randomised NSW benchmark for the same participants: {exp:,.0f} (se {exp_se:,.0f}). "
+        "The experiment is the design the refusal's last remedy names: one that produces both "
+        "treatments for people like the participants."
     )
-
-    # 4. How far the answer moves with the overlap choice is itself a finding.
-    answers = [clipped.answer.value, trimmed.answer.value, aipw.answer.value]
-    print(
-        f"Spread across declared overlap choices and estimators: {max(answers) - min(answers):,.0f}"
-    )
-    assert all(np.isfinite(answers))
-
-    if benchmark is None:
-        print(
-            f"Stand-in fixture effect over all treated rows: {truth:,.0f}. The trimmed estimate "
-            "targets only the common-support treated rows, a different population."
-        )
-    else:
-        exp, exp_se = mean_difference(benchmark)
-        print(
-            f"Randomised NSW benchmark for the same participants: {exp:,.0f} (se {exp_se:,.0f}). "
-            "The experiment is the design the refusal's last remedy names: one that produces both "
-            "treatments for people like the participants."
-        )
-
-
-if __name__ == "__main__":
-    main()
