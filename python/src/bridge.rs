@@ -162,6 +162,20 @@ impl RefusalJson {
     }
 }
 
+/// Six-field refusal shape used by decision-facing routes.
+pub(crate) fn compact_refusal_json(
+    code: &str,
+    stage: &str,
+    detail: &str,
+    message: &str,
+    remedy: Option<&str>,
+) -> String {
+    let mut refusal = RefusalJson::new(code, stage, detail, message).remedy(remedy);
+    refusal.0.remove("expected");
+    refusal.0.remove("supplied");
+    refusal.json()
+}
+
 /// Split `"{detail}: {text}"` where `detail` is a dotted identifier such as
 /// `recalc.refused`; any other message has an empty detail.
 pub(crate) fn split_detail(message: &str) -> (&str, &str) {
@@ -339,6 +353,20 @@ mod tests {
         let json = external_refusal_json(&quoted);
         let via_serde = serde_json::to_string(&RefusalWire::from(quoted)).expect("wire");
         assert_eq!(json, via_serde);
+    }
+
+    #[test]
+    fn compact_refusal_preserves_the_six_field_wire_shape() {
+        for remedy in [None, Some("retry \"quoted\"")] {
+            let actual =
+                super::compact_refusal_json("code", "stage", "detail", "line\nbreak", remedy);
+            let expected = serde_json::json!({
+                "code": "code", "stage": "stage", "detail": "detail",
+                "message": "line\nbreak", "offending": null, "remedy": remedy,
+            })
+            .to_string();
+            assert_eq!(actual, expected);
+        }
     }
 
     #[test]

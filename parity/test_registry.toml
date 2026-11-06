@@ -2750,6 +2750,13 @@ path = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "sampled-count-validation-scans"
+crate = "antecedent-estimate"
+cargo_target = "sampled_count_validation"
+path = "crates/antecedent-estimate/tests/sampled_count_validation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "counterfactual-transport-sampled-replicate"
 crate = "antecedent-estimate"
 cargo_target = "counterfactual_transport_sampled_replicate"
@@ -16041,6 +16048,13 @@ path = "crates/antecedent-io-core/src/analysis_wire.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "engineering-artifact-external-refusal-parts"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/artifact_codec/external_refusal_parts_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "audit-crates-antecedent-io-core-src-artifact-codec-rs"
 crate = "antecedent-io-core"
 cargo_target = "lib"
@@ -22872,3 +22886,10 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_evidence_projection.py"
 gates = ["inventory"]
+
+[[test]]
+id = "engineering-contract-posterior-atom-index"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/contract_section/verify.rs"
+gates = ["inventory", "named"]

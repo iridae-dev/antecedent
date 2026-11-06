@@ -44,15 +44,13 @@ fn parse_decision(input: &str, label: &str) -> PyResult<Json> {
 type Refused = (Option<String>, Option<String>);
 
 fn refusal_json(refusal: &EvidenceRefusal) -> String {
-    json!({
-        "code": refusal.registered_code(),
-        "stage": "decision_evidence",
-        "detail": refusal.reason_code(),
-        "message": refusal.to_string(),
-        "offending": Json::Null,
-        "remedy": refusal.next_attempt(),
-    })
-    .to_string()
+    crate::bridge::compact_refusal_json(
+        refusal.registered_code(),
+        "decision_evidence",
+        refusal.reason_code(),
+        &refusal.to_string(),
+        Some(refusal.next_attempt()),
+    )
 }
 
 fn finish(result: Result<Json, EvidenceRefusal>) -> Refused {

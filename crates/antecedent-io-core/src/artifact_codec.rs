@@ -18,6 +18,14 @@ use crate::error::IoError;
 use crate::reader::ArtifactReader;
 use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 
+/// Preserve a structured refusal's code and detail while selecting its artifact-specific message.
+pub(crate) fn external_refusal_parts(
+    refusal: antecedent_contract::ExternalRefusal,
+    fallback: &'static str,
+) -> (&'static str, String, String) {
+    (refusal.code, refusal.detail, refusal.remedy.unwrap_or(fallback).to_owned())
+}
+
 /// CBOR section content type.
 pub const CONTENT_CBOR: &str = "application/cbor";
 /// Opaque section content type.
@@ -1287,3 +1295,6 @@ mod outer_version_tests {
         ));
     }
 }
+
+#[cfg(test)]
+mod external_refusal_parts_tests;

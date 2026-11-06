@@ -30,6 +30,7 @@ test_sources = [
  "crates/antecedent-identify/tests/support/finite_scm_oracle.rs",
  "crates/antecedent-identify/tests/support/counterfactual_transport_cases.rs",
  "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs",
+ "crates/antecedent-estimate/tests/sampled_count_validation.rs",
  "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs",
  "crates/antecedent-estimate/tests/counterfactual_transport_sampled_multi_table_reference.rs",
  "crates/antecedent-estimate/tests/oracle_data/sampled_transport_multi_table_reference.py",
@@ -44,8 +45,8 @@ historical_exposure = "Historical author exposure cannot be independently establ
 redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; mpmath is used only to generate the frozen JSON and is not a product dependency."
 limitations = "No paper was retrieved or re-read (no downloads were made and no copy is available from this environment); the delta method is the textbook linearization of a smooth function of multinomial proportions and the reference restates it. The reference differentiates the closed form of the functional the derivation encodes, which is the functional itself and not an independent derivation of it; a defect in the identification would not be seen here. The standard error is a first-order approximation: near a boundary (cells with very few counts, conditioning events with little mass) it can be far from the sampling variance, and whole-method coverage is not measured (the interval is annotated by a separate capability record). The smoothed-table case checks the convention the product uses (shares smoothed, the table's own N in the variance) against the same convention in the reference, not against a repeated-sampling truth. Tables of at least 20 units are required by the module; the smallest swept table has 20 units. Dependence between tables is not reviewed here."
 sources = ["https://doi.org/10.1017/CBO9780511802256"]
-findings_resolved = ["For the two-source joint counterfactual on six count designs (balanced, 20 to 25 unit tables, sizes from 20 units to about a million, cells with one count in 1e5, one unseen cell smoothed at a = 0.5 and a = 1) the plug-in equals the 50-digit reference to 1e-12 and the standard error, summed over four independent datasets (the cited regime supplies a fourth table that the derivation does not read, which contributes zero), equals it to a relative 1e-6, the bound set by the stated central difference.", "Ten times the counts with identical shares leaves the point unchanged and divides the standard error by sqrt(10) to 1e-6; changing the counts of the table the derivation does not read changes no bit of the point or the standard error. No defect was found and no product code changed."]
-record_sha256 = "0b84a105b4f44bd25a594ee64cf31a6bc5965acb6d83d6bb82e5e05fecea36ee"
+findings_resolved = ["For the two-source joint counterfactual on six count designs (balanced, 20 to 25 unit tables, sizes from 20 units to about a million, cells with one count in 1e5, one unseen cell smoothed at a = 0.5 and a = 1) the plug-in equals the 50-digit reference to 1e-12 and the standard error, summed over four independent datasets (the cited regime supplies a fourth table that the derivation does not read, which contributes zero), equals it to a relative 1e-6, the bound set by the stated central difference.", "Ten times the counts with identical shares leaves the point unchanged and divides the standard error by sqrt(10) to 1e-6; changing the counts of the table the derivation does not read changes no bit of the point or the standard error. No defect was found and no product code changed.", "Scoped re-review of count-table admission: membership sets replace repeated axis and stratum scans; variable equality and hashing use the same dense identifier, iteration and first-refusal order remain declared order, and the original axis, stratum, intervention and count vectors remain the numerical inputs. Focused engineering assertions cover invalid-axis versus duplicate precedence, empty, repeated and unmeasured strata, measured-intervention refusal and retained output order. No inference or reference fixture was changed."]
+record_sha256 = "f9660874180522aff2873da8934977d2932ffb5e9acca8745d2d7d7e606dbff6"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -63,13 +64,19 @@ sha256 = "f6f6452f830d4b7e2df997db50d28298759f2f8a29aa19d031bbbd87d2d3673f"
 role = "implementation"
 path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/counts.rs"
 items = ["enum SamplingDesign", "enum UnseenCellRule", "fn axes", "fn counts", "fn default", "fn design", "fn interventions", "fn level_bits", "fn name", "fn population", "fn regime", "fn snapshot_identity", "fn structural_zeros", "fn total", "fn try_new", "struct SampledAxis", "struct SampledRegimeCounts", "struct SampledRegimeCountsParts", "struct SampledTransportLimits"]
-sha256 = "dfca92ecb42a13e6c98395ce3472ab87516a0a9535023c885b6bd07cc634f102"
+sha256 = "defdf8025b8f39850bee0f08bf36d3e83e3c349864c918bb31f764e9f622d320"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/counterfactual_transport_sampled_multi_table_reference.rs"
 items = ["fn counts", "fn estimate", "fn plug_in_and_summed_delta_standard_error_equal_the_multiprecision_reference", "fn setup", "fn table", "fn tables_for", "struct Setup"]
 sha256 = "ca2014cb357d7ae0e917d96021213a32f96b03938a60bf10084fd7102cb33f81"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-estimate/tests/sampled_count_validation.rs"
+items = ["fn axis_and_strata_scans_preserve_refusal_precedence_and_order", "fn parts"]
+sha256 = "1915d2ffe6042f981941ec54e4f0501c723867ab030b29d88df63213eccde8d2"
 
 [[method_review.artifacts]]
 role = "reference"

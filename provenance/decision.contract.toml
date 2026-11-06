@@ -25,7 +25,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "contract"
-rationale = "Durable decision contract: actions by semantic id, the quantities each utility reads, a closed replayable utility expression, constraints and a canonical identity."
+rationale = "Durable decision contract: actions by semantic id, the quantities each utility reads, a closed replayable utility expression, constraints and a canonical identity. Scoped re-review compared all bound item definitions across both paths; search contract definitions are unchanged. Admissibility definitions were likewise compared across both paths and are unchanged."
 no_independent_algorithm = "Expression syntax and checks. Evaluating a closed sum/product/max/min expression is arithmetic on supplied draws and is the functional arithmetic recorded under decision.functionals."
 covered_by = ["decision.functionals"]
 record_sha256 = "8a9c2591191278a99e7ca9192a0829297a22afdcd79d9979c645f62b659a263c"
@@ -33,8 +33,20 @@ record_sha256 = "8a9c2591191278a99e7ca9192a0829297a22afdcd79d9979c645f62b659a263
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_contract.rs"
-items = ["const MAX_ACTIONS", "const MAX_DEPTH", "const MAX_INPUTS", "enum ActionKind", "enum DecisionContractError", "enum DecisionCriterion", "enum DecisionFunctional", "enum SourceRepresentation", "enum StructuralPolicy", "enum Tail", "enum UtilityExpr", "fn all_finite", "fn binary", "fn check", "fn collect_inputs", "fn depth", "fn encode", "fn expr", "fn functional", "fn identity", "fn inputs_used", "fn is_affine", "fn is_constant", "fn minimum", "fn name", "fn product", "fn put_list", "fn requirement", "fn sum", "fn tag", "fn to_refusal", "fn valid", "fn validate", "fn validate_action", "fn validate_action_count", "fn validated_identity", "struct DecisionAction", "struct DecisionContract", "struct HardConstraint", "struct SourceMode", "struct SourceRequirement"]
-sha256 = "573fe6846e05d1782427f25ec6fac8b5e8ec7e502654bd5d6e96833587b5f9ed"
+items = ["const MAX_ACTIONS", "const MAX_DEPTH", "const MAX_INPUTS", "enum ActionKind", "enum DecisionContractError", "enum DecisionCriterion", "enum DecisionFunctional", "enum SourceRepresentation", "enum StructuralPolicy", "enum Tail", "enum UtilityExpr", "fn all_finite", "fn binary", "fn check", "fn collect_inputs", "fn depth", "fn encode", "fn functional", "fn identity", "fn inputs_used", "fn is_affine", "fn is_constant", "fn minimum", "fn product", "fn put_list", "fn requirement", "fn sum", "fn tag", "fn valid", "fn validate", "fn validate_action", "fn validate_action_count", "fn validated_identity", "struct DecisionAction", "struct DecisionContract", "struct HardConstraint", "struct SourceMode", "struct SourceRequirement"]
+sha256 = "dbd0a7dd3e8872e1b2a55dd9cae3ba422c924fb7468db8e14b0bc0afa97dbae0"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_contract/admissibility.rs"
+items = ["fn identity", "fn name", "fn tag", "fn to_refusal", "fn validate"]
+sha256 = "dcd9a1b08f80b5ecb9942bbf727c280e08d23b76a63dedf74a10cef3b30b7fa3"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_contract/search.rs"
+items = ["fn expr", "fn identity", "fn requirement", "fn validate"]
+sha256 = "3bf3ac763cb2ae2ff128ad55881fcdcfc4efe1b4d7816a9ea6edb1505265f696"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

@@ -618,18 +618,27 @@ def reachability_cases() -> list[bool]:
             },
             ["conformance/estimate/refuters is consumed by no executing"],
         ),
-        # A consuming test that is #[ignore]d does not execute.
+        # Ignored consuming tests do not execute.
         case(
             g,
             "only_consumer_ignored",
             {
-                consumer: replace(
-                    "fn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
+                consumer: lambda text: replace(
+                    "fn exact_engine_reproduces_an_independent_bic_enumeration_and_samplers_agree_with_it()",
                     '#[ignore = "off"]\n'
-                    "fn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
+                    "fn exact_engine_reproduces_an_independent_bic_enumeration_and_samplers_agree_with_it()",
+                )(
+                    replace(
+                        "fn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
+                        '#[ignore = "off"]\n'
+                        "fn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
+                    )(text)
                 )
             },
-            ["conformance/bayesian/dag_posterior is consumed by no executing"],
+            [
+                "conformance/bayesian/dag_posterior is consumed by no executing",
+                "reference_review stale artifact: " + consumer,
+            ],
         ),
         # A calibration test that says it runs via the gate but that no group selects.
         case(

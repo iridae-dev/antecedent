@@ -29,6 +29,7 @@ findings_resolved = [
   "Replaced the blanket unsupported execution of the supported IPW construction with a narrow graphless support and retained numerical replay; unsupported IPW designs now refuse.",
   "Corrected the claim that every proper-prior posterior mean equals a Hajek responder mean, and identified the conditional working law explicitly.",
   "Tests reject changed posterior means, source outcomes and priors after valid container re-encoding, respect consumer capability restrictions and bounded replay, and exercise retained execution after the builder has been dropped.",
+  "Re-reviewed the bound contract verifier after indexing graph-posterior mixture atoms by key: the index retains the first published atom for duplicate keys, leaves the original weight and refusal checks in order, and does not change the graphless randomized IPW checks. A duplicate-key regression and contract verifier tests pass.",
 ]
 record_sha256 = "238d3501c6292bdc3c1e149ecd5247d030872817320f2553646878eb8eec877d"
 
@@ -60,7 +61,7 @@ sha256 = "ec0f7f83eaa2bdd39624ead222789a87231c136ad05fc626928b99752a4c2011"
 role = "implementation"
 path = "crates/antecedent-io-core/src/contract_section/verify.rs"
 items = ["module"]
-sha256 = "edeb19e4e55c2a464a35854f91d693a9e5e928c623278ff973d16d38fd85d167"
+sha256 = "34885c9f6b69cff50ee6e5e8766fab7affb0ff6a50b4f167de9d3cd7b07d5d46"
 
 [[method_review.artifacts]]
 role = "assertion"

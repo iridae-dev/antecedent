@@ -22,11 +22,11 @@
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
-use antecedent_estimate::EstimationError;
 use antecedent_estimate::observational_policy::{
     KnownPropensity, ObservationalPolicyValue as Estimator, PolicyData, PolicyEvaluation,
     PolicyObjective, PolicyOrigin,
 };
+use antecedent_estimate::EstimationError;
 use serde::{Deserialize, Serialize};
 
 use super::multi_level_treatment::AdjustmentColumn;
@@ -185,29 +185,9 @@ impl ObservationalPolicyValue {
         requests.iter().map(|request| cache.scope(|| Self::evaluate(request, ctx)).0).collect()
     }
 
-    /// Estimate the declared policy's value under the caller's `ctx`.
-    ///
-    /// This is a specialized checked path outside the central compiler. It checks the
-    /// declared support, objective, evaluation scheme and policy origin (a policy learned on
-    /// the scoring rows is refused), the columns and the propensity floor. It does not check
-    /// the adjustment columns against a graph: the report lists exchangeability as a declared
-    /// assumption. The cross-fit seed, cancellation and admission pool are `ctx`'s.
-    ///
-    /// # Errors
-    /// `required_option_missing` for an absent support, objective, evaluation or policy
-    /// origin; `invalid_argument` for malformed columns or declarations;
-    /// `policy_learned_on_evaluation_rows` for a policy learned on the scoring rows;
-    /// `treatment_level_undeclared` for a row at no declared action; `positivity_violated`
-    /// for an action outside the support or a propensity below the floor; `arm_not_populated`;
-    /// and the estimator's GLM and regression refusals.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one linear evaluation: resolve the request, run the estimator, then assemble the report wire"
-    )]
-    pub fn evaluate(
-        request: &ObservationalPolicyRequest,
-        ctx: &ExecutionContext,
-    ) -> Result<ObservationalPolicyReportWire, CausalError> {
+    fn policy_declarations(
+        spec: &ObservationalPolicySpecWire,
+    ) -> Result<(Vec<f64>, PolicyObjective, PolicyEvaluation), CausalError> {
         let refused = |code: &'static str, detail: &str, message: &str| {
             CausalError::Estimate(EstimationError::refused_detail(code, detail, message))
         };
@@ -217,7 +197,6 @@ impl ObservationalPolicyValue {
         let invalid = |detail: &str, message: &str| {
             refused(antecedent_core::reason_code!("invalid_argument"), detail, message)
         };
-        let spec = &request.spec;
         let Some(support) = spec.support.clone() else {
             return Err(missing(
                 antecedent_core::reason_details::policy_value::SUPPORT_MISSING,
@@ -292,6 +271,37 @@ impl ObservationalPolicyValue {
                     ),
                 ));
             }
+        };
+        Ok((support, objective, evaluation))
+    }
+
+    /// Estimate the declared policy's value under the caller's `ctx`.
+    ///
+    /// This is a specialized checked path outside the central compiler. It checks the
+    /// declared support, objective, evaluation scheme and policy origin (a policy learned on
+    /// the scoring rows is refused), the columns and the propensity floor. It does not check
+    /// the adjustment columns against a graph: the report lists exchangeability as a declared
+    /// assumption. The cross-fit seed, cancellation and admission pool are `ctx`'s.
+    ///
+    /// # Errors
+    /// `required_option_missing` for an absent support, objective, evaluation or policy
+    /// origin; `invalid_argument` for malformed columns or declarations;
+    /// `policy_learned_on_evaluation_rows` for a policy learned on the scoring rows;
+    /// `treatment_level_undeclared` for a row at no declared action; `positivity_violated`
+    /// for an action outside the support or a propensity below the floor; `arm_not_populated`;
+    /// and the estimator's GLM and regression refusals.
+    pub fn evaluate(
+        request: &ObservationalPolicyRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<ObservationalPolicyReportWire, CausalError> {
+        let spec = &request.spec;
+        let (support, objective, evaluation) = Self::policy_declarations(spec)?;
+        let invalid = |detail: &str, message: &str| {
+            CausalError::Estimate(EstimationError::refused_detail(
+                antecedent_core::reason_code!("invalid_argument"),
+                detail,
+                message,
+            ))
         };
         let rows = request.outcome.len();
         let mut names: Vec<&str> = request.adjustment.iter().map(|c| c.name.as_str()).collect();

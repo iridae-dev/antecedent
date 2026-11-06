@@ -510,6 +510,235 @@ struct SharedReplicates {
     note: String,
 }
 
+/// Collect evaluable atom values and the proofs that support them.
+fn evaluate_posterior_atoms(
+    kind: AtomQuery<'_>,
+    records: &[AtomRecord],
+    rows: usize,
+    frequentist: bool,
+) -> Result<(Vec<AtomEval>, Vec<CachedGraphPosteriorAtomIdentification>), CausalError> {
+    let mut evals: Vec<AtomEval> = Vec::with_capacity(records.len());
+    let mut proofs: Vec<CachedGraphPosteriorAtomIdentification> = Vec::new();
+    for record in records {
+        match &record.run {
+            AtomRun::Unidentified => {}
+            AtomRun::Unevaluable => evals.push(AtomEval {
+                key: record.key,
+                status: IdentificationStatus::NotIdentified,
+                estimand: None,
+                value: None,
+                posterior: None,
+                assumptions: None,
+                bounds: None,
+                partial: false,
+                analytic_se: None,
+                influence: None,
+                uncertainty: None,
+            }),
+            AtomRun::Fit(result) => {
+                let eval = atom_eval(kind, record.key, result, rows, frequentist);
+                if eval.value.is_some() {
+                    proofs.push(CachedGraphPosteriorAtomIdentification {
+                        key: record.key,
+                        estimand: target_estimand(&result.estimand),
+                        identification: result.identification.clone(),
+                        transport: None,
+                    });
+                }
+                evals.push(eval);
+            }
+        }
+    }
+    if proofs.is_empty() {
+        return Err(CausalError::not_identified(
+            IdentificationStatus::NotIdentified,
+            false,
+            &format!(
+                "no atom of the graph posterior identifies and evaluates the {}",
+                kind.label()
+            ),
+        ));
+    }
+    Ok((evals, proofs))
+}
+
+/// Context for uncertainty from the contributing atom results.
+#[derive(Clone, Copy)]
+struct AtomUncertaintyInput<'a> {
+    data: &'a TabularData,
+    fits: &'a [(&'a AtomRecord, &'a StudyResult, f64)],
+    representative: (&'a AtomRecord, &'a StudyResult),
+    kind: AtomQuery<'a>,
+    physical: &'a Arc<PhysicalExecutionPlan>,
+    ctx: &'a ExecutionContext,
+    status: IdentificationStatus,
+    unidentified_mass: f64,
+    unevaluable_mass: f64,
+}
+
+/// The assembled atom result and the retained inputs needed to finish publication.
+struct AtomResultFinish<'a> {
+    kind: AtomQuery<'a>,
+    gp: &'a GraphPosterior,
+    records: &'a [AtomRecord],
+    by_key: &'a HashMap<u64, usize>,
+    fits: &'a [(&'a AtomRecord, &'a StudyResult, f64)],
+    result: StudyResult,
+    policy: StructuralAggregationPolicy,
+    identification: super::IdentificationResult,
+    estimate: EffectEstimate,
+    published_posterior: Option<CausalPosterior>,
+    mixture: crate::result::StructuralResponseMixture,
+    diagnostics: Vec<Diagnostic>,
+    payload: ResultPayload,
+    treatment: VariableId,
+    outcome: VariableId,
+}
+
+/// Inputs for assembling a typed response from the contributing atoms.
+#[derive(Clone, Copy)]
+struct AtomResponseMix<'a> {
+    query: &'a ResponseQuery,
+    fits: &'a [(&'a AtomRecord, &'a StudyResult, f64)],
+    representative: (&'a AtomRecord, &'a StudyResult),
+    status: IdentificationStatus,
+    mean_se: Option<f64>,
+    bayesian: bool,
+}
+
+/// Preserve the typed response, uncertainty and per-atom assumptions in the mixture.
+#[allow(
+    clippy::too_many_lines,
+    reason = "response identity, uncertainty and support form one published payload"
+)]
+fn mix_atom_response(
+    input: AtomResponseMix<'_>,
+    mixture: &mut crate::result::StructuralResponseMixture,
+    estimate: &mut EffectEstimate,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<ResultPayload> {
+    let AtomResponseMix { query, fits, representative, status, mean_se, bayesian } = input;
+    let contributing = fits.len();
+    let items: Vec<(f64, ResponseValue)> = fits
+        .iter()
+        .filter_map(|(_, result, weight)| {
+            result.response().and_then(response_identified_value).map(|value| (*weight, value))
+        })
+        .collect();
+    let refs: Vec<(f64, &ResponseValue)> =
+        items.iter().map(|(weight, value)| (*weight, value)).collect();
+    if let Some(base) = representative.1.response() {
+        let mut response = base.clone();
+        let graph_dependent = status == IdentificationStatus::GraphDependent;
+        let value = mix_response_values(&refs).ok();
+        response.estimand = query.functional.clone();
+        response.identification_status = status;
+        response.estimate = match (&value, graph_dependent) {
+            (Some(value), false) => ResponseIdentification::PointIdentified(value.clone()),
+            _ => ResponseIdentification::GraphDependent(
+                fits.iter()
+                    .filter_map(|(record, result, _)| {
+                        result
+                            .response()
+                            .and_then(response_identified_value)
+                            .map(|value| (record.key, value))
+                    })
+                    .collect(),
+            ),
+        };
+        if contributing > 1 {
+            let level = match &base.uncertainty {
+                ResponseUncertainty::Scalar { level, .. } => *level,
+                _ => crate::result::REPORTED_SE_INTERVAL_LEVEL,
+            };
+            response.uncertainty = match (&value, mean_se) {
+                (Some(ResponseValue::Scalar(point)), Some(se)) => {
+                    let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
+                    ResponseUncertainty::Scalar {
+                        standard_error: se,
+                        level,
+                        lower: point - z * se,
+                        upper: point + z * se,
+                        interpretation: if bayesian {
+                            antecedent_core::IntervalInterpretation::Credible
+                        } else {
+                            antecedent_core::IntervalInterpretation::Confidence
+                        },
+                        draws: None,
+                    }
+                }
+                _ => ResponseUncertainty::None,
+            };
+            if bayesian {
+                if let Some(ResponseValue::Scalar(point)) = &value {
+                    if let Some(draws) = pooled_credible_draws(fits) {
+                        super::temporal_point_uncertainty::attach_posterior_response_band(
+                            &mut response,
+                            &draws,
+                            &[*point],
+                        );
+                        diagnostics.push(Diagnostic::new(
+                            ATOM_ROUTE_POSTERIOR_CODE,
+                            DiagnosticKind::Scientific,
+                            DiagnosticSeverity::Info,
+                            "pooled credible draws: draw d of the mixture is the \
+                             posterior-weighted sum of draw d of every contributing \
+                             atom's response draws, all run in one context so that \
+                             draw d is one draw of the row weights",
+                        ));
+                    } else {
+                        diagnostics.push(Diagnostic::new(
+                            NO_UNCERTAINTY_METHOD_CODE,
+                            DiagnosticKind::Scientific,
+                            DiagnosticSeverity::Warning,
+                            "no aggregate credible interval: the atoms' response \
+                             draws differ in count or are not retained, so they are \
+                             not draws of one shared run; each atom's own interval is \
+                             kept on the structural mixture",
+                        ));
+                    }
+                }
+            }
+            let supports: Vec<&antecedent_core::SupportReport> = fits
+                .iter()
+                .filter_map(|(_, result, _)| result.response().map(|response| &response.support))
+                .collect();
+            if !supports.is_empty() {
+                response.support = mix_support_reports(&supports);
+            }
+            for (_, other, _) in
+                fits.iter().filter(|(record, _, _)| !std::ptr::eq(*record, representative.0))
+            {
+                if let Some(other) = other.response() {
+                    response.assumptions.extend_unique(&other.assumptions.entries);
+                }
+            }
+        }
+        response.provenance_id = Arc::from("estimate.response.graph_posterior.atom_route");
+        if let Some(value) = value {
+            mixture.conditional_on_identified = Some(value);
+        }
+        let (scalar, se) = response_scalar_summary(&response);
+        *estimate = EffectEstimate::from_parts(
+            scalar,
+            se,
+            BootstrapAccounting::default(),
+            response.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+            None,
+            None,
+        );
+        if contributing == 1 {
+            if let Some(own) = representative.1.estimate.as_effect() {
+                estimate.uncertainty = own.uncertainty;
+                estimate.scores.influence.clone_from(&own.scores.influence);
+            }
+        }
+        return Some(ResultPayload::Response(response));
+    }
+    None
+}
+
 impl super::Study {
     /// Refusals every execution of this family of graph posteriors shares.
     fn ensure_atom_route_supported(
@@ -778,6 +1007,272 @@ impl super::Study {
         Some(posterior)
     }
 
+    /// Publish uncertainty from the same contributing atoms and shared row stream.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "single, Bayesian and shared-row uncertainty retain distinct semantics"
+    )]
+    fn publish_atom_uncertainty(
+        &self,
+        input: AtomUncertaintyInput<'_>,
+        estimate: &mut EffectEstimate,
+        published_posterior: &mut Option<CausalPosterior>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<Option<f64>, CausalError> {
+        let AtomUncertaintyInput {
+            data,
+            fits,
+            representative,
+            kind,
+            physical,
+            ctx,
+            status,
+            unidentified_mass,
+            unevaluable_mass,
+        } = input;
+        let contributing = fits.len();
+        let mut mean_se: Option<f64> = None;
+        if contributing == 1 {
+            // One atom carries the whole conditional mixture: its own uncertainty is the
+            // mixture's.
+            if let Some(own) = representative.1.estimate.as_effect() {
+                estimate.uncertainty = sanitize_atom_uncertainty(own.uncertainty);
+                estimate.scores.influence.clone_from(&own.scores.influence);
+            }
+            if published_posterior.is_none() {
+                published_posterior.clone_from(&representative.1.posterior);
+            }
+            if let Some(posterior) = published_posterior.as_mut() {
+                posterior.unidentified_mass = unidentified_mass;
+                posterior.unevaluable_mass = unevaluable_mass;
+            }
+        } else if self.settings.inference.is_bayesian() {
+            let items: Vec<(f64, &CausalPosterior)> = fits
+                .iter()
+                .filter_map(|(_, result, weight)| result.posterior.as_ref().map(|p| (*weight, p)))
+                .collect();
+            let scalar_only = fits.iter().all(|(_, result, _)| {
+                matches!(atom_value(kind, result), Some(ResponseValue::Scalar(_)))
+            });
+            let pooled = (items.len() == contributing && scalar_only)
+                .then(|| {
+                    Self::pool_atom_posteriors(
+                        &items,
+                        status,
+                        (unidentified_mass, unevaluable_mass),
+                    )
+                })
+                .flatten();
+            if let Some(pooled) = pooled {
+                if let Ok(pooled_estimate) = effect_from_posterior(&pooled) {
+                    *estimate = pooled_estimate;
+                    mean_se = Some(estimate.se_analytic()).filter(|se| se.is_finite());
+                }
+                *published_posterior = Some(pooled);
+                diagnostics.push(Diagnostic::new(
+                    ATOM_ROUTE_POSTERIOR_CODE,
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "pooled posterior: draw d of the mixture is the posterior-weighted sum of \
+                 draw d of every contributing atom, all run in one context so that draw d \
+                 is one draw of the row weights",
+                ));
+            } else {
+                diagnostics.push(graph_posterior_withheld_diagnostic());
+                diagnostics.push(Diagnostic::new(
+                    NO_UNCERTAINTY_METHOD_CODE,
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    "no aggregate posterior: the atoms' draws differ in count or publish no \
+                 effect column, so they are not draws of one shared run; the per-atom \
+                 posteriors are retained on the structural mixture",
+                ));
+            }
+        } else if !estimate.se_analytic().is_finite() && estimate.uncertainty.bootstrap.se.is_none()
+        {
+            let atoms: Vec<(f64, &super::Study, &AtomGraph)> = fits
+                .iter()
+                .filter_map(|(record, _, weight)| {
+                    Some((*weight, record.study.as_ref()?, record.graph.as_ref()?))
+                })
+                .collect();
+            let replicates = self.shared_row_replicates(data, &atoms, kind, physical, ctx)?;
+            diagnostics.push(Diagnostic::new(
+                if replicates.se.is_some() {
+                    ATOM_ROUTE_POSTERIOR_CODE
+                } else {
+                    NO_UNCERTAINTY_METHOD_CODE
+                },
+                DiagnosticKind::Scientific,
+                if replicates.se.is_some() {
+                    DiagnosticSeverity::Info
+                } else {
+                    DiagnosticSeverity::Warning
+                },
+                replicates.note.clone(),
+            ));
+            if replicates.se.is_some() {
+                mean_se = replicates.se;
+                *estimate = EffectEstimate::from_parts(
+                    estimate.ate,
+                    f64::NAN,
+                    BootstrapAccounting {
+                        se: replicates.se,
+                        replicates_ok: Some(replicates.ok),
+                        replicates_failed: Some(replicates.failed),
+                        cancelled: false,
+                        early_stopped: false,
+                    },
+                    estimate.provenance.assumptions.clone(),
+                    OverlapPolicy::ExplicitOverride,
+                    None,
+                    None,
+                );
+            }
+        } else {
+            mean_se = Some(estimate.se_analytic())
+                .filter(|se| se.is_finite())
+                .or(estimate.uncertainty.bootstrap.se);
+            diagnostics.push(Diagnostic::new(
+                ATOM_ROUTE_POSTERIOR_CODE,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "standard error of the frozen-weight mixture from the joint row influence of the \
+             contributing atoms on the shared sample",
+            ));
+        }
+
+        Ok(mean_se)
+    }
+
+    /// Attach structural atoms, coverage diagnostics and mixed refutations to the result.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the result carries one ordered set of mass, payload and refutation disclosures"
+    )]
+    fn finish_atom_posterior(&self, input: AtomResultFinish<'_>) -> StudyResult {
+        let AtomResultFinish {
+            kind,
+            gp,
+            records,
+            by_key,
+            fits,
+            mut result,
+            policy,
+            identification,
+            estimate,
+            published_posterior,
+            mut mixture,
+            mut diagnostics,
+            payload,
+            treatment,
+            outcome,
+        } = input;
+        let contributing = fits.len();
+        // The structural atoms carry each graph's own typed value, and for a response its full
+        // per-graph answer.
+        for atom in &mut mixture.atoms {
+            let Some(&position) = by_key.get(&atom.graph_key) else { continue };
+            if let AtomRun::Fit(each) = &records[position].run {
+                if let Some(value) = atom_value(kind, each) {
+                    atom.value = Some(value);
+                }
+                if matches!(kind, AtomQuery::Response(_)) {
+                    atom.response = each.response().cloned();
+                }
+            }
+        }
+
+        let identified_mass = mixture.identified_mass;
+        let unevaluable_mass = mixture.unevaluable_mass;
+        let unidentified_reported = mixture.unidentified_mass;
+        diagnostics.push(
+            Diagnostic::new(
+                ATOM_ROUTE_POSTERIOR_CODE,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "each {} posterior atom answered the {} with the executor of its own \
+                 structure, and the atoms are mixed by posterior probability over the atoms \
+                 that identify and evaluate it ({contributing} of {} distinct graph(s)); an \
+                 atom the identifier refuses is unidentified mass and an atom whose \
+                 estimator cannot be evaluated is unevaluable mass, neither redistributed",
+                    gp.atom_kind().as_str(),
+                    kind.label(),
+                    records.len(),
+                ),
+            )
+            .with_fields([
+                ("atoms", contributing.to_string()),
+                ("unidentified_mass", unidentified_reported.to_string()),
+                ("unevaluable_mass", unevaluable_mass.to_string()),
+            ]),
+        );
+        super::push_graph_posterior_structural_aggregation_diagnostic(
+            &mut diagnostics,
+            policy,
+            identified_mass,
+            unidentified_reported,
+            unevaluable_mass,
+            mixture.subsampled_out_mass,
+        );
+        if matches!(policy, StructuralAggregationPolicy::GraphDependentAtoms) {
+            diagnostics.push(Diagnostic::new(
+                NO_UNCERTAINTY_METHOD_CODE,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "the atoms did not agree on what they identify, so no aggregate value is \
+             published; per-atom values are retained on the structural mixture",
+            ));
+        }
+        result.diagnostics.extend(diagnostics);
+        result.identification = identification;
+        result.certificate = None;
+        result.estimate = PrimaryEstimate::Effect(estimate);
+        result.posterior = published_posterior;
+        result.structural_response = Some(mixture);
+        // A derivative's refuter state ran on each atom's own estimand: the reports of one
+        // refuter are mixed by the posterior weight of the atoms that produced them, a mixed
+        // verdict passes only if every contributing atom passes, and a refuter that ran on part
+        // of the mass says so.
+        let per_atom: Vec<(f64, Vec<antecedent_validate::RefutationReport>)> =
+            fits.iter().map(|(_, each, weight)| (*weight, each.refutations.clone())).collect();
+        let (mixed_reports, coverage_notes) = if kind.validates_per_atom() {
+            super::mix_atom_refutation_reports(&per_atom)
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        result.refutations = mixed_reports;
+        result.diagnostics.extend(coverage_notes);
+        result.predictive_checks =
+            fits.iter().flat_map(|(_, each, _)| each.predictive_checks.iter().cloned()).collect();
+        if kind.validates_per_atom() && self.settings.refute != RefuteSuite::None {
+            let listed = fits
+                .iter()
+                .map(|(record, each, weight)| {
+                    format!("{:x}:weight={weight}:reports={}", record.key, each.refutations.len())
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            result.diagnostics.push(Diagnostic::new(
+                "refute.graph_posterior.per_atom",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "cheap/full validation ran the derivative refuter state on each \
+                 contributing atom's own estimand; the reports of one refuter are mixed \
+                 by posterior weight and pass only if every contributing atom passes \
+                 (atoms: {listed})"
+                ),
+            ));
+        }
+        result.payload = payload;
+        result.treatment = Some(treatment);
+        result.outcome = outcome;
+        result.rebind_interval(self.settings.inference.is_bayesian());
+        result
+    }
+
     /// Answer a derivative or multi-coordinate response, an ADMG conditional effect or a
     /// counterfactual over the atoms of a tabular graph posterior.
     ///
@@ -818,48 +1313,7 @@ impl super::Study {
         let frequentist = self.settings.inference.is_frequentist();
         let rows = data.row_count();
 
-        let mut evals: Vec<AtomEval> = Vec::with_capacity(records.len());
-        let mut proofs: Vec<CachedGraphPosteriorAtomIdentification> = Vec::new();
-        for record in &records {
-            match &record.run {
-                AtomRun::Unidentified => {}
-                AtomRun::Unevaluable => evals.push(AtomEval {
-                    key: record.key,
-                    status: IdentificationStatus::NotIdentified,
-                    estimand: None,
-                    value: None,
-                    posterior: None,
-                    assumptions: None,
-                    bounds: None,
-                    partial: false,
-                    analytic_se: None,
-                    influence: None,
-                    uncertainty: None,
-                }),
-                AtomRun::Fit(result) => {
-                    let eval = atom_eval(kind, record.key, result, rows, frequentist);
-                    if eval.value.is_some() {
-                        proofs.push(CachedGraphPosteriorAtomIdentification {
-                            key: record.key,
-                            estimand: target_estimand(&result.estimand),
-                            identification: result.identification.clone(),
-                            transport: None,
-                        });
-                    }
-                    evals.push(eval);
-                }
-            }
-        }
-        if proofs.is_empty() {
-            return Err(CausalError::not_identified(
-                IdentificationStatus::NotIdentified,
-                false,
-                &format!(
-                    "no atom of the graph posterior identifies and evaluates the {}",
-                    kind.label()
-                ),
-            ));
-        }
+        let (evals, proofs) = evaluate_posterior_atoms(kind, &records, rows, frequentist)?;
         let label = kind.label();
         let mut mixed = mix_atom_evals(
             &evals,
@@ -917,120 +1371,26 @@ impl super::Study {
         let MixedAtomEvals { policy, identification, mut estimate, posterior, mut mixture, .. } =
             mixed;
         let mut published_posterior = posterior;
-        let mut mean_se: Option<f64> = None;
-        if contributing == 1 {
-            // One atom carries the whole conditional mixture: its own uncertainty is the
-            // mixture's.
-            if let Some(own) = representative.1.estimate.as_effect() {
-                estimate.uncertainty = sanitize_atom_uncertainty(own.uncertainty);
-                estimate.scores.influence.clone_from(&own.scores.influence);
-            }
-            if published_posterior.is_none() {
-                published_posterior.clone_from(&representative.1.posterior);
-            }
-            if let Some(posterior) = published_posterior.as_mut() {
-                posterior.unidentified_mass = mixture.unidentified_mass;
-                posterior.unevaluable_mass = mixture.unevaluable_mass;
-            }
-        } else if self.settings.inference.is_bayesian() {
-            let items: Vec<(f64, &CausalPosterior)> = fits
-                .iter()
-                .filter_map(|(_, result, weight)| result.posterior.as_ref().map(|p| (*weight, p)))
-                .collect();
-            let scalar_only = fits.iter().all(|(_, result, _)| {
-                matches!(atom_value(kind, result), Some(ResponseValue::Scalar(_)))
-            });
-            let pooled = (items.len() == contributing && scalar_only)
-                .then(|| {
-                    Self::pool_atom_posteriors(
-                        &items,
-                        identification.status,
-                        (mixture.unidentified_mass, mixture.unevaluable_mass),
-                    )
-                })
-                .flatten();
-            if let Some(pooled) = pooled {
-                if let Ok(pooled_estimate) = effect_from_posterior(&pooled) {
-                    estimate = pooled_estimate;
-                    mean_se = Some(estimate.se_analytic()).filter(|se| se.is_finite());
-                }
-                published_posterior = Some(pooled);
-                diagnostics.push(Diagnostic::new(
-                    ATOM_ROUTE_POSTERIOR_CODE,
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "pooled posterior: draw d of the mixture is the posterior-weighted sum of \
-                     draw d of every contributing atom, all run in one context so that draw d \
-                     is one draw of the row weights",
-                ));
-            } else {
-                diagnostics.push(graph_posterior_withheld_diagnostic());
-                diagnostics.push(Diagnostic::new(
-                    NO_UNCERTAINTY_METHOD_CODE,
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Warning,
-                    "no aggregate posterior: the atoms' draws differ in count or publish no \
-                     effect column, so they are not draws of one shared run; the per-atom \
-                     posteriors are retained on the structural mixture",
-                ));
-            }
-        } else if !estimate.se_analytic().is_finite() && estimate.uncertainty.bootstrap.se.is_none()
-        {
-            let atoms: Vec<(f64, &super::Study, &AtomGraph)> = fits
-                .iter()
-                .filter_map(|(record, _, weight)| {
-                    Some((*weight, record.study.as_ref()?, record.graph.as_ref()?))
-                })
-                .collect();
-            let replicates = self.shared_row_replicates(data, &atoms, kind, physical, ctx)?;
-            diagnostics.push(Diagnostic::new(
-                if replicates.se.is_some() {
-                    ATOM_ROUTE_POSTERIOR_CODE
-                } else {
-                    NO_UNCERTAINTY_METHOD_CODE
-                },
-                DiagnosticKind::Scientific,
-                if replicates.se.is_some() {
-                    DiagnosticSeverity::Info
-                } else {
-                    DiagnosticSeverity::Warning
-                },
-                replicates.note.clone(),
-            ));
-            if replicates.se.is_some() {
-                mean_se = replicates.se;
-                estimate = EffectEstimate::from_parts(
-                    estimate.ate,
-                    f64::NAN,
-                    BootstrapAccounting {
-                        se: replicates.se,
-                        replicates_ok: Some(replicates.ok),
-                        replicates_failed: Some(replicates.failed),
-                        cancelled: false,
-                        early_stopped: false,
-                    },
-                    estimate.provenance.assumptions.clone(),
-                    OverlapPolicy::ExplicitOverride,
-                    None,
-                    None,
-                );
-            }
-        } else {
-            mean_se = Some(estimate.se_analytic())
-                .filter(|se| se.is_finite())
-                .or(estimate.uncertainty.bootstrap.se);
-            diagnostics.push(Diagnostic::new(
-                ATOM_ROUTE_POSTERIOR_CODE,
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "standard error of the frozen-weight mixture from the joint row influence of the \
-                 contributing atoms on the shared sample",
-            ));
-        }
+        let mean_se = self.publish_atom_uncertainty(
+            AtomUncertaintyInput {
+                data,
+                fits: &fits,
+                representative,
+                kind,
+                physical,
+                ctx,
+                status: identification.status,
+                unidentified_mass: mixture.unidentified_mass,
+                unevaluable_mass: mixture.unevaluable_mass,
+            },
+            &mut estimate,
+            &mut published_posterior,
+            &mut diagnostics,
+        )?;
 
         // The typed value of the answer.
         let (treatment, outcome) = kind.treatment_outcome()?;
-        let mut result = representative.1.clone();
+        let result = representative.1.clone();
         let mut payload = if contributing == 1 {
             representative.1.payload.clone()
         } else {
@@ -1038,238 +1398,41 @@ impl super::Study {
         };
         match kind {
             AtomQuery::Response(query) => {
-                let items: Vec<(f64, ResponseValue)> = fits
-                    .iter()
-                    .filter_map(|(_, result, weight)| {
-                        result
-                            .response()
-                            .and_then(response_identified_value)
-                            .map(|value| (*weight, value))
-                    })
-                    .collect();
-                let refs: Vec<(f64, &ResponseValue)> =
-                    items.iter().map(|(weight, value)| (*weight, value)).collect();
-                if let Some(base) = representative.1.response() {
-                    let mut response = base.clone();
-                    let graph_dependent =
-                        identification.status == IdentificationStatus::GraphDependent;
-                    let value = mix_response_values(&refs).ok();
-                    response.estimand = query.functional.clone();
-                    response.identification_status = identification.status;
-                    response.estimate = match (&value, graph_dependent) {
-                        (Some(value), false) => {
-                            ResponseIdentification::PointIdentified(value.clone())
-                        }
-                        _ => ResponseIdentification::GraphDependent(
-                            fits.iter()
-                                .filter_map(|(record, result, _)| {
-                                    result
-                                        .response()
-                                        .and_then(response_identified_value)
-                                        .map(|value| (record.key, value))
-                                })
-                                .collect(),
-                        ),
-                    };
-                    if contributing > 1 {
-                        let level = match &base.uncertainty {
-                            ResponseUncertainty::Scalar { level, .. } => *level,
-                            _ => crate::result::REPORTED_SE_INTERVAL_LEVEL,
-                        };
-                        response.uncertainty = match (&value, mean_se) {
-                            (Some(ResponseValue::Scalar(point)), Some(se)) => {
-                                let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
-                                ResponseUncertainty::Scalar {
-                                    standard_error: se,
-                                    level,
-                                    lower: point - z * se,
-                                    upper: point + z * se,
-                                    interpretation: if self.settings.inference.is_bayesian() {
-                                        antecedent_core::IntervalInterpretation::Credible
-                                    } else {
-                                        antecedent_core::IntervalInterpretation::Confidence
-                                    },
-                                    draws: None,
-                                }
-                            }
-                            _ => ResponseUncertainty::None,
-                        };
-                        if self.settings.inference.is_bayesian() {
-                            if let Some(ResponseValue::Scalar(point)) = &value {
-                                if let Some(draws) = pooled_credible_draws(&fits) {
-                                    super::temporal_point_uncertainty::attach_posterior_response_band(
-                                        &mut response,
-                                        &draws,
-                                        &[*point],
-                                    );
-                                    diagnostics.push(Diagnostic::new(
-                                        ATOM_ROUTE_POSTERIOR_CODE,
-                                        DiagnosticKind::Scientific,
-                                        DiagnosticSeverity::Info,
-                                        "pooled credible draws: draw d of the mixture is the \
-                                         posterior-weighted sum of draw d of every contributing \
-                                         atom's response draws, all run in one context so that \
-                                         draw d is one draw of the row weights",
-                                    ));
-                                } else {
-                                    diagnostics.push(Diagnostic::new(
-                                        NO_UNCERTAINTY_METHOD_CODE,
-                                        DiagnosticKind::Scientific,
-                                        DiagnosticSeverity::Warning,
-                                        "no aggregate credible interval: the atoms' response \
-                                         draws differ in count or are not retained, so they are \
-                                         not draws of one shared run; each atom's own interval is \
-                                         kept on the structural mixture",
-                                    ));
-                                }
-                            }
-                        }
-                        let supports: Vec<&antecedent_core::SupportReport> = fits
-                            .iter()
-                            .filter_map(|(_, result, _)| {
-                                result.response().map(|response| &response.support)
-                            })
-                            .collect();
-                        if !supports.is_empty() {
-                            response.support = mix_support_reports(&supports);
-                        }
-                        for (_, other, _) in fits
-                            .iter()
-                            .filter(|(record, _, _)| !std::ptr::eq(*record, representative.0))
-                        {
-                            if let Some(other) = other.response() {
-                                response.assumptions.extend_unique(&other.assumptions.entries);
-                            }
-                        }
-                    }
-                    response.provenance_id =
-                        Arc::from("estimate.response.graph_posterior.atom_route");
-                    if let Some(value) = value {
-                        mixture.conditional_on_identified = Some(value);
-                    }
-                    let (scalar, se) = response_scalar_summary(&response);
-                    estimate = EffectEstimate::from_parts(
-                        scalar,
-                        se,
-                        BootstrapAccounting::default(),
-                        response.assumptions.clone(),
-                        OverlapPolicy::ExplicitOverride,
-                        None,
-                        None,
-                    );
-                    if contributing == 1 {
-                        if let Some(own) = representative.1.estimate.as_effect() {
-                            estimate.uncertainty = own.uncertainty;
-                            estimate.scores.influence.clone_from(&own.scores.influence);
-                        }
-                    }
-                    payload = ResultPayload::Response(response);
+                if let Some(response_payload) = mix_atom_response(
+                    AtomResponseMix {
+                        query,
+                        fits: &fits,
+                        representative,
+                        status: identification.status,
+                        mean_se,
+                        bayesian: self.settings.inference.is_bayesian(),
+                    },
+                    &mut mixture,
+                    &mut estimate,
+                    &mut diagnostics,
+                ) {
+                    payload = response_payload;
                 }
             }
             AtomQuery::Conditional(_) | AtomQuery::Counterfactual(_) => {}
         }
 
-        // The structural atoms carry each graph's own typed value, and for a response its full
-        // per-graph answer.
-        for atom in &mut mixture.atoms {
-            let Some(&position) = by_key.get(&atom.graph_key) else { continue };
-            if let AtomRun::Fit(each) = &records[position].run {
-                if let Some(value) = atom_value(kind, each) {
-                    atom.value = Some(value);
-                }
-                if matches!(kind, AtomQuery::Response(_)) {
-                    atom.response = each.response().cloned();
-                }
-            }
-        }
-
-        let identified_mass = mixture.identified_mass;
-        let unevaluable_mass = mixture.unevaluable_mass;
-        let unidentified_reported = mixture.unidentified_mass;
-        diagnostics.push(
-            Diagnostic::new(
-                ATOM_ROUTE_POSTERIOR_CODE,
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "each {} posterior atom answered the {} with the executor of its own \
-                     structure, and the atoms are mixed by posterior probability over the atoms \
-                     that identify and evaluate it ({contributing} of {} distinct graph(s)); an \
-                     atom the identifier refuses is unidentified mass and an atom whose \
-                     estimator cannot be evaluated is unevaluable mass, neither redistributed",
-                    gp.atom_kind().as_str(),
-                    kind.label(),
-                    records.len(),
-                ),
-            )
-            .with_fields([
-                ("atoms", contributing.to_string()),
-                ("unidentified_mass", unidentified_reported.to_string()),
-                ("unevaluable_mass", unevaluable_mass.to_string()),
-            ]),
-        );
-        super::push_graph_posterior_structural_aggregation_diagnostic(
-            &mut diagnostics,
+        Ok(self.finish_atom_posterior(AtomResultFinish {
+            kind,
+            gp,
+            records: &records,
+            by_key: &by_key,
+            fits: &fits,
+            result,
             policy,
-            identified_mass,
-            unidentified_reported,
-            unevaluable_mass,
-            mixture.subsampled_out_mass,
-        );
-        if matches!(policy, StructuralAggregationPolicy::GraphDependentAtoms) {
-            diagnostics.push(Diagnostic::new(
-                NO_UNCERTAINTY_METHOD_CODE,
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                "the atoms did not agree on what they identify, so no aggregate value is \
-                 published; per-atom values are retained on the structural mixture",
-            ));
-        }
-        result.diagnostics.extend(diagnostics);
-        result.identification = identification;
-        result.certificate = None;
-        result.estimate = PrimaryEstimate::Effect(estimate);
-        result.posterior = published_posterior;
-        result.structural_response = Some(mixture);
-        // A derivative's refuter state ran on each atom's own estimand: the reports of one
-        // refuter are mixed by the posterior weight of the atoms that produced them, a mixed
-        // verdict passes only if every contributing atom passes, and a refuter that ran on part
-        // of the mass says so.
-        let per_atom: Vec<(f64, Vec<antecedent_validate::RefutationReport>)> =
-            fits.iter().map(|(_, each, weight)| (*weight, each.refutations.clone())).collect();
-        let (mixed_reports, coverage_notes) = if kind.validates_per_atom() {
-            super::mix_atom_refutation_reports(&per_atom)
-        } else {
-            (Vec::new(), Vec::new())
-        };
-        result.refutations = mixed_reports;
-        result.diagnostics.extend(coverage_notes);
-        result.predictive_checks =
-            fits.iter().flat_map(|(_, each, _)| each.predictive_checks.iter().cloned()).collect();
-        if kind.validates_per_atom() && self.settings.refute != RefuteSuite::None {
-            let listed = fits
-                .iter()
-                .map(|(record, each, weight)| {
-                    format!("{:x}:weight={weight}:reports={}", record.key, each.refutations.len())
-                })
-                .collect::<Vec<_>>()
-                .join(",");
-            result.diagnostics.push(Diagnostic::new(
-                "refute.graph_posterior.per_atom",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "cheap/full validation ran the derivative refuter state on each \
-                     contributing atom's own estimand; the reports of one refuter are mixed \
-                     by posterior weight and pass only if every contributing atom passes \
-                     (atoms: {listed})"
-                ),
-            ));
-        }
-        result.payload = payload;
-        result.treatment = Some(treatment);
-        result.outcome = outcome;
-        result.rebind_interval(self.settings.inference.is_bayesian());
-        Ok(result)
+            identification,
+            estimate,
+            published_posterior,
+            mixture,
+            diagnostics,
+            payload,
+            treatment,
+            outcome,
+        }))
     }
 }

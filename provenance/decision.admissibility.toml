@@ -33,7 +33,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "contract"
-rationale = "Declared admissibility rules (action exclusions, per-input support floors, an uncertainty requirement) that remove actions from the admissible set and never add a penalty."
+rationale = "Declared admissibility rules (action exclusions, per-input support floors, an uncertainty requirement) that remove actions from the admissible set and never add a penalty. Scoped re-review compared all bound item definitions across both paths; search contract definitions are unchanged. Admissibility definitions were likewise compared across both paths and are unchanged."
 no_independent_algorithm = "Rules read the results of the structural evaluation and the supplied support; no estimator and no numeric routine of its own."
 covered_by = ["decision.contract", "decision.structural_policy"]
 record_sha256 = "4bfb952fa6488dc835381370c22f6c5ab363532e5dc27975109c0f7820727da6"
@@ -41,8 +41,20 @@ record_sha256 = "4bfb952fa6488dc835381370c22f6c5ab363532e5dc27975109c0f7820727da
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_contract.rs"
-items = ["const MAX_ACTIONS", "const MAX_DEPTH", "const MAX_INPUTS", "enum ActionKind", "enum AdmissibilityError", "enum DecisionContractError", "enum DecisionCriterion", "enum DecisionFunctional", "enum SourceRepresentation", "enum StructuralPolicy", "enum Tail", "enum UncertaintyKind", "enum UncertaintyRequirement", "enum UtilityExpr", "fn all_finite", "fn binary", "fn collect_inputs", "fn depth", "fn encode", "fn expr", "fn functional", "fn identity", "fn inputs_used", "fn minimum", "fn put_list", "fn support_met", "fn tag", "fn to_refusal", "fn valid", "fn validate", "fn validate_action", "fn validate_action_count", "fn validated_identity", "fn weakest_allowed", "struct AdmissibilityRules", "struct AdmissibleDecisionContract", "struct DecisionAction", "struct DecisionContract", "struct DeclaredExclusion", "struct HardConstraint", "struct SupportRule"]
-sha256 = "7a733a6b28a6ac71e6850b0c4a404c17dc3c923a298c031ef660641b14de225b"
+items = ["const MAX_ACTIONS", "const MAX_DEPTH", "const MAX_INPUTS", "enum ActionKind", "enum DecisionContractError", "enum DecisionCriterion", "enum DecisionFunctional", "enum SourceRepresentation", "enum StructuralPolicy", "enum Tail", "enum UtilityExpr", "fn all_finite", "fn binary", "fn collect_inputs", "fn depth", "fn encode", "fn functional", "fn identity", "fn inputs_used", "fn minimum", "fn put_list", "fn tag", "fn valid", "fn validate", "fn validate_action", "fn validate_action_count", "fn validated_identity", "struct DecisionAction", "struct DecisionContract", "struct HardConstraint"]
+sha256 = "a038a3288b133a09133d25131bef210ad84a3a56677c7875f9eaa3e8920c1f48"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_contract/admissibility.rs"
+items = ["enum AdmissibilityError", "enum UncertaintyKind", "enum UncertaintyRequirement", "fn identity", "fn support_met", "fn tag", "fn to_refusal", "fn validate", "fn weakest_allowed", "struct AdmissibilityRules", "struct AdmissibleDecisionContract", "struct DeclaredExclusion", "struct SupportRule"]
+sha256 = "d6406688064752a7a73e2f6d53d84f895348550a1e9e1bfe1bca7e95d54263cf"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_contract/search.rs"
+items = ["fn expr", "fn identity", "fn validate"]
+sha256 = "7210861a22c4e87e78219a33527163610d946af866797019b9f558d7595942be"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

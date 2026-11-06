@@ -51,25 +51,12 @@ pub struct DummyCodedPanel {
     pub indicators: Vec<PanelDummyChannel>,
 }
 
-/// Replace each declared categorical channel of `columns` by indicator channels.
-///
-/// Weights and analysis masks of every unit are carried over unchanged; a category cell that
-/// is invalid becomes missing in all indicators of its channel.
-///
-/// # Errors
-/// An undeclared or non-categorical column, a declared level set that differs from the
-/// column's domain, a reference outside the level set, fewer than two levels, a declared level
-/// that no unit assigns, or an irregular cadence.
-#[allow(
-    clippy::too_many_lines,
-    clippy::items_after_statements,
-    reason = "the checked dummy-coding plan keeps its local slot description with its construction"
-)]
-pub fn dummy_code_panel(
+/// Validate declarations, source domains and observed support in their original order.
+fn validate_categorical_channels(
     data: &PanelData,
     columns: &JointPanelColumns,
     categorical: &[PanelCategoricalChannel],
-) -> Result<DummyCodedPanel, JointPanelError> {
+) -> Result<(), JointPanelError> {
     for declared in categorical {
         if !columns.channels.contains(&declared.variable) {
             return Err(JointPanelError::compile(format!(
@@ -141,6 +128,30 @@ pub fn dummy_code_panel(
             }
         }
     }
+
+    Ok(())
+}
+
+/// Replace each declared categorical channel of `columns` by indicator channels.
+///
+/// Weights and analysis masks of every unit are carried over unchanged; a category cell that
+/// is invalid becomes missing in all indicators of its channel.
+///
+/// # Errors
+/// An undeclared or non-categorical column, a declared level set that differs from the
+/// column's domain, a reference outside the level set, fewer than two levels, a declared level
+/// that no unit assigns, or an irregular cadence.
+#[allow(
+    clippy::too_many_lines,
+    clippy::items_after_statements,
+    reason = "the checked dummy-coding plan keeps its local slot description with its construction"
+)]
+pub fn dummy_code_panel(
+    data: &PanelData,
+    columns: &JointPanelColumns,
+    categorical: &[PanelCategoricalChannel],
+) -> Result<DummyCodedPanel, JointPanelError> {
+    validate_categorical_channels(data, columns, categorical)?;
 
     // New column order: expanded channels, outcome, confounder, season.
     struct Slot {

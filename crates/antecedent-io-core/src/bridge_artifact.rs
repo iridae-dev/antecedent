@@ -163,11 +163,9 @@ fn malformed(text: impl Into<String>) -> ScientificBridgeArtifactError {
 }
 
 fn refused(refusal: antecedent_contract::ExternalRefusal) -> ScientificBridgeArtifactError {
-    ScientificBridgeArtifactError::Refused {
-        code: refusal.code,
-        detail: refusal.detail,
-        message: refusal.remedy.unwrap_or("the bridge is not supported").to_owned(),
-    }
+    let (code, detail, message) =
+        crate::artifact_codec::external_refusal_parts(refusal, "the bridge is not supported");
+    ScientificBridgeArtifactError::Refused { code, detail, message }
 }
 
 // -- wire types ---------------------------------------------------------------------------

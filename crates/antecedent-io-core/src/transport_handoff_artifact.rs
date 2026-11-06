@@ -124,11 +124,11 @@ fn malformed(text: impl Into<String>) -> Failure {
 }
 
 fn refused(refusal: ExternalRefusal) -> Failure {
-    Failure::Refused {
-        code: refusal.code,
-        detail: refusal.detail,
-        message: refusal.remedy.unwrap_or("the transport handoff is not well formed").to_owned(),
-    }
+    let (code, detail, message) = crate::artifact_codec::external_refusal_parts(
+        refusal,
+        "the transport handoff is not well formed",
+    );
+    Failure::Refused { code, detail, message }
 }
 
 fn first_refusal(refusals: Vec<ExternalRefusal>) -> Failure {

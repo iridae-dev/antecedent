@@ -19,23 +19,23 @@
 use std::sync::Arc;
 
 use antecedent_core::graph_imputation_contract::{
-    AtomOperation, GraphImputationParts, GraphImputationSource, MAX_VARIABLES, MIN_IMPUTATIONS,
-    MIN_ITERATIONS, MIN_POSTERIOR_DRAWS, MIN_ROWS, admission_bytes, labeled_dag_count,
+    admission_bytes, labeled_dag_count, AtomOperation, GraphImputationParts, GraphImputationSource,
+    MAX_VARIABLES, MIN_IMPUTATIONS, MIN_ITERATIONS, MIN_POSTERIOR_DRAWS, MIN_ROWS,
 };
 use antecedent_core::{AverageEffectQuery, CanonicalWriter, ExecutionContext, VariableId};
 use antecedent_data::{ImputationSpec, TableView, TabularData};
-use antecedent_discovery::adjacency_mask::{AdjacencyMask, dag_from_adjacency_mask};
-use antecedent_io::IoError;
-use antecedent_io::measured_inference::MeasuredInference;
+use antecedent_discovery::adjacency_mask::{dag_from_adjacency_mask, AdjacencyMask};
 use antecedent_io::measured_inference::graph_candidate::{
-    GraphPointReading, replay_point, retained_support,
+    replay_point, retained_support, GraphPointReading,
 };
+use antecedent_io::measured_inference::MeasuredInference;
+use antecedent_io::IoError;
 
+use super::lowering::graph_imputation::{lower, LoweringInput, RetainedAtomBinding};
 use super::RetainedOperation;
-use super::lowering::graph_imputation::{LoweringInput, RetainedAtomBinding, lower};
 use antecedent_core::search::{SearchBudget, SearchLimits};
 mod wire;
-pub use wire::{GraphImputationArtifact, GraphImputationExpectation, consume};
+pub use wire::{consume, GraphImputationArtifact, GraphImputationExpectation};
 
 use crate::planner::lowered::LoweredProgram;
 use crate::{BayesianConfig, CausalError, EstimatorId, InferenceMode, RefuteSuite, Study};
@@ -218,19 +218,11 @@ impl GraphImputationPoint {
 }
 
 impl CompiledGraphImputation {
-    /// Compile on the outer context. This does no imputation, graph scoring or estimation.
-    ///
-    /// # Errors
-    /// Refuses invalid declarations, insufficient resources, and unsupported child proofs.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "compilation validates and seals the complete bounded declaration"
-    )]
-    pub fn compile(
-        source: TabularData,
+    fn validate_compile_input(
+        source: &TabularData,
         spec: &GraphImputationSpec,
         ctx: &ExecutionContext,
-    ) -> Result<Self, GraphImputationError> {
+    ) -> Result<(usize, usize), GraphImputationError> {
         if ctx.lowered_dispatch().is_some() {
             return Err(crate::unsupported_reason!(
                 "public_builder_reentry",
@@ -264,50 +256,24 @@ impl CompiledGraphImputation {
             )
             .into());
         }
-        let quote = admission_bytes(rows, n);
-        let lease = ctx.acquire_admission(0, quote).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: "graph imputation compile" }
-            }
-            other => CausalError::Resource { message: other.to_string() },
-        })?;
-        let columns = wire::canonical_source(&source, ctx)?;
-        let mut schema = CanonicalWriter::new("antecedent.graph_imputation.schema.v1");
-        schema.word(n as u64);
-        for variable in source.schema().variables() {
-            schema.word(u64::from(variable.id.raw())).text(&variable.name);
-        }
-        let schema_digest = schema.finish();
-        let variables: Arc<[VariableId]> = Arc::from(
-            (0..n)
-                .map(|i| u32::try_from(i).map(VariableId::from_raw))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|_| invalid("variable index exceeds platform"))?,
-        );
-        let source_digest =
-            source.storage().content_digest_with_context(ctx).map_err(|error| match error {
-                antecedent_core::execution::AdmissionError::Cancelled => {
-                    CausalError::Cancelled { stage: "graph source identity" }
-                }
-                other => CausalError::Resource { message: other.to_string() },
-            })?;
+        Ok((n, rows))
+    }
+
+    fn prepare_supported_atoms(
+        source: &TabularData,
+        spec: &GraphImputationSpec,
+        retained: &[AtomOperation],
+        budget: &mut SearchBudget<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<RetainedAtomBinding>, Vec<AtomOperation>), GraphImputationError> {
+        let n = source.schema().variables().len();
         let query = AverageEffectQuery::binary_ate(spec.treatment, spec.outcome);
         let config = BayesianConfig::conjugate()
             .n_draws(spec.posterior_draws as usize)
             .prior_scale(spec.prior_scale);
-        let most_atoms = usize::try_from(labeled_dag_count(n)).unwrap_or(usize::MAX);
-        let mut budget = SearchBudget::with_memory(
-            SearchLimits { operations: most_atoms.saturating_add(64), depth: 1 },
-            25 * 1024 * 1024,
-            ctx,
-        )
-        .map_err(GraphImputationError::SearchStopped)?;
-        // The same derivation the consumer applies decides which supported graphs are retained.
-        let retained = retained_support(n, spec.treatment.raw(), spec.outcome.raw(), spec.support)
-            .map_err(CausalError::from)?;
         let mut atoms = Vec::new();
-        let total = retained.operations.len();
-        for (done, operation) in retained.operations.iter().enumerate() {
+        let total = retained.len();
+        for (done, operation) in retained.iter().enumerate() {
             let mask = operation.mask;
             if let Err(stop) = budget.charge(1, 25 * 1024 * 1024) {
                 return Err(GraphImputationError::SearchStopped(budget.receipt(
@@ -351,12 +317,64 @@ impl CompiledGraphImputation {
                 adjustment: operation.estimand().adjustment_set.iter().map(|v| v.raw()).collect(),
             });
         }
-        if operations != retained.operations {
+        if operations != retained {
             return Err(invalid(
                 "a prepared child operation differs from the one the consumer derives",
             )
             .into());
         }
+        Ok((atoms, operations))
+    }
+
+    /// Compile on the outer context. This does no imputation, graph scoring or estimation.
+    ///
+    /// # Errors
+    /// Refuses invalid declarations, insufficient resources, and unsupported child proofs.
+    pub fn compile(
+        source: TabularData,
+        spec: &GraphImputationSpec,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, GraphImputationError> {
+        let (n, rows) = Self::validate_compile_input(&source, spec, ctx)?;
+        let quote = admission_bytes(rows, n);
+        let lease = ctx.acquire_admission(0, quote).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "graph imputation compile" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?;
+        let columns = wire::canonical_source(&source, ctx)?;
+        let mut schema = CanonicalWriter::new("antecedent.graph_imputation.schema.v1");
+        schema.word(n as u64);
+        for variable in source.schema().variables() {
+            schema.word(u64::from(variable.id.raw())).text(&variable.name);
+        }
+        let schema_digest = schema.finish();
+        let variables: Arc<[VariableId]> = Arc::from(
+            (0..n)
+                .map(|i| u32::try_from(i).map(VariableId::from_raw))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|_| invalid("variable index exceeds platform"))?,
+        );
+        let source_digest =
+            source.storage().content_digest_with_context(ctx).map_err(|error| match error {
+                antecedent_core::execution::AdmissionError::Cancelled => {
+                    CausalError::Cancelled { stage: "graph source identity" }
+                }
+                other => CausalError::Resource { message: other.to_string() },
+            })?;
+        let most_atoms = usize::try_from(labeled_dag_count(n)).unwrap_or(usize::MAX);
+        let mut budget = SearchBudget::with_memory(
+            SearchLimits { operations: most_atoms.saturating_add(64), depth: 1 },
+            25 * 1024 * 1024,
+            ctx,
+        )
+        .map_err(GraphImputationError::SearchStopped)?;
+        // The same derivation the consumer applies decides which supported graphs are retained.
+        let retained = retained_support(n, spec.treatment.raw(), spec.outcome.raw(), spec.support)
+            .map_err(CausalError::from)?;
+        let (atoms, operations) =
+            Self::prepare_supported_atoms(&source, spec, &retained.operations, &mut budget, ctx)?;
         let parts = GraphImputationParts {
             names: columns.iter().map(|(name, _)| name.to_string()).collect(),
             domains: spec.domains.to_vec(),

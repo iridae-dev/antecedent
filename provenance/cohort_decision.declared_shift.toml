@@ -28,7 +28,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "contract"
-rationale = "A declaration and refusal contract: a cohort from another population is accepted only with a covariate-shift declaration whose source population, target population, sorted invariant modifiers and assumption label equal the model's and the cohort's, and only when every cohort row lies in the model's support contract; the result is labelled extrapolative and point-only."
+rationale = "A declaration and refusal contract: a cohort from another population is accepted only with a covariate-shift declaration whose source population, target population, sorted invariant modifiers and assumption label equal the model's and the cohort's, and only when every cohort row lies in the model's support contract; the result is labelled extrapolative and point-only. Retained-model items were compared across both paths; only parent-visible privacy changed, leaving validation and model identity unchanged. Prediction, support and shift items were compared across both paths; only parent-visible privacy changed, leaving numerical operations and refusal behavior unchanged. Artifact serialization and replay items were also compared across both paths; only test-visible privacy changed, with wire fields and replay behavior unchanged. Scoped re-review of the cohort-binding move compared every named item across both paths; only parent-only visibility changed, with validation, weights and canonical digest unchanged."
 no_independent_algorithm = "resolve_shift compares four declared strings and the sorted feature list and returns a bool; the support check is the model's own box or mask evaluated inclusively by the compact-export check; the prediction and weighted mean that follow are carried by cohort_decision.mean_contrast and nothing is reweighted, estimated or transported here. The tests assert the required, unneeded and mismatched declarations (a changed population, a changed modifier set, a changed assumption label), the inclusive support edge against the next representable value outside it, and the hand-computed mean 2.225 of the shifted cohort."
 covered_by = ["cohort_decision.mean_contrast"]
 record_sha256 = "447132ecc32e506e8c2ab8132055010dce687ec91261f9120bb2b4d47343876e"
@@ -36,8 +36,32 @@ record_sha256 = "447132ecc32e506e8c2ab8132055010dce687ec91261f9120bb2b4d47343876
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/cohort_decision.rs"
-items = ["const CATE_FUNCTIONAL_ID", "const COHORT_CONDITIONING_VARIABLE", "const COHORT_DECISION_ARTIFACT_KIND", "const COHORT_DECISION_SECTION", "const COHORT_DECISION_VERSION", "const COHORT_FUNCTIONAL_ID", "const COHORT_TAG", "const COVARIATE_SHIFT_ASSUMPTION", "const IDENTITY_TAG", "const MAX_COHORT_DECISION_ARTIFACT_BYTES", "const MAX_COHORT_ROWS", "const MODEL_TAG", "const NEGATIVE_VARIANCE_TOLERANCE", "const POINT_SCOPE", "const STANDARD_ERROR_BASIS", "const STANDARD_ERROR_CALIBRATION", "const STANDARD_ERROR_SCOPE", "const SUPPORT_BASIS_DECLARED", "const SUPPORT_BASIS_FITTED_BOX", "const WEIGHT_SUM_TOLERANCE", "enum CohortColumn", "enum LawRequest", "enum ModelKind", "enum ModelWire", "fn assumptions", "fn basis_row", "fn build", "fn build_within", "fn check_expectation", "fn cohort", "fn columns", "fn compact_predictions", "fn compensated_sum", "fn consume", "fn consume_with", "fn consume_with_limits", "fn consume_within", "fn contrast", "fn decode_body", "fn default", "fn digest", "fn feature_names", "fn features", "fn finish", "fn for_identity", "fn from_compact_export", "fn from_portable_parts", "fn has_support_contract", "fn identity", "fn interval_refusal", "fn invalid", "fn invalid_input", "fn io_refusal", "fn is_linear_compact", "fn is_native", "fn law_refusal", "fn len", "fn level", "fn map_export_refusal", "fn mean_contrast", "fn model", "fn model_identity", "fn new", "fn new_within", "fn normalize_weights", "fn numeric", "fn outcome_units", "fn outside_refusal", "fn parent", "fn population_id", "fn portable_predictions", "fn provider_id", "fn quantity", "fn quantity_of", "fn rebuild_model", "fn recomputed_identity", "fn refusal", "fn regime_of", "fn require_exact_schema", "fn resolve_shift", "fn row_contrasts", "fn row_ids", "fn rows", "fn schema_mismatch", "fn semantics_mismatch", "fn shift", "fn snapshot_id", "fn support", "fn support_status", "fn to_body", "fn to_bytes", "fn to_bytes_within", "fn to_refusal", "fn uncalibrated_standard_error", "fn uniform_weights", "fn validate", "fn validate_within", "fn weights", "struct CohortBinding", "struct CohortDecisionSource", "struct CohortExpectation", "struct CohortIntakeLimits", "struct CohortOptions", "struct CohortRefusal", "struct ContrastDeclaration", "struct CovariateShiftDeclaration", "struct ParentIdentity", "struct Predictions", "struct RetainedEffectModel", "struct SourceBody", "struct SupportReceipt", "struct UncalibratedStandardError"]
-sha256 = "3dcac91c4e36dac3563785d326dd43c609a96593504ee3b36dfe2f3256e78482"
+items = ["const CATE_FUNCTIONAL_ID", "const COHORT_CONDITIONING_VARIABLE", "const COHORT_DECISION_ARTIFACT_KIND", "const COHORT_DECISION_SECTION", "const COHORT_DECISION_VERSION", "const COHORT_FUNCTIONAL_ID", "const COHORT_TAG", "const COVARIATE_SHIFT_ASSUMPTION", "const IDENTITY_TAG", "const MAX_COHORT_DECISION_ARTIFACT_BYTES", "const MAX_COHORT_ROWS", "const MODEL_TAG", "const NEGATIVE_VARIANCE_TOLERANCE", "const POINT_SCOPE", "const STANDARD_ERROR_BASIS", "const STANDARD_ERROR_CALIBRATION", "const STANDARD_ERROR_SCOPE", "const SUPPORT_BASIS_DECLARED", "const SUPPORT_BASIS_FITTED_BOX", "const WEIGHT_SUM_TOLERANCE", "enum LawRequest", "fn assumptions", "fn build", "fn build_within", "fn cohort", "fn default", "fn for_identity", "fn identity", "fn interval_refusal", "fn invalid", "fn invalid_input", "fn io_refusal", "fn is_native", "fn law_refusal", "fn mean_contrast", "fn model", "fn new", "fn outcome_units", "fn provider_id", "fn quantity", "fn quantity_of", "fn recomputed_identity", "fn refusal", "fn regime_of", "fn row_contrasts", "fn schema_mismatch", "fn semantics_mismatch", "fn shift", "fn support", "fn support_status", "fn to_refusal", "fn uncalibrated_standard_error", "struct CohortDecisionSource", "struct CohortExpectation", "struct CohortIntakeLimits", "struct CohortOptions", "struct CohortRefusal", "struct ContrastDeclaration", "struct CovariateShiftDeclaration", "struct ParentIdentity", "struct SupportReceipt", "struct UncalibratedStandardError"]
+sha256 = "3c5845931eee94c3a6718f98a3f4f9106fd054b936afde8973a6569d26b9aaa3"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/retained_model.rs"
+items = ["enum ModelKind", "fn contrast", "fn feature_names", "fn finish", "fn from_compact_export", "fn from_portable_parts", "fn has_support_contract", "fn identity", "fn is_linear_compact", "fn is_native", "fn model_identity", "fn parent", "fn population_id", "struct RetainedEffectModel"]
+sha256 = "c07a2e5cd4a8044e02da66a0cd6d14f1e4ed452e3c4dd2a05cd46ffa686e9a4c"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/prediction.rs"
+items = ["fn basis_row", "fn compact_predictions", "fn map_export_refusal", "fn outside_refusal", "fn portable_predictions", "fn require_exact_schema", "fn resolve_shift", "struct Predictions"]
+sha256 = "6e62c1f314c08abc35e7e5250401d6a16143d60f4e16b6b2f586d63d708dec58"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/artifact.rs"
+items = ["enum ModelWire", "fn check_expectation", "fn consume", "fn consume_with", "fn consume_with_limits", "fn consume_within", "fn decode_body", "fn rebuild_model", "fn to_body", "fn to_bytes", "fn to_bytes_within", "struct SourceBody"]
+sha256 = "5c094b9262586729a517cd99c3ad28c1f22d5585ee8c93c92f938b2a0a95ee42"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/cohort_binding.rs"
+items = ["enum CohortColumn", "fn columns", "fn compensated_sum", "fn digest", "fn features", "fn len", "fn level", "fn new", "fn new_within", "fn normalize_weights", "fn numeric", "fn population_id", "fn row_ids", "fn rows", "fn snapshot_id", "fn uniform_weights", "fn validate", "fn validate_within", "fn weights", "struct CohortBinding"]
+sha256 = "7c759de9a743e8a3f4ca7678c71b5140dcdd5468d4d2b7b11ec0d3150d5c0f22"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

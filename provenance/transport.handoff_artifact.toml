@@ -15,20 +15,33 @@ implementation_deviations = [
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-io-core/tests/transport_handoff_artifact.rs",
+  "crates/antecedent-io-core/src/artifact_codec/external_refusal_parts_tests.rs",
 ]
 
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "contract"
-rationale = "Bounded checksummed container of a transported claim handed to an external consumer, with its interface-contract port and transport identity."
+rationale = "Bounded checksummed container of a transported claim handed to an external consumer, with its interface-contract port and transport identity. Scoped re-review of refusal projection confirms the shared helper preserves code and detail and selects the original remedy or handoff-specific fallback; no artifact semantics changed."
 no_independent_algorithm = "Sealing, reading and verification of a container; no transport estimator."
-record_sha256 = "be575096a6a12486041d70bb50da1d53ef45f5751f806992c52c13d095465c16"
+record_sha256 = "6997e288c9dca8424c4a0aa9258c61f520bedebeae00e0e67e2f05bddd3b31ee"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/transport_handoff_artifact.rs"
 items = ["const ARTIFACT_KIND", "const MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES", "const META_SECTION", "const TRANSPORT_HANDOFF_ARTIFACT_FEATURE", "const TRANSPORT_HANDOFF_ARTIFACT_TAG", "const TRANSPORT_HANDOFF_ARTIFACT_VERSION", "fn build_meta", "fn check", "fn compute_identity", "fn consumed_port", "fn consumer", "fn decode_meta", "fn derive", "fn encode_meta", "fn first_refusal", "fn from_bytes", "fn from_bytes_within", "fn from_contract_error", "fn from_meta", "fn handoff", "fn handoff_identity", "fn identity", "fn is_hex_digest", "fn is_native_target_data", "fn malformed", "fn meta_to_bytes", "fn offer", "fn parse_provider_trust", "fn provider_trust", "fn refusal", "fn refused", "fn reseal_identity", "fn seal_for_callback", "fn selection_diagram", "fn strictly_increasing", "fn transport", "fn transport_from_wire", "fn transport_to_wire", "fn verify_against_callback", "struct Derived", "struct TransportHandoffArtifact", "struct TransportHandoffMeta", "struct TransportIdentityWire", "type Failure"]
-sha256 = "415a74362f38d8b5272dd218b19971022847de4824f4f04f2afab1506858c50b"
+sha256 = "91667954a3174b4388a3b3d94838f1ec4cd6f804a9198d0c800788f832c2b4a0"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/artifact_codec.rs"
+items = ["fn external_refusal_parts"]
+sha256 = "b1696178023e31cf6d7bf19ad9a8dde94aec35dbbc60831bb77c92d3572d956b"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io-core/src/artifact_codec/external_refusal_parts_tests.rs"
+items = ["fn preserves_code_and_detail_and_uses_remedy_or_route_fallback"]
+sha256 = "a007e0264a9db3c98d214cc121e779ae875118a9a6ebbeebeffec6a8ff3c5bfc"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

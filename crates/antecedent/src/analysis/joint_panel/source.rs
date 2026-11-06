@@ -3,8 +3,8 @@
 use super::data_policy::{
     PanelCellRole, PanelDataAccounting, PanelMissingPolicy, PanelUnitAccounting, PanelUnitDrop,
 };
-use super::{JointPanelError, JointPanelRequest, JointPanelState, JointPanelWorld, engine};
-use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
+use super::{engine, JointPanelError, JointPanelRequest, JointPanelState, JointPanelWorld};
+use antecedent_core::execution_attempt::{record_physical, PhysicalEvent};
 use antecedent_core::physical_choice::PhysicalChoice;
 use antecedent_core::physical_choice::{
     AvailableCapabilities, CostQuotes, DeclaredCost, OperatorCapability, ResourceCapability,
@@ -15,7 +15,11 @@ use antecedent_data::PanelData;
 use antecedent_data::{ColumnView, SamplingRegularity, TableView};
 
 pub(super) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), JointPanelError> {
-    if ctx.cancellation.is_cancelled() { Err(engine::PanelError::Cancelled.into()) } else { Ok(()) }
+    if ctx.cancellation.is_cancelled() {
+        Err(engine::PanelError::Cancelled.into())
+    } else {
+        Ok(())
+    }
 }
 pub(super) fn check_memory(ctx: &ExecutionContext, bytes: u64) -> Result<(), JointPanelError> {
     if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
@@ -406,6 +410,135 @@ impl RowAvailability {
             && (prefix == 0 || (self.channels[row - 1] && self.channels[row - 2]))
     }
 }
+fn missing_panel_rows(
+    series: &antecedent_data::TimeSeriesData,
+    channel_values: &[std::borrow::Cow<'_, [f64]>],
+    (y, z, season): (&[f64], &[f64], &[f64]),
+    prefix: usize,
+) -> (Vec<usize>, Vec<(usize, PanelCellRole)>) {
+    // Rows the analysis mask hides, and the cells the analysis needs but the source lacks.
+    // History rows contribute their assignments only; follow-up rows contribute all five.
+    let rows = series.row_count();
+    let mask = series.storage().analysis_mask();
+    let masked_rows: Vec<usize> =
+        (0..rows).filter(|&row| mask.is_some_and(|mask| !mask.is_valid(row))).collect();
+    let mut missing_cells = Vec::new();
+    for row in 0..rows {
+        if masked_rows.binary_search(&row).is_ok() {
+            // A hidden row is not read, so what it lacks is not missing from the analysis.
+            continue;
+        }
+        for (index, values) in channel_values.iter().enumerate() {
+            if values[row].is_nan() {
+                missing_cells.push((row, PanelCellRole::Channel(index)));
+            }
+        }
+        if row >= prefix {
+            for (values, role) in [
+                (y, PanelCellRole::Outcome),
+                (z, PanelCellRole::Confounder),
+                (season, PanelCellRole::Season),
+            ] {
+                if values[row].is_nan() {
+                    missing_cells.push((row, role));
+                }
+            }
+        }
+    }
+    (masked_rows, missing_cells)
+}
+
+fn panel_unit_weight(
+    unit: &antecedent_data::PanelUnit,
+    masked_rows: &[usize],
+    writer: &mut CanonicalWriter,
+) -> Result<f64, JointPanelError> {
+    let series = &unit.series;
+    let rows = series.row_count();
+    // Sampling weight: one value for the whole unit. A weight that varies over a serially
+    // dependent unit has no pseudo-likelihood: the unit's law is joint over its periods, so
+    // there is no per-period term to weight.
+    let declared_weight = match series.storage().weights() {
+        None => 1.0,
+        Some(weights) => {
+            let mut kept = (0..rows).filter(|row| masked_rows.binary_search(row).is_err());
+            let first = kept.next().map_or(f64::NAN, |row| weights[row]);
+            if !first.is_finite()
+                || first <= 0.0
+                || kept.any(|row| weights[row].to_bits() != first.to_bits())
+            {
+                return Err(JointPanelError::compile(format!(
+                    "unit {} sampling weights must be one strictly positive finite value over the unit: the unit's periods are jointly dependent, so a per-period weight has no pseudo-likelihood term",
+                    unit.unit_id
+                )));
+            }
+            writer.word(0x5747_5453).word(first.to_bits());
+            first
+        }
+    };
+    Ok(declared_weight)
+}
+
+struct PanelFollowup {
+    availability: RowAvailability,
+    levels: Vec<usize>,
+    outcome: Vec<f64>,
+    confounder: Vec<f64>,
+    excluded: Vec<usize>,
+}
+
+fn panel_followup(
+    channel_values: &[std::borrow::Cow<'_, [f64]>],
+    (y, z, season): (&[f64], &[f64], &[f64]),
+    masked_rows: &[usize],
+    rows: usize,
+    prefix: usize,
+    seasons: usize,
+) -> Result<PanelFollowup, JointPanelError> {
+    let periods = rows - prefix;
+    let availability = RowAvailability {
+        channels: (0..rows)
+            .map(|row| {
+                masked_rows.binary_search(&row).is_err()
+                    && channel_values.iter().all(|values| !values[row].is_nan())
+            })
+            .collect(),
+        own: (0..rows)
+            .map(|row| {
+                row < prefix
+                    || (masked_rows.binary_search(&row).is_err()
+                        && !y[row].is_nan()
+                        && !z[row].is_nan()
+                        && !season[row].is_nan())
+            })
+            .collect(),
+    };
+    let mut levels = Vec::with_capacity(periods);
+    let mut outcome = Vec::with_capacity(periods);
+    let mut confounder = Vec::with_capacity(periods);
+    let mut excluded = Vec::new();
+    for row in prefix..rows {
+        let usable = availability.usable(row, prefix);
+        if !usable {
+            excluded.push(row - prefix);
+        }
+        outcome.push(if usable { y[row] } else { f64::NAN });
+        confounder.push(if availability.own[row] { z[row] } else { 0.0 });
+        let value = if availability.own[row] { season[row] } else { 0.0 };
+        if !value.is_finite() || value < 0.0 || value.fract() != 0.0 || value >= seasons as f64 {
+            return Err(JointPanelError::compile("season must be a finite declared integer level"));
+        }
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "finite nonnegative integer strictly below declared usize season count checked above"
+        )]
+        let level = value as usize;
+        levels.push(level);
+    }
+    Ok(PanelFollowup { availability, levels, outcome, confounder, excluded })
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "one unit's masks, missing cells, weights and rows are read and accounted together"
@@ -452,34 +585,8 @@ fn adapt_group(
     let z = series.float64_cow(c.confounder).map_err(JointPanelError::compile)?;
     let season = series.float64_cow(c.season).map_err(JointPanelError::compile)?;
 
-    // Rows the analysis mask hides, and the cells the analysis needs but the source lacks.
-    // History rows contribute their assignments only; follow-up rows contribute all five.
-    let mask = series.storage().analysis_mask();
-    let masked_rows: Vec<usize> =
-        (0..rows).filter(|&row| mask.is_some_and(|mask| !mask.is_valid(row))).collect();
-    let mut missing_cells = Vec::new();
-    for row in 0..rows {
-        if masked_rows.binary_search(&row).is_ok() {
-            // A hidden row is not read, so what it lacks is not missing from the analysis.
-            continue;
-        }
-        for (index, values) in channel_values.iter().enumerate() {
-            if values[row].is_nan() {
-                missing_cells.push((row, PanelCellRole::Channel(index)));
-            }
-        }
-        if row >= prefix {
-            for (values, role) in [
-                (&y, PanelCellRole::Outcome),
-                (&z, PanelCellRole::Confounder),
-                (&season, PanelCellRole::Season),
-            ] {
-                if values[row].is_nan() {
-                    missing_cells.push((row, role));
-                }
-            }
-        }
-    }
+    let (masked_rows, missing_cells) =
+        missing_panel_rows(series, &channel_values, (&y, &z, &season), prefix);
     if !masked_rows.is_empty() || !missing_cells.is_empty() || policy != PanelMissingPolicy::Refuse
     {
         writer.word(0x4d41_534b).word(masked_rows.len() as u64);
@@ -489,27 +596,7 @@ fn adapt_group(
         writer.word(missing_cells.len() as u64);
     }
 
-    // Sampling weight: one value for the whole unit. A weight that varies over a serially
-    // dependent unit has no pseudo-likelihood: the unit's law is joint over its periods, so
-    // there is no per-period term to weight.
-    let declared_weight = match series.storage().weights() {
-        None => 1.0,
-        Some(weights) => {
-            let mut kept = (0..rows).filter(|row| masked_rows.binary_search(row).is_err());
-            let first = kept.next().map_or(f64::NAN, |row| weights[row]);
-            if !first.is_finite()
-                || first <= 0.0
-                || kept.any(|row| weights[row].to_bits() != first.to_bits())
-            {
-                return Err(JointPanelError::compile(format!(
-                    "unit {} sampling weights must be one strictly positive finite value over the unit: the unit's periods are jointly dependent, so a per-period weight has no pseudo-likelihood term",
-                    unit.unit_id
-                )));
-            }
-            writer.word(0x5747_5453).word(first.to_bits());
-            first
-        }
-    };
+    let declared_weight = panel_unit_weight(unit, &masked_rows, writer)?;
     let periods = rows - prefix;
     let accounting = |analysed: usize, excluded: Vec<usize>, dropped| PanelUnitAccounting {
         unit_id: unit.unit_id,
@@ -545,50 +632,14 @@ fn adapt_group(
         _ => {}
     }
 
-    let availability = RowAvailability {
-        channels: (0..rows)
-            .map(|row| {
-                masked_rows.binary_search(&row).is_err()
-                    && channel_values.iter().all(|values| !values[row].is_nan())
-            })
-            .collect(),
-        own: (0..rows)
-            .map(|row| {
-                row < prefix
-                    || (masked_rows.binary_search(&row).is_err()
-                        && !y[row].is_nan()
-                        && !z[row].is_nan()
-                        && !season[row].is_nan())
-            })
-            .collect(),
-    };
-    let mut levels = Vec::with_capacity(periods);
-    let mut outcome = Vec::with_capacity(periods);
-    let mut confounder = Vec::with_capacity(periods);
-    let mut excluded = Vec::new();
-    for row in prefix..rows {
-        let usable = availability.usable(row, prefix);
-        if !usable {
-            excluded.push(row - prefix);
-        }
-        outcome.push(if usable { y[row] } else { f64::NAN });
-        confounder.push(if availability.own[row] { z[row] } else { 0.0 });
-        let value = if availability.own[row] { season[row] } else { 0.0 };
-        if !value.is_finite()
-            || value < 0.0
-            || value.fract() != 0.0
-            || value >= request.seasons as f64
-        {
-            return Err(JointPanelError::compile("season must be a finite declared integer level"));
-        }
-        #[expect(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "finite nonnegative integer strictly below declared usize season count checked above"
-        )]
-        let level = value as usize;
-        levels.push(level);
-    }
+    let PanelFollowup { availability, levels, outcome, confounder, excluded } = panel_followup(
+        &channel_values,
+        (&y, &z, &season),
+        &masked_rows,
+        rows,
+        prefix,
+        request.seasons,
+    )?;
     let analysed = periods - excluded.len();
     if analysed < 3 {
         return Ok((
@@ -597,7 +648,11 @@ fn adapt_group(
         ));
     }
     let fill = |values: &[f64], row: usize| {
-        if availability.channels[row] || values[row].is_infinite() { values[row] } else { 0.0 }
+        if availability.channels[row] || values[row].is_infinite() {
+            values[row]
+        } else {
+            0.0
+        }
     };
     let history = channel_values
         .iter()

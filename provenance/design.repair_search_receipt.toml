@@ -20,7 +20,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "contract"
-rationale = "Sealed repair-search receipt: contract family, candidates, obligations, per-subset hypothetical evidence deltas, checker derivation and the search receipt."
+rationale = "Sealed repair-search receipt: contract family, candidates, obligations, per-subset hypothetical evidence deltas, checker derivation and the search receipt. Scoped re-review compared every bound item across both source paths; the wire declarations and conversion implementations are unchanged."
 no_independent_algorithm = "Declarations, canonical identity and replay of a structural sufficiency check; no estimator."
 record_sha256 = "7ccad89348990ff6e8230c10f756497ccadf9f5879d95ab59967525ea0e86680"
 
@@ -33,8 +33,14 @@ sha256 = "a970647dba962a976f12d77d682d02a89cd12dbf122f84c2704080f1721b7a2e"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/repair_artifact.rs"
-items = ["const BODY_SECTION", "const MAX_REPAIR_ARTIFACT_BYTES", "const MAX_REPAIR_OBLIGATIONS", "const MAX_REPAIR_OUTCOMES", "const REPAIR_ARTIFACT_KIND", "const REPAIR_ARTIFACT_VERSION", "enum Rebuilt", "enum RepairFamilyRef", "enum SensitivityMethodWire", "fn arcs", "fn bounds", "fn budget", "fn build", "fn candidate_from_wire", "fn candidate_wire", "fn candidates", "fn check_rebuilt_contract", "fn check_shape", "fn classification_from_name", "fn classify_verdict", "fn consume", "fn consume_with_read_limits", "fn default", "fn dense_static", "fn digest", "fn evidence_wire", "fn family", "fn first_difference", "fn from", "fn from_bytes", "fn from_bytes_with_limits", "fn from_candidate", "fn from_io", "fn graph_route_wires", "fn invalid", "fn kind_from_name", "fn mismatch", "fn objective_from_name", "fn objective_name", "fn obligation_from_wire", "fn obligation_wire", "fn obligations", "fn outcome_name", "fn outcome_wire", "fn raw", "fn rebuild", "fn rebuild_identification", "fn rebuild_z_transport", "fn reference", "fn regimes_wire", "fn repair_error_to_artifact", "fn replay_deltas", "fn scope_from_parts", "fn scope_parts", "fn sealed", "fn stop_wire", "fn strings", "fn to_bytes", "fn unsupported_version", "struct AssumptionWire", "struct BackdoorPremisesWire", "struct DerivationWire", "struct DurableStudyCandidateWire", "struct ExpectedEvidenceWire", "struct IdentificationPremisesWire", "struct ObligationWire", "struct RepairArtifactError", "struct RepairConsumeLimits", "struct RepairDataWire", "struct RepairLimitsWire", "struct RepairOutcomeWire", "struct RepairPremisesWire", "struct RepairReadLimits", "struct RepairReceiptWire", "struct RepairReportArtifact", "struct RepairReportWire", "struct RepairStopWire", "struct SensitivityFindingWire", "struct TransportPremisesWire", "struct ZTransportPremisesWire", "type GraphRouteWires"]
-sha256 = "235c3a26833b3bf6dbc6d86945e5a6c5b72c831d0c4c1d3462403b1d5a30af7e"
+items = ["const BODY_SECTION", "const MAX_REPAIR_ARTIFACT_BYTES", "const MAX_REPAIR_OBLIGATIONS", "const MAX_REPAIR_OUTCOMES", "const REPAIR_ARTIFACT_KIND", "const REPAIR_ARTIFACT_VERSION", "enum Rebuilt", "enum RepairFamilyRef", "fn arcs", "fn bounds", "fn budget", "fn build", "fn candidate_from_wire", "fn candidate_wire", "fn candidates", "fn check_rebuilt_contract", "fn check_shape", "fn classification_from_name", "fn classify_verdict", "fn consume", "fn consume_with_read_limits", "fn default", "fn dense_static", "fn digest", "fn evidence_wire", "fn family", "fn first_difference", "fn from_bytes", "fn from_bytes_with_limits", "fn from_candidate", "fn from_io", "fn graph_route_wires", "fn invalid", "fn kind_from_name", "fn mismatch", "fn objective_from_name", "fn objective_name", "fn obligation_from_wire", "fn obligation_wire", "fn obligations", "fn outcome_name", "fn outcome_wire", "fn raw", "fn rebuild", "fn rebuild_identification", "fn rebuild_z_transport", "fn reference", "fn regimes_wire", "fn repair_error_to_artifact", "fn replay_deltas", "fn scope_from_parts", "fn scope_parts", "fn sealed", "fn stop_wire", "fn strings", "fn to_bytes", "fn unsupported_version", "struct RepairArtifactError", "struct RepairConsumeLimits", "struct RepairReadLimits", "struct RepairReportArtifact", "type GraphRouteWires"]
+sha256 = "6fbf352fe51815a2e3d76c17b6476ed37e7cf0cf1cb7d56699a1ed6be012fd39"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/repair_artifact/wire.rs"
+items = ["enum SensitivityMethodWire", "fn from", "struct AssumptionWire", "struct BackdoorPremisesWire", "struct DerivationWire", "struct DurableStudyCandidateWire", "struct ExpectedEvidenceWire", "struct IdentificationPremisesWire", "struct ObligationWire", "struct RepairDataWire", "struct RepairLimitsWire", "struct RepairOutcomeWire", "struct RepairPremisesWire", "struct RepairReceiptWire", "struct RepairReportWire", "struct RepairStopWire", "struct SensitivityFindingWire", "struct TransportPremisesWire", "struct ZTransportPremisesWire"]
+sha256 = "73f03615c1da22d85ed82ebc602025dadf083c4b7dc7ffa0825ff6f8885ca675"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

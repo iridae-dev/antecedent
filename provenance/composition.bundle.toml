@@ -42,7 +42,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "wrapper"
-rationale = "Portable composed-result container: a typed directed graph of embedded or referenced nodes whose edges carry the Merkle digest of the upstream node. Each node is decoded by the verifier of its artifact kind."
+rationale = "Portable composed-result container: a typed directed graph of embedded or referenced nodes whose edges carry the Merkle digest of the upstream node. Each node is decoded by the verifier of its artifact kind. Scoped re-review compared all named item definitions across both paths; only parent-visible access changed."
 no_independent_algorithm = "Graph construction, digest recomputation and cross-edge fact comparison only; no estimator, interval or density appears in the module."
 covered_by = ["composition.verifiers", "composition.provenance"]
 record_sha256 = "d8e6bfd77912ff6c53dc359f5616bc3f8d88a44f35d47b1a71bb8051509fff20"
@@ -50,8 +50,14 @@ record_sha256 = "d8e6bfd77912ff6c53dc359f5616bc3f8d88a44f35d47b1a71bb8051509fff2
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/composition_bundle.rs"
-items = ["const BINDING_FACTS", "const BODY_SECTION", "const BUNDLE_KIND", "const BUNDLE_VERSION", "const FACT_EVIDENCE_DIGEST", "const FACT_LAW", "const FACT_QUANTITY_DIGEST", "const FACT_REQUEST", "const FACT_REQUIRES_LAW", "const FACT_SNAPSHOT", "const LAW_JOINT", "const LAW_MEAN_ONLY", "enum BundleError", "enum BundleStage", "enum ClaimLabel", "enum EvidenceRelationship", "enum NodeKind", "enum NodeSource", "enum NodeStatus", "enum ProviderOrData", "fn adjacency", "fn all_verified", "fn as_str", "fn body", "fn bundle_identity", "fn canonical", "fn chain_digest", "fn chain_refusal", "fn claim_label", "fn code", "fn consume", "fn decode", "fn default", "fn derive", "fn detail", "fn edges", "fn embedded", "fn embedded_section", "fn evaluate", "fn failed", "fn find_conflict", "fn from", "fn graph_error", "fn identity", "fn identity_mismatch_stage", "fn is_failed", "fn new", "fn node", "fn node_digest", "fn node_from_wire", "fn node_to_wire", "fn nodes", "fn reference", "fn refused", "fn register", "fn require_verified", "fn resolve_reference", "fn stage", "fn to_bytes", "fn to_refusal", "fn topological", "fn validate_nodes", "fn value", "fn verify_embedded", "fn with_data", "fn with_fact", "fn with_inspected", "fn with_provider", "struct BodyWire", "struct BundleConsumer", "struct BundleEdge", "struct BundleLimits", "struct BundleNode", "struct CompositionBundle", "struct ConsumedBundle", "struct ConsumedNode", "struct Decoded", "struct Derived", "struct EdgeWire", "struct NodeFailure", "struct NodeState", "struct NodeWire", "struct SuppliedData", "struct SuppliedProvider", "struct SuppliedSources", "struct UpstreamNode", "struct VerifiedNode", "trait NodeVerifier", "type Adjacency"]
-sha256 = "2c76ba19ccdfd07d591eaca5ef654b2db52d648d83a2b47ba8e24fa001992ede"
+items = ["const BINDING_FACTS", "const BODY_SECTION", "const BUNDLE_KIND", "const BUNDLE_VERSION", "const FACT_EVIDENCE_DIGEST", "const FACT_LAW", "const FACT_QUANTITY_DIGEST", "const FACT_REQUEST", "const FACT_REQUIRES_LAW", "const FACT_SNAPSHOT", "const LAW_JOINT", "const LAW_MEAN_ONLY", "enum BundleError", "enum BundleStage", "enum ClaimLabel", "enum NodeStatus", "fn adjacency", "fn all_verified", "fn as_str", "fn body", "fn bundle_identity", "fn chain_digest", "fn chain_refusal", "fn claim_label", "fn code", "fn consume", "fn decode", "fn derive", "fn detail", "fn edges", "fn embedded_section", "fn evaluate", "fn failed", "fn find_conflict", "fn from", "fn graph_error", "fn identity", "fn is_failed", "fn new", "fn node", "fn node_digest", "fn node_from_wire", "fn node_to_wire", "fn nodes", "fn refused", "fn register", "fn require_verified", "fn resolve_reference", "fn stage", "fn to_bytes", "fn to_refusal", "fn topological", "fn validate_nodes", "fn value", "fn verify_embedded", "fn with_data", "fn with_provider", "struct BodyWire", "struct BundleConsumer", "struct CompositionBundle", "struct ConsumedBundle", "struct ConsumedNode", "struct Decoded", "struct Derived", "struct EdgeWire", "struct NodeFailure", "struct NodeState", "struct NodeWire", "struct SuppliedData", "struct SuppliedProvider", "struct SuppliedSources", "struct UpstreamNode", "struct VerifiedNode", "trait NodeVerifier", "type Adjacency"]
+sha256 = "2fa26f64bdcc547e13138e21beef5e2e3444573cd3e44d968c30a032ed7e16a5"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/composition_bundle/vocabulary.rs"
+items = ["enum EvidenceRelationship", "enum NodeKind", "enum NodeSource", "enum ProviderOrData", "fn canonical", "fn default", "fn embedded", "fn identity_mismatch_stage", "fn reference", "fn stage", "fn with_fact", "fn with_inspected", "struct BundleEdge", "struct BundleLimits", "struct BundleNode"]
+sha256 = "3d332726c58181bdef3874a6b4f6d97fe2eb968e78f7cf46c99feeebd5807986"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

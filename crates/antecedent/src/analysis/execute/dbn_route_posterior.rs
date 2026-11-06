@@ -30,24 +30,24 @@ use antecedent_core::{CausalQuery, ResponseQuery, TemporalEffectQuery};
 use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind, LagMask};
 use antecedent_identify::TemporalBackdoorIdentifier;
 
-use super::atom_mix::{AtomBoundRule, AtomMixInput, MixedAtomEvals, mix_atom_evals};
+use super::atom_mix::{mix_atom_evals, AtomBoundRule, AtomMixInput, MixedAtomEvals};
 use super::temporal_path::{
-    CrossWorldContrast, cross_world_point, template_scoped_cross_world,
-    temporal_linear_derivative_response, temporal_linear_derivative_value, unit_contrast_query,
+    cross_world_point, template_scoped_cross_world, temporal_linear_derivative_response,
+    temporal_linear_derivative_value, unit_contrast_query, CrossWorldContrast,
 };
 use super::temporal_point_uncertainty::{
     self as point_uncertainty, FrozenAtom, SlopeAtom, SlopeSource,
 };
 use super::transport_posterior::ScalarAtomEval;
 use super::{
-    Arc, CausalError, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    EffectEstimate, EstimatorId, ExecutionContext, GraphIdentFlag, GraphPosterior,
-    IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
-    IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant,
-    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
-    ResponseIdentification, ResponseValue, Strategy, StudyResult, TemporalIndexer, TimeSeriesData,
-    VariableId, WeightedGraphSamples, elapsed_ns, identification_status_ok_for_case,
-    provenance_ids, resolve_posterior_status, select_estimand,
+    elapsed_ns, identification_status_ok_for_case, provenance_ids, resolve_posterior_status,
+    select_estimand, Arc, CausalError, CausalResponse, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GraphIdentFlag,
+    GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId,
+    InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary,
+    RefuteSuite, ResponseIdentification, ResponseValue, Strategy, StudyResult, TemporalIndexer,
+    TimeSeriesData, VariableId, WeightedGraphSamples,
 };
 use crate::analysis::identification_cache::CachedGraphPosteriorAtomIdentification;
 use crate::analysis::proof_support::graph_posterior_withheld_diagnostic;
@@ -148,7 +148,8 @@ impl<'a> DbnPoint<'a> {
                     || matches!(effect.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
                 {
                     return Err(CausalError::Unsupported {
-                        message: "a temporal conditional effect fits a modifier set on a single-step \
+                        message:
+                            "a temporal conditional effect fits a modifier set on a single-step \
                                   pulse or sustained policy",
                     });
                 }
@@ -358,10 +359,179 @@ struct DbnLane<'q> {
     span: usize,
 }
 
+struct DbnAtomPoints {
+    positions: Vec<usize>,
+    frozen: Vec<FrozenAtom>,
+    values: Vec<Option<Vec<f64>>>,
+    responses: Vec<Option<CausalResponse>>,
+}
+
 impl DbnLane<'_> {
     fn primary(&self) -> &IdentifiedTemplate {
         &self.templates[self.primary_position]
     }
+}
+
+/// Assign each repeated contemporaneous/lag template its first sample key.
+fn dbn_atom_keys(gp: &GraphPosterior) -> Result<Vec<u64>, CausalError> {
+    // Samples that carry one (contemporaneous, lag) template share one atom.
+    let lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
+        message: "a dynamic graph posterior carries per-atom lag masks".into(),
+    })?;
+    let mut first_of: HashMap<(AdjacencyMask, LagMask), usize> = HashMap::new();
+    let mut keys: Vec<u64> = Vec::with_capacity(gp.n_graphs());
+    for index in 0..gp.n_graphs() {
+        let first =
+            *first_of.entry((gp.atoms()[index].clone(), lag_masks[index].clone())).or_insert(index);
+        keys.push(u64::try_from(first).map_err(|_| CausalError::Compile {
+            message: "a dynamic graph posterior has too many atoms for atom keys".into(),
+        })?);
+    }
+
+    Ok(keys)
+}
+
+/// Assemble each derivative horizon before attaching its shared uncertainty band.
+fn dbn_derivative_response(
+    lanes: &[DbnLane<'_>],
+    primary_lane: usize,
+    derivative: bool,
+) -> Result<Option<CausalResponse>, CausalError> {
+    let lane_count = lanes.len();
+    let point_kind = &lanes[0].point;
+    // The mixed derivative answer, shaped as the primary atom's at each horizon (several
+    // horizons are one value per horizon), once its band is set.
+    let response = if derivative {
+        let mut per_horizon = Vec::with_capacity(lane_count);
+        for lane in lanes {
+            let DbnPoint::Derivative { query: response_query, .. } = &lane.point else {
+                continue;
+            };
+            let base = lane.responses[lane.primary_position].clone().ok_or_else(|| {
+                CausalError::Compile {
+                    message: "the primary dynamic atom carries no derivative response".into(),
+                }
+            })?;
+            per_horizon.push(mixed_derivative_response(
+                base,
+                &lane.center,
+                (&response_query.functional, lane.mixed.identification.status),
+            ));
+        }
+        if per_horizon.len() == 1 {
+            per_horizon.pop()
+        } else {
+            let DbnPoint::Derivative { query: response_query, .. } = point_kind else {
+                unreachable!("derivative lanes are derivative points")
+            };
+            let mut combined = super::temporal_path::combine_horizon_derivatives(
+                &response_query.functional,
+                &per_horizon,
+            )?;
+            combined.identification_status = lanes[primary_lane].mixed.identification.status;
+            Some(combined)
+        }
+    } else {
+        None
+    };
+    Ok(response)
+}
+
+/// Stack one weighted atom output per horizon in retained order.
+fn stack_dbn_outputs(
+    values: &[Vec<f64>],
+    weights: &[f64],
+    lane_of: &[usize],
+    lane_count: usize,
+    width: usize,
+) -> Option<Vec<f64>> {
+    let mut out = Vec::with_capacity(lane_count * width);
+    for index in 0..lane_count {
+        let (rows, row_weights): (Vec<Vec<f64>>, Vec<f64>) = values
+            .iter()
+            .zip(weights)
+            .zip(lane_of)
+            .filter(|(_, lane)| **lane == index)
+            .map(|((row, weight), _)| (row.clone(), *weight))
+            .unzip();
+        out.extend(point_uncertainty::weighted_outputs(&rows, &row_weights)?);
+    }
+    Some(out)
+}
+
+/// Evaluate the requested point from one atom's fitted slopes.
+fn evaluate_dbn_point(
+    point_kind: &DbnPoint<'_>,
+    query: &CausalQuery,
+    source: &dyn SlopeSource,
+) -> Result<Vec<f64>, CausalError> {
+    match point_kind {
+        DbnPoint::Conditional(_) => source.conditional_effect().map(|value| vec![value]),
+        DbnPoint::Derivative { query: response_query, .. } => {
+            let value = temporal_linear_derivative_value(&response_query.functional, source)?;
+            point_uncertainty::response_values(&value).ok_or_else(|| CausalError::Compile {
+                message: "a temporal derivative replicate has no numeric value".into(),
+            })
+        }
+        DbnPoint::CrossWorld { contrast, .. } => {
+            let fit =
+                |outcome: VariableId, treatments: &[VariableId], contemporaneous: &[VariableId]| {
+                    source.slopes(outcome, treatments, contemporaneous)
+                };
+            cross_world_point(query, &fit, *contrast).map(|value| vec![value])
+        }
+    }
+}
+
+/// Return the established block and posterior streams for this point kind.
+fn dbn_uncertainty_streams(point_kind: &DbnPoint<'_>) -> (u64, u64) {
+    match point_kind {
+        DbnPoint::Conditional(_) => (
+            point_uncertainty::CONDITIONAL_BLOCK_STREAM,
+            point_uncertainty::CONDITIONAL_POSTERIOR_STREAM,
+        ),
+        DbnPoint::Derivative { .. } => (
+            point_uncertainty::DERIVATIVE_BLOCK_STREAM,
+            point_uncertainty::DERIVATIVE_POSTERIOR_STREAM,
+        ),
+        DbnPoint::CrossWorld { .. } => (
+            point_uncertainty::CROSS_WORLD_BLOCK_STREAM,
+            point_uncertainty::CROSS_WORLD_POSTERIOR_STREAM,
+        ),
+    }
+}
+
+/// Pool aligned posterior draws within each horizon without changing atom order.
+fn pool_dbn_draws(
+    draws: &point_uncertainty::PointPosteriorDraws,
+    weights: &[f64],
+    lane_of: &[usize],
+    lane_totals: &[f64],
+    lane_count: usize,
+    width: usize,
+) -> Vec<Vec<f64>> {
+    let n_draws = draws.atom_draws.first().map_or(0, Vec::len);
+    let pooled: Vec<Vec<f64>> = (0..n_draws)
+        .map(|draw| {
+            let mut row = Vec::with_capacity(lane_count * width);
+            for (index, &lane_total) in lane_totals.iter().enumerate().take(lane_count) {
+                for coordinate in 0..width {
+                    row.push(
+                        draws
+                            .atom_draws
+                            .iter()
+                            .zip(weights)
+                            .zip(lane_of)
+                            .filter(|(_, lane)| **lane == index)
+                            .map(|((atom, weight), _)| weight / lane_total * atom[draw][coordinate])
+                            .sum::<f64>(),
+                    );
+                }
+            }
+            row
+        })
+        .collect();
+    pooled
 }
 
 /// Refutation reports, predictive checks and their accompanying diagnostic disclosures.
@@ -371,28 +541,57 @@ type LaneRefutation = (
     Vec<Diagnostic>,
 );
 
+/// Frozen samples and lane weights used for one joint uncertainty computation.
+#[derive(Clone, Copy)]
+struct DbnUncertaintyInput<'a, 'q> {
+    lanes: &'a [DbnLane<'q>],
+    primary_lane: usize,
+    frozen: &'a [FrozenAtom],
+    weights: &'a [f64],
+    lane_of: &'a [usize],
+    lane_totals: &'a [f64],
+    center: &'a [f64],
+    structural_span: usize,
+    contributing: usize,
+    label: &'static str,
+    derivative: bool,
+    ctx: &'a ExecutionContext,
+}
+
+struct DbnUncertaintyResult {
+    estimate: EffectEstimate,
+    response: Option<CausalResponse>,
+    posterior: Option<super::CausalPosterior>,
+    replicates_ok: Option<u32>,
+    cancelled: bool,
+    diagnostics: Vec<Diagnostic>,
+}
+
+/// Owned result state and lane context for final DBN-posterior publication.
+struct DbnResultFinish<'a, 'q> {
+    lanes: &'a [DbnLane<'q>],
+    primary_lane: usize,
+    label: &'static str,
+    contributing: usize,
+    physical: &'a PhysicalExecutionPlan,
+    started: Instant,
+    estimate: EffectEstimate,
+    response: Option<CausalResponse>,
+    posterior: Option<super::CausalPosterior>,
+    replicates_ok: Option<u32>,
+    cancelled: bool,
+    refuted: LaneRefutation,
+    diagnostics: Vec<Diagnostic>,
+}
+
 impl super::Study {
-    /// Fit one horizon (or the one point) of a dynamic posterior: identify every distinct
-    /// template on its own graph, fit its regressions and mix the values.
-    ///
-    /// # Errors
-    ///
-    /// No atom identifies or evaluates the point, or a cancelled run.
-    #[allow(
-        clippy::too_many_lines,
-        clippy::too_many_arguments,
-        reason = "one mixture: the templates, their regressions and the masses read one frozen posterior"
-    )]
-    fn fit_dbn_lane<'q>(
-        &self,
-        data: &TimeSeriesData,
+    fn identify_dbn_templates(
         gp: &GraphPosterior,
         (keys, variables): (&[u64], &[VariableId]),
-        point_kind: DbnPoint<'q>,
-        prior_scale: Option<f64>,
+        point_kind: &DbnPoint<'_>,
         budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
-    ) -> Result<DbnLane<'q>, CausalError> {
+    ) -> Result<(Vec<IdentifiedTemplate>, WeightedGraphSamples), CausalError> {
         let label = point_kind.label();
         // Identify every distinct template on its own graph.
         let mut templates: Vec<IdentifiedTemplate> = Vec::new();
@@ -464,8 +663,6 @@ impl super::Study {
             })
             .collect();
         let graphs = WeightedGraphSamples::new(gp.weights().to_vec(), flags, keys.to_vec())?;
-        let unidentified_mass = graphs.unidentified_mass();
-        let key_weights = IdentifiedKeyWeights::new(&graphs);
         if templates.is_empty() {
             return Err(CausalError::not_identified(
                 IdentificationStatus::NotIdentified,
@@ -474,19 +671,36 @@ impl super::Study {
             ));
         }
 
+        Ok((templates, graphs))
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "atom evaluation keeps refusal and value accounting together"
+    )]
+    fn evaluate_dbn_atoms(
+        &self,
+        data: &TimeSeriesData,
+        templates: &[IdentifiedTemplate],
+        point_kind: &DbnPoint<'_>,
+        prior_scale: Option<f64>,
+        ctx: &ExecutionContext,
+    ) -> Result<DbnAtomPoints, CausalError> {
+        let label = point_kind.label();
         // Every identified template's regressions and point.
-        let offsets = match &point_kind {
+        let offsets = match point_kind {
             DbnPoint::Conditional(_) => (0, 0),
             DbnPoint::Derivative { probe, .. } | DbnPoint::CrossWorld { probe, .. } => {
                 (probe.try_treatment_offset()?, probe.outcome_offset()?)
             }
         };
-        let mut slope_atoms: Vec<(usize, SlopeAtom<'_>)> = Vec::new();
+        let mut positions = Vec::new();
+        let mut frozen = Vec::new();
         let mut values: Vec<Option<Vec<f64>>> = Vec::with_capacity(templates.len());
         let mut responses: Vec<Option<CausalResponse>> = Vec::with_capacity(templates.len());
         let mut first_refusal: Option<CausalError> = None;
         for (position, template) in templates.iter().enumerate() {
-            let built = match &point_kind {
+            let built = match point_kind {
                 DbnPoint::Conditional(query) => SlopeAtom::conditional(
                     data,
                     &template.estimand,
@@ -506,7 +720,7 @@ impl super::Study {
                 )),
             };
             let point = built.and_then(|atom| {
-                let (value, response) = match &point_kind {
+                let (value, response) = match point_kind {
                     DbnPoint::Conditional(_) => (vec![atom.conditional_effect()?], None),
                     DbnPoint::Derivative { query, .. } => {
                         let response = temporal_linear_derivative_response(
@@ -544,7 +758,8 @@ impl super::Study {
                 {
                     values.push(Some(value));
                     responses.push(response);
-                    slope_atoms.push((position, atom));
+                    positions.push(position);
+                    frozen.push(atom.freeze());
                 }
                 Ok(_) => {
                     values.push(None);
@@ -565,7 +780,7 @@ impl super::Study {
                 }
             }
         }
-        if slope_atoms.is_empty() {
+        if positions.is_empty() {
             return Err(first_refusal.unwrap_or_else(|| {
                 CausalError::not_identified(
                     IdentificationStatus::NotIdentified,
@@ -575,11 +790,21 @@ impl super::Study {
             }));
         }
 
+        Ok(DbnAtomPoints { positions, frozen, values, responses })
+    }
+
+    fn mix_dbn_atom_points(
+        templates: &[IdentifiedTemplate],
+        values: &[Option<Vec<f64>>],
+        graphs: &WeightedGraphSamples,
+        label: &str,
+    ) -> Result<MixedAtomEvals, CausalError> {
+        let unidentified_mass = graphs.unidentified_mass();
         // The structural mixture and its masses; a vector answer is accounted by its first
         // coordinate and mixed coordinate by coordinate below.
         let evals: Vec<ScalarAtomEval> = templates
             .iter()
-            .zip(&values)
+            .zip(values)
             .map(|(template, value)| ScalarAtomEval {
                 key: template.key,
                 status: template.identification.status,
@@ -599,7 +824,7 @@ impl super::Study {
         let mut mixed = mix_atom_evals(
             &evals,
             AtomMixInput {
-                graphs: &graphs,
+                graphs,
                 proofs: &proofs,
                 unidentified_mass,
                 full_mass_scope: true,
@@ -625,33 +850,62 @@ impl super::Study {
             },
         );
 
-        let weights: Vec<f64> = slope_atoms
+        Ok(mixed)
+    }
+
+    /// Fit one horizon (or the one point) of a dynamic posterior: identify every distinct
+    /// template on its own graph, fit its regressions and mix the values.
+    ///
+    /// # Errors
+    ///
+    /// No atom identifies or evaluates the point, or a cancelled run.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "one horizon carries the posterior, point, budget and execution context"
+    )]
+    fn fit_dbn_lane<'q>(
+        &self,
+        data: &TimeSeriesData,
+        gp: &GraphPosterior,
+        (keys, variables): (&[u64], &[VariableId]),
+        point_kind: DbnPoint<'q>,
+        prior_scale: Option<f64>,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<DbnLane<'q>, CausalError> {
+        let label = point_kind.label();
+        let (templates, graphs) =
+            Self::identify_dbn_templates(gp, (keys, variables), &point_kind, budget, ctx)?;
+        let key_weights = IdentifiedKeyWeights::new(&graphs);
+
+        let DbnAtomPoints { positions, frozen, values, responses } =
+            self.evaluate_dbn_atoms(data, &templates, &point_kind, prior_scale, ctx)?;
+
+        let mixed = Self::mix_dbn_atom_points(&templates, &values, &graphs, label)?;
+
+        let weights: Vec<f64> =
+            positions.iter().map(|position| key_weights.get(templates[*position].key)).collect();
+        let atom_values: Vec<Vec<f64>> = positions
             .iter()
-            .map(|(position, _)| key_weights.get(templates[*position].key))
+            .map(|position| values[*position].clone().unwrap_or_default())
             .collect();
-        let atom_values: Vec<Vec<f64>> = slope_atoms
-            .iter()
-            .map(|(position, _)| values[*position].clone().unwrap_or_default())
-            .collect();
-        let center = point_uncertainty::weighted_outputs(&atom_values, &weights).ok_or_else(
-            || CausalError::Compile {
-                message: format!(
+        let center =
+            point_uncertainty::weighted_outputs(&atom_values, &weights).ok_or_else(|| {
+                CausalError::Compile {
+                    message: format!(
                     "{label} graph-posterior mix: the atoms' values differ in shape or carry no \
                      mass"
                 ),
-            },
-        )?;
-        let primary_position = slope_atoms
+                }
+            })?;
+        let primary_position = positions
             .iter()
             .zip(&weights)
             .max_by(|left, right| left.1.total_cmp(right.1))
-            .map_or(slope_atoms[0].0, |(slope, _)| slope.0);
+            .map_or(positions[0], |(position, _)| *position);
         let span = super::temporal_class_block_span(
-            slope_atoms.iter().map(|(position, _)| &templates[*position].indexer),
+            positions.iter().map(|position| &templates[*position].indexer),
         );
-        let positions: Vec<usize> = slope_atoms.iter().map(|(position, _)| *position).collect();
-        let frozen: Vec<FrozenAtom> =
-            slope_atoms.into_iter().map(|(_, atom)| SlopeAtom::freeze(atom)).collect();
         Ok(DbnLane {
             point: point_kind,
             templates,
@@ -706,6 +960,291 @@ impl super::Study {
         Ok(states.finish())
     }
 
+    /// Compute joint uncertainty across all retained horizons and atom regressions.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "shared streams, per-horizon weights and response bands form one joint uncertainty computation"
+    )]
+    fn dbn_joint_uncertainty(
+        &self,
+        input: DbnUncertaintyInput<'_, '_>,
+    ) -> Result<DbnUncertaintyResult, CausalError> {
+        let DbnUncertaintyInput {
+            lanes,
+            primary_lane,
+            frozen,
+            weights,
+            lane_of,
+            lane_totals,
+            center,
+            structural_span,
+            contributing,
+            label,
+            derivative,
+            ctx,
+        } = input;
+        let lane_count = lanes.len();
+        let width = lanes[0].center.len();
+        let stack =
+            |values: &[Vec<f64>]| stack_dbn_outputs(values, weights, lane_of, lane_count, width);
+        let point = center[0];
+        let primary = lanes[primary_lane].primary();
+        let assumptions = primary.identification.required_assumptions.clone();
+        let query = &self.query;
+        let point_kind = &lanes[0].point;
+        let evaluate =
+            |_: usize, source: &dyn SlopeSource| evaluate_dbn_point(point_kind, query, source);
+        let mut diagnostics: Vec<Diagnostic> = Vec::new();
+        if let DbnPoint::Conditional(effect) = point_kind {
+            diagnostics.extend(super::temporal_effect_core::modifier_set_coverage_note(
+                effect.effect_modifiers.len(),
+            ));
+        }
+        let (block_stream, posterior_stream) = dbn_uncertainty_streams(point_kind);
+        let mut response = dbn_derivative_response(lanes, primary_lane, derivative)?;
+        let mut posterior = None;
+        let mut replicates_ok = None;
+        let mut cancelled = false;
+        let mut estimate = if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
+            let draws = point_uncertainty::point_posterior_draws(
+                frozen,
+                point_uncertainty::PointPosteriorPlan {
+                    prior_scale: cfg.prior_scale,
+                    draws: cfg.n_draws,
+                    structural_span,
+                    stream_base: posterior_stream,
+                },
+                ctx,
+                evaluate,
+            )?;
+            diagnostics.push(point_uncertainty::posterior_diagnostic(&draws, label));
+            let pooled = pool_dbn_draws(&draws, weights, lane_of, lane_totals, lane_count, width);
+            if contributing > 1 {
+                diagnostics.push(Diagnostic::new(
+                    DBN_ROUTE_POSTERIOR_CODE,
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "pooled posterior: the coefficients of every regression of every atom (at \
+                 every horizon) are one joint draw, draw d of every atom enters draw d of \
+                 the functional, and draw d of the mixture is the posterior-weighted sum of \
+                 the atoms' draw d within each horizon",
+                ));
+            }
+            if let Some(response) = response.as_mut() {
+                point_uncertainty::attach_posterior_response_band(response, &pooled, center);
+            }
+            let first_column: Vec<f64> = pooled.iter().map(|draw| draw[0]).collect();
+            let pooled_posterior = point_uncertainty::scalar_posterior(
+                &first_column,
+                "dbn_graph_posterior_point",
+                lanes[primary_lane].mixed.identification.status,
+                assumptions.clone(),
+                draws.tempering,
+            )?;
+            let sd = pooled_posterior.summaries.sd[0];
+            if width == 1 && lane_count == 1 {
+                let mut pooled_posterior = pooled_posterior;
+                pooled_posterior.unidentified_mass =
+                    lanes[primary_lane].mixed.mixture.unidentified_mass;
+                pooled_posterior.unevaluable_mass =
+                    lanes[primary_lane].mixed.mixture.unevaluable_mass;
+                posterior = Some(pooled_posterior);
+            }
+            EffectEstimate::new(point, sd, assumptions, OverlapPolicy::ExplicitOverride)
+        } else {
+            let replicates = point_uncertainty::point_block_replicates(
+                frozen,
+                point_uncertainty::PointBlockPlan {
+                    replicates: self.settings.bootstrap_replicates,
+                    stream_base: block_stream,
+                    structural_span,
+                },
+                false,
+                ctx,
+                evaluate,
+                stack,
+            )?;
+            diagnostics.extend(point_uncertainty::block_diagnostics(
+                replicates.as_ref(),
+                self.settings.bootstrap_replicates,
+                antecedent_estimate::CircularBlockFamily::Mixture,
+                "every regression of every contributing atom (at every horizon) is refit on each \
+             replicate and the frozen posterior weights are reapplied to the atoms' values \
+             within each horizon",
+            ));
+            replicates_ok =
+                replicates.as_ref().map(point_uncertainty::PointBlockReplicates::completed);
+            cancelled = replicates.as_ref().is_some_and(|replicates| replicates.draws.cancelled);
+            if let (Some(response), Some(replicates)) = (response.as_mut(), replicates.as_ref()) {
+                point_uncertainty::attach_block_response_band(response, replicates, center);
+            }
+            point_uncertainty::block_scalar_estimate(
+                point,
+                replicates.as_ref(),
+                assumptions,
+                antecedent_estimate::CircularBlockFamily::Mixture,
+            )
+        };
+        if let Some(response) = response.as_ref() {
+            // A derivative's scalar is the response's own summary; a vector has none.
+            let (scalar, _) = super::response_path::response_scalar_summary(response);
+            estimate.ate = scalar;
+        }
+
+        Ok(DbnUncertaintyResult {
+            estimate,
+            response,
+            posterior,
+            replicates_ok,
+            cancelled,
+            diagnostics,
+        })
+    }
+
+    /// Finish the selected lane's identification, mass disclosures and retained result.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "mass, refutation and provenance disclosures form one published result"
+    )]
+    fn finish_dbn_posterior(&self, input: DbnResultFinish<'_, '_>) -> StudyResult {
+        let DbnResultFinish {
+            lanes,
+            primary_lane,
+            label,
+            contributing,
+            physical,
+            started,
+            estimate,
+            response,
+            posterior,
+            replicates_ok,
+            cancelled,
+            refuted,
+            mut diagnostics,
+        } = input;
+        let lane_count = lanes.len();
+        // The identification and estimand the result names are the primary atom's.
+        let primary_lane_ref = &lanes[primary_lane];
+        let primary = primary_lane_ref.primary();
+        let (treatment, outcome) = primary_lane_ref.point.treatment_outcome();
+        let mut identification = primary.identification.clone();
+        let mut estimand = primary.estimand.clone();
+        if let DbnPoint::CrossWorld { contrast, .. } = &primary_lane_ref.point {
+            identification = template_scoped_cross_world(
+                identification,
+                &primary.indexer,
+                self.query.clone(),
+                *contrast,
+            );
+            estimand = identification.estimands[0].clone();
+        }
+        identification.status = primary_lane_ref.mixed.identification.status;
+        let mixture = primary_lane_ref.mixed.mixture.clone();
+        let policy = primary_lane_ref.mixed.policy;
+        if lane_count > 1 {
+            let listed = lanes
+                .iter()
+                .map(|lane| {
+                    let horizon = match &lane.point {
+                        DbnPoint::Derivative { probe, .. } => probe.horizon_steps,
+                        _ => 0,
+                    };
+                    format!(
+                        "h{horizon}:identified={}:unidentified={}:unevaluable={}",
+                        lane.mixed.mixture.identified_mass,
+                        lane.mixed.mixture.unidentified_mass,
+                        lane.mixed.mixture.unevaluable_mass
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            diagnostics.push(Diagnostic::new(
+                DBN_ROUTE_POSTERIOR_CODE,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "each horizon is identified, fitted and mixed on its own and horizons are \
+                 never mixed; the structural mixture is that of the horizon with the least \
+                 identified mass and the band is joint across horizons (masses: {listed})"
+                ),
+            ));
+        }
+        let n_draws = posterior
+            .as_ref()
+            .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
+        diagnostics.push(
+            Diagnostic::new(
+                DBN_ROUTE_POSTERIOR_CODE,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "each TemporalDag atom was identified on its own graph and answered the \
+                 {label} with the linear unfolded producer of the explicit cell; the atoms \
+                 are mixed by posterior probability over the {contributing} atom(s) that \
+                 identify and evaluate it; unidentified_mass={} and unevaluable_mass={} are \
+                 never redistributed",
+                    mixture.unidentified_mass, mixture.unevaluable_mass,
+                ),
+            )
+            .with_fields([
+                ("atoms", contributing.to_string()),
+                ("unidentified_mass", mixture.unidentified_mass.to_string()),
+                ("unevaluable_mass", mixture.unevaluable_mass.to_string()),
+            ]),
+        );
+        super::push_graph_posterior_structural_aggregation_diagnostic(
+            &mut diagnostics,
+            policy,
+            mixture.identified_mass,
+            mixture.unidentified_mass,
+            mixture.unevaluable_mass,
+            mixture.subsampled_out_mass,
+        );
+        if self.settings.inference.is_bayesian() && posterior.is_none() {
+            diagnostics.push(graph_posterior_withheld_diagnostic());
+        }
+        diagnostics.extend(refuted.2);
+        let algo =
+            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
+        let mut result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    EstimatorId::TemporalLinearAdjustment,
+                ),
+                treatment,
+                outcome,
+            )
+            .refutations(refuted.0)
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(replicates_ok)
+            .cancelled(cancelled)
+            .extras(IdentifiedExecuteExtras {
+                identify_provenance: Some(provenance_ids("discover.dbn_posterior", algo)),
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.dbn_posterior.point",
+                    "estimate.temporal.linear.adjustment",
+                )),
+                diagnostics: Some(diagnostics),
+                structural_response: Some(mixture),
+                response,
+                n_draws,
+                posterior,
+                predictive_checks: refuted.1,
+                ..Default::default()
+            }),
+        );
+        if self.settings.inference.is_frequentist() {
+            result.posterior = None;
+        }
+        result.rebind_interval(self.settings.inference.is_bayesian());
+        result
+    }
+
     /// Mix a conditional effect, a derivative (at one or several horizons) or a
     /// cross-world contrast over the `TemporalDag` atoms of a dynamic graph posterior.
     ///
@@ -755,20 +1294,7 @@ impl super::Study {
         let variables: Vec<VariableId> =
             data.schema().variables().iter().map(|variable| variable.id).collect();
 
-        // Samples that carry one (contemporaneous, lag) template share one atom.
-        let lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
-            message: "a dynamic graph posterior carries per-atom lag masks".into(),
-        })?;
-        let mut first_of: HashMap<(AdjacencyMask, LagMask), usize> = HashMap::new();
-        let mut keys: Vec<u64> = Vec::with_capacity(gp.n_graphs());
-        for index in 0..gp.n_graphs() {
-            let first = *first_of
-                .entry((gp.atoms()[index].clone(), lag_masks[index].clone()))
-                .or_insert(index);
-            keys.push(u64::try_from(first).map_err(|_| CausalError::Compile {
-                message: "a dynamic graph posterior has too many atoms for atom keys".into(),
-            })?);
-        }
+        let keys = dbn_atom_keys(gp)?;
 
         let mut budget =
             antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
@@ -839,330 +1365,41 @@ impl super::Study {
                     .sum()
             })
             .collect();
-        let stack = |values: &[Vec<f64>]| -> Option<Vec<f64>> {
-            let mut out = Vec::with_capacity(lane_count * width);
-            for index in 0..lane_count {
-                let (rows, row_weights): (Vec<Vec<f64>>, Vec<f64>) = values
-                    .iter()
-                    .zip(&weights)
-                    .zip(&lane_of)
-                    .filter(|(_, lane)| **lane == index)
-                    .map(|((row, weight), _)| (row.clone(), *weight))
-                    .unzip();
-                out.extend(point_uncertainty::weighted_outputs(&rows, &row_weights)?);
-            }
-            Some(out)
-        };
-        let point = center[0];
-        let primary = lanes[primary_lane].primary();
-        let assumptions = primary.identification.required_assumptions.clone();
-        let query = &self.query;
-        let point_kind = &lanes[0].point;
-        let evaluate = |_: usize, source: &dyn SlopeSource| -> Result<Vec<f64>, CausalError> {
-            match point_kind {
-                DbnPoint::Conditional(_) => source.conditional_effect().map(|value| vec![value]),
-                DbnPoint::Derivative { query: response_query, .. } => {
-                    let value =
-                        temporal_linear_derivative_value(&response_query.functional, source)?;
-                    point_uncertainty::response_values(&value).ok_or_else(|| CausalError::Compile {
-                        message: "a temporal derivative replicate has no numeric value".into(),
-                    })
-                }
-                DbnPoint::CrossWorld { contrast, .. } => {
-                    let fit = |outcome: VariableId,
-                               treatments: &[VariableId],
-                               contemporaneous: &[VariableId]| {
-                        source.slopes(outcome, treatments, contemporaneous)
-                    };
-                    cross_world_point(query, &fit, *contrast).map(|value| vec![value])
-                }
-            }
-        };
-        let mut diagnostics: Vec<Diagnostic> = Vec::new();
-        if let DbnPoint::Conditional(effect) = point_kind {
-            diagnostics.extend(super::temporal_effect_core::modifier_set_coverage_note(
-                effect.effect_modifiers.len(),
-            ));
-        }
-        let (block_stream, posterior_stream) = match point_kind {
-            DbnPoint::Conditional(_) => (
-                point_uncertainty::CONDITIONAL_BLOCK_STREAM,
-                point_uncertainty::CONDITIONAL_POSTERIOR_STREAM,
-            ),
-            DbnPoint::Derivative { .. } => (
-                point_uncertainty::DERIVATIVE_BLOCK_STREAM,
-                point_uncertainty::DERIVATIVE_POSTERIOR_STREAM,
-            ),
-            DbnPoint::CrossWorld { .. } => (
-                point_uncertainty::CROSS_WORLD_BLOCK_STREAM,
-                point_uncertainty::CROSS_WORLD_POSTERIOR_STREAM,
-            ),
-        };
-        // The mixed derivative answer, shaped as the primary atom's at each horizon (several
-        // horizons are one value per horizon), once its band is set.
-        let mut response = if derivative {
-            let mut per_horizon = Vec::with_capacity(lane_count);
-            for lane in &lanes {
-                let DbnPoint::Derivative { query: response_query, .. } = &lane.point else {
-                    continue;
-                };
-                let base = lane.responses[lane.primary_position].clone().ok_or_else(|| {
-                    CausalError::Compile {
-                        message: "the primary dynamic atom carries no derivative response".into(),
-                    }
-                })?;
-                per_horizon.push(mixed_derivative_response(
-                    base,
-                    &lane.center,
-                    (&response_query.functional, lane.mixed.identification.status),
-                ));
-            }
-            if per_horizon.len() == 1 {
-                per_horizon.pop()
-            } else {
-                let DbnPoint::Derivative { query: response_query, .. } = point_kind else {
-                    unreachable!("derivative lanes are derivative points")
-                };
-                let mut combined = super::temporal_path::combine_horizon_derivatives(
-                    &response_query.functional,
-                    &per_horizon,
-                )?;
-                combined.identification_status = lanes[primary_lane].mixed.identification.status;
-                Some(combined)
-            }
-        } else {
-            None
-        };
-        let mut posterior = None;
-        let mut replicates_ok = None;
-        let mut cancelled = false;
-        let mut estimate = if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
-            let draws = point_uncertainty::point_posterior_draws(
-                &frozen,
-                point_uncertainty::PointPosteriorPlan {
-                    prior_scale: cfg.prior_scale,
-                    draws: cfg.n_draws,
-                    structural_span,
-                    stream_base: posterior_stream,
-                },
-                ctx,
-                evaluate,
-            )?;
-            diagnostics.push(point_uncertainty::posterior_diagnostic(&draws, label));
-            let n_draws = draws.atom_draws.first().map_or(0, Vec::len);
-            let pooled: Vec<Vec<f64>> = (0..n_draws)
-                .map(|draw| {
-                    let mut row = Vec::with_capacity(lane_count * width);
-                    for (index, &lane_total) in lane_totals.iter().enumerate().take(lane_count) {
-                        for coordinate in 0..width {
-                            row.push(
-                                draws
-                                    .atom_draws
-                                    .iter()
-                                    .zip(&weights)
-                                    .zip(&lane_of)
-                                    .filter(|(_, lane)| **lane == index)
-                                    .map(|((atom, weight), _)| {
-                                        weight / lane_total * atom[draw][coordinate]
-                                    })
-                                    .sum::<f64>(),
-                            );
-                        }
-                    }
-                    row
-                })
-                .collect();
-            if contributing > 1 {
-                diagnostics.push(Diagnostic::new(
-                    DBN_ROUTE_POSTERIOR_CODE,
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "pooled posterior: the coefficients of every regression of every atom (at \
-                     every horizon) are one joint draw, draw d of every atom enters draw d of \
-                     the functional, and draw d of the mixture is the posterior-weighted sum of \
-                     the atoms' draw d within each horizon",
-                ));
-            }
-            if let Some(response) = response.as_mut() {
-                point_uncertainty::attach_posterior_response_band(response, &pooled, &center);
-            }
-            let first_column: Vec<f64> = pooled.iter().map(|draw| draw[0]).collect();
-            let pooled_posterior = point_uncertainty::scalar_posterior(
-                &first_column,
-                "dbn_graph_posterior_point",
-                lanes[primary_lane].mixed.identification.status,
-                assumptions.clone(),
-                draws.tempering,
-            )?;
-            let sd = pooled_posterior.summaries.sd[0];
-            if width == 1 && lane_count == 1 {
-                let mut pooled_posterior = pooled_posterior;
-                pooled_posterior.unidentified_mass =
-                    lanes[primary_lane].mixed.mixture.unidentified_mass;
-                pooled_posterior.unevaluable_mass =
-                    lanes[primary_lane].mixed.mixture.unevaluable_mass;
-                posterior = Some(pooled_posterior);
-            }
-            EffectEstimate::new(point, sd, assumptions, OverlapPolicy::ExplicitOverride)
-        } else {
-            let replicates = point_uncertainty::point_block_replicates(
-                &frozen,
-                point_uncertainty::PointBlockPlan {
-                    replicates: self.settings.bootstrap_replicates,
-                    stream_base: block_stream,
-                    structural_span,
-                },
-                false,
-                ctx,
-                evaluate,
-                stack,
-            )?;
-            diagnostics.extend(point_uncertainty::block_diagnostics(
-                replicates.as_ref(),
-                self.settings.bootstrap_replicates,
-                antecedent_estimate::CircularBlockFamily::Mixture,
-                "every regression of every contributing atom (at every horizon) is refit on each \
-                 replicate and the frozen posterior weights are reapplied to the atoms' values \
-                 within each horizon",
-            ));
-            replicates_ok =
-                replicates.as_ref().map(point_uncertainty::PointBlockReplicates::completed);
-            cancelled = replicates.as_ref().is_some_and(|replicates| replicates.draws.cancelled);
-            if let (Some(response), Some(replicates)) = (response.as_mut(), replicates.as_ref()) {
-                point_uncertainty::attach_block_response_band(response, replicates, &center);
-            }
-            point_uncertainty::block_scalar_estimate(
-                point,
-                replicates.as_ref(),
-                assumptions,
-                antecedent_estimate::CircularBlockFamily::Mixture,
-            )
-        };
-        if let Some(response) = response.as_ref() {
-            // A derivative's scalar is the response's own summary; a vector has none.
-            let (scalar, _) = super::response_path::response_scalar_summary(response);
-            estimate.ate = scalar;
-        }
-
-        // The identification and estimand the result names are the primary atom's.
-        let primary_lane_ref = &lanes[primary_lane];
-        let primary = primary_lane_ref.primary();
-        let (treatment, outcome) = primary_lane_ref.point.treatment_outcome();
-        let mut identification = primary.identification.clone();
-        let mut estimand = primary.estimand.clone();
-        if let DbnPoint::CrossWorld { contrast, .. } = &primary_lane_ref.point {
-            identification = template_scoped_cross_world(
-                identification,
-                &primary.indexer,
-                self.query.clone(),
-                *contrast,
-            );
-            estimand = identification.estimands[0].clone();
-        }
-        identification.status = primary_lane_ref.mixed.identification.status;
-        let mixture = primary_lane_ref.mixed.mixture.clone();
-        let policy = primary_lane_ref.mixed.policy;
-        if lane_count > 1 {
-            let listed = lanes
-                .iter()
-                .map(|lane| {
-                    let horizon = match &lane.point {
-                        DbnPoint::Derivative { probe, .. } => probe.horizon_steps,
-                        _ => 0,
-                    };
-                    format!(
-                        "h{horizon}:identified={}:unidentified={}:unevaluable={}",
-                        lane.mixed.mixture.identified_mass,
-                        lane.mixed.mixture.unidentified_mass,
-                        lane.mixed.mixture.unevaluable_mass
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(",");
-            diagnostics.push(Diagnostic::new(
-                DBN_ROUTE_POSTERIOR_CODE,
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "each horizon is identified, fitted and mixed on its own and horizons are \
-                     never mixed; the structural mixture is that of the horizon with the least \
-                     identified mass and the band is joint across horizons (masses: {listed})"
-                ),
-            ));
-        }
-        let n_draws = posterior
-            .as_ref()
-            .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
-        diagnostics.push(
-            Diagnostic::new(
-                DBN_ROUTE_POSTERIOR_CODE,
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "each TemporalDag atom was identified on its own graph and answered the \
-                     {label} with the linear unfolded producer of the explicit cell; the atoms \
-                     are mixed by posterior probability over the {contributing} atom(s) that \
-                     identify and evaluate it; unidentified_mass={} and unevaluable_mass={} are \
-                     never redistributed",
-                    mixture.unidentified_mass, mixture.unevaluable_mass,
-                ),
-            )
-            .with_fields([
-                ("atoms", contributing.to_string()),
-                ("unidentified_mass", mixture.unidentified_mass.to_string()),
-                ("unevaluable_mass", mixture.unevaluable_mass.to_string()),
-            ]),
-        );
-        super::push_graph_posterior_structural_aggregation_diagnostic(
-            &mut diagnostics,
-            policy,
-            mixture.identified_mass,
-            mixture.unidentified_mass,
-            mixture.unevaluable_mass,
-            mixture.subsampled_out_mass,
-        );
-        if self.settings.inference.is_bayesian() && posterior.is_none() {
-            diagnostics.push(graph_posterior_withheld_diagnostic());
-        }
-        diagnostics.extend(refuted.2);
-        let algo =
-            physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        let mut result = self.finish_identified_execute(
-            IdentifiedExecuteFinish::new(
-                physical,
-                identification,
-                estimand,
-                estimate,
-                Strategy::new(
-                    IdentifierId::TemporalBackdoorUnfolded,
-                    EstimatorId::TemporalLinearAdjustment,
-                ),
-                treatment,
-                outcome,
-            )
-            .refutations(refuted.0)
-            .wall_time_ns(elapsed_ns(started))
-            .bootstrap_replicates_ok(replicates_ok)
-            .cancelled(cancelled)
-            .extras(IdentifiedExecuteExtras {
-                identify_provenance: Some(provenance_ids("discover.dbn_posterior", algo)),
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.dbn_posterior.point",
-                    "estimate.temporal.linear.adjustment",
-                )),
-                diagnostics: Some(diagnostics),
-                structural_response: Some(mixture),
-                response,
-                n_draws,
-                posterior,
-                predictive_checks: refuted.1,
-                ..Default::default()
-            }),
-        );
-        if self.settings.inference.is_frequentist() {
-            result.posterior = None;
-        }
-        result.rebind_interval(self.settings.inference.is_bayesian());
-        Ok(result)
+        let DbnUncertaintyResult {
+            estimate,
+            response,
+            posterior,
+            replicates_ok,
+            cancelled,
+            diagnostics,
+        } = self.dbn_joint_uncertainty(DbnUncertaintyInput {
+            lanes: &lanes,
+            primary_lane,
+            frozen: &frozen,
+            weights: &weights,
+            lane_of: &lane_of,
+            lane_totals: &lane_totals,
+            center: &center,
+            structural_span,
+            contributing,
+            label,
+            derivative,
+            ctx,
+        })?;
+        Ok(self.finish_dbn_posterior(DbnResultFinish {
+            lanes: &lanes,
+            primary_lane,
+            label,
+            contributing,
+            physical,
+            started,
+            estimate,
+            response,
+            posterior,
+            replicates_ok,
+            cancelled,
+            refuted,
+            diagnostics,
+        }))
     }
 }

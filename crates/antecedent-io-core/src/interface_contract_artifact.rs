@@ -105,11 +105,11 @@ fn malformed(text: impl Into<String>) -> InterfaceContractArtifactError {
 }
 
 fn refused(refusal: antecedent_contract::ExternalRefusal) -> InterfaceContractArtifactError {
-    InterfaceContractArtifactError::Refused {
-        code: refusal.code,
-        detail: refusal.detail,
-        message: refusal.remedy.unwrap_or("the interface contract is not well formed").to_owned(),
-    }
+    let (code, detail, message) = crate::artifact_codec::external_refusal_parts(
+        refusal,
+        "the interface contract is not well formed",
+    );
+    InterfaceContractArtifactError::Refused { code, detail, message }
 }
 
 // -- wire types ---------------------------------------------------------------------------

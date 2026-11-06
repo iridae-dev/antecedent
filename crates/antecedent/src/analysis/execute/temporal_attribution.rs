@@ -675,14 +675,145 @@ struct CompleteWindowInputInner {
     _lease: antecedent_core::execution::AdmissionLease,
 }
 
+struct CompleteWindowRows {
+    ticks: Vec<usize>,
+    originals: Vec<usize>,
+    runs: Vec<std::ops::Range<usize>>,
+}
+
 impl CompleteWindowInput {
+    fn complete_rows(
+        series: &TimeSeriesData,
+        provenance: Option<&TemporalRowProvenance>,
+        h: usize,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<CompleteWindowRows, CausalError> {
+        let n = series.row_count();
+        let mask = series.storage().analysis_mask();
+        let mut ticks = Vec::new();
+        ticks.try_reserve_exact(n - h).map_err(|_| CausalError::Resource {
+            message: "attribution row map allocation refused".into(),
+        })?;
+        let mut contiguous = 0_usize;
+        for tick in 0..n {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
+            let continues = tick > 0
+                && provenance.is_none_or(|p| {
+                    !p.block_start()[tick]
+                        && p.original_ticks()[tick - 1].checked_add(1)
+                            == Some(p.original_ticks()[tick])
+                });
+            contiguous = if continues { contiguous.saturating_add(1) } else { 1 };
+            if tick >= h && contiguous > h && mask.is_none_or(|m| m.is_valid(tick)) {
+                ticks.push(tick);
+            }
+        }
+        if ticks.is_empty() {
+            return Err(CausalError::Compile {
+                message: "temporal attribution has no eligible complete windows".into(),
+            });
+        }
+        let mut originals = Vec::new();
+        originals.try_reserve_exact(ticks.len()).map_err(|_| CausalError::Resource {
+            message: "attribution original row map allocation refused".into(),
+        })?;
+        for &tick in &ticks {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
+            originals.push(provenance.map_or(tick, |p| p.original_ticks()[tick]));
+        }
+        let mut runs = Vec::new();
+        runs.try_reserve_exact(ticks.len()).map_err(|_| CausalError::Resource {
+            message: "attribution run allocation refused".into(),
+        })?;
+        let mut start = 0;
+        for position in 1..ticks.len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
+            let row = ticks[position];
+            if ticks[position - 1].checked_add(1) != Some(row)
+                || originals[position - 1].checked_add(1) != Some(originals[position])
+                || provenance.is_some_and(|p| p.block_start()[row])
+            {
+                runs.push(start..position);
+                start = position;
+            }
+        }
+        runs.push(start..ticks.len());
+        Ok(CompleteWindowRows { ticks, originals, runs })
+    }
+
+    fn materialize_table(
+        aligned: &LagAlignedScm,
+        series: &TimeSeriesData,
+        provenance: Option<&TemporalRowProvenance>,
+        ticks: &[usize],
+        h: usize,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<TabularData, CausalError> {
+        let n = series.row_count();
+        let mut owned = Vec::new();
+        owned.try_reserve_exact(aligned.columns.len()).map_err(|_| CausalError::Resource {
+            message: "attribution column allocation refused".into(),
+        })?;
+        for &(variable, lag) in aligned.columns.iter() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
+            let source = series.float64_slice(variable)?;
+            if source.len() != n {
+                return Err(CausalError::Compile {
+                    message: "lag-aligned column length does not match the source".into(),
+                });
+            }
+            let lag = usize::try_from(lag).map_err(|_| CausalError::Resource {
+                message: "attribution lag overflow".into(),
+            })?;
+            if lag > h {
+                return Err(CausalError::Compile {
+                    message: "column lag exceeds shared history".into(),
+                });
+            }
+            let mut values = Vec::new();
+            values.try_reserve_exact(ticks.len()).map_err(|_| CausalError::Resource {
+                message: "attribution value allocation refused".into(),
+            })?;
+            for &tick in ticks {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                }
+                values.push(source[tick - lag]);
+            }
+            owned.push((format!("v{}_{lag}", variable.raw()), values));
+        }
+        let refs: Vec<(&str, &[f64])> =
+            owned.iter().map(|(name, values)| (name.as_str(), values.as_slice())).collect();
+        let mut table = TabularData::from_f64_columns(refs)?;
+        if provenance.is_none_or(TemporalRowProvenance::user_sampling_weights) {
+            if let Some(weights) = series.storage().weights() {
+                let mut selected = Vec::new();
+                selected.try_reserve_exact(ticks.len()).map_err(|_| CausalError::Resource {
+                    message: "attribution weight allocation refused".into(),
+                })?;
+                for &tick in ticks {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                    }
+                    selected.push(weights[tick]);
+                }
+                table = table.with_weights(selected.into())?;
+            }
+        }
+        Ok(table)
+    }
+
     /// Construct observed windows with a shared class-wide history boundary.
     /// Original source storage remains caller-owned; the lease covers the new
     /// table, mapping, runs and bounded construction copies, not allocator peaks.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "temporal materialization keeps admission, bounds and alignment in one operation"
-    )]
     pub(super) fn build(
         aligned: &LagAlignedScm,
         series: &TimeSeriesData,
@@ -748,113 +879,9 @@ impl CompleteWindowInput {
             }
             other => CausalError::Resource { message: other.to_string() },
         })?;
-        let mask = series.storage().analysis_mask();
-        let mut ticks = Vec::new();
-        ticks.try_reserve_exact(n - h).map_err(|_| CausalError::Resource {
-            message: "attribution row map allocation refused".into(),
-        })?;
-        let mut contiguous = 0_usize;
-        for tick in 0..n {
-            if ctx.cancellation.is_cancelled() {
-                return Err(CausalError::Cancelled { stage: "temporal attribution" });
-            }
-            let continues = tick > 0
-                && provenance.is_none_or(|p| {
-                    !p.block_start()[tick]
-                        && p.original_ticks()[tick - 1].checked_add(1)
-                            == Some(p.original_ticks()[tick])
-                });
-            contiguous = if continues { contiguous.saturating_add(1) } else { 1 };
-            if tick >= h && contiguous > h && mask.is_none_or(|m| m.is_valid(tick)) {
-                ticks.push(tick);
-            }
-        }
-        if ticks.is_empty() {
-            return Err(CausalError::Compile {
-                message: "temporal attribution has no eligible complete windows".into(),
-            });
-        }
-        let mut originals = Vec::new();
-        originals.try_reserve_exact(ticks.len()).map_err(|_| CausalError::Resource {
-            message: "attribution original row map allocation refused".into(),
-        })?;
-        for &tick in &ticks {
-            if ctx.cancellation.is_cancelled() {
-                return Err(CausalError::Cancelled { stage: "temporal attribution" });
-            }
-            originals.push(provenance.map_or(tick, |p| p.original_ticks()[tick]));
-        }
-        let mut runs = Vec::new();
-        runs.try_reserve_exact(ticks.len()).map_err(|_| CausalError::Resource {
-            message: "attribution run allocation refused".into(),
-        })?;
-        let mut start = 0;
-        for position in 1..ticks.len() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(CausalError::Cancelled { stage: "temporal attribution" });
-            }
-            let row = ticks[position];
-            if ticks[position - 1].checked_add(1) != Some(row)
-                || originals[position - 1].checked_add(1) != Some(originals[position])
-                || provenance.is_some_and(|p| p.block_start()[row])
-            {
-                runs.push(start..position);
-                start = position;
-            }
-        }
-        runs.push(start..ticks.len());
-        let mut owned = Vec::new();
-        owned.try_reserve_exact(aligned.columns.len()).map_err(|_| CausalError::Resource {
-            message: "attribution column allocation refused".into(),
-        })?;
-        for &(variable, lag) in aligned.columns.iter() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(CausalError::Cancelled { stage: "temporal attribution" });
-            }
-            let source = series.float64_slice(variable)?;
-            if source.len() != n {
-                return Err(CausalError::Compile {
-                    message: "lag-aligned column length does not match the source".into(),
-                });
-            }
-            let lag = usize::try_from(lag).map_err(|_| CausalError::Resource {
-                message: "attribution lag overflow".into(),
-            })?;
-            if lag > h {
-                return Err(CausalError::Compile {
-                    message: "column lag exceeds shared history".into(),
-                });
-            }
-            let mut values = Vec::new();
-            values.try_reserve_exact(ticks.len()).map_err(|_| CausalError::Resource {
-                message: "attribution value allocation refused".into(),
-            })?;
-            for &tick in &ticks {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(CausalError::Cancelled { stage: "temporal attribution" });
-                }
-                values.push(source[tick - lag]);
-            }
-            owned.push((format!("v{}_{lag}", variable.raw()), values));
-        }
-        let refs: Vec<(&str, &[f64])> =
-            owned.iter().map(|(name, values)| (name.as_str(), values.as_slice())).collect();
-        let mut table = TabularData::from_f64_columns(refs)?;
-        if provenance.is_none_or(TemporalRowProvenance::user_sampling_weights) {
-            if let Some(weights) = series.storage().weights() {
-                let mut selected = Vec::new();
-                selected.try_reserve_exact(ticks.len()).map_err(|_| CausalError::Resource {
-                    message: "attribution weight allocation refused".into(),
-                })?;
-                for &tick in &ticks {
-                    if ctx.cancellation.is_cancelled() {
-                        return Err(CausalError::Cancelled { stage: "temporal attribution" });
-                    }
-                    selected.push(weights[tick]);
-                }
-                table = table.with_weights(selected.into())?;
-            }
-        }
+        let CompleteWindowRows { ticks, originals, runs } =
+            Self::complete_rows(series, provenance, h, ctx)?;
+        let table = Self::materialize_table(aligned, series, provenance, &ticks, h, ctx)?;
         Ok(Self(Arc::new(CompleteWindowInputInner {
             table,
             source: series.clone(),
@@ -1099,10 +1126,14 @@ mod tests {
         assert_eq!(shared.original_ticks(), [8, 9, 2, 3, 2]);
         assert_eq!(shared.block_start(), [true, false, true, false, true]);
         assert!(!shared.user_sampling_weights());
-        assert!(
-            TemporalRowProvenance::admit_fixed_blocks(&[1, 2], Some(0), false, &mut budget, &ctx)
-                .is_err()
-        );
+        assert!(TemporalRowProvenance::admit_fixed_blocks(
+            &[1, 2],
+            Some(0),
+            false,
+            &mut budget,
+            &ctx
+        )
+        .is_err());
     }
     #[test]
     fn complete_refit_windows_keep_duplicate_source_coordinates_and_synthetic_weight_kind() {

@@ -1,4 +1,5 @@
 //! `PyO3` bindings for the Antecedent extension module (`antecedent._native`).
+
 //!
 //! Arrow and NumPy ingestion, graph handles, discovery, estimation, and the
 //! prepared-analysis entry points live in the modules below. Unsafe FFI is
@@ -30,6 +31,19 @@
 // The extension module does not link libpython. The test harness does.
 #[cfg(test)]
 include!(concat!(env!("OUT_DIR"), "/python_test_link.rs"));
+
+mod context;
+mod discovery_review;
+
+pub use context::PyCancellationToken;
+pub(crate) use context::{
+    PY_DEFAULT_CACHE_MAX_BYTES, apply_cancel, install_cancellation, py_execution_context,
+    py_execution_context_cancel, py_execution_context_ext, resolve_user_threads,
+};
+pub(crate) use discovery_review::{
+    accept_cpdag_review, accept_dag_review, accept_pag_review, accept_rpcmci_review,
+    accept_temporal_cpdag_review, accept_temporal_graph_review, accept_temporal_pag_review,
+};
 
 mod adaptive_inference_api;
 mod adaptive_participant_api;
@@ -94,6 +108,7 @@ mod execution_api;
 mod execution_attempt_api;
 mod experiment_api;
 mod external_api;
+mod external_learner_api;
 mod external_mechanism_api;
 mod fallback_report_api;
 mod fallback_stage_api;
@@ -365,115 +380,6 @@ pub(crate) fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<Refu
         };
     }
     Err(crate::value_err("refute= must be bool or str (True|False|\"full\"|\"placebo\"|\"none\")"))
-}
-
-// --- Discovery review acceptance helpers -----------------------------------------
-//
-// The old `StudyBuilder` took a `DiscoveryAccept` flag (`AutoAccept` / `Review`) on each
-// `.discover_*()` setter and deferred the actual review gate to `compile()` time. The new
-// facade runs discovery standalone (see `antecedent::discovery`) and requires callers to
-// explicitly turn the resulting review artifact into an `AcceptedGraph` — via
-// `AcceptedGraph::accept(review)` (fallible; the review-artifact path) or the infallible
-// `From<Dag|Admg|Pag|TemporalDag|TemporalPag>` conversions.
-//
-// These helpers reproduce the Python-visible `accept_discovered: bool` semantics on top of
-// the new API, one per review-artifact shape:
-// - DAG-shaped (`DagReview`, `TemporalGraphReview`): `true` clears pending directed edges
-//   first (mirrors the old `DiscoveryAccept::AutoAccept`); `false` requires the graph to
-//   already be fully oriented.
-// - CPDAG-shaped (`CpdagReview`): `true` clears directed pending edges. Undirected
-//   marks are the MEC and do not block acceptance (class-aware ATE consumes them).
-//   `TemporalCpdagReview` is the same for undirected marks (class-aware pulse).
-// - PAG-shaped (`PagReview`, `TemporalPagReview`): circle marks are informational, not
-//   incompleteness (the class-aware identifiers handle them directly), so `true` accepts
-//   the discovered graph as-is via the infallible `From` conversion — mirroring the old
-//   unconditional `AutoAccept` success for FCI/RFCI/LPCMCI; `false` routes through the
-//   review artifact, which fails with `ReviewRequired` while circles remain unreviewed.
-
-/// DAG-shaped review (static `DagReview`; DirectLiNGAM, NOTEARS).
-pub(crate) fn accept_dag_review(
-    review: DagReview,
-    accept_discovered: bool,
-) -> Result<AcceptedGraph, RustCausalError> {
-    let review = if accept_discovered { review.accept_all() } else { review };
-    AcceptedGraph::accept(review)
-}
-
-/// Temporal DAG-shaped review (`TemporalGraphReview`; PCMCI).
-pub(crate) fn accept_temporal_graph_review(
-    review: TemporalGraphReview,
-    accept_discovered: bool,
-) -> Result<AcceptedGraph, RustCausalError> {
-    let pending = PendingGraphReview::new(review);
-    let pending = if accept_discovered { pending.accept_all() } else { pending };
-    pending.finish()
-}
-
-/// Static CPDAG-shaped review (`CpdagReview`; PC, GES).
-pub(crate) fn accept_cpdag_review(
-    mut review: CpdagReview,
-    accept_discovered: bool,
-) -> Result<AcceptedGraph, RustCausalError> {
-    if accept_discovered {
-        review.pending_edges = std::sync::Arc::from([]);
-    }
-    AcceptedGraph::accept(review)
-}
-
-/// Temporal CPDAG-shaped review (`TemporalCpdagReview`; PCMCI+, J-PCMCI+, RPCMCI).
-pub(crate) fn accept_temporal_cpdag_review(
-    review: TemporalCpdagReview,
-    accept_discovered: bool,
-) -> Result<AcceptedGraph, RustCausalError> {
-    let pending = PendingCpdagReview::new(review);
-    let pending = if accept_discovered { pending.accept_all_directed() } else { pending };
-    pending.finish()
-}
-
-/// Static PAG-shaped discovery output (FCI, RFCI).
-pub(crate) fn accept_pag_review(
-    graph: Pag,
-    review: PagReview,
-    accept_discovered: bool,
-) -> Result<AcceptedGraph, RustCausalError> {
-    // Static PAG circle marks are information the class-aware generalized-adjustment
-    // identifier consumes, so auto-accept is safe here.
-    if accept_discovered { Ok(AcceptedGraph::pag(graph)) } else { AcceptedGraph::accept(review) }
-}
-
-/// Temporal PAG-shaped discovery output (LPCMCI).
-pub(crate) fn accept_temporal_pag_review(
-    graph: TemporalPag,
-    review: TemporalPagReview,
-    accept_discovered: bool,
-) -> Result<AcceptedGraph, RustCausalError> {
-    // Circles are TemporalPag class information; auto-accept keeps the PAG.
-    if accept_discovered {
-        Ok(AcceptedGraph::temporal_pag(graph))
-    } else {
-        AcceptedGraph::accept(review)
-    }
-}
-
-/// RPCMCI: reduce N per-regime CPDAG reviews to one accepted graph. A single accepted
-/// graph is only possible when discovery found exactly one regime — multiple regimes
-/// always require manual review (there is no single-graph collapse across regimes),
-/// mirroring the old `compile()`'s `result.per_regime.len() == 1` gate.
-pub(crate) fn accept_rpcmci_review(
-    result: &antecedent::discovery::RpcmciDiscoveryResult,
-    accept_discovered: bool,
-) -> Result<AcceptedGraph, RustCausalError> {
-    let Some(first) = result.per_regime.first() else {
-        return Err(RustCausalError::review_required_msg("RPCMCI discovered no regime graphs"));
-    };
-    if result.per_regime.len() != 1 {
-        return Err(RustCausalError::review_required_msg(format!(
-            "RPCMCI discovered {} regimes; a single accepted graph requires exactly one \
-             (review each regime's CPDAG separately)",
-            result.per_regime.len()
-        )));
-    }
-    accept_temporal_cpdag_review(first.review.clone(), accept_discovered)
 }
 
 pub(crate) fn public_adjustment_set(
@@ -1994,20 +1900,6 @@ impl ResamplingSection {
     }
 }
 
-/// Default coalition / semantic cache budget for Python production contexts
-/// (matches attribution bench policy).
-pub(crate) const PY_DEFAULT_CACHE_MAX_BYTES: u64 = 4_000_000;
-
-/// Resolve an omitted or zero `threads=` to [`antecedent::execution::default_user_threads`].
-/// An explicit `threads >= 1` is a pin and may exceed the default cap.
-pub(crate) fn resolve_user_threads(threads: Option<u32>) -> u32 {
-    match threads {
-        Some(n) if n >= 1 => n,
-        Some(_) => 1,
-        None => antecedent::execution::default_user_threads(),
-    }
-}
-
 /// `"release"` or `"development"`: whether this build runs `not_supported` routes and lists
 /// what a release build would have refused.
 #[pyfunction]
@@ -2018,80 +1910,6 @@ fn build_flavor() -> &'static str {
 #[pyfunction]
 fn default_user_threads() -> u32 {
     antecedent::execution::default_user_threads()
-}
-
-pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext {
-    py_execution_context_ext(seed, threads, None, None, Some(PY_DEFAULT_CACHE_MAX_BYTES))
-}
-
-/// [`py_execution_context`] honouring an optional caller token.
-pub(crate) fn py_execution_context_cancel(
-    seed: u64,
-    threads: u32,
-    cancel: Option<PyCancellationToken>,
-) -> ExecutionContext {
-    let mut ctx = py_execution_context(seed, threads);
-    apply_cancel(&mut ctx, cancel);
-    ctx
-}
-
-pub(crate) fn py_execution_context_ext(
-    seed: u64,
-    threads: u32,
-    cancel: Option<antecedent::execution::CancellationToken>,
-    progress: Option<std::sync::Arc<dyn antecedent::execution::ProgressSink>>,
-    cache_max_bytes: Option<u64>,
-) -> ExecutionContext {
-    let mut ctx = ExecutionContext::production(seed, threads);
-    ctx.cache_policy = CachePolicy::enabled(cache_max_bytes);
-    install_cancellation(&mut ctx, cancel);
-    ctx.progress = interrupt::bind_progress(progress);
-    execution_api::apply(&mut ctx);
-    ctx
-}
-
-/// Install the caller's cancellation token on `ctx`; Ctrl-C also fires it (or, with no token, the
-/// run's own).
-pub(crate) fn apply_cancel(ctx: &mut ExecutionContext, cancel: Option<PyCancellationToken>) {
-    install_cancellation(ctx, cancel.map(|token| token.inner));
-}
-
-fn install_cancellation(
-    ctx: &mut ExecutionContext,
-    cancel: Option<antecedent::execution::CancellationToken>,
-) {
-    if let Some(token) = cancel {
-        interrupt::link(&token);
-        ctx.cancellation = token;
-    } else if let Some(token) = interrupt::ambient_token() {
-        ctx.cancellation = token;
-    } else {
-        // Built ahead of the detached call: the token joins the run that executes this context.
-        interrupt::link(&ctx.cancellation);
-    }
-}
-
-/// Cooperative cancellation token shared with a running analysis.
-#[pyclass(name = "CancellationToken", from_py_object)]
-#[derive(Clone)]
-pub struct PyCancellationToken {
-    pub(crate) inner: antecedent::execution::CancellationToken,
-}
-
-#[pymethods]
-impl PyCancellationToken {
-    #[new]
-    fn new() -> Self {
-        Self { inner: antecedent::execution::CancellationToken::new() }
-    }
-
-    fn cancel(&self) {
-        self.inner.cancel();
-    }
-
-    fn is_cancelled(&self) -> bool {
-        self.inner.is_cancelled()
-    }
 }
 
 #[pymodule]

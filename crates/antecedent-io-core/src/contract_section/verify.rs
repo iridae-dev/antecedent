@@ -1945,10 +1945,10 @@ pub(in crate::contract_section) fn verify_graph_posterior_mixture(
         return;
     };
     let mut consistent = mixture.atoms.len() == programs.atoms.len();
+    let published_by_key = first_published_atoms(&mixture.atoms);
     let mut uncovered = 0.0_f64;
     for atom in &programs.atoms {
-        let Some(published) = mixture.atoms.iter().find(|item| item.graph_key == atom.graph_key)
-        else {
+        let Some(published) = published_by_key.get(&atom.graph_key) else {
             consistent = false;
             continue;
         };
@@ -1966,6 +1966,43 @@ pub(in crate::contract_section) fn verify_graph_posterior_mixture(
     consistent &= mixture_recomputes(mixture);
     if !consistent {
         unresolved.push(ContractReason::ProgramGraphPosteriorProgramsBinding);
+    }
+}
+
+/// Index atoms without changing which entry a duplicate key resolves to.
+fn first_published_atoms(
+    atoms: &[crate::StructuralResponseAtomWire],
+) -> std::collections::BTreeMap<u64, &crate::StructuralResponseAtomWire> {
+    let mut by_key = std::collections::BTreeMap::new();
+    for atom in atoms {
+        by_key.entry(atom.graph_key).or_insert(atom);
+    }
+    by_key
+}
+
+#[cfg(test)]
+mod posterior_index_tests {
+    use super::first_published_atoms;
+    use crate::{IdentificationStatusWire, StructuralResponseAtomWire};
+
+    fn atom(graph_key: u64, weight: f64) -> StructuralResponseAtomWire {
+        StructuralResponseAtomWire {
+            graph_key,
+            weight,
+            identification_status: IdentificationStatusWire::NotIdentified,
+            value: None,
+            posterior_artifact: None,
+            response: None,
+        }
+    }
+
+    #[test]
+    fn duplicate_graph_keys_keep_the_first_published_atom() {
+        let atoms = [atom(7, 0.2), atom(4, 0.3), atom(7, 0.5)];
+        let index = first_published_atoms(&atoms);
+        assert!(std::ptr::eq(index[&7], &atoms[0]));
+        assert!(std::ptr::eq(index[&4], &atoms[1]));
+        assert!(!index.contains_key(&8));
     }
 }
 

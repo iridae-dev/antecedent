@@ -28,21 +28,21 @@ use antecedent_estimate::{FunctionalEffect, PreparedFunctionalEffect, TemporalMe
 use antecedent_identify::temporal_admg::TemporalAdmgWindowPlan;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
-use super::atom_mix::{AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals, mix_atom_evals};
+use super::atom_mix::{mix_atom_evals, AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals};
 use super::mediation_mixed::{component_slot, identify_components};
 use super::mediation_refutation::plug_in_value;
 use super::{
-    Arc, BootstrapAccounting, CausalError, CausalPosterior, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, IdentificationResult,
-    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
-    IdentifiedKeyWeights, IdentifierId, Instant, PhysicalExecutionPlan, PosteriorMassSummary,
-    RefuteSuite, Strategy, StudyResult, TabularData, TimeSeriesData, elapsed_ns, mass_fields,
-    overlap_diagnostic, overlap_limit_diagnostic, provenance_ids, resolve_posterior_status,
-    run_functional,
+    elapsed_ns, mass_fields, overlap_diagnostic, overlap_limit_diagnostic, provenance_ids,
+    resolve_posterior_status, run_functional, Arc, BootstrapAccounting, CausalError,
+    CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId,
+    ExecutionContext, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, Instant,
+    PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, Strategy, StudyResult, TabularData,
+    TimeSeriesData,
 };
 use crate::analysis::identification_cache::{
-    CachedGraphPosteriorAtomIdentification, CachedGraphPosteriorIdentification,
-    build_temporal_admg_posterior_identification_cache,
+    build_temporal_admg_posterior_identification_cache, CachedGraphPosteriorAtomIdentification,
+    CachedGraphPosteriorIdentification,
 };
 use crate::analysis::proof_support::graph_posterior_withheld_diagnostic;
 use crate::analysis::temporal_admg_contrast::{used_variables, window_table_over};
@@ -268,6 +268,107 @@ fn window_variables(
     Ok(((0..count).map(VariableId::from_raw).collect(), count))
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "every posterior atom must have a corresponding lag mask"
+)]
+fn temporal_pag_posterior_window_namespace(
+    study: &super::Study,
+    gp: &GraphPosterior,
+    series: &TimeSeriesData,
+    lag_masks: &[antecedent_discovery::LagMask],
+    max_lag: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Option<super::temporal_admg_mediation::NamespaceData>, CausalError> {
+    if !matches!(study.query, antecedent_core::CausalQuery::Mediation(_)) {
+        return Ok(None);
+    }
+    let variables: Vec<VariableId> =
+        series.schema().variables().iter().map(|variable| variable.id).collect();
+    let variable_count = u32::try_from(variables.len())
+        .map_err(|_| CausalError::Resource { message: "series schema overflow".into() })?;
+    let n = gp.n_vars() as u64;
+    let candidate = n
+        .checked_mul(n)
+        .and_then(|v| v.checked_mul(u64::from(max_lag) + 1))
+        .ok_or_else(|| CausalError::Resource { message: "PAG atom size overflow".into() })?;
+    for index in 0..gp.n_graphs() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal namespace" });
+        }
+        let mut edges = 0u64;
+        for word in gp.atoms()[index].words().iter().chain(lag_masks[index].words()) {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal namespace" });
+            }
+            budget.charge_work(1).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+            edges = edges.checked_add(u64::from(word.count_ones())).ok_or_else(|| {
+                CausalError::Resource { message: "PAG atom edge overflow".into() }
+            })?;
+        }
+        let nodes_by_edges = edges
+            .checked_mul(2)
+            .and_then(|v| v.checked_add(n))
+            .ok_or_else(|| CausalError::Resource { message: "PAG atom node overflow".into() })?;
+        let nodes_by_lag = n
+            .checked_mul(u64::from(max_lag) + 1)
+            .ok_or_else(|| CausalError::Resource { message: "PAG atom node overflow".into() })?;
+        let nodes = nodes_by_edges.min(nodes_by_lag);
+        if nodes > budget.limits().max_graph_nodes || edges > budget.limits().max_graph_edges {
+            return Err(CausalError::Resource { message: "PAG atom graph limit".into() });
+        }
+        let work = edges
+            .checked_mul(nodes.checked_add(edges).and_then(|v| v.checked_add(1)).ok_or_else(
+                || CausalError::Resource { message: "PAG atom work overflow".into() },
+            )?)
+            .and_then(|v| v.checked_add(candidate))
+            .ok_or_else(|| CausalError::Resource { message: "PAG atom work overflow".into() })?;
+        budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let bytes = crate::analysis::identification_cache::temporal_atom_bytes(
+            nodes,
+            edges,
+            "PAG atom bytes overflow",
+        )?;
+        if bytes > budget.limits().max_bytes {
+            return Err(CausalError::Resource { message: "PAG atom byte limit".into() });
+        }
+        let _lease = crate::analysis::identification_cache::temporal_atom_lease(
+            ctx,
+            bytes,
+            "temporal namespace",
+        )?;
+        let template =
+            match antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_atoms_cancellable(
+                &gp.atoms()[index],
+                &lag_masks[index],
+                gp.mark_atom(index),
+                gp.n_vars(),
+                max_lag,
+                &variables,
+                || ctx.cancellation.is_cancelled(),
+            ) {
+                Ok(Some(template)) => template,
+                Ok(None) => return Err(CausalError::Cancelled { stage: "temporal namespace" }),
+                Err(_) => continue,
+            };
+        match super::mediation_window_namespace(
+            super::GraphRef::TemporalPag(&template),
+            &study.query,
+            variable_count,
+            budget,
+            ctx,
+        ) {
+            Ok(Some(nodes)) => return Ok(Some(nodes)),
+            Err(e @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
+                return Err(e);
+            }
+            Ok(None) | Err(_) => continue,
+        }
+    }
+    Ok(None)
+}
+
 /// The `(variable, offset)` of every window coordinate the identification of a contrast over a
 /// lagged temporal-ADMG graph posterior is stated on: the window of the first atom whose
 /// template identifies the contrast, which is the atom the mixed result carries the
@@ -275,11 +376,6 @@ fn window_variables(
 ///
 /// The identification names its nodes by window coordinate, so the artifact declares this map for
 /// a reader to place them; the offset is the period relative to the policy origin.
-#[allow(
-    clippy::too_many_lines,
-    clippy::too_many_arguments,
-    reason = "the bounded posterior operation retains its shared graph and execution context"
-)]
 pub(crate) fn temporal_admg_posterior_window_namespace(
     study: &super::Study,
     budget: &mut antecedent_core::TemporalBudget,
@@ -300,98 +396,9 @@ pub(crate) fn temporal_admg_posterior_window_namespace(
     if let (antecedent_discovery::GraphPosteriorAtomKind::Pag, Some(lag_masks), Some(max_lag)) =
         (gp.atom_kind(), gp.lag_masks(), gp.max_lag())
     {
-        if !matches!(study.query, antecedent_core::CausalQuery::Mediation(_)) {
-            return Ok(None);
-        }
-        let variables: Vec<VariableId> =
-            series.schema().variables().iter().map(|variable| variable.id).collect();
-        let variable_count = u32::try_from(variables.len())
-            .map_err(|_| CausalError::Resource { message: "series schema overflow".into() })?;
-        let n = gp.n_vars() as u64;
-        let candidate = n
-            .checked_mul(n)
-            .and_then(|v| v.checked_mul(u64::from(max_lag) + 1))
-            .ok_or_else(|| CausalError::Resource { message: "PAG atom size overflow".into() })?;
-        for index in 0..gp.n_graphs() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(CausalError::Cancelled { stage: "temporal namespace" });
-            }
-            let mut edges = 0u64;
-            for word in gp.atoms()[index].words().iter().chain(lag_masks[index].words()) {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(CausalError::Cancelled { stage: "temporal namespace" });
-                }
-                budget
-                    .charge_work(1)
-                    .map_err(|e| CausalError::Resource { message: e.to_string() })?;
-                edges = edges.checked_add(u64::from(word.count_ones())).ok_or_else(|| {
-                    CausalError::Resource { message: "PAG atom edge overflow".into() }
-                })?;
-            }
-            let nodes_by_edges =
-                edges.checked_mul(2).and_then(|v| v.checked_add(n)).ok_or_else(|| {
-                    CausalError::Resource { message: "PAG atom node overflow".into() }
-                })?;
-            let nodes_by_lag = n.checked_mul(u64::from(max_lag) + 1).ok_or_else(|| {
-                CausalError::Resource { message: "PAG atom node overflow".into() }
-            })?;
-            let nodes = nodes_by_edges.min(nodes_by_lag);
-            if nodes > budget.limits().max_graph_nodes || edges > budget.limits().max_graph_edges {
-                return Err(CausalError::Resource { message: "PAG atom graph limit".into() });
-            }
-            let work = edges
-                .checked_mul(nodes.checked_add(edges).and_then(|v| v.checked_add(1)).ok_or_else(
-                    || CausalError::Resource { message: "PAG atom work overflow".into() },
-                )?)
-                .and_then(|v| v.checked_add(candidate))
-                .ok_or_else(|| CausalError::Resource {
-                    message: "PAG atom work overflow".into(),
-                })?;
-            budget
-                .charge_work(work)
-                .map_err(|e| CausalError::Resource { message: e.to_string() })?;
-            let bytes = crate::analysis::identification_cache::temporal_atom_bytes(
-                nodes,
-                edges,
-                "PAG atom bytes overflow",
-            )?;
-            if bytes > budget.limits().max_bytes {
-                return Err(CausalError::Resource { message: "PAG atom byte limit".into() });
-            }
-            let _lease = crate::analysis::identification_cache::temporal_atom_lease(
-                ctx,
-                bytes,
-                "temporal namespace",
-            )?;
-            let template =
-                match antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_atoms_cancellable(
-                    &gp.atoms()[index],
-                    &lag_masks[index],
-                    gp.mark_atom(index),
-                    gp.n_vars(),
-                    max_lag,
-                    &variables,
-                    || ctx.cancellation.is_cancelled(),
-                ) {
-                    Ok(Some(template)) => template,
-                    Ok(None) => return Err(CausalError::Cancelled { stage: "temporal namespace" }),
-                    Err(_) => continue,
-                };
-            match super::mediation_window_namespace(
-                super::GraphRef::TemporalPag(&template),
-                &study.query,
-                variable_count,
-                budget,
-                ctx,
-            ) {
-                Ok(Some(nodes)) => return Ok(Some(nodes)),
-                Err(e @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
-                    return Err(e);
-                }
-                Ok(None) | Err(_) => continue,
-            }
-        }
-        return Ok(None);
+        return temporal_pag_posterior_window_namespace(
+            study, gp, series, lag_masks, max_lag, budget, ctx,
+        );
     }
     if !gp.is_lagged_temporal_admg() {
         return Ok(None);

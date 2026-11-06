@@ -31,7 +31,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "FrontDoorTwoStage::fit for continuous treatment and one or more continuous mediators without adjustment covariates: the per-mediator slope of the mediator on the treatment, the outcome regression on treatment and all mediators, the path-sum effect scaled by the treatment-level difference, and the analytic standard error from the stacked sandwich (block-diagonal bread, HC0, HC1 and cluster meats with the per-equation small-sample factors, delta-method gradient). Not the bootstrap, the identification of the front-door criterion, or the functional estimator."
+scope = "FrontDoorTwoStage::fit for continuous treatment and one or more continuous mediators without adjustment covariates: the per-mediator slope of the mediator on the treatment, the outcome regression on treatment and all mediators, the path-sum effect scaled by the treatment-level difference, and the analytic standard error from the stacked sandwich (block-diagonal bread, HC0, HC1 and cluster meats with the per-equation small-sample factors, delta-method gradient). Not the bootstrap, the identification of the front-door criterion, or the functional estimator. Scoped re-review compared every named item across the split source paths; only parent-visible access changed and the numerical definitions remain identical."
 assumptions = ["The front-door criterion and the linear, additive, no-interaction structure the product of coefficients needs (recorded on every result as frontdoor.linear_path_product) are taken as given.", "The per-equation small-sample convention (n/(n-p) for HC1 and G/(G-1) (n-1)/(n-p) for the cluster form, multiplying meat entry (r, s) by sqrt(f_r f_s)) is the product's documented convention; the reference applies it, it does not establish it."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
 redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
@@ -43,8 +43,14 @@ record_sha256 = "478af3bcdfaa76a2b90b5348b3e25d65b91da7e0748212bd8ed120d54a4e541
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/frontdoor.rs"
-items = ["const LINEAR_PATH_PRODUCT_ASSUMPTION_ID", "const STAGE1_NCOLS", "const STAGE1_TREATMENT_COL", "const STAGE2_FIRST_MEDIATOR_COL", "const STAGE2_TREATMENT_COL", "enum CrossStagePolicy", "fn attach_bootstrap", "fn bootstrap_se", "fn default", "fn fill_row_score", "fn fit", "fn fit_stage1", "fn fit_stage2", "fn linear_path_product_restriction", "fn new", "fn point_estimate", "fn prepare", "fn prepare_frontdoor_problem", "fn problem", "fn require_read_inference", "fn scale_meat_by_equation_df", "fn stacked_cluster_meat", "fn stacked_hc_meat", "fn stacked_path_sum_se", "fn stacked_theta_cov_and_grad", "fn stage1_matrix", "fn stage2_matrix", "fn zero_cross_blocks", "struct FrontDoorTwoStage", "struct FrontDoorWorkspace", "struct PreparedFrontDoorProblem", "struct StackedStageViews"]
-sha256 = "e7efb09ebbe8f1d83e4f67e1bd6e0d95130f1b7fef81990bf28f5ccffae6a6cc"
+items = ["const LINEAR_PATH_PRODUCT_ASSUMPTION_ID", "const STAGE1_NCOLS", "const STAGE1_TREATMENT_COL", "const STAGE2_FIRST_MEDIATOR_COL", "const STAGE2_TREATMENT_COL", "fn attach_bootstrap", "fn bootstrap_se", "fn default", "fn fit", "fn fit_stage1", "fn fit_stage2", "fn linear_path_product_restriction", "fn new", "fn point_estimate", "fn prepare", "fn prepare_frontdoor_problem", "fn problem", "fn require_read_inference", "fn stage1_matrix", "fn stage2_matrix", "struct FrontDoorTwoStage", "struct FrontDoorWorkspace", "struct PreparedFrontDoorProblem"]
+sha256 = "797c4ce2b8bd200815b952161c25dd3830006a03bd5680e996d67019a60e12ec"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/frontdoor/sandwich.rs"
+items = ["enum CrossStagePolicy", "fn fill_row_score", "fn scale_meat_by_equation_df", "fn stacked_cluster_meat", "fn stacked_hc_meat", "fn stacked_path_sum_se", "fn stacked_theta_cov_and_grad", "fn zero_cross_blocks", "struct StackedStageViews"]
+sha256 = "0ec5dbd408d5e09664deec9011786d014ad82a529a2aaa3748950d5415bdea7b"
 
 [[method_review.artifacts]]
 role = "assertion"

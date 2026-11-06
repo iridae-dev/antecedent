@@ -11,7 +11,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use antecedent_core::{CanonicalWriter, RegimeId, Value, VariableId};
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance};
@@ -147,13 +147,12 @@ impl SampledRegimeCounts {
         if axes.is_empty() {
             return Err(invalid_counts("a count table measures at least one variable"));
         }
-        let mut seen: Vec<VariableId> = Vec::new();
+        let mut seen = HashSet::new();
         let mut cells: usize = 1;
         for axis in &axes {
-            if seen.contains(&axis.variable) {
+            if !seen.insert(axis.variable) {
                 return Err(invalid_counts("a variable is measured on two axes"));
             }
-            seen.push(axis.variable);
             if axis.levels.is_empty() || axis.levels.iter().any(|l| !l.is_finite()) {
                 return Err(invalid_counts("an axis has no levels or a non-finite level"));
             }
@@ -202,7 +201,8 @@ impl SampledRegimeCounts {
             }
         }
         if let SamplingDesign::Stratified { variables } = &design {
-            let distinct = variables.iter().enumerate().all(|(i, v)| !variables[..i].contains(v));
+            let mut strata = HashSet::new();
+            let distinct = variables.iter().all(|v| strata.insert(*v));
             if variables.is_empty() || !distinct || variables.iter().any(|v| !seen.contains(v)) {
                 return Err(invalid_counts(
                     "stratification variables are distinct measured variables of the table",

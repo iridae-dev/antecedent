@@ -64,15 +64,13 @@ fn run_worker<T: Send>(
 }
 
 fn refusal_json(refusal: &DecisionReliabilityRefusal) -> String {
-    json!({
-        "code": refusal.code,
-        "stage": "decision_reliability",
-        "detail": refusal.detail,
-        "message": refusal.message,
-        "offending": Json::Null,
-        "remedy": refusal.remedy,
-    })
-    .to_string()
+    crate::bridge::compact_refusal_json(
+        refusal.code,
+        "decision_reliability",
+        &refusal.detail,
+        &refusal.message,
+        refusal.remedy,
+    )
 }
 
 fn error_json(error: &ReliabilityError) -> String {

@@ -25,7 +25,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "derivation"
-rationale = "A weighted mean of the conditional contrast predictions of a retained model over a declared cohort is the cohort expectation of an affine utility, issued point-only with a model-based standard error diagnostic."
+rationale = "A weighted mean of the conditional contrast predictions of a retained model over a declared cohort is the cohort expectation of an affine utility, issued point-only with a model-based standard error diagnostic. Retained-model items were compared across both paths; only parent-visible privacy changed, leaving validation and model identity unchanged. Prediction, support and shift items were compared across both paths; only parent-visible privacy changed, leaving numerical operations and refusal behavior unchanged. Artifact serialization and replay items were also compared across both paths; only test-visible privacy changed, with wire fields and replay behavior unchanged. Scoped re-review of the cohort-binding move compared every named item across both paths; only parent-only visibility changed, with validation, weights and canonical digest unchanged."
 no_independent_algorithm = "cohort_decision.rs predicts each cohort row (a compact-export basis evaluation or a portable learner's own prediction), takes the compensated weighted sum of the row contrasts, and recomputes sqrt(phibar' V phibar) from the retained covariance; the support check and the covariate-shift check compare declared contracts and reweight nothing."
 covered_by = ["estimate.compact_runtime_export", "cohort_decision.interval"]
 derivation = "E_cohort[tau(X)] = sum_i w_i tau(x_i) with sum w_i = 1, tau(x) = c'phi(x) for a linear compact model, so the mean contrast is c'phibar with phibar = sum w_i phi(x_i) and the standard error is sqrt(phibar' V phibar); crates/antecedent-estimate/tests/cohort_linear_effect.rs compares the point and the standard error to a 50-digit reference to 1e-9 and 1e-8 relative."
@@ -34,8 +34,32 @@ record_sha256 = "f42e37337c9913ba5f5598d184cc095daa23a3be493d36b2afe90cf4bdcff44
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/cohort_decision.rs"
-items = ["const CATE_FUNCTIONAL_ID", "const COHORT_CONDITIONING_VARIABLE", "const COHORT_DECISION_ARTIFACT_KIND", "const COHORT_DECISION_SECTION", "const COHORT_DECISION_VERSION", "const COHORT_FUNCTIONAL_ID", "const COHORT_TAG", "const COVARIATE_SHIFT_ASSUMPTION", "const IDENTITY_TAG", "const MAX_COHORT_DECISION_ARTIFACT_BYTES", "const MAX_COHORT_ROWS", "const MODEL_TAG", "const NEGATIVE_VARIANCE_TOLERANCE", "const POINT_SCOPE", "const STANDARD_ERROR_BASIS", "const STANDARD_ERROR_CALIBRATION", "const STANDARD_ERROR_SCOPE", "const SUPPORT_BASIS_DECLARED", "const SUPPORT_BASIS_FITTED_BOX", "const WEIGHT_SUM_TOLERANCE", "enum CohortColumn", "enum LawRequest", "enum ModelKind", "enum ModelWire", "fn assumptions", "fn basis_row", "fn build", "fn build_within", "fn cohort", "fn columns", "fn compact_predictions", "fn compensated_sum", "fn contrast", "fn default", "fn digest", "fn feature_names", "fn features", "fn finish", "fn for_identity", "fn from_compact_export", "fn identity", "fn interval_refusal", "fn invalid", "fn invalid_input", "fn io_refusal", "fn is_linear_compact", "fn is_native", "fn law_refusal", "fn len", "fn level", "fn map_export_refusal", "fn mean_contrast", "fn model", "fn model_identity", "fn new", "fn numeric", "fn outcome_units", "fn outside_refusal", "fn parent", "fn population_id", "fn portable_predictions", "fn quantity", "fn quantity_of", "fn recomputed_identity", "fn refusal", "fn regime_of", "fn require_exact_schema", "fn resolve_shift", "fn row_contrasts", "fn row_ids", "fn rows", "fn schema_mismatch", "fn semantics_mismatch", "fn shift", "fn snapshot_id", "fn support", "fn support_status", "fn to_body", "fn to_bytes", "fn to_bytes_within", "fn to_refusal", "fn uncalibrated_standard_error", "fn uniform_weights", "fn validate", "fn validate_within", "fn weights", "struct CohortBinding", "struct CohortDecisionSource", "struct CohortExpectation", "struct CohortIntakeLimits", "struct CohortOptions", "struct CohortRefusal", "struct ContrastDeclaration", "struct CovariateShiftDeclaration", "struct ParentIdentity", "struct Predictions", "struct RetainedEffectModel", "struct SourceBody", "struct SupportReceipt", "struct UncalibratedStandardError"]
-sha256 = "11b80b412b32ce82e02c0d318f13fcd040d5dad2ce88d60c1136bddcb93c2d3c"
+items = ["const CATE_FUNCTIONAL_ID", "const COHORT_CONDITIONING_VARIABLE", "const COHORT_DECISION_ARTIFACT_KIND", "const COHORT_DECISION_SECTION", "const COHORT_DECISION_VERSION", "const COHORT_FUNCTIONAL_ID", "const COHORT_TAG", "const COVARIATE_SHIFT_ASSUMPTION", "const IDENTITY_TAG", "const MAX_COHORT_DECISION_ARTIFACT_BYTES", "const MAX_COHORT_ROWS", "const MODEL_TAG", "const NEGATIVE_VARIANCE_TOLERANCE", "const POINT_SCOPE", "const STANDARD_ERROR_BASIS", "const STANDARD_ERROR_CALIBRATION", "const STANDARD_ERROR_SCOPE", "const SUPPORT_BASIS_DECLARED", "const SUPPORT_BASIS_FITTED_BOX", "const WEIGHT_SUM_TOLERANCE", "enum LawRequest", "fn assumptions", "fn build", "fn build_within", "fn cohort", "fn default", "fn for_identity", "fn identity", "fn interval_refusal", "fn invalid", "fn invalid_input", "fn io_refusal", "fn is_native", "fn law_refusal", "fn mean_contrast", "fn model", "fn new", "fn outcome_units", "fn quantity", "fn quantity_of", "fn recomputed_identity", "fn refusal", "fn regime_of", "fn row_contrasts", "fn schema_mismatch", "fn semantics_mismatch", "fn shift", "fn support", "fn support_status", "fn to_refusal", "fn uncalibrated_standard_error", "struct CohortDecisionSource", "struct CohortExpectation", "struct CohortIntakeLimits", "struct CohortOptions", "struct CohortRefusal", "struct ContrastDeclaration", "struct CovariateShiftDeclaration", "struct ParentIdentity", "struct SupportReceipt", "struct UncalibratedStandardError"]
+sha256 = "63bafa86412d52636e94ab0215642f0b8c144b6dc5d69653dcac57ca702c668e"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/retained_model.rs"
+items = ["enum ModelKind", "fn contrast", "fn feature_names", "fn finish", "fn from_compact_export", "fn identity", "fn is_linear_compact", "fn is_native", "fn model_identity", "fn parent", "fn population_id", "struct RetainedEffectModel"]
+sha256 = "88e77ce0225173c0aca2cb632200d956c6f808a35c25d52408de1a5cb0dea4dc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/prediction.rs"
+items = ["fn basis_row", "fn compact_predictions", "fn map_export_refusal", "fn outside_refusal", "fn portable_predictions", "fn require_exact_schema", "fn resolve_shift", "struct Predictions"]
+sha256 = "6e62c1f314c08abc35e7e5250401d6a16143d60f4e16b6b2f586d63d708dec58"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/artifact.rs"
+items = ["enum ModelWire", "fn to_body", "fn to_bytes", "fn to_bytes_within", "struct SourceBody"]
+sha256 = "c9b64a26dd05219edabb6c095bd46df75b4c412ac45347d2f27a45b8161d1496"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/cohort_decision/cohort_binding.rs"
+items = ["enum CohortColumn", "fn columns", "fn compensated_sum", "fn digest", "fn features", "fn len", "fn level", "fn new", "fn numeric", "fn population_id", "fn row_ids", "fn rows", "fn snapshot_id", "fn uniform_weights", "fn validate", "fn validate_within", "fn weights", "struct CohortBinding"]
+sha256 = "009d25876a209e064339573ad75dff47ac7d80087062f01189d8f9ee1acbdf2b"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

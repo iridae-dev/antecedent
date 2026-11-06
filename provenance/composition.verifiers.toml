@@ -33,7 +33,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "wrapper"
-rationale = "One node verifier per portable artifact kind: it dispatches to that artifact's own consumer, recomputes the identity from the decoded content and publishes the binding facts the bundle cross-checks."
+rationale = "One node verifier per portable artifact kind: it dispatches to that artifact's own consumer, recomputes the identity from the decoded content and publishes the binding facts the bundle cross-checks. Scoped re-review compared each bound definition across both paths; only parent-visible access changed. Remaining artifact-inspection definitions were likewise compared across both paths and are unchanged apart from internal visibility."
 no_independent_algorithm = "Dispatch and fact extraction over other records' consumers (including inspect_inverse, which re-reads an inverse-query artifact); the module has no square root, logarithm, exponential, power or solve."
 covered_by = ["composition.bundle", "decision.functional_inverse"]
 record_sha256 = "36f5a13d2fab0f30d14c18845293716d10b3296e00f65063d58312af5ec22be4"
@@ -41,8 +41,20 @@ record_sha256 = "36f5a13d2fab0f30d14c18845293716d10b3296e00f65063d58312af5ec22be
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/composition_verifiers.rs"
-items = ["const FACT_COORDINATES", "const FACT_MEAN_SOURCE", "const FACT_PROVIDER_BINDING", "const FACT_REQUIRES_DISTRIBUTION", "const FACT_SOURCE_DIGEST", "const KIND_ADMISSIBLE", "const KIND_CONTRACT", "const KIND_DISTRIBUTION", "const KIND_EXTERNAL_CLAIM", "const KIND_RESULT", "const KIND_ROBUST", "const KIND_SCIENTIFIC_BRIDGE", "const KIND_SENSITIVITY", "const KIND_STRUCTURAL", "const LAW_MARGINAL", "const MAX_SNIFF_BYTES", "const MAX_VALUES", "const RELATIONSHIP_MAGIC", "const TRUST_ATTESTED", "const TRUST_NATIVE", "const TRUST_UNVERIFIED", "const TRUST_VERIFIED", "const VERIFIABLE_KINDS", "fn atom_digests", "fn body_str", "fn bridge_failure", "fn chain_failure", "fn container_label", "fn content_identity", "fn contract_coordinates", "fn coordinate_id", "fn coordinate_ids", "fn default_stage", "fn describe_artifact", "fn detect_node_kind", "fn detect_record", "fn digest_parts", "fn evidence_relationship_bytes", "fn failure", "fn first_section", "fn inspect", "fn inspect_contract", "fn inspect_distribution", "fn inspect_external_claim", "fn inspect_frozen_scores", "fn inspect_inverse", "fn inspect_observation_query", "fn inspect_propagation_chain", "fn inspect_ranking", "fn inspect_recalculation_receipt", "fn inspect_relationship", "fn inspect_repair", "fn inspect_result", "fn inspect_rollout", "fn inspect_scientific_bridge", "fn inspect_sensitivity", "fn io_failure", "fn kind", "fn mean_decision_bytes", "fn mean_source_of", "fn observation_failure", "fn open", "fn projection_node_description", "fn publish", "fn publish_coordinates", "fn publish_draws", "fn publish_requirement", "fn push_draw_means", "fn push_value", "fn register_standard_verifiers", "fn repair_failure", "fn standard_consumer", "fn trust_label", "fn verifier_for", "fn verify", "struct ArtifactDescription", "struct Inspected", "struct ReceiptInfo", "struct SourceProjectionVerifier"]
-sha256 = "17a46c1c4fdc34bb25a041debe46b479b4e66834a7778149a8da40b964c57dcc"
+items = ["const FACT_COORDINATES", "const FACT_MEAN_SOURCE", "const FACT_PROVIDER_BINDING", "const FACT_REQUIRES_DISTRIBUTION", "const FACT_SOURCE_DIGEST", "const KIND_ADMISSIBLE", "const KIND_CONTRACT", "const KIND_DISTRIBUTION", "const KIND_EXTERNAL_CLAIM", "const KIND_RESULT", "const KIND_ROBUST", "const KIND_SCIENTIFIC_BRIDGE", "const KIND_SENSITIVITY", "const KIND_STRUCTURAL", "const LAW_MARGINAL", "const MAX_SNIFF_BYTES", "const MAX_VALUES", "const RELATIONSHIP_MAGIC", "const TRUST_ATTESTED", "const TRUST_NATIVE", "const TRUST_UNVERIFIED", "const TRUST_VERIFIED", "const VERIFIABLE_KINDS", "fn container_label", "fn content_identity", "fn contract_coordinates", "fn coordinate_id", "fn coordinate_ids", "fn default_stage", "fn describe_artifact", "fn detect_node_kind", "fn detect_record", "fn digest_parts", "fn failure", "fn first_section", "fn inspect", "fn io_failure", "fn kind", "fn open", "fn projection_node_description", "fn publish", "fn publish_coordinates", "fn publish_requirement", "fn push_value", "fn register_standard_verifiers", "fn standard_consumer", "fn trust_label", "fn verifier_for", "fn verify", "struct ArtifactDescription", "struct Inspected", "struct ReceiptInfo", "struct SourceProjectionVerifier"]
+sha256 = "b96bdf5523ce2479e71a09d879c2e3171e710127858753570deb04a8c0aa9421"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/composition_verifiers/artifact_inspection.rs"
+items = ["fn atom_digests", "fn body_str", "fn evidence_relationship_bytes", "fn inspect_contract", "fn inspect_distribution", "fn inspect_external_claim", "fn inspect_inverse", "fn inspect_ranking", "fn inspect_relationship", "fn inspect_repair", "fn inspect_result", "fn inspect_rollout", "fn inspect_sensitivity", "fn mean_decision_bytes", "fn mean_source_of", "fn repair_failure"]
+sha256 = "d1d9ae46856b781ccd692ab1272810a1e3e443fe167503caf10e2e128c8cfb9d"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/composition_verifiers/replay_inspection.rs"
+items = ["fn bridge_failure", "fn chain_failure", "fn inspect_frozen_scores", "fn inspect_observation_query", "fn inspect_propagation_chain", "fn inspect_recalculation_receipt", "fn inspect_scientific_bridge", "fn observation_failure", "fn publish_draws", "fn push_draw_means"]
+sha256 = "ab0f1be9e12c5fcfd59c9acf68564e9016a8dc97153fd28f66536c0a8133970f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

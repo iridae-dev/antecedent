@@ -26,7 +26,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "ConjugateOlsPosterior::new, update, summary, to_prior and reprior in crates/antecedent-state/src/conjugate_refresh.rs for a Gaussian linear model with a normal-inverse-gamma prior: the posterior mean, precision, shape and rate after any sequence of blocks (sequential equals batch), including a response with a large common offset, and the refusal of a repeated block label or a different prior. Not a review of the choice of prior, of weighted or masked rows (a weighted block is refused upstream), of the downstream facade routes that consume the summary, or of the block summary type itself beyond the residual sum of squares it supplies."
+scope = "ConjugateOlsPosterior::new, update, summary, to_prior and reprior in crates/antecedent-state/src/conjugate_refresh.rs for a Gaussian linear model with a normal-inverse-gamma prior: the posterior mean, precision, shape and rate after any sequence of blocks (sequential equals batch), including a response with a large common offset, and the refusal of a repeated block label or a different prior. Not a review of the choice of prior, of weighted or masked rows (a weighted block is refused upstream), of the downstream facade routes that consume the summary, or of the block summary type itself beyond the residual sum of squares it supplies. Scoped re-review compared all named definitions across the source split; only parent-visible access changed and numerical operations remain identical."
 assumptions = ["The model is y | beta, sigma^2 ~ N(X beta, sigma^2 I) with beta | sigma^2 ~ N(m0, sigma^2 L0^-1) and sigma^2 ~ InverseGamma(a0, b0); L0 is symmetric positive definite.", "The posterior is L = L0 + X'X, m = L^-1 (L0 m0 + X'y), a = a0 + n/2, b = b0 + (|y - Xm|^2 + (m - m0)' L0 (m - m0)) / 2, the standard conjugate result for this model.", "Blocks are independent observations and each is used once; a block label that was used is refused."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
 redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
@@ -44,8 +44,14 @@ sha256 = "5c0f4f2529ae9080cf78d1e74c6845fef003cdca30a437455290a9afb6022743"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/suff_stats.rs"
-items = ["const MAX_OLS_COLUMNS", "fn append", "fn append_row", "fn append_validated", "fn dim", "fn m2", "fn mean", "fn moments_close", "fn n", "fn ncols", "fn new", "fn published_matches_scatter", "fn rebuilt_moment", "fn square_len", "fn unsupported", "fn validate_row", "fn xtx", "fn xty", "fn yty", "struct LinearOlsSuffStats", "struct StreamingCovariance"]
-sha256 = "ed9eb06d98e90499c2db95602dd28bfda36bb8407a12bcdbe45462bf58a890a9"
+items = ["const MAX_OLS_COLUMNS", "fn append_row", "fn append_validated", "fn moments_close", "fn n", "fn ncols", "fn new", "fn published_matches_scatter", "fn rebuilt_moment", "fn square_len", "fn unsupported", "fn validate_row", "fn xtx", "fn xty", "fn yty", "struct LinearOlsSuffStats"]
+sha256 = "9f35547fba5c498cc4d4d6de5a91cb45d0cf4173891cfddd61d9442836dd9017"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-state/src/suff_stats/covariance.rs"
+items = ["fn append", "fn dim", "fn m2", "fn mean", "fn n", "fn new", "struct StreamingCovariance"]
+sha256 = "aa047da5bef2bcb8d06b90be6396b6b94fcd23698f03ff4b8796ba27b6b8f995"
 
 [[method_review.artifacts]]
 role = "assertion"

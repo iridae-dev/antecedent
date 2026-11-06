@@ -22,7 +22,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "derivation"
-rationale = "Finite weighted expectation, population variance, threshold probability, left-inverse quantile and a fractional-boundary tail mean on the draws of a supplied law."
+rationale = "Finite weighted expectation, population variance, threshold probability, left-inverse quantile and a fractional-boundary tail mean on the draws of a supplied law. Scoped re-review compared all bound item definitions across both paths; search contract definitions are unchanged. Admissibility definitions were likewise compared across both paths and are unchanged."
 no_independent_algorithm = "Arithmetic on a supplied finite law; no estimator and no sampling theorem. Variance is that of the finite law and the tail mean splits the boundary atom, both stated in the rustdoc."
 derivation = "E[g(X)] = sum_i w_i g(x_i); Var = sum_i w_i (g(x_i)-E)^2; P(g>t) = sum of weights above t; quantile = inf{x: F(x) >= p}."
 record_sha256 = "8f9856feea6034e7cf6ae1b1443aa7b045f7ffb65c670e8b575aed50f5062692"
@@ -36,8 +36,20 @@ sha256 = "f19c868a90b10a860c4a147401477fc98d438dcc9eed6fb73cf6c655701efbca"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_contract.rs"
-items = ["const MAX_ACTIONS", "const MAX_DEPTH", "const MAX_INPUTS", "enum ActionKind", "enum DecisionContractError", "enum DecisionCriterion", "enum DecisionFunctional", "enum SourceRepresentation", "enum StructuralPolicy", "enum Tail", "enum UtilityExpr", "fn all_finite", "fn binary", "fn collect_inputs", "fn depth", "fn encode", "fn expr", "fn functional", "fn identity", "fn inputs_used", "fn minimum", "fn product", "fn put_list", "fn tag", "fn valid", "fn validate", "fn validate_action", "fn validate_action_count", "fn validated_identity", "struct DecisionAction", "struct DecisionContract", "struct HardConstraint"]
-sha256 = "ab895235c83f2eae7f2b7ed88467411eee23ca0d044fd8dae952c197164764f9"
+items = ["const MAX_ACTIONS", "const MAX_DEPTH", "const MAX_INPUTS", "enum ActionKind", "enum DecisionContractError", "enum DecisionCriterion", "enum DecisionFunctional", "enum SourceRepresentation", "enum StructuralPolicy", "enum Tail", "enum UtilityExpr", "fn all_finite", "fn binary", "fn collect_inputs", "fn depth", "fn encode", "fn functional", "fn identity", "fn inputs_used", "fn minimum", "fn product", "fn put_list", "fn tag", "fn valid", "fn validate", "fn validate_action", "fn validate_action_count", "fn validated_identity", "struct DecisionAction", "struct DecisionContract", "struct HardConstraint"]
+sha256 = "bf71d31eaef9d62683c636765d8789db73e5e92541fa0c73feda4415a091c00b"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_contract/admissibility.rs"
+items = ["fn identity", "fn tag", "fn validate"]
+sha256 = "19599ba3792d01c8ef4c477f9cde38df78f12e4e4fb1c64906a7c5bb74e5cdf1"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/decision_contract/search.rs"
+items = ["fn expr", "fn identity", "fn validate"]
+sha256 = "7210861a22c4e87e78219a33527163610d946af866797019b9f558d7595942be"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

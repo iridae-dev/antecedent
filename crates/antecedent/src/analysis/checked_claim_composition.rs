@@ -111,28 +111,14 @@ fn provenance_node(
         config_digest: None,
     }
 }
-/// Derive a conditional point claim using retained prepared targets and independently trusted envelopes.
-/// Parent program identities are matched to each prepared study; caller must authenticate the envelopes.
-/// No new identification, support, uncertainty or calibration is asserted. Output is in-process only.
-/// # Errors
-/// Invalid parent bindings or premises, target arithmetic, limits, or cancellation.
-#[allow(
-    clippy::too_many_lines,
-    reason = "the checked synthesis keeps its admission and proof construction in one operation"
-)]
-#[allow(
-    clippy::missing_panics_doc,
-    reason = "parent targets are immutably checked before the admitted traversal"
-)]
-pub fn compose_checked_study_claims(
+/// Validate retained witnesses and resource limits before deriving the claim.
+fn admit_checked_claim_composition(
     target: &ScientificTarget,
     parents: &[PreparedClaimParent<'_>],
     operation: ClaimOperation,
     limits: &CheckedWorldPointLimits,
     ctx: &antecedent_core::ExecutionContext,
-) -> Result<CheckedStudyClaim, CheckedWorldPointError> {
-    use antecedent_core::IdentificationStatus;
-    use std::collections::BTreeMap;
+) -> Result<Arc<antecedent_core::execution::AdmissionLease>, CheckedWorldPointError> {
     if ctx.cancellation.is_cancelled() {
         return Err(CheckedWorldPointError::Cancelled);
     }
@@ -214,6 +200,77 @@ pub fn compose_checked_study_claims(
     if actions > limits.max_world_actions {
         return Err(CheckedWorldPointError::TermLimit);
     }
+    Ok(lease)
+}
+
+/// Accumulate a target's world coefficients without changing their traversal order.
+fn add_target_coefficients(
+    map: &mut std::collections::BTreeMap<SemanticDigest, f64>,
+    t: &ScientificTarget,
+    coefficient: f64,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<(), CheckedWorldPointError> {
+    let mut add_world = |world: &antecedent_core::InterventionWorld,
+                         weight: f64|
+     -> Result<(), CheckedWorldPointError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CheckedWorldPointError::Cancelled);
+        }
+        let id = ScientificTarget::new(
+            TargetForm::World(world.clone()),
+            t.assumptions().clone(),
+            t.inference(),
+        )
+        .identity();
+        let next = map.get(&id).copied().unwrap_or(0.0) + weight;
+        if !weight.is_finite() || !next.is_finite() {
+            return Err(CheckedWorldPointError::NonFiniteArithmetic);
+        }
+        if next == 0.0 {
+            map.remove(&id);
+        } else {
+            map.insert(id, next);
+        }
+        Ok(())
+    };
+    match t.form() {
+        TargetForm::World(w) => add_world(w, coefficient),
+        TargetForm::Contrast(c) => {
+            for term in c.terms() {
+                add_world(
+                    c.worlds().get(term.world).ok_or(CheckedWorldPointError::WorldNotFound)?,
+                    coefficient * term.coefficient,
+                )?;
+            }
+            Ok(())
+        }
+        _ => Err(CheckedWorldPointError::WitnessMismatch),
+    }
+}
+
+/// Derive a conditional point claim using retained prepared targets and independently trusted envelopes.
+/// Parent program identities are matched to each prepared study; caller must authenticate the envelopes.
+/// No new identification, support, uncertainty or calibration is asserted. Output is in-process only.
+/// # Errors
+/// Invalid parent bindings or premises, target arithmetic, limits, or cancellation.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the checked synthesis keeps its admission and proof construction in one operation"
+)]
+#[allow(
+    clippy::missing_panics_doc,
+    reason = "parent targets are immutably checked before the admitted traversal"
+)]
+pub fn compose_checked_study_claims(
+    target: &ScientificTarget,
+    parents: &[PreparedClaimParent<'_>],
+    operation: ClaimOperation,
+    limits: &CheckedWorldPointLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<CheckedStudyClaim, CheckedWorldPointError> {
+    use antecedent_core::IdentificationStatus;
+    use std::collections::BTreeMap;
+    let lease = admit_checked_claim_composition(target, parents, operation, limits, ctx)?;
     let first = parents[0].claim;
     let mut ordered: Vec<_> = parents.iter().collect();
     ordered.sort_by_key(|p| p.claim.claim_id);
@@ -222,48 +279,7 @@ pub fn compose_checked_study_claims(
     }
     let mut expected = BTreeMap::<SemanticDigest, f64>::new();
     let mut actual = BTreeMap::<SemanticDigest, f64>::new();
-    let add = |map: &mut BTreeMap<SemanticDigest, f64>,
-               t: &ScientificTarget,
-               coefficient: f64|
-     -> Result<(), CheckedWorldPointError> {
-        let mut add_world = |world: &antecedent_core::InterventionWorld,
-                             weight: f64|
-         -> Result<(), CheckedWorldPointError> {
-            if ctx.cancellation.is_cancelled() {
-                return Err(CheckedWorldPointError::Cancelled);
-            }
-            let id = ScientificTarget::new(
-                TargetForm::World(world.clone()),
-                t.assumptions().clone(),
-                t.inference(),
-            )
-            .identity();
-            let next = map.get(&id).copied().unwrap_or(0.0) + weight;
-            if !weight.is_finite() || !next.is_finite() {
-                return Err(CheckedWorldPointError::NonFiniteArithmetic);
-            }
-            if next == 0.0 {
-                map.remove(&id);
-            } else {
-                map.insert(id, next);
-            }
-            Ok(())
-        };
-        match t.form() {
-            TargetForm::World(w) => add_world(w, coefficient),
-            TargetForm::Contrast(c) => {
-                for term in c.terms() {
-                    add_world(
-                        c.worlds().get(term.world).ok_or(CheckedWorldPointError::WorldNotFound)?,
-                        coefficient * term.coefficient,
-                    )?;
-                }
-                Ok(())
-            }
-            _ => Err(CheckedWorldPointError::WitnessMismatch),
-        }
-    };
-    add(&mut expected, target, 1.0)?;
+    add_target_coefficients(&mut expected, target, 1.0, ctx)?;
     let mut value = 0.0;
     let mut weight_sum = 0.0;
     let output_units = match target.form() {
@@ -331,7 +347,7 @@ pub fn compose_checked_study_claims(
         {
             return Err(CheckedWorldPointError::IncompatibleParents);
         }
-        add(&mut actual, parent_target(parent)?, parent.coefficient)?;
+        add_target_coefficients(&mut actual, parent_target(parent)?, parent.coefficient, ctx)?;
         weight_sum += parent.coefficient;
         let operand = claim.value.ok_or(CheckedWorldPointError::IncompatibleParents)?;
         value += operand * parent.coefficient;
@@ -368,6 +384,19 @@ pub fn compose_checked_study_claims(
         return Err(CheckedWorldPointError::WitnessMismatch);
     }
     let proof = SemanticDigest::from_bytes(writer.finish());
+    finish_checked_claim(target, first, &ordered, operation, value, proof, lease)
+}
+
+/// Construct the derived claim and retained handoff after arithmetic has been checked.
+fn finish_checked_claim(
+    target: &ScientificTarget,
+    first: &ClaimEnvelope,
+    ordered: &[&PreparedClaimParent<'_>],
+    operation: ClaimOperation,
+    value: f64,
+    proof: SemanticDigest,
+    lease: Arc<antecedent_core::execution::AdmissionLease>,
+) -> Result<CheckedStudyClaim, CheckedWorldPointError> {
     let parent_ids: Arc<[SemanticDigest]> =
         ordered.iter().map(|p| p.claim.claim_id).collect::<Vec<_>>().into();
     // These in-process markers identify the derivation inputs; they do not
@@ -419,7 +448,7 @@ pub fn compose_checked_study_claims(
         parent_refs,
     );
     let mut provenance = ProvenanceGraph::new();
-    for parent in &ordered {
+    for parent in ordered {
         provenance
             .try_push(provenance_node(
                 parent.claim.claim_id,
@@ -438,8 +467,29 @@ pub fn compose_checked_study_claims(
             target.assumptions().records(),
         ))
         .map_err(|_| CheckedWorldPointError::WitnessMismatch)?;
-    let receipt = HandoffReceipt::new(
-        parent_ids[0],
+    let receipt = derived_handoff(parent_ids[0], claim_id, operation);
+    Ok(CheckedStudyClaim {
+        inner: Arc::new(CheckedStudyClaimInner {
+            claim,
+            parents: parent_ids,
+            provenance,
+            receipt,
+            target: target.clone(),
+            value,
+            proof,
+            _lease: lease,
+        }),
+    })
+}
+
+/// Describe the retained and withheld domains of a checked claim handoff.
+fn derived_handoff(
+    parent_id: SemanticDigest,
+    claim_id: SemanticDigest,
+    operation: ClaimOperation,
+) -> HandoffReceipt {
+    HandoffReceipt::new(
+        parent_id,
         Some(claim_id),
         operation.as_str(),
         "checked_derive",
@@ -458,17 +508,5 @@ pub fn compose_checked_study_claims(
         ],
         [],
         [Arc::from("portable_export")],
-    );
-    Ok(CheckedStudyClaim {
-        inner: Arc::new(CheckedStudyClaimInner {
-            claim,
-            parents: parent_ids,
-            provenance,
-            receipt,
-            target: target.clone(),
-            value,
-            proof,
-            _lease: lease,
-        }),
-    })
+    )
 }
