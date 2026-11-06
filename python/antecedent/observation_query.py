@@ -75,6 +75,7 @@ from ._mean_binding import bind_mean_reading
 from ._measured_inference import MeasuredInference
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
+from ._validate import listed_choice as _choice
 from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
@@ -154,12 +155,6 @@ def _count(value: object, what: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise CausalTypeError(f"{what} must be a non-negative integer")
     return int(value)
-
-
-def _choice(value: str, what: str, allowed: Sequence[str]) -> str:
-    if value not in allowed:
-        raise CausalValueError(f"{what} must be one of {', '.join(allowed)}; got {value!r}")
-    return value
 
 
 def _dumps(value: object) -> str:

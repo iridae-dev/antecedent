@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import sys
-import tomllib
 
 from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 
 RECORDS = ROOT / "parity/capability_records.toml"
 FEATURES = ROOT / "parity/feature_packages.toml"
@@ -142,8 +142,8 @@ def self_test() -> None:
             [base, child],
         )
     )
-    committed_records = tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"]
-    committed_features = tomllib.loads(FEATURES.read_text(encoding="utf-8"))["feature"]
+    committed_records = load_toml(RECORDS)["record"]
+    committed_features = load_toml(FEATURES)["feature"]
     assert not problems(committed_records)
     assert not feature_problems(committed_features, committed_records)
     print("prerequisite self-test: ok")
@@ -155,8 +155,8 @@ def main() -> int:
         return 0
     if len(sys.argv) != 1:
         raise SystemExit("usage: check_prerequisites.py [--self-test]")
-    records = tomllib.loads(RECORDS.read_text(encoding="utf-8"))["record"]
-    features = tomllib.loads(FEATURES.read_text(encoding="utf-8"))["feature"]
+    records = load_toml(RECORDS)["record"]
+    features = load_toml(FEATURES)["feature"]
     issues = problems(records) + feature_problems(features, records)
     if issues:
         print("\n".join(f"FAIL: {issue}" for issue in issues), file=sys.stderr)

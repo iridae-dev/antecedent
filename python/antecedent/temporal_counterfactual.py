@@ -29,6 +29,9 @@ from ._artifact_protocol import (
 )
 from ._columns import coerce_fields
 from ._native import (
+    TemporalExecutorHandle as _TemporalExecutor,
+)
+from ._native import (
     consume_general_temporal_counterfactual_artifact as _consume_general,
 )
 from ._native import (
@@ -36,9 +39,6 @@ from ._native import (
 )
 from ._native import (
     evaluate_general_temporal_counterfactual as _evaluate_general,
-)
-from ._native import (
-    TemporalExecutorHandle as _TemporalExecutor,
 )
 from ._native import (
     evaluate_temporal_counterfactual as _evaluate_temporal,
@@ -49,6 +49,7 @@ from ._native import (
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from ._validate import non_finite_refusal, real
+from ._validate import nonempty_name as _name
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution, resolve_execution
 from .temporal import TemporalRefusal
@@ -85,12 +86,6 @@ __all__ = [
 
 TEMPORAL_NODES = ("covariate_0", "action_0", "covariate_1", "action_1", "outcome")
 _U32_MAX = 2**32 - 1
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _times(value: object, what: str) -> tuple[int, int]:

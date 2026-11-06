@@ -366,14 +366,12 @@ impl DesignRankingError {
     pub fn refusal(&self) -> Option<ExternalRefusal> {
         match self {
             Self::InvalidRequest(message) => Some(ExternalRefusal {
-                code: antecedent_core::reason_code!("invalid_argument"),
-                stage: "declare",
-                detail: antecedent_core::reason_details::design_ranking::INVALID_REQUEST.to_owned(),
                 offending: Some(message.clone()),
-                expected: None,
-                supplied: None,
-                capability: None,
-                remedy: None,
+                ..ExternalRefusal::new(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "declare",
+                    antecedent_core::reason_details::design_ranking::INVALID_REQUEST,
+                )
             }),
             Self::Evsi(
                 EvsiError::Cancelled

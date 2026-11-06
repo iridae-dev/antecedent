@@ -78,6 +78,7 @@ from ._native import consume_categorical_treatment_artifact as _consume
 from ._native import evaluate_categorical_treatment as _evaluate
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
+from ._validate import nonempty_name as _name
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, native_controls, resolve_execution
 
@@ -123,12 +124,6 @@ class Direction(StrEnum):
     NON_DECREASING = "non_decreasing"
     #: Null: every adjacent step of the adjusted level effects is non-positive.
     NON_INCREASING = "non_increasing"
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _cluster_ids(cluster: object, rows: int) -> list[int]:

@@ -892,6 +892,19 @@ fn execution_refusal(detail: &str, message: &str) -> PosteriorRowArtifactError {
         message: message.into(),
     }
 }
+// Both compilation and retargeting retain their request under the same admission contract.
+fn retain_dose_request(
+    ctx: &antecedent_core::ExecutionContext,
+    bytes: u64,
+) -> Result<antecedent_core::execution::AdmissionLease, PosteriorRowArtifactError> {
+    ctx.acquire_admission(0, bytes).map_err(|e| {
+        execution_refusal(
+            antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
+            &e.to_string(),
+        )
+    })
+}
+
 /// Retained scientific request and checked statistical program. Encoding never performs inference.
 #[derive(Clone, Debug)]
 pub struct CompiledPosteriorRow {
@@ -922,12 +935,7 @@ impl CompiledPosteriorRow {
                 "retained wire size overflow",
             )
         })?;
-        let retention = ctx.acquire_admission(0, bytes).map_err(|e| {
-            execution_refusal(
-                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
-                &e.to_string(),
-            )
-        })?;
+        let retention = retain_dose_request(ctx, bytes)?;
         Ok(Self {
             request: std::sync::Arc::new(request),
             program,
@@ -988,12 +996,7 @@ impl CompiledPosteriorRow {
                     "retargeted wire size overflow",
                 )
             })?;
-        let retention = ctx.acquire_admission(0, bytes).map_err(|e| {
-            execution_refusal(
-                antecedent_core::reason_details::dose_grid::RESOURCE_REFUSED,
-                &e.to_string(),
-            )
-        })?;
+        let retention = retain_dose_request(ctx, bytes)?;
         let mut request = self.request.as_ref().clone();
         let PosteriorRowRequestWire::DoseGrid(wire) = &mut request;
         wire.grid = grid;

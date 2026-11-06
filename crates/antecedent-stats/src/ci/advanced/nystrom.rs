@@ -4,7 +4,7 @@
 
 use super::gpdc::{
     GPDC_FACTOR_CACHE, ResidualNull, ensure_residual_information, residual_dcor_permutation_result,
-    standardized_z,
+    standardized_z, validate_length_scale, validate_ridge,
 };
 use crate::ci::block_shuffle::query_stream_salt;
 use crate::ci::types::{
@@ -114,11 +114,7 @@ impl GpdcNystrom {
     ///
     /// [`StatsError::Shape`] unless `length_scale` is finite and positive.
     pub fn with_length_scale(mut self, length_scale: f64) -> Result<Self, StatsError> {
-        if !(length_scale.is_finite() && length_scale > 0.0) {
-            return Err(StatsError::Shape {
-                message: "GPDC length scale must be finite and positive",
-            });
-        }
+        validate_length_scale(length_scale)?;
         self.length_scale = length_scale;
         Ok(self)
     }
@@ -129,9 +125,7 @@ impl GpdcNystrom {
     ///
     /// [`StatsError::Shape`] unless `ridge` is finite and positive.
     pub fn with_ridge(mut self, ridge: f64) -> Result<Self, StatsError> {
-        if !(ridge.is_finite() && ridge > 0.0) {
-            return Err(StatsError::Shape { message: "GPDC ridge must be finite and positive" });
-        }
+        validate_ridge(ridge)?;
         self.ridge = ridge;
         Ok(self)
     }
@@ -168,14 +162,8 @@ impl ConditionalIndependenceTest for GpdcNystrom {
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
         prepared.ensure_compatible(request)?;
-        if !self.length_scale.is_finite() || self.length_scale <= 0.0 {
-            return Err(StatsError::Shape {
-                message: "GPDC length scale must be finite and positive",
-            });
-        }
-        if !self.ridge.is_finite() || self.ridge <= 0.0 {
-            return Err(StatsError::Shape { message: "GPDC ridge must be finite and positive" });
-        }
+        validate_length_scale(self.length_scale)?;
+        validate_ridge(self.ridge)?;
         if self.inducing_points == 0 || self.inducing_points > GPDC_NYSTROM_MAX_INDUCING_POINTS {
             return Err(StatsError::Shape {
                 message: "GPDC Nystrom inducing_points must be between 1 and 1024",

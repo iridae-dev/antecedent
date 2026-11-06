@@ -65,6 +65,7 @@ from ._native import (
 )
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
+from ._validate import nonempty_name as _name
 from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
@@ -85,12 +86,6 @@ __all__ = [
     "consume_transported_counterfactual_artifact",
     "transported_path_specific_effect",
 ]
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _non_finite(what: str) -> CausalValueError:

@@ -3317,6 +3317,32 @@ impl PreparedRefit<'_> {
         })
     }
 
+    /// Shift a panel column and retain the complete window of each unit.
+    fn shifted_panel_units(
+        units: &[PanelUnit],
+        id: VariableId,
+        offset: isize,
+    ) -> Result<Vec<PanelUnit>, TargetRefitError> {
+        units
+            .iter()
+            .map(|unit| {
+                let (values, _) = shifted(Self::column_of(unit.series.storage(), id)?, offset);
+                let rows = unit.series.row_count();
+                let trim = offset.unsigned_abs();
+                let (start, end) =
+                    if offset < 0 { (trim, rows) } else { (0, rows.saturating_sub(trim)) };
+                Ok(PanelUnit {
+                    unit_id: unit.unit_id,
+                    series: Self::cut(
+                        &series_with(&unit.series, &[(id, values)], None, None)?,
+                        start,
+                        end,
+                    )?,
+                })
+            })
+            .collect()
+    }
+
     /// Independent environments: every environment is perturbed on its own by the series rules
     /// (a circular block resample carried as row multiplicities on top of the environment's own
     /// sampling weights, a circular shift of a placebo column, a window of the environment), and
@@ -3379,6 +3405,9 @@ impl PreparedRefit<'_> {
                     }
                 })
                 .collect()
+        };
+        let rebuild_replicate = |rng: &mut CausalRng, units: Vec<PanelUnit>, replicate: u32| {
+            if replicate == 0 { rebuild(units) } else { rebuild(resample_units(rng, &units)) }
         };
         let swap_all =
             |id: VariableId, from: VariableId| -> Result<Vec<PanelUnit>, TargetRefitError> {
@@ -3448,11 +3477,7 @@ impl PreparedRefit<'_> {
             TargetPerturbation::Bootstrap { .. } => rebuild(resample_units(rng, units))?,
             TargetPerturbation::NegativeControlExposure { replicate } => {
                 let swapped = swap_all(self.treatment, self.control_exposure()?)?;
-                if replicate == 0 {
-                    rebuild(swapped)?
-                } else {
-                    rebuild(resample_units(rng, &swapped))?
-                }
+                rebuild_replicate(rng, swapped, replicate)?
             }
             TargetPerturbation::NegativeControlOutcome { replicate } => {
                 let swapped = if let Some(control) = self.options.negative_control_outcome {
@@ -3460,91 +3485,19 @@ impl PreparedRefit<'_> {
                 } else {
                     let span =
                         isize::try_from(max_graph_lag(self.study()) + 1).unwrap_or(isize::MAX);
-                    units
-                        .iter()
-                        .map(|unit| {
-                            let (values, _) = shifted(
-                                Self::column_of(unit.series.storage(), self.outcome)?,
-                                -span,
-                            );
-                            let rows = unit.series.row_count();
-                            let skip = usize::try_from(span).unwrap_or(rows);
-                            Ok(PanelUnit {
-                                unit_id: unit.unit_id,
-                                series: Self::cut(
-                                    &series_with(
-                                        &unit.series,
-                                        &[(self.outcome, values)],
-                                        None,
-                                        None,
-                                    )?,
-                                    skip,
-                                    rows,
-                                )?,
-                            })
-                        })
-                        .collect::<Result<Vec<_>, TargetRefitError>>()?
+                    Self::shifted_panel_units(units, self.outcome, -span)?
                 };
-                if replicate == 0 {
-                    rebuild(swapped)?
-                } else {
-                    rebuild(resample_units(rng, &swapped))?
-                }
+                rebuild_replicate(rng, swapped, replicate)?
             }
             TargetPerturbation::PreTrend { replicate, lead } => {
                 let lead = isize::try_from(lead).unwrap_or(isize::MAX);
-                let shifted_units = units
-                    .iter()
-                    .map(|unit| {
-                        let (values, _) =
-                            shifted(Self::column_of(unit.series.storage(), self.treatment)?, lead);
-                        let rows = unit.series.row_count();
-                        let keep = rows.saturating_sub(usize::try_from(lead).unwrap_or(rows));
-                        Ok(PanelUnit {
-                            unit_id: unit.unit_id,
-                            series: Self::cut(
-                                &series_with(
-                                    &unit.series,
-                                    &[(self.treatment, values)],
-                                    None,
-                                    None,
-                                )?,
-                                0,
-                                keep,
-                            )?,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, TargetRefitError>>()?;
-                if replicate == 0 {
-                    rebuild(shifted_units)?
-                } else {
-                    rebuild(resample_units(rng, &shifted_units))?
-                }
+                let shifted_units = Self::shifted_panel_units(units, self.treatment, lead)?;
+                rebuild_replicate(rng, shifted_units, replicate)?
             }
             TargetPerturbation::Anticipation { replicate } => {
                 let back = isize::try_from(max_graph_lag(self.study()) + 1).unwrap_or(isize::MAX);
-                let shifted_units = units
-                    .iter()
-                    .map(|unit| {
-                        let (values, _) =
-                            shifted(Self::column_of(unit.series.storage(), self.outcome)?, -back);
-                        let rows = unit.series.row_count();
-                        let skip = usize::try_from(back).unwrap_or(rows);
-                        Ok(PanelUnit {
-                            unit_id: unit.unit_id,
-                            series: Self::cut(
-                                &series_with(&unit.series, &[(self.outcome, values)], None, None)?,
-                                skip,
-                                rows,
-                            )?,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, TargetRefitError>>()?;
-                if replicate == 0 {
-                    rebuild(shifted_units)?
-                } else {
-                    rebuild(resample_units(rng, &shifted_units))?
-                }
+                let shifted_units = Self::shifted_panel_units(units, self.outcome, -back)?;
+                rebuild_replicate(rng, shifted_units, replicate)?
             }
         };
         self.reestimate(&Modal::Panel(panel), ctx)
@@ -3737,6 +3690,36 @@ fn sample_sd(values: &[f64]) -> f64 {
     let n = finite.len() as f64;
     let mean = finite.iter().sum::<f64>() / n;
     (finite.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt()
+}
+
+#[cfg(test)]
+mod panel_shift_tests {
+    use super::*;
+
+    #[test]
+    fn shifted_panel_windows_keep_alignment_and_refuse_empty_units() {
+        let make_unit = |id, values: &[f64], other: &[f64]| PanelUnit {
+            unit_id: id,
+            series: TimeSeriesData::from_f64_columns([("t", values), ("y", other)], 1).unwrap(),
+        };
+        let units = vec![
+            make_unit(7, &[1., 2., 3., 4.], &[10., 20., 30., 40.]),
+            make_unit(9, &[5., 6., 7.], &[50., 60., 70.]),
+        ];
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let forward = PreparedRefit::shifted_panel_units(&units, treatment, 1).unwrap();
+        assert_eq!(forward.iter().map(|u| u.unit_id).collect::<Vec<_>>(), [7, 9]);
+        assert_eq!(float_column(forward[0].series.storage(), treatment).unwrap(), [2., 3., 4.]);
+        assert_eq!(float_column(forward[0].series.storage(), outcome).unwrap(), [10., 20., 30.]);
+        assert_eq!(float_column(forward[1].series.storage(), treatment).unwrap(), [6., 7.]);
+        let backward = PreparedRefit::shifted_panel_units(&units, outcome, -1).unwrap();
+        assert_eq!(float_column(backward[0].series.storage(), treatment).unwrap(), [2., 3., 4.]);
+        assert_eq!(float_column(backward[0].series.storage(), outcome).unwrap(), [10., 20., 30.]);
+        assert_eq!(float_column(backward[1].series.storage(), outcome).unwrap(), [50., 60.]);
+        assert!(PreparedRefit::shifted_panel_units(&units, outcome, -3).is_err());
+        assert!(PreparedRefit::shifted_panel_units(&units, treatment, 3).is_err());
+    }
 }
 
 #[cfg(test)]

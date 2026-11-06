@@ -174,6 +174,6 @@ def stage_routes(root: Path, stages: dict, generated: dict | None) -> tuple[list
 
 def load_stage_routes(root: Path = REPO_ROOT, stages_path: Path | None = None) -> list[dict]:
     """The merged stage rows of the committed registries (readers outside the checker)."""
-    stages = tomllib.loads((stages_path or root / STAGES).read_text(encoding="utf-8"))
+    stages = _repo.load_toml(stages_path or root / STAGES)
     rows, _ = stage_routes(root, stages, load(root / GENERATED))
     return rows

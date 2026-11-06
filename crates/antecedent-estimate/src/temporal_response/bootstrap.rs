@@ -117,39 +117,15 @@ pub(super) fn bayesian_bootstrap_surface(
     }
     let (start, len) = common_time_window(rows)?;
     let block = block_length.clamp(1, len);
-    let mut refit = SurfaceRefit::new(horizons);
-    let mut draws = Vec::with_capacity(replicates as usize);
-    let (mut attempted, mut cancelled) = (0u32, false);
     let mut weights = Vec::with_capacity(len);
-    for replicate in 0..replicates {
-        if ctx.cancellation.is_cancelled() {
-            cancelled = true;
-            break;
-        }
-        attempted += 1;
-        let mut rng = ctx.rng.stream_for(
-            antecedent_core::StreamDomain::TemporalBlock,
-            antecedent_core::derive_stream(HORIZON_BAYES_STREAM, u64::from(replicate)),
-        );
+    bayesian_surface_draws(horizons, replicates, ctx, |refit, rng| {
         weights.clear();
         while weights.len() < len {
-            let weight = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, 1, false)[0];
+            let weight = antecedent_kernels::bayesian_bootstrap_weights(rng, 1, false)[0];
             weights.extend(std::iter::repeat_n(weight, block.min(len - weights.len())));
         }
-        if let Some(flat) = refit.run_weighted(horizons, rows, start, &weights) {
-            if flat.iter().all(|x| x.is_finite()) {
-                draws.push(flat);
-            }
-        }
-    }
-    if draws.len() < 2 {
-        return None;
-    }
-    let failed = f64::from(attempted) - draws.len() as f64;
-    if failed / f64::from(attempted) > BOOTSTRAP_MAX_FAILURE_FRAC {
-        return None;
-    }
-    Some(SurfaceBootstrap { draws, ncols: refit.ncols, cancelled })
+        refit.run_weighted(horizons, rows, start, &weights)
+    })
 }
 
 /// [`bayesian_bootstrap_surface`] for horizons fit on a series with missing time points.
@@ -202,6 +178,24 @@ pub(super) fn bayesian_bootstrap_surface_gapped(
         return None;
     }
     let block = block_length.clamp(1, end - start);
+    bayesian_surface_draws(horizons, replicates, ctx, |refit, rng| {
+        let n_blocks = (end - start).div_ceil(block);
+        let block_weights: Vec<f64> = (0..n_blocks)
+            .map(|_| antecedent_kernels::bayesian_bootstrap_weights(rng, 1, false)[0])
+            .collect();
+        let weights: Vec<f64> = times.iter().map(|t| block_weights[(t - start) / block]).collect();
+        refit.run_weighted_rows(horizons, &row_of, &weights)
+    })
+}
+
+// Both Bayesian surfaces retain the same stream, cancellation and failure policy;
+// callers supply the aligned or gapped block-weight construction.
+fn bayesian_surface_draws(
+    horizons: &[FittedHorizon],
+    replicates: u32,
+    ctx: &ExecutionContext,
+    mut draw: impl FnMut(&mut SurfaceRefit, &mut antecedent_core::CausalRng) -> Option<Vec<f64>>,
+) -> Option<SurfaceBootstrap> {
     let mut refit = SurfaceRefit::new(horizons);
     let mut draws = Vec::with_capacity(replicates as usize);
     let (mut attempted, mut cancelled) = (0u32, false);
@@ -215,12 +209,7 @@ pub(super) fn bayesian_bootstrap_surface_gapped(
             antecedent_core::StreamDomain::TemporalBlock,
             antecedent_core::derive_stream(HORIZON_BAYES_STREAM, u64::from(replicate)),
         );
-        let n_blocks = (end - start).div_ceil(block);
-        let block_weights: Vec<f64> = (0..n_blocks)
-            .map(|_| antecedent_kernels::bayesian_bootstrap_weights(&mut rng, 1, false)[0])
-            .collect();
-        let weights: Vec<f64> = times.iter().map(|t| block_weights[(t - start) / block]).collect();
-        if let Some(flat) = refit.run_weighted_rows(horizons, &row_of, &weights) {
+        if let Some(flat) = draw(&mut refit, &mut rng) {
             if flat.iter().all(|x| x.is_finite()) {
                 draws.push(flat);
             }

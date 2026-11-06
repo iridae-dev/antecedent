@@ -33,6 +33,7 @@ from ._native import (
 from ._native import (
     evaluate_cross_world_edge_contrast as _evaluate,
 )
+from ._validate import nonempty_name as _name
 from .accepted_graph import AcceptedGraph
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution, native_controls, resolve_execution
@@ -46,12 +47,6 @@ __all__ = [
 ]
 
 _MECHANISMS = ("linear_gaussian", "non_separable_basis")
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 @dataclass(frozen=True, slots=True)

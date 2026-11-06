@@ -108,14 +108,9 @@ impl ClaimError {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         let unsatisfied = antecedent_core::reason_code!("decision_contract_unsatisfied");
         let build = |code, detail: &str, offending: Option<String>, remedy| ExternalRefusal {
-            code,
-            stage: "adapt",
-            detail: detail.to_owned(),
             offending,
-            expected: None,
-            supplied: None,
-            capability: None,
             remedy,
+            ..ExternalRefusal::new(code, "adapt", detail)
         };
         match self {
             Self::UnsupportedClaimShape(why) => ExternalRefusal {

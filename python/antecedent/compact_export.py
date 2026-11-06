@@ -62,6 +62,7 @@ from ._native import evaluate_compact_export as _evaluate
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
 from ._validate import non_finite_refusal, real
+from ._validate import nonempty_name as _name
 from .errors import CausalTypeError, CausalValueError
 
 if TYPE_CHECKING:
@@ -94,12 +95,6 @@ class CompactExportRefusal(StructuredRefusal):
     ``compact_export.out_of_support`` or ``compact_export.masked_region``; ``offending`` is the
     quantity, region or identity the refusal is about.
     """
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 _real = partial(

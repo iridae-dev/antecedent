@@ -24,12 +24,11 @@ from __future__ import annotations
 
 import re
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
 
 from _repo import REPO_ROOT as ROOT
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, load_toml
 
 ensure_scripts_on_path()
 import check_acceptance_manifest as manifest  # noqa: E402
@@ -165,7 +164,7 @@ def attestation_problems(candidate: str, release: str) -> list[str]:
 
 
 def closure_problems(root: Path = ROOT) -> list[str]:
-    data = tomllib.loads((root / "parity/acceptance_manifest.toml").read_text(encoding="utf-8"))
+    data = load_toml(root / "parity/acceptance_manifest.toml")
     read = lambda rel: (root / rel).read_text(encoding="utf-8")  # noqa: E731
     candidate, release = (read(f"scripts/{n}") for n in ("gate_release_candidate.sh", "gate_release.sh"))
     return [

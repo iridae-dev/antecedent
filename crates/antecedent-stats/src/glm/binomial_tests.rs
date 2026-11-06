@@ -327,3 +327,60 @@ fn laplace_fit_penalizes_every_coefficient_and_returns_the_inverse_information()
     assert_eq!(weighted.fit.coefficients, fit.fit.coefficients);
     assert!(fit_logit_laplace(design, None, 0.0, &mut ws, &GlmOptions::default()).is_err());
 }
+
+#[test]
+fn ridge_routes_preserve_validation_precedence() {
+    let mut workspace = LeastSquaresWorkspace::default();
+    let options = GlmOptions::new(10, 1e-6);
+    let bad = GlmDesignRef { x_colmajor: &[], nrows: 1, ncols: 1, y: &[] };
+    let ordinary = fit_glm_ridge(
+        GlmFamily::GaussianIdentity,
+        bad,
+        &FaerBackend,
+        &mut workspace,
+        &options,
+        f64::NAN,
+    );
+    assert!(matches!(
+        ordinary,
+        Err(StatsError::Shape { message: "ridge GLM currently requires a binomial family" })
+    ));
+    let weighted = fit_glm_ridge_weighted(
+        GlmFamily::GaussianIdentity,
+        bad,
+        &[],
+        &FaerBackend,
+        &mut workspace,
+        &options,
+        f64::NAN,
+    );
+    assert!(matches!(weighted, Err(StatsError::Shape { message: "y length != nrows" })));
+    let valid = GlmDesignRef { x_colmajor: &[1.0], nrows: 1, ncols: 1, y: &[2.0] };
+    for lambda in [0.0, f64::NAN, f64::INFINITY] {
+        let ordinary = fit_glm_ridge(
+            GlmFamily::BinomialLogit,
+            valid,
+            &FaerBackend,
+            &mut workspace,
+            &options,
+            lambda,
+        );
+        let weighted = fit_glm_ridge_weighted(
+            GlmFamily::BinomialLogit,
+            valid,
+            &[1.0],
+            &FaerBackend,
+            &mut workspace,
+            &options,
+            lambda,
+        );
+        assert!(matches!(
+            ordinary,
+            Err(StatsError::Shape { message: "ridge lambda must be finite and positive" })
+        ));
+        assert!(matches!(
+            weighted,
+            Err(StatsError::Shape { message: "ridge lambda must be finite and positive" })
+        ));
+    }
+}

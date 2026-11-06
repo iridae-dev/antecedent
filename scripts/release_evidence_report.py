@@ -16,13 +16,12 @@ from collections import Counter
 from pathlib import Path
 
 from _repo import REPO_ROOT as REPO
+from _repo import load_toml
 from evidence_audit import claim_rows
 
 
 def build_report(root: Path) -> dict:
-    dispositions = tomllib.loads(
-        (root / "parity/capability_gaps.toml").read_text(encoding="utf-8")
-    )
+    dispositions = load_toml(root / "parity/capability_gaps.toml")
     if dispositions.get("version") != 1:
         raise ValueError("unsupported carryover disposition version")
     cells = dispositions.get("cell", [])
@@ -30,7 +29,7 @@ def build_report(root: Path) -> dict:
     if len(by_id) != len(cells):
         raise ValueError("duplicate carryover disposition")
     registry = "parity/capability_records.toml"
-    data = tomllib.loads((root / registry).read_text(encoding="utf-8"))
+    data = load_toml(root / registry)
     if "release" in data:
         raise ValueError(f"{registry}: release field is not a claim")
     records = data.get("record", [])

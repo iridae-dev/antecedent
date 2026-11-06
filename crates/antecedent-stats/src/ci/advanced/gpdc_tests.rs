@@ -9,6 +9,22 @@ use crate::test_util::centered_uniform as lcg_noise;
 use antecedent_core::derive_stream;
 
 #[test]
+fn gpdc_and_nystrom_share_parameter_refusals() {
+    for value in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+        let expected_length =
+            StatsError::Shape { message: "GPDC length scale must be finite and positive" };
+        let expected_ridge =
+            StatsError::Shape { message: "GPDC ridge must be finite and positive" };
+        assert_eq!(Gpdc::new().with_length_scale(value).unwrap_err(), expected_length);
+        assert_eq!(GpdcNystrom::new().with_length_scale(value).unwrap_err(), expected_length);
+        assert_eq!(Gpdc::new().with_ridge(value).unwrap_err(), expected_ridge);
+        assert_eq!(GpdcNystrom::new().with_ridge(value).unwrap_err(), expected_ridge);
+    }
+    assert!(Gpdc::new().with_length_scale(1.0).unwrap().with_ridge(0.1).is_ok());
+    assert!(GpdcNystrom::new().with_length_scale(1.0).unwrap().with_ridge(0.1).is_ok());
+}
+
+#[test]
 fn gpdc_runs() {
     let n = 40usize;
     let z: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();

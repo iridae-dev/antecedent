@@ -60,10 +60,10 @@ import os
 import re
 import sys
 import tempfile
-import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as REPO
+from _repo import load_toml
 
 ROOT = Path(os.environ.get("DECISION_EXIT_ROOT", REPO))
 
@@ -142,7 +142,7 @@ FAILED_PY = re.compile(r"\b\d+ (failed|error)")
 def story_records(root: Path, registry: str = "parity/capability_records.toml") -> dict[str, list[dict]]:
     """Every record of each registered story (a story may own several)."""
     p = root / registry
-    records = tomllib.loads(p.read_text(encoding="utf-8")).get("record", []) if p.is_file() else []
+    records = load_toml(p).get("record", []) if p.is_file() else []
     by_id = {r["id"]: r for r in records}
     out: dict[str, list[dict]] = {}
     for story, entry in DECISION_STORIES.items():

@@ -13,6 +13,22 @@ use crate::error::StatsError;
 use antecedent_core::search_budget::GpdcKernel;
 use antecedent_core::{ExecutionContext, StreamDomain};
 
+/// Validate the RBF length scale shared by exact and Nyström GPDC.
+pub(super) fn validate_length_scale(length_scale: f64) -> Result<(), StatsError> {
+    if !(length_scale.is_finite() && length_scale > 0.0) {
+        return Err(StatsError::Shape { message: "GPDC length scale must be finite and positive" });
+    }
+    Ok(())
+}
+
+/// Validate the kernel ridge shared by exact and Nyström GPDC.
+pub(super) fn validate_ridge(ridge: f64) -> Result<(), StatsError> {
+    if !(ridge.is_finite() && ridge > 0.0) {
+        return Err(StatsError::Shape { message: "GPDC ridge must be finite and positive" });
+    }
+    Ok(())
+}
+
 /// Conditioning sets whose kernel factorization one batch keeps for reuse, when the caller's
 /// memory budget holds that many beside the working kernel; one when it holds only one.
 pub(super) const GPDC_FACTOR_CACHE: usize = 2;
@@ -128,11 +144,7 @@ impl Gpdc {
     ///
     /// [`StatsError::Shape`] unless `length_scale` is finite and positive.
     pub fn with_length_scale(mut self, length_scale: f64) -> Result<Self, StatsError> {
-        if !(length_scale.is_finite() && length_scale > 0.0) {
-            return Err(StatsError::Shape {
-                message: "GPDC length scale must be finite and positive",
-            });
-        }
+        validate_length_scale(length_scale)?;
         self.length_scale = length_scale;
         Ok(self)
     }
@@ -143,9 +155,7 @@ impl Gpdc {
     ///
     /// [`StatsError::Shape`] unless `ridge` is finite and positive.
     pub fn with_ridge(mut self, ridge: f64) -> Result<Self, StatsError> {
-        if !(ridge.is_finite() && ridge > 0.0) {
-            return Err(StatsError::Shape { message: "GPDC ridge must be finite and positive" });
-        }
+        validate_ridge(ridge)?;
         self.ridge = ridge;
         Ok(self)
     }
@@ -245,14 +255,8 @@ impl ConditionalIndependenceTest for Gpdc {
         ctx: &ExecutionContext,
     ) -> Result<CiBatchResult, StatsError> {
         prepared.ensure_compatible(request)?;
-        if !self.length_scale.is_finite() || self.length_scale <= 0.0 {
-            return Err(StatsError::Shape {
-                message: "GPDC length scale must be finite and positive",
-            });
-        }
-        if !self.ridge.is_finite() || self.ridge <= 0.0 {
-            return Err(StatsError::Shape { message: "GPDC ridge must be finite and positive" });
-        }
+        validate_length_scale(self.length_scale)?;
+        validate_ridge(self.ridge)?;
         let request = &prepared.bind_request(request);
         let n = request.columns.first().map_or(0, |c| c.len());
         if n == 0 {

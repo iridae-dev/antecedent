@@ -25,7 +25,6 @@ Two kinds are kept apart and never merged:
 from __future__ import annotations
 
 import sys
-import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
@@ -67,7 +66,7 @@ def routes() -> dict[str, dict]:
         return {}
     return {
         r["coordinate"]: r
-        for r in tomllib.loads(ROUTES.read_text(encoding="utf-8")).get("route", [])
+        for r in _repo.load_toml(ROUTES).get("route", [])
     }
 
 
@@ -104,7 +103,7 @@ def render(links: dict) -> str:
 def counts(cells: list[dict] | None = None) -> dict[str, int]:
     """Evidence-link split of the given cells (default: every listed cell)."""
     if cells is None:
-        cells = tomllib.loads(SUPPORTED.read_text(encoding="utf-8")).get("cell", [])
+        cells = _repo.load_toml(SUPPORTED).get("cell", [])
     comps, rts = component_rows(), routes()
     out = {"cell_level": 0, "component_level_only": 0, "discovery_only": 0, "neither": 0}
     for cell in cells:
@@ -122,7 +121,7 @@ def counts(cells: list[dict] | None = None) -> dict[str, int]:
 
 def check() -> list[str]:
     problems: list[str] = []
-    cells = tomllib.loads(SUPPORTED.read_text(encoding="utf-8")).get("cell", [])
+    cells = _repo.load_toml(SUPPORTED).get("cell", [])
     rts = routes()
     supported = {coordinate(c) for c in cells}
     if not rts:
@@ -132,7 +131,7 @@ def check() -> list[str]:
     for stale in sorted(set(rts) - supported):
         problems.append(f"parity/supported_routes.toml routes {stale}, which is not supported")
     ran = {kind: {r.get(kind) for r in rts.values()} for kind in ("identifier", "estimator")}
-    graph_classes = set(tomllib.loads(AXES.read_text(encoding="utf-8")).get("graph_classes", []))
+    graph_classes = set(_repo.load_toml(AXES).get("graph_classes", []))
     for component, rows in component_rows().items():
         kind, _, ident = component.partition(":")
         for row in rows:

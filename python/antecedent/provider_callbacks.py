@@ -74,6 +74,7 @@ from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
 from ._validate import count as _count
 from ._validate import name as _name
+from ._validate import named_choice as _choice
 from .errors import CausalTypeError, CausalValueError
 from .outcomes import outcome_operation, require_success
 from .scientific_bridge import _quantity_wire
@@ -205,14 +206,6 @@ def _raise(payload: str | None) -> None:
             request_attempts=int(wire["request_attempts"]),
         )
     raise CallbackRefusal(wire)
-
-
-def _choice(value: object, what: str, allowed: Iterable[str]) -> str:
-    text = _name(value, what)
-    options = tuple(allowed)
-    if text not in options:
-        raise CausalValueError(f"{what} must be one of {options}, got {text!r}")
-    return text
 
 
 def _bits(value: float) -> int:

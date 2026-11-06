@@ -109,6 +109,7 @@ from ._mean_binding import bind_mean_reading
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count as _shared_count
+from ._validate import listed_choice as _choice
 from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
@@ -253,12 +254,6 @@ def _columns(values: object, n: int, what: str) -> tuple[list[float], int]:
     if not np.all(np.isfinite(array)):
         raise CausalValueError(f"{what} must be finite")
     return [float(v) for v in array.T.reshape(-1)], int(array.shape[1])
-
-
-def _choice(value: str, what: str, allowed: Sequence[str]) -> str:
-    if value not in allowed:
-        raise CausalValueError(f"{what} must be one of {', '.join(allowed)}; got {value!r}")
-    return value
 
 
 def _dumps(value: object) -> str:

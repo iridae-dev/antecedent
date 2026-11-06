@@ -66,6 +66,7 @@ from ._native import evaluate_effect_constancy as _evaluate
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from ._validate import non_finite_refusal, real
+from ._validate import nonempty_name as _name
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 if TYPE_CHECKING:
@@ -128,12 +129,6 @@ class TemporalRefusal(StructuredRefusal):
         self.missing_gates: tuple[str, ...] = tuple(refusal.get("missing_gates", ()))
         #: Regime factors (``source:<regime>`` / ``target:<regime>``) the evidence map lacks.
         self.missing_factors: tuple[str, ...] = tuple(refusal.get("missing_factors", ()))
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 class ConstancyConclusion(StrEnum):

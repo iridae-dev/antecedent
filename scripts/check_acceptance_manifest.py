@@ -28,12 +28,11 @@ import re
 import sys
 import textwrap
 import tokenize
-import tomllib
 from pathlib import Path
 from typing import Any
 
 from _repo import REPO_ROOT as ROOT
-from _repo import test_target
+from _repo import load_toml, test_target
 
 MANIFEST = ROOT / "parity/acceptance_manifest.toml"
 
@@ -473,9 +472,7 @@ def scale_cases(data: dict[str, Any], root: Path = ROOT) -> list[dict[str, Any]]
         found = test_source(source.read_text(encoding="utf-8"), ".rs", name)
         if found is None or "#[ignore" not in found[0]:
             continue
-        manifest = tomllib.loads(
-            (root / "crates" / target["crate"] / "Cargo.toml").read_text(encoding="utf-8")
-        )
+        manifest = load_toml(root / "crates" / target["crate"] / "Cargo.toml")
         cargo_target = target["target"]
         if cargo_target is not None:
             cargo_target, prefix = test_target(target["crate"], cargo_target, root)
@@ -728,13 +725,13 @@ def main(argv: list[str] | None = None) -> int:
     if "--self-test" in args:
         return self_test()
     if "--scale-cases" in args:
-        print(json.dumps(scale_cases(tomllib.loads(MANIFEST.read_text(encoding="utf-8")))))
+        print(json.dumps(scale_cases(load_toml(MANIFEST))))
         return 0
     unknown = [a for a in args if a != "--require-bound"]
     if unknown:
         print(f"unknown arguments: {unknown}", file=sys.stderr)
         return 2
-    data = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
+    data = load_toml(MANIFEST)
     errors = problems(data, require_bound="--require-bound" in args)
     if errors:
         print("acceptance manifest check FAILED:")

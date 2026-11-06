@@ -65,6 +65,7 @@ from ._artifact_protocol import (
 from ._native import consume_vector_treatment_artifact as _consume
 from ._native import evaluate_vector_treatment as _evaluate
 from ._refusal import StructuredRefusal
+from ._validate import nonempty_name as _name
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
 
@@ -94,12 +95,6 @@ class VectorTreatmentRefusal(StructuredRefusal):
     ``vector_treatment.*`` ``detail`` (for example
     ``vector_treatment.adjustment_set_mismatch``).
     """
-
-
-def _name(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise CausalTypeError(f"{what} must be a non-empty string")
-    return value
 
 
 def _column(values: object, what: str) -> np.ndarray:

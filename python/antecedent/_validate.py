@@ -11,7 +11,7 @@ on does not change.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from decimal import Decimal
 from numbers import Complex, Real
 from typing import Any
@@ -146,10 +146,33 @@ def count(
     return number
 
 
+def nonempty_name(value: object, what: str) -> str:
+    """Validate a nonempty name, retaining whitespace-only values."""
+    if not isinstance(value, str) or not value:
+        raise CausalTypeError(f"{what} must be a non-empty string")
+    return value
+
+
 def name(value: object, what: str) -> str:
     """Validate a non-blank name with the shared name-type refusal."""
     if not isinstance(value, str) or not value.strip():
         raise CausalTypeError(f"{what} must be a non-empty string")
+    return value
+
+
+def named_choice(value: object, what: str, allowed: Iterable[str]) -> str:
+    """Validate a nonblank name, then require membership in materialized options."""
+    checked = name(value, what)
+    options = tuple(allowed)
+    if checked not in options:
+        raise CausalValueError(f"{what} must be one of {options}, got {checked!r}")
+    return checked
+
+
+def listed_choice(value: str, what: str, allowed: Sequence[str]) -> str:
+    """Require membership using the historical comma-separated option message."""
+    if value not in allowed:
+        raise CausalValueError(f"{what} must be one of {', '.join(allowed)}; got {value!r}")
     return value
 
 

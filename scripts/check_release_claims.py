@@ -42,7 +42,6 @@ import os
 import re
 import sys
 import tempfile
-import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as REPO
@@ -336,7 +335,7 @@ GLOSSARY = (
 
 def load(root: Path, rel: str) -> dict:
     p = root / rel
-    return tomllib.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    return _repo.load_toml(p) if p.is_file() else {}
 
 
 def load_required(root: Path, rel: str) -> dict:

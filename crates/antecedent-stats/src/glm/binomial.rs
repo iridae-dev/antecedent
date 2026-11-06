@@ -559,6 +559,22 @@ pub fn fit_logit_laplace(
     )
 }
 
+fn validate_ridge_family(family: GlmFamily) -> Result<(), StatsError> {
+    if !matches!(family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
+        return Err(StatsError::Shape {
+            message: "ridge GLM currently requires a binomial family",
+        });
+    }
+    Ok(())
+}
+
+fn validate_ridge_lambda(lambda: f64) -> Result<(), StatsError> {
+    if !lambda.is_finite() || lambda <= 0.0 {
+        return Err(StatsError::Shape { message: "ridge lambda must be finite and positive" });
+    }
+    Ok(())
+}
+
 /// Fit a binomial GLM with an always-active ridge penalty.
 ///
 /// A constant first design column is treated as an intercept and is not
@@ -580,17 +596,9 @@ pub fn fit_glm_ridge(
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::GlmFit,
         || {
-            if !matches!(family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
-                return Err(StatsError::Shape {
-                    message: "ridge GLM currently requires a binomial family",
-                });
-            }
+            validate_ridge_family(family)?;
             validate_glm_shape(design)?;
-            if !lambda.is_finite() || lambda <= 0.0 {
-                return Err(StatsError::Shape {
-                    message: "ridge lambda must be finite and positive",
-                });
-            }
+            validate_ridge_lambda(lambda)?;
             if design.y.iter().any(|&yi| yi != 0.0 && yi != 1.0) {
                 return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
             }
@@ -618,14 +626,8 @@ pub fn fit_glm_ridge_weighted(
 ) -> Result<GlmFit, StatsError> {
     check_prior_weights(design, weights)?;
     let _ = backend;
-    if !matches!(family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
-        return Err(StatsError::Shape {
-            message: "ridge GLM currently requires a binomial family",
-        });
-    }
-    if !lambda.is_finite() || lambda <= 0.0 {
-        return Err(StatsError::Shape { message: "ridge lambda must be finite and positive" });
-    }
+    validate_ridge_family(family)?;
+    validate_ridge_lambda(lambda)?;
     if design.y.iter().any(|&yi| yi != 0.0 && yi != 1.0) {
         return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
     }

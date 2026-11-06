@@ -59,6 +59,7 @@ from ._freeze import thaw
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
 from ._validate import name as _name
+from ._validate import named_choice as _choice
 from .errors import CausalTypeError, CausalValueError
 from .joint_distribution import DistributionMeaning, QuantityCondition, ScientificQuantity
 from .scientific_bridge import _quantity_wire
@@ -196,14 +197,6 @@ def _raise(payload: str | None) -> None:
     first = built[0]
     first.refusals = built
     raise first
-
-
-def _choice(value: object, what: str, allowed: Iterable[str]) -> str:
-    text = _name(value, what)
-    options = tuple(allowed)
-    if text not in options:
-        raise CausalValueError(f"{what} must be one of {options}, got {text!r}")
-    return text
 
 
 def _bits(value: float) -> int:
