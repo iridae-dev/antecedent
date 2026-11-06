@@ -11,10 +11,10 @@ from __future__ import annotations
 import ast
 import operator
 import re
-import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 
 REGISTRY = "parity/limits.toml"
 RECORDS = "parity/capability_records.toml"
@@ -124,8 +124,8 @@ def check(root: Path = ROOT) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     checked: list[str] = []
     try:
-        records = tomllib.loads((root / RECORDS).read_text(encoding="utf-8"))["record"]
-        registry = tomllib.loads((root / REGISTRY).read_text(encoding="utf-8"))
+        records = load_toml(root / RECORDS)["record"]
+        registry = load_toml(root / REGISTRY)
         mappings = registry["bound"]
     except (OSError, ValueError, KeyError, re.error) as error:
         return [str(error)], checked

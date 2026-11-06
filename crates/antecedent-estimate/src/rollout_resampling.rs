@@ -364,17 +364,9 @@ pub fn summarize_replicates(
             largest
         })
         .collect();
-    maxima.sort_by(f64::total_cmp);
-    let critical_value = (maxima.len() >= MIN_FINITE_REPLICATES
-        && policy.decide(requested, replicates_ok, replicates_failed).is_ok())
-    .then(|| crate::util::monte_carlo_critical(&maxima, ROLLOUT_LEVEL))
-    .filter(|value| value.is_finite())
-    // The pointwise interval is `estimate ± z·se` with the normal quantile, while the
-    // replicate quantile of max|t| measures the band on the replicates' own scale. With
-    // light-tailed or bounded replicate distributions that quantile can fall below `z`,
-    // which would make the simultaneous band narrower than a pointwise interval it must
-    // contain. The band's critical value is therefore never below the pointwise one.
-    .map(|value| value.max(antecedent_stats::NORMAL_Q975));
+    let critical_value = simultaneous_critical_value(&mut maxima, || {
+        policy.decide(requested, replicates_ok, replicates_failed).is_ok()
+    });
     let quantities = (0..width)
         .map(|k| {
             let se = standard_errors[k];
@@ -388,6 +380,16 @@ pub fn summarize_replicates(
         })
         .collect();
     ReplicateSummary { quantities, critical_value, requested, replicates_ok, replicates_failed }
+}
+
+// The simultaneous band must contain the pointwise normal interval, even when the
+// replicate quantile of max|t| is smaller. Eligibility remains specific to each summary.
+fn simultaneous_critical_value(maxima: &mut [f64], eligible: impl FnOnce() -> bool) -> Option<f64> {
+    maxima.sort_by(f64::total_cmp);
+    (maxima.len() >= MIN_FINITE_REPLICATES && eligible())
+        .then(|| crate::util::monte_carlo_critical(maxima, ROLLOUT_LEVEL))
+        .filter(|value| value.is_finite())
+        .map(|value| value.max(antecedent_stats::NORMAL_Q975))
 }
 
 /// Linear-interpolation quantile of an ascending-sorted, non-empty slice.
@@ -435,6 +437,16 @@ mod tests {
         assert!(summary.quantities[1].standard_error.is_none());
         assert!(summary.critical_value.is_none());
         assert_eq!((summary.replicates_ok, summary.replicates_failed), (0, 100));
+    }
+
+    #[test]
+    fn posterior_and_bootstrap_keep_distinct_failure_policies() {
+        let draws: Vec<Option<Vec<f64>>> = (0..20).map(|i| Some(vec![f64::from(i)])).collect();
+        let bootstrap = summarize_replicates(&[0.0], &draws, 100);
+        let posterior = summarize_posterior(&draws, 1, 100);
+        assert!(bootstrap.critical_value.is_none());
+        assert!(posterior.critical_value.is_some_and(|c| c >= antecedent_stats::NORMAL_Q975));
+        assert_eq!((posterior.draws_ok, posterior.draws_failed), (20, 80));
     }
 
     #[test]
@@ -557,11 +569,7 @@ pub fn summarize_posterior(
                 .reduce(f64::max)
         })
         .collect();
-    maxima.sort_by(f64::total_cmp);
-    let critical_value = (maxima.len() >= MIN_FINITE_REPLICATES)
-        .then(|| crate::util::monte_carlo_critical(&maxima, ROLLOUT_LEVEL))
-        .filter(|value| value.is_finite())
-        .map(|value| value.max(antecedent_stats::NORMAL_Q975));
+    let critical_value = simultaneous_critical_value(&mut maxima, || true);
     let quantities = moments
         .iter()
         .map(|moment| {

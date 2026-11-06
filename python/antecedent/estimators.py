@@ -148,13 +148,9 @@ def _validate_se(
         raise ValueError(
             f"se_lag is only valid when se is 'newey_west' or 'panel_cluster_hac', got se={se!r}"
         )
-    if cluster is not None:
-        if not isinstance(cluster, str) or not cluster.strip():
-            raise ValueError(f"cluster must name a data column, got {cluster!r}")
-        if cluster_ids is not None:
-            raise ValueError("cluster names a column; do not also pass cluster_ids")
-        if se != "cluster":
-            raise ValueError(f"cluster requires se='cluster'; got se={se!r}")
+    _validate_cluster_only(cluster, cluster_ids)
+    if cluster is not None and se != "cluster":
+        raise ValueError(f"cluster requires se='cluster'; got se={se!r}")
     if se == "cluster" and cluster_ids is None and cluster is None:
         raise ValueError("se='cluster' requires cluster_ids or cluster")
     if cluster_ids is not None and se != "cluster":
@@ -538,7 +534,7 @@ def _wire_weights(weights: str | Sequence[float] | None) -> dict[str, Any]:
 
 
 def _validate_cluster_only(cluster: str | None, cluster_ids: Sequence[int] | None) -> None:
-    """``cluster`` of an estimator whose cluster declaration needs no ``se`` choice."""
+    """Validate a cluster column name and its conflict with explicit IDs."""
     if cluster is not None:
         if not isinstance(cluster, str) or not cluster.strip():
             raise ValueError(f"cluster must name a data column, got {cluster!r}")

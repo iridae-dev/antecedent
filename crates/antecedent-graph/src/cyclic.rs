@@ -136,8 +136,8 @@ impl CyclicDigraph {
         from: DenseNodeId,
         to: DenseNodeId,
     ) -> Result<(), GraphError> {
-        DirectedStore::known(self.node_count(), from)?;
-        DirectedStore::known(self.node_count(), to)?;
+        crate::types::validate_node_index(self.node_count(), from)?;
+        crate::types::validate_node_index(self.node_count(), to)?;
         reject_self_loop(self.nodes(), from, to)?;
         self.store.link(from, to)
     }
@@ -365,8 +365,8 @@ impl CyclicMixedGraph {
     ///
     /// Unknown nodes, a self-loop, or a duplicate bidirected edge.
     pub fn insert_bidirected(&mut self, a: DenseNodeId, b: DenseNodeId) -> Result<(), GraphError> {
-        DirectedStore::known(self.node_count(), a)?;
-        DirectedStore::known(self.node_count(), b)?;
+        crate::types::validate_node_index(self.node_count(), a)?;
+        crate::types::validate_node_index(self.node_count(), b)?;
         reject_self_loop(self.nodes(), a, b)?;
         self.revision = Revision::fresh();
         if !insert_sorted(&mut self.bidirected[a.as_usize()], b) {
@@ -479,12 +479,8 @@ fn named_directed_edges(
     let mut seen = std::collections::HashSet::with_capacity(edges.len());
     for &(from_name, to_name) in edges {
         let (from, to) = crate::named::resolve_named_edge(schema, from_name, to_name)?;
-        if from.as_usize() >= limit {
-            return Err(GraphError::UnknownNode { id: from.raw() });
-        }
-        if to.as_usize() >= limit {
-            return Err(GraphError::UnknownNode { id: to.raw() });
-        }
+        crate::types::validate_node_index(limit, from)?;
+        crate::types::validate_node_index(limit, to)?;
         if from == to {
             return Err(GraphError::ContemporaneousSelfEdge {
                 variable: VariableId::from_raw(from.raw()),
@@ -515,7 +511,7 @@ fn validate_directed(graph: &CyclicDigraph) -> Result<(), GraphError> {
     for (i, kids) in children.iter().enumerate() {
         let from = DenseNodeId::from_index(i);
         for (k, &to) in kids.iter().enumerate() {
-            DirectedStore::known(nodes.len(), to)?;
+            crate::types::validate_node_index(nodes.len(), to)?;
             reject_self_loop(nodes, from, to)?;
             if kids[..k].contains(&to) {
                 return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
@@ -532,7 +528,7 @@ fn validate_directed(graph: &CyclicDigraph) -> Result<(), GraphError> {
     for (i, preds) in parents.iter().enumerate() {
         let to = DenseNodeId::from_index(i);
         for &from in preds {
-            DirectedStore::known(nodes.len(), from)?;
+            crate::types::validate_node_index(nodes.len(), from)?;
             reject_self_loop(nodes, from, to)?;
             parent_edges += 1;
         }
@@ -557,7 +553,7 @@ fn validate_bidirected(
     for (i, neighbors) in bidirected.iter().enumerate() {
         let a = DenseNodeId::from_index(i);
         for (k, &b) in neighbors.iter().enumerate() {
-            DirectedStore::known(nodes.len(), b)?;
+            crate::types::validate_node_index(nodes.len(), b)?;
             reject_self_loop(nodes, a, b)?;
             if neighbors[..k].contains(&b) {
                 return Err(GraphError::DuplicateEdge { from: a.raw(), to: b.raw() });

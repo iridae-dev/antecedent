@@ -8,6 +8,7 @@ use crate::evidence_ledger_artifact::{EvidenceLedgerArtifact, EvidenceLedgerMeta
 use crate::joint_panel_artifact::{
     MAX_JOINT_PANEL_ARTIFACT_BYTES, PanelArtifactError, PanelExecutionProgram,
 };
+use crate::joint_panel_artifact_support::{Counter, admit, cancelled, invalid};
 use antecedent_contract::bridge::BridgeContract;
 use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap, SourceId, SourceStatus};
 use antecedent_core::execution::AdmissionLease;
@@ -523,30 +524,4 @@ fn bits(values: &[f64]) -> Vec<u64> {
 }
 fn floats(values: &[u64]) -> Vec<f64> {
     values.iter().copied().map(f64::from_bits).collect()
-}
-fn invalid(error: impl std::fmt::Display) -> PanelArtifactError {
-    PanelArtifactError::Invalid(error.to_string())
-}
-fn cancelled(ctx: &ExecutionContext) -> Result<(), PanelArtifactError> {
-    if ctx.cancellation.is_cancelled() { Err(PanelArtifactError::Cancelled) } else { Ok(()) }
-}
-fn admit(ctx: &ExecutionContext, bytes: u64) -> Result<AdmissionLease, PanelArtifactError> {
-    let limit = ctx.memory_limit_bytes();
-    if limit.is_some_and(|limit| bytes > limit) {
-        return Err(PanelArtifactError::Resource("configured memory limit".into()));
-    }
-    ctx.acquire_admission(0, bytes).map_err(|error| PanelArtifactError::Resource(error.to_string()))
-}
-struct Counter(usize);
-impl std::io::Write for Counter {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0 = self
-            .0
-            .checked_add(bytes.len())
-            .ok_or_else(|| std::io::Error::other("byte count overflow"))?;
-        Ok(bytes.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
 }

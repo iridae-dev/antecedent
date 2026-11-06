@@ -45,6 +45,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from _repo import REPO_ROOT as REPO
+from _repo import load_toml
 
 ROOT = Path(os.environ.get("LIMITS_AGREEMENT_ROOT", REPO))
 RECORDS = "parity/capability_records.toml"
@@ -848,8 +849,8 @@ LIMITS_REGISTRY = "parity/limits.toml"
 
 def render_supported_bounds_table(root: Path) -> str:
     """Table of exact-record bounds. Values come from capability_records.toml; paths from limits.toml."""
-    records = tomllib.loads((root / RECORDS).read_text(encoding="utf-8"))["record"]
-    registry = tomllib.loads((root / LIMITS_REGISTRY).read_text(encoding="utf-8"))
+    records = load_toml(root / RECORDS)["record"]
+    registry = load_toml(root / LIMITS_REGISTRY)
     values: dict[tuple[str, str], int] = {}
     for record in records:
         for key, value in record.get("bounds", {}).items():

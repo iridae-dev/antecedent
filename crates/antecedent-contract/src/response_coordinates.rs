@@ -70,14 +70,10 @@ fn refuse(
     remedy: &'static str,
 ) -> ExternalRefusal {
     ExternalRefusal {
-        code,
-        stage: "bind",
-        detail: detail.to_owned(),
-        offending: None,
         expected: expected.map(str::to_owned),
         supplied,
-        capability: None,
         remedy: Some(remedy),
+        ..ExternalRefusal::new(code, "bind", detail)
     }
 }
 

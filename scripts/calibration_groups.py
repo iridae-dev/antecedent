@@ -64,7 +64,6 @@ import subprocess
 import sys
 import threading
 import time
-import tomllib
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -73,7 +72,7 @@ from functools import cache
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, load_toml
 
 GATE = ROOT / "scripts" / "measure_calibration_groups.sh"
 LOG_DIR = ROOT / "target" / "calibration-records"
@@ -308,12 +307,12 @@ def current_group_protocol(group: Group) -> str | None:
 @cache
 def _workspace_packages(root: Path) -> tuple[tuple[str, Path], ...]:
     """Actual Cargo member names and directories, including member globs."""
-    workspace = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]
+    workspace = load_toml(root / "Cargo.toml")["workspace"]
     excluded = {path for pattern in workspace.get("exclude", []) for path in root.glob(pattern)}
     members = {path for pattern in workspace["members"] for path in root.glob(pattern)} - excluded
     packages = []
     for member in sorted(members):
-        manifest = tomllib.loads((member / "Cargo.toml").read_text(encoding="utf-8"))
+        manifest = load_toml(member / "Cargo.toml")
         if "package" in manifest:
             packages.append((manifest["package"]["name"], member))
     return tuple(packages)
@@ -323,7 +322,7 @@ def _workspace_packages(root: Path) -> tuple[tuple[str, Path], ...]:
 def _suite_owner(root: Path, head: str) -> str | None:
     owners = []
     for package, member in _workspace_packages(root):
-        manifest = tomllib.loads((member / "Cargo.toml").read_text(encoding="utf-8"))
+        manifest = load_toml(member / "Cargo.toml")
         explicit = any(
             test.get("name") == head and (member / test.get("path", f"tests/{head}.rs")).is_file()
             for test in manifest.get("test", [])
@@ -345,7 +344,7 @@ def _suite_features(root: Path, package: str, suite: str) -> tuple[str, ...]:
     for name, member in _workspace_packages(root):
         if name != package:
             continue
-        manifest = tomllib.loads((member / "Cargo.toml").read_text(encoding="utf-8"))
+        manifest = load_toml(member / "Cargo.toml")
         for test in manifest.get("test", []):
             if test.get("name") == suite:
                 return tuple(test.get("required-features", []))
@@ -377,7 +376,7 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
     records = status.load_records()
     if missing_only:
         ledger = (
-            tomllib.loads(GATE_REGISTRY.read_text(encoding="utf-8"))
+            load_toml(GATE_REGISTRY)
             if GATE_REGISTRY.is_file()
             else {}
         )
@@ -598,7 +597,7 @@ def recheck_rates() -> dict[str, float]:
     if not REGISTRY.is_file():
         return {}
     counts: dict[str, list[int]] = {}
-    for rec in tomllib.loads(REGISTRY.read_text(encoding="utf-8")).get("record", []):
+    for rec in load_toml(REGISTRY).get("record", []):
         stem = Path(str(rec["test"]).rpartition("::")[0]).stem
         tally = counts.setdefault(stem, [0, 0])
         for point in rec.get("grid", []):

@@ -45,10 +45,10 @@ assertions to the checked-execution citations.
 import json
 import re
 import sys
-import tomllib
 from collections import defaultdict
 from pathlib import Path
 
+from _repo import load_toml
 from _rust_source import rust_mask
 from gate_recipe_obligations import matrix_alignment_problems
 from gate_retained_routes import retained_route_problems
@@ -165,7 +165,7 @@ def lowering_record_problems() -> list[str]:
     names = route_cell_names()
     if not names:
         return [f"{REGISTRY.relative_to(ROOT)}: no route cells found"]
-    routes = tomllib.loads(SUPPORTED_ROUTES.read_text(encoding="utf-8")).get("route", [])
+    routes = load_toml(SUPPORTED_ROUTES).get("route", [])
     problems = []
     if len(routes) != SUPPORTED_ROUTE_COUNT:
         problems.append(
@@ -478,7 +478,7 @@ def compiler_bypass_problems(root: Path = ROOT) -> list[str]:
                 "identify_api::identify_dag",
             )
         }
-        for row in tomllib.loads(registry.read_text(encoding="utf-8")).get("entry", []):
+        for row in load_toml(registry).get("entry", []):
             if row.get("rust") in raw_rows:
                 problems.append(
                     f"parity/python_facade_surface.toml: row {row['rust']!r} names a raw entry "
@@ -590,7 +590,7 @@ def cell_problems(cell: dict, cache: dict) -> list[str]:
 def main() -> None:
     if len(sys.argv) != 3:
         raise SystemExit(f"usage: {sys.argv[0]} EVIDENCE_OUT SHARD")
-    cells = tomllib.loads(SUPPORTED.read_text(encoding="utf-8")).get("cell", [])
+    cells = load_toml(SUPPORTED).get("cell", [])
     cache: dict = {}
     failures: list[str] = []
     rows = []

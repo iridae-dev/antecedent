@@ -731,11 +731,7 @@ impl TemporalAdmg {
     }
 
     fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        if id.as_usize() >= self.node_count() {
-            Err(GraphError::UnknownNode { id: id.raw() })
-        } else {
-            Ok(())
-        }
+        crate::types::validate_node_index(self.node_count(), id)
     }
 }
 

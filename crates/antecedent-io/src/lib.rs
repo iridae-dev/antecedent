@@ -535,6 +535,8 @@ pub mod joint_response_artifact;
 /// Complete target-bound compiled identification proof interchange.
 pub use antecedent_io_core::compiled_identification_wire;
 
+mod joint_panel_artifact_support;
+
 /// Exact frozen generic-channel panel execution and independent historical replay.
 pub mod joint_panel_artifact;
 

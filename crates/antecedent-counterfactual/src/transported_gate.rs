@@ -158,14 +158,9 @@ pub fn refuse_transported_counterfactual(
     };
     TransportedCounterfactualRefusal {
         refusal: StructuredRefusal {
-            code,
-            stage: "identify",
-            detail: detail.to_owned(),
             offending,
-            expected: None,
-            supplied: None,
-            capability: None,
             remedy: Some(remedy),
+            ..StructuredRefusal::new(code, "identify", detail)
         },
         missing_gates,
         missing_factors,

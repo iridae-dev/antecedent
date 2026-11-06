@@ -74,9 +74,7 @@ impl BitSet {
     /// instead of [`Self::insert`], which treats an out-of-range id as a programming bug.
     pub fn try_insert(&mut self, id: DenseNodeId) -> Result<(), GraphError> {
         let i = id.as_usize();
-        if i >= self.len {
-            return Err(GraphError::UnknownNode { id: id.raw() });
-        }
+        crate::types::validate_node_index(self.len, id)?;
         let word = i / 64;
         let bit = i % 64;
         let Some(slot) = self.words.get_mut(word) else {

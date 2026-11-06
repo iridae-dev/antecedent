@@ -144,13 +144,7 @@ pub fn fit_logistic_weighted(
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
-    validate_glm_shape(design)?;
-    if weights.len() != design.nrows {
-        return Err(StatsError::Shape { message: "weights length != nrows" });
-    }
-    if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
-        return Err(StatsError::Shape { message: "prior weights must be finite and non-negative" });
-    }
+    check_prior_weights(design, weights)?;
     if design.y.iter().any(|&yi| !(yi == 0.0 || yi == 1.0)) {
         return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
     }

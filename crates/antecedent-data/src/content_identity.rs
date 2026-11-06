@@ -29,23 +29,20 @@ struct Encoder {
 
 impl Encoder {
     fn new() -> Self {
-        Self {
-            hasher: blake3::Hasher::new_derive_key("antecedent.data.storage.v1"),
-            buf: Vec::with_capacity(CHUNK),
-            cancellation: None,
-            direct: false,
-            stopped: false,
-            #[cfg(test)]
-            updates: 0,
-        }
+        Self::with_mode(None)
     }
 
     fn new_direct(cancellation: antecedent_core::execution::CancellationToken) -> Self {
+        Self::with_mode(Some(cancellation))
+    }
+
+    fn with_mode(cancellation: Option<antecedent_core::execution::CancellationToken>) -> Self {
+        let direct = cancellation.is_some();
         Self {
             hasher: blake3::Hasher::new_derive_key("antecedent.data.storage.v1"),
-            buf: Vec::new(),
-            cancellation: Some(cancellation),
-            direct: true,
+            buf: if direct { Vec::new() } else { Vec::with_capacity(CHUNK) },
+            cancellation,
+            direct,
             stopped: false,
             #[cfg(test)]
             updates: 0,

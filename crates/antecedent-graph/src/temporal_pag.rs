@@ -78,10 +78,7 @@ impl TemporalPag {
     }
 
     fn validate_node(&self, id: DenseNodeId) -> Result<(), GraphError> {
-        if id.as_usize() >= self.node_count() {
-            return Err(GraphError::UnknownNode { id: id.raw() });
-        }
-        Ok(())
+        crate::types::validate_node_index(self.node_count(), id)
     }
 
     /// Insert a marked edge with temporal constraints (no future→past directed).

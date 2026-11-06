@@ -377,17 +377,11 @@ pub fn fit_gam_weighted(
 }
 
 fn validate_weights(weights: Option<&[f64]>, nrows: usize) -> Result<(), StatsError> {
-    if let Some(w) = weights {
-        let sum: f64 = w.iter().sum();
-        if w.len() != nrows
-            || w.iter().any(|v| !v.is_finite() || *v < 0.0)
-            || !sum.is_finite()
-            || sum <= 0.0
-        {
-            return Err(StatsError::Shape { message: "invalid GAM observation weights" });
-        }
-    }
-    Ok(())
+    crate::weight_validation::validate_observation_weights(
+        weights,
+        nrows,
+        "invalid GAM observation weights",
+    )
 }
 
 fn validate_response(y: &[f64], nrows: usize) -> Result<(), StatsError> {

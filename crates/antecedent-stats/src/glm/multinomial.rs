@@ -109,18 +109,11 @@ pub fn fit_multinomial_logit_weighted(
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::GlmFit,
         || {
-            if let Some(w) = weights {
-                let sum: f64 = w.iter().sum();
-                if w.len() != design.nrows
-                    || w.iter().any(|v| !v.is_finite() || *v < 0.0)
-                    || !sum.is_finite()
-                    || sum <= 0.0
-                {
-                    return Err(StatsError::Shape {
-                        message: "invalid multinomial observation weights",
-                    });
-                }
-            }
+            crate::weight_validation::validate_observation_weights(
+                weights,
+                design.nrows,
+                "invalid multinomial observation weights",
+            )?;
             let MultinomialDesignRef { x_colmajor, nrows, ncols, y_category, n_categories: k } =
                 design;
             if k == 0 {

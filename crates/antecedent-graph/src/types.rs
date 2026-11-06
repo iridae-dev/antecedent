@@ -62,6 +62,14 @@ impl DenseNodeId {
     }
 }
 
+/// Validate a dense index against a graph's node count.
+pub(crate) const fn validate_node_index(
+    node_count: usize,
+    id: DenseNodeId,
+) -> Result<(), GraphError> {
+    if id.as_usize() >= node_count { Err(GraphError::UnknownNode { id: id.raw() }) } else { Ok(()) }
+}
+
 /// Edge endpoint mark.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Endpoint {

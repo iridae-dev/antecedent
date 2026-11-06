@@ -2,6 +2,7 @@
 //! Historical numerical replay is not current scientific authorization.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::compiled_identification_wire::CompiledIdentificationWire;
+use crate::joint_panel_artifact_support::{Counter, admit, cancelled, invalid};
 use crate::scientific_target_wire::ScientificTargetWire;
 use antecedent_core::execution::AdmissionLease;
 use antecedent_core::{
@@ -686,30 +687,4 @@ fn decode_payload(
     )
     .map_err(|error| PanelArtifactError::Io(error.into_io("panel decoding")))?;
     Ok((lease, sections.pop().ok_or_else(|| invalid("missing panel feature"))?))
-}
-fn invalid(error: impl std::fmt::Display) -> PanelArtifactError {
-    PanelArtifactError::Invalid(error.to_string())
-}
-fn cancelled(ctx: &ExecutionContext) -> Result<(), PanelArtifactError> {
-    if ctx.cancellation.is_cancelled() { Err(PanelArtifactError::Cancelled) } else { Ok(()) }
-}
-fn admit(ctx: &ExecutionContext, bytes: u64) -> Result<AdmissionLease, PanelArtifactError> {
-    let limit = ctx.memory_limit_bytes();
-    if limit.is_some_and(|limit| bytes > limit) {
-        return Err(PanelArtifactError::Resource("configured memory limit".into()));
-    }
-    ctx.acquire_admission(0, bytes).map_err(|error| PanelArtifactError::Resource(error.to_string()))
-}
-struct Counter(usize);
-impl std::io::Write for Counter {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0 = self
-            .0
-            .checked_add(bytes.len())
-            .ok_or_else(|| std::io::Error::other("byte count overflow"))?;
-        Ok(bytes.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
 }

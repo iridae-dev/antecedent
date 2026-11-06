@@ -67,14 +67,9 @@ pub(crate) fn refuse_missing(
 ) -> CrossWorldExecutionError {
     CrossWorldExecutionError::Refused(Box::new(CrossWorldRefusal {
         refusal: StructuredRefusal {
-            code,
-            stage: EXECUTE_STAGE,
-            detail: detail.to_owned(),
             offending,
-            expected: None,
-            supplied: None,
-            capability: None,
             remedy: Some(remedy),
+            ..StructuredRefusal::new(code, EXECUTE_STAGE, detail)
         },
         missing,
     }))

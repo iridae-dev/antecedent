@@ -125,7 +125,7 @@ def test_target(crate: str, stem: str, root: Path = REPO_ROOT) -> tuple[str, str
     the suite binary under the module named after the file (`<stem>::`).
     """
     crate_dir = root / "crates" / crate
-    manifest = tomllib.loads((crate_dir / "Cargo.toml").read_text(encoding="utf-8"))
+    manifest = load_toml(crate_dir / "Cargo.toml")
     for entry in manifest.get("test", []):
         if entry.get("path", f"tests/{entry['name']}.rs") == f"tests/{stem}.rs":
             return entry["name"], ""

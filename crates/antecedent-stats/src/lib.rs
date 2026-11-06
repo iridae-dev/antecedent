@@ -50,6 +50,7 @@ pub mod synthesis_transport;
 #[cfg(test)]
 mod test_util;
 pub mod twosls;
+mod weight_validation;
 mod welford;
 
 pub use ci::{
