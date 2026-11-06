@@ -56,12 +56,12 @@ from __future__ import annotations
 
 import json
 import random
-import struct
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 from . import _native
+from ._float_bits import float_bits as _bits
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -206,10 +206,6 @@ def _raise(payload: str | None) -> None:
             request_attempts=int(wire["request_attempts"]),
         )
     raise CallbackRefusal(wire)
-
-
-def _bits(value: float) -> int:
-    return int(struct.unpack("<Q", struct.pack("<d", float(value)))[0])
 
 
 def _dumps(value: object) -> str:

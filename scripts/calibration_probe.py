@@ -455,15 +455,11 @@ def parse_log(text: str) -> tuple[dict[tuple[str, int], dict[str, str]], str | N
 
 
 def head_sha() -> str:
-    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    return _repo.strict_git_head(ROOT)
 
 
 def worktree_dirty() -> bool:
-    return bool(
-        subprocess.check_output(
-            ["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT, text=True
-        ).strip()
-    )
+    return _repo.strict_git_dirty(ROOT)
 
 
 def run_tasks(tasks: list[Task], total: int, jobs: int, decision_json: str) -> dict[str, dict]:

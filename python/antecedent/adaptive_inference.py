@@ -59,13 +59,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
-import struct
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 
 from . import _native
+from ._float_bits import finite_float_bits as _bits
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -190,13 +189,6 @@ def _raise_if(payload: str | None) -> None:
 
 
 # --------------------------------------------------------------------------- declarations
-
-
-def _bits(value: float) -> int:
-    number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError("a declared number must be finite")
-    return int(struct.unpack("<Q", struct.pack("<d", number))[0])
 
 
 def policy_identity(text: str) -> str:

@@ -1241,7 +1241,7 @@ owned_exports = ["joint_mechanism_sensitivity_interval", "JointSensitivityInterv
 bounds = { max_bootstrap_internal = 2000, cancellation = true }
 refusals = [
   { detail = "joint_sensitivity.no_interval_method", when = "A version 3 range artifact carries a sampling interval. The interval is returned by the interval route, not stored on the range artifact." },
-  { detail = "joint_sensitivity.bounds_exceeded", when = "The public interval is asked for fewer than 199 or more than 2000 bootstrap replicates, or a level other than 0.95. The calibration-internal estimator still refuses fewer than 2 or more than 2000 replicates, or a level outside (0, 1)." },
+  { detail = "joint_sensitivity.bounds_exceeded", when = "The interval is asked for fewer than 2 or more than 2000 bootstrap replicates, or a level outside (0, 1). The measured calibration scope is narrower: level 0.95 with at least 199 replicates." },
   { detail = "joint_sensitivity.cancelled" },
   { detail = "joint_sensitivity.stage_accounting" },
 ]

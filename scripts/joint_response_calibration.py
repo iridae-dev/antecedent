@@ -15,7 +15,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from _repo import load_toml
+from _repo import load_toml, strict_git_head
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "parity/joint_response_calibration.toml"
@@ -86,7 +86,7 @@ def main() -> int:
             )
         )
         return 0
-    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    sha = strict_git_head(ROOT)
     if sha != args.run_stable_candidate:
         parser.error("requested stable candidate does not equal HEAD")
     dirty = subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True)

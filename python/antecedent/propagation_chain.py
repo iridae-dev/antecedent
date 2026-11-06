@@ -47,6 +47,7 @@ from typing import Any
 import numpy as np
 
 from . import _native
+from ._float_bits import float_bits as _bits
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -118,10 +119,6 @@ class PropagationChainRefusal(StructuredRefusal):
 
 def _refuse(payload: str | None) -> None:
     raise_refusal(payload, PropagationChainRefusal)
-
-
-def _bits(value: float) -> int:
-    return int(struct.unpack("<Q", struct.pack("<d", float(value)))[0])
 
 
 def _float(bits: int) -> float:

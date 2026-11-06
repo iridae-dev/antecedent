@@ -105,7 +105,7 @@ import calibration_family
 import calibration_probe
 import calibration_status
 from _repo import REPO_ROOT as ROOT
-from _repo import load_toml, read_text, write_text
+from _repo import load_toml, read_text, strict_git_head, write_text
 
 # The schema reader consumes this module's historical configuration reader.
 coverage_family = calibration_family
@@ -896,7 +896,7 @@ def stamp_fingerprints(records: dict[str, dict], sha: str) -> None:
     Only a tree equal to HEAD in everything a fingerprint reads, measured at HEAD,
     can say what the measurement depended on; logs stamped with another `--sha`
     carry no fingerprint and stay owed to a probe or a re-measurement."""
-    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    head = strict_git_head(ROOT)
     if sha != head or not records:
         return
     dirty = subprocess.run(
@@ -1177,7 +1177,7 @@ def sync_supported_cells(
 ) -> int:
     # Collection refreshes measurements, not public-route ownership. New bindings
     # require explicit --only-cell authorization and estimator compatibility.
-    cells = tomllib.loads(read_text(SUPPORTED)).get("cell", [])
+    cells = load_toml(SUPPORTED).get("cell", [])
     text = read_text(SUPPORTED)
     blocks = text.split("[[cell]]")
     out = [blocks[0]]
@@ -1416,7 +1416,7 @@ def main() -> int:
             raise SystemExit("--smoke and --out go together: a smoke run writes a scratch registry")
         if args.out.resolve() == OUT.resolve():
             raise SystemExit(f"--smoke never writes {OUT.relative_to(ROOT)}")
-        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        sha = strict_git_head(ROOT)
         records = load_records(sha, args.log_dir, smoke=True)
         write_registry(records, args.out)
         print(
@@ -1425,7 +1425,7 @@ def main() -> int:
         return 0
     sha = (
         args.sha
-        or subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        or strict_git_head(ROOT)
     )
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise SystemExit(f"calibration SHA must be 40 hex, got {sha!r}")

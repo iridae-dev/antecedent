@@ -9,6 +9,7 @@ round-trip the support-matrix times sign. Go through these helpers (or pass
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -53,6 +54,22 @@ def load_toml_binary(path: Path | str) -> dict[str, Any]:
     """Parse a binary TOML file without universal-newline translation."""
     with Path(path).open("rb") as handle:
         return tomllib.load(handle)
+
+
+def strict_git_head(root: Path | str) -> str:
+    """Read HEAD, propagating Git failures to the caller."""
+    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+
+
+def strict_git_dirty(root: Path | str) -> bool:
+    """Whether tracked or normally reported untracked files are present."""
+    return bool(
+        subprocess.check_output(
+            ["git", "status", "--porcelain", "--untracked-files=normal"],
+            cwd=root,
+            text=True,
+        ).strip()
+    )
 
 
 def cargo_target_feature_args(

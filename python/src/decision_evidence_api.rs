@@ -1004,6 +1004,85 @@ fn decision_evidence_adaptive(
     })
 }
 
+struct ExperimentalProjection<'a> {
+    map: &'a Map<String, Json>,
+    design: &'a Map<String, Json>,
+    assigned: &'a [bool],
+    evidence_id: &'a str,
+    population: &'a str,
+    treated: &'a str,
+    control: &'a str,
+    horizon: u32,
+}
+
+#[derive(Clone, Copy)]
+enum ExperimentalProjectionKind {
+    Regime,
+    Excursion,
+    Assignment,
+}
+
+impl ExperimentalProjection<'_> {
+    fn compiled(
+        &self,
+        ev: &JointExperimentEvidence,
+        artifact: Vec<u8>,
+        kind: ExperimentalProjectionKind,
+    ) -> Json {
+        let mut retained_design = self.design.clone();
+        retained_design.insert("realized_assignment".into(), json!(self.assigned));
+        match (kind, &ev.design_details) {
+            (
+                ExperimentalProjectionKind::Regime,
+                Some(DesignDetails::TemporalRegime { observed_minimum_probabilities, .. }),
+            ) => {
+                retained_design.insert(
+                    "observed_minimum_probabilities".into(),
+                    json!(observed_minimum_probabilities),
+                );
+            }
+            (
+                ExperimentalProjectionKind::Excursion,
+                Some(DesignDetails::TemporalExcursion { paired_decisions, .. }),
+            ) => {
+                retained_design.insert("paired_decisions".into(), json!(paired_decisions));
+            }
+            _ => {}
+        }
+        let dependence = match (&ev.dependence, kind) {
+            (Dependence::PointOnly, ExperimentalProjectionKind::Regime) => {
+                json!({"kind":"point_only"})
+            }
+            (Dependence::JointArms { covariance }, _) => {
+                json!({"kind":"joint_arms", "covariance":covariance})
+            }
+            _ => unreachable!(),
+        };
+        json!({
+            "evidence_id": self.evidence_id, "population_id": self.population,
+            "treated_regime_id": self.treated, "control_regime_id": self.control, "horizon": self.horizon,
+            "components": self.map["components"], "treated_means": ev.treated_means,
+            "control_means": ev.control_means, "dependence": dependence,
+            "design": {"assignment_design":ev.design.assignment_design,"treated_units":ev.design.treated_units,
+                "control_units":ev.design.control_units,"outcome_rows":ev.design.outcome_rows},
+            "design_contract_id":ev.design_contract_id, "design_details":retained_design,
+            "compiled_source_artifact":artifact, "adjustments":[], "exposure":self.map["exposure"]
+        })
+    }
+}
+
+fn export_experimental_source(
+    source: &antecedent::analysis::joint_panel::designs::NativeJointDesignResult,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> Result<Vec<u8>, EvidenceRefusal> {
+    source
+        .export_artifact_with_context(
+            ctx,
+            antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
+        )
+        .map_err(compiled_decision_refusal)
+}
+
 /// Prepare a design or execute joint estimation against a declared design.
 #[pyfunction]
 #[pyo3(signature=(payload_json,fit,*,seed=0,threads=1,max_bytes=None,cancel=None))]
@@ -1059,6 +1138,16 @@ fn decision_evidence_experimental(
         let treated = text(map, "treated_regime_id")?;
         let control = text(map, "control_regime_id")?;
         let exp = exposure(map)?;
+        let projection = ExperimentalProjection {
+            map,
+            design: dm,
+            assigned: &assigned,
+            evidence_id: &evidence_id,
+            population: &population,
+            treated: &treated,
+            control: &control,
+            horizon,
+        };
         let confounders: Vec<Vec<f64>> =
             if regime.is_some() { decoded(map, "confounders")? } else { Vec::new() };
         if let Some(d) = &regime {
@@ -1110,41 +1199,15 @@ fn decision_evidence_experimental(
                 Ok(value) => value,
                 Err(error) => return Ok(finish(Err(error))),
             };
-            let artifact = match bound.source().export_artifact_with_context(
-                &ctx,
-                antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
-            ) {
+            let artifact = match export_experimental_source(bound.source(), &ctx) {
                 Ok(value) => value,
-                Err(error) => return Ok(finish(Err(compiled_decision_refusal(error)))),
+                Err(error) => return Ok(finish(Err(error))),
             };
-            let ev = bound.numerical_evidence();
-            let mut retained_design = dm.clone();
-            retained_design.insert("realized_assignment".into(), json!(assigned));
-            if let Some(DesignDetails::TemporalRegime { observed_minimum_probabilities, .. }) =
-                &ev.design_details
-            {
-                retained_design.insert(
-                    "observed_minimum_probabilities".into(),
-                    json!(observed_minimum_probabilities),
-                );
-            }
-            let dependence = match &ev.dependence {
-                Dependence::PointOnly => json!({"kind":"point_only"}),
-                Dependence::JointArms { covariance } => {
-                    json!({"kind":"joint_arms", "covariance":covariance})
-                }
-                _ => unreachable!(),
-            };
-            return Ok(finish(Ok(json!({
-                "evidence_id": evidence_id, "population_id": population,
-                "treated_regime_id": treated, "control_regime_id": control, "horizon": horizon,
-                "components": map["components"], "treated_means": ev.treated_means,
-                "control_means": ev.control_means, "dependence": dependence,
-                "design": {"assignment_design":ev.design.assignment_design,"treated_units":ev.design.treated_units,
-                    "control_units":ev.design.control_units,"outcome_rows":ev.design.outcome_rows},
-                "design_contract_id":ev.design_contract_id, "design_details":retained_design,
-                "compiled_source_artifact":artifact, "adjustments":[], "exposure":map["exposure"]
-            }))));
+            return Ok(finish(Ok(projection.compiled(
+                bound.numerical_evidence(),
+                artifact,
+                ExperimentalProjectionKind::Regime,
+            ))));
         }
         if let Some(d) = excursion.as_ref() {
             let bound = match compile_and_evidence_from_joint_excursion(
@@ -1162,32 +1225,15 @@ fn decision_evidence_experimental(
                 Ok(value) => value,
                 Err(error) => return Ok(finish(Err(error))),
             };
-            let artifact = match bound.source().export_artifact_with_context(
-                &ctx,
-                antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
-            ) {
+            let artifact = match export_experimental_source(bound.source(), &ctx) {
                 Ok(value) => value,
-                Err(error) => return Ok(finish(Err(compiled_decision_refusal(error)))),
+                Err(error) => return Ok(finish(Err(error))),
             };
-            let ev = bound.numerical_evidence();
-            let mut retained_design = dm.clone();
-            retained_design.insert("realized_assignment".into(), json!(assigned));
-            if let Some(DesignDetails::TemporalExcursion { paired_decisions, .. }) =
-                &ev.design_details
-            {
-                retained_design.insert("paired_decisions".into(), json!(paired_decisions));
-            }
-            let Dependence::JointArms { covariance } = &ev.dependence else { unreachable!() };
-            return Ok(finish(Ok(json!({
-                "evidence_id": evidence_id, "population_id": population,
-                "treated_regime_id": treated, "control_regime_id": control, "horizon": horizon,
-                "components": map["components"], "treated_means": ev.treated_means,
-                "control_means": ev.control_means, "dependence": {"kind":"joint_arms", "covariance":covariance},
-                "design": {"assignment_design":ev.design.assignment_design,"treated_units":ev.design.treated_units,
-                    "control_units":ev.design.control_units,"outcome_rows":ev.design.outcome_rows},
-                "design_contract_id":ev.design_contract_id, "design_details":retained_design,
-                "compiled_source_artifact":artifact, "adjustments":[], "exposure":map["exposure"]
-            }))));
+            return Ok(finish(Ok(projection.compiled(
+                bound.numerical_evidence(),
+                artifact,
+                ExperimentalProjectionKind::Excursion,
+            ))));
         }
         if paired.is_some() || switchback.is_some() {
             let result = if let Some(d) = paired.as_ref() {
@@ -1221,27 +1267,15 @@ fn decision_evidence_experimental(
                 Ok(value) => value,
                 Err(error) => return Ok(finish(Err(error))),
             };
-            let artifact = match bound.source().export_artifact_with_context(
-                &ctx,
-                antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
-            ) {
+            let artifact = match export_experimental_source(bound.source(), &ctx) {
                 Ok(value) => value,
-                Err(error) => return Ok(finish(Err(compiled_decision_refusal(error)))),
+                Err(error) => return Ok(finish(Err(error))),
             };
-            let ev = bound.numerical_evidence();
-            let mut retained_design = dm.clone();
-            retained_design.insert("realized_assignment".into(), json!(assigned));
-            let Dependence::JointArms { covariance } = &ev.dependence else { unreachable!() };
-            return Ok(finish(Ok(json!({
-                "evidence_id":evidence_id, "population_id":population, "treated_regime_id":treated,
-                "control_regime_id":control, "horizon":horizon, "components":map["components"],
-                "treated_means":ev.treated_means, "control_means":ev.control_means,
-                "dependence":{"kind":"joint_arms", "covariance":covariance},
-                "design":{"assignment_design":ev.design.assignment_design, "treated_units":ev.design.treated_units,
-                    "control_units":ev.design.control_units, "outcome_rows":ev.design.outcome_rows},
-                "design_contract_id":ev.design_contract_id, "design_details":retained_design,
-                "compiled_source_artifact":artifact, "adjustments":[], "exposure":map["exposure"]
-            }))));
+            return Ok(finish(Ok(projection.compiled(
+                bound.numerical_evidence(),
+                artifact,
+                ExperimentalProjectionKind::Assignment,
+            ))));
         }
         let result = if let Some(d) = paired {
             evidence_from_matched_pairs(

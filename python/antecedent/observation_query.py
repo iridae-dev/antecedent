@@ -57,12 +57,12 @@ from __future__ import annotations
 
 import json
 import math
-import struct
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 from . import _native
+from ._float_bits import float_bits as _bits
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -1132,10 +1132,6 @@ def consume_observation_query_artifact(
 
 
 # ------------------------------------------------------------------ count-fitted tables
-
-
-def _bits(value: float) -> int:
-    return int(struct.unpack("<Q", struct.pack("<d", float(value)))[0])
 
 
 @dataclass(repr=False, frozen=True, slots=True)

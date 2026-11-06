@@ -58,6 +58,27 @@ fn admit_targets(
     })
 }
 
+fn collect_policy_targets(
+    variables: impl IntoIterator<Item = VariableId>,
+    offsets: &[i32],
+    count: u64,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> PyResult<Vec<TemporalNodeKey>> {
+    let mut targets = Vec::new();
+    targets
+        .try_reserve_exact(usize::try_from(count).map_err(|_| resource("metadata target count"))?)
+        .map_err(|_| resource("metadata target allocation"))?;
+    for variable in variables {
+        for &offset in offsets {
+            if ctx.cancellation.is_cancelled() {
+                return Err(cancelled());
+            }
+            targets.push(TemporalNodeKey { variable, offset });
+        }
+    }
+    Ok(targets)
+}
+
 fn coordinate(
     id: VariableId,
     indexer: Option<&TemporalIndexer>,
@@ -335,22 +356,7 @@ pub(crate) fn to_json(
                         .policy
                         .active_offsets_within(&mut budget, ctx)
                         .map_err(temporal_error)?;
-                    let mut targets = Vec::new();
-                    targets
-                        .try_reserve_exact(
-                            usize::try_from(count)
-                                .map_err(|_| resource("metadata target count"))?,
-                        )
-                        .map_err(|_| resource("metadata target allocation"))?;
-                    for variable in variables {
-                        for &offset in offsets.iter() {
-                            if ctx.cancellation.is_cancelled() {
-                                return Err(cancelled());
-                            }
-                            targets.push(TemporalNodeKey { variable, offset });
-                        }
-                    }
-                    targets
+                    collect_policy_targets(variables, &offsets, count, ctx)?
                 }
             } else {
                 q.functional
@@ -388,18 +394,7 @@ pub(crate) fn to_json(
             target_lease = Some(admit_targets(count, names, &mut budget, ctx)?);
             let offsets =
                 q.policy.active_offsets_within(&mut budget, ctx).map_err(temporal_error)?;
-            let mut targets = Vec::new();
-            targets
-                .try_reserve_exact(
-                    usize::try_from(count).map_err(|_| resource("metadata target count"))?,
-                )
-                .map_err(|_| resource("metadata target allocation"))?;
-            for &offset in offsets.iter() {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(cancelled());
-                }
-                targets.push(TemporalNodeKey { variable: q.treatment, offset });
-            }
+            let targets = collect_policy_targets([q.treatment], &offsets, count, ctx)?;
             (
                 targets,
                 TemporalNodeKey { variable: q.outcome, offset: q.outcome_offset().map_err(error)? },

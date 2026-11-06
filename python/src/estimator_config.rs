@@ -1251,6 +1251,24 @@ fn build_configured_spec(
     let other_levels = build_other_levels(dict)?;
     let sampling_weights = build_sampling_weights(dict)?;
 
+    // These estimators expose the same optional inference settings in the same order.
+    macro_rules! apply_se_cluster_panel {
+        ($est:ident) => {
+            if let Some(k) = se_kind {
+                $est = $est.with_se_kind(k);
+            }
+            if let Some(ids) = cluster_ids {
+                $est = $est.with_cluster_ids(ids);
+            }
+            if let Some(mw) = multiway_ids {
+                $est = $est.with_multiway_ids(mw);
+            }
+            if let Some(pt) = panel_times {
+                $est = $est.with_panel_times(pt);
+            }
+        };
+    }
+
     Ok(match resolved_id {
         "linear.adjustment.ate" => {
             let mut est = LinearAdjustmentAte::new().with_bootstrap_replicates(bootstrap);
@@ -1304,18 +1322,7 @@ fn build_configured_spec(
         }
         "propensity.matching" => {
             let mut est = PropensityMatching::new().with_bootstrap_replicates(bootstrap);
-            if let Some(k) = se_kind {
-                est = est.with_se_kind(k);
-            }
-            if let Some(ids) = cluster_ids {
-                est = est.with_cluster_ids(ids);
-            }
-            if let Some(mw) = multiway_ids {
-                est = est.with_multiway_ids(mw);
-            }
-            if let Some(pt) = panel_times {
-                est = est.with_panel_times(pt);
-            }
+            apply_se_cluster_panel!(est);
             if let Some(opts) = glm_options {
                 est = est.with_glm_options(opts);
             }
@@ -1375,18 +1382,7 @@ fn build_configured_spec(
         }
         "distance.matching" => {
             let mut est = DistanceMatching::new().with_bootstrap_replicates(bootstrap);
-            if let Some(k) = se_kind {
-                est = est.with_se_kind(k);
-            }
-            if let Some(ids) = cluster_ids {
-                est = est.with_cluster_ids(ids);
-            }
-            if let Some(mw) = multiway_ids {
-                est = est.with_multiway_ids(mw);
-            }
-            if let Some(pt) = panel_times {
-                est = est.with_panel_times(pt);
-            }
+            apply_se_cluster_panel!(est);
             if let Some(opts) = glm_options {
                 est = est.with_glm_options(opts);
             }
@@ -1504,34 +1500,12 @@ fn build_configured_spec(
         }
         "iv.wald" => {
             let mut est = WaldIv::new().with_bootstrap_replicates(bootstrap);
-            if let Some(k) = se_kind {
-                est = est.with_se_kind(k);
-            }
-            if let Some(ids) = cluster_ids {
-                est = est.with_cluster_ids(ids);
-            }
-            if let Some(mw) = multiway_ids {
-                est = est.with_multiway_ids(mw);
-            }
-            if let Some(pt) = panel_times {
-                est = est.with_panel_times(pt);
-            }
+            apply_se_cluster_panel!(est);
             est.into()
         }
         "iv.2sls" => {
             let mut est = TwoStageLeastSquares::new().with_bootstrap_replicates(bootstrap);
-            if let Some(k) = se_kind {
-                est = est.with_se_kind(k);
-            }
-            if let Some(ids) = cluster_ids {
-                est = est.with_cluster_ids(ids);
-            }
-            if let Some(mw) = multiway_ids {
-                est = est.with_multiway_ids(mw);
-            }
-            if let Some(pt) = panel_times {
-                est = est.with_panel_times(pt);
-            }
+            apply_se_cluster_panel!(est);
             est.into()
         }
         "dml" => {

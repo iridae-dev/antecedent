@@ -90,10 +90,6 @@
             "fn query",
             "fn reasoning",
             "fn request",
-            "fn retained_add",
-            "fn retained_input_bytes",
-            "fn retained_law_bytes",
-            "fn retained_memory_overflow",
             "fn sample",
             "fn seed",
             "fn statistical_bindings",
@@ -117,7 +113,18 @@
             "struct StudyInvariants",
             "struct UncertaintyRowWire"
           ],
-          "sha256": "76711c0b9fa8755be3c641fa255c28f4d6aa1a1917d95758b6b9971d9126440c"
+          "sha256": "e6b8f26dcd0fa9c77b87f9d846c583e1caf04d26d429e131fc10eb6ec8250b5e"
+        },
+        {
+          "role": "assertion_source",
+          "path": "crates/antecedent/src/analysis/statistical/retention.rs",
+          "items": [
+            "fn retained_add",
+            "fn retained_input_bytes",
+            "fn retained_law_bytes",
+            "fn retained_memory_overflow"
+          ],
+          "sha256": "cdedf21ac908d1c95d3f442d230cfc0bd9235ff71c0acc928b3e82020843f981"
         }
       ],
       "fixture_payload_sha256": "749908d22929d7e5e05c7b660391ed5cf1bf0977b30fe4798662cf5cc7c31ce9"

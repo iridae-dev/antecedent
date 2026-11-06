@@ -5,13 +5,13 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from _repo import REPO_ROOT as root
+from _repo import REPO_ROOT as root, strict_git_head
 
 verifier = root / "scripts/verify_release.sh"
 # Synthetic versions: the check compares wheel names to the version it is given.
 VERSION = "9.8.7"
 OTHER_VERSION = "9.8.8"
-sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+sha = strict_git_head(root)
 
 with tempfile.TemporaryDirectory() as temp:
     work = Path(temp)

@@ -48,6 +48,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from . import _native
+from ._float_bits import float_bits as _bits
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -197,10 +198,6 @@ def _raise(payload: str | None) -> None:
     first = built[0]
     first.refusals = built
     raise first
-
-
-def _bits(value: float) -> int:
-    return int(struct.unpack("<Q", struct.pack("<d", float(value)))[0])
 
 
 def _float(bits: int) -> float:

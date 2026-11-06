@@ -75,6 +75,16 @@ fn bits_levels(values: &[(String, u64)]) -> Json {
     Json::Array(values.iter().map(|(l, p)| json!([l, f64::from_bits(*p)])).collect())
 }
 
+fn bayes_factor_range_status(factor: f64) -> &'static str {
+    if factor.is_infinite() {
+        "overflow"
+    } else if factor == 0.0 {
+        "underflow"
+    } else {
+        "finite"
+    }
+}
+
 fn result_json(result: &ObservationResultWire, query: Option<&ObservationQueryWire>) -> Json {
     match result {
         ObservationResultWire::Conditional {
@@ -196,13 +206,7 @@ fn result_json(result: &ObservationResultWire, query: Option<&ObservationQueryWi
                 }
                 _ => return Json::Null,
             };
-            let status = if factor.is_infinite() {
-                "overflow"
-            } else if factor == 0.0 {
-                "underflow"
-            } else {
-                "finite"
-            };
+            let status = bayes_factor_range_status(factor);
             json!({
                 "kind": "required_bayes_factor",
                 "factor": if status == "finite" { Some(factor) } else { None },
@@ -240,13 +244,7 @@ fn result_json(result: &ObservationResultWire, query: Option<&ObservationQueryWi
                     } else if num == 0.0 {
                         ("zero", None)
                     } else {
-                        let status = if value.is_infinite() {
-                            "overflow"
-                        } else if value == 0.0 {
-                            "underflow"
-                        } else {
-                            "finite"
-                        };
+                        let status = bayes_factor_range_status(value);
                         (status, Some(num.ln() - den.ln()))
                     }
                 }

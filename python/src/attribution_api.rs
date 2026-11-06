@@ -586,6 +586,22 @@ fn change_query(
     Ok((query, n_samples))
 }
 
+fn attribution_posterior_json(
+    posterior: &antecedent::CausalPosterior,
+    quantities: Vec<String>,
+) -> serde_json::Value {
+    let summary = &posterior.summaries;
+    serde_json::json!({
+        "draws": summary.n_draws,
+        "level": 0.95,
+        "names": quantities,
+        "mean": summary.mean.to_vec(),
+        "sd": summary.sd.to_vec(),
+        "ci_low": summary.q025.to_vec(),
+        "ci_high": summary.q975.to_vec(),
+    })
+}
+
 /// Run a fitted-model attribution through the compiled route under a posterior over the
 /// mechanisms (`posterior_draws` Dirichlet-weighted refits) or the mechanism-refit row
 /// bootstrap (`bootstrap_replicates`), and return its quantities as JSON.
@@ -722,64 +738,62 @@ fn attribution_uncertainty(
         };
         let (outcome, route) =
             source.attribute_resampled(target, inference, bootstrap_replicates, &ctx)?;
-        let point = antecedent::analysis::structure_route::attribution_quantities(&outcome)
-            .unwrap_or_default();
-        let result = route.execution.result();
-        let posterior = result.posterior.as_ref().map(|posterior| {
-            let summary = &posterior.summaries;
-            let quantities: Vec<String> =
-                point.iter().map(|(name, _)| named_quantity(name, &names)).collect();
+        attribution_uncertainty_output(&outcome, route.execution.result(), &kind, &names)
+    })
+}
+
+fn attribution_uncertainty_output(
+    outcome: &AttributionOutcome,
+    result: &antecedent::StudyResult,
+    kind: &str,
+    names: &[String],
+) -> PyResult<String> {
+    let point =
+        antecedent::analysis::structure_route::attribution_quantities(outcome).unwrap_or_default();
+    let posterior = result.posterior.as_ref().map(|posterior| {
+        let quantities = point.iter().map(|(name, _)| named_quantity(name, names)).collect();
+        attribution_posterior_json(posterior, quantities)
+    });
+    let bootstrap = result
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "gcm.frequentist_bootstrap")
+        .map(|d| {
+            let field = |key: &str| {
+                d.fields
+                    .iter()
+                    .find(|(k, _)| k.as_ref() == key)
+                    .map(|(_, v)| v.to_string())
+                    .unwrap_or_default()
+            };
+            let se: serde_json::Map<String, serde_json::Value> = d
+                .fields
+                .iter()
+                .filter_map(|(k, v)| {
+                    let name = k.strip_prefix("bootstrap_se.")?;
+                    Some((
+                        named_quantity(name, names),
+                        v.parse::<f64>().map_or(serde_json::Value::Null, serde_json::Value::from),
+                    ))
+                })
+                .collect();
             serde_json::json!({
-                "draws": summary.n_draws,
-                "level": 0.95,
-                "names": quantities,
-                "mean": summary.mean.to_vec(),
-                "sd": summary.sd.to_vec(),
-                "ci_low": summary.q025.to_vec(),
-                "ci_high": summary.q975.to_vec(),
+                "replicates_ok": field("replicates_ok").parse::<u32>().unwrap_or(0),
+                "replicates_failed": field("replicates_failed").parse::<u32>().unwrap_or(0),
+                "se": se,
             })
         });
-        let bootstrap =
-            result.diagnostics.iter().find(|d| d.code.as_ref() == "gcm.frequentist_bootstrap").map(
-                |d| {
-                    let field = |key: &str| {
-                        d.fields
-                            .iter()
-                            .find(|(k, _)| k.as_ref() == key)
-                            .map(|(_, v)| v.to_string())
-                            .unwrap_or_default()
-                    };
-                    let se: serde_json::Map<String, serde_json::Value> = d
-                        .fields
-                        .iter()
-                        .filter_map(|(k, v)| {
-                            let name = k.strip_prefix("bootstrap_se.")?;
-                            Some((
-                                named_quantity(name, &names),
-                                v.parse::<f64>()
-                                    .map_or(serde_json::Value::Null, serde_json::Value::from),
-                            ))
-                        })
-                        .collect();
-                    serde_json::json!({
-                        "replicates_ok": field("replicates_ok").parse::<u32>().unwrap_or(0),
-                        "replicates_failed": field("replicates_failed").parse::<u32>().unwrap_or(0),
-                        "se": se,
-                    })
-                },
-            );
-        let point_json: Vec<serde_json::Value> = point
-            .iter()
-            .map(|(name, value)| serde_json::json!({ "name": named_quantity(name, &names), "value": value }))
-            .collect();
-        Ok(serde_json::json!({
-            "kind": kind,
-            "point": point_json,
-            "posterior": posterior,
-            "bootstrap": bootstrap,
-        })
-        .to_string())
+    let point_json: Vec<serde_json::Value> = point
+        .iter()
+        .map(|(name, value)| serde_json::json!({ "name": named_quantity(name, names), "value": value }))
+        .collect();
+    Ok(serde_json::json!({
+        "kind": kind,
+        "point": point_json,
+        "posterior": posterior,
+        "bootstrap": bootstrap,
     })
+    .to_string())
 }
 
 fn mechanism_test(name: &str) -> PyResult<MechanismChangeTest> {
@@ -931,116 +945,118 @@ fn temporal_model_query(
             .map_err(py_err)?;
         let result =
             study.prepare(&ctx).map_err(py_err)?.estimate_series(&series, &ctx).map_err(py_err)?;
-        let body = if kind == "mechanism_change" {
-            {
-                let Some(AttributionOutcome::MechanismChange(found)) =
-                    result.attribution().map(|payload| payload.outcome.clone())
-                else {
-                    return Err(outcome_mismatch());
-                };
-                let detections: Vec<serde_json::Value> = found
-                    .iter()
-                    .map(|d| {
-                        serde_json::json!({
-                            "variable": names.get(d.variable.as_usize()).cloned()
-                                .unwrap_or_else(|| format!("V{}", d.variable.raw())),
-                            "changed": d.changed,
-                            "statistic": d.statistic,
-                            "p_value": if d.p_value.is_nan() { serde_json::Value::Null } else { d.p_value.into() },
-                            "adjusted_p_value": d.adjusted_p_value,
-                            "method": d.method.as_ref(),
-                            "n_permutations": d.n_permutations,
-                            "posterior_probability": d.posterior_probability,
-                        })
-                    })
-                    .collect();
-                serde_json::json!({ "kind": kind, "detections": detections })
-            }
-        } else {
-            {
-                let Some(payload) = result.simulation() else {
-                    return Err(outcome_mismatch());
-                };
-                let antecedent::SimulationOutcome::Temporal(path) = &payload.outcome else {
-                    return Err(outcome_mismatch());
-                };
-                let steps: Vec<Vec<f64>> = path
-                    .steps
-                    .iter()
-                    .map(|batch| {
-                        (0..variables.min(path.n_nodes))
-                            .map(|node| {
-                                let column = batch.column(node).unwrap_or(&[]);
-                                column.iter().sum::<f64>() / column.len().max(1) as f64
-                            })
-                            .collect()
-                    })
-                    .collect();
-                let label = |step: usize, node: usize| {
-                    format!("step[{step}].{}", names.get(node).map_or("?", String::as_str))
-                };
-                let n_steps = steps.len();
-                let mut quantities: Vec<String> = (0..n_steps)
-                    .flat_map(|step| (0..variables).map(move |node| (step, node)))
-                    .map(|(step, node)| label(step, node))
-                    .collect();
-                // After the means come the simulated-path columns: draws of the predictive law.
-                let path_labels: Vec<String> = (0..n_steps)
-                    .flat_map(|step| (0..variables).map(move |node| (step, node)))
-                    .map(|(step, node)| format!("path.{}", label(step, node)))
-                    .collect();
-                quantities.extend(path_labels);
-                let posterior = result.posterior.as_ref().map(|posterior| {
-                    let summary = &posterior.summaries;
-                    serde_json::json!({
-                        "draws": summary.n_draws,
-                        "level": 0.95,
-                        "names": quantities,
-                        "mean": summary.mean.to_vec(),
-                        "sd": summary.sd.to_vec(),
-                        "ci_low": summary.q025.to_vec(),
-                        "ci_high": summary.q975.to_vec(),
-                    })
-                });
-                let bootstrap = result
-                    .diagnostics
-                    .iter()
-                    .find(|d| d.code.as_ref() == "gcm.frequentist_bootstrap")
-                    .map(|d| {
-                        let se: serde_json::Map<String, serde_json::Value> = d
-                            .fields
-                            .iter()
-                            .filter_map(|(k, v)| {
-                                let rest = k.strip_prefix("bootstrap_se.step[")?;
-                                let (step, node, is_path) =
-                                    if let Some((step, node)) = rest.split_once("].node[") {
-                                        (step, node, false)
-                                    } else {
-                                        let (step, node) = rest.split_once("].path[")?;
-                                        (step, node, true)
-                                    };
-                                let node: usize = node.trim_end_matches(']').parse().ok()?;
-                                let name = label(step.parse().ok()?, node);
-                                Some((
-                                    if is_path { format!("path.{name}") } else { name },
-                                    v.parse::<f64>()
-                                        .map_or(serde_json::Value::Null, serde_json::Value::from),
-                                ))
-                            })
-                            .collect();
-                        serde_json::json!({ "se": se })
-                    });
-                serde_json::json!({
-                    "kind": kind,
-                    "variables": names,
-                    "steps": steps,
-                    "posterior": posterior,
-                    "bootstrap": bootstrap,
-                })
-            }
-        };
+        let body = temporal_model_output(&result, &kind, &names, variables)?;
         Ok(body.to_string())
     })
+}
+
+fn temporal_model_output(
+    result: &antecedent::StudyResult,
+    kind: &str,
+    names: &[String],
+    variables: usize,
+) -> PyResult<serde_json::Value> {
+    let body = if kind == "mechanism_change" {
+        {
+            let Some(AttributionOutcome::MechanismChange(found)) =
+                result.attribution().map(|payload| payload.outcome.clone())
+            else {
+                return Err(outcome_mismatch());
+            };
+            let detections: Vec<serde_json::Value> = found
+                .iter()
+                .map(|d| {
+                    serde_json::json!({
+                        "variable": names.get(d.variable.as_usize()).cloned()
+                            .unwrap_or_else(|| format!("V{}", d.variable.raw())),
+                        "changed": d.changed,
+                        "statistic": d.statistic,
+                        "p_value": if d.p_value.is_nan() { serde_json::Value::Null } else { d.p_value.into() },
+                        "adjusted_p_value": d.adjusted_p_value,
+                        "method": d.method.as_ref(),
+                        "n_permutations": d.n_permutations,
+                        "posterior_probability": d.posterior_probability,
+                    })
+                })
+                .collect();
+            serde_json::json!({ "kind": kind, "detections": detections })
+        }
+    } else {
+        {
+            let Some(payload) = result.simulation() else {
+                return Err(outcome_mismatch());
+            };
+            let antecedent::SimulationOutcome::Temporal(path) = &payload.outcome else {
+                return Err(outcome_mismatch());
+            };
+            let steps: Vec<Vec<f64>> = path
+                .steps
+                .iter()
+                .map(|batch| {
+                    (0..variables.min(path.n_nodes))
+                        .map(|node| {
+                            let column = batch.column(node).unwrap_or(&[]);
+                            column.iter().sum::<f64>() / column.len().max(1) as f64
+                        })
+                        .collect()
+                })
+                .collect();
+            let label = |step: usize, node: usize| {
+                format!("step[{step}].{}", names.get(node).map_or("?", String::as_str))
+            };
+            let n_steps = steps.len();
+            let mut quantities: Vec<String> = (0..n_steps)
+                .flat_map(|step| (0..variables).map(move |node| (step, node)))
+                .map(|(step, node)| label(step, node))
+                .collect();
+            // After the means come the simulated-path columns: draws of the predictive law.
+            let path_labels: Vec<String> = (0..n_steps)
+                .flat_map(|step| (0..variables).map(move |node| (step, node)))
+                .map(|(step, node)| format!("path.{}", label(step, node)))
+                .collect();
+            quantities.extend(path_labels);
+            let posterior = result
+                .posterior
+                .as_ref()
+                .map(|posterior| attribution_posterior_json(posterior, quantities));
+            let bootstrap = result
+                .diagnostics
+                .iter()
+                .find(|d| d.code.as_ref() == "gcm.frequentist_bootstrap")
+                .map(|d| {
+                    let se: serde_json::Map<String, serde_json::Value> = d
+                        .fields
+                        .iter()
+                        .filter_map(|(k, v)| {
+                            let rest = k.strip_prefix("bootstrap_se.step[")?;
+                            let (step, node, is_path) =
+                                if let Some((step, node)) = rest.split_once("].node[") {
+                                    (step, node, false)
+                                } else {
+                                    let (step, node) = rest.split_once("].path[")?;
+                                    (step, node, true)
+                                };
+                            let node: usize = node.trim_end_matches(']').parse().ok()?;
+                            let name = label(step.parse().ok()?, node);
+                            Some((
+                                if is_path { format!("path.{name}") } else { name },
+                                v.parse::<f64>()
+                                    .map_or(serde_json::Value::Null, serde_json::Value::from),
+                            ))
+                        })
+                        .collect();
+                    serde_json::json!({ "se": se })
+                });
+            serde_json::json!({
+                "kind": kind,
+                "variables": names,
+                "steps": steps,
+                "posterior": posterior,
+                "bootstrap": bootstrap,
+            })
+        }
+    };
+    Ok(body)
 }
 
 /// Evaluate a decision problem under a Python utility callback .

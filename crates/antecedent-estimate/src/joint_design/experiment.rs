@@ -164,152 +164,8 @@ pub fn joint_experiment(
     let outcome_refs: Vec<_> = recipe.outcomes.iter().map(|o| o.values.as_slice()).collect();
     let width = k.checked_mul(2).ok_or("joint experimental width overflow")?;
     let law = match &recipe.design {
-        ExperimentalDesign::MatchedPairs {
-            cluster_ids,
-            pairs,
-            matching_variables,
-            treatment_probabilities,
-            cluster_sizes,
-            preassignment,
-            independent_pairs,
-        } => {
-            if cluster_ids.len() != n
-                || pairs.len().checked_mul(2) != Some(n)
-                || cluster_sizes.len() != n
-                || cluster_sizes.contains(&0)
-                || treatment_probabilities.len() != n
-                || treatment_probabilities.iter().any(|p| *p != 0.5)
-                || cluster_ids.iter().any(|v| v.trim().is_empty())
-                || cluster_ids.iter().collect::<BTreeSet<_>>().len() != n
-                || matching_variables.is_empty()
-                || matching_variables.iter().any(|v| v.trim().is_empty())
-                || preassignment.trim().is_empty()
-                || independent_pairs.trim().is_empty()
-            {
-                return Err("invalid matched-pair source or assignment premises".into());
-            }
-            let rows = cluster_sizes
-                .iter()
-                .try_fold(0usize, |a, b| a.checked_add(*b))
-                .ok_or("cluster size overflow")?;
-            let fit = crate::randomized_joint::matched_pair_joint_contrast(
-                &outcome_refs,
-                &recipe.assignments,
-                pairs,
-                rows,
-            )
-            .ok_or("invalid matched-pair assignments or outcomes")?;
-            let mut means = fit.treated_means;
-            means.extend(fit.control_means);
-            JointExperimentalLaw {
-                means,
-                covariance: fit.arm_covariance,
-                independent_units: fit.pairs,
-                outcome_rows: rows,
-            }
-        }
-        ExperimentalDesign::Switchback {
-            sequence_ids,
-            period_ids,
-            treatment_probabilities,
-            no_carryover,
-            washout_rule,
-            independent_sequences,
-        } => {
-            if sequence_ids.len() != n
-                || period_ids.len() != n
-                || treatment_probabilities.len() != n
-                || [no_carryover, washout_rule, independent_sequences]
-                    .iter()
-                    .any(|v| v.trim().is_empty())
-            {
-                return Err("invalid switchback schedule or temporal premises".into());
-            }
-            let mut counts = BTreeMap::<&str, usize>::new();
-            let mut seen = BTreeSet::new();
-            for ((sequence, period), p) in
-                sequence_ids.iter().zip(period_ids).zip(treatment_probabilities)
-            {
-                if sequence.trim().is_empty()
-                    || period.trim().is_empty()
-                    || !p.is_finite()
-                    || *p < 0.2
-                    || *p > 0.8
-                    || !seen.insert((sequence, period))
-                {
-                    return Err(
-                        "invalid or repeated switchback sequence-period or probability".into()
-                    );
-                }
-                *counts.entry(sequence).or_default() += 1;
-            }
-            if counts.len() < 30
-                || counts.values().any(|c| *c < 2 || Some(c) != counts.values().next())
-            {
-                return Err(
-                    "switchback requires at least 30 independent equal-length sequences".into()
-                );
-            }
-            let ids: Vec<_> = sequence_ids.iter().map(String::as_str).collect();
-            let mut channels = Vec::with_capacity(width);
-            for treated in [true, false] {
-                for y in &outcome_refs {
-                    channels.push(
-                        y.iter()
-                            .zip(&recipe.assignments)
-                            .map(
-                                |(v, a)| {
-                                    if *a == treated { if treated { *v } else { -*v } } else { 0.0 }
-                                },
-                            )
-                            .collect::<Vec<_>>(),
-                    );
-                }
-            }
-            let fit = |y: &[f64]| {
-                crate::switchback::switchback_itt(
-                    y,
-                    &recipe.assignments,
-                    treatment_probabilities,
-                    &ids,
-                )
-            };
-            let mut means = Vec::with_capacity(width);
-            let mut variances = Vec::with_capacity(width);
-            for channel in &channels {
-                if ctx.cancellation.is_cancelled() {
-                    return Err("joint experiment cancelled".into());
-                }
-                let result = fit(channel).ok_or("switchback estimator refused the source")?;
-                if result.interval_95.is_none() {
-                    return Err("switchback sequence support is insufficient".into());
-                }
-                means.push(result.effect);
-                variances.push(result.variance);
-            }
-            let mut covariance =
-                vec![0.0; width.checked_mul(width).ok_or("joint covariance overflow")?];
-            for i in 0..width {
-                covariance[i * width + i] = variances[i];
-                for j in 0..i {
-                    if ctx.cancellation.is_cancelled() {
-                        return Err("joint experiment cancelled".into());
-                    }
-                    let sum: Vec<_> =
-                        channels[i].iter().zip(&channels[j]).map(|(a, b)| a + b).collect();
-                    let v = fit(&sum).ok_or("switchback joint covariance unavailable")?.variance;
-                    let c = (v - variances[i] - variances[j]) / 2.0;
-                    covariance[i * width + j] = c;
-                    covariance[j * width + i] = c;
-                }
-            }
-            JointExperimentalLaw {
-                means,
-                covariance,
-                independent_units: counts.len(),
-                outcome_rows: n,
-            }
-        }
+        ExperimentalDesign::MatchedPairs { .. } => matched_pair_law(recipe, &outcome_refs)?,
+        ExperimentalDesign::Switchback { .. } => switchback_law(recipe, ctx, &outcome_refs, width)?,
     };
     if ctx.cancellation.is_cancelled() {
         return Err("joint experiment cancelled".into());
@@ -318,4 +174,147 @@ pub fn joint_experiment(
         return Err("joint experimental arithmetic overflow".into());
     }
     Ok(law)
+}
+
+#[allow(clippy::float_cmp, reason = "exact equality preserves discrete assignment semantics")]
+fn matched_pair_law(
+    recipe: &JointExperimentalRecipe,
+    outcome_refs: &[&[f64]],
+) -> Result<JointExperimentalLaw, String> {
+    let ExperimentalDesign::MatchedPairs {
+        cluster_ids,
+        pairs,
+        matching_variables,
+        treatment_probabilities,
+        cluster_sizes,
+        preassignment,
+        independent_pairs,
+    } = &recipe.design
+    else {
+        unreachable!("design dispatch selects this variant")
+    };
+    let n = recipe.assignments.len();
+    if cluster_ids.len() != n
+        || pairs.len().checked_mul(2) != Some(n)
+        || cluster_sizes.len() != n
+        || cluster_sizes.contains(&0)
+        || treatment_probabilities.len() != n
+        || treatment_probabilities.iter().any(|p| *p != 0.5)
+        || cluster_ids.iter().any(|v| v.trim().is_empty())
+        || cluster_ids.iter().collect::<BTreeSet<_>>().len() != n
+        || matching_variables.is_empty()
+        || matching_variables.iter().any(|v| v.trim().is_empty())
+        || preassignment.trim().is_empty()
+        || independent_pairs.trim().is_empty()
+    {
+        return Err("invalid matched-pair source or assignment premises".into());
+    }
+    let rows = cluster_sizes
+        .iter()
+        .try_fold(0usize, |a, b| a.checked_add(*b))
+        .ok_or("cluster size overflow")?;
+    let fit = crate::randomized_joint::matched_pair_joint_contrast(
+        outcome_refs,
+        &recipe.assignments,
+        pairs,
+        rows,
+    )
+    .ok_or("invalid matched-pair assignments or outcomes")?;
+    let mut means = fit.treated_means;
+    means.extend(fit.control_means);
+    Ok(JointExperimentalLaw {
+        means,
+        covariance: fit.arm_covariance,
+        independent_units: fit.pairs,
+        outcome_rows: rows,
+    })
+}
+
+#[allow(clippy::float_cmp, reason = "exact equality preserves discrete assignment semantics")]
+fn switchback_law(
+    recipe: &JointExperimentalRecipe,
+    ctx: &antecedent_core::ExecutionContext,
+    outcome_refs: &[&[f64]],
+    width: usize,
+) -> Result<JointExperimentalLaw, String> {
+    let ExperimentalDesign::Switchback {
+        sequence_ids,
+        period_ids,
+        treatment_probabilities,
+        no_carryover,
+        washout_rule,
+        independent_sequences,
+    } = &recipe.design
+    else {
+        unreachable!("design dispatch selects this variant")
+    };
+    let n = recipe.assignments.len();
+    if sequence_ids.len() != n
+        || period_ids.len() != n
+        || treatment_probabilities.len() != n
+        || [no_carryover, washout_rule, independent_sequences].iter().any(|v| v.trim().is_empty())
+    {
+        return Err("invalid switchback schedule or temporal premises".into());
+    }
+    let mut counts = BTreeMap::<&str, usize>::new();
+    let mut seen = BTreeSet::new();
+    for ((sequence, period), p) in sequence_ids.iter().zip(period_ids).zip(treatment_probabilities)
+    {
+        if sequence.trim().is_empty()
+            || period.trim().is_empty()
+            || !p.is_finite()
+            || *p < 0.2
+            || *p > 0.8
+            || !seen.insert((sequence, period))
+        {
+            return Err("invalid or repeated switchback sequence-period or probability".into());
+        }
+        *counts.entry(sequence).or_default() += 1;
+    }
+    if counts.len() < 30 || counts.values().any(|c| *c < 2 || Some(c) != counts.values().next()) {
+        return Err("switchback requires at least 30 independent equal-length sequences".into());
+    }
+    let ids: Vec<_> = sequence_ids.iter().map(String::as_str).collect();
+    let mut channels = Vec::with_capacity(width);
+    for treated in [true, false] {
+        for y in outcome_refs {
+            channels.push(
+                y.iter()
+                    .zip(&recipe.assignments)
+                    .map(|(v, a)| if *a == treated { if treated { *v } else { -*v } } else { 0.0 })
+                    .collect::<Vec<_>>(),
+            );
+        }
+    }
+    let fit = |y: &[f64]| {
+        crate::switchback::switchback_itt(y, &recipe.assignments, treatment_probabilities, &ids)
+    };
+    let mut means = Vec::with_capacity(width);
+    let mut variances = Vec::with_capacity(width);
+    for channel in &channels {
+        if ctx.cancellation.is_cancelled() {
+            return Err("joint experiment cancelled".into());
+        }
+        let result = fit(channel).ok_or("switchback estimator refused the source")?;
+        if result.interval_95.is_none() {
+            return Err("switchback sequence support is insufficient".into());
+        }
+        means.push(result.effect);
+        variances.push(result.variance);
+    }
+    let mut covariance = vec![0.0; width.checked_mul(width).ok_or("joint covariance overflow")?];
+    for i in 0..width {
+        covariance[i * width + i] = variances[i];
+        for j in 0..i {
+            if ctx.cancellation.is_cancelled() {
+                return Err("joint experiment cancelled".into());
+            }
+            let sum: Vec<_> = channels[i].iter().zip(&channels[j]).map(|(a, b)| a + b).collect();
+            let v = fit(&sum).ok_or("switchback joint covariance unavailable")?.variance;
+            let c = (v - variances[i] - variances[j]) / 2.0;
+            covariance[i * width + j] = c;
+            covariance[j * width + i] = c;
+        }
+    }
+    Ok(JointExperimentalLaw { means, covariance, independent_units: counts.len(), outcome_rows: n })
 }

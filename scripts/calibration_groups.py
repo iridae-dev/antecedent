@@ -72,7 +72,7 @@ from functools import cache
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
-from _repo import ensure_scripts_on_path, load_toml
+from _repo import ensure_scripts_on_path, load_toml, strict_git_dirty, strict_git_head
 
 GATE = ROOT / "scripts" / "measure_calibration_groups.sh"
 LOG_DIR = ROOT / "target" / "calibration-records"
@@ -545,7 +545,7 @@ def pilot_timings() -> dict[str, float]:
     out: dict[str, float] = {}
     if not PILOT_TIMINGS.is_file():
         return out
-    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    sha = strict_git_head(ROOT)
     for line in PILOT_TIMINGS.read_text(encoding="utf-8").splitlines():
         parts = line.split("\t")
         if len(parts) != 7 or parts[3] != sha or parts[2] != "0":
@@ -729,7 +729,7 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
         return 0
     if prebuild(groups) != 0:
         return 1
-    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    sha = strict_git_head(ROOT)
     shutil.rmtree(PILOT_LOG_DIR, ignore_errors=True)
     PILOT_LOG_DIR.mkdir(parents=True)
     PILOT_TIMINGS.parent.mkdir(parents=True, exist_ok=True)
@@ -813,12 +813,10 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
     )
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         list(pool.map(one, tasks))
-    current = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    current = strict_git_head(ROOT)
     if (
         current != sha
-        or subprocess.check_output(
-            ["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT, text=True
-        ).strip()
+        or strict_git_dirty(ROOT)
     ):
         PILOT_TIMINGS.unlink(missing_ok=True)
         print("FAIL: HEAD or the working tree changed during the pilot")
@@ -957,13 +955,11 @@ def formal_decision_environment(groups: list[Group] | None = None) -> dict[str, 
 
 def measurement_source_sha() -> str:
     """Direct runner entry points must obey the same source binding as the wrapper."""
-    if subprocess.check_output(
-        ["git", "status", "--porcelain", "--untracked-files=normal"], cwd=ROOT, text=True
-    ).strip():
+    if strict_git_dirty(ROOT):
         raise SystemExit(
             "formal measurement requires a clean committed source checkout; raw logs are retained"
         )
-    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    return strict_git_head(ROOT)
 
 
 def run(selection: Selection, total: int, jobs: int) -> int:

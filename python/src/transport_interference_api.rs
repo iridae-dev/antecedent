@@ -754,16 +754,11 @@ fn identify_transport(
     )
 }
 
-pub(crate) fn parse_catalog(
+fn parse_catalog_environments(
     catalog: &Bound<'_, PyAny>,
     graph: &Admg,
-) -> PyResult<antecedent::query::EvidenceCatalog> {
-    use antecedent::query::{
-        DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-        EvidenceRegime, RegimeBinding, RegimeKind, SamplingDesign, TargetSampling,
-        VariableCoordinate, VariableDomain,
-    };
-    use antecedent::schema::RegimeId;
+) -> PyResult<Vec<antecedent::query::Environment>> {
+    use antecedent::query::{Environment, VariableCoordinate, VariableDomain};
     let names = |object: &Bound<'_, PyAny>, field: &str| -> PyResult<Arc<[VariableId]>> {
         resolve_names(graph, &object.getattr(field)?.extract::<Vec<String>>()?)
     };
@@ -797,6 +792,71 @@ pub(crate) fn parse_catalog(
             .map_err(error)?,
         );
     }
+    Ok(environments)
+}
+
+fn parse_catalog_bindings(
+    catalog: &Bound<'_, PyAny>,
+    ids: &std::collections::HashMap<String, antecedent::schema::RegimeId>,
+) -> PyResult<Vec<antecedent::query::RegimeBinding>> {
+    use antecedent::query::{DependenceGroup, RegimeBinding, SamplingDesign};
+    let mut bindings = Vec::new();
+    for binding in catalog.getattr("bindings")?.try_iter()? {
+        let binding = binding?;
+        let name: String = binding.getattr("regime")?.extract()?;
+        let regime = *ids.get(&name).ok_or_else(|| crate::value_err("unknown bound regime"))?;
+        let sampling = match binding.getattr("sampling")?.extract::<String>()?.as_str() {
+            "independent" => SamplingDesign::Independent,
+            "clustered" => SamplingDesign::Clustered,
+            "unknown" => SamplingDesign::Unknown,
+            _ => return Err(crate::value_err("unknown sampling design")),
+        };
+        let dependence = match binding.getattr("dependence")?.extract::<String>()?.as_str() {
+            "independent_studies" => DependenceGroup::IndependentStudies,
+            "linked_units" => DependenceGroup::LinkedUnits,
+            "unknown_dependence" => DependenceGroup::UnknownDependence,
+            _ => return Err(crate::value_err("unknown dependence group")),
+        };
+        bindings.push(RegimeBinding {
+            dataset_identity: binding
+                .getattr("dataset_identity")?
+                .extract::<Option<String>>()?
+                .map(Arc::from),
+            regime,
+            snapshot_identity: Arc::from(
+                binding.getattr("snapshot_identity")?.extract::<String>()?,
+            ),
+            schema_names: binding
+                .getattr("schema_names")?
+                .extract::<Vec<String>>()?
+                .into_iter()
+                .map(Arc::from)
+                .collect::<Vec<_>>()
+                .into(),
+            sampling,
+            dependence,
+            weights: binding
+                .getattr("weights_snapshot")?
+                .extract::<Option<String>>()?
+                .map(|s| antecedent::query::SupportedWeights { snapshot_identity: Arc::from(s) }),
+        });
+    }
+    Ok(bindings)
+}
+
+pub(crate) fn parse_catalog(
+    catalog: &Bound<'_, PyAny>,
+    graph: &Admg,
+) -> PyResult<antecedent::query::EvidenceCatalog> {
+    use antecedent::query::{
+        DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, RegimeKind,
+        TargetSampling,
+    };
+    use antecedent::schema::RegimeId;
+    let names = |object: &Bound<'_, PyAny>, field: &str| -> PyResult<Arc<[VariableId]>> {
+        resolve_names(graph, &object.getattr(field)?.extract::<Vec<String>>()?)
+    };
+    let environments = parse_catalog_environments(catalog, graph)?;
     let mut regimes = Vec::new();
     let mut ids = std::collections::HashMap::new();
     let mut entries = catalog
@@ -897,47 +957,7 @@ pub(crate) fn parse_catalog(
             .map_err(error)?,
         );
     }
-    let mut bindings = Vec::new();
-    for binding in catalog.getattr("bindings")?.try_iter()? {
-        let binding = binding?;
-        let name: String = binding.getattr("regime")?.extract()?;
-        let regime = *ids.get(&name).ok_or_else(|| crate::value_err("unknown bound regime"))?;
-        let sampling = match binding.getattr("sampling")?.extract::<String>()?.as_str() {
-            "independent" => SamplingDesign::Independent,
-            "clustered" => SamplingDesign::Clustered,
-            "unknown" => SamplingDesign::Unknown,
-            _ => return Err(crate::value_err("unknown sampling design")),
-        };
-        let dependence = match binding.getattr("dependence")?.extract::<String>()?.as_str() {
-            "independent_studies" => DependenceGroup::IndependentStudies,
-            "linked_units" => DependenceGroup::LinkedUnits,
-            "unknown_dependence" => DependenceGroup::UnknownDependence,
-            _ => return Err(crate::value_err("unknown dependence group")),
-        };
-        bindings.push(RegimeBinding {
-            dataset_identity: binding
-                .getattr("dataset_identity")?
-                .extract::<Option<String>>()?
-                .map(Arc::from),
-            regime,
-            snapshot_identity: Arc::from(
-                binding.getattr("snapshot_identity")?.extract::<String>()?,
-            ),
-            schema_names: binding
-                .getattr("schema_names")?
-                .extract::<Vec<String>>()?
-                .into_iter()
-                .map(Arc::from)
-                .collect::<Vec<_>>()
-                .into(),
-            sampling,
-            dependence,
-            weights: binding
-                .getattr("weights_snapshot")?
-                .extract::<Option<String>>()?
-                .map(|s| antecedent::query::SupportedWeights { snapshot_identity: Arc::from(s) }),
-        });
-    }
+    let bindings = parse_catalog_bindings(catalog, &ids)?;
     let target_sampling =
         match catalog.getattr("target_sampling")?.extract::<Option<String>>()?.as_deref() {
             None => None,

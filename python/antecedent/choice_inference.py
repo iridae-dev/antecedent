@@ -21,13 +21,12 @@ causal outcomes. Every number, identity and refusal is computed by the Rust core
 from __future__ import annotations
 
 import json
-import math
-import struct
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from . import _native
+from ._float_bits import finite_float_bits as _bits
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -90,13 +89,6 @@ def _unwrap(pair: tuple[Any, str | None]) -> Any:
     value, refusal = pair
     raise_refusal(refusal, ChoiceInferenceRefusal)
     return value
-
-
-def _bits(value: float) -> int:
-    number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError("a declared number must be finite")
-    return int(struct.unpack("<Q", struct.pack("<d", number))[0])
 
 
 def _json(wire: Any) -> str:
