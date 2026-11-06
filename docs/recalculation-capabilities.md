@@ -205,3 +205,30 @@ Keep `expected_identity` separately from the artifact. A fresh consumer replays 
 | Sampled observation recovery | `transport.advanced.sampled_observation_recovery` | `recovered_effect` |
 
 Method bounds, priors, sample-size ranges and protocol refusals are in [population, time and uncertainty](population-time-uncertainty.md), [transport and counterfactuals](transport-counterfactuals.md) and [supported bounds](supported-bounds.md). Unsupported neighbouring protocols refuse; a measured scalar does not supply the aligned outcome law that distributional decisions need.
+
+## Prepared adjusted-fit retargeting
+
+`PreparedStudy::retarget` and Python `study.retarget(weights, depends_on=("z",))`
+also accept successfully retained OLS and unpenalized GLM mean fits. Prepare/compile
+alone supplies no fitted model: first execute an AllObserved mean with zero
+bootstrap, no effect modifiers and no source sampling weights. Nonconstant weights
+must declare parents inside the certified adjustment set; treatment and descendants
+refuse. Weights cover the frozen complete-case rows in source order. Refreshing
+changed data requires a new successful fit before reuse.
+
+OLS uses its constant additive contrast and original covariance. GLMs standardize
+response-scale predictions and use the weighted averaging gradient with the original
+coefficient covariance (Fisher, HC or the originally declared dependence adjustment).
+This is conditional on the fixed target law. It does not refit, estimate target-weight
+uncertainty, propagate bootstrap uncertainty or become doubly robust.
+
+The separate `adjusted_fit_reuse` wire binds model/covariance construction, complete-case
+row order, coded design, adjustment roles, identification, inference and source snapshot.
+It occupies the existing generic reuse digest slot historically named `score_reuse`;
+`score_reuse_identity()` remains score-only, while `adjusted_fit_reuse_identity()`
+returns this model key. Target weights bind that key. The artifact is an attestation;
+hashes alone are not a portable numerical fit. `reexecute_retarget` requires the matching
+live retained fit, and older consumers refuse the new typed field. The existing normal interval is conditional on the same fixed target law. Its
+calibration key uses `row_weights.mean` for a changed target and cannot inherit
+all-observed coverage; that coordinate is unmeasured. The independent mean/covariance
+check and fixed-target coverage earning remain owed.

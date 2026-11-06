@@ -327,6 +327,7 @@ impl core::clone::Clone for antecedent_estimate::ResamplingRecord
 impl core::clone::Clone for antecedent_estimate::ResamplingReport
 impl core::clone::Clone for antecedent_estimate::ResponseBlockLength
 impl core::clone::Clone for antecedent_estimate::ResponseInfluence
+impl core::clone::Clone for antecedent_estimate::RetainedGlmPoint
 impl core::clone::Clone for antecedent_estimate::RetainedSamplingWeights
 impl core::clone::Clone for antecedent_estimate::RetargetRefusal
 impl core::clone::Clone for antecedent_estimate::RetargetResult
@@ -2840,6 +2841,7 @@ impl core::fmt::Debug for antecedent_estimate::ResamplingRecord
 impl core::fmt::Debug for antecedent_estimate::ResamplingReport
 impl core::fmt::Debug for antecedent_estimate::ResponseBlockLength
 impl core::fmt::Debug for antecedent_estimate::ResponseInfluence
+impl core::fmt::Debug for antecedent_estimate::RetainedGlmPoint
 impl core::fmt::Debug for antecedent_estimate::RetainedSamplingWeights
 impl core::fmt::Debug for antecedent_estimate::RetargetRefusal
 impl core::fmt::Debug for antecedent_estimate::RetargetResult
@@ -4371,6 +4373,7 @@ impl core::marker::Freeze for antecedent_estimate::ResamplingRecord [auto]
 impl core::marker::Freeze for antecedent_estimate::ResamplingReport [auto]
 impl core::marker::Freeze for antecedent_estimate::ResponseBlockLength [auto]
 impl core::marker::Freeze for antecedent_estimate::ResponseInfluence [auto]
+impl core::marker::Freeze for antecedent_estimate::RetainedGlmPoint [auto]
 impl core::marker::Freeze for antecedent_estimate::RetainedSamplingWeights [auto]
 impl core::marker::Freeze for antecedent_estimate::RetargetRefusal [auto]
 impl core::marker::Freeze for antecedent_estimate::RetargetResult [auto]
@@ -5476,6 +5479,7 @@ impl core::marker::Send for antecedent_estimate::ResamplingRecord [auto]
 impl core::marker::Send for antecedent_estimate::ResamplingReport [auto]
 impl core::marker::Send for antecedent_estimate::ResponseBlockLength [auto]
 impl core::marker::Send for antecedent_estimate::ResponseInfluence [auto]
+impl core::marker::Send for antecedent_estimate::RetainedGlmPoint [auto]
 impl core::marker::Send for antecedent_estimate::RetainedSamplingWeights [auto]
 impl core::marker::Send for antecedent_estimate::RetargetRefusal [auto]
 impl core::marker::Send for antecedent_estimate::RetargetResult [auto]
@@ -7505,6 +7509,7 @@ impl core::marker::Sync for antecedent_estimate::ResamplingRecord [auto]
 impl core::marker::Sync for antecedent_estimate::ResamplingReport [auto]
 impl core::marker::Sync for antecedent_estimate::ResponseBlockLength [auto]
 impl core::marker::Sync for antecedent_estimate::ResponseInfluence [auto]
+impl core::marker::Sync for antecedent_estimate::RetainedGlmPoint [auto]
 impl core::marker::Sync for antecedent_estimate::RetainedSamplingWeights [auto]
 impl core::marker::Sync for antecedent_estimate::RetargetRefusal [auto]
 impl core::marker::Sync for antecedent_estimate::RetargetResult [auto]
@@ -8614,6 +8619,7 @@ impl core::marker::Unpin for antecedent_estimate::ResamplingRecord [auto]
 impl core::marker::Unpin for antecedent_estimate::ResamplingReport [auto]
 impl core::marker::Unpin for antecedent_estimate::ResponseBlockLength [auto]
 impl core::marker::Unpin for antecedent_estimate::ResponseInfluence [auto]
+impl core::marker::Unpin for antecedent_estimate::RetainedGlmPoint [auto]
 impl core::marker::Unpin for antecedent_estimate::RetainedSamplingWeights [auto]
 impl core::marker::Unpin for antecedent_estimate::RetargetRefusal [auto]
 impl core::marker::Unpin for antecedent_estimate::RetargetResult [auto]
@@ -9726,6 +9732,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::Resampling
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ResamplingReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ResponseBlockLength [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ResponseInfluence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::RetainedGlmPoint [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::RetainedSamplingWeights [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::RetargetRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::RetargetResult [auto]
@@ -10834,6 +10841,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ResamplingRec
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ResamplingReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ResponseBlockLength [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ResponseInfluence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::RetainedGlmPoint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::RetainedSamplingWeights [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::RetargetRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::RetargetResult [auto]
@@ -13916,6 +13924,8 @@ pub field antecedent_estimate::GlmAdjustmentAte::overlap: antecedent_estimate::O
 pub field antecedent_estimate::GlmAdjustmentAte::population_registry: core::option::Option<antecedent_core::query::population::PopulationRegistry>
 pub field antecedent_estimate::GlmAdjustmentAte::sampling_weights: core::option::Option<antecedent_estimate::SamplingWeights>
 pub field antecedent_estimate::GlmAdjustmentWorkspace::ols: antecedent_stats::linalg::LeastSquaresWorkspace
+pub field antecedent_estimate::GlmAdjustmentWorkspace::retain_point: bool
+pub field antecedent_estimate::GlmAdjustmentWorkspace::retained_point: core::option::Option<antecedent_estimate::RetainedGlmPoint>
 pub field antecedent_estimate::GraphEffectDraws::effect_draws: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::GraphEffectDraws::graph_key: u64
 pub field antecedent_estimate::HeldOutCase::baseline: f64
@@ -18673,6 +18683,8 @@ pub fn <antecedent_estimate::ReportingTransform>::fn interval(&self, i: usize, l
 pub fn <antecedent_estimate::ReportingTransform>::fn se(&self, i: usize) -> core::option::Option<f64>
 pub fn <antecedent_estimate::ResponseBlockLength>::const fn capped(&self) -> bool
 pub fn <antecedent_estimate::ResponseBlockLength>::fn new(structural_span: usize, rows: usize, scores: &[&[f64]]) -> Self
+pub fn <antecedent_estimate::RetainedGlmPoint>::const fn n_rows(&self) -> usize
+pub fn <antecedent_estimate::RetainedGlmPoint>::fn retarget(&self, weights: &[f64]) -> core::result::Result<(f64, f64), antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::RetainedSamplingWeights>::fn subset(&self, rows: &[usize]) -> Self
 pub fn <antecedent_estimate::RetargetRefusal>::const fn as_str(self) -> &'static str
 pub fn <antecedent_estimate::RetargetRefusal>::fn fields(self) -> antecedent_estimate::RefusalFields
@@ -19507,6 +19519,7 @@ pub fn antecedent_estimate::cell_aipw::interaction_contrast(table: &antecedent_e
 pub fn antecedent_estimate::cell_aipw::summarize_with_contrast(table: &antecedent_estimate::ScoreTable, spec: &str, weights: core::option::Option<&[f64]>) -> core::result::Result<(antecedent_estimate::ScoreSummary, antecedent_estimate::LinearContrast), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::changes_target(weights: &[f64]) -> bool
 pub fn antecedent_estimate::check_depends_on(depends_on: &[antecedent_core::ids::VariableId], table: &antecedent_estimate::ScoreTable, graph: core::option::Option<&dyn antecedent_estimate::DirectedAncestry>) -> core::result::Result<(), antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::check_target_dependencies(depends_on: &[antecedent_core::ids::VariableId], treatment: antecedent_core::ids::VariableId, intervened: &[antecedent_core::ids::VariableId], adjustment_set: &[antecedent_core::ids::VariableId], graph: core::option::Option<&dyn antecedent_estimate::DirectedAncestry>) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::choice_inference::calibration_basis(estimator: &str, functional: &str, dependence: &str, prior: &str, rows: u64) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn antecedent_estimate::choice_inference::choice_operating_characteristics(spec: &antecedent_stats::adaptive_inference::choice_procedure::ChoiceProcedureSpec, kernel: &antecedent_stats::adaptive_inference::choice_procedure::ChoiceKernel, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_estimate::choice_inference::choice_posterior(prior: &[f64], counts: &[f64], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::choice_inference::ChoicePosterior, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
@@ -20433,6 +20446,8 @@ pub struct antecedent_estimate::ResamplingRecord
 pub struct antecedent_estimate::ResponseBlockLength
 pub struct antecedent_estimate::ResponseGridInputs<'a>
 pub struct antecedent_estimate::ResponseInfluence
+pub struct antecedent_estimate::RetainedGlmPoint
+pub struct antecedent_estimate::RetainedGlmPoint has private fields
 pub struct antecedent_estimate::RetainedSamplingWeights
 pub struct antecedent_estimate::RetargetResult
 pub struct antecedent_estimate::RidgeTuning
@@ -21607,6 +21622,7 @@ pub use antecedent_estimate::retarget::RetargetRefusal = antecedent_estimate::Re
 pub use antecedent_estimate::retarget::RetargetResult = antecedent_estimate::RetargetResult
 pub use antecedent_estimate::retarget::changes_target = antecedent_estimate::changes_target
 pub use antecedent_estimate::retarget::check_depends_on = antecedent_estimate::check_depends_on
+pub use antecedent_estimate::retarget::check_target_dependencies = antecedent_estimate::check_target_dependencies
 pub use antecedent_estimate::retarget::exceedance_cdf_values = antecedent_estimate::exceedance_cdf_values
 pub use antecedent_estimate::retarget::retarget = antecedent_estimate::retarget
 pub use antecedent_estimate::sampling_weights::RetainedSamplingWeights = antecedent_estimate::RetainedSamplingWeights

@@ -420,6 +420,7 @@ fn receipt_contract(
         data_snapshot: None,
         execution: None,
         score_reuse: None,
+        adjusted_fit_reuse: None,
         target_weights: None,
         checked_aipw_rows: None,
     })

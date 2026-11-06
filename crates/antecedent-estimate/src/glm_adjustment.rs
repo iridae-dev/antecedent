@@ -44,6 +44,8 @@ use crate::se::{AnalyticSeKind, SeSpec};
 use crate::util::BootstrapOutcome;
 
 mod family;
+mod retained;
+pub use retained::RetainedGlmPoint;
 mod variance;
 
 pub(crate) use family::{FamilyKernel, fisher_weight, mean_derivative, resolve_nb_alpha};
@@ -95,6 +97,10 @@ pub struct PreparedGlmProblem {
 pub struct GlmAdjustmentWorkspace {
     /// IRLS least-squares scratch.
     pub ols: LeastSquaresWorkspace,
+    /// Request a retained coefficient law for a compatible prepared mean model.
+    pub retain_point: bool,
+    /// Candidate from a successful point fit. Publish only after the full request succeeds.
+    pub retained_point: Option<RetainedGlmPoint>,
 }
 
 /// Logistic GLM adjustment estimator for binary-outcome backdoor ATE.
@@ -404,6 +410,7 @@ impl GlmAdjustmentAte {
         workspace: &mut GlmAdjustmentWorkspace,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        workspace.retained_point = None;
         let t_col = problem
             .design
             .treatment_column()
@@ -505,6 +512,15 @@ impl GlmAdjustmentAte {
             .with_sampling_weights(problem.sampling.as_ref().map(|s| s.record));
         if let Some(levels) = problem.treatment_levels {
             estimate = estimate.with_treatment_levels(levels);
+        }
+        if workspace.retain_point {
+            workspace.retained_point = retained::retain_point(
+                self,
+                problem,
+                glm_fit.coefficients,
+                glm_fit.deviance,
+                nb_alpha,
+            )?;
         }
         Ok(estimate)
     }

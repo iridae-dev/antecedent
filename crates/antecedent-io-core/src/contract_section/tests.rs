@@ -537,6 +537,7 @@ fn contract_for_dag(
         data_snapshot: Some(data_snapshot),
         execution: Some(execution),
         score_reuse: None,
+        adjusted_fit_reuse: None,
         target_weights: None,
         checked_aipw_rows: None,
     };

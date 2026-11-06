@@ -7674,3 +7674,14 @@ refusals = [
 routes = [
   { route = "antecedent_estimate.response_gam_derivative.pointwise_band", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
+
+[[record]]
+id = "recalculation.prepared_adjusted"
+status = "supported"
+refusals = [
+  { code = "score_table_unavailable", detail = "recalc.score_table_unavailable" },
+]
+routes = [
+  { route = "antecedent.PreparedStudy.retarget.adjusted_fit", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.python.prepared.retarget.adjusted_fit", stage = "evaluate", status = "supported", claim = "interval" },
+]

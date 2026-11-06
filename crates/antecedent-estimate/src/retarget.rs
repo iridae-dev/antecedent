@@ -301,11 +301,33 @@ pub fn check_depends_on(
     table: &ScoreTable,
     graph: Option<&dyn DirectedAncestry>,
 ) -> Result<(), EstimationError> {
+    check_target_dependencies(
+        depends_on,
+        table.treatment,
+        &table.intervened,
+        &table.adjustment_set,
+        graph,
+    )
+}
+
+/// Validate target-weight parents for a retained fitted model or a score table.
+/// Treatment, intervened variables and their directed descendants cannot determine
+/// target weights; every parent must lie in the certified adjustment set.
+///
+/// # Errors
+/// A forbidden role, missing directed graph, or parent outside the adjustment set.
+pub fn check_target_dependencies(
+    depends_on: &[VariableId],
+    treatment: VariableId,
+    intervened: &[VariableId],
+    adjustment_set: &[VariableId],
+    graph: Option<&dyn DirectedAncestry>,
+) -> Result<(), EstimationError> {
     for &v in depends_on {
-        if v == table.treatment || table.intervened.iter().any(|&x| x == v) {
+        if v == treatment || intervened.iter().any(|&x| x == v) {
             return Err(RetargetRefusal::IllegalDependence.error());
         }
-        if !table.adjustment_set.iter().any(|&z| z == v) {
+        if !adjustment_set.iter().any(|&z| z == v) {
             return Err(RetargetRefusal::OutsideAdjustmentSet.error());
         }
     }
@@ -315,7 +337,7 @@ pub fn check_depends_on(
     let Some(graph) = graph else {
         return Err(RetargetRefusal::DescendantClosureUnavailable.error());
     };
-    if descendant_of_intervened(depends_on, table, graph)? {
+    if descendant_of_intervened(depends_on, treatment, intervened, graph)? {
         return Err(RetargetRefusal::IllegalDependence.error());
     }
     Ok(())
@@ -327,11 +349,12 @@ pub fn check_depends_on(
 )]
 fn descendant_of_intervened(
     depends_on: &[VariableId],
-    table: &ScoreTable,
+    treatment: VariableId,
+    intervened: &[VariableId],
     graph: &dyn DirectedAncestry,
 ) -> Result<bool, EstimationError> {
-    let mut sources = vec![table.treatment];
-    sources.extend(table.intervened.iter().copied());
+    let mut sources = vec![treatment];
+    sources.extend(intervened.iter().copied());
     let mut ws = GraphWorkspace::default();
     let mut out = BitSet::default();
     let mut dense = Vec::with_capacity(sources.len());

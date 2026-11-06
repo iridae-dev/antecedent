@@ -60,6 +60,22 @@ mod program;
 mod static_route;
 mod temporal;
 
+/// Immutable design and roles behind a fitted-model reuse key.
+pub(super) struct AdjustedReuse<'a> {
+    pub(super) model: &'static str,
+    pub(super) covariance: &'static str,
+    pub(super) design: &'a antecedent_stats::CompiledDesign,
+    pub(super) adjustment: &'a [antecedent_core::VariableId],
+    pub(super) treatment: antecedent_core::VariableId,
+    pub(super) outcome: antecedent_core::VariableId,
+}
+
+/// A retargeted fitted-model estimate and leases for any shared output buffers.
+pub(super) struct AdjustedRetargetOutput {
+    pub(super) estimate: antecedent_estimate::EffectEstimate,
+    pub(super) retained: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
+}
+
 /// A sealed operation that has a public inspection record.
 ///
 /// The record is built by the operation itself, from the state it retains, and
@@ -95,6 +111,25 @@ pub(super) trait SealedOperation {
         &mut self,
         validators: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
     );
+
+    /// Distinct from a score table: an eligible immutable fitted mean model.
+    fn adjusted_reuse(&self) -> Option<AdjustedReuse<'_>> {
+        None
+    }
+
+    /// Whether an eligible model actually retains a successful fitted point.
+    fn adjusted_retarget_ready(&self) -> bool {
+        false
+    }
+
+    /// Standardize frozen coefficients, without fitting or using DR score inference.
+    fn retarget_adjusted(
+        &self,
+        _weights: &[f64],
+        _ctx: &ExecutionContext,
+    ) -> Result<Option<AdjustedRetargetOutput>, CausalError> {
+        Ok(None)
+    }
 
     /// Rebind only the checked receipts that still execute through the shared
     /// tabular dispatcher; `None` for every operation that executes as
@@ -153,6 +188,20 @@ impl<T: SealedOperation + ?Sized> SealedOperation for Box<T> {
         validators: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
     ) {
         (**self).set_custom_validators(validators);
+    }
+
+    fn adjusted_reuse(&self) -> Option<AdjustedReuse<'_>> {
+        (**self).adjusted_reuse()
+    }
+    fn adjusted_retarget_ready(&self) -> bool {
+        (**self).adjusted_retarget_ready()
+    }
+    fn retarget_adjusted(
+        &self,
+        weights: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<Option<AdjustedRetargetOutput>, CausalError> {
+        (**self).retarget_adjusted(weights, ctx)
     }
 
     fn rebind_for_dispatch(

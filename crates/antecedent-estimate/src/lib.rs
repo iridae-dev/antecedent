@@ -338,7 +338,9 @@ pub use functional_distribution::{
     free_variables_diagnostic, functional_cell_unevaluable, functional_free_variables,
     logit_probability_interval, support_from_functional_eval,
 };
-pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
+pub use glm_adjustment::{
+    GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem, RetainedGlmPoint,
+};
 pub use identified_set::{
     IdentifiedSetInterval, IdentifiedSetIntervalMethod, imbens_manski_critical_value,
     imbens_manski_influence, imbens_manski_posterior_draws, imbens_manski_shared_replicates,
@@ -418,8 +420,8 @@ pub use response::{
 };
 pub use retarget::{
     DirectedAncestry, RetargetRefusal, RetargetResult, changes_target, check_depends_on,
-    exceedance_cdf_values, retarget, summarize_functional, summarize_functional_with,
-    weighted_overlap_fields, weighted_support_fields,
+    check_target_dependencies, exceedance_cdf_values, retarget, summarize_functional,
+    summarize_functional_with, weighted_overlap_fields, weighted_support_fields,
 };
 pub use sampling_weights::{RetainedSamplingWeights, SamplingWeightRecord, SamplingWeights};
 pub use score_dependence::ScoreDependence;

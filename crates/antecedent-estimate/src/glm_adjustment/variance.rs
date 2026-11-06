@@ -235,10 +235,19 @@ pub(super) fn gcomp_gradient(
     coefficients: &[f64],
     target: &GcompTarget<'_>,
 ) -> Vec<f64> {
+    gcomp_mean_and_gradient(contrast, coefficients, target).1
+}
+
+pub(super) fn gcomp_mean_and_gradient(
+    contrast: &GcompContrast<'_>,
+    coefficients: &[f64],
+    target: &GcompTarget<'_>,
+) -> (f64, Vec<f64>) {
     let GcompContrast { family, x_colmajor, nrows, ncols, t_col, active, control } = *contrast;
     let GcompTarget { treatment, population, weights } = *target;
     let mut grad = vec![0.0; ncols];
     let mut mass = 0.0;
+    let mut value = 0.0;
     for r in 0..nrows {
         if !include_gcomp_row(population, treatment.get(r).copied().unwrap_or(0.0)) {
             continue;
@@ -246,6 +255,7 @@ pub(super) fn gcomp_gradient(
         let weight = weights.map_or(1.0, |w| w[r]);
         mass += weight;
         let (eta_active, eta_control) = contrast.contrast_row_etas(coefficients, r);
+        value += weight * (family.mean_from_eta(eta_active) - family.mean_from_eta(eta_control));
         let d1 = mean_derivative(family, eta_active);
         let d0 = mean_derivative(family, eta_control);
         for c in 0..ncols {
@@ -262,5 +272,5 @@ pub(super) fn gcomp_gradient(
     for g in &mut grad {
         *g /= n;
     }
-    grad
+    (value / n, grad)
 }

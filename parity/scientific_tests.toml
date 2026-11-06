@@ -490,3 +490,10 @@ evidence_assertion = "composed_gaussian_outcome_law_matches_independent_chain_re
 kind = "known_truth"
 fixtures = []
 why = "Gaussian intervention outcome noise, median-tail probability and nonlinear quadratic utility against an independently expanded structural chain; no parameter interval is claimed."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/prepared_adjusted_retarget.rs"
+evidence_assertion = "adjusted_retarget_matches_independent_logit_standardization_and_fisher_covariance"
+kind = "known_truth"
+fixtures = []
+why = "Four exact binomial cells: independent logit mean standardization and adjugate Fisher delta covariance on a fixed target; owed after freeze."

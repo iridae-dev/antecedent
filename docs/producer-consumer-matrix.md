@@ -408,3 +408,10 @@ law for `outcome` coordinates. Inverse probability/quantile and quadratic utilit
 consumers read that law; the sealed inverse consumer replays the analytic functional.
 Mean contrasts and mean coordinates retain point-only standing. Outcome variance
 never grants a parameter posterior, calibrated interval, or joint intervention law.
+
+Prepared fitted-mean retargeting uses a distinct producer/consumer contract:
+
+| Producer | Consumer | Standing and refusals |
+| --- | --- | --- |
+| Successful prepared OLS/GLM AllObserved mean, zero bootstrap, no source weights/modifiers | Common `retarget` / `reexecute_retarget`, Rust and Python | Same frozen rows/coding/roles; original estimator covariance conditional on fixed Q; no DR label or outcome law. Fresh metadata, changed source and illegal weight parents refuse. |
+| Contracted adjusted retarget result (`adjusted_fit_reuse`) | Independent analysis-result reader | Rehashes typed fit/row/design and target-weight bindings; does not numerically replay a fit from metadata. A matching live prepared handle can reexecute. |

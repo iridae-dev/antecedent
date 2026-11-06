@@ -113,6 +113,8 @@ pub(super) fn checked_glm_adjustment(cx: &SealContext<'_>) -> SealOutcome {
             let preparation = fitter.prepare(data, &cache.estimand, query)?;
             let (identifier, estimator) = cx.binding.resolve(RouteDefaults::STATIC_ATE)?;
             Some(CheckedGlmAdjustmentOperation {
+                source: data.clone(),
+                frozen_fit: Arc::new(std::sync::Mutex::new(None)),
                 source_query: CausalQuery::AverageEffect(query.clone()),
                 query: query.clone(),
                 cache: Arc::clone(cache),

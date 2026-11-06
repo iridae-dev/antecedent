@@ -120,6 +120,7 @@ impl antecedent_io_core::container::LogicalSource for [u8]
 impl antecedent_io_core::container::LogicalSource for alloc::sync::Arc<[u8]>
 impl antecedent_io_core::container::LogicalSource for alloc::vec::Vec<u8>
 impl core::clone::Clone for antecedent_io_core::AdaptiveBudgetWire
+impl core::clone::Clone for antecedent_io_core::AdjustedFitReuseIdentityWire
 impl core::clone::Clone for antecedent_io_core::AdmgJson
 impl core::clone::Clone for antecedent_io_core::AdmgWire
 impl core::clone::Clone for antecedent_io_core::AnalysisResultConsumption
@@ -963,6 +964,7 @@ impl core::clone::Clone for antecedent_io_core::transported_counterfactual_artif
 impl core::clone::Clone for antecedent_io_core::wire::GraphCpdagWire
 impl core::clone::Clone for antecedent_io_core::wire::ScalarTypeWire
 impl core::cmp::Eq for antecedent_io_core::AdaptiveBudgetWire
+impl core::cmp::Eq for antecedent_io_core::AdjustedFitReuseIdentityWire
 impl core::cmp::Eq for antecedent_io_core::AdmgJson
 impl core::cmp::Eq for antecedent_io_core::AdmgWire
 impl core::cmp::Eq for antecedent_io_core::AnalysisResultHeader
@@ -1426,6 +1428,7 @@ impl core::cmp::Ord for antecedent_io_core::identity::IdentityNodeWire
 impl core::cmp::Ord for antecedent_io_core::mechanism_composition_artifact::ParameterIdWire
 impl core::cmp::Ord for antecedent_io_core::mechanism_composition_artifact::TermWire
 impl core::cmp::PartialEq for antecedent_io_core::AdaptiveBudgetWire
+impl core::cmp::PartialEq for antecedent_io_core::AdjustedFitReuseIdentityWire
 impl core::cmp::PartialEq for antecedent_io_core::AdmgJson
 impl core::cmp::PartialEq for antecedent_io_core::AdmgWire
 impl core::cmp::PartialEq for antecedent_io_core::AnalysisResultConsumption
@@ -2392,6 +2395,7 @@ impl core::error::Error for antecedent_io_core::transport_handoff_artifact::Tran
 impl core::error::Error for antecedent_io_core::transport_revalidation_artifact::TransportRevalidationArtifactError
 impl core::error::Error for antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualArtifactError
 impl core::fmt::Debug for antecedent_io_core::AdaptiveBudgetWire
+impl core::fmt::Debug for antecedent_io_core::AdjustedFitReuseIdentityWire
 impl core::fmt::Debug for antecedent_io_core::AdmgJson
 impl core::fmt::Debug for antecedent_io_core::AdmgWire
 impl core::fmt::Debug for antecedent_io_core::AnalysisResultConsumption
@@ -3432,6 +3436,7 @@ impl core::marker::Copy for antecedent_io_core::transported_counterfactual_artif
 impl core::marker::Copy for antecedent_io_core::transported_counterfactual_artifact::TransportedCounterfactualLimits
 impl core::marker::Copy for antecedent_io_core::wire::ScalarTypeWire
 impl core::marker::Freeze for antecedent_io_core::AdaptiveBudgetWire [auto]
+impl core::marker::Freeze for antecedent_io_core::AdjustedFitReuseIdentityWire [auto]
 impl core::marker::Freeze for antecedent_io_core::AdmgJson [auto]
 impl core::marker::Freeze for antecedent_io_core::AdmgWire [auto]
 impl core::marker::Freeze for antecedent_io_core::AnalysisResultConsumption [auto]
@@ -4281,6 +4286,7 @@ impl core::marker::Freeze for antecedent_io_core::transported_counterfactual_art
 impl core::marker::Freeze for antecedent_io_core::wire::GraphCpdagWire [auto]
 impl core::marker::Freeze for antecedent_io_core::wire::ScalarTypeWire [auto]
 impl core::marker::Send for antecedent_io_core::AdaptiveBudgetWire [auto]
+impl core::marker::Send for antecedent_io_core::AdjustedFitReuseIdentityWire [auto]
 impl core::marker::Send for antecedent_io_core::AdmgJson [auto]
 impl core::marker::Send for antecedent_io_core::AdmgWire [auto]
 impl core::marker::Send for antecedent_io_core::AnalysisResultConsumption [auto]
@@ -5136,6 +5142,7 @@ impl core::marker::Send for antecedent_io_core::transported_counterfactual_artif
 impl core::marker::Send for antecedent_io_core::wire::GraphCpdagWire [auto]
 impl core::marker::Send for antecedent_io_core::wire::ScalarTypeWire [auto]
 impl core::marker::StructuralPartialEq for antecedent_io_core::AdaptiveBudgetWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::AdjustedFitReuseIdentityWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::AdmgJson
 impl core::marker::StructuralPartialEq for antecedent_io_core::AdmgWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::AnalysisResultConsumption
@@ -5930,6 +5937,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::transported_count
 impl core::marker::StructuralPartialEq for antecedent_io_core::wire::GraphCpdagWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::wire::ScalarTypeWire
 impl core::marker::Sync for antecedent_io_core::AdaptiveBudgetWire [auto]
+impl core::marker::Sync for antecedent_io_core::AdjustedFitReuseIdentityWire [auto]
 impl core::marker::Sync for antecedent_io_core::AdmgJson [auto]
 impl core::marker::Sync for antecedent_io_core::AdmgWire [auto]
 impl core::marker::Sync for antecedent_io_core::AnalysisResultConsumption [auto]
@@ -6785,6 +6793,7 @@ impl core::marker::Sync for antecedent_io_core::transported_counterfactual_artif
 impl core::marker::Sync for antecedent_io_core::wire::GraphCpdagWire [auto]
 impl core::marker::Sync for antecedent_io_core::wire::ScalarTypeWire [auto]
 impl core::marker::Unpin for antecedent_io_core::AdaptiveBudgetWire [auto]
+impl core::marker::Unpin for antecedent_io_core::AdjustedFitReuseIdentityWire [auto]
 impl core::marker::Unpin for antecedent_io_core::AdmgJson [auto]
 impl core::marker::Unpin for antecedent_io_core::AdmgWire [auto]
 impl core::marker::Unpin for antecedent_io_core::AnalysisResultConsumption [auto]
@@ -7641,6 +7650,7 @@ impl core::marker::Unpin for antecedent_io_core::wire::GraphCpdagWire [auto]
 impl core::marker::Unpin for antecedent_io_core::wire::ScalarTypeWire [auto]
 impl core::ops::deref::Deref for antecedent_io_core::CborFailure
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AdaptiveBudgetWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AdjustedFitReuseIdentityWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AdmgJson [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AdmgWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::AnalysisResultConsumption [auto]
@@ -8495,6 +8505,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transported
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::wire::GraphCpdagWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::wire::ScalarTypeWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AdaptiveBudgetWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AdjustedFitReuseIdentityWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AdmgJson [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AdmgWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::AnalysisResultConsumption [auto]
@@ -9349,6 +9360,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transported_co
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::wire::GraphCpdagWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::wire::ScalarTypeWire [auto]
 impl serde_core::ser::Serialize for antecedent_io_core::AdaptiveBudgetWire
+impl serde_core::ser::Serialize for antecedent_io_core::AdjustedFitReuseIdentityWire
 impl serde_core::ser::Serialize for antecedent_io_core::AdmgJson
 impl serde_core::ser::Serialize for antecedent_io_core::AdmgWire
 impl serde_core::ser::Serialize for antecedent_io_core::AnalysisResultContractWire
@@ -10103,6 +10115,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::trace::Bor
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::transport_interference_wire::BorrowedTransportIdentificationWire<'a> [auto]
 impl<'de, T> serde_core::de::Deserialize<'de> for antecedent_io_core::SlotSectionWire<T> where T: serde_core::de::Deserialize<'de>
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AdaptiveBudgetWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AdjustedFitReuseIdentityWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AdmgJson
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AdmgWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::AnalysisResultContractWire
@@ -11210,6 +11223,18 @@ pub enum antecedent_io_core::wire::ScalarTypeWire
 pub field antecedent_io_core::AdaptiveBudgetWire::epsilon_bits: u64
 pub field antecedent_io_core::AdaptiveBudgetWire::ess_target_bits: core::option::Option<u64>
 pub field antecedent_io_core::AdaptiveBudgetWire::minimum: u64
+pub field antecedent_io_core::AdjustedFitReuseIdentityWire::adjustment_set: alloc::vec::Vec<u32>
+pub field antecedent_io_core::AdjustedFitReuseIdentityWire::covariance: alloc::string::String
+pub field antecedent_io_core::AdjustedFitReuseIdentityWire::data_snapshot: [u8; 32]
+pub field antecedent_io_core::AdjustedFitReuseIdentityWire::design: antecedent_io_core::PayloadDigestWire
+pub field antecedent_io_core::AdjustedFitReuseIdentityWire::format: u16
+pub field antecedent_io_core::AdjustedFitReuseIdentityWire::identification: [u8; 32]
+pub field antecedent_io_core::AdjustedFitReuseIdentityWire::inference_binding: [u8; 32]
+pub field antecedent_io_core::AdjustedFitReuseIdentityWire::model: alloc::string::String
+pub field antecedent_io_core::AdjustedFitReuseIdentityWire::n_columns: u64
+pub field antecedent_io_core::AdjustedFitReuseIdentityWire::outcome: u32
+pub field antecedent_io_core::AdjustedFitReuseIdentityWire::row_index: antecedent_io_core::PayloadDigestWire
+pub field antecedent_io_core::AdjustedFitReuseIdentityWire::treatment: u32
 pub field antecedent_io_core::AdmgJson::bidirected: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io_core::AdmgJson::directed: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io_core::AdmgJson::kind: alloc::string::String
@@ -11224,6 +11249,7 @@ pub field antecedent_io_core::AnalysisResultConsumption::body: antecedent_io_cor
 pub field antecedent_io_core::AnalysisResultConsumption::contract: core::option::Option<antecedent_io_core::AnalysisResultContractWire>
 pub field antecedent_io_core::AnalysisResultConsumption::header: antecedent_io_core::AnalysisResultHeader
 pub field antecedent_io_core::AnalysisResultConsumption::method_provenance: core::option::Option<antecedent_io_core::MethodProvenanceWire>
+pub field antecedent_io_core::AnalysisResultContractWire::adjusted_fit_reuse: core::option::Option<antecedent_io_core::AdjustedFitReuseIdentityWire>
 pub field antecedent_io_core::AnalysisResultContractWire::checked_aipw_rows: core::option::Option<antecedent_io_core::CheckedAipwRowsWire>
 pub field antecedent_io_core::AnalysisResultContractWire::claim: core::option::Option<antecedent_io_core::ClaimSectionWire>
 pub field antecedent_io_core::AnalysisResultContractWire::data_snapshot: core::option::Option<antecedent_io_core::DataSnapshotIdentityWire>
@@ -15765,6 +15791,7 @@ pub fn antecedent_io_core::adaptive_monitoring_contract_artifact::declaration_fr
 pub fn antecedent_io_core::adaptive_monitoring_contract_artifact::declaration_to_wire(declaration: &antecedent_contract::adaptive_design::declaration::AdaptiveDesignDeclaration) -> antecedent_io_core::adaptive_monitoring_contract_artifact::DeclarationWire
 pub fn antecedent_io_core::adaptive_monitoring_contract_artifact::rule_from_wire(wire: &antecedent_io_core::adaptive_monitoring_contract_artifact::RuleWire) -> core::result::Result<antecedent_contract::adaptive_design::declaration::StoppingRuleDeclaration, antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError>
 pub fn antecedent_io_core::adaptive_monitoring_contract_artifact::rule_to_wire(rule: &antecedent_contract::adaptive_design::declaration::StoppingRuleDeclaration) -> antecedent_io_core::adaptive_monitoring_contract_artifact::RuleWire
+pub fn antecedent_io_core::adjusted_fit_reuse_digest(wire: &antecedent_io_core::AdjustedFitReuseIdentityWire) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
 pub fn antecedent_io_core::admg_from_dot(dot: &str) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_io_core::IoError>
 pub fn antecedent_io_core::admg_from_gml(gml: &str) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_io_core::IoError>
 pub fn antecedent_io_core::admg_from_json(json: &str) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_io_core::IoError>
@@ -16241,6 +16268,7 @@ pub static antecedent_io_core::coverage_records_data::ATTESTING_RECORD_IDS: ante
 pub static antecedent_io_core::coverage_records_data::INTERVAL_METHOD_REASONS: antecedent_io_core::coverage_records_data::StaticTable<(antecedent_core::interval::IntervalMethod, core::option::Option<&'static str>)>
 pub static antecedent_io_core::coverage_records_data::RECORDS: antecedent_io_core::coverage_records_data::StaticTable<antecedent_io_core::coverage_records_data::CoverageRecord>
 pub struct antecedent_io_core::AdaptiveBudgetWire
+pub struct antecedent_io_core::AdjustedFitReuseIdentityWire
 pub struct antecedent_io_core::AdmgJson
 pub struct antecedent_io_core::AdmgWire
 pub struct antecedent_io_core::AnalysisResultConsumption
@@ -17247,6 +17275,7 @@ pub use antecedent_io_core::identification_to_wire_with_registry = antecedent_io
 pub use antecedent_io_core::identified_set_interval_from_wire = antecedent_io_core::analysis_result_artifact::identified_set_interval_from_wire
 pub use antecedent_io_core::identified_set_interval_to_wire = antecedent_io_core::analysis_result_artifact::identified_set_interval_to_wire
 pub use antecedent_io_core::identity::AdaptiveBudgetWire = antecedent_io_core::AdaptiveBudgetWire
+pub use antecedent_io_core::identity::AdjustedFitReuseIdentityWire = antecedent_io_core::AdjustedFitReuseIdentityWire
 pub use antecedent_io_core::identity::BayesianBindingWire = antecedent_io_core::BayesianBindingWire
 pub use antecedent_io_core::identity::CROSS_PRODUCT_INTERCEPT = antecedent_io_core::CROSS_PRODUCT_INTERCEPT
 pub use antecedent_io_core::identity::CheckedFrontDoorLoweringWire = antecedent_io_core::CheckedFrontDoorLoweringWire
@@ -17307,6 +17336,7 @@ pub use antecedent_io_core::identity::TargetWeightsIdentityWire = antecedent_io_
 pub use antecedent_io_core::identity::TemporalAttributionRowsWire = antecedent_io_core::TemporalAttributionRowsWire
 pub use antecedent_io_core::identity::TemporalClassIdentityWire = antecedent_io_core::TemporalClassIdentityWire
 pub use antecedent_io_core::identity::TransportIdentityWire = antecedent_io_core::TransportIdentityWire
+pub use antecedent_io_core::identity::adjusted_fit_reuse_digest = antecedent_io_core::adjusted_fit_reuse_digest
 pub use antecedent_io_core::identity::admg_identity = antecedent_io_core::admg_identity
 pub use antecedent_io_core::identity::canonical_dag_wire = antecedent_io_core::canonical_dag_wire
 pub use antecedent_io_core::identity::canonical_temporal_dag_wire = antecedent_io_core::canonical_temporal_dag_wire

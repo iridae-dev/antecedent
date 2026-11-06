@@ -1255,6 +1255,7 @@ fn lock_frozen_fit_with_wait<'a, T>(
 
 #[derive(Clone, Debug)]
 pub(crate) struct FrozenLinearFit {
+    retargetable: bool,
     kernel: antecedent_core::KernelPolicy,
     estimate: EffectEstimate,
     retention: Arc<antecedent_core::execution::AdmissionLease>,
@@ -1340,9 +1341,20 @@ pub(super) fn static_result_metadata<'a>(
     }
 }
 
+/// Coefficient law published only after a prepared GLM request succeeds.
+#[derive(Debug)]
+pub(super) struct FrozenGlmFit {
+    pub(super) point: antecedent_estimate::RetainedGlmPoint,
+    pub(super) estimate: EffectEstimate,
+    pub(super) kernel: antecedent_core::KernelPolicy,
+    pub(super) retention: Arc<antecedent_core::execution::AdmissionLease>,
+}
+
 /// Retained GLM adjustment target, selected configuration, and compiled design.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedGlmAdjustmentOperation {
+    pub(super) source: TabularData,
+    pub(super) frozen_fit: Arc<std::sync::Mutex<Option<FrozenGlmFit>>>,
     pub(super) source_query: CausalQuery,
     pub(super) query: AverageEffectQuery,
     pub(super) cache: Arc<super::CachedStaticIdentification>,
@@ -1371,11 +1383,18 @@ impl CheckedGlmAdjustmentOperation {
     }
 
     pub(super) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
+        if self.source.schema() == data.schema()
+            && self.source.storage().content_digest() == data.storage().content_digest()
+        {
+            return Ok(self.clone());
+        }
         let preparation = self
             .fitter
             .prepare(data, &self.cache.estimand, &self.query)
             .map_err(CausalError::from)?;
         Ok(Self {
+            source: data.clone(),
+            frozen_fit: Arc::new(std::sync::Mutex::new(None)),
             source_query: self.source_query.clone(),
             query: self.query.clone(),
             cache: Arc::clone(&self.cache),
@@ -1684,6 +1703,7 @@ impl CheckedLinearOperation {
                 )?;
                 if !ctx.cancellation.is_cancelled() {
                     *frozen = Some(FrozenLinearFit {
+                        retargetable: false,
                         kernel: ctx.kernel_policy,
                         estimate: estimate.clone(),
                         retention: Arc::clone(&retention),
@@ -2147,3 +2167,6 @@ impl Inspect for CheckedUnknownTieredAverageOperation {
 #[cfg(test)]
 #[path = "operations_lock_tests.rs"]
 mod cancellable_fit_lock_tests;
+
+#[path = "operations/adjusted_retarget.rs"]
+mod adjusted_retarget;

@@ -150,10 +150,14 @@ pub(crate) fn contract_to_map(
 pub(super) fn insert_reuse_identities(
     report: &mut std::collections::HashMap<String, String>,
     score_reuse: Option<antecedent::scientific::SemanticDigest>,
+    adjusted_fit_reuse: Option<antecedent::scientific::SemanticDigest>,
     target_weights: Option<antecedent::scientific::SemanticDigest>,
 ) {
     if let Some(digest) = score_reuse {
         report.insert("score_reuse".into(), digest.to_hex());
+    }
+    if let Some(digest) = adjusted_fit_reuse {
+        report.insert("adjusted_fit_reuse".into(), digest.to_hex());
     }
     if let Some(digest) = target_weights {
         report.insert("target_weights".into(), digest.to_hex());

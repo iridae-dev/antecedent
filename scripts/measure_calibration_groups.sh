@@ -215,6 +215,7 @@ grid_group() {
     smoothed_dose_calibration:*_psi_h) return 0 ;;
     # Joint sensitivity: the zero-box (gated) and positive-box (one_sided) records.
     joint_sensitivity_calibration:*) return 0 ;;
+    prepared_adjusted_retarget_calibration:*) return 0 ;;
     # Batch retarget: the unpublished family-level max-t band (wired, not_measured).
     batch_retarget_calibration:*) return 0 ;;
     # Clustered DML: the published t_(G-1) Wald interval (wired, not_measured).
@@ -1792,6 +1793,16 @@ run_facade_calibration() {
 run_facade_calibration mechanism_composition_interval_calibration composed_linear_gaussian_mechanisms_first_order_interval
 run_facade_calibration mechanism_composition_interval_calibration transported_linear_gaussian_mechanisms_first_order_interval
 run_facade_calibration typed_transported_mechanism_interval_calibration typed_transported_poisson_mechanism_first_order_interval
+
+# Fixed-Q adjusted retarget coverage: source all-observed coverage is a different key.
+run_prepared_adjusted_target() {
+  local filter="$1"
+  check "prepared_adjusted_retarget_calibration: ${filter}" \
+    cargo test --release -p antecedent --test prepared_adjusted_retarget_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_prepared_adjusted_target prepared_adjusted_fixed_target_fisher_interval
+run_prepared_adjusted_target prepared_adjusted_fixed_target_hc1_interval
 
 if [ "$FAILED_COUNT" -gt 0 ]; then
   echo "measure_calibration_groups: ${FAILED_COUNT} group(s) failed:"

@@ -1497,3 +1497,11 @@ path = "tests/response_cells_known_truth.rs"
 [[test]]
 name = "graph_imputation_known_truth"
 path = "tests/graph_imputation_known_truth.rs"
+
+[[test]]
+name = "prepared_adjusted_retarget"
+path = "tests/prepared_adjusted_retarget.rs"
+
+[[test]]
+name = "prepared_adjusted_retarget_calibration"
+path = "tests/prepared_adjusted_retarget_calibration.rs"

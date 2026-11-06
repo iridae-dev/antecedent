@@ -546,6 +546,7 @@ impl CausalContract {
             data_snapshot: Some(payloads.data_snapshot.clone()),
             execution: execution.cloned(),
             score_reuse: reuse.score_reuse.clone(),
+            adjusted_fit_reuse: reuse.adjusted_fit_reuse.clone(),
             target_weights: reuse.target_weights.clone(),
             checked_aipw_rows: reuse.checked_aipw_rows.clone(),
         })
@@ -560,6 +561,7 @@ impl CausalContract {
 #[derive(Default)]
 struct ReuseSection {
     score_reuse: Option<ScoreReuseIdentityWire>,
+    adjusted_fit_reuse: Option<antecedent_io::AdjustedFitReuseIdentityWire>,
     target_weights: Option<TargetWeightsSectionWire>,
     checked_aipw_rows: Option<antecedent_io::CheckedAipwRowsWire>,
 }
@@ -1001,8 +1003,39 @@ impl PreparedStudy {
         }
         let identities = self.contract()?.identities;
         self.score_reuse_wire(&identities)
-            .map(|wire| score_reuse_digest(&wire).map_err(|err| io_err(&err)))
+            .map(|wire| score_reuse_digest(&wire).map_err(|e| io_err(&e)))
             .transpose()
+    }
+
+    /// Reuse key of a compatible coded adjusted mean model, separate from score-table reuse.
+    /// It binds the frozen rows, design, roles and estimator-specific uncertainty configuration.
+    /// A key alone supplies no fitted state to a fresh process.
+    ///
+    /// # Errors
+    /// Canonical encoding or contract construction failure.
+    pub fn adjusted_fit_reuse_identity(
+        &self,
+    ) -> Result<Option<antecedent_core::SemanticDigest>, CausalError> {
+        let identities = self.contract()?.identities;
+        self.adjusted_fit_reuse_wire(&identities)
+            .as_ref()
+            .map(antecedent_io::adjusted_fit_reuse_digest)
+            .transpose()
+            .map_err(|e| io_err(&e))
+    }
+
+    fn retarget_reuse_digest(
+        &self,
+        identities: &ContractIdentities,
+    ) -> Result<Option<antecedent_core::SemanticDigest>, CausalError> {
+        if let Some(score) = self.score_reuse_wire(identities) {
+            return score_reuse_digest(&score).map(Some).map_err(|e| io_err(&e));
+        }
+        self.adjusted_fit_reuse_wire(identities)
+            .as_ref()
+            .map(antecedent_io::adjusted_fit_reuse_digest)
+            .transpose()
+            .map_err(|e| io_err(&e))
     }
 
     /// Score-reuse payload for this handle's score table under `identities`.
@@ -1035,6 +1068,10 @@ impl PreparedStudy {
         if let Some(score) = self.score_reuse_wire(&contract.identities) {
             contract.score_reuse = Some(score_reuse_digest(&score).map_err(|err| io_err(&err))?);
             reuse.score_reuse = Some(score);
+        } else if let Some(fit) = self.adjusted_fit_reuse_wire(&contract.identities) {
+            contract.score_reuse =
+                Some(antecedent_io::adjusted_fit_reuse_digest(&fit).map_err(|e| io_err(&e))?);
+            reuse.adjusted_fit_reuse = Some(fit);
         }
         if let Some(binding) = &result.extras.row_weights {
             contract.target_weights = Some(binding.target_weights);
@@ -1101,10 +1138,9 @@ impl PreparedStudy {
         depends_on: &[antecedent_core::VariableId],
     ) -> Result<TargetWeightsIdentityWire, CausalError> {
         let identities = self.contract()?.identities;
-        let score = self.score_reuse_wire(&identities).ok_or(CausalError::Unsupported {
-            message: "row-weight target requires a prepared score table",
+        let score=self.retarget_reuse_digest(&identities)?.ok_or(CausalError::Unsupported {
+            message:"row-weight target requires frozen scores or a compatible retained adjusted fit",
         })?;
-        let score = score_reuse_digest(&score).map_err(|err| io_err(&err))?;
         Ok(TargetWeightsIdentityWire::new(weights, identities.data_snapshot, score, depends_on))
     }
 

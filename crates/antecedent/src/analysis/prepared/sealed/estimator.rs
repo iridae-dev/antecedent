@@ -138,6 +138,20 @@ impl SealedOperation for CheckedBayesianConditionalOperation {
 }
 
 impl SealedOperation for CheckedGlmAdjustmentOperation {
+    fn adjusted_reuse(&self) -> Option<super::AdjustedReuse<'_>> {
+        self.adjusted_reuse_descriptor()
+    }
+    fn adjusted_retarget_ready(&self) -> bool {
+        self.has_adjusted_fit()
+    }
+    fn retarget_adjusted(
+        &self,
+        weights: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<Option<super::AdjustedRetargetOutput>, CausalError> {
+        self.retarget_fitted(weights, ctx).map(Some)
+    }
+
     unbound_program!();
     study_owned_stage_sink!();
     study_owned_validators!();
@@ -160,10 +174,15 @@ impl SealedOperation for CheckedGlmAdjustmentOperation {
             return Ok(None);
         }
         let rebound = self.rebind(data)?;
-        let result = handle.execute_checked_glm(data, &rebound, ctx)?;
-        let result = stamp_tabular(handle, data, result, notes, ctx);
+        let run = handle.execute_checked_glm(data, &rebound, ctx)?;
+        let result = stamp_tabular(handle, data, run.result, notes, ctx)?;
+        if let (Some(capture), Some(effect)) =
+            (run.capture, result.as_ref().and_then(|r| r.estimate.as_effect()))
+        {
+            rebound.publish_fitted_point(capture.point, effect, capture.retention, ctx)?;
+        }
         notes.record(Rebound::GlmAdjustment(Box::new(rebound)));
-        result
+        Ok(result)
     }
 }
 

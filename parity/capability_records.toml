@@ -21552,3 +21552,61 @@ fixtures = [
   { id = "estimate.response_gam_derivative.differential_missingness.negative", role = "negative", intent = "Differential missingness across outcomes is refused.", evidence_test = "crates/antecedent-estimate/tests/estimate_response_gam_derivative_reference.rs", evidence_assertion = "differential_missingness_across_outcomes_is_refused" },
   { id = "estimate.response_gam_derivative.reference_cases.artifact", role = "artifact", intent = "A frequentist static Dag derivative coordinate, including the additive-GAM Jacobian and directional derivative, is sealed in the contracted result and read back by the independent consumer.", evidence_test = "crates/antecedent/tests/checked_derivative_response_route_evidence.rs", evidence_assertion = "all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused" },
 ]
+
+[[record]]
+id = "recalculation.prepared_adjusted"
+capability = "recalculation.prepared_adjusted"
+status = "supported"
+consumer_question = "Can a compatible retained adjusted fit standardize the same frozen rows through common prepared retargeting without refitting?"
+theorem = "Additive OLS contrasts are constant across rows. Unpenalized GLM mean contrasts are averaged under the declared fixed target weights; their delta covariance uses the original fitted coefficient covariance and the weighted contrast gradient. This is conditional standardization, not doubly robust estimation."
+reference = "provenance/recalculation.prepared_adjusted.toml"
+guarantee = "same_row_fitted_mean_standardization_original_covariance_conditional_on_fixed_target"
+graph_class = "Explicit or accepted Dag with certified adjustment roles."
+population_semantics = "AllObserved source complete-case rows, reweighted by a fixed declared target law."
+evidence_family = "Retained OLS and unpenalized GLM mean fits; no bootstrap or source sampling weights."
+provider = "PreparedStudy sealed checked adjusted operations"
+estimand = "Fixed-target active-minus-control standardized mean contrast."
+inference_claim = "interval"
+inference_notes = "Original estimator-specific delta standard error and existing normal-interval construction are retained, conditional on fixed Q. Nonconstant target weights select the row_weights.mean calibration coordinate, which has no coverage record; calibration remains not_measured. Independent mean and Fisher covariance assertion remains owed."
+owners = ["antecedent", "antecedent-estimate", "antecedent-io-core"]
+identity_inputs = ["source snapshot", "row indices", "coded design", "adjustment roles", "model and covariance construction", "inference binding", "target weights and declared parents"]
+wire_changes = ["Optional separately typed adjusted_fit_reuse payload uses the existing generic reuse digest slot. Old readers refuse the new field; no fake score table is emitted."]
+compatibility = "Existing score-based retarget and score_reuse_identity retain their meanings; fresh metadata cannot recreate a fit."
+search = false
+bounds = { cancellation = true }
+refusals = [{ detail = "recalc.score_table_unavailable" }]
+routes = [
+ { name = "antecedent.PreparedStudy.retarget.adjusted_fit", stage = "evaluate", status = "supported", claim = "interval" },
+ { name = "antecedent.python.prepared.retarget.adjusted_fit", stage = "evaluate", status = "supported", claim = "interval" },
+]
+fixtures = [
+ { id = "recalculation.prepared_adjusted.truth", role = "truth", intent = "Independent exact-binomial logit standardization and Fisher delta covariance; registered, not earned.", evidence_test = "crates/antecedent/tests/prepared_adjusted_retarget.rs", evidence_assertion = "adjusted_retarget_matches_independent_logit_standardization_and_fisher_covariance" },
+ { id = "recalculation.prepared_adjusted.reuse.positive", role = "positive", intent = "All eligible models reuse a successful retained fit with zero model solves and the original SE kind.", evidence_test = "crates/antecedent/tests/prepared_adjusted_retarget.rs", evidence_assertion = "prepared_models_retarget_without_refits_and_keep_their_own_uncertainty" },
+ { id = "recalculation.prepared_adjusted.refusal.negative", role = "negative", intent = "Illegal parents, weights, cancellation and insufficient memory refuse.", evidence_test = "crates/antecedent/tests/prepared_adjusted_retarget.rs", evidence_assertion = "adjusted_retarget_refuses_invalid_parents_weights_cancellation_and_budget" },
+ { id = "recalculation.prepared_adjusted.replay.artifact", role = "artifact", intent = "Distinct fitted-model bindings replay only with matching live fitted state; no numerical attestation from hashes.", evidence_test = "crates/antecedent/tests/prepared_adjusted_retarget.rs", evidence_assertion = "fitted_retarget_artifacts_keep_distinct_reuse_payloads_and_reexecute_on_the_live_snapshot" },
+]
+inference_inventory_disposition = "outputs_listed_unmeasured_fixed_target"
+coverage_records = []
+[[record.inference_outputs]]
+id = "prepared_adjusted.fixed_target_normal_interval"
+owner = "antecedent"
+operation_or_object = "PreparedStudy::retarget over adjusted fits"
+public_producers = ["antecedent.PreparedStudy.retarget", "antecedent.prepared.retarget"]
+closed_producers = []
+independent_consumers = ["antecedent_io.replay_analysis_result (identity verification only)"]
+truth_fixtures = ["crates/antecedent/tests/prepared_adjusted_retarget.rs::adjusted_retarget_matches_independent_logit_standardization_and_fisher_covariance"]
+acceptance_threshold = "Fixed-Q mean/covariance at 1e-8 in the registered independent reference; no coverage measurement yet."
+allocated_coverage_records = []
+inherited_coverage_records = []
+activation_disposition = "report_original_analytic_interval_with_current_unmeasured_annotation"
+allocation_status = "coverage_owed_fixed_target_weights"
+measurement_design_status = "not_measured"
+truth_grid_allocation = "Post-freeze calibration must exercise fixed same-row target weights across source designs and original covariance constructions; original all-observed coverage does not attest row_weights.mean."
+fields = ["standardized mean contrast", "original-estimator fixed-Q delta standard error", "existing normal interval"]
+method = "Weighted response-mean gradient with original coefficient covariance, normal interval conditional on fixed Q."
+implementation_status = "implemented_not_measured"
+boundary = "Same frozen complete-case rows and coding; target weights are fixed. Fisher and HC1 measurement designs are wired but owed; other covariance constructions remain unmeasured. No target-weight estimation or bootstrap inference is introduced."
+truth_design = "Four fixed binomial design cells with probabilities 1/4, 1/2, 2/5, 2/3 and target z weights 1:3; exact target mean contrast 21/80."
+method_source = "crates/antecedent/src/analysis/prepared/adjusted_retarget.rs; crates/antecedent-estimate/src/glm_adjustment/retained.rs"
+nominal_level = "0.95"
+measurement_suite = "crates/antecedent/tests/prepared_adjusted_retarget_calibration.rs"

@@ -22774,3 +22774,17 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_gate_support.py"
 gates = ["inventory"]
+
+[[test]]
+id = "prepared-adjusted-retarget-engineering"
+crate = "antecedent"
+cargo_target = "prepared_adjusted_retarget"
+path = "crates/antecedent/tests/prepared_adjusted_retarget.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "prepared-adjusted-retarget-calibration"
+crate = "antecedent"
+cargo_target = "prepared_adjusted_retarget_calibration"
+path = "crates/antecedent/tests/prepared_adjusted_retarget_calibration.rs"
+gates = ["inventory", "named"]

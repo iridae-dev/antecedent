@@ -2240,6 +2240,48 @@ pub fn score_reuse_digest(wire: &ScoreReuseIdentityWire) -> Result<SemanticDiges
     digest_wire(IdentityDomain::ScoreReuse, wire)
 }
 
+/// Reuse identity of an immutable fitted adjustment model. It is not a score table.
+/// The legacy score-reuse digest slot can name this separately typed payload.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AdjustedFitReuseIdentityWire {
+    /// Format of this fitted-model identity (one).
+    pub format: u16,
+    /// `additive_linear_mean_v1` or `glm_response_mean_v1`.
+    pub model: String,
+    /// Estimator-specific covariance method; numerical options are in the inference binding.
+    pub covariance: String,
+    /// Frozen source snapshot.
+    pub data_snapshot: [u8; 32],
+    /// Certified identification and roles.
+    pub identification: [u8; 32],
+    /// Estimator, coding, support and uncertainty configuration.
+    pub inference_binding: [u8; 32],
+    /// Original source row positions, after complete-case selection.
+    pub row_index: PayloadDigestWire,
+    /// Digest of the actual coded column-major design, including intercept and treatment.
+    pub design: PayloadDigestWire,
+    /// Number of design columns.
+    pub n_columns: u64,
+    /// Certified adjustment roles in design order.
+    pub adjustment_set: Vec<u32>,
+    /// Frozen treatment role.
+    pub treatment: u32,
+    /// Frozen outcome role.
+    pub outcome: u32,
+}
+
+/// Digest a fitted-model reuse identity in the common reuse identity slot.
+/// Its distinct typed payload and model/version tags prevent a score table from aliasing it.
+///
+/// # Errors
+/// Canonical encoding failure.
+pub fn adjusted_fit_reuse_digest(
+    wire: &AdjustedFitReuseIdentityWire,
+) -> Result<SemanticDigest, IoError> {
+    digest_wire(IdentityDomain::ScoreReuse, wire)
+}
+
 /// Row-weight identity bound to one data snapshot and one score table.
 ///
 /// Its digest is the `RowWeights` population's `weights` field, so the target

@@ -10568,3 +10568,15 @@ notes = "The facade delegates to the source-bound measured adapter; the interval
 [[routes]]
 route = "antecedent_io.measured_inference.mnar_candidate.measure_source"
 notes = "The source-bound adapter replays the source and reports the interval with its calibration status."
+
+[[routes]]
+route = "antecedent.PreparedStudy.retarget.adjusted_fit"
+stage = "evaluate"
+status = "supported"
+notes = "Compatible successfully retained OLS/GLM mean standardization over frozen rows; original covariance conditional on fixed Q. Changed-target calibration is separately keyed and owed."
+
+[[routes]]
+route = "antecedent.python.prepared.retarget.adjusted_fit"
+stage = "evaluate"
+status = "supported"
+notes = "The common prepared Python workflow delegates to the matching sealed fitted-mean operation; no refit, DR score or portable fit is manufactured."

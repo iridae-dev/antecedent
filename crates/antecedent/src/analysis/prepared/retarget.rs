@@ -1,4 +1,4 @@
-//! Score-table retargeting of a prepared handle.
+//! Frozen-score or fitted-mean retargeting of a prepared handle.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -82,13 +82,26 @@ impl PreparedStudy {
     ) -> Result<(), CausalError> {
         match intent {
             antecedent_contract::TransformIntent::Retarget => {
-                self.retarget_score_table().map(|_| ())
+                self.require_retarget_support()?;
+                if self.score_table.is_some()
+                    || self.execution().operation().adjusted_retarget_ready()
+                {
+                    Ok(())
+                } else {
+                    self.retarget_score_table().map(|_| ())
+                }
             }
             _ => Ok(()),
         }
     }
 
-    /// Estimate `E_Q[μ_a(X)]` from frozen scores. Does not refit or re-identify.
+    /// Estimate the same-row target contrast from frozen scores or a successful
+    /// retained OLS/GLM mean fit. Does not refit or re-identify.
+    ///
+    /// Fitted-model reuse requires an `AllObserved` mean, no modifiers, zero bootstrap,
+    /// no source sampling weights and a compatible retained fit. Its delta covariance
+    /// is conditional on the fixed target law and retains the original SE construction;
+    /// it is not doubly robust. Target weights align with the frozen complete-case rows.
     ///
     /// `weights` must align with the score-table complete-case rows.
     ///
@@ -137,6 +150,10 @@ impl PreparedStudy {
         depends_on: &[antecedent_core::VariableId],
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if self.score_table.is_none() {
+            self.require_retarget_support()?;
+            return self.retarget_adjusted_model(weights, depends_on, ctx);
+        }
         let table = self.retarget_score_table()?;
         let _summary_means = admit_retarget_bytes(
             ctx,
@@ -537,7 +554,6 @@ impl PreparedStudy {
                 antecedent_estimate::joint_influence_covariance(&[influence], None)?.se(0);
             estimate.scores.influence = Some(influence.clone().into());
         }
-        let (treatment, outcome) = self.retarget_treatment_outcome()?;
         let diagnostics = retarget_diagnostics(
             out.diagnostics,
             RetargetDiagnosticFlags {
@@ -546,6 +562,20 @@ impl PreparedStudy {
                 grid_scalar_cleared: n_thresholds > 1 && quantile.is_none(),
             },
         );
+        self.retarget_effect_to_result(estimate, diagnostics, weights, depends_on)
+    }
+
+    pub(super) fn retarget_effect_to_result(
+        &self,
+        estimate: EffectEstimate,
+        diagnostics: Vec<antecedent_core::Diagnostic>,
+        weights: &[f64],
+        depends_on: &[antecedent_core::VariableId],
+    ) -> Result<StudyResult, CausalError> {
+        let cache = self.analysis.static_cache().ok_or(CausalError::Unsupported {
+            message: "retarget requires prepare-time identification",
+        })?;
+        let (treatment, outcome) = self.retarget_treatment_outcome()?;
         let mut result =
             crate::analysis::helpers::assemble_result(crate::analysis::helpers::AssembleArgs {
                 logical: &self.plan.logical.record,
@@ -633,7 +663,7 @@ fn inference_output_bytes(table: &ScoreTable) -> Result<u64, CausalError> {
     add_retarget_bytes(add_retarget_bytes(real_fields, flags)?, arm_effective_sizes)
 }
 
-fn weight_output_bytes(rows: usize, dependencies: usize) -> Result<u64, CausalError> {
+pub(super) fn weight_output_bytes(rows: usize, dependencies: usize) -> Result<u64, CausalError> {
     // The Arc weight values, Arc native dependencies, and the identity's raw
     // dependencies are three distinct retained payloads.
     add_retarget_bytes(
@@ -645,7 +675,7 @@ fn weight_output_bytes(rows: usize, dependencies: usize) -> Result<u64, CausalEr
     )
 }
 
-fn admit_retarget_bytes(
+pub(super) fn admit_retarget_bytes(
     ctx: &ExecutionContext,
     bytes: u64,
 ) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {

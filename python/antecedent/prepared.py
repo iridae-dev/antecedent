@@ -887,11 +887,13 @@ def refute(study: PreparedAnalysis[Any], *, suite: Any = "placebo") -> Outcome[A
 def retarget(
     study: PreparedAnalysis[Any], weights: Any, *, depends_on: Sequence[str]
 ) -> Outcome[Any]:
-    """Execute declared population weights against compatible retained native scores.
+    """Execute declared population weights against retained scores or compatible adjusted fits.
 
     Native checks bind the weights to their data snapshot and validate that
     their declared dependencies do not include treatment descendants.
-    This operation never fits a replacement score model.
+    A retained OLS/GLM mean model uses standardization and its own coefficient
+    covariance, conditional on the declared target law. It is not doubly robust.
+    This operation never refits the model.
     """
     if not isinstance(study, PreparedAnalysis):
         raise CausalTypeError("retarget requires a PreparedAnalysis")
@@ -912,7 +914,8 @@ def retarget(
 def reexecute_retarget(study: PreparedAnalysis[Any], artifact: bytes) -> Outcome[Any]:
     """Re-execute the row-weight retarget an exported contract carries, without refitting.
 
-    The weights travel in the artifact bound to one data snapshot and score table;
+    The weights travel in the artifact bound to one data snapshot and a score table
+    or separately typed adjusted-fit identity;
     a different snapshot refuses with ``row_weights_bound_to_snapshot``.
     """
     if not isinstance(study, PreparedAnalysis):

@@ -2480,9 +2480,12 @@ class _PreparedEngine(Generic[ResultT]):
         threads: int | None = None,
         cancel: Any = _UNSET,
     ) -> AnalysisResult:
-        """Estimate a declared target population from frozen scores. No refit.
+        """Estimate a fixed same-row target from retained scores or adjusted means.
 
-        Requires a prepared AllObserved iid AIPW or cell-AIPW score table.
+        Accepts prepared scores or a successful retained OLS/unpenalized GLM
+        AllObserved mean with zero bootstrap and no source weights/modifiers.
+        Fitted-mean covariance keeps the original estimator construction,
+        conditional on the fixed target law; no refit or DR claim is made.
         Nonempty ``depends_on`` needs a directed graph (DAG or ADMG) so
         descendant closure can be checked. Nonconstant weights require a
         nonempty ``depends_on``.

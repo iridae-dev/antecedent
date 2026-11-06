@@ -34,6 +34,16 @@ use antecedent_identify::IdentificationResult;
 use std::sync::Arc;
 use std::time::Instant;
 
+pub(super) struct GlmFitCapture {
+    pub(super) point: antecedent_estimate::RetainedGlmPoint,
+    pub(super) retention: Arc<antecedent_core::execution::AdmissionLease>,
+}
+
+pub(super) struct CheckedGlmRun {
+    pub(super) result: StudyResult,
+    pub(super) capture: Option<GlmFitCapture>,
+}
+
 /// What a checked static operation fitted: the estimator that ran, its estimate and timing.
 struct CheckedStaticEffectRun {
     estimator_id: crate::strategy_table::EstimatorId,
@@ -261,7 +271,7 @@ impl PreparedStudy {
         data: &TabularData,
         operation: &CheckedGlmAdjustmentOperation,
         ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
+    ) -> Result<CheckedGlmRun, CausalError> {
         let started = Instant::now();
         if operation.query
             != *operation.cache.identification.average_effect().unwrap_or(&operation.query)
@@ -288,7 +298,19 @@ impl PreparedStudy {
                     .into(),
             });
         }
-        let mut workspace = antecedent_estimate::GlmAdjustmentWorkspace::default();
+        let retention = operation
+            .adjusted_reuse_descriptor()
+            .map(|_| {
+                let bytes = operation.retained_fit_bytes()?;
+                ctx.acquire_admission(0, bytes)
+                    .map(Arc::new)
+                    .map_err(|e| CausalError::Resource { message: e.to_string() })
+            })
+            .transpose()?;
+        let mut workspace = antecedent_estimate::GlmAdjustmentWorkspace {
+            retain_point: retention.is_some(),
+            ..antecedent_estimate::GlmAdjustmentWorkspace::default()
+        };
         let estimate = operation
             .fitter
             .fit(
@@ -298,7 +320,7 @@ impl PreparedStudy {
                 operation.cache.identification.required_assumptions.clone(),
             )
             .map_err(CausalError::from)?;
-        Self::assemble_checked_operation_effect(
+        let result = Self::assemble_checked_operation_effect(
             data,
             &static_result_metadata(
                 &operation.common,
@@ -311,7 +333,13 @@ impl PreparedStudy {
             Some(operation.fitter.inference.bootstrap_replicates),
             started,
             ctx,
-        )
+        )?;
+        let capture = workspace
+            .retained_point
+            .take()
+            .zip(retention)
+            .map(|(point, retention)| GlmFitCapture { point, retention });
+        Ok(CheckedGlmRun { result, capture })
     }
 
     pub(super) fn execute_checked_rd(

@@ -27,3 +27,17 @@ def test_retarget_accepts_cancel_token():
     token.cancel()
     with pytest.raises(CausalCancelledError):
         study._engine.retarget(np.exp(_data()["z"] / 3), ["z"], cancel=token)
+
+
+@pytest.mark.parametrize("estimator", ["linear.adjustment.ate", "glm.adjustment"])
+def test_prepared_adjusted_fit_retarget_uses_common_live_workflow(estimator):
+    data = _data()
+    if estimator == "glm.adjustment":
+        data["y"] = np.tile([0., 1., 1., 0.], 16)
+    original = require_success(ant.analyze(
+        data, graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=ant.AverageEffect("t", "y"), estimator=estimator,
+        inference=ant.Frequentist(bootstrap=0), refute=False,
+    ))
+    retargeted = require_success(original.study.retarget(np.exp(data["z"] / 3), depends_on=("z",)))
+    assert retargeted is not None

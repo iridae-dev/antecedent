@@ -42,6 +42,20 @@ fn stamp_functional(
 }
 
 impl SealedOperation for CheckedLinearOperation {
+    fn adjusted_reuse(&self) -> Option<super::AdjustedReuse<'_>> {
+        self.adjusted_reuse_descriptor()
+    }
+    fn adjusted_retarget_ready(&self) -> bool {
+        self.has_adjusted_fit()
+    }
+    fn retarget_adjusted(
+        &self,
+        weights: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<Option<super::AdjustedRetargetOutput>, CausalError> {
+        self.retarget_fitted(weights, ctx).map(Some)
+    }
+
     fn program_binding(&self) -> CheckedProgramBinding<'_> {
         CheckedProgramBinding::Linear(self)
     }
@@ -80,6 +94,7 @@ impl SealedOperation for CheckedLinearOperation {
             notes.defers_contract(),
             ctx,
         )?;
+        rebound.publish_adjusted_fit_success(ctx)?;
         notes.record(Rebound::Linear(Box::new(rebound)));
         Ok(Some(result))
     }

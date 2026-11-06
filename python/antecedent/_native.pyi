@@ -2688,6 +2688,8 @@ class PreparedAnalysis:
         threads: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> AteAnalysisResult: ...
+    # Uses frozen scores or a successful compatible retained OLS/GLM fit.
+    # Adjusted-model covariance is conditional on the fixed target law; no DR label.
     def retarget(
         self,
         weights: list[float],

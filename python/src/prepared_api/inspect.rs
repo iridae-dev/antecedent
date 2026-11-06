@@ -257,6 +257,7 @@ impl PyPreparedAnalysis {
         insert_reuse_identities(
             &mut report,
             inner.score_reuse_identity().map_err(py_err)?,
+            inner.adjusted_fit_reuse_identity().map_err(py_err)?,
             result.row_weights().as_ref().map(|binding| binding.target_weights),
         );
         report.insert("claim_id".into(), claim.claim_id.to_hex());

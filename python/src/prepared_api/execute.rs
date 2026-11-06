@@ -111,7 +111,7 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Weighted-mean retarget from the frozen score table. Does not refit.
+    /// Retarget frozen scores or a compatible retained adjusted mean model. Does not refit.
     #[pyo3(signature = (weights, depends_on, *, seed=1, threads=None, cancel=None))]
     #[allow(
         clippy::cast_possible_truncation,
@@ -596,6 +596,7 @@ impl PyPreparedAnalysis {
         insert_reuse_identities(
             &mut report,
             self.inner.score_reuse_identity().map_err(py_err)?,
+            self.inner.adjusted_fit_reuse_identity().map_err(py_err)?,
             None,
         );
         Ok(report)

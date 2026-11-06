@@ -20,10 +20,12 @@ pub use crate::contract_wire::{
 };
 
 use crate::identity::{
+    AdjustedFitReuseIdentityWire, ScoreReuseIdentityWire, TargetWeightsIdentityWire,
+};
+use crate::identity::{
     DataSnapshotIdentityWire, IdentificationIdentityWire, IdentificationProductWire,
     InferenceBindingWire, ObservationIdentityWire, ProgramIdentityWire, TargetIdentityWire,
 };
-use crate::identity::{ScoreReuseIdentityWire, TargetWeightsIdentityWire};
 use crate::{
     AnalysisResultHeader, AnalysisResultWire, EncodedArtifact, ExecutionIdentityWire, IoError,
     from_cbor, query_wire::causal_query_from_wire,
@@ -392,6 +394,9 @@ pub struct AnalysisResultContractWire {
     /// Rehashable score-reuse identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub score_reuse: Option<ScoreReuseIdentityWire>,
+    /// Separately typed fitted-model reuse. Older readers reject this new field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adjusted_fit_reuse: Option<AdjustedFitReuseIdentityWire>,
     /// Row weights and their identity, for a row-weight retarget.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_weights: Option<TargetWeightsSectionWire>,

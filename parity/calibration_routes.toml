@@ -307,3 +307,8 @@ groups = [
   "derivative_calibration: response_jacobian_dag_frequentist_nominal_90_coverage",
   "derivative_calibration: directional_derivative_dag_frequentist_nominal_90_coverage",
 ]
+
+[[route]]
+record = "recalculation.prepared_adjusted"
+routes = ["antecedent.PreparedStudy.retarget.adjusted_fit", "antecedent.python.prepared.retarget.adjusted_fit"]
+groups = ["prepared_adjusted_retarget_calibration: prepared_adjusted_fixed_target_fisher_interval", "prepared_adjusted_retarget_calibration: prepared_adjusted_fixed_target_hc1_interval"]
