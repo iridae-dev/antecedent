@@ -907,7 +907,6 @@ pub fn <antecedent_graph::Dag>::fn copy_filtered(&self, keep: impl core::ops::fu
 pub fn <antecedent_graph::Dag>::fn d_separation(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::DSeparationWorkspace) -> core::result::Result<antecedent_graph::SeparationResult, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Dag>::fn descendants_of(&self, nodes: &[antecedent_graph::DenseNodeId], out: &mut antecedent_graph::BitSet, ws: &mut antecedent_graph::GraphWorkspace)
 pub fn <antecedent_graph::Dag>::fn directed_edge_pairs_sorted(&self) -> alloc::vec::Vec<(u32, u32)>
-pub fn <antecedent_graph::Dag>::fn directed_paths(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId, max_paths: usize, max_len: usize) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<antecedent_graph::DenseNodeId>>, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Dag>::fn directed_paths_with_budget(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId, max_paths: usize, max_len: usize) -> core::result::Result<(alloc::vec::Vec<alloc::vec::Vec<antecedent_graph::DenseNodeId>>, bool), antecedent_graph::GraphError>
 pub fn <antecedent_graph::Dag>::fn edges(&self) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::MarkedEdge> + '_
 pub fn <antecedent_graph::Dag>::fn empty() -> Self

@@ -38,24 +38,12 @@ use super::{
     identify_catalog_transport_metered, identify_classical_transport_metered, sid_memory_bytes,
 };
 
-/// Most actions in the discrete alphabet under the earlier fixed ceiling.
-#[deprecated(
-    since = "2.4.1",
-    note = "no longer enforced: the alphabet is bounded by the search budget"
-)]
-pub const TEMPORAL_MAX_ACTIONS: usize = 8;
 /// Most coordinates the unrolled diagram had under the earlier fixed ceiling.
 #[deprecated(
     since = "2.4.1",
     note = "no longer enforced: the number of coordinates is bounded by the search budget"
 )]
 pub const TEMPORAL_MAX_OBSERVED: usize = 12;
-/// Most complete covariate histories under the earlier fixed ceiling.
-#[deprecated(
-    since = "2.4.1",
-    note = "no longer enforced: every history state is charged to the search budget"
-)]
-pub const TEMPORAL_MAX_HISTORY_STATES: usize = 4096;
 
 /// Detail: a required history has no certified support.
 pub(crate) const TEMPORAL_HISTORY_OUTSIDE_SUPPORT: &str =

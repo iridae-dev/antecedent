@@ -31,9 +31,9 @@ use super::{
     derived_treatment_api, descriptive_api, design_api, design_ranking_api,
     discovered_transport_api, discovery_api, discretized_composition_api, distribution_api,
     dose_grid_api, effect_constancy_api, effect_constancy_review_api, evidence_ledger_api,
-    evidence_plan_api, execution_attempt_api, experiment_api, external_api, factorial_api,
-    fallback_report_api, fallback_stage_api, forward_source_api, gcm_api, graph_falsification_api,
-    graph_io, graph_selection_api, graphs, horizon_composition_api, interface_adapters_api,
+    evidence_plan_api, execution_attempt_api, experiment_api, external_api, fallback_report_api,
+    fallback_stage_api, forward_source_api, gcm_api, graph_falsification_api, graph_io,
+    graph_selection_api, graphs, horizon_composition_api, interface_adapters_api,
     interface_contract_api, interference_saturation_api, inverse_outcome_api, inverse_query_api,
     joint_law_propagation_api, joint_response_api, joint_transport_api, latent_class_api,
     learned_continuous_api, learned_joint_api, learned_trial_api, load_float64_arrow_c_columns,
@@ -391,7 +391,6 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     experiment_api::register(m)?;
     interference_saturation_api::register(m)?;
     observational_interference_api::register(m)?;
-    factorial_api::register(m)?;
     fallback_report_api::register(m)?;
     fallback_stage_api::register(m)?;
     super::planning_api::register(m)?;

@@ -17,7 +17,7 @@
 use crate::IoError;
 use crate::temporal_initial_state_artifact::{
     ContributionWire, InitialStateLawWire, PanelSummaryWire, TemporalInitialStateConsumeLimits,
-    TemporalPremisesWire, hex64, mismatch,
+    TemporalPremisesWire, mismatch,
 };
 use antecedent_core::{IdentityDomain, reason_code};
 use antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel;
@@ -598,10 +598,4 @@ fn refreshed_wire(effect: &MarginalizedEffect) -> RefreshedResultWire {
             .collect(),
         interval_present: false,
     }
-}
-
-/// Lower-case hex of a 64-bit identity, for callers that tag a panel.
-#[must_use]
-pub fn panel_digest_hex(panel: &TemporalUnitPanel) -> String {
-    hex64(panel.digest())
 }

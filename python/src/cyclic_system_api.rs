@@ -292,7 +292,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(prepare_cyclic_system, m)?)?;
     m.add_function(wrap_pyfunction!(prepare_cyclic_system_buffers, m)?)?;
     m.add_function(wrap_pyfunction!(execute_cyclic_system, m)?)?;
-    m.add_function(wrap_pyfunction!(execute_cyclic_family, m)?)?;
     m.add_function(wrap_pyfunction!(consume_cyclic_family, m)?)?;
     m.add_function(wrap_pyfunction!(consume_cyclic_system, m)?)?;
     m.add_function(wrap_pyfunction!(cyclic_parameter_posterior, m)?)?;
@@ -388,30 +387,6 @@ fn interface_contract_check_composition_with_cyclic(
             ledger.as_deref().map(crate::evidence_ledger_api::EvidenceLedgerHandle::ledger),
         ),
     ))
-}
-
-#[pyfunction]
-#[pyo3(signature = (request_json, *, max_bytes=None, cancel=None))]
-fn execute_cyclic_family(
-    py: Python<'_>,
-    request_json: &str,
-    max_bytes: Option<u64>,
-    cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<CyclicExecution> {
-    let ctx = execution_context(max_bytes, cancel);
-    let attempt = antecedent::execution::observe(&ctx, || {
-        let _input = input_admission(request_json, &ctx)?;
-        let request: antecedent::analysis::CyclicFamilyRequest =
-            serde_json::from_str(request_json).map_err(|e| operation_error(e, &ctx))?;
-        let (report, bytes) =
-            py.detach(|| request.export(&ctx)).map_err(|e| operation_error(e, &ctx))?;
-        let json =
-            serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))?;
-        Ok((json, bytes))
-    });
-    let ((json, bytes), facts) =
-        crate::inspect_receipt_api::finish_observed(py, attempt.result, attempt.facts)?;
-    Ok((json, PyBytes::new(py, &bytes).unbind(), facts))
 }
 
 #[pyfunction]

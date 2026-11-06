@@ -1457,30 +1457,6 @@ impl ResultPayload {
             _ => None,
         }
     }
-
-    /// Whether the family reports no calibrated scalar effect interval: its
-    /// uncertainty lives in a dedicated result section.
-    #[must_use]
-    pub const fn has_dedicated_uncertainty_section(&self) -> bool {
-        matches!(
-            self,
-            Self::RandomizedEffect(_)
-                | Self::SyntheticControl(_)
-                | Self::SyntheticDid(_)
-                | Self::LocalPolynomialRatio(_)
-                | Self::PolicyValue(_)
-                | Self::ContinuousDoseResponse(_)
-                | Self::Survival(_)
-                | Self::PosteriorRow(_)
-                | Self::LongitudinalRegime(_)
-                | Self::SequentialContrast(_)
-                | Self::HistoryMatch(_)
-                | Self::TemporalDesign(_)
-                | Self::IvBounds(_)
-                | Self::Association(_)
-                | Self::QuasiRollout(_)
-        )
-    }
 }
 
 // A point-time completion witness. `atom_index` addresses the actual structural

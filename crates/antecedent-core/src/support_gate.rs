@@ -116,7 +116,7 @@ impl fmt::Display for NotSupported {
 
 impl std::error::Error for NotSupported {}
 
-#[cfg_attr(feature = "development", allow(dead_code))]
+#[cfg(not(feature = "development"))]
 fn refusal(detail: &'static str, missing: &[&str]) -> NotSupported {
     NotSupported { detail, missing: missing.iter().map(|m| (*m).to_owned()).collect() }
 }

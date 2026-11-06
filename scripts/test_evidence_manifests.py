@@ -28,7 +28,7 @@ class ManifestTests(unittest.TestCase):
     def write(self, path, value):
         target = self.root / path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(value)
+        target.write_text(value, encoding="utf-8")
         return target
 
     def manifest(self, kind="file", key="src/a.rs"):
@@ -59,7 +59,7 @@ class ManifestTests(unittest.TestCase):
         manifest = self.manifest()
         path = self.root / "src/a.rs"
         stat = path.stat()
-        path.write_text("fn a() { 2; }\n")
+        path.write_text("fn a() { 2; }\n", encoding="utf-8")
         os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
         self.assertIn("input_changed:file:src/a.rs", self.check(manifest)["reasons"])
 
@@ -90,9 +90,9 @@ class ManifestTests(unittest.TestCase):
             self.assertFalse(checker.check(self.binding, ref)["current"])
         ref = self.store(self.manifest())
         path = self.root / em.STORE / f"{ref}.json"
-        path.write_text("{")
+        path.write_text("{", encoding="utf-8")
         self.assertFalse(em.Checker(self.root).check(self.binding, ref)["current"])
-        path.write_text(json.dumps({"schema": 9}))
+        path.write_text(json.dumps({"schema": 9}), encoding="utf-8")
         self.assertFalse(em.Checker(self.root).check(self.binding, ref)["current"])
 
     def test_deleted_input_owes(self):

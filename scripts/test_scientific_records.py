@@ -187,7 +187,7 @@ class RecordTests(Fixture):
         owed, current = sr.classify(self.root, rows)
         self.assertEqual((len(owed), len(current)), (2, 0))
         self.assertTrue(any(r.startswith("manifest_owed") for r in owed[0]["manifest_reasons"]))
-        text = (self.root / sr.RECORDS).read_text()
+        text = (self.root / sr.RECORDS).read_text(encoding="utf-8")
         self.assertIn("dependency_manifest", text)
         self.assertNotIn("executed", text)
 

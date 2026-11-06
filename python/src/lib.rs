@@ -95,7 +95,6 @@ mod execution_attempt_api;
 mod experiment_api;
 mod external_api;
 mod external_mechanism_api;
-mod factorial_api;
 mod fallback_report_api;
 mod fallback_stage_api;
 mod ffi;

@@ -3126,3 +3126,171 @@ rust = "antecedent::support::refuse_if_not_applicable_in"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::gcm::counterfactual_contrasts"
+kind = "fn"
+status = "bound"
+python = "antecedent.counterfactual.FittedGcm.counterfactual_contrasts"
+
+[[entry]]
+rust = "antecedent::gcm::fit_gcm_polled"
+kind = "fn"
+status = "bound"
+python = "antecedent.counterfactual.fit_gcm"
+
+[[entry]]
+rust = "antecedent::gcm::rank_root_causes"
+kind = "fn"
+status = "bound"
+python = "antecedent.attribution.rank_root_causes"
+
+[[entry]]
+rust = "antecedent::data::arrow_c::load_columns"
+kind = "fn"
+status = "internal"
+reason = "Arrow C-stream column import inside the bindings (python/src/ingest.rs, prepare_request.rs, prepared_api); Python reaches it through every data ingest and prepare entry."
+
+[[entry]]
+rust = "antecedent::data::buffer_with_retention"
+kind = "fn"
+status = "internal"
+reason = "binds a retained lease to a native buffer in python/src/data_snapshot.rs; Python reaches it through the data snapshot entries."
+
+[[entry]]
+rust = "antecedent::data::with_retention"
+kind = "fn"
+status = "internal"
+reason = "binds a retained lease to ingested data in python/src/data_snapshot.rs, ingest.rs and retained_refresh_api.rs; Python reaches it through data ingest and retained refresh."
+
+[[entry]]
+rust = "antecedent::execution::artifact_io_admission_error"
+kind = "fn"
+status = "internal"
+reason = "maps an admission refusal during artifact I/O in python/src/discovered_transport_api.rs; Python sees it as that entry's refusal."
+
+[[entry]]
+rust = "antecedent::execution::is_admission_refusal"
+kind = "fn"
+status = "internal"
+reason = "classifies an admission refusal in python/src/cyclic_system_api.rs and external_mechanism_api.rs; Python sees the classified refusal from those entries."
+
+[[entry]]
+rust = "antecedent::execution::observe"
+kind = "fn"
+status = "internal"
+reason = "runs binding work under the execution observer (python/src/interrupt.rs and the gcm, cyclic, joint panel, observation query and refresh bindings); Python reads the facts through each result's execution facts."
+
+[[entry]]
+rust = "antecedent::execution::retain"
+kind = "fn"
+status = "internal"
+reason = "admits retained result memory inside the bindings (python/src/ffi.rs, ingest.rs and the result bindings); Python reaches it through every entry that retains a result."
+
+[[entry]]
+rust = "antecedent::execution::retain_bounded"
+kind = "fn"
+status = "internal"
+reason = "admits retained memory with a bounded wait in python/src/data_snapshot.rs, gcm_api.rs and ingest.rs; Python reaches it through those entries."
+
+[[entry]]
+rust = "antecedent::execution::retain_product"
+kind = "fn"
+status = "internal"
+reason = "host plumbing for admitting count times width retained bytes without overflow; the bindings admit retained memory through retain and retain_bounded."
+
+[[entry]]
+rust = "antecedent::execution::run_admitted"
+kind = "fn"
+status = "internal"
+reason = "runs admitted work in python/src/cyclic_system_api.rs and propagation_chain_api.rs; Python reaches it through the cyclic system and propagation chain entries."
+
+[[entry]]
+rust = "antecedent::execution::run_admitted_recording_refusal"
+kind = "fn"
+status = "internal"
+reason = "runs admitted work and records its refusal in python/src/array_fit_api.rs; Python reaches it through the array fit entries."
+
+[[entry]]
+rust = "antecedent::identity::blake3_hex"
+kind = "fn"
+status = "internal"
+reason = "digest rendering inside the bindings (artifact, external mechanism, nested estimation, prior signal and provider bindings); Python reads identities through each result's identity accessors."
+
+[[entry]]
+rust = "antecedent::identity::digest_bytes"
+kind = "fn"
+status = "internal"
+reason = "digest of artifact bytes in python/src/artifact_api.rs and inspect_receipt_api.rs; Python reads it through artifact identities and receipts."
+
+[[entry]]
+rust = "antecedent::identity::digest_claim_wire"
+kind = "fn"
+status = "internal"
+reason = "claim identity in python/src/recalc_temporal_api/candidate.rs; Python reads it through the temporal recalculation candidate."
+
+[[entry]]
+rust = "antecedent::identity::digest_labels"
+kind = "fn"
+status = "internal"
+reason = "label digest in python/src/target_validation_api.rs; Python reads it through target validation."
+
+[[entry]]
+rust = "antecedent::identity::parse_digest"
+kind = "fn"
+status = "internal"
+reason = "parses a caller-supplied digest in python/src/design_api.rs and state_api.rs; Python passes digests to those entries as text."
+
+[[entry]]
+rust = "antecedent::identity::to_hex"
+kind = "fn"
+status = "internal"
+reason = "hex rendering of identities across the bindings; Python reads identities through each result's identity accessors."
+
+[[entry]]
+rust = "antecedent::refusal::column_attribution_unsupported"
+kind = "fn"
+status = "internal"
+reason = "typed refusal raised by python/src/descriptive_api.rs; Python sees it as the descriptive entries' refusal."
+
+[[entry]]
+rust = "antecedent::refusal::ensure_not_cancelled"
+kind = "fn"
+status = "internal"
+reason = "cancellation refusal raised by python/src/transport_counterfactual_api.rs; Python sees it when a cancelled counterfactual transport stops."
+
+[[entry]]
+rust = "antecedent::refusal::evaluation_failure"
+kind = "fn"
+status = "internal"
+reason = "exact-evaluation refusal raised by python/src/transport_interference_api.rs; Python sees it as that entry's refusal."
+
+[[entry]]
+rust = "antecedent::refusal::flexible_learner_dependence"
+kind = "fn"
+status = "internal"
+reason = "learner-dependence refusal raised by python/src/estimator_config.rs; Python sees it when an estimator configuration is refused."
+
+[[entry]]
+rust = "antecedent::refusal::joint_interval_unsupported"
+kind = "fn"
+status = "internal"
+reason = "joint-interval refusal raised by python/src/derived_treatment_api.rs; Python sees it as the derived treatment entries' refusal."
+
+[[entry]]
+rust = "antecedent::refusal::joint_learner_interval_unsupported"
+kind = "fn"
+status = "internal"
+reason = "joint learner-interval refusal raised by python/src/derived_treatment_api.rs; Python sees it as the derived treatment entries' refusal."
+
+[[entry]]
+rust = "antecedent::refusal::sampling_weights_invalid"
+kind = "fn"
+status = "internal"
+reason = "sampling-weight refusal raised by python/src/prepare_request.rs; Python sees it when prepared with invalid weights."
+
+[[entry]]
+rust = "antecedent::refusal::sampling_weights_unsupported_route"
+kind = "fn"
+status = "internal"
+reason = "sampling-weight refusal raised by python/src/prepare_request.rs; Python sees it when weights are given to a route that does not accept them."

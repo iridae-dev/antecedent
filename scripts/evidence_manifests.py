@@ -197,7 +197,7 @@ class Checker:
     @property
     def pin(self) -> dict:
         if not hasattr(self, "_pin"):
-            self._pin = tomllib.loads((self.root / "tools/evidence-analyzer/pin.toml").read_text())
+            self._pin = tomllib.loads((self.root / "tools/evidence-analyzer/pin.toml").read_text(encoding="utf-8"))
         return self._pin
 
     def path(self, rel: str) -> Path:
@@ -364,7 +364,7 @@ def inventory(root: Path, kind: str = "all") -> list[tuple[dict, object]]:
         if kind != "all" and category != kind:
             continue
         path = root / "parity" / filename
-        rows = tomllib.loads(path.read_text()).get(table, []) if path.exists() else []
+        rows = tomllib.loads(path.read_text(encoding="utf-8")).get(table, []) if path.exists() else []
         for row in rows:
             if category == "scientific":
                 bound = binding("scientific", row.get("test"), row.get("fingerprint"))

@@ -3604,27 +3604,19 @@ fn rebind_estimate(
     Ok(result)
 }
 
-#[allow(dead_code)]
 #[allow(
     clippy::mixed_attributes_style,
     reason = "the fixture retains its existing module-level lint configuration"
 )]
 mod temporal_admg_compiler_fixture {
-    //! Known-truth evidence for derivatives on a supplied or accepted temporal ADMG at one horizon,
-    //! at validation none, cheap and full.
+    //! Setup for the temporal-ADMG derivative cells of the compiler matrix: the series, functional
+    //! and study for a supplied or accepted temporal ADMG at one horizon.
     //!
     //! The series is the confounded lag-one law of
     //! `conformance/response/temporal_admg_derivative_states/expected.json`: the observed confounder
-    //! `z(t-1)` separates the treatment `x(t-1)` from the latent cause of `w(t-1)` and `y(t)`, so the
-    //! structural slope is the coefficient of `x(t-1)` in the regression of `y(t)` on
-    //! `(1, x(t-1), z(t-1), w(t-1))`, which the fixture's reference solves in exact rational
-    //! arithmetic. Every derivative coordinate is built under both structure routes, both inference
-    //! modes and the three validation suites; each run executes from the prepared study with the
-    //! builder dropped. The published value is compared with the fixture (not the confounded slope),
-    //! the refuter states (support, the unit-step difference of the identified levels, the
-    //! Pulse-witness suite, Bayesian predictive checks and prior sensitivity) are checked against it,
-    //! and the planted violation the fixture declares (an evaluation point beyond the observed
-    //! treatment range) must be detected.
+    //! `z(t-1)` separates the treatment `x(t-1)` from the latent cause of `w(t-1)` and `y(t)`. The
+    //! comparison of published values and refuter states with that fixture is
+    //! `tests/temporal_admg_derivative_known_truth.rs`.
     //!
     //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -3634,11 +3626,10 @@ mod temporal_admg_compiler_fixture {
         reason = "test scaffolding builds small fixtures and one scenario is kept in one body"
     )]
 
-    use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study, StudyResult};
+    use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study};
     use antecedent_core::{
         CausalQuery, DerivativeScale, DerivativeWeighting, Lag, ResponseFunctional as F,
-        ResponseIdentification, ResponseQuery, ResponseValue, TemporalPolicy, TemporalResponseSpec,
-        VariableId,
+        ResponseQuery, TemporalPolicy, TemporalResponseSpec, VariableId,
     };
     use antecedent_data::TimeSeriesData;
     use antecedent_graph::TemporalAdmg;
@@ -3741,27 +3732,6 @@ mod temporal_admg_compiler_fixture {
             builder.graph(template())
         };
         builder.inference(inference).refute(suite).bootstrap_replicates(12)
-    }
-
-    fn published(result: &StudyResult, label: &str) -> Vec<f64> {
-        let ResponseIdentification::PointIdentified(value) = &result.response().unwrap().estimate
-        else {
-            panic!("{label}: the response is not point identified");
-        };
-        match value {
-            ResponseValue::Scalar(x) => vec![*x],
-            ResponseValue::Jacobian { values, .. } | ResponseValue::Vector(values) => {
-                values.to_vec()
-            }
-            other => panic!("{label}: unexpected payload {other:?}"),
-        }
-    }
-
-    fn report<'a>(
-        result: &'a StudyResult,
-        name: &str,
-    ) -> Option<&'a antecedent_validate::RefutationReport> {
-        result.refutations.iter().find(|report| report.refuter.as_ref() == name)
     }
 
     /// Every functional with the reference values the fixture implies.

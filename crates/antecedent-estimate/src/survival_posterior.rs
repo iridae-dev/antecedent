@@ -35,8 +35,6 @@ use crate::survival::SurvivalRows;
 pub const MIN_HAZARD_POSTERIOR_DRAWS: usize = 200;
 /// Most posterior draws one request may ask for.
 pub const MAX_HAZARD_POSTERIOR_DRAWS: usize = 200_000;
-/// Reference hazard interval count; not enforced.
-pub const MAX_HAZARD_INTERVALS: usize = 64;
 
 /// Independent gamma prior on every interval hazard, in events per unit time.
 #[derive(Clone, Copy, Debug, PartialEq)]

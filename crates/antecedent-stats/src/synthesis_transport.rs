@@ -41,8 +41,6 @@ use crate::synthesis::{
     hierarchical_normal_borrowing,
 };
 
-/// Version of the transported-synthesis semantics.
-pub const TRANSPORTED_SYNTHESIS_VERSION: u32 = 1;
 /// Most summaries one transported synthesis may combine.
 pub const MAX_TRANSPORTED_SUMMARIES: usize = 256;
 

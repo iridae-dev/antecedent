@@ -13076,7 +13076,6 @@ pub const antecedent_estimate::counterfactual_transport_sampled::LABEL_INFERENCE
 pub const antecedent_estimate::counterfactual_transport_sampled::LABEL_PLUG_IN: &str
 pub const antecedent_estimate::counterfactual_transport_sampled::LABEL_SMOOTHED_PLUG_IN: &str
 pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_COUNT_IDENTITY_TAG: &str
-pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_CONTRACT: &str
 pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_DERIVATION_TAG: &str
 pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_ESTIMATOR: &str
 pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPORT_GRADIENT_RELATIVE_STEP: f64
@@ -13093,9 +13092,7 @@ pub const antecedent_estimate::counterfactual_transport_sampled::SAMPLED_TRANSPO
 pub const antecedent_estimate::counterfactual_transport_sampled::STRUCTURAL_ENVELOPE_LABEL: &str
 pub const antecedent_estimate::counterfactual_transport_sampled::UNCALIBRATED_STANDARD_ERROR: &str
 pub const antecedent_estimate::dose_basis_regression::MAX_BASIS_DRAWS: usize
-pub const antecedent_estimate::dose_basis_regression::MAX_BASIS_WIDTH: usize
 pub const antecedent_estimate::dose_basis_regression::MIN_BASIS_DRAWS: usize
-pub const antecedent_estimate::dose_grid_posterior::MAX_POSTERIOR_GRID: usize
 pub const antecedent_estimate::effect_constancy::EFFECT_CONSTANCY_INFERENCE_CLAIM: &str
 pub const antecedent_estimate::effect_constancy::EFFECT_CONSTANCY_MAX_PARTITIONS: usize
 pub const antecedent_estimate::effect_constancy::EFFECT_CONSTANCY_NULL: &str
@@ -13126,7 +13123,6 @@ pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_MAX_PAR
 pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_MAX_SUPPORT_WORK: u64
 pub const antecedent_estimate::joint_bayesian_transport::JOINT_TRANSPORT_SAMPLER: &str
 pub const antecedent_estimate::joint_design::capabilities::JOINT_DESIGN_CAPABILITIES: [antecedent_estimate::joint_design::capabilities::JointDesignCapability; 7]
-pub const antecedent_estimate::joint_panel::family::MAX_SPATIAL_GROUPS: usize
 pub const antecedent_estimate::joint_panel::restriction::LINEARITY_BINS: usize
 pub const antecedent_estimate::joint_panel::restriction::MIN_DIAGNOSTIC_INNOVATIONS: usize
 pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_CAVEAT: &str
@@ -13228,10 +13224,8 @@ pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_MAX_ROWS: usize
 pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_MAX_WORKSPACE_BYTES: u64
 pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_MIN_BOOTSTRAP: u32
 pub const antecedent_estimate::smoothed_dose::SMOOTHED_DOSE_QUADRATURE_NODES: [usize; 2]
-pub const antecedent_estimate::survival_posterior::MAX_HAZARD_INTERVALS: usize
 pub const antecedent_estimate::survival_posterior::MAX_HAZARD_POSTERIOR_DRAWS: usize
 pub const antecedent_estimate::survival_posterior::MIN_HAZARD_POSTERIOR_DRAWS: usize
-pub const antecedent_estimate::switchback_posterior::MAX_SEQUENCE_PERIODS: usize
 pub const antecedent_estimate::switchback_posterior::SWITCHBACK_POSTERIOR_ESTIMAND: &str
 pub const antecedent_estimate::temporal_dependent_interval::INTERVAL_CALIBRATION_STATUS: &str
 pub const antecedent_estimate::temporal_dependent_interval::INTERVAL_CLAIM: &str
@@ -19552,7 +19546,6 @@ pub fn antecedent_estimate::count_fitted_posterior::draw_class(draws: u32) -> u3
 pub fn antecedent_estimate::count_fitted_posterior::endpoint_mcse_width_fraction(lower_mcse: f64, upper_mcse: f64, width: f64) -> f64
 pub fn antecedent_estimate::count_fitted_posterior::quantile_mcse(sorted: &[f64], p: f64) -> f64
 pub fn antecedent_estimate::counterfactual_transport_sampled::cited_identities(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation) -> alloc::vec::Vec<(alloc::sync::Arc<str>, antecedent_core::ids::RegimeId)>
-pub fn antecedent_estimate::counterfactual_transport_sampled::default_evaluation_limits() -> antecedent_expr::exact_plan::ExactEvaluationLimits
 pub fn antecedent_estimate::counterfactual_transport_sampled::estimate_sampled_counterfactual_transport(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, request: &antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::counterfactual_transport_sampled::sampled_transport_interval(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, estimate: &antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate, level: f64) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval, &'static str>
 pub fn antecedent_estimate::cpdag_scenarios::prepare_cpdag_scenarios(decision: antecedent_identify::sid::cpdag_completion::CpdagCompletionDecision, data: antecedent_expr::exact::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios, antecedent_estimate::EstimationError>

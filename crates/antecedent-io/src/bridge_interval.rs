@@ -49,10 +49,6 @@ use antecedent_stats::{normal_ppf, student_t_ppf};
 
 /// Query axis name of every bridged-claim interval coverage record.
 pub const BRIDGE_INTERVAL_QUERY: &str = "BridgedClaimInterval";
-/// Smallest nominal level a request may ask for.
-pub const BRIDGE_INTERVAL_MIN_LEVEL: f64 = 0.5;
-/// Largest nominal level a request may ask for.
-pub const BRIDGE_INTERVAL_MAX_LEVEL: f64 = 0.9999;
 /// Smallest Youden index of a measurement correction the delta method is published for.
 pub const BRIDGE_INTERVAL_MIN_YOUDEN: f64 = 0.3;
 /// Largest standard error of a declared sensitivity or specificity the delta method is
@@ -229,8 +225,8 @@ pub fn construct_bridged_claim_interval(
             "level {level} is not strictly inside (0, 1)"
         )));
     }
-    // A level outside [BRIDGE_INTERVAL_MIN_LEVEL, BRIDGE_INTERVAL_MAX_LEVEL] is computed; no
-    // record measures it, so its calibration is `not_measured`.
+    // Any level strictly inside (0, 1) is computed; its calibration status comes from the
+    // coverage record that matches it, `not_measured` when none does.
     let support = bridged.contract.check_support()?;
     let tail = 1.0 - (1.0 - level) / 2.0;
     let x0 = bridged.source_value;

@@ -4312,23 +4312,6 @@ def uplift_by_score(
     bin_count: int,
 ) -> list[tuple[int, float, float, int]]: ...
 
-class FactorialNativeResult:
-    cell_means: list[float]
-    cell_support: list[int]
-    factor_a_effect: float
-    factor_b_effect: float
-    interaction_effect: float
-    factor_a_variance_bound: float
-    factor_b_variance_bound: float
-    interaction_variance_bound: float
-
-def estimate_factorial_2x2(
-    outcome: NDArray[np.float64],
-    factor_a: list[bool],
-    factor_b: list[bool],
-    probability_a: NDArray[np.float64],
-    probability_b: NDArray[np.float64],
-) -> FactorialNativeResult: ...
 def difference_in_differences(
     outcome: NDArray[np.float64], treated: list[bool], post: list[bool]
 ) -> float: ...
@@ -8984,7 +8967,6 @@ class CallbackSessionHandle:
     ) -> tuple[tuple[bytes, str] | None, str | None]: ...
 
 def callback_declaration_identity(declaration_json: str) -> tuple[str | None, str | None]: ...
-def callback_request_identity(declaration_json: str, request_json: str) -> str: ...
 def callback_values_digest(values: list[float]) -> str: ...
 def callback_result_consume(
     artifact: bytes, expected_identity: str | None = None
@@ -10919,9 +10901,6 @@ def cyclic_parameter_posterior(
     max_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
-def execute_cyclic_family(
-    request_json: str, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
-) -> tuple[str, bytes, ExecutionFacts]: ...
 def consume_cyclic_family(
     bytes: bytes,
     expected_identity: str,
@@ -11065,7 +11044,6 @@ def execute_local_cyclic(
 ) -> str: ...
 def external_content_digest(content: bytes) -> str: ...
 def external_spec_identity(spec_json: str) -> str: ...
-def external_request_identity(request_json: str) -> str: ...
 def external_execute(
     request_json: str,
     resolver: Any = None,

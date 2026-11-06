@@ -146,21 +146,6 @@ pub fn schema_wire_from_v01(v01: &SchemaWireV01) -> SchemaWire {
     }
 }
 
-/// Try decode schema section bytes as 0.2 then 0.1.
-///
-/// # Errors
-///
-/// CBOR failure for both layouts.
-pub fn schema_wire_from_cbor_bytes(bytes: &[u8]) -> Result<SchemaWire, IoError> {
-    if let Ok(w) = crate::convert::from_cbor::<SchemaWire>(bytes) {
-        if !w.variables.is_empty() {
-            return Ok(w);
-        }
-    }
-    let v01: SchemaWireV01 = crate::convert::from_cbor(bytes)?;
-    Ok(schema_wire_from_v01(&v01))
-}
-
 fn value_type_to_wire(v: &ValueType) -> ValueTypeWire {
     match v {
         ValueType::Continuous => ValueTypeWire::Continuous,

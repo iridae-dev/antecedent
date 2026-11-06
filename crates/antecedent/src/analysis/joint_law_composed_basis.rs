@@ -22,8 +22,6 @@ use antecedent_io::calibration::{
 pub const COMPOSED_QUERY: &str = "ComposedQuantity";
 /// Nominal level the composed constructions are measured at.
 pub const COMPOSED_LEVEL: f64 = 0.95;
-/// Wire name of the normal approximation to the propagated variance.
-pub const COMPOSED_NORMAL_CONSTRUCTION: &str = "normal_approximation";
 
 /// The stable label of a dependence declaration in the calibration key.
 #[must_use]

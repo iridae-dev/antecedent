@@ -6179,9 +6179,7 @@ pub const antecedent_io::bayesian_posterior_row_artifact::POSTERIOR_ROW_ARTIFACT
 pub const antecedent_io::bayesian_posterior_row_artifact::QUANTILE_POSTERIOR_ESTIMATOR: &str
 pub const antecedent_io::bayesian_posterior_row_artifact::SURVIVAL_POSTERIOR_ESTIMATOR: &str
 pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_ASSUMPTIONS: &str
-pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MAX_LEVEL: f64
 pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MAX_RATE_SD: f64
-pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MIN_LEVEL: f64
 pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_MIN_YOUDEN: f64
 pub const antecedent_io::bridge_interval::BRIDGE_INTERVAL_QUERY: &str
 pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_DECLARED_ROWS_FORMAT: &str
@@ -6372,7 +6370,6 @@ pub const antecedent_io::z_transport_artifact::Z_TRANSPORT_ARTIFACT_VERSION: u32
 pub const antecedent_io::z_transport_artifact::Z_TRANSPORT_NO_INTERVAL: &str
 pub const fn antecedent_io::period_refresh_artifact::product_label(product: antecedent_estimate::temporal_refresh::WindowProduct) -> &'static str
 pub const fn antecedent_io::period_refresh_artifact::standing_label(standing: antecedent_estimate::temporal_refresh::MechanismStanding) -> &'static str
-pub const fn antecedent_io::recovery_chain_artifact::nonrecoverable_detail() -> (&'static str, &'static str)
 pub const fn antecedent_io::release_migration::break_path(change: antecedent_io::release_migration::IntentionalBreak) -> antecedent_io::release_migration::BreakPath
 pub const fn antecedent_io::release_migration::caller_world_id_and_reference_flag_enter_identity(shape: antecedent_io::release_migration::TargetShape) -> bool
 pub const fn antecedent_io::release_migration::keep_refusal_reason(reason: &str) -> &str
@@ -9820,7 +9817,6 @@ pub fn antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::overlap_declaration_from_ledger(ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, bindings: &[(antecedent_estimate::counterfactual_transport_sampled::counts::SampledTableKey, antecedent_contract::evidence_ledger::ids::SourceId)]) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::overlap::OverlapDeclaration, antecedent_io_core::error::IoError>
 pub fn antecedent_io::sampled_counterfactual_transport_artifact::sampled_counterfactual_transport_artifact(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, request: &antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest, variable_names: &[alloc::string::String], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire, antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate), antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn antecedent_io::temporal_refresh_artifact::expected_receipt(old: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, new: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, interval_invalidated: bool) -> antecedent_estimate::temporal_refresh::RefreshReceipt
-pub fn antecedent_io::temporal_refresh_artifact::panel_digest_hex(panel: &antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel) -> alloc::string::String
 pub fn antecedent_io::transport_effect_from_wire(value: &antecedent_io_core::transport_interference_wire::TransportEffectEstimateWire) -> core::result::Result<antecedent_estimate::transport::TransportEffectEstimate, antecedent_io_core::error::IoError>
 pub fn antecedent_io::transport_effect_to_wire(value: &antecedent_estimate::transport::TransportEffectEstimate) -> core::result::Result<antecedent_io_core::transport_interference_wire::TransportEffectEstimateWire, antecedent_io_core::error::IoError>
 pub fn antecedent_io::transport_grid_wire::encode_transport_section(section_id: &str, kind: &str, identity: &str, payload: &impl serde_core::ser::Serialize) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>

@@ -298,3 +298,50 @@ fn reusing_the_evaluation_rows_to_learn_the_policy_and_unsupported_actions_are_r
         "{text}"
     );
 }
+
+#[test]
+fn many_policies_over_one_scope_match_each_request_share_fits_and_isolate_refusals() {
+    use antecedent_state::retention::RetentionMode;
+    let threshold = policy_request(policy_spec("prespecified"));
+    let mut treat_all = threshold.clone();
+    treat_all.spec.policy_actions = Some(vec![1.0; treat_all.outcome.len()]);
+    let mut unsupported = threshold.clone();
+    unsupported.spec.support = None;
+    let requests = [threshold.clone(), unsupported, treat_all.clone()];
+    let ctx = || antecedent::prelude::ExecutionContext::production_default(threshold.spec.seed);
+
+    let results =
+        ObservationalPolicyValue::evaluate_many(&requests, &ctx(), RetentionMode::FullReusable);
+    assert_eq!(results.len(), 3);
+    // Each result is its request's own evaluation under the same context.
+    assert_eq!(
+        results[0].as_ref().unwrap(),
+        &ObservationalPolicyValue::evaluate(&threshold, &ctx()).unwrap()
+    );
+    assert_eq!(
+        results[2].as_ref().unwrap(),
+        &ObservationalPolicyValue::evaluate(&treat_all, &ctx()).unwrap()
+    );
+    // One request's refusal leaves the others untouched.
+    let refusal = results[1].as_ref().unwrap_err().to_string();
+    assert!(
+        refusal.contains(antecedent_core::reason_details::policy_value::SUPPORT_MISSING),
+        "{refusal}"
+    );
+
+    // The nuisance fits do not depend on the policy: retained state fits them once for both
+    // policies, while a mode that retains nothing refits them per request.
+    let fits = |retention| {
+        let scope = ctx();
+        let pair = [threshold.clone(), treat_all.clone()];
+        let attempt = antecedent::execution::observe(&scope, || {
+            let out = ObservationalPolicyValue::evaluate_many(&pair, &scope, retention);
+            out.into_iter().collect::<Result<Vec<_>, _>>()
+        });
+        attempt.result.unwrap();
+        attempt.facts.and_then(|facts| facts.observed_model_fits()).expect("fits are observed")
+    };
+    let shared = fits(RetentionMode::FullReusable);
+    let separate = fits(RetentionMode::SummaryOnly);
+    assert!(shared < separate, "retained fits {shared}, unretained fits {separate}");
+}

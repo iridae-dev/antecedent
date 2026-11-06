@@ -452,3 +452,47 @@ fn a_transported_interval_needs_an_aligned_law_or_a_covariance() {
     let claim = propagate(&with_covariance, numbers, &ctx()).expect("covariance supports it");
     assert!((claim.value("variance").expect("variance") - 2.5).abs() < 1e-15);
 }
+
+/// Inputs resting on evidence-ledger sources: the ledger, not the equality of their
+/// evidence identities, decides which declared independence holds. Sources hold the rows
+/// a = {1, 2, 3}, b = {3, 4} and c = {7, 8}; only a and b share a row.
+#[test]
+fn ledger_sources_decide_the_overlap_of_draws_inputs() {
+    use antecedent_contract::evidence_ledger::{
+        EvidenceLedger, ObservationId, SourceDeclaration, SourceKind,
+    };
+    use antecedent_contract::{check_propagation, check_propagation_with_ledger};
+    let mut ledger = EvidenceLedger::new();
+    let mut source = |label: &str, rows: &[u8]| {
+        ledger
+            .add_source(
+                SourceDeclaration::new(label, SourceKind::ObservationSet).with_observations(
+                    rows.iter().copied().map(|r| ObservationId::from_key("trial", &[r])),
+                ),
+            )
+            .unwrap()
+    };
+    let (a, b, c) = (source("a", &[1, 2, 3]), source("b", &[3, 4]), source("c", &[7, 8]));
+    let draws = |id: &str, on| {
+        PropagationDraws::independent_marginal(id, "unbound", vec![0.0, 1.0, 2.0])
+            .with_evidence_source(on)
+    };
+    let (x, y, z) = (draws("x", a), draws("y", b), draws("z", c));
+    assert_eq!(x.input().evidence_id, a.to_hex(), "the input rests on its ledger source");
+    let independent = |first: &PropagationDraws, second: &PropagationDraws| PropagationRequest {
+        operation: PropagationOperation::Sum,
+        inputs: vec![first.input(), second.input()],
+        dependence: PropagationDependence::DeclaredIndependent,
+        reading: RequestedReading::Point,
+    };
+    // Without the ledger, distinct sources look disjoint.
+    assert!(check_propagation(&independent(&x, &y)).is_ok());
+    // The ledger finds the shared row and refuses the declared independence.
+    let shared = check_propagation_with_ledger(&independent(&x, &y), &ledger).unwrap_err();
+    assert_eq!(
+        shared.detail,
+        antecedent_core::reason_details::joint_law_propagation::SHARED_EVIDENCE_DECLARED_INDEPENDENT
+    );
+    let disjoint = check_propagation_with_ledger(&independent(&x, &z), &ledger).unwrap();
+    assert!(disjoint.shared_evidence.is_empty());
+}

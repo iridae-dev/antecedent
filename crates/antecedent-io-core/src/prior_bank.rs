@@ -814,23 +814,15 @@ fn assess_compatibility(source: &PriorSourceRef, target: &TargetDesign) -> Compa
         }
     }
 
+    // An attached artifact that cannot be read is never treated as a meta-only entry: its
+    // quantity names are unknown, so no transfer may rest on it.
     let wire = match load_posterior_wire(source) {
         Ok(w) => w,
         Err(e) => {
-            if source
-                .meta
-                .declared_mapping
-                .as_ref()
-                .is_some_and(|m| !matches!(m, PriorMapping::IdenticalCoefficientSubspace))
-            {
-                return CompatibilityReport::Rejected {
-                    artifact_id: id,
-                    reason: CompatibilityRejectReason::ArtifactUnreadable {
-                        message: e.to_string(),
-                    },
-                };
-            }
-            None
+            return CompatibilityReport::Rejected {
+                artifact_id: id,
+                reason: CompatibilityRejectReason::ArtifactUnreadable { message: e.to_string() },
+            };
         }
     };
 
@@ -1079,6 +1071,56 @@ mod tests {
             &reports[0],
             CompatibilityReport::Compatible { artifact_id } if artifact_id == "match"
         ));
+    }
+
+    #[test]
+    fn a_path_entry_reads_its_artifact_when_filtered_and_fails_closed_when_it_cannot() {
+        let dir = std::env::temp_dir().join(format!(
+            "antecedent-prior-bank-{}-{}",
+            std::process::id(),
+            line!()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("prior.antecedent");
+        let write = |names: Option<Vec<&str>>| {
+            let mut buf = Vec::new();
+            mini_posterior("on-disk", names).write_to(&mut buf).unwrap();
+            std::fs::write(&path, buf).unwrap();
+        };
+        let meta = PriorSourceMeta::new("on-disk", ate_estimand(), "NonparametricallyIdentified")
+            .with_design(design_tyz());
+        let catalog = PriorCatalog::from_sources(vec![PriorSourceRef::with_path(meta, &path)]);
+        let target = TargetDesign::new(ate_estimand(), ["t", "y", "z"]);
+        let report = |catalog: &PriorCatalog| catalog.filter_compatible(&target).remove(0);
+
+        // The file is read at filter time, as in-memory bytes would be.
+        write(Some(vec!["intercept", "coef_t", "coef_z"]));
+        assert!(matches!(report(&catalog), CompatibilityReport::Compatible { .. }));
+        assert!(catalog.require_compatible(&target).is_ok());
+        // A changed file changes the verdict: the entry holds the path, not a snapshot.
+        write(None);
+        assert!(matches!(report(&catalog), CompatibilityReport::Partial { .. }));
+        // Invalid bytes and a missing file are unreadable, whatever mapping is declared.
+        std::fs::write(&path, b"not an artifact").unwrap();
+        let unreadable = |r: &CompatibilityReport| {
+            matches!(
+                r,
+                CompatibilityReport::Rejected {
+                    reason: CompatibilityRejectReason::ArtifactUnreadable { .. },
+                    ..
+                }
+            )
+        };
+        assert!(unreadable(&report(&catalog)));
+        std::fs::remove_file(&path).unwrap();
+        assert!(unreadable(&report(&catalog)));
+        assert!(catalog.require_usable(&target).is_err(), "an unreadable source is never usable");
+        let mapped = PriorSourceMeta::new("on-disk", ate_estimand(), "NonparametricallyIdentified")
+            .with_design(design_tyz())
+            .with_mapping(PriorMapping::EffectFunctional { source_quantity: "ate".into() });
+        let mapped = PriorCatalog::from_sources(vec![PriorSourceRef::with_path(mapped, &path)]);
+        assert!(unreadable(&report(&mapped)));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

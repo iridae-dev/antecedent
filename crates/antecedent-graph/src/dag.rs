@@ -353,29 +353,8 @@ impl Dag {
         self.directed.edge_pairs_sorted()
     }
 
-    /// Enumerate simple directed paths from `from` to `to` (inclusive endpoints).
-    ///
-    /// Bounded by `max_paths` and `max_len` (number of nodes on the path).
-    ///
-    /// The returned set is silently truncated when either bound binds. Callers whose
-    /// correctness depends on seeing *every* path — e.g. a recanting-witness test, which
-    /// concludes "no witness exists" from the absence of one — must use
-    /// [`Self::directed_paths_with_budget`] and fail closed on truncation instead.
-    ///
-    /// # Errors
-    ///
-    /// Unknown nodes.
-    pub fn directed_paths(
-        &self,
-        from: DenseNodeId,
-        to: DenseNodeId,
-        max_paths: usize,
-        max_len: usize,
-    ) -> Result<Vec<Vec<DenseNodeId>>, GraphError> {
-        self.directed_paths_with_budget(from, to, max_paths, max_len).map(|(paths, _)| paths)
-    }
-
-    /// [`Self::directed_paths`] plus a flag reporting whether enumeration was cut short.
+    /// Every directed path from `from` to `to` with at most `max_paths` paths of at most
+    /// `max_len` nodes, plus a flag reporting whether enumeration was cut short.
     ///
     /// The flag is `true` when `max_paths` stopped the search with candidates still
     /// pending, or when `max_len` pruned a partial path that had not yet reached `to`.

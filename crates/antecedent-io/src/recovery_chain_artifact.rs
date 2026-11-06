@@ -31,9 +31,9 @@ use antecedent_core::{ExecutionContext, IdentityDomain, VariableId};
 use antecedent_estimate::{ChainPatternLaw, ChainRecoveredLaw, evaluate_chain_recovery};
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
-    ChainPartial, ChainRecoveryDecision, ChainRecoveryDetail, ChainRecoveryError,
-    ChainRecoveryPlan, ChainRecoveryQuery, ChainRecoveryWitness, ChainWitnessCheck,
-    ChainWitnessMechanism, decide_chain_recovery, verify_chain_witness,
+    ChainPartial, ChainRecoveryDecision, ChainRecoveryError, ChainRecoveryPlan, ChainRecoveryQuery,
+    ChainRecoveryWitness, ChainWitnessCheck, ChainWitnessMechanism, decide_chain_recovery,
+    verify_chain_witness,
 };
 use serde::{Deserialize, Serialize};
 
@@ -747,13 +747,4 @@ impl RecoveryChainArtifactWire {
         }
         Ok(check)
     }
-}
-
-/// Registered detail of a nonrecoverable decision, for callers rendering it.
-#[must_use]
-pub const fn nonrecoverable_detail() -> (&'static str, &'static str) {
-    (
-        ChainRecoveryDetail::NonrecoverableWitness.reason_code(),
-        ChainRecoveryDetail::NonrecoverableWitness.detail(),
-    )
 }

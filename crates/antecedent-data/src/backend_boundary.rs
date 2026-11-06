@@ -16,13 +16,6 @@
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
 
-/// Polars is not a backend of the internal contract.
-///
-/// ADR 0026 keeps Polars outside this contract. The value stays false until a
-/// later ADR adopts it. This constant does not add the crate and does not make
-/// a backend the default.
-pub const POLARS_IS_INTERNAL_CONTRACT_BACKEND: bool = false;
-
 /// Preparation path this repository executes.
 ///
 /// The record is `parity/polars_decision/decision.toml`. Direct Arrow is that

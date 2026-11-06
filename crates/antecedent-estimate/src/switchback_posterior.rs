@@ -51,9 +51,6 @@ use crate::gaussian_linear_posterior::{
 };
 use crate::util::refuse;
 
-/// Reference period count of a sequence; not enforced.
-pub const MAX_SEQUENCE_PERIODS: usize = 512;
-
 /// Estimand label for evidence records.
 pub const SWITCHBACK_POSTERIOR_ESTIMAND: &str =
     "constant_direct_effect_under_declared_carryover_and_dependence";

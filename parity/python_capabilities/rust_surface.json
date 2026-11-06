@@ -3340,10 +3340,6 @@
       "declaration": "pub fn <antecedent::ResultPayload>::fn from_mediation(decomposition: core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationEstimate>, grid: core::option::Option<antecedent_estimate::temporal_mediation::TemporalMediationGrid>) -> Self",
       "kind": "method"
     },
-    "<antecedent::ResultPayload>::has_dedicated_uncertainty_section": {
-      "declaration": "pub fn <antecedent::ResultPayload>::const fn has_dedicated_uncertainty_section(&self) -> bool",
-      "kind": "method"
-    },
     "<antecedent::ResultPayload>::history_match": {
       "declaration": "pub fn <antecedent::ResultPayload>::const fn history_match(&self) -> core::option::Option<&antecedent::HistoryMatchEstimate>",
       "kind": "method"
@@ -5600,6 +5596,10 @@
       "declaration": "pub fn <antecedent::analysis::PropagationDraws>::fn independent_marginal(id: impl core::convert::Into<alloc::string::String>, evidence_id: impl core::convert::Into<alloc::string::String>, values: alloc::vec::Vec<f64>) -> Self",
       "kind": "method"
     },
+    "<antecedent::analysis::PropagationDraws>::input": {
+      "declaration": "pub fn <antecedent::analysis::PropagationDraws>::fn input(&self) -> antecedent_contract::joint_law_rule::PropagationInput",
+      "kind": "method"
+    },
     "<antecedent::analysis::PropagationDraws>::values": {
       "declaration": "pub fn <antecedent::analysis::PropagationDraws>::fn values(&self) -> &[f64]",
       "kind": "method"
@@ -7014,10 +7014,6 @@
     },
     "<antecedent::analysis::joint_panel::JointPanelExplanationAttempt>::require_unique_attribution": {
       "declaration": "pub fn <antecedent::analysis::joint_panel::JointPanelExplanationAttempt>::fn require_unique_attribution(&self) -> core::result::Result<(), antecedent::analysis::joint_panel::JointPanelError>",
-      "kind": "method"
-    },
-    "<antecedent::analysis::joint_panel::JointPanelProjectedLaw>::complete_values": {
-      "declaration": "pub fn <antecedent::analysis::joint_panel::JointPanelProjectedLaw>::fn complete_values(&self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent::analysis::joint_panel::JointPanelError>",
       "kind": "method"
     },
     "<antecedent::analysis::joint_panel::JointPanelProjectedLaw>::dependency_identity": {

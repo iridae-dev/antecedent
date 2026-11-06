@@ -134,8 +134,8 @@ class Snapshot:
         info = locate(root, row)
         names = closure(fp.graph, info['crate']) if info['lang'] == 'rust' else list(fp.graph)
         owned = {fp.crate_dir(name).resolve() for name in fp.graph}
-        configs = [(root, tomllib.loads((root / 'Cargo.toml').read_text()))]
-        configs += [(fp.crate_dir(name), tomllib.loads((fp.crate_dir(name) / 'Cargo.toml').read_text())) for name in names]
+        configs = [(root, tomllib.loads((root / 'Cargo.toml').read_text(encoding="utf-8")))]
+        configs += [(fp.crate_dir(name), tomllib.loads((fp.crate_dir(name) / 'Cargo.toml').read_text(encoding="utf-8"))) for name in names]
         for base, config in configs:
             custom_build = config.get('package', {}).get('build')
             if isinstance(custom_build, str) and custom_build != 'build.rs':
@@ -151,7 +151,7 @@ class Snapshot:
                         raise RuntimeError('local dependency outside the analyzed workspace must be declared as an input before earning evidence')
         for rel in ('.cargo/config', '.cargo/config.toml'):
             if (root / rel).is_file():
-                config = tomllib.loads((root / rel).read_text())
+                config = tomllib.loads((root / rel).read_text(encoding="utf-8"))
                 if config.get('paths') or any(config.get('build', {}).get(key) for key in ('rustc', 'rustc-wrapper', 'rustc-workspace-wrapper')):
                     raise RuntimeError('Cargo compiler/path overrides require explicit dependency analysis before earning evidence')
         # Procedural macros and build scripts run at compile time, where coverage cannot
@@ -164,7 +164,7 @@ class Snapshot:
         required = set().union(*(compile_time.get(name, {name}) for name in names))
         for name in names:
             directory = fp.crate_dir(name)
-            config = tomllib.loads((directory / 'Cargo.toml').read_text())
+            config = tomllib.loads((directory / 'Cargo.toml').read_text(encoding="utf-8"))
             if config.get('lib', {}).get('proc-macro') or (directory / 'build.rs').exists():
                 required.add(name)
         if required:
@@ -232,7 +232,7 @@ class Snapshot:
         from evidence_projection import matches
         for i in self.manifest['inputs']:
             if i['kind'] == 'guarded_file':
-                if not matches((self.root / i['path']).read_text(), i['projection']):
+                if not matches((self.root / i['path']).read_text(encoding="utf-8"), i['projection']):
                     return False
             elif checker.input_digest(i['kind'], i.get('path', i.get('name'))) != i['digest']:
                 return False
@@ -310,7 +310,7 @@ def inventory_bodies(directory: Path) -> dict[Path, dict[str, tuple[int, int]]]:
     by_file: dict[Path, dict[str, tuple[int, int]]] = {}
     contents: dict[Path, bytes | None] = {}
     for path in sorted(directory.glob('*.tsv')):
-        for line in path.read_text().splitlines():
+        for line in path.read_text(encoding="utf-8").splitlines():
             if not line.startswith('body\t'):
                 continue
             _, name, hexpath, start, end, text = line.split('\t')
@@ -346,7 +346,7 @@ def project_snapshot(snapshot: Snapshot, directory: Path, coverage: dict[str, se
         path = (snapshot.root / rel).resolve()
         if path in snapshot.source_consumers or path not in by_file or str(path) not in coverage:
             continue
-        source = path.read_text()
+        source = path.read_text(encoding="utf-8")
         raw = source.encode()
         spans = {name: (len(raw[:lo].decode()), len(raw[:hi].decode())) for name, (lo, hi) in by_file[path].items()}
         try:

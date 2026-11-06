@@ -730,7 +730,8 @@ impl From<LearnBurnError> for DeviceError {
     }
 }
 
-/// Fit on Burn's WGPU backend and return host portable weights.
+/// Fit on Burn's WGPU backend and return host portable weights, polling `stop` before every
+/// epoch.
 ///
 /// Available only with the `wgpu` feature. The default `WgpuDevice` is created here and
 /// dropped before return. Each epoch copies the scalar loss to the host. The fit is
@@ -740,23 +741,8 @@ impl From<LearnBurnError> for DeviceError {
 /// # Errors
 ///
 /// The same input and divergence failures as [`super::train`], and a device panic
-/// (adapter loss, allocation failure) as [`LearnBurnError::Device`].
-#[cfg(feature = "wgpu")]
-pub fn fit_portable_wgpu(
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    y: &[f64],
-    spec: &MlpSpec,
-) -> Result<PortableFit, LearnBurnError> {
-    fit_portable_wgpu_cancellable(x_colmajor, nrows, ncols, y, spec, &|| false)
-}
-
-/// [`fit_portable_wgpu`] that polls `stop` before every epoch.
-///
-/// # Errors
-///
-/// As [`fit_portable_wgpu`], plus [`LearnBurnError::Cancelled`].
+/// (adapter loss, allocation failure) as [`LearnBurnError::Device`], and
+/// [`LearnBurnError::Cancelled`] when `stop` returns true.
 #[cfg(feature = "wgpu")]
 pub fn fit_portable_wgpu_cancellable(
     x_colmajor: &[f64],

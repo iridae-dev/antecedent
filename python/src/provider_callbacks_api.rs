@@ -1223,16 +1223,6 @@ fn callback_declaration_identity(declaration_json: &str) -> PyResult<Checked> {
     })
 }
 
-/// The request identity (hex) against a declaration.
-#[pyfunction]
-fn callback_request_identity(declaration_json: &str, request_json: &str) -> PyResult<String> {
-    crate::catch_ffi(|| {
-        let declaration = declaration_of(declaration_json)?;
-        let request = request_of(request_json)?;
-        Ok(request.identity(&declaration).to_hex())
-    })
-}
-
 /// The digest (hex) of output values, for binding a nested callback's input.
 #[pyfunction]
 fn callback_values_digest(values: Vec<f64>) -> String {
@@ -1772,7 +1762,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<CallbackToken>()?;
     module.add_class::<CallbackSessionHandle>()?;
     module.add_function(wrap_pyfunction!(callback_declaration_identity, module)?)?;
-    module.add_function(wrap_pyfunction!(callback_request_identity, module)?)?;
     module.add_function(wrap_pyfunction!(callback_values_digest, module)?)?;
     module.add_function(wrap_pyfunction!(callback_result_consume, module)?)?;
     module.add_function(wrap_pyfunction!(callback_result_inspect, module)?)?;

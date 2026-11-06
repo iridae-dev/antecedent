@@ -57,8 +57,8 @@ use antecedent_contract::adaptive_design::{
     StoppingRuleDeclaration, StoppingRuleKind, StoppingSpec,
 };
 use antecedent_contract::evidence_ledger::parse_digest_hex;
+use antecedent_core::CanonicalWriter;
 use antecedent_core::refusal::{changed_identity, replay_mismatch};
-use antecedent_core::{CanonicalWriter, SemanticDigest};
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError, AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, Boundaries,
     CapacityError, CorrelationPrior, DecisionRules, FutilityRule, HistoricalPrior, LookDecision,
@@ -1445,10 +1445,4 @@ impl AdaptiveMonitoringContractArtifact {
     pub fn decode_unchecked(bytes: &[u8]) -> Result<MonitoringContractMeta, Error> {
         decode_meta(bytes)
     }
-}
-
-/// The digest of a contract's identity, for callers that retain it.
-#[must_use]
-pub fn contract_identity_hex(digest: SemanticDigest) -> String {
-    digest.to_hex()
 }

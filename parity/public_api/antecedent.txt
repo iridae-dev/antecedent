@@ -10181,7 +10181,6 @@ pub const antecedent::analysis::evidence_plan::STUDY_POPULATION: &str
 pub const antecedent::analysis::fallback::NONCAUSAL_NOTICE: &str
 pub const antecedent::analysis::file_table::INTERCEPT_COLUMN: &str
 pub const antecedent::analysis::joint_law_composed_basis::COMPOSED_LEVEL: f64
-pub const antecedent::analysis::joint_law_composed_basis::COMPOSED_NORMAL_CONSTRUCTION: &str
 pub const antecedent::analysis::joint_law_composed_basis::COMPOSED_QUERY: &str
 pub const antecedent::analysis::joint_panel::DEFAULT_TILE_DRAWS: usize
 pub const antecedent::analysis::joint_panel::designs::MAX_DESIGN_ARTIFACT_BYTES: usize
@@ -14333,7 +14332,6 @@ pub fn <antecedent::ResultPayload>::const fn change_attribution(&self) -> core::
 pub fn <antecedent::ResultPayload>::const fn continuous_dose_response(&self) -> core::option::Option<&antecedent::ContinuousDoseResponseEstimate>
 pub fn <antecedent::ResultPayload>::const fn counterfactual(&self) -> core::option::Option<&antecedent::gcm::IteResult>
 pub fn <antecedent::ResultPayload>::const fn distribution(&self) -> core::option::Option<&antecedent_estimate::functional_distribution::InterventionalDistributionEstimate>
-pub fn <antecedent::ResultPayload>::const fn has_dedicated_uncertainty_section(&self) -> bool
 pub fn <antecedent::ResultPayload>::const fn history_match(&self) -> core::option::Option<&antecedent::HistoryMatchEstimate>
 pub fn <antecedent::ResultPayload>::const fn interference_estimate(&self) -> core::option::Option<&antecedent_estimate::interference::InterferenceEstimate>
 pub fn <antecedent::ResultPayload>::const fn interference_inference(&self) -> core::option::Option<&antecedent::result::InterferenceInference>
@@ -14905,6 +14903,7 @@ pub fn <antecedent::analysis::PropagationDraws>::fn aligned(id: impl core::conve
 pub fn <antecedent::analysis::PropagationDraws>::fn from_artifact_column(id: impl core::convert::Into<alloc::string::String>, artifact: &antecedent_io_core::distribution_artifact::DistributionArtifact, column: usize) -> core::result::Result<Self, antecedent::analysis::JointLawPropagationRefusal>
 pub fn <antecedent::analysis::PropagationDraws>::fn id(&self) -> &str
 pub fn <antecedent::analysis::PropagationDraws>::fn independent_marginal(id: impl core::convert::Into<alloc::string::String>, evidence_id: impl core::convert::Into<alloc::string::String>, values: alloc::vec::Vec<f64>) -> Self
+pub fn <antecedent::analysis::PropagationDraws>::fn input(&self) -> antecedent_contract::joint_law_rule::PropagationInput
 pub fn <antecedent::analysis::PropagationDraws>::fn values(&self) -> &[f64]
 pub fn <antecedent::analysis::PropagationDraws>::fn with_evidence_source(self, source: antecedent_contract::evidence_ledger::ids::SourceId) -> Self
 pub fn <antecedent::analysis::PropagationDraws>::fn with_role(self, role: antecedent_contract::joint_law_rule::InputRole) -> Self
@@ -15259,7 +15258,6 @@ pub fn <antecedent::analysis::joint_panel::JointPanelContinuousSearch>::fn execu
 pub fn <antecedent::analysis::joint_panel::JointPanelContinuousSearch>::fn with_objective(&self, contract: antecedent_design::decision_contract::ProgramSearchContract) -> core::result::Result<Self, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointPanelExplanationAttempt>::fn compiled_response(&self) -> &antecedent::analysis::joint_panel::JointPanelResult
 pub fn <antecedent::analysis::joint_panel::JointPanelExplanationAttempt>::fn require_unique_attribution(&self) -> core::result::Result<(), antecedent::analysis::joint_panel::JointPanelError>
-pub fn <antecedent::analysis::joint_panel::JointPanelProjectedLaw>::fn complete_values(&self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointPanelProjectedLaw>::fn dependency_identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent::analysis::joint_panel::JointPanelProjectedLaw>::fn draws(&self) -> &[core::option::Option<alloc::vec::Vec<f64>>]
 pub fn <antecedent::analysis::joint_panel::JointPanelProjectedLaw>::fn fit(&self) -> &antecedent::analysis::joint_panel::JointPanelFit

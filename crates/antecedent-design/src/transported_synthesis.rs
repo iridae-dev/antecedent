@@ -61,9 +61,6 @@ use antecedent_stats::synthesis_transport::{
     pool_transported, transport_aware_covariance, transported_prior_update,
 };
 
-/// Version of the transported-synthesis result semantics.
-pub const TRANSPORTED_SYNTHESIS_RESULT_VERSION: u32 = 1;
-
 const TAG_COVARIANCE: &str = "antecedent.design.transported_synthesis.covariance";
 
 /// A claim from the evidence ledger, with the number it contributes.

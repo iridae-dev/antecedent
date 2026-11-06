@@ -80,9 +80,6 @@ use super::{
     identify_catalog_transport_metered, identify_classical_transport_metered,
 };
 
-/// Scenarios in one set under the earlier fixed ceiling. Kept for callers that wish to
-/// bound a *supplied* list themselves through [`TransportScenarioSet::try_new_within`].
-pub const SCENARIO_MAX_COUNT: usize = 64;
 /// Tolerance on declared weights summing to at most one.
 pub const SCENARIO_WEIGHT_TOLERANCE: f64 = 1e-12;
 

@@ -114,7 +114,6 @@ class Bound:
 
 MZ = "crates/antecedent-identify/src/sid/mz_transport.rs"
 MZ_PY = "python/antecedent/transport/_multi_source.py"
-SCEN = "crates/antecedent-identify/src/sid/scenarios.rs"
 SCEN_PY = "python/antecedent/transport/_scenarios.py"
 LEARN = "crates/antecedent-estimate/src/learned_continuous.rs"
 LEARN_IO = "crates/antecedent-io/src/learned_continuous_artifact.rs"
@@ -270,14 +269,12 @@ MAPPING: tuple[Bound, ...] = (
             L(MZ_PY, r"max_search_depth: int = ([\d_]+),"),
         ),
     ),
-    # ---- finite scenario envelope
+    # ---- finite scenario envelope: Python bounds the supplied list; the Rust route takes the
+    # caller's bound (`TransportScenarioSet::try_new_within`) and has no fixed ceiling.
     Bound(
         "transport.finite_scenario_envelope",
         "max_scenarios",
-        rust=(C(SCEN, "SCENARIO_MAX_COUNT"),),
-        python=(
-            L(SCEN_PY, r"^MAX_SCENARIOS = (\d+)"),
-        ),
+        python=(L(SCEN_PY, r"^MAX_SCENARIOS = (\d+)"),),
     ),
     # ---- learned continuous trial transport
     Bound(

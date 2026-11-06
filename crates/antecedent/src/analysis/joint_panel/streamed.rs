@@ -57,21 +57,6 @@ impl JointPanelProjectedLaw {
     pub fn dependency_identity(&self) -> SemanticDigest {
         self.dependency
     }
-    /// Draw-major, world-minor values of a complete law, the layout of a projected
-    /// distribution artifact.
-    ///
-    /// # Errors
-    /// Any failed slot: a partial law is not a complete one.
-    pub fn complete_values(&self) -> Result<Vec<f64>, JointPanelError> {
-        let mut values = Vec::new();
-        for row in self.draws() {
-            let Some(row) = row else {
-                return Err(JointPanelError::Unsupported("failed draw slot".into()));
-            };
-            values.extend_from_slice(row);
-        }
-        Ok(values)
-    }
 }
 
 fn worker_error(

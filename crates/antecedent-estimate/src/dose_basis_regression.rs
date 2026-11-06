@@ -20,9 +20,6 @@ use antecedent_prob::{
 
 use crate::error::EstimationError;
 
-/// Reference basis width. Not enforced: the `width x width` posterior precision and the draws
-/// are admitted against the workflow account.
-pub const MAX_BASIS_WIDTH: usize = 64;
 /// Fewest posterior draws accepted.
 pub const MIN_BASIS_DRAWS: usize = 200;
 /// Most posterior draws one request may ask for.

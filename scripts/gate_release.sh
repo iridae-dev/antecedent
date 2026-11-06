@@ -142,6 +142,11 @@ then
   exit 1
 fi
 step python3 scripts/generate_host_schema.py --check
+step python3 scripts/generate_supported_route_records.py --check
+step python3 scripts/support_functional_graph_posterior_rows.py --check
+step python3 scripts/support_mixed_graph_functional_rows.py --check
+step python3 scripts/support_distribution_validation_rows.py --check
+step python3 scripts/support_temporal_window_rows.py --check
 
 echo "== scientific and calibration records are current (earned locally, checked here) =="
 step python3 scripts/scientific_records.py status --check

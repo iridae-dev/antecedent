@@ -1712,26 +1712,6 @@ internal_engine! {
     }
 }
 
-internal_engine! {
-    /// [`anomaly_attribution`] under an execution context: rows are scored in parallel up to its
-    /// thread budget and a cancelled context stops the run.
-    ///
-    /// # Errors
-    ///
-    /// Attribution failures.
-    #[doc(hidden)]
-    pub fn anomaly_attribution_with(
-        model: &CompiledCausalModel,
-        data: &TabularData,
-        outcomes: impl IntoIterator<Item = VariableId>,
-        max_units: usize,
-        ctx: &antecedent_core::ExecutionContext,
-    ) -> Result<Vec<AnomalyScores>, CausalError> {
-        let q = anomaly_query(outcomes, max_units);
-        score_anomalies_with(model, data, &q, ctx).map_err(CausalError::from)
-    }
-}
-
 /// Forwards sub-crate attribution entry points through the one error mapping the facade owns:
 /// every forwarded function keeps its arguments and returns the sub-crate's value with the
 /// failure converted by `CausalError::from`.
@@ -1753,8 +1733,10 @@ macro_rules! forward_mapped {
 }
 
 forward_mapped! {
-    /// [`anomaly_attribution_with`] against a full [`AnomalyAttributionQuery`], so the
-    /// query's reference (`Empirical` / `Fixed`) is honored rather than reconstructed.
+    /// [`anomaly_attribution`] against a full [`AnomalyAttributionQuery`] under an execution
+    /// context: rows are scored in parallel up to its thread budget, a cancelled context stops
+    /// the run, and the query's reference (`Empirical` / `Fixed`) is honored rather than
+    /// reconstructed.
     ///
     /// # Errors
     ///

@@ -312,7 +312,11 @@ impl PropagationDraws {
         &self.values
     }
 
-    fn as_input(&self) -> PropagationInput {
+    /// The input as the propagation rule sees it: identity, evidence, role and alignment,
+    /// without the draws. Pass it to `check_propagation_with_ledger` to have an evidence
+    /// ledger decide its overlap with other inputs.
+    #[must_use]
+    pub fn input(&self) -> PropagationInput {
         PropagationInput {
             id: self.id.clone(),
             evidence_id: self.evidence_id.clone(),
@@ -723,7 +727,7 @@ pub fn propagate_aligned_functional(
 ) -> Result<PropagationClaim, Refusal> {
     let declared = PropagationRequest {
         operation,
-        inputs: vec![x.as_input(), y.as_input()],
+        inputs: vec![x.input(), y.input()],
         dependence: PropagationDependence::AlignedJointLaw,
         reading: RequestedReading::Point,
     };
@@ -754,7 +758,7 @@ pub fn propagate_aligned_linear(
 ) -> Result<PropagationClaim, Refusal> {
     let declared = PropagationRequest {
         operation,
-        inputs: vec![x.as_input(), y.as_input()],
+        inputs: vec![x.input(), y.input()],
         dependence: PropagationDependence::AlignedJointLaw,
         reading: RequestedReading::Point,
     };
@@ -933,7 +937,7 @@ pub fn propagate_dependence_envelope(
 ) -> Result<PropagationClaim, Refusal> {
     let declared = PropagationRequest {
         operation,
-        inputs: vec![x.as_input(), y.as_input()],
+        inputs: vec![x.input(), y.input()],
         dependence: PropagationDependence::MarginalsOnly,
         reading: RequestedReading::Envelope,
     };
@@ -1070,7 +1074,7 @@ fn aligned_declared(
 ) -> PropagationRequest {
     PropagationRequest {
         operation,
-        inputs: vec![x.as_input(), y.as_input()],
+        inputs: vec![x.input(), y.input()],
         dependence: PropagationDependence::AlignedJointLaw,
         reading,
     }
@@ -1234,7 +1238,7 @@ pub fn propagate_transported_spread_aligned(
     ];
     let declared = PropagationRequest {
         operation: PropagationOperation::TransportedComposition,
-        inputs: pieces.iter().map(PropagationDraws::as_input).collect(),
+        inputs: pieces.iter().map(PropagationDraws::input).collect(),
         dependence: PropagationDependence::AlignedJointLaw,
         reading: RequestedReading::Spread,
     };

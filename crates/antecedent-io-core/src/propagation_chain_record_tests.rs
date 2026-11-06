@@ -926,3 +926,58 @@ fn point_sources_replicated_past_the_cell_budget_are_refused_before_any_column_i
         PropagationChainRecordWire::seal(draft, &ctx()).expect_err("over budget").to_refusal();
     assert_eq!(refusal.detail(), "propagation_chain.budget_exceeded");
 }
+
+/// A small posterior artifact for a host to carry the record in.
+fn host_artifact() -> EncodedArtifact {
+    use crate::posterior::{CausalPosteriorWire, PosteriorQuantityWire, encode_posterior_artifact};
+    let meta = CausalPosteriorWire {
+        quantities: vec![PosteriorQuantityWire::Effect { name: "ate".into() }],
+        n_draws: 3,
+        mean: vec![0.0],
+        sd: vec![1.0],
+        q025: vec![-0.95],
+        q975: vec![0.95],
+        identification: "NonparametricallyIdentified".into(),
+        unidentified_mass: 0.0,
+        subsampled_out_mass: 0.0,
+        backend_id: "laplace".into(),
+        converged: true,
+        hessian_condition: 1.0,
+        draws_encoding: "f64_le_colmajor".into(),
+        treatment_contrast: None,
+        preparation: None,
+    };
+    encode_posterior_artifact(&meta, &[-1.0, 0.0, 1.0], "host", "0.1.0").unwrap()
+}
+
+#[test]
+fn an_attached_record_round_trips_as_an_optional_section_of_its_host() {
+    use crate::posterior::decode_posterior_artifact;
+    let record = release();
+    let mut host = host_artifact();
+    assert!(PropagationChainRecordWire::from_artifact(&host).unwrap().is_none());
+    let before = decode_posterior_artifact(&host).unwrap();
+
+    record.attach_to(&mut host).unwrap();
+    // Attaching again replaces the section rather than adding a second one.
+    record.attach_to(&mut host).unwrap();
+    let carried = host.sections.iter().filter(|s| s.id == PROPAGATION_CHAIN_SECTION).count();
+    assert_eq!(carried, 1);
+    let descriptor =
+        host.manifest.sections.iter().find(|d| d.id == PROPAGATION_CHAIN_SECTION).unwrap();
+    assert!(!descriptor.required, "a reader that does not know the section may skip it");
+
+    let mut bytes = Vec::new();
+    host.write_to(&mut bytes).unwrap();
+    let reread = EncodedArtifact::read_from(bytes.as_slice()).unwrap();
+    let back = PropagationChainRecordWire::from_artifact(&reread).unwrap().expect("the section");
+    assert_eq!(back.export().unwrap(), record.export().unwrap());
+    // The host's own reader is unaffected by the extra section.
+    assert_eq!(decode_posterior_artifact(&reread).unwrap(), before);
+
+    // A present section that does not decode is an error, never an absent record.
+    let mut damaged = reread;
+    let section = damaged.sections.iter_mut().find(|s| s.id == PROPAGATION_CHAIN_SECTION).unwrap();
+    section.data = std::sync::Arc::from(&b"not a record"[..]);
+    assert!(PropagationChainRecordWire::from_artifact(&damaged).is_err());
+}

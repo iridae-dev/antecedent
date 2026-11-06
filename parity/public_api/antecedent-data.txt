@@ -1804,7 +1804,6 @@ pub const <antecedent_data::design_layout::OwnershipCopy>::GATHER: &'static str
 pub const antecedent_data::DEFAULT_MAX_TIME_ONE_HOT_LEVELS: usize
 pub const antecedent_data::backend_boundary::ACCEPTED_PREPARATION_PATH: &str
 pub const antecedent_data::backend_boundary::LAZY_BACKEND_ADOPTED: bool
-pub const antecedent_data::backend_boundary::POLARS_IS_INTERNAL_CONTRACT_BACKEND: bool
 pub const antecedent_data::file_source::DEFAULT_CHUNK_ROWS: usize
 pub const antecedent_data::file_source::DEFAULT_TEXT_BYTES_PER_ROW: u64
 pub const antecedent_data::file_source::FILE_IDENTITY_VERSION: u16

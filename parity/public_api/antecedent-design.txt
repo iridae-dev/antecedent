@@ -9143,7 +9143,6 @@ pub const antecedent_design::transported_synthesis::DETAIL_TRANSPORT_IDENTITY_IN
 pub const antecedent_design::transported_synthesis::DETAIL_TRANSPORT_VARIANCE_ON_NATIVE: &str
 pub const antecedent_design::transported_synthesis::DETAIL_TRANSPORT_VARIANCE_UNDECLARED: &str
 pub const antecedent_design::transported_synthesis::DETAIL_UNKNOWN_SOURCE: &str
-pub const antecedent_design::transported_synthesis::TRANSPORTED_SYNTHESIS_RESULT_VERSION: u32
 pub const fn antecedent_design::joint_coupling::acting_utility(x: i64, y: i64) -> i64
 pub const fn antecedent_design::joint_coupling::joint_sensitive_decision(source: antecedent_design::joint_coupling::CouplingSource) -> core::result::Result<antecedent_design::joint_coupling::ChosenAction, antecedent_design::joint_coupling::CouplingAbsent>
 pub enum antecedent_design::ActionKind

@@ -1114,65 +1114,6 @@ pub fn mnar_sensitivity(
     mnar_sensitivity_impl(data, spec, true)
 }
 
-/// Evaluate the unsupported candidate solely for a registered calibration study.
-#[cfg(feature = "calibration-internal")]
-#[doc(hidden)]
-pub fn mnar_sensitivity_calibration_candidate(
-    data: &MnarData<'_>,
-    spec: &MnarSensitivitySpec,
-) -> Result<MnarSensitivityResult, MnarSensitivityError> {
-    mnar_sensitivity_impl(data, spec, true)
-}
-
-/// The closed delta-method candidate at a fixed treated-arm shift of one.
-/// The returned basis is derived from this exact native construction, not the test harness.
-#[cfg(feature = "calibration-internal")]
-#[doc(hidden)]
-pub fn mnar_shift_delta_calibration_candidate(
-    data: &MnarData<'_>,
-) -> Result<(MnarSamplingInterval, antecedent_core::CalibrationBasis), MnarSensitivityError> {
-    let spec = MnarSensitivitySpec::new(
-        MnarMechanism {
-            model: MnarModel::DeltaPatternMixture,
-            loading: ArmLoading::treated_only(),
-        },
-        -1.0,
-        1.0,
-    );
-    let result = mnar_sensitivity_impl(data, &spec, true)?;
-    let interval = result.grid.last().and_then(|point| point.sampling).ok_or_else(|| {
-        refuse(
-            reason_code!("invalid_argument"),
-            antecedent_core::reason_details::mnar_sensitivity::INVALID_DATA,
-            "the calibration candidate did not produce its fixed endpoint",
-        )
-    })?;
-    let a = |s: &str| std::sync::Arc::<str>::from(s);
-    let basis = antecedent_core::CalibrationBasis::new(
-        [
-            a("AverageEffect"),
-            a("NotApplicable"),
-            a("fixed"),
-            a("tabular"),
-            a("Frequentist"),
-            a("mnar_shift_difference_in_means"),
-            a("delta_normal"),
-            a("influence_function"),
-            a("independent_units"),
-            a(""),
-            a("ate_at_delta_1"),
-        ],
-        0.95,
-        a("point"),
-        result.rows as u64,
-        None,
-        None,
-        0.0,
-    )
-    .with_validation("not_applicable");
-    Ok((interval, basis))
-}
-
 #[allow(clippy::too_many_lines, reason = "the bounded validation keeps related checks together")]
 fn mnar_sensitivity_impl(
     data: &MnarData<'_>,

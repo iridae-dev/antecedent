@@ -1145,3 +1145,34 @@ fn compiled_native_design_full_procedure_calibration() {
         assert_eq!(counts[3] + counts[5], 400);
     }
 }
+
+#[test]
+fn the_design_proof_carries_the_prepared_identification_and_source_into_an_attempt() {
+    let (recipe, _, _) = switchback_chain_fixture();
+    let ctx = context();
+    let prepared = PreparedNativeJointDesign::compile(recipe.clone(), &ctx).unwrap();
+    let proof = prepared.panel_design_proof();
+    let super::super::super::JointPanelDesignProof::V1(
+        super::super::super::JointPanelDesignTheorem::Native { identification, source_dependency },
+    ) = &proof
+    else {
+        panic!("a native design converts to the native theorem, not the randomized one");
+    };
+    // The proof is the prepared design's own target and source identity, unchanged.
+    assert_eq!(identification, prepared.identification());
+    assert_eq!(*source_dependency, prepared.dependency());
+    // It is stable across compilations of the same recipe, and stays a proof the
+    // design-attempt contract can carry.
+    let again = PreparedNativeJointDesign::compile(recipe, &ctx).unwrap();
+    assert_eq!(again.panel_design_proof(), proof);
+    let attempt = super::super::super::JointPanelDesignAttempt {
+        id: "native.switchback".into(),
+        outcome: super::super::super::JointPanelDesignOutcome::Identified,
+        detail: String::new(),
+        next_attempt: None,
+        target_identity: prepared.dependency(),
+        worlds: Vec::new(),
+        proof: Some(proof.clone()),
+    };
+    assert_eq!(attempt.proof.as_ref(), Some(&proof));
+}

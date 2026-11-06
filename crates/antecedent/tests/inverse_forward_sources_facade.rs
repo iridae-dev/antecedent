@@ -21,17 +21,19 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::consume_mechanism_composition_artifact;
 use antecedent::analysis::inverse_query::{
     Comparison, FeasibilityStatus, GridScope, InverseConstraint, InverseQuery, SelectionOutcome,
     SelectionRule, consume as consume_inverse, export as export_inverse,
 };
 use antecedent::analysis::inverse_sources::{
-    ComposedActionQuery, ForwardRepresentation, ForwardSourceKind, ForwardSourceRefusal,
-    InverseDemand, ObservationalScenarioError, ObservationalScenarioQuery, OutcomeEvent,
-    ScenarioCell, ScenarioCondition, TransportDeclaration, TransportReceipt,
-    TransportedInputPolicy, TransportedResponse, TransportedRoute, evaluate,
-    evaluate_observational, inspect_observational, inspect_origin, seal, seal_per_action,
-    transported_source, verify_observational,
+    ComposedActionQuery, ComposedActionResponse, ComposedFamily, ComposedResponse,
+    ForwardRepresentation, ForwardSourceKind, ForwardSourceRefusal, InverseDemand,
+    ObservationalScenarioError, ObservationalScenarioQuery, OutcomeEvent, ScenarioCell,
+    ScenarioCondition, TransportDeclaration, TransportReceipt, TransportedInputPolicy,
+    TransportedResponse, TransportedRoute, composed_source, evaluate, evaluate_observational,
+    inspect_observational, inspect_origin, seal, seal_per_action, transported_source,
+    verify_observational,
 };
 use antecedent::analysis::mechanism_composition::CompositionQueryWire;
 use antecedent::{
@@ -291,6 +293,55 @@ fn native() -> TransportedInputPolicy {
 // ---------------------------------------------------------------------------
 // Composed mechanisms
 // ---------------------------------------------------------------------------
+
+/// The facade's `composed_source` entry, beside `cohort_source` and `transported_source`:
+/// a response replayed through the public export and consume path gives the source the
+/// study route gives, and a response with no action is refused.
+#[test]
+fn the_composed_source_entry_agrees_with_the_study_route() {
+    let prepared =
+        StudyBuilder::mechanism_composition(request_of(gaussian_chain()), &ctx()).unwrap();
+    let actions = gaussian_actions();
+    let replayed = actions
+        .iter()
+        .map(|action| {
+            let export = prepared.export(action.query.clone(), &ctx()).unwrap();
+            let consumed = consume_mechanism_composition_artifact(
+                &export.bytes,
+                Some(&export.premises_digest),
+                &ctx(),
+            )
+            .unwrap();
+            ComposedActionResponse {
+                action_id: action.action_id.clone(),
+                coordinate: action.coordinate.clone(),
+                premises_digest: consumed.premises_digest,
+                query: action.query.clone(),
+                result: consumed.result,
+                level_values: action.level_values.clone(),
+            }
+        })
+        .collect();
+    let response = ComposedResponse {
+        family: ComposedFamily::LinearGaussian,
+        assumed_mechanisms: Vec::new(),
+        transport: None,
+        actions: replayed,
+    };
+    let source = composed_source(&response).unwrap();
+    let routed = prepared.inverse_forward_source(&actions, None, native(), &ctx()).unwrap();
+    assert_eq!(source.origin(), routed.origin());
+
+    let query =
+        query_on(identity_contract(&["0", "1", "2"], "mean"), &GRID, vec![mean_at_least(5.0)]);
+    let direct = evaluate(&query, &source, InverseDemand::default()).unwrap();
+    let via_study = evaluate(&query, &routed, InverseDemand::default()).unwrap();
+    assert_eq!(direct.result.selected, via_study.result.selected);
+    near(direct.result.actions[1].point_values[0].value.unwrap(), 7.0);
+
+    let empty = ComposedResponse { actions: Vec::new(), ..response };
+    assert!(composed_source(&empty).is_err(), "a response with no action is not a source");
+}
 
 #[test]
 fn a_linear_gaussian_composition_supplies_a_replayed_point_per_action() {

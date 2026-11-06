@@ -41,10 +41,6 @@ use crate::tiled_prediction::{
     stream_tile,
 };
 
-/// Reference grid size. Not enforced: grid tiles are streamed under the context's memory
-/// admission.
-pub const MAX_POSTERIOR_GRID: usize = 64;
-
 /// One request: rows, the declared polynomial prior, and the named functional.
 #[derive(Clone, Copy, Debug)]
 pub struct DoseGridPosteriorRequest<'a> {

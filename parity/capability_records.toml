@@ -21195,7 +21195,6 @@ bounds = { cancellation = true, max_rows = 67108864, max_covariates = 64, max_gr
 surface = ["crates/antecedent/src/analysis/mnar_sensitivity.rs", "python/antecedent/mnar_sensitivity.py"]
 surface_rust = ["crates/antecedent-validate/src/mnar_sensitivity.rs"]
 surface_pyo3 = ["python/src/mnar_sensitivity_api.rs"]
-surface_internal = [{ name = "mnar_sensitivity_calibration_candidate", why = "Feature-gated internal calibration candidate." }, { name = "mnar_shift_delta_calibration_candidate", why = "Feature-gated source-bound calibration candidate." }]
 surface_values = ["MnarModel", "MnarEstimator", "ArmLoading", "MnarMechanism", "MnarDecision", "MnarSensitivitySpec", "MnarSensitivityError", "MnarData", "MnarSamplingInterval", "MnarPoint", "MnarConclusionKind", "MnarTippingSide", "MnarTipping", "MnarAssumptionRange", "MnarAssumptionRecord", "MnarDecisionReport", "MnarSensitivityResult", "MnarResult", "MnarDecisionResult", "MnarAssumption", "MnarSensitivityRefusal"]
 refusals = [
   { detail = "mnar_sensitivity.composition_not_supported" },

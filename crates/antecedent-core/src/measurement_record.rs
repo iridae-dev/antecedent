@@ -252,6 +252,12 @@ impl MeasurementRecord {
     }
 
     /// Add bytes of a native allocation the caller actually performed.
+    ///
+    /// Every `add_*` adds work the caller itself observed to the run's total. It never
+    /// clears the field from [`Self::unobserved`]: when the run did not observe the field's
+    /// other source, the sum is partial and is still not a measurement. Only a caller that is
+    /// the field's sole source clears it ([`Self::add_borrow_bytes`],
+    /// [`Self::add_allocation_window`]).
     pub fn add_allocation_bytes(&mut self, bytes: u64) {
         self.allocation_bytes = self.allocation_bytes.saturating_add(bytes);
     }
@@ -261,7 +267,8 @@ impl MeasurementRecord {
         self.copy_bytes = self.copy_bytes.saturating_add(bytes);
     }
 
-    /// Add bytes of a native borrow the caller actually held.
+    /// Add bytes of a native borrow the caller actually held. The engine reports no borrow
+    /// figure, so the caller is its only source and the field becomes observed.
     pub fn add_borrow_bytes(&mut self, bytes: u64) {
         self.borrow_bytes = self.borrow_bytes.saturating_add(bytes);
         self.unobserved.retain(|field| *field != "borrow_bytes");
@@ -292,9 +299,11 @@ impl MeasurementRecord {
         self.spill_bytes = self.spill_bytes.saturating_add(bytes);
     }
 
-    /// Record the worker-thread count for this repeat.
+    /// Record the worker-thread count for this repeat. This states the whole value rather
+    /// than adding to it, so the field becomes observed.
     pub fn set_threads(&mut self, threads: u32) {
         self.threads = threads;
+        self.unobserved.retain(|field| *field != "threads");
     }
 
     /// Record a device name. An empty name stays on the host (`None`).
@@ -749,6 +758,54 @@ fn vm_hwm_bytes(status: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use std::cell::Cell;
+
+    #[test]
+    fn caller_additions_never_turn_a_partial_total_into_a_measurement() {
+        let mut unread = MeasurementRecord::default();
+        unread.unobserved.extend(OBSERVABLE_FIELDS);
+        unread.add_allocation_bytes(1);
+        unread.add_copy_bytes(2);
+        unread.add_source_passes(3);
+        unread.add_fit_count(4);
+        unread.add_test_count(5);
+        unread.add_spill_bytes(6);
+        unread.add_retained_outputs(7);
+        for field in [
+            "allocation_bytes",
+            "copy_bytes",
+            "source_passes",
+            "fit_count",
+            "test_count",
+            "spill_bytes",
+        ] {
+            assert!(!unread.observed(field), "{field}: a caller's part is not the run's total");
+        }
+        assert_eq!(
+            (unread.copy_bytes, unread.source_passes, unread.fit_count, unread.retained_outputs),
+            (2, 3, 4, 7)
+        );
+
+        let mut observed = MeasurementRecord { copy_bytes: 10, fit_count: 1, ..Default::default() };
+        observed.add_copy_bytes(5);
+        observed.add_fit_count(2);
+        assert!(observed.observed("copy_bytes") && observed.observed("fit_count"));
+        assert_eq!((observed.copy_bytes, observed.fit_count), (15, 3));
+        observed.add_copy_bytes(u64::MAX);
+        assert_eq!(observed.copy_bytes, u64::MAX, "counters saturate");
+    }
+
+    #[test]
+    fn a_sole_source_or_a_whole_value_makes_its_field_observed() {
+        let mut record = MeasurementRecord::default();
+        record.unobserved.extend(OBSERVABLE_FIELDS);
+        record.add_borrow_bytes(8);
+        record.set_threads(4);
+        assert!(record.observed("borrow_bytes") && record.observed("threads"));
+        assert_eq!((record.borrow_bytes, record.threads), (8, 4));
+        record.set_threads(2);
+        assert_eq!(record.threads, 2, "a set replaces the earlier value");
+        assert_eq!(record.unobserved.iter().filter(|field| **field == "threads").count(), 0);
+    }
 
     use super::*;
     use crate::execution::KernelPolicy;

@@ -157,6 +157,9 @@ ordinary observer exceptions retain their print-and-continue contract.
 | Capability inventories | [parity/](https://github.com/iridae-dev/antecedent/blob/main/parity/README.md) |
 | ADRs | [adr/](https://github.com/iridae-dev/antecedent/blob/main/adr/README.md) |
 | Conformance fixtures | [conformance/](../conformance/README.md) |
+| Identity and coupling rules for claims and artifacts | [identity-contract.md](identity-contract.md) |
+| Counterfactual query scope | [counterfactual-coverage.md](counterfactual-coverage.md) |
+| Transport query scope | [transport-coverage.md](transport-coverage.md) |
 
 The [multi-source transport and retained-grid architecture](transport-meta-grid.md)
 describes the μsID theorem scope, provider aliases, common prepared lifecycle,

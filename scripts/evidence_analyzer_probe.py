@@ -45,7 +45,7 @@ def inventory(driver: Path, sysroot: str, directory: Path, source: str) -> tuple
 
 
 def probe(root: Path = ROOT) -> dict:
-    pin = tomllib.loads((root / "tools/evidence-analyzer/pin.toml").read_text())
+    pin = tomllib.loads((root / "tools/evidence-analyzer/pin.toml").read_text(encoding="utf-8"))
     version = subprocess.check_output(["rustc", "-vV"], text=True)
     identity = dict(line.split(": ", 1) for line in version.splitlines() if ": " in line)
     if identity.get("release") != pin["release"] or identity.get("commit-hash") != pin["commit"]:
@@ -71,7 +71,7 @@ def probe(root: Path = ROOT) -> dict:
         # Run only this disposable engineering fixture, never an Antecedent
         # assertion. Obtain execution evidence from the same pinned compiler.
         fixture = directory / 'fixture.rs'
-        fixture.write_text(source)
+        fixture.write_text(source, encoding="utf-8")
         binary = directory / 'fixture-test'
         subprocess.run(['rustc', '--test', str(fixture), '--crate-name', 'fixture',
                         '-C', 'instrument-coverage', '-o', str(binary)],

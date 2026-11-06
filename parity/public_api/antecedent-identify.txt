@@ -3958,7 +3958,6 @@ pub const antecedent_identify::sid::cpdag_completion::CPDAG_MAX_NODES: usize
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_NOT_A_CPDAG_DETAIL: &str
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_NO_EVIDENCE_DETAIL: &str
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_SELECTION_OR_LATENT_DETAIL: &str
-pub const antecedent_identify::sid::scenarios::SCENARIO_MAX_COUNT: usize
 pub const antecedent_identify::sid::scenarios::SCENARIO_UNEVALUATED_DETAIL: &str
 pub const antecedent_identify::sid::scenarios::SCENARIO_WEIGHT_TOLERANCE: f64
 pub const antecedent_identify::sid::temporal_initial_shift::INITIAL_SHIFT_SOURCE_RULE: &str
@@ -3968,8 +3967,6 @@ pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_HISTORY_BUDGET: 
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_HORIZON_DETAIL: &str
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_INVALID_SEQUENCE: &str
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_INVALID_SPEC: &str
-pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_MAX_ACTIONS: usize
-pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_MAX_HISTORY_STATES: usize
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_MAX_OBSERVED: usize
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_MISSING_EVIDENCE: &str
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_SEARCH_INCOMPLETE: &str

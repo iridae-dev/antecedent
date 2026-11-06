@@ -3298,7 +3298,6 @@ pub const antecedent_stats::propagation_chain::MIN_UPDATE_EFFECTIVE_SIZE: f64
 pub const antecedent_stats::synthesis::MAX_STUDIES: usize
 pub const antecedent_stats::synthesis::MAX_TAU_SUPPORT: usize
 pub const antecedent_stats::synthesis_transport::MAX_TRANSPORTED_SUMMARIES: usize
-pub const antecedent_stats::synthesis_transport::TRANSPORTED_SYNTHESIS_VERSION: u32
 pub enum antecedent_stats::BetweenStudyMethod
 pub enum antecedent_stats::Coefficient
 pub enum antecedent_stats::Combine

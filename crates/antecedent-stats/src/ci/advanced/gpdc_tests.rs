@@ -646,3 +646,30 @@ fn exact_gpdc_work_limit_refuses_before_any_factorization() {
     let free = cache_sequence_request(&cols, &unconditional, &[]);
     assert_eq!(Gpdc::new().with_work_limit(0).quote(&free, &ctx).unwrap(), None);
 }
+
+#[test]
+fn gpdc_nystrom_builder_settings_reach_the_executed_fit() {
+    let n = 2_000usize;
+    let (data, _, _) = nystrom_sample(n, 24, 0.0);
+    let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+    let ctx = ExecutionContext::for_tests(8);
+    let residual = |gp: &GpdcNystrom| {
+        let fit = nystrom_fit(&cols, &[2, 3], n, gp, &ctx).unwrap();
+        nystrom_residuals(Some(&fit), [cols[0], cols[1]], &ctx).unwrap()[0].clone()
+    };
+    let configured = GpdcNystrom::new().with_inducing_points(16).unwrap().with_inducing_seed(91);
+    // The fit runs on exactly the configured rank and inducing-row draw.
+    let want = dense_nystrom_residual(&cols, &[2, 3], cols[0], &configured);
+    let got = residual(&configured);
+    let worst = got.iter().zip(&want).map(|(a, b)| (a - b).abs()).fold(0.0, f64::max);
+    assert!(worst < 1e-5, "worst residual gap {worst}");
+    // Another seed or rank changes the inducing rows, and so the residuals.
+    let reseeded = residual(&configured.clone().with_inducing_seed(92));
+    let reranked = residual(&configured.clone().with_inducing_points(32).unwrap());
+    assert!(got.iter().zip(&reseeded).any(|(a, b)| (a - b).abs() > 1e-9), "seed ignored");
+    assert!(got.iter().zip(&reranked).any(|(a, b)| (a - b).abs() > 1e-9), "rank ignored");
+    // A rank outside 1..=GPDC_NYSTROM_MAX_INDUCING_POINTS is refused before any fit.
+    assert!(GpdcNystrom::new().with_inducing_points(0).is_err());
+    assert!(GpdcNystrom::new().with_inducing_points(GPDC_NYSTROM_MAX_INDUCING_POINTS + 1).is_err());
+    assert!(GpdcNystrom::new().with_inducing_points(GPDC_NYSTROM_MAX_INDUCING_POINTS).is_ok());
+}

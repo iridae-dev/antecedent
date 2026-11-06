@@ -18104,7 +18104,6 @@ limitations = "Natural path-restricted effect of one treatment on one outcome th
 calibration_reason = "estimator_grid_not_measured"
 # generated:path_specific_mixed:end
 
-# generated:earned_response_rows:begin
 
 [[cell]]
 query = "InterventionResponse"
@@ -22180,7 +22179,6 @@ checked_execution = [
 limitations = "Cheap and full validation of a graph-posterior ResponseCurve over Admg, TemporalAdmg, Cpdag or Pag atoms run the functional refuter state on the posterior-mixed curve, refitting the whole graph-posterior procedure on perturbed data: the placebo treatment (which removes the effect the identified curve reads, so the refitted curve is flat at the mean outcome), the placebo outcome and bootstrap stability of the whole mixed curve under full, and subset stability (Bayesian: prior sensitivity and the posterior predictive check where the route has them); each is one joint statistic over the grid, and a refuter the curve cannot honour is recorded as refused. A curve conditional on the atoms that identify it (lost mass to atoms the identifier refuses) is refuted as that same conditional curve. Beside them the support of the curve over the posterior atoms is reported (curve.atom_support): the identified mass equals the posterior weight of the accepted atoms. Known-truth evidence: the front-door curve [0.314, 0.596] of an exact table (exact Frequentist plug-in, Dirichlet mean within a band) and the sampled Cpdag and PAG curves; every refuter passes on the clean law. The verdicts are diagnostics, not a calibration claim."
 calibration_reason = "estimator_grid_not_measured"
 
-# generated:earned_response_rows:end
 # BEGIN generated rows: scripts/generate_cross_world_dag_support_rows.py
 
 [[cell]]
@@ -22523,7 +22521,6 @@ calibration_reason = "no_interval_reported"
 
 # END generated rows: scripts/generate_cross_world_dag_support_rows.py
 
-# generated:derivative_refuter_rows:begin (scripts/generate_derivative_refuter_rows.py)
 
 [[cell]]
 query = "Counterfactual"
@@ -36457,7 +36454,6 @@ checked_execution = [
 limitations = "Cheap and full validation of a temporal response Jacobian on a supplied or accepted TemporalDag at one horizon, executed through response.temporal.bayesian. The state checks support at the evaluation point (a point beyond the observed series fails the check), and for an identity-scale first derivative the unit-step difference of the identified levels (the Pulse witness effect) against the published slope and runs the TemporalDag Pulse-native suite on the Pulse witness at that horizon (treatment placebo and data subset; full adds, under Frequentist inference, the circular-block bootstrap stability). Bayesian studies add the prior and posterior predictive checks of the witness regression and, under full, prior sensitivity. Known truth: the lag-one linear law of the fixture, whose derivative is its coefficient; the law is linear, so the fixture cannot detect curvature errors. The verdicts are checks of this route, not a calibration claim; no coverage record measures the intervals and calibration is not claimed."
 calibration_reason = "estimator_grid_not_measured"
 
-# generated:derivative_refuter_rows:end
 
 # generated:transport-interference-cells:begin (scripts/generate_transport_interference_cells.py)
 

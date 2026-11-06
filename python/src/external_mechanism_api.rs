@@ -220,14 +220,6 @@ fn external_spec_identity(spec_json: &str) -> PyResult<String> {
     Ok(spec.identity())
 }
 
-/// Identity of a retained request.
-#[pyfunction]
-fn external_request_identity(request_json: &str) -> PyResult<String> {
-    let request: ExternalCyclicRequest =
-        serde_json::from_str(request_json).map_err(|e| crate::value_err(e.to_string()))?;
-    request.identity().map_err(|e| crate::value_err(e.to_string()))
-}
-
 /// Verify, fit and evaluate a request; the report as JSON.
 #[pyfunction]
 #[pyo3(signature = (request_json, resolver=None, *, max_bytes=None, cancel=None))]
@@ -409,7 +401,6 @@ fn external_ode(
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(external_content_digest, m)?)?;
     m.add_function(wrap_pyfunction!(external_spec_identity, m)?)?;
-    m.add_function(wrap_pyfunction!(external_request_identity, m)?)?;
     m.add_function(wrap_pyfunction!(external_execute, m)?)?;
     m.add_function(wrap_pyfunction!(external_export, m)?)?;
     m.add_function(wrap_pyfunction!(external_consume, m)?)?;

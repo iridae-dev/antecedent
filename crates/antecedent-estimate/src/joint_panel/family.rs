@@ -19,8 +19,6 @@
 use super::PanelError;
 use serde::{Deserialize, Serialize};
 
-/// Reference group count of the dense spatial intercept covariance; not enforced.
-pub const MAX_SPATIAL_GROUPS: usize = 256;
 /// Diagonal regularization added to the spatial correlation so a smooth kernel stays factorable.
 pub(super) const SPATIAL_JITTER: f64 = 1e-9;
 

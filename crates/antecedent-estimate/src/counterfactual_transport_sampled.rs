@@ -75,7 +75,7 @@ use crate::counterfactual_transport::RetainedSlice;
 use std::sync::Arc;
 
 use antecedent_core::{CanonicalWriter, ExecutionContext, RegimeId};
-use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
+use antecedent_expr::ExactTransportData;
 use antecedent_identify::CounterfactualTransportDerivation;
 
 use crate::counterfactual_transport::{
@@ -114,8 +114,6 @@ pub const SAMPLED_TRANSPORT_UNCERTAINTY_METHOD: &str =
     "delta_method_multinomial_central_difference";
 /// Label of a reported standard error.
 pub const UNCALIBRATED_STANDARD_ERROR: &str = "uncalibrated_standard_error";
-/// The contract of the sampled route.
-pub const SAMPLED_TRANSPORT_CONTRACT: &str = "sampled_counterfactual_transport_v1";
 /// Domain tag of the evidence identity.
 pub const SAMPLED_TRANSPORT_IDENTITY_TAG: &str =
     "antecedent.estimate.counterfactual_transport_sampled.evidence.v1";
@@ -1095,12 +1093,6 @@ pub fn cited_identities(
     derivation: &CounterfactualTransportDerivation,
 ) -> Vec<(Arc<str>, RegimeId)> {
     derivation.cited.iter().map(|c| (Arc::clone(&c.population), c.regime)).collect()
-}
-
-/// Default exact-evaluation limits used by a sampled request.
-#[must_use]
-pub fn default_evaluation_limits() -> ExactEvaluationLimits {
-    ExactEvaluationLimits::default()
 }
 
 #[cfg(test)]
