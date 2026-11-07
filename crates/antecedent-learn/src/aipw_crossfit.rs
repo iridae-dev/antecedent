@@ -187,7 +187,6 @@ pub fn cross_fit_aipw_nuisances(
     admit_boundary_saturation: bool,
 ) -> Result<AipwPredictions, AipwCrossFitError> {
     let AipwLearners { outcome, treatment } = learners;
-    let nrows = design.nrows;
     let outcome_factory = resolve_for(outcome, PredictionTask::Regression)?;
     let treat_factory = resolve_propensity_for(
         treatment,
@@ -200,16 +199,95 @@ pub fn cross_fit_aipw_nuisances(
     }
     let x_outcome = design_for_spec(outcome, design)?;
     let x_treat = design_for_spec(treatment, design)?;
-    let plan = CrossfitPlan::from_fold_ids(folds, fold_ids.iter().map(|&f| u32::from(f)).collect());
-    let models = AipwFoldModels {
-        outcome: outcome_factory.as_ref(),
-        treatment: treat_factory.as_ref(),
+    cross_fit_aipw_with_factories(
+        outcome_factory.as_ref(),
+        treat_factory.as_ref(),
         x_outcome,
         x_treat,
         y,
         t,
+        (folds, fold_ids),
+        ctx,
         weights,
-    };
+    )
+}
+
+/// Cross-fit AIPW nuisances using caller-supplied learner factories.
+///
+/// The designs must have the same unselected physical rows as `y`, `t`, and the fold
+/// assignment. Factories see row selections into those designs; adapters to external code
+/// must copy only the selected rows before crossing the provider boundary.
+///
+/// # Errors
+///
+/// Returns an error for incompatible tasks or capabilities, misaligned inputs, invalid
+/// predictions, failed fits, cancellation, or resource admission failures.
+#[allow(clippy::too_many_arguments, reason = "the inputs describe the cross-fit operation")]
+pub fn cross_fit_aipw_with_factories(
+    outcome: &dyn LearnerFactory,
+    treatment: &dyn LearnerFactory,
+    x_outcome: DesignView<'_>,
+    x_treat: DesignView<'_>,
+    y: &[f64],
+    t: &[f64],
+    (folds, fold_ids): (usize, Vec<u16>),
+    ctx: &ExecutionContext,
+    weights: Option<&[f64]>,
+) -> Result<AipwPredictions, AipwCrossFitError> {
+    let nrows = y.len();
+    if x_outcome.row_selection().is_some()
+        || x_treat.row_selection().is_some()
+        || x_outcome.physical_nrows() != nrows
+        || x_treat.physical_nrows() != nrows
+        || t.len() != nrows
+        || fold_ids.len() != nrows
+        || weights.is_some_and(|w| w.len() != nrows)
+        || folds < 2
+        || folds > nrows
+        || fold_ids.iter().any(|&fold| usize::from(fold) >= folds)
+    {
+        return Err(LearnError::Shape { message: "misaligned AIPW cross-fit inputs" }.into());
+    }
+    if y.iter().chain(t).any(|v| !v.is_finite()) {
+        return Err(LearnError::NonFinite { message: "AIPW targets must be finite" }.into());
+    }
+    if t.iter().any(|&v| v.abs() > 1e-12 && (v - 1.0).abs() > 1e-12) {
+        return Err(LearnError::Backend("AIPW treatment must be binary".to_string()).into());
+    }
+    if weights.is_some_and(|w| {
+        w.iter().any(|v| !v.is_finite() || *v < 0.0) || !w.iter().any(|v| *v > 0.0)
+    }) {
+        return Err(LearnError::Backend(
+            "AIPW weights must be finite, nonnegative, and have positive mass".to_string(),
+        )
+        .into());
+    }
+    for (factory, task) in
+        [(outcome, PredictionTask::Regression), (treatment, PredictionTask::BinaryProbability)]
+    {
+        if factory.task() != task {
+            return Err(
+                LearnError::TaskMismatch { requested: task, supported: factory.task() }.into()
+            );
+        }
+        let caps = factory.capabilities();
+        if !(match task {
+            PredictionTask::Regression => caps.regression,
+            PredictionTask::BinaryProbability => caps.binary_probability,
+        }) {
+            return Err(LearnError::Unsupported {
+                message: "learner does not declare the requested task capability",
+            }
+            .into());
+        }
+        if weights.is_some() && !caps.sample_weights {
+            return Err(AipwCrossFitError::WeightsUnsupported {
+                message: "nuisance learner does not support sampling weights".to_string(),
+            });
+        }
+    }
+    let plan = CrossfitPlan::from_fold_ids(folds, fold_ids.iter().map(|&f| u32::from(f)).collect());
+    let models = AipwFoldModels { outcome, treatment, x_outcome, x_treat, y, t, weights };
     let mut mu0 = vec![0.0; nrows];
     let mut mu1 = vec![0.0; nrows];
     let mut ehat = vec![0.0; nrows];
@@ -317,12 +395,18 @@ fn fit_aipw_fold(
         treatment.fit(x_treat.with_rows(RowSelection::new(&train))?, t_view, weights, ctx)?;
     let valid_out = x_outcome.with_rows(RowSelection::new(&valid))?;
     let valid_t = x_treat.with_rows(RowSelection::new(&valid))?;
-    let mut m0 = vec![0.0; valid.len()];
-    let mut m1 = vec![0.0; valid.len()];
-    let mut e = vec![0.0; valid.len()];
+    let mut m0 = vec![f64::NAN; valid.len()];
+    let mut m1 = vec![f64::NAN; valid.len()];
+    let mut e = vec![f64::NAN; valid.len()];
     mu0.predict(valid_out, &mut m0, ctx)?;
     mu1.predict(valid_out, &mut m1, ctx)?;
     ehat.predict(valid_t, &mut e, ctx)?;
+    if m0.iter().chain(&m1).chain(&e).any(|v| !v.is_finite()) {
+        return Err(LearnError::NonFinite { message: "nuisance predictions must be finite" });
+    }
+    if e.iter().any(|p| !(0.0..=1.0).contains(p)) {
+        return Err(LearnError::Backend("propensity predictions must lie in [0, 1]".to_string()));
+    }
     Ok(AipwFold {
         valid: rows.valid.to_vec(),
         mu0: m0,
@@ -343,6 +427,105 @@ fn fit_aipw_fold(
 mod tests {
     use super::*;
     use crate::spec::{LinearSpec, LogisticSpec};
+    use crate::{FittedPredictor, LearnerCapabilities};
+
+    struct ConstantFactory {
+        task: PredictionTask,
+        value: f64,
+        rows: std::sync::Mutex<Vec<Vec<u64>>>,
+    }
+
+    impl LearnerFactory for ConstantFactory {
+        fn task(&self) -> PredictionTask {
+            self.task
+        }
+        fn capabilities(&self) -> LearnerCapabilities {
+            let mut caps = LearnerCapabilities::none();
+            caps.regression = self.task == PredictionTask::Regression;
+            caps.binary_probability = self.task == PredictionTask::BinaryProbability;
+            caps
+        }
+        fn fit(
+            &self,
+            x: DesignView<'_>,
+            _: TargetView<'_>,
+            _: Option<&[f64]>,
+            _: &ExecutionContext,
+        ) -> Result<Box<dyn FittedPredictor>, LearnError> {
+            self.rows.lock().unwrap().push(x.row_selection().unwrap().indices().to_vec());
+            Ok(Box::new(ConstantPredictor(self.value)))
+        }
+    }
+    struct ConstantPredictor(f64);
+    impl FittedPredictor for ConstantPredictor {
+        fn predict(
+            &self,
+            _: DesignView<'_>,
+            out: &mut [f64],
+            _: &ExecutionContext,
+        ) -> Result<(), LearnError> {
+            out.fill(self.0);
+            Ok(())
+        }
+        fn provenance(&self) -> LearnerProvenance {
+            LearnerProvenance {
+                spec: "external".into(),
+                implementation: "test".into(),
+                version: "1".into(),
+            }
+        }
+    }
+
+    #[test]
+    fn caller_factories_receive_training_folds_and_invalid_predictions_are_refused() {
+        let y = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        let t = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
+        let ids = vec![0, 0, 1, 1, 0, 0, 1, 1];
+        let x = DesignView::from_column_major(&y, y.len(), 1).unwrap();
+        let outcome = ConstantFactory {
+            task: PredictionTask::Regression,
+            value: 2.0,
+            rows: Default::default(),
+        };
+        let treatment = ConstantFactory {
+            task: PredictionTask::BinaryProbability,
+            value: 0.5,
+            rows: Default::default(),
+        };
+        let ctx = ExecutionContext::for_tests(1);
+        let (_, _, p, record) = cross_fit_aipw_with_factories(
+            &outcome,
+            &treatment,
+            x,
+            x,
+            &y,
+            &t,
+            (2, ids.clone()),
+            &ctx,
+            None,
+        )
+        .unwrap();
+        assert_eq!(p, vec![0.5; 8]);
+        assert_eq!(record.model_provenance.len(), 6);
+        for rows in treatment.rows.lock().unwrap().iter() {
+            assert_eq!(rows.len(), 4);
+            assert!(rows.iter().all(|&i| ids[i as usize] == ids[rows[0] as usize]));
+        }
+        for rows in outcome.rows.lock().unwrap().iter() {
+            assert_eq!(rows.len(), 2);
+            assert!(rows.iter().all(|&i| t[i as usize] == t[rows[0] as usize]
+                && ids[i as usize] == ids[rows[0] as usize]));
+        }
+        let bad = ConstantFactory {
+            task: PredictionTask::BinaryProbability,
+            value: 1.1,
+            rows: Default::default(),
+        };
+        assert!(
+            cross_fit_aipw_with_factories(&outcome, &bad, x, x, &y, &t, (2, ids), &ctx, None)
+                .is_err()
+        );
+    }
 
     const OUTCOME_LINEAR: LearnerSpec = LearnerSpec::Linear(LinearSpec {});
     const UNPENALIZED_LOGISTIC: LearnerSpec =

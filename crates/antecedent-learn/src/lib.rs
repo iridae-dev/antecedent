@@ -68,7 +68,8 @@ pub use design::{DenseDesign, DesignView, Layout, RowSelection, TargetView};
 pub use error::LearnError;
 pub use lasso_logistic::LassoLogisticLearner;
 pub use learner::{
-    FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
+    FittedPredictor, IsolatedFactory, LearnerCapabilities, LearnerFactory, LearnerProvenance,
+    PredictionTask,
 };
 #[cfg(test)]
 pub(crate) use linear::LinearLearner;

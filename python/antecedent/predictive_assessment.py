@@ -441,6 +441,13 @@ class FitDeclaration:
     wire: dict[str, Any]
 
     @classmethod
+    def per_case(cls, fits: Sequence[FitDeclaration]) -> FitDeclaration:
+        """Declare the fit lineage separately for each forecast case, in case order."""
+        if any(not isinstance(fit, cls) or fit.wire.get("kind") == "per_case" for fit in fits):
+            raise CausalValueError("per-case fits must be non-nested FitDeclaration values")
+        return cls({"kind": "per_case", "cases": [fit.wire for fit in fits]})
+
+    @classmethod
     def fitted_on(cls, observation_keys: Iterable[str]) -> FitDeclaration:
         """Fitted or tuned on exactly these observations (lineage already resolved)."""
         return cls({"kind": "fitted_on", "keys": [_key(k) for k in observation_keys]})

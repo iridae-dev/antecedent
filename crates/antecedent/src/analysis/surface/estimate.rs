@@ -101,7 +101,7 @@ pub use antecedent_estimate::{CaliperScale, PropensityMatching};
 /// Factorized-propensity AIPW for bounded discrete joint cells.
 pub use antecedent_estimate::{
     CellStatus, FactorizedJointConfig, FactorizedJointFit, JointCellReport, JointContrast,
-    declared_joint_nuisance, orderings_for,
+    declared_joint_nuisance, fit_factorized_joint_cells_with_factories, orderings_for,
 };
 /// Cluster-aware cross-fitted AIPW: the independence unit is a declared cluster.
 pub use antecedent_estimate::{
@@ -133,9 +133,13 @@ pub use antecedent_estimate::{
 /// Supplied-propensity observational exposure contrasts on a fixed network.
 pub use antecedent_estimate::{ObservationalExposureSpec, estimate_observational_exposure};
 /// Smoothed dose-response transport grid.
-pub use antecedent_estimate::{SmoothedDoseInput, SmoothedDoseOptions};
+pub use antecedent_estimate::{
+    SmoothedDoseInput, SmoothedDoseOptions, estimate_smoothed_dose_with_factories,
+};
 /// Cross-fitted trial-to-nonparticipant transport with explicit sampling design.
-pub use antecedent_estimate::{TrialAipwInput, TrialAipwOptions};
+pub use antecedent_estimate::{
+    TrialAipwInput, TrialAipwOptions, estimate_trial_aipw_with_factories,
+};
 /// Instrumental-variable estimators: Wald ratio and two-stage least squares.
 pub use antecedent_estimate::{TwoStageLeastSquares, WaldIv};
 /// Conditional odds ratio from matched case-control sets.
@@ -362,4 +366,13 @@ pub mod temporal_transport {
 /// Reports over the identified members of a finite transport scenario set.
 pub mod transport_scenarios {
     pub use antecedent_estimate::transport_scenarios::{PreparedScenarioSet, ScenarioSetReport};
+}
+
+/// Caller-supplied nuisance learner factories and cross-fitted AIPW predictions.
+pub mod external_learner {
+    pub use antecedent_learn::aipw_crossfit::{AipwCrossFitError, cross_fit_aipw_with_factories};
+    pub use antecedent_learn::{
+        DesignView, FittedPredictor, IsolatedFactory, LearnError, LearnerCapabilities,
+        LearnerFactory, LearnerProvenance, PredictionTask, TargetView,
+    };
 }

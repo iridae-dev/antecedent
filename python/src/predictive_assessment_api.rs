@@ -245,6 +245,10 @@ fn parse_source(value: &Json) -> PyResult<LawSource> {
 }
 
 fn parse_fit(value: &Json) -> PyResult<FitDeclaration> {
+    parse_fit_at(value, false)
+}
+
+fn parse_fit_at(value: &Json, nested: bool) -> PyResult<FitDeclaration> {
     let map = object(value, "fit declaration")?;
     Ok(match text(map, "kind")?.as_str() {
         "fitted_on" => FitDeclaration::FittedOn(keys(map, "keys")?),
@@ -252,6 +256,14 @@ fn parse_fit(value: &Json) -> PyResult<FitDeclaration> {
         "undeclared" => FitDeclaration::Undeclared {
             reason: opt_text(map, "reason")?.unwrap_or_else(|| "not declared".to_owned()),
         },
+        "per_case" if !nested => FitDeclaration::PerCase(
+            member(map, "cases")?
+                .as_array()
+                .ok_or_else(|| crate::value_err("per-case fits must be a list"))?
+                .iter()
+                .map(|item| parse_fit_at(item, true))
+                .collect::<PyResult<Vec<_>>>()?,
+        ),
         other => return Err(crate::value_err(format!("unknown fit declaration `{other}`"))),
     })
 }
@@ -808,6 +820,9 @@ fn predictive_assessment_ledger_fit(
                 Some(json!({"kind": "not_fitted", "keys": [], "reason": Json::Null}).to_string()),
                 None,
             ),
+            Ok(FitDeclaration::PerCase(_)) => {
+                return Err(crate::value_err("ledger returned an unexpected per-case fit"));
+            }
             Err(refusal) => (None, Some(refusal_json(&refusal))),
         })
     })

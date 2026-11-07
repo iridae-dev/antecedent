@@ -116,6 +116,106 @@ pub trait FittedPredictor: Send + Sync {
     fn provenance(&self) -> LearnerProvenance;
 }
 
+/// Copies only selected rows before invoking a factory or fitted predictor.
+///
+/// `DesignView` normally retains access to its complete backing matrix. Adapters that
+/// invoke external code should use this wrapper so neither the training nor prediction
+/// callback can inspect rows outside its selection through the view or target buffers.
+pub struct IsolatedFactory<'a> {
+    inner: &'a dyn LearnerFactory,
+}
+
+impl<'a> IsolatedFactory<'a> {
+    /// Wrap a factory with row isolation.
+    #[must_use]
+    pub const fn new(inner: &'a dyn LearnerFactory) -> Self {
+        Self { inner }
+    }
+}
+
+fn isolated_bytes(x: DesignView<'_>, vectors: usize) -> Result<u64, LearnError> {
+    x.ncols()
+        .checked_add(vectors)
+        .and_then(|width| width.checked_mul(x.nrows()))
+        .and_then(|n| n.checked_mul(std::mem::size_of::<f64>()))
+        .and_then(|n| u64::try_from(n).ok())
+        .ok_or(LearnError::Shape { message: "isolated learner materialization size overflow" })
+}
+
+fn isolated_design(x: DesignView<'_>) -> Result<Vec<f64>, LearnError> {
+    let mut values = Vec::with_capacity(
+        x.nrows()
+            .checked_mul(x.ncols())
+            .ok_or(LearnError::Shape { message: "isolated learner design size overflow" })?,
+    );
+    for column in 0..x.ncols() {
+        for row in 0..x.nrows() {
+            values.push(x.get(row, column)?);
+        }
+    }
+    Ok(values)
+}
+
+impl LearnerFactory for IsolatedFactory<'_> {
+    fn task(&self) -> PredictionTask {
+        self.inner.task()
+    }
+    fn capabilities(&self) -> LearnerCapabilities {
+        self.inner.capabilities()
+    }
+    fn fit(
+        &self,
+        x: DesignView<'_>,
+        y: TargetView<'_>,
+        weights: Option<&[f64]>,
+        ctx: &ExecutionContext,
+    ) -> Result<Box<dyn FittedPredictor>, LearnError> {
+        if y.len() != x.physical_nrows() || weights.is_some_and(|w| w.len() != x.physical_nrows()) {
+            return Err(LearnError::Shape {
+                message: "isolated learner input lengths do not match",
+            });
+        }
+        let _hold = ctx
+            .acquire_admission(0, isolated_bytes(x, 1 + usize::from(weights.is_some()))?)
+            .map_err(LearnError::Admission)?;
+        let matrix = isolated_design(x)?;
+        let mut target = Vec::with_capacity(x.nrows());
+        let mut selected_weights = weights.map(|_| Vec::with_capacity(x.nrows()));
+        for row in 0..x.nrows() {
+            let index = x.physical_index(row)?;
+            target.push(y.values()[index]);
+            if let (Some(all), Some(selected)) = (weights, &mut selected_weights) {
+                selected.push(all[index]);
+            }
+        }
+        let view = DesignView::from_column_major(&matrix, x.nrows(), x.ncols())?;
+        let fitted =
+            self.inner.fit(view, TargetView::new(&target), selected_weights.as_deref(), ctx)?;
+        Ok(Box::new(IsolatedPredictor(fitted)))
+    }
+}
+
+struct IsolatedPredictor(Box<dyn FittedPredictor>);
+impl FittedPredictor for IsolatedPredictor {
+    fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
+        self.0.portable()
+    }
+    fn predict(
+        &self,
+        x: DesignView<'_>,
+        out: &mut [f64],
+        ctx: &ExecutionContext,
+    ) -> Result<(), LearnError> {
+        let _hold =
+            ctx.acquire_admission(0, isolated_bytes(x, 0)?).map_err(LearnError::Admission)?;
+        let matrix = isolated_design(x)?;
+        self.0.predict(DesignView::from_column_major(&matrix, x.nrows(), x.ncols())?, out, ctx)
+    }
+    fn provenance(&self) -> LearnerProvenance {
+        self.0.provenance()
+    }
+}
+
 /// faer provenance already reported by the linear, ridge, and logistic learners.
 ///
 /// Provenance only. Coefficients do not depend on this string.
@@ -131,4 +231,73 @@ pub(crate) const PROB_CLIP: f64 = 1e-9;
 #[must_use]
 pub(crate) fn clip_probability(p: f64) -> f64 {
     p.clamp(PROB_CLIP, 1.0 - PROB_CLIP)
+}
+
+#[cfg(test)]
+mod isolation_tests {
+    use super::*;
+    use crate::RowSelection;
+
+    struct CheckingFactory;
+    impl LearnerFactory for CheckingFactory {
+        fn task(&self) -> PredictionTask {
+            PredictionTask::Regression
+        }
+        fn capabilities(&self) -> LearnerCapabilities {
+            LearnerCapabilities {
+                regression: true,
+                sample_weights: true,
+                ..LearnerCapabilities::none()
+            }
+        }
+        fn fit(
+            &self,
+            x: DesignView<'_>,
+            y: TargetView<'_>,
+            weights: Option<&[f64]>,
+            _: &ExecutionContext,
+        ) -> Result<Box<dyn FittedPredictor>, LearnError> {
+            assert!(x.row_selection().is_none());
+            assert_eq!(x.dense().values(), &[10.0, 30.0]);
+            assert_eq!(y.values(), &[1.0, 3.0]);
+            assert_eq!(weights.unwrap(), &[2.0, 4.0]);
+            Ok(Box::new(CheckingPredictor))
+        }
+    }
+    struct CheckingPredictor;
+    impl FittedPredictor for CheckingPredictor {
+        fn predict(
+            &self,
+            x: DesignView<'_>,
+            out: &mut [f64],
+            _: &ExecutionContext,
+        ) -> Result<(), LearnError> {
+            assert!(x.row_selection().is_none());
+            assert_eq!(x.dense().values(), &[20.0]);
+            out.fill(1.0);
+            Ok(())
+        }
+        fn provenance(&self) -> LearnerProvenance {
+            LearnerProvenance {
+                spec: "test".into(),
+                implementation: "test".into(),
+                version: "1".into(),
+            }
+        }
+    }
+    #[test]
+    fn isolated_factory_exposes_only_selected_rows_and_weights() {
+        let x = DesignView::from_column_major(&[10.0, 20.0, 30.0], 3, 1).unwrap();
+        let factory = IsolatedFactory::new(&CheckingFactory);
+        let ctx = ExecutionContext::for_tests(1);
+        let model = factory
+            .fit(
+                x.with_rows(RowSelection::new(&[0, 2])).unwrap(),
+                TargetView::new(&[1.0, 2.0, 3.0]),
+                Some(&[2.0, 3.0, 4.0]),
+                &ctx,
+            )
+            .unwrap();
+        model.predict(x.with_rows(RowSelection::new(&[1])).unwrap(), &mut [0.0], &ctx).unwrap();
+    }
 }

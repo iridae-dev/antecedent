@@ -206,6 +206,9 @@ pub struct FitWire {
     pub keys: u64,
     /// Why undeclared.
     pub reason: Option<String>,
+    /// Case-aligned fit declarations for a rolling forecast.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cases: Option<Vec<FitWire>>,
 }
 
 /// One predictor's declaration (its laws live in the numbers section).
@@ -748,6 +751,49 @@ fn outcome_family(outcomes: &[Outcome]) -> &'static str {
 
 // -- encode / decode ----------------------------------------------------------------------
 
+fn encode_fit(fit: &FitDeclaration, keys: &mut Vec<u8>) -> FitWire {
+    match fit {
+        FitDeclaration::FittedOn(fit_keys) => {
+            let mut sorted = fit_keys.clone();
+            sorted.sort_unstable();
+            let mut merged: Vec<ObservationKey> = Vec::with_capacity(sorted.len());
+            for key in sorted {
+                if let Some(last) = merged.last_mut().filter(|last| **last == key) {
+                    if key.is_caller_minted() {
+                        *last = ObservationKey::from_caller_minted_bytes(*key.as_bytes());
+                    }
+                } else {
+                    merged.push(key);
+                }
+            }
+            for key in &merged {
+                keys.extend_from_slice(key.as_bytes());
+                keys.push(u8::from(key.is_caller_minted()));
+            }
+            FitWire {
+                kind: "fitted_on".into(),
+                keys: merged.len() as u64,
+                reason: None,
+                cases: None,
+            }
+        }
+        FitDeclaration::NotFitted => {
+            FitWire { kind: "not_fitted".into(), keys: 0, reason: None, cases: None }
+        }
+        FitDeclaration::Undeclared { reason } => FitWire {
+            kind: "undeclared".into(),
+            keys: 0,
+            reason: Some(reason.clone()),
+            cases: None,
+        },
+        FitDeclaration::PerCase(fits) => {
+            let cases: Vec<_> = fits.iter().map(|fit| encode_fit(fit, keys)).collect();
+            let count = cases.iter().fold(0u64, |sum, case| sum.saturating_add(case.keys));
+            FitWire { kind: "per_case".into(), keys: count, reason: None, cases: Some(cases) }
+        }
+    }
+}
+
 fn encode_parts(
     spec: &PredictiveAssessmentSpec,
     report: &PredictiveAssessmentReport,
@@ -767,33 +813,7 @@ fn encode_parts(
         for law in &predictor.laws {
             writer.law(law);
         }
-        let fit = match &predictor.fit {
-            FitDeclaration::FittedOn(fit_keys) => {
-                let mut sorted = fit_keys.clone();
-                sorted.sort_unstable();
-                let mut merged: Vec<ObservationKey> = Vec::with_capacity(sorted.len());
-                for key in sorted {
-                    if let Some(last) = merged.last_mut().filter(|last| **last == key) {
-                        if key.is_caller_minted() {
-                            *last = ObservationKey::from_caller_minted_bytes(*key.as_bytes());
-                        }
-                    } else {
-                        merged.push(key);
-                    }
-                }
-                for key in &merged {
-                    keys.extend_from_slice(key.as_bytes());
-                    keys.push(u8::from(key.is_caller_minted()));
-                }
-                FitWire { kind: "fitted_on".into(), keys: merged.len() as u64, reason: None }
-            }
-            FitDeclaration::NotFitted => {
-                FitWire { kind: "not_fitted".into(), keys: 0, reason: None }
-            }
-            FitDeclaration::Undeclared { reason } => {
-                FitWire { kind: "undeclared".into(), keys: 0, reason: Some(reason.clone()) }
-            }
-        };
+        let fit = encode_fit(&predictor.fit, &mut keys);
         predictors.push(PredictorMeta {
             name: predictor.name.clone(),
             source: source_wire(&predictor.source),
@@ -950,7 +970,16 @@ fn check_comparison_work(meta: &PredictiveAssessmentMeta, limit: usize) -> Resul
         &meta
             .predictors
             .iter()
-            .map(|p| (p.name.as_str(), if p.fit.kind == "fitted_on" { p.fit.keys } else { 0 }))
+            .map(|p| {
+                (
+                    p.name.as_str(),
+                    if matches!(p.fit.kind.as_str(), "fitted_on" | "per_case") {
+                        p.fit.keys
+                    } else {
+                        0
+                    },
+                )
+            })
             .collect::<Vec<_>>(),
         meta.scores.len(),
         &meta.comparisons,
@@ -1002,6 +1031,48 @@ fn check_claims(meta: &PredictiveAssessmentMeta) -> Result<(), Error> {
     Ok(())
 }
 
+fn decode_fit(
+    wire: &FitWire,
+    keys: &[u8],
+    version: u16,
+    cursor: &mut usize,
+    cases: usize,
+    nested: bool,
+) -> Result<FitDeclaration, Error> {
+    Ok(match wire.kind.as_str() {
+        "fitted_on" if wire.cases.is_none() && wire.reason.is_none() => {
+            let count =
+                usize::try_from(wire.keys).map_err(|_| Error::LimitsExceeded("fit keys"))?;
+            let end = cursor.checked_add(count).ok_or(Error::LimitsExceeded("fit keys"))?;
+            let found =
+                (*cursor..end).map(|i| key_at(keys, i, version)).collect::<Result<Vec<_>, _>>()?;
+            *cursor = end;
+            FitDeclaration::FittedOn(found)
+        }
+        "not_fitted" if wire.keys == 0 && wire.cases.is_none() && wire.reason.is_none() => {
+            FitDeclaration::NotFitted
+        }
+        "undeclared" if wire.keys == 0 && wire.cases.is_none() => {
+            FitDeclaration::Undeclared { reason: wire.reason.clone().unwrap_or_default() }
+        }
+        "per_case" if !nested && wire.reason.is_none() => {
+            let parts = wire.cases.as_ref().ok_or_else(|| malformed("per-case fit declaration"))?;
+            if parts.len() != cases
+                || parts.iter().fold(0u64, |sum, part| sum.saturating_add(part.keys)) != wire.keys
+            {
+                return Err(malformed("per-case fit declaration"));
+            }
+            FitDeclaration::PerCase(
+                parts
+                    .iter()
+                    .map(|part| decode_fit(part, keys, version, cursor, cases, true))
+                    .collect::<Result<_, _>>()?,
+            )
+        }
+        _ => return Err(Error::UnsupportedSemantics("fit declaration")),
+    })
+}
+
 fn spec_of(
     meta: &PredictiveAssessmentMeta,
     numbers: &[f64],
@@ -1035,23 +1106,7 @@ fn spec_of(
     let mut predictors = Vec::with_capacity(meta.predictors.len());
     for declared in &meta.predictors {
         let laws = (0..cases).map(|_| reader.law()).collect::<Result<Vec<_>, _>>()?;
-        let fit = match declared.fit.kind.as_str() {
-            "fitted_on" => {
-                let count = usize::try_from(declared.fit.keys)
-                    .map_err(|_| Error::LimitsExceeded("fit keys"))?;
-                let end = fit_cursor.checked_add(count).ok_or(Error::LimitsExceeded("fit keys"))?;
-                let fitted = (fit_cursor..end)
-                    .map(|i| key_at(keys, i, meta.version))
-                    .collect::<Result<_, _>>()?;
-                fit_cursor += count;
-                FitDeclaration::FittedOn(fitted)
-            }
-            "not_fitted" => FitDeclaration::NotFitted,
-            "undeclared" => FitDeclaration::Undeclared {
-                reason: declared.fit.reason.clone().unwrap_or_default(),
-            },
-            _ => return Err(Error::UnsupportedSemantics("fit declaration")),
-        };
+        let fit = decode_fit(&declared.fit, keys, meta.version, &mut fit_cursor, cases, false)?;
         predictors.push(PredictorLaws {
             name: declared.name.clone(),
             source: source_of(&declared.source)?,

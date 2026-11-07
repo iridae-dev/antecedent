@@ -105,6 +105,47 @@ fn setup(
 }
 
 #[test]
+fn portable_caller_factories_match_builtin_and_refuse_temporal_folds() {
+    use antecedent_estimate::smoothed_dose::estimate_smoothed_dose_with_factories;
+    use antecedent_learn::{PredictionTask, resolve_for};
+    let case = reference().into_iter().find(|case| case["lag"].is_null()).unwrap();
+    let rows = input(&case);
+    let (id, query, options) = setup(&case);
+    let ctx = ExecutionContext::for_tests(7);
+    let outcome = resolve_for(options.outcome, PredictionTask::Regression).unwrap();
+    let membership = resolve_for(options.membership, PredictionTask::BinaryProbability).unwrap();
+    let expected = estimate_smoothed_dose(&id, &query, &rows, &options, &ctx).unwrap();
+    let actual = estimate_smoothed_dose_with_factories(
+        &id,
+        &query,
+        &rows,
+        &options,
+        &ctx,
+        outcome.as_ref(),
+        membership.as_ref(),
+    )
+    .unwrap();
+    assert!(actual.external_nuisances_unverified);
+    for (a, b) in actual.grid.iter().zip(&expected.grid) {
+        close(a.estimate, b.estimate, 1e-10, "caller factory estimate");
+    }
+    let mut temporal = rows.clone();
+    temporal.serial_lag = Some(1);
+    assert!(
+        estimate_smoothed_dose_with_factories(
+            &id,
+            &query,
+            &temporal,
+            &options,
+            &ctx,
+            outcome.as_ref(),
+            membership.as_ref()
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn weighted_clustered_and_serial_scores_and_standard_errors_match_the_multiprecision_reference() {
     for case in reference() {
         let name = case["name"].as_str().unwrap();

@@ -33,6 +33,8 @@ pub enum FitDeclaration {
         /// Why the fit data is not known.
         reason: String,
     },
+    /// One non-nested declaration per assessed case, in observation order.
+    PerCase(Vec<FitDeclaration>),
 }
 
 /// What an assessment does with an overlap it finds.
@@ -55,7 +57,8 @@ pub enum OverlapStatus {
     },
     /// Some assessed observations were used to fit the law.
     InSample {
-        /// Assessed observations also in the fit set.
+        /// Assessed observations also in the fit set; for per-case fits, the number of
+        /// forecast cases whose fit includes their outcome or another not-yet-observed outcome.
         shared: u64,
         /// Assessed observations.
         assessed: u64,
@@ -119,6 +122,23 @@ pub(crate) fn sorted_distinct(keys: &[ObservationKey]) -> Vec<ObservationKey> {
 /// Number of observations two predictors were both fitted on, when both declare
 /// what they were fitted on.
 pub(crate) fn fit_overlap(a: &FitDeclaration, b: &FitDeclaration) -> Option<u64> {
+    fn keys(fit: &FitDeclaration) -> Option<Vec<ObservationKey>> {
+        match fit {
+            FitDeclaration::FittedOn(keys) => Some(keys.clone()),
+            FitDeclaration::NotFitted => Some(Vec::new()),
+            FitDeclaration::Undeclared { .. } => None,
+            FitDeclaration::PerCase(cases) => {
+                let mut out = Vec::new();
+                for case in cases {
+                    out.extend(keys(case)?);
+                }
+                Some(out)
+            }
+        }
+    }
+    if matches!(a, FitDeclaration::PerCase(_)) || matches!(b, FitDeclaration::PerCase(_)) {
+        return Some(shared_count(&sorted_distinct(&keys(a)?), &sorted_distinct(&keys(b)?)));
+    }
     match (a, b) {
         (FitDeclaration::FittedOn(x), FitDeclaration::FittedOn(y)) => {
             Some(shared_count(&sorted_distinct(x), &sorted_distinct(y)))
@@ -162,6 +182,13 @@ pub(crate) fn decide_overlap(
                 OverlapStatus::InSample { shared, assessed: assessed.len() as u64 }
             }
         }
+        FitDeclaration::PerCase(_) => {
+            return Err(refuse(
+                reason_code!("invalid_argument"),
+                detail::OVERLAP_UNKNOWN,
+                "per-case fit declarations require case-aligned observations",
+            ));
+        }
     };
     if policy == OverlapPolicy::RequireHeldOut {
         match &status {
@@ -190,6 +217,106 @@ pub(crate) fn decide_overlap(
                 ));
             }
             OverlapStatus::HeldOutVerified { .. } | OverlapStatus::NotFitted => {}
+        }
+    }
+    Ok(status)
+}
+
+/// Decide overlap against each forecast's own outcome, not every other origin's outcome.
+pub(crate) fn decide_case_overlap(
+    predictor: &str,
+    cases: &[FitDeclaration],
+    assessed: &[ObservationKey],
+    policy: OverlapPolicy,
+    temporal: Option<(&[u64], u32)>,
+) -> Result<OverlapStatus, PredictiveAssessmentError> {
+    if cases.len() != assessed.len()
+        || cases.iter().any(|c| matches!(c, FitDeclaration::PerCase(_)))
+    {
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            detail::OVERLAP_UNKNOWN,
+            "per-case fit declarations must align with the assessed cases and cannot be nested",
+        ));
+    }
+    let mut shared = 0u64;
+    let mut fitted = Vec::new();
+    let mut unknown = None;
+    let mut any_fitted = false;
+    let future_times = if let Some((origins, horizon)) = temporal {
+        if origins.len() != assessed.len() {
+            return Err(refuse(
+                reason_code!("invalid_argument"),
+                detail::OVERLAP_UNKNOWN,
+                "forecast origins must align with observed cases",
+            ));
+        }
+        let mut times = std::collections::HashMap::with_capacity(assessed.len());
+        for (&key, &origin) in assessed.iter().zip(origins) {
+            let time = origin.checked_add(u64::from(horizon)).ok_or_else(|| {
+                refuse(
+                    reason_code!("invalid_argument"),
+                    detail::OVERLAP_UNKNOWN,
+                    "forecast outcome time overflows",
+                )
+            })?;
+            times.insert(key, time);
+        }
+        Some(times)
+    } else {
+        None
+    };
+    for (index, (fit, key)) in cases.iter().zip(assessed).enumerate() {
+        let future_leak = match (fit, &future_times, temporal) {
+            (FitDeclaration::FittedOn(keys), Some(times), Some((origins, _))) => {
+                keys.iter().any(|key| times.get(key).is_some_and(|&time| time > origins[index]))
+            }
+            _ => false,
+        };
+        let overlap = decide_overlap(predictor, fit, &[*key], OverlapPolicy::LabelOnly)?;
+        let already_shared = matches!(&overlap, OverlapStatus::InSample { .. });
+        match overlap {
+            OverlapStatus::InSample { .. } => shared += 1,
+            OverlapStatus::Unverified { reason } => unknown = Some(reason),
+            OverlapStatus::HeldOutVerified { .. } => {}
+            OverlapStatus::NotFitted => continue,
+        }
+        if future_leak && !already_shared {
+            shared += 1;
+        }
+        if let FitDeclaration::FittedOn(keys) = fit {
+            any_fitted = true;
+            fitted.extend_from_slice(keys);
+        }
+    }
+    let status = if shared > 0 {
+        OverlapStatus::InSample { shared, assessed: assessed.len() as u64 }
+    } else if let Some(reason) = unknown {
+        OverlapStatus::Unverified { reason }
+    } else if any_fitted {
+        OverlapStatus::HeldOutVerified { fitted_on: sorted_distinct(&fitted).len() as u64 }
+    } else {
+        OverlapStatus::NotFitted
+    };
+    if policy == OverlapPolicy::RequireHeldOut {
+        match &status {
+            OverlapStatus::InSample { .. } => {
+                return Err(refuse(
+                    reason_code!("evidence_double_counted"),
+                    detail::IN_SAMPLE,
+                    format!(
+                        "a forecast from `{predictor}` was fitted on an assessed outcome unavailable at its origin"
+                    ),
+                ));
+            }
+            OverlapStatus::Unverified { reason } => {
+                return Err(refuse(
+                    reason_code!("evidence_overlap_unknown"),
+                    detail::OVERLAP_UNKNOWN,
+                    format!("forecast fit lineage for `{predictor}` is unknown: {reason}"),
+                ));
+            }
+            _ => {}
         }
     }
     Ok(status)

@@ -26,8 +26,8 @@ record_sha256 = "9a0dc9cb1108d69df6ce81de5931d7b3159a2c885b0d67f6233a68008d6cdf4
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/predictive_assessment/overlap.rs"
-items = ["enum FitDeclaration", "enum OverlapPolicy", "enum OverlapStatus", "fn fit_overlap", "fn label", "fn shared_count", "fn sorted_distinct"]
-sha256 = "1df61033ec667ce4c4f7133671fc1334d3d3a82ecc2e96f530fc91d62007a37d"
+items = ["enum FitDeclaration", "enum OverlapPolicy", "enum OverlapStatus", "fn decide_case_overlap", "fn decide_overlap", "fn fit_overlap", "fn label", "fn shared_count", "fn sorted_distinct"]
+sha256 = "eb5f7a9eb1c0e4ddde1fda9585902ca4d4a1f6390ae24919bc6b99f38e1eb17c"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

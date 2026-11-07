@@ -40,8 +40,8 @@ record_sha256 = "d548aec85fa2313d57098355bf08b82d26142ac5d8779bdad67af532dd39294
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dml.rs"
-items = ["const AIPW_SCORE_BUILDS", "enum DmlScore", "fn aipw_marginal_from_nuisance", "fn aipw_score_table_clipped", "fn attach_crossfit_aipw_table", "fn default", "fn finish_dml", "fn fit", "fn fit_aipw", "fn fit_plr", "fn new", "fn prepare", "fn require_binary_treatment", "fn scores_retargetable", "fn with_sampling_weights", "struct AipwMarginal", "struct CrossfitAipwTableContext", "struct DmlAte"]
-sha256 = "9ba88c6c436f313342134b66e4a7de75271cf3c2919d192c44c1b04636ba6354"
+items = ["const AIPW_SCORE_BUILDS", "enum DmlScore", "fn aipw_marginal_from_nuisance", "fn aipw_score_table_clipped", "fn attach_crossfit_aipw_table", "fn default", "fn finish_dml", "fn fit", "fn fit_aipw", "fn fit_plr", "fn fit_plr_from_nuisances", "fn new", "fn prepare", "fn require_binary_treatment", "fn scores_retargetable", "fn with_sampling_weights", "struct AipwMarginal", "struct CrossfitAipwTableContext", "struct DmlAte"]
+sha256 = "fd74a2e70e20bff742943dca6aaf8735dce61be40eaad66724efb752ce0246b9"
 
 [[method_review.artifacts]]
 role = "implementation"

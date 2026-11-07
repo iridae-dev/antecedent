@@ -242,12 +242,13 @@ pub use learned_continuous::{
 };
 pub use learned_trial::{
     TrialAipwEstimate, TrialAipwInput, TrialAipwOptions, TrialSampling, estimate_trial_aipw,
-    learned_trial_uncertainty, validate_trial_aipw, validate_trial_query,
+    estimate_trial_aipw_with_factories, learned_trial_uncertainty, validate_trial_aipw,
+    validate_trial_query,
 };
 pub use smoothed_dose::{
     DoseBasis, SMOOTHED_DOSE_BOUNDS, SmoothedDoseEstimate, SmoothedDoseInput, SmoothedDoseOptions,
-    SmoothedDoseUncertainty, estimate_smoothed_dose, smoothed_dose_estimator_menu,
-    validate_smoothed_dose,
+    SmoothedDoseUncertainty, estimate_smoothed_dose, estimate_smoothed_dose_with_factories,
+    smoothed_dose_estimator_menu, validate_smoothed_dose,
 };
 pub use smoothed_dose::{SmoothedDoseIntervalRun, smoothed_dose_interval_internal};
 
@@ -370,7 +371,8 @@ pub use joint_cell_factorized::{
     CellEstimate, CellOrderingSpread, CellRefusal, CellStatus, FactorizedJointConfig,
     FactorizedJointFit, JointCellReport, JointContrast, MAX_FACTORIZED_COMPONENTS, MAX_ORDERINGS,
     NormalizationCheck, OrderingSensitivity, declared_joint_nuisance, fit_factorized_joint_cells,
-    orderings_for, refuse_joint_inference, refuse_joint_learner_inference,
+    fit_factorized_joint_cells_with_factories, orderings_for, refuse_joint_inference,
+    refuse_joint_learner_inference,
 };
 pub use joint_if::{
     JointCovariance, frozen_weight_mixture_scores, joint_influence_covariance, max_t_critical,

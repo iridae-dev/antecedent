@@ -232,6 +232,35 @@ impl CausalForest {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        self.fit_internal(problem, ctx, assumptions, None)
+    }
+
+    /// Fit the forest and its marginal AIPW estimate with caller-supplied nuisance factories.
+    ///
+    /// The CATE trees remain native; supplied factories affect the cross-fitted marginal ATE.
+    /// # Errors
+    /// Returns the same route, factory, fold, prediction and resource errors as DML and the forest.
+    pub fn fit_with_factories(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        outcome: &dyn antecedent_learn::LearnerFactory,
+        treatment: &dyn antecedent_learn::LearnerFactory,
+    ) -> Result<EffectEstimate, EstimationError> {
+        self.fit_internal(problem, ctx, assumptions, Some((outcome, treatment)))
+    }
+
+    fn fit_internal(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        factories: Option<(
+            &dyn antecedent_learn::LearnerFactory,
+            &dyn antecedent_learn::LearnerFactory,
+        )>,
+    ) -> Result<EffectEstimate, EstimationError> {
         if !matches!(problem.target_population, TargetPopulation::AllObserved) {
             return Err(EstimationError::TargetPopulation);
         }
@@ -300,7 +329,11 @@ impl CausalForest {
             aggregate_forest_cate(&trees, &x, n, p);
         // Variation across fitted CATEs is heterogeneity, not sampling
         // uncertainty in the ATE. Use the orthogonal marginal score instead.
-        let mut effect = self.marginal(n).fit(problem, ctx, assumptions)?;
+        let mut effect = if let Some((outcome, treatment)) = factories {
+            self.marginal(n).fit_with_factories(problem, ctx, assumptions, outcome, treatment)?
+        } else {
+            self.marginal(n).fit(problem, ctx, assumptions)?
+        };
         let model = portable_forest(&trees, problem, p);
         model.validate()?;
         effect.heterogeneity.fitted_effect = Some(Arc::new(model));
@@ -1046,6 +1079,32 @@ mod tests {
             ),
             z,
         )
+    }
+
+    #[test]
+    fn caller_factories_match_builtin_marginal_and_native_forest() {
+        use antecedent_learn::{PredictionTask, resolve_for};
+        let (data, estimand, _) = interaction_scm(500, 7);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let estimator = CausalForest::new().with_n_trees(80).with_max_depth(4).with_min_leaf(8);
+        let prep = estimator.prepare(&data, &estimand, &query).unwrap();
+        let defaults = DmlAte::new();
+        let outcome = resolve_for(defaults.outcome, PredictionTask::Regression).unwrap();
+        let treatment = resolve_for(defaults.treatment, PredictionTask::BinaryProbability).unwrap();
+        let ctx = ExecutionContext::for_tests(2);
+        let expected = estimator.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
+        let actual = estimator
+            .fit_with_factories(
+                &prep,
+                &ctx,
+                AssumptionSet::new(),
+                outcome.as_ref(),
+                treatment.as_ref(),
+            )
+            .unwrap();
+        assert!((actual.ate - expected.ate).abs() < 1e-12);
+        assert_eq!(actual.heterogeneity.cate, expected.heterogeneity.cate);
     }
 
     #[test]

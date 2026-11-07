@@ -23145,3 +23145,24 @@ crate = "antecedent-model"
 cargo_target = "lib"
 path = "crates/antecedent-model/src/nonlinear_sde/simulation.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "external-learners-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_external_learners.py"
+gates = ["inventory"]
+
+[[test]]
+id = "forecasting-provider-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_forecasting_provider.py"
+gates = ["inventory"]
+
+[[test]]
+id = "learner-factory-engineering"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/learner.rs"
+gates = ["inventory"]

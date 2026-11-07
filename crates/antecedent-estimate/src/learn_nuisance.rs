@@ -20,6 +20,23 @@ use antecedent_learn::{
 use crate::crossfit_plan::{FoldIdErrors, FoldSource, derive_fold_ids};
 use crate::error::EstimationError;
 
+/// Record the scientific boundary of caller-supplied learner factories.
+pub(crate) fn declare_unverified_factories(
+    assumptions: &mut antecedent_core::AssumptionSet,
+    algorithm: &'static str,
+) {
+    use std::sync::Arc;
+    assumptions.push(antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::Custom {
+            id: Arc::from("dml.caller_factory.unverified"),
+            description: Arc::from("Caller-supplied learner factories and any prior training data are not verified by this route; cross-fitting alone does not establish their scientific validity or absence of prior data overlap."),
+        },
+        source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from(algorithm) },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    });
+}
+
 #[allow(
     clippy::needless_pass_by_value,
     reason = "a `map_err` adapter: the error arrives by value at every call site"
@@ -63,7 +80,7 @@ fn nuisance_cancelled() -> EstimationError {
 
 /// The estimator-side error of an AIPW cross-fit stop: each case keeps the error it had
 /// before the computation moved to the learner layer.
-fn aipw_cross_fit_error(error: AipwCrossFitError) -> EstimationError {
+pub(crate) fn aipw_cross_fit_error(error: AipwCrossFitError) -> EstimationError {
     match error {
         AipwCrossFitError::Learner(error) => learn_err(error),
         AipwCrossFitError::Cancelled => nuisance_cancelled(),

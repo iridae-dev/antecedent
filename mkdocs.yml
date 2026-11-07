@@ -68,6 +68,7 @@ nav:
     - Mediation and latent classes: guides/mediation-and-latent-classes.md
     - Penalized propensity for AIPW: guides/penalized-aipw.md
     - Reuse DML scores to retarget: guides/dml-scores.md
+    - External learners and forecasts: guides/external-learners-and-forecasts.md
     - Answer and retarget a family of effects: guides/batch-retarget.md
     - Matched case-control odds ratio: guides/matched-case-control.md
     - Data quality diagnostics: guides/data-diagnostics.md

@@ -191,6 +191,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     transported_counterfactual_api::register(m)?;
     scenario_invariance_api::register(m)?;
     provider_api::register(m)?;
+    super::external_learner_api::register(m)?;
     composition_api::register(m)?;
     composition_bundle_api::register(m)?;
     measurement_model_api::register(m)?;

@@ -275,6 +275,7 @@ pub fn cross_fit_with_folds_weighted(
     if weights.is_some_and(|w| w.len() != n) {
         return Err(LearnError::Shape { message: "weights length != physical rows" });
     }
+    validate_factory(factory, weights.is_some())?;
     if fold_assignment.len() != n || n == 0 || u64::try_from(n).is_err() {
         return Err(LearnError::Shape { message: "fold plan length != physical rows" });
     }
@@ -297,6 +298,24 @@ pub fn cross_fit_with_folds_weighted(
     let (predictions, model_provenance) = scatter_fold_predictions(n, fold_results)?;
     let validation = try_diagnose(factory.task(), y.values(), &predictions)?;
     Ok(CrossFittedPrediction { predictions, fold_assignment, model_provenance, validation })
+}
+
+fn validate_factory(factory: &dyn LearnerFactory, weighted: bool) -> Result<(), LearnError> {
+    let caps = factory.capabilities();
+    if !(match factory.task() {
+        PredictionTask::Regression => caps.regression,
+        PredictionTask::BinaryProbability => caps.binary_probability,
+    }) {
+        return Err(LearnError::Unsupported {
+            message: "learner does not declare its task capability",
+        });
+    }
+    if weighted && !caps.sample_weights {
+        return Err(LearnError::Unsupported {
+            message: "learner does not support sampling weights",
+        });
+    }
+    Ok(())
 }
 
 struct FoldFit {
@@ -345,17 +364,30 @@ fn fit_one_fold(
         let train_w =
             weights.map(|w| gather_logical_target(TargetView::new(w), &train)).transpose()?;
         let model = factory.fit(train_x, TargetView::new(&train_y), train_w.as_deref(), ctx)?;
-        let mut out = vec![0.0; vr];
+        let mut out = vec![f64::NAN; vr];
         model.predict(valid_x, &mut out, ctx)?;
         (model, out)
     } else {
         let model = factory.fit(train_view, y, weights, ctx)?;
-        let mut out = vec![0.0; valid_view.nrows()];
+        let mut out = vec![f64::NAN; valid_view.nrows()];
         model.predict(valid_view, &mut out, ctx)?;
         (model, out)
     };
+    validate_predictions(factory.task(), &preds)?;
     stop_if_cancelled(&mut learner_hold, &mut fold_hold, ctx)?;
     Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
+}
+
+fn validate_predictions(task: PredictionTask, predictions: &[f64]) -> Result<(), LearnError> {
+    if predictions.iter().any(|p| !p.is_finite()) {
+        return Err(LearnError::NonFinite { message: "nuisance predictions must be finite" });
+    }
+    if task == PredictionTask::BinaryProbability
+        && predictions.iter().any(|p| !(0.0..=1.0).contains(p))
+    {
+        return Err(LearnError::Backend("probability predictions must lie in [0, 1]".to_string()));
+    }
+    Ok(())
 }
 
 fn gather_logical_target(y: TargetView<'_>, rows: &[u64]) -> Result<Vec<f64>, LearnError> {
@@ -478,6 +510,7 @@ pub fn cross_fit_selected(
     {
         return Err(LearnError::Shape { message: "misaligned selected cross-fit inputs" });
     }
+    validate_factory(factory, false)?;
     let folds = complete_fold_count(fold_assignment, "invalid selected cross-fit folds")?;
     let parts = ctx
         .try_map_indexed(folds, |fold, inner| {
@@ -499,8 +532,9 @@ pub fn cross_fit_selected(
             let (mut fold_hold, mut learner_hold) = lease_fold(inner, rows)?;
             stop_if_cancelled(&mut learner_hold, &mut fold_hold, inner)?;
             let fitted = factory.fit(x.with_rows(RowSelection::new(&train))?, y, None, inner)?;
-            let mut preds = vec![0.0; valid.len()];
+            let mut preds = vec![f64::NAN; valid.len()];
             fitted.predict(x.with_rows(RowSelection::new(&valid))?, &mut preds, inner)?;
+            validate_predictions(factory.task(), &preds)?;
             stop_if_cancelled(&mut learner_hold, &mut fold_hold, inner)?;
             Ok(FoldFit { valid_phys: valid, preds, provenance: fitted.provenance() })
         })
@@ -530,6 +564,14 @@ mod tests {
     use super::*;
     use crate::linear::LinearLearner;
     use crate::transform::Identity;
+
+    #[test]
+    fn invalid_external_predictions_are_rejected() {
+        assert!(validate_predictions(PredictionTask::Regression, &[f64::NAN]).is_err());
+        assert!(validate_predictions(PredictionTask::BinaryProbability, &[1.01]).is_err());
+        assert!(validate_predictions(PredictionTask::BinaryProbability, &[-0.01]).is_err());
+        assert!(validate_predictions(PredictionTask::BinaryProbability, &[0.0, 0.5, 1.0]).is_ok());
+    }
 
     #[test]
     fn supplied_fold_plans_require_every_id() {

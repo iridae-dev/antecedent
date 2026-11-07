@@ -27,6 +27,47 @@ CalibrationStatus = Literal[
 __version__: str
 __build_optimized__: bool
 
+def external_aipw_crossfit(
+    outcome: Any,
+    treatment: Any,
+    design: Sequence[Sequence[float]],
+    y: Sequence[float],
+    t: Sequence[float],
+    fold_ids: Sequence[int],
+    *,
+    weights: Sequence[float] | None = ...,
+    seed: int = ...,
+    cancel: Any | None = ...,
+    memory_limit_bytes: int | None = ...,
+) -> tuple[list[float], list[float], list[float], list[list[str]], list[tuple[int, Any, Any]]]: ...
+def external_dml_ate(
+    names: Sequence[str],
+    columns: Sequence[Sequence[float]],
+    edges: Sequence[tuple[str, str]],
+    treatment_name: str,
+    outcome_name: str,
+    outcome: Any,
+    treatment: Any,
+    *,
+    folds: int = ...,
+    weights: Sequence[float] | None = ...,
+    seed: int = ...,
+    cancel: Any | None = ...,
+    method: str = ...,
+    score: str = ...,
+    memory_limit_bytes: int | None = ...,
+) -> tuple[
+    float,
+    float,
+    list[int],
+    list[int],
+    list[int],
+    list[list[str]],
+    str,
+    list[float] | None,
+    list[float] | None,
+    list[tuple[int, Any, Any]],
+]: ...
 def temporal_response_spec() -> dict[str, Any]:
     """Supported temporal-response query policy from Rust ``TemporalResponseSpec::support``."""
 

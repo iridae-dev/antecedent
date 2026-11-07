@@ -576,6 +576,13 @@ pub struct SmoothedDoseEstimate {
     pub diagnostics: SmoothedDoseDiagnostics,
     /// Membership overlap.
     pub overlap: MembershipOverlap,
+    /// Caller-supplied nuisance factories were not verified by this route.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub external_nuisances_unverified: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 /// What the stored models and rows imply: the grid, diagnostics and overlap.
@@ -1144,12 +1151,31 @@ fn fit_models(
     ctx: &ExecutionContext,
 ) -> Result<SmoothedDoseModels, EstimationError> {
     cancelled(ctx)?;
-    let n = input.source.len();
-    let fold_count = options.folds;
     let membership_factory = resolve_for(options.membership, PredictionTask::BinaryProbability)
         .map_err(crate::learn_nuisance::learn_err)?;
     let outcome_factory = resolve_for(options.outcome, PredictionTask::Regression)
         .map_err(crate::learn_nuisance::learn_err)?;
+    fit_models_with_factories(
+        input,
+        options,
+        folds,
+        ctx,
+        outcome_factory.as_ref(),
+        membership_factory.as_ref(),
+    )
+}
+
+fn fit_models_with_factories(
+    input: &SmoothedDoseInput,
+    options: &SmoothedDoseOptions,
+    folds: &[u16],
+    ctx: &ExecutionContext,
+    outcome_factory: &dyn antecedent_learn::LearnerFactory,
+    membership_factory: &dyn antecedent_learn::LearnerFactory,
+) -> Result<SmoothedDoseModels, EstimationError> {
+    cancelled(ctx)?;
+    let n = input.source.len();
+    let fold_count = options.folds;
     let membership_x = membership_design(input);
     let membership_view = DesignView::from_column_major(&membership_x, n, input.features.len() + 1)
         .map_err(crate::learn_nuisance::learn_err)?;
@@ -1754,6 +1780,83 @@ pub fn estimate_smoothed_dose(
         },
         diagnostics: evaluation.diagnostics,
         overlap: evaluation.overlap,
+        external_nuisances_unverified: false,
+    })
+}
+
+/// Execute a smoothed-dose point with caller factories that export portable predictors.
+///
+/// Each fit is row-isolated and replay uses the portable predictors. Caller factories
+/// remain unverified; time-ordered data is refused because this route's folds train on
+/// the complement of each held-out fold. Bootstrap refits are not provided here.
+/// # Errors
+/// A validation, capability, portability, time-order, budget, fit or overlap refusal.
+pub fn estimate_smoothed_dose_with_factories(
+    id: &TransportIdentification,
+    query: &SmoothedDoseTransportQuery,
+    input: &SmoothedDoseInput,
+    options: &SmoothedDoseOptions,
+    ctx: &ExecutionContext,
+    outcome: &dyn antecedent_learn::LearnerFactory,
+    membership: &dyn antecedent_learn::LearnerFactory,
+) -> Result<SmoothedDoseEstimate, EstimationError> {
+    if input.serial_lag.is_some() || options.bootstrap != 0 {
+        return Err(EstimationError::unsupported_coded(
+            antecedent_core::reason_code!("route_not_supported"),
+            "caller factories require non-temporal folds and bootstrap=0",
+        ));
+    }
+    validate_smoothed_dose(id, query, input, options)?;
+    cancelled(ctx)?;
+    check_workspace(
+        smoothed_dose_workspace_bytes(query.grid.len(), input, options, ctx, true),
+        ctx,
+    )?;
+    for (factory, task) in
+        [(outcome, PredictionTask::Regression), (membership, PredictionTask::BinaryProbability)]
+    {
+        if factory.task() != task {
+            return Err(crate::learn_nuisance::learn_err(
+                antecedent_learn::LearnError::TaskMismatch {
+                    requested: task,
+                    supported: factory.task(),
+                },
+            ));
+        }
+        let capabilities = factory.capabilities();
+        let supported = match task {
+            PredictionTask::Regression => capabilities.regression,
+            PredictionTask::BinaryProbability => capabilities.binary_probability,
+        };
+        if !supported || (input.sampling_weights.is_some() && !capabilities.sample_weights) {
+            return Err(EstimationError::unsupported(
+                "external learner lacks a required task or sampling-weight capability",
+            ));
+        }
+    }
+    let folds = smoothed_dose_fold_assignment(input, options.folds);
+    let models = fit_models_with_factories(
+        input,
+        options,
+        &folds,
+        ctx,
+        &antecedent_learn::IsolatedFactory::new(outcome),
+        &antecedent_learn::IsolatedFactory::new(membership),
+    )?;
+    let evaluation = evaluate_smoothed_dose_models(query, input, options, &folds, &models, ctx)?;
+    Ok(SmoothedDoseEstimate {
+        grid: evaluation.grid,
+        uncertainty: SmoothedDoseUncertainty::for_request(options.bootstrap),
+        provenance: provenance(&models),
+        models,
+        folds: FoldProvenance {
+            count: options.folds,
+            scheme: smoothed_dose_fold_scheme(input).into(),
+            assignment: folds,
+        },
+        diagnostics: evaluation.diagnostics,
+        overlap: evaluation.overlap,
+        external_nuisances_unverified: true,
     })
 }
 
@@ -2290,6 +2393,26 @@ mod tests {
             cluster: None,
             serial_lag: None,
         }
+    }
+
+    #[test]
+    fn cancelled_fit_refuses_before_resolving_invalid_membership() {
+        let options = SmoothedDoseOptions {
+            membership: LearnerSpec::Linear(antecedent_learn::LinearSpec {}),
+            ..SmoothedDoseOptions::default()
+        };
+        let data = input(8);
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            fit_models(&data, &options, &[], &ctx),
+            Err(EstimationError::Refused { code: "transport_budget_cancel", .. })
+        ));
+        let active = ExecutionContext::for_tests(1);
+        assert!(matches!(
+            fit_models(&data, &options, &[], &active),
+            Err(EstimationError::Learner(_))
+        ));
     }
 
     use antecedent_stats::special::gauss_legendre;

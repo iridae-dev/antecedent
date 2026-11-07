@@ -273,6 +273,74 @@ impl DrLearner {
         self.publish_units(effect, problem, ctx)
     }
 
+    /// Fit the DR learner with caller-supplied first-stage nuisance factories.
+    ///
+    /// The final CATE learner remains the configured built-in learner. The external
+    /// factories receive isolated fold rows and are not retained in the built-in cache.
+    ///
+    /// # Errors
+    ///
+    /// Refuses unsupported targets, incompatible factories, invalid predictions,
+    /// failed fits, cancellation, or invalid overlap and fold declarations.
+    pub fn fit_with_factories(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        mut assumptions: AssumptionSet,
+        outcome: &dyn antecedent_learn::LearnerFactory,
+        treatment: &dyn antecedent_learn::LearnerFactory,
+    ) -> Result<EffectEstimate, EstimationError> {
+        if !matches!(problem.target_population, TargetPopulation::AllObserved) {
+            return Err(EstimationError::TargetPopulation);
+        }
+        let ids = crate::learn_nuisance::retained_fold_ids(problem, self.folds, ctx)?;
+        let design = antecedent_learn::DesignView::from_column_major(
+            &problem.design_matrix,
+            problem.nrows,
+            problem.design_ncols,
+        )
+        .map_err(learn_err)?;
+        let nuisance = antecedent_learn::aipw_crossfit::cross_fit_aipw_with_factories(
+            &antecedent_learn::IsolatedFactory::new(outcome),
+            &antecedent_learn::IsolatedFactory::new(treatment),
+            design,
+            design,
+            &problem.outcome,
+            &problem.treatment,
+            (self.folds, ids),
+            ctx,
+            problem.sampling_weights.as_ref().map(|s| &*s.weights),
+        )
+        .map_err(crate::learn_nuisance::aipw_cross_fit_error)?;
+        crate::learn_nuisance::declare_unverified_factories(&mut assumptions, "dr_learner");
+        let (mut effect, _) = self.fit_from_nuisance(problem, &[], ctx, assumptions, &nuisance)?;
+        let fold_ids: Vec<u32> = nuisance.3.fold_assignment.iter().map(|&f| u32::from(f)).collect();
+        effect.crossfit.fold_assignment = Some(Arc::from(fold_ids.clone()));
+        if let Some(table) = effect.scores.table.as_mut() {
+            let unit_suffix =
+                match (problem.fold_assignment.as_deref(), problem.fold_units.as_deref()) {
+                    (None, Some(units)) => {
+                        crate::cluster_dml_aipw::provenance_suffix(units, problem.fold_unit_kind)
+                    }
+                    _ => String::new(),
+                };
+            table.nuisance_provenance = Arc::from(format!(
+                "{};route=dr_learner;outcome=caller_factory;treatment=caller_factory{unit_suffix}",
+                crate::dml::DML_CROSSFIT_PROVENANCE
+            ));
+        }
+        if problem.sampling_weights.is_some() && self.units.spec.is_some() {
+            self.units.publish_weighted(
+                effect,
+                problem,
+                &fold_ids,
+                u32::try_from(self.folds).unwrap_or(u32::MAX),
+            )
+        } else {
+            self.units.publish(effect, problem)
+        }
+    }
+
     /// Form a population ATE interval under independent homoskedastic Gaussian
     /// arm-linear outcomes, including training-fold fit uncertainty and a declared
     /// finite-ridge mean correction. The default robust fit remains unchanged.
@@ -389,8 +457,19 @@ impl DrLearner {
         }
         let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
+        self.fit_from_nuisance(problem, profiles, ctx, assumptions, &nuisance)
+    }
+
+    fn fit_from_nuisance(
+        &self,
+        problem: &PreparedPropensityProblem,
+        profiles: &[CateProfile],
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        nuisance: &crate::learn_nuisance::AipwPredictions,
+    ) -> Result<(EffectEstimate, Option<Arc<[PointwiseCateEstimate]>>), EstimationError> {
         let crate::dml::AipwMarginal { phi, ehat, effect } =
-            crate::dml::aipw_marginal_from_nuisance(problem, &nuisance, assumptions)?;
+            crate::dml::aipw_marginal_from_nuisance(problem, nuisance, assumptions)?;
         let raw_e = &nuisance.2;
         let (factory, _) = resolve_nuisance(
             self.final_learner,
@@ -451,7 +530,7 @@ impl DrLearner {
                 final_weights,
             )),
             problem,
-            &nuisance,
+            nuisance,
             crate::dml::CrossfitAipwTableContext {
                 folds: self.folds,
                 learners: [self.outcome, self.treatment],
@@ -816,6 +895,42 @@ mod tests {
                 ExprId::from_raw(0),
             ),
         )
+    }
+
+    #[test]
+    fn caller_factories_match_builtin_first_stage_and_cate() {
+        let (data, estimand, _) = interaction_scm(300, 3);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let estimator = DrLearner::new();
+        let prep = estimator.prepare(&data, &estimand, &query).unwrap();
+        let outcome =
+            antecedent_learn::resolve_for(estimator.outcome, PredictionTask::Regression).unwrap();
+        let treatment =
+            antecedent_learn::resolve_for(estimator.treatment, PredictionTask::BinaryProbability)
+                .unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let expected = estimator.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
+        let actual = estimator
+            .fit_with_factories(
+                &prep,
+                &ctx,
+                AssumptionSet::new(),
+                outcome.as_ref(),
+                treatment.as_ref(),
+            )
+            .unwrap();
+        assert!((actual.ate - expected.ate).abs() < 1e-12);
+        for (a, b) in actual
+            .heterogeneity
+            .cate
+            .as_ref()
+            .unwrap()
+            .iter()
+            .zip(expected.heterogeneity.cate.as_ref().unwrap().iter())
+        {
+            assert!((a - b).abs() < 1e-12);
+        }
     }
 
     #[test]

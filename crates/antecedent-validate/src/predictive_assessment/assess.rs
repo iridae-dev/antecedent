@@ -216,6 +216,17 @@ fn comparison_predictors(predictors: &[PredictorLaws]) -> Vec<(&str, u64)> {
                     super::overlap::FitDeclaration::FittedOn(keys) => {
                         u64::try_from(keys.len()).unwrap_or(u64::MAX)
                     }
+                    super::overlap::FitDeclaration::PerCase(fits) => {
+                        fits.iter().fold(0u64, |sum, fit| {
+                            let n = match fit {
+                                super::overlap::FitDeclaration::FittedOn(keys) => {
+                                    u64::try_from(keys.len()).unwrap_or(u64::MAX)
+                                }
+                                _ => 0,
+                            };
+                            sum.saturating_add(n)
+                        })
+                    }
                     _ => 0,
                 },
             )
@@ -572,13 +583,17 @@ fn validate_spec(spec: &PredictiveAssessmentSpec) -> Result<(), PredictiveAssess
         return Err(invalid(detail::SCORE_NOT_DEFINED, "a score is requested more than once"));
     }
     check_configuration(spec.pit_bins, spec.reliability_bins, &spec.interval_levels)?;
+    let fit_work = comparison_predictors(&spec.predictors)
+        .iter()
+        .fold(0u64, |sum, (_, keys)| sum.saturating_add(*keys));
     let work: u64 = spec
         .predictors
         .iter()
         .flat_map(|p| p.laws.iter().map(ForecastLaw::work))
         .fold(0_u64, u64::saturating_add)
         .saturating_mul(spec.scores.len() as u64)
-        .saturating_add(comparison_work);
+        .saturating_add(comparison_work)
+        .saturating_add(fit_work);
     if work > MAX_ASSESSMENT_WORK {
         return Err(bounds(format!(
             "the assessment needs about {work} scoring and comparison operations; at most \
@@ -679,8 +694,21 @@ pub fn assess_predictive_laws(
         canonical(spec.observations.outcomes.as_slice(), &resolved.order);
     let mut assessments = Vec::with_capacity(spec.predictors.len());
     for predictor in &spec.predictors {
-        let overlap =
-            decide_overlap(&predictor.name, &predictor.fit, &assessed, spec.overlap_policy)?;
+        let overlap = match &predictor.fit {
+            super::overlap::FitDeclaration::PerCase(fits) => super::overlap::decide_case_overlap(
+                &predictor.name,
+                fits,
+                keys,
+                spec.overlap_policy,
+                match &spec.design {
+                    ValidationDesign::RollingOrigin { origins, horizon_steps } => {
+                        Some((origins.as_slice(), *horizon_steps))
+                    }
+                    _ => None,
+                },
+            )?,
+            fit => decide_overlap(&predictor.name, fit, &assessed, spec.overlap_policy)?,
+        };
         let scores = score_predictor(spec, predictor, &resolved, ctx)?;
         let laws_c: Vec<ForecastLaw> = canonical(predictor.laws.as_slice(), &resolved.order);
         let mut diagnostics = diagnose(

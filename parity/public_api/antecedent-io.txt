@@ -8211,6 +8211,7 @@ pub field antecedent_io::predictive_assessment_artifact::DesignWire::fold_labels
 pub field antecedent_io::predictive_assessment_artifact::DesignWire::horizon_steps: core::option::Option<u32>
 pub field antecedent_io::predictive_assessment_artifact::DesignWire::kind: alloc::string::String
 pub field antecedent_io::predictive_assessment_artifact::DesignWire::stream: core::option::Option<alloc::string::String>
+pub field antecedent_io::predictive_assessment_artifact::FitWire::cases: core::option::Option<alloc::vec::Vec<antecedent_io::predictive_assessment_artifact::FitWire>>
 pub field antecedent_io::predictive_assessment_artifact::FitWire::keys: u64
 pub field antecedent_io::predictive_assessment_artifact::FitWire::kind: alloc::string::String
 pub field antecedent_io::predictive_assessment_artifact::FitWire::reason: core::option::Option<alloc::string::String>

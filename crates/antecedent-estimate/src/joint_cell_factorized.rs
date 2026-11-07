@@ -504,6 +504,8 @@ pub struct FactorizedJointFit {
     /// How the columns the fit read were prepared. A physical fact about the run, so it is
     /// not part of any identity; the same summary rides on [`Self::scores`].
     pub preparation: Option<Arc<crate::PreparationSummary>>,
+    /// Caller-supplied nuisance factories were not verified by this route.
+    pub external_nuisances_unverified: bool,
 }
 
 impl FactorizedJointFit {
@@ -652,14 +654,15 @@ fn cancelled() -> EstimationError {
 
 /// Learners resolved for the conditionals (binary probability) and the per-cell outcome models
 /// (regression) of a declared [`FactorizedJointConfig::learner`].
-struct LearnedNuisance {
-    outcome: Box<dyn LearnerFactory>,
+struct LearnedNuisance<'a> {
+    outcome: Box<dyn LearnerFactory + 'a>,
     outcome_spec: LearnerSpec,
-    propensity: Box<dyn LearnerFactory>,
+    propensity: Box<dyn LearnerFactory + 'a>,
     propensity_spec: LearnerSpec,
+    external: bool,
 }
 
-impl LearnedNuisance {
+impl LearnedNuisance<'_> {
     fn resolve(spec: LearnerSpec) -> Result<Self, EstimationError> {
         let outcome_spec = spec.for_task(PredictionTask::Regression);
         let propensity_spec = spec.for_task(PredictionTask::BinaryProbability);
@@ -679,10 +682,14 @@ impl LearnedNuisance {
             propensity: resolve_for(propensity_spec, PredictionTask::BinaryProbability)
                 .map_err(unavailable)?,
             propensity_spec,
+            external: false,
         })
     }
 
     fn identity(&self) -> String {
+        if self.external {
+            return "outcome=caller_factory;propensity=caller_factory;trust=unverified".to_owned();
+        }
         format!(
             "outcome={};propensity={}",
             self.outcome_spec.identity(),
@@ -723,7 +730,7 @@ fn learner_fold_predict(
         factory.fit(fit_view, TargetView::new(y), None, ctx).map_err(|error| error.to_string())?;
     let predict_view =
         view.with_rows(RowSelection::new(valid)).map_err(|error| error.to_string())?;
-    let mut predicted = vec![0.0; valid.len()];
+    let mut predicted = vec![f64::NAN; valid.len()];
     model.predict(predict_view, &mut predicted, ctx).map_err(|error| error.to_string())?;
     Ok((predicted, model.provenance()))
 }
@@ -738,7 +745,7 @@ struct ConditionalFits<'a> {
     config: &'a FactorizedJointConfig,
     problem: &'a Problem,
     folds: &'a [FoldSplit<'a>],
-    learned: Option<&'a LearnedNuisance>,
+    learned: Option<&'a LearnedNuisance<'a>>,
     cache: HashMap<ConditionalKey, Result<Vec<f64>, String>>,
     selections: Vec<RidgeFoldSelection>,
     provenances: Vec<LearnerProvenance>,
@@ -831,7 +838,7 @@ impl ConditionalFits<'_> {
     /// cells that need it); only cancellation is an `Err`.
     fn fit_learned(
         &mut self,
-        learned: &LearnedNuisance,
+        learned: &LearnedNuisance<'_>,
         fold: usize,
         rows: &[usize],
         target: usize,
@@ -851,6 +858,11 @@ impl ConditionalFits<'_> {
             self.ctx,
         ) {
             Ok((predicted, _)) if predicted.iter().any(|p| !(0.0..=1.0).contains(p)) => {
+                if learned.external {
+                    return Err(EstimationError::data_msg(
+                        "caller propensity factory returned an invalid probability",
+                    ));
+                }
                 Ok(Err(format!("fold {fold}: the learner returned a probability outside [0, 1]")))
             }
             Ok((predicted, provenance)) => {
@@ -858,6 +870,9 @@ impl ConditionalFits<'_> {
                 Ok(Ok(predicted))
             }
             Err(_) if self.ctx.cancellation.is_cancelled() => Err(cancelled()),
+            Err(reason) if learned.external => Err(EstimationError::data_msg(format!(
+                "caller propensity factory failed: {reason}"
+            ))),
             Err(reason) => Ok(Err(format!("fold {fold}: the learner failed: {reason}"))),
         }
     }
@@ -870,7 +885,7 @@ type LearnedOutcome = (Vec<f64>, Vec<LearnerProvenance>);
 /// learner provenance of every fold, or why the cell's model is unsupported. Only cancellation
 /// is an `Err`.
 fn learned_outcome_predictions(
-    learned: &LearnedNuisance,
+    learned: &LearnedNuisance<'_>,
     problem: &Problem,
     folds: &[FoldSplit<'_>],
     cell: u32,
@@ -899,6 +914,11 @@ fn learned_outcome_predictions(
             ctx,
         ) {
             Ok((predicted, _)) if predicted.iter().any(|p| !p.is_finite()) => {
+                if learned.external {
+                    return Err(EstimationError::data_msg(
+                        "caller outcome factory returned a non-finite value",
+                    ));
+                }
                 return Ok(Err(format!("fold {fold}: the learner returned a non-finite value")));
             }
             Ok((predicted, provenance)) => {
@@ -908,6 +928,11 @@ fn learned_outcome_predictions(
                 }
             }
             Err(_) if ctx.cancellation.is_cancelled() => return Err(cancelled()),
+            Err(reason) if learned.external => {
+                return Err(EstimationError::data_msg(format!(
+                    "caller outcome factory failed: {reason}"
+                )));
+            }
             Err(reason) => {
                 return Ok(Err(format!("fold {fold}: the outcome learner failed: {reason}")));
             }
@@ -919,7 +944,7 @@ fn learned_outcome_predictions(
 /// Provenance suffix of a learner-supplied table: the declared learner identity, the distinct
 /// fitted implementations, and the seeds that make the fit replayable.
 fn learned_suffix(
-    learned: &LearnedNuisance,
+    learned: &LearnedNuisance<'_>,
     provenances: &[LearnerProvenance],
     fold_seed: u64,
     ctx_seed: u64,
@@ -1167,6 +1192,74 @@ pub fn fit_factorized_joint_cells(
     )
 }
 
+/// Fit factorized joint-cell scores with caller-supplied nuisance factories.
+///
+/// Factories receive only selected rows and must declare the required regression or
+/// binary-probability task. Their provenance is marked unverified; fit failures stop
+/// the operation instead of publishing a partial result. The existing per-cell support
+/// checks and point-only inference policy remain in force.
+/// # Errors
+/// Invalid declarations, incompatible factories, invalid predictions, fit failure,
+/// cancellation, or a support or resource refusal.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the checked joint query and two factories are independent inputs"
+)]
+pub fn fit_factorized_joint_cells_with_factories(
+    data: &TabularData,
+    treatments: &[VariableId],
+    outcome: VariableId,
+    adjustment: &[VariableId],
+    orderings: &[Vec<usize>],
+    config: &FactorizedJointConfig,
+    ctx: &ExecutionContext,
+    outcome_factory: &dyn LearnerFactory,
+    propensity_factory: &dyn LearnerFactory,
+) -> Result<FactorizedJointFit, EstimationError> {
+    config.validate()?;
+    if config.learner.is_some() {
+        return Err(EstimationError::unsupported(
+            "caller factories cannot be combined with a built-in learner specification",
+        ));
+    }
+    for (factory, task) in [
+        (outcome_factory, PredictionTask::Regression),
+        (propensity_factory, PredictionTask::BinaryProbability),
+    ] {
+        if factory.task() != task {
+            return Err(crate::learn_nuisance::learn_err(
+                antecedent_learn::LearnError::TaskMismatch {
+                    requested: task,
+                    supported: factory.task(),
+                },
+            ));
+        }
+        let caps = factory.capabilities();
+        if !match task {
+            PredictionTask::Regression => caps.regression,
+            PredictionTask::BinaryProbability => caps.binary_probability,
+        } {
+            return Err(EstimationError::unsupported(
+                "caller factory does not declare the requested task capability",
+            ));
+        }
+    }
+    let learned = LearnedNuisance {
+        outcome: Box::new(antecedent_learn::IsolatedFactory::new(outcome_factory)),
+        outcome_spec: LearnerSpec::Linear(crate::LinearSpec::default()),
+        propensity: Box::new(antecedent_learn::IsolatedFactory::new(propensity_factory)),
+        propensity_spec: LearnerSpec::Logistic(crate::LogisticSpec::default()),
+        external: true,
+    };
+    fit_with_nuisance(
+        &JointCellRows { data, treatments, outcome, adjustment },
+        orderings,
+        config,
+        ctx,
+        Some(&learned),
+    )
+}
+
 // Parent-owned dense arrays and conditional cache only. Ridge/learner fitting
 // workspaces retain their own separate admission leases.
 fn factorized_parent_bytes(
@@ -1232,7 +1325,7 @@ fn fit_with_nuisance(
     orderings: &[Vec<usize>],
     config: &FactorizedJointConfig,
     ctx: &ExecutionContext,
-    learned: Option<&LearnedNuisance>,
+    learned: Option<&LearnedNuisance<'_>>,
 ) -> Result<FactorizedJointFit, EstimationError> {
     let JointCellRows { data, treatments, outcome, adjustment } = *rows;
     let k = treatments.len();
@@ -1425,6 +1518,7 @@ fn fit_with_nuisance(
         degenerate_conditionals: degenerate,
         scores: table,
         preparation: Some(Arc::clone(&problem.preparation)),
+        external_nuisances_unverified: learned.is_some_and(|item| item.external),
     })
 }
 
@@ -1469,6 +1563,54 @@ fn ordering_sensitivity(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn caller_factories_match_builtin_joint_scores_and_record_trust() {
+        let input = fixture(400, 17);
+        let ctx = ExecutionContext::for_tests(17);
+        let mut built_in = FactorizedJointConfig::new(RidgeTuning::default());
+        built_in.learner = Some(LearnerSpec::Linear(crate::LinearSpec::default()));
+        let mut external = built_in.clone();
+        external.learner = None;
+        let outcome = resolve_for(
+            LearnerSpec::Linear(crate::LinearSpec::default()),
+            PredictionTask::Regression,
+        )
+        .unwrap();
+        let propensity = resolve_for(
+            LearnerSpec::Logistic(crate::LogisticSpec::default()),
+            PredictionTask::BinaryProbability,
+        )
+        .unwrap();
+        let order = vec![vec![0, 1]];
+        let expected = fit_factorized_joint_cells(
+            &input.data,
+            &input.treatments,
+            input.outcome,
+            &input.adjustment,
+            &order,
+            &built_in,
+            &ctx,
+        )
+        .unwrap();
+        let actual = fit_factorized_joint_cells_with_factories(
+            &input.data,
+            &input.treatments,
+            input.outcome,
+            &input.adjustment,
+            &order,
+            &external,
+            &ctx,
+            outcome.as_ref(),
+            propensity.as_ref(),
+        )
+        .unwrap();
+        assert!(actual.external_nuisances_unverified);
+        assert!(actual.scores.nuisance_provenance.contains("trust=unverified"));
+        for (a, b) in actual.scores.scores.iter().zip(expected.scores.scores.iter()) {
+            assert!((a - b).abs() < 1e-10);
+        }
+    }
 
     #[test]
     fn factorized_parent_admission_refuses_before_cell_fits() {
@@ -1739,7 +1881,7 @@ mod tests {
     fn stubbed(
         outcome_fail: FailRule,
         propensity_fail: FailRule,
-    ) -> (LearnedNuisance, FitLog, FitLog) {
+    ) -> (LearnedNuisance<'static>, FitLog, FitLog) {
         let (outcome_log, propensity_log) = (FitLog::default(), FitLog::default());
         let outcome_spec = LearnerSpec::Linear(LinearSpec {});
         let propensity_spec = LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.0 });
@@ -1756,13 +1898,14 @@ mod tests {
                 fail: propensity_fail,
             }),
             propensity_spec,
+            external: false,
         };
         (learned, outcome_log, propensity_log)
     }
 
     fn run_stubbed(
         fixture: &Fixture,
-        learned: &LearnedNuisance,
+        learned: &LearnedNuisance<'_>,
     ) -> Result<FactorizedJointFit, EstimationError> {
         let mut config = FactorizedJointConfig::new(RidgeTuning::default());
         config.seed = 5;

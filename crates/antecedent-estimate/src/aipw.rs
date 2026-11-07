@@ -708,6 +708,53 @@ impl AipwAte {
         self.attach_bootstrap(problem, workspace, ctx, point)
     }
 
+    /// Fit the untrimmed, all-observed cross-fitted AIPW score with caller factories.
+    ///
+    /// This uses the same per-arm AIPW score as DML. It records the factories as
+    /// unverified and retains their fold provenance. Bootstrap, non-IID inference,
+    /// penalized fallback and cluster-DML routes are not implemented for this method.
+    ///
+    /// # Errors
+    ///
+    /// Refuses unsupported inference, target or nuisance options and any invalid
+    /// factory, fold, fit, prediction or overlap condition.
+    pub fn fit_with_factories(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        outcome: &dyn antecedent_learn::LearnerFactory,
+        treatment: &dyn antecedent_learn::LearnerFactory,
+    ) -> Result<EffectEstimate, EstimationError> {
+        self.require_point_route(problem)?;
+        if self.inference.bootstrap_replicates != 0
+            || self.inference.bootstrap_interval.is_some()
+            || !matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic)
+            || self.inference.cluster_ids.is_some()
+            || self.inference.source_cluster_ids.is_some()
+            || self.inference.multiway_ids.is_some()
+            || self.inference.panel_times.is_some()
+            || !matches!(
+                self.inference.sampling_design,
+                crate::util::SamplingDeclaration::Undeclared
+            )
+            || self.cluster_dml.is_some()
+            || !self.propensity.is_default()
+            || self.glm_options != GlmOptions::default()
+            || !matches!(problem.target_population, TargetPopulation::AllObserved)
+            || trim_of(problem.overlap).is_some()
+        {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "factory-based AIPW requires an untrimmed all-observed target, IID analytic inference, no bootstrap, and default built-in nuisance options",
+            ));
+        }
+        crate::DmlAte::new()
+            .with_folds(crate::crossfit_aipw::DEFAULT_AIPW_FOLDS)
+            .with_overlap(problem.overlap)
+            .fit_with_factories(problem, ctx, assumptions, outcome, treatment)
+    }
+
     /// Form a population interval under independent homoskedastic Gaussian arm-linear
     /// outcomes, including the complete training-fold outcome-fit uncertainty.
     ///

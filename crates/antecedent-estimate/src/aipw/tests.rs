@@ -26,6 +26,42 @@ use super::*;
 use crate::overlap::OverlapPolicy;
 use antecedent_kernels::standard_normal;
 
+#[test]
+fn external_factory_aipw_matches_the_builtin_score_and_refuses_bootstrap() {
+    use antecedent_learn::{LearnerSpec, LinearSpec, LogisticSpec, PredictionTask, resolve_for};
+    let (data, estimand) = confounded_scm(300, 12);
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let estimator = AipwAte::new().with_bootstrap_replicates(0);
+    let prep = estimator.prepare(&data, &estimand, &query).unwrap();
+    let outcome =
+        resolve_for(LearnerSpec::Linear(LinearSpec::default()), PredictionTask::Regression)
+            .unwrap();
+    let treatment = resolve_for(
+        LearnerSpec::Logistic(LogisticSpec::default()),
+        PredictionTask::BinaryProbability,
+    )
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(3);
+    let built_in =
+        estimator.fit(&prep, &mut AipwWorkspace::default(), &ctx, AssumptionSet::new()).unwrap();
+    let external = estimator
+        .fit_with_factories(&prep, &ctx, AssumptionSet::new(), outcome.as_ref(), treatment.as_ref())
+        .unwrap();
+    assert!((built_in.ate - external.ate).abs() < 1e-8);
+    assert_eq!(external.crossfit.learner_provenance.len(), 15);
+    assert!(
+        AipwAte::new()
+            .fit_with_factories(
+                &prep,
+                &ctx,
+                AssumptionSet::new(),
+                outcome.as_ref(),
+                treatment.as_ref()
+            )
+            .is_err()
+    );
+}
+
 /// Confounded SCM: `Z ~ N(0,1)`, `T ~ Bernoulli(logit(-0.5 + Z))`, `Y = 2T + Z + noise`.
 /// True ATE = 2. Matches the propensity-estimator test fixture (`crate::propensity`).
 fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {

@@ -268,6 +268,8 @@ pub struct CrossfitRecord {
     pub folds: Option<usize>,
     /// Master seed used for nuisance cross-fitting.
     pub seed: Option<u64>,
+    /// Fold id per retained row, when the executing route records it.
+    pub fold_assignment: Option<Arc<[u32]>>,
     /// Actual fitted learner identities, in fold order (control, treated, propensity
     /// for AIPW; outcome folds then treatment folds for PLR; final CATE fit last).
     pub learner_provenance: Vec<antecedent_learn::LearnerProvenance>,

@@ -11,6 +11,7 @@ import contextlib
 import hashlib
 import json
 import re
+import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -696,6 +697,7 @@ class ProviderRegistry:
         self._providers: dict[str, tuple[ExecutableProvider, ProviderTrust]] = {}
         self._entry_points: dict[str, str] = {}
         self._verification: dict[str, ProviderVerificationReceipt] = {}
+        self._execution_lock = threading.RLock()
 
     def load_entry_point(self, name: str) -> CausalProvider:
         """Explicitly load one installed ``antecedent.providers`` entry point.
@@ -1031,6 +1033,11 @@ class ProviderRegistry:
             ) from exc
 
     def execute(self, name: str, request: Mapping[str, Any]) -> ProviderResult:
+        """Execute a provider under this registry's serialized callback boundary."""
+        with self._execution_lock:
+            return self._execute(name, request)
+
+    def _execute(self, name: str, request: Mapping[str, Any]) -> ProviderResult:
         provider, trust = self._entry(name)
         spec = provider.spec
         report = self._verification.get(name)

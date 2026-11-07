@@ -193,6 +193,32 @@ pub(crate) fn predictor_digest(
         FitDeclaration::Undeclared { reason } => {
             writer.word(3).text(reason);
         }
+        FitDeclaration::PerCase(fits) => {
+            writer.word(4).word(order.len() as u64);
+            for &index in order {
+                match fits.get(index) {
+                    Some(FitDeclaration::FittedOn(keys)) => {
+                        let sorted = super::overlap::sorted_distinct(keys);
+                        writer.word(1).word(sorted.len() as u64);
+                        for key in sorted {
+                            writer.bytes(key.as_bytes());
+                            if bind_provenance {
+                                writer.word(u64::from(key.is_caller_minted()));
+                            }
+                        }
+                    }
+                    Some(FitDeclaration::NotFitted) => {
+                        writer.word(2);
+                    }
+                    Some(FitDeclaration::Undeclared { reason }) => {
+                        writer.word(3).text(reason);
+                    }
+                    Some(FitDeclaration::PerCase(_)) | None => {
+                        writer.word(0);
+                    }
+                }
+            }
+        }
     }
     writer.word(order.len() as u64);
     for &i in order {

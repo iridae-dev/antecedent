@@ -4411,6 +4411,7 @@ pub variant antecedent_validate::predictive_assessment::FiniteTruth::Real { supp
 pub variant antecedent_validate::predictive_assessment::FiniteTruth::Vector { dimension: usize, atoms: alloc::vec::Vec<f64>, probabilities: alloc::vec::Vec<f64> }
 pub variant antecedent_validate::predictive_assessment::FitDeclaration::FittedOn(alloc::vec::Vec<antecedent_validate::predictive_assessment::ObservationKey>)
 pub variant antecedent_validate::predictive_assessment::FitDeclaration::NotFitted
+pub variant antecedent_validate::predictive_assessment::FitDeclaration::PerCase(alloc::vec::Vec<antecedent_validate::predictive_assessment::FitDeclaration>)
 pub variant antecedent_validate::predictive_assessment::FitDeclaration::Undeclared { reason: alloc::string::String }
 pub variant antecedent_validate::predictive_assessment::ForecastLaw::Bernoulli { probability: f64 }
 pub variant antecedent_validate::predictive_assessment::ForecastLaw::Categorical { probabilities: alloc::vec::Vec<f64> }

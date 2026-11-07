@@ -17025,6 +17025,7 @@ pub mod antecedent::estimate::cyclic_likelihood
 pub mod antecedent::estimate::dose_basis_regression
 pub mod antecedent::estimate::experimental_fit
 pub mod antecedent::estimate::external_cyclic_fit
+pub mod antecedent::estimate::external_learner
 pub mod antecedent::estimate::factorial_bernoulli
 pub mod antecedent::estimate::fit_counts
 pub mod antecedent::estimate::joint_bayesian_transport
@@ -21464,11 +21465,25 @@ pub use antecedent::estimate::estimate_interference_with_context = antecedent_es
 pub use antecedent::estimate::estimate_observational_exposure = antecedent_estimate::estimate_observational_exposure
 pub use antecedent::estimate::estimate_sampled_recovery = antecedent_estimate::estimate_sampled_recovery
 pub use antecedent::estimate::estimate_saturation_interference = antecedent_estimate::estimate_saturation_interference
+pub use antecedent::estimate::estimate_smoothed_dose_with_factories = antecedent_estimate::estimate_smoothed_dose_with_factories
+pub use antecedent::estimate::estimate_trial_aipw_with_factories = antecedent_estimate::estimate_trial_aipw_with_factories
 pub use antecedent::estimate::experimental_fit::ExperimentalFitError = antecedent_estimate::experimental_fit::ExperimentalFitError
 pub use antecedent::estimate::external_cyclic_fit::ExternalFitPolicy = antecedent_estimate::external_cyclic_fit::ExternalFitPolicy
 pub use antecedent::estimate::external_cyclic_fit::fit_external_feedback = antecedent_estimate::external_cyclic_fit::fit_external_feedback
+pub use antecedent::estimate::external_learner::AipwCrossFitError = antecedent_learn::aipw_crossfit::AipwCrossFitError
+pub use antecedent::estimate::external_learner::DesignView = antecedent_learn::DesignView
+pub use antecedent::estimate::external_learner::FittedPredictor = antecedent_learn::FittedPredictor
+pub use antecedent::estimate::external_learner::IsolatedFactory = antecedent_learn::IsolatedFactory
+pub use antecedent::estimate::external_learner::LearnError = antecedent_learn::LearnError
+pub use antecedent::estimate::external_learner::LearnerCapabilities = antecedent_learn::LearnerCapabilities
+pub use antecedent::estimate::external_learner::LearnerFactory = antecedent_learn::LearnerFactory
+pub use antecedent::estimate::external_learner::LearnerProvenance = antecedent_learn::LearnerProvenance
+pub use antecedent::estimate::external_learner::PredictionTask = antecedent_learn::PredictionTask
+pub use antecedent::estimate::external_learner::TargetView = antecedent_learn::TargetView
+pub use antecedent::estimate::external_learner::cross_fit_aipw_with_factories = antecedent_learn::aipw_crossfit::cross_fit_aipw_with_factories
 pub use antecedent::estimate::factorial_bernoulli::estimate_factorial_2x2 = antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2
 pub use antecedent::estimate::fit_counts::count_resolved_fits = antecedent_learn::fit_counts::count_resolved_fits
+pub use antecedent::estimate::fit_factorized_joint_cells_with_factories = antecedent_estimate::fit_factorized_joint_cells_with_factories
 pub use antecedent::estimate::joint_bayesian_transport::DataIdentity = antecedent_estimate::joint_bayesian_transport::DataIdentity
 pub use antecedent::estimate::joint_bayesian_transport::GaussianPrior = antecedent_estimate::joint_bayesian_transport::GaussianPrior
 pub use antecedent::estimate::joint_bayesian_transport::JointPriors = antecedent_estimate::joint_bayesian_transport::JointPriors
@@ -22109,6 +22124,7 @@ pub use antecedent::io::admg_with_names_from_json = antecedent_io::graph_mixed::
 pub use antecedent::io::admg_with_names_from_networkx_node_link = antecedent_io::graph_mixed::admg_with_names_from_networkx_node_link
 pub use antecedent::io::admitted_json::AdmittedJson = antecedent_io_core::admitted_json::AdmittedJson
 pub use antecedent::io::array_fit_artifact::inspect_array_fit_header = antecedent_io::array_fit_artifact::inspect_array_fit_header
+pub use antecedent::io::assumptions_to_wire = antecedent_io::assumptions_to_wire
 pub use antecedent::io::bayesian_prior_recalc_artifact::BOUND_PRIOR_MAGIC = antecedent_io::bayesian_prior_recalc_artifact::BOUND_PRIOR_MAGIC
 pub use antecedent::io::bayesian_prior_recalc_artifact::BoundBayesianPriorWire = antecedent_io::bayesian_prior_recalc_artifact::BoundBayesianPriorWire
 pub use antecedent::io::calibration::CONSTRUCTION_NOT_MEASURED = antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED
