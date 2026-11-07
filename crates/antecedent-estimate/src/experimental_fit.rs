@@ -1869,9 +1869,9 @@ pub struct BootstrapSpec<'a> {
 
 mod bootstrap;
 
-pub use bootstrap::bootstrap_experimental_recovery;
 #[cfg(test)]
 use bootstrap::ResamplingPlan;
+pub use bootstrap::bootstrap_experimental_recovery;
 
 /// Prior and schedule of [`posterior_recovery`].
 #[derive(Clone, Debug, PartialEq)]
