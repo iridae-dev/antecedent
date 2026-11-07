@@ -123,6 +123,7 @@ fn posterior(look: u32) -> AdaptiveResultSpec {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the artifact contains exact deterministic result values")]
 fn group_sequential_replays_each_performed_look_and_rejects_duplicate_arms() {
     let mut declaration = thompson();
     declaration.cell.assignment = AssignmentFamily::FixedRandomization;

@@ -41,8 +41,8 @@ record_sha256 = "3b8e7445e1229db07d3db61bc36f9211bb96b958d9aea3a89258840a398a6f7
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dr.rs"
-items = ["const FINAL_EFFECT_FITS", "fn default", "fn fit", "fn fit_from_nuisance", "fn fit_pointwise_profiles", "fn fit_with_profiles", "fn linear_cate_pointwise_se", "fn new", "fn pointwise_profile_results", "fn prepare", "fn publish_units", "fn with_sampling_weights", "struct CateProfile", "struct DrLearner", "struct PointwiseCateEstimate"]
-sha256 = "ea1d47273e443ec4569c154d3225c1cfd5242dc134bd84cab2dc7452f4365e8d"
+items = ["const FINAL_EFFECT_FITS", "fn default", "fn fit", "fn fit_from_nuisance", "fn fit_pointwise_profiles", "fn fit_with_profiles", "fn linear_cate_pointwise_se", "fn new", "fn pointwise_profile_results", "fn prepare", "fn publish_units", "fn with_sampling_weights", "struct CateProfile", "struct DrLearner", "struct PointwiseCateEstimate", "type CateFitResult"]
+sha256 = "dd1248de1d7c2c6400ddfbc7e7d35e1c4a7bb536f788d2606ce9fff4b2c52460"
 
 [[method_review.artifacts]]
 role = "assertion"

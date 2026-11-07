@@ -1,7 +1,7 @@
 //! Python execution-context setup and cooperative cancellation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{CachePolicy, ExecutionContext, execution_api, interrupt, pyclass, pymethods};
 
 /// Default coalition / semantic cache budget for Python production contexts
 /// (matches attribution bench policy).

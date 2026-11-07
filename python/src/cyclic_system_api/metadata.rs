@@ -1,7 +1,7 @@
 //! Projections of cyclic execution and contract metadata.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{CyclicExecutionOwner, PyResult};
 
 pub(super) fn origin_metadata(
     origin: &antecedent::analysis::RecoveredDrawOriginWire,

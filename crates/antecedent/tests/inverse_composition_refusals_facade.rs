@@ -312,9 +312,14 @@ fn a_finite_query_of_a_gaussian_composition_is_an_unsupported_request_not_an_inv
 
 #[test]
 fn a_composed_refusal_of_the_forward_source_stays_a_source_refusal() {
-    // Level coding is the adapter's refusal, not the composition's: it keeps its own type.
-    let prepared = StudyBuilder::mechanism_composition(request_of(bare_chain()), &ctx()).unwrap();
-    let mut actions = law_actions(&[0.0]);
+    // An outcome-law coordinate on a mean composition is the adapter's refusal, not the
+    // composition's: it keeps its own type.
+    let mut request = request_of(uncertain_chain());
+    request.dependence = DependenceInput::IndependentByDesign {
+        justification: "independent mechanism fit samples".into(),
+    };
+    let prepared = StudyBuilder::mechanism_composition(request, &ctx()).unwrap();
+    let mut actions = contrast_actions(&[0.0, 1.0]);
     actions[0].coordinate = coordinate("Y", "do(X=0)", "outcome");
     let error =
         prepared.inverse_forward_source_typed(&actions, None, native(), &ctx()).unwrap_err();

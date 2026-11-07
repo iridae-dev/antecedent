@@ -18,6 +18,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .errors import CausalValueError
+from .execution import Execution, native_controls
 from .extensibility import (
     ProviderCapability,
     ProviderRegistry,
@@ -244,12 +245,10 @@ def dml_ate(
     treatment: ExternalLearner,
     folds: int = 5,
     weights: Any | None = None,
-    seed: int = 1,
     fold_policy: Literal["iid", "temporal"] = "iid",
-    cancel: Any | None = None,
     estimator: Literal["dml", "aipw", "dr_learner", "causal_forest"] = "dml",
     score: Literal["aipw", "partially_linear"] = "aipw",
-    memory_limit_bytes: int | None = None,
+    execution: Execution | None = None,
 ) -> ExternalAteEstimate:
     """Identify a static DAG and fit its binary-treatment DML AIPW estimate.
 
@@ -293,11 +292,14 @@ def dml_ate(
             treatment,
             folds=folds,
             weights=None if selected_weights is None else selected_weights.tolist(),
-            seed=seed,
-            cancel=cancel,
             method=estimator,
             score=score,
-            memory_limit_bytes=memory_limit_bytes,
+            **native_controls(
+                execution,
+                seed="seed",
+                cancel="cancel",
+                memory="memory_limit_bytes",
+            ),
         )
     )
     return ExternalAteEstimate(
@@ -346,10 +348,8 @@ def cross_fit_aipw(
     fold_ids: Any,
     *,
     weights: Any | None = None,
-    seed: int = 1,
     fold_policy: Literal["iid", "temporal"] = "iid",
-    cancel: Any | None = None,
-    memory_limit_bytes: int | None = None,
+    execution: Execution | None = None,
 ) -> CrossFittedAipwNuisances:
     """Run native AIPW nuisance cross-fitting on an explicit fold assignment.
 
@@ -384,9 +384,12 @@ def cross_fit_aipw(
         arms.tolist(),
         folds.tolist(),
         weights=None if selected_weights is None else selected_weights.tolist(),
-        seed=seed,
-        cancel=cancel,
-        memory_limit_bytes=memory_limit_bytes,
+        **native_controls(
+            execution,
+            seed="seed",
+            cancel="cancel",
+            memory="memory_limit_bytes",
+        ),
     )
     return CrossFittedAipwNuisances(
         tuple(m0),

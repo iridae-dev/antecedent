@@ -1092,7 +1092,7 @@ mod tests {
             pooled_class_frequencies(&representatives, &counts).unwrap();
         assert_eq!(signatures, vec![3, 9]);
         assert_eq!(pooled, vec![0.5, 0.5]);
-        assert_eq!(agreement, 0.25);
+        assert_eq!(agreement.to_bits(), 0.25_f64.to_bits());
         assert!(pooled_class_frequencies(&representatives, &[HashMap::new()]).is_err());
     }
 

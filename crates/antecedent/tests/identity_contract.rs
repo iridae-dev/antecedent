@@ -4744,9 +4744,8 @@ fn claim_handoff_sender_restricted_forward_preserves_losses() {
         .unwrap()
         .prepare(&ctx)
         .unwrap();
-    let contract = prepared.contract().unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let claim = result.claim(&contract, &ctx).unwrap();
+    let (_, claim) = prepared.execution_contract(&result, &ctx).unwrap();
     assert_eq!(claim.kind, ClaimKind::Point);
     assert_eq!(claim.domain(ClaimDomainAxis::Identification), DomainStatus::Identified);
     assert_eq!(claim.domain(ClaimDomainAxis::Evaluated), DomainStatus::Evaluated);

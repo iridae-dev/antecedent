@@ -627,7 +627,6 @@ struct MatchedHistories {
 }
 
 /// A caliper is a maximum distance: finite and non-negative.
-
 fn match_histories(
     caliper: Option<f64>,
     units: &[HistoryUnit],

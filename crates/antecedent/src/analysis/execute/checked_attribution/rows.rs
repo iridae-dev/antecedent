@@ -183,12 +183,9 @@ impl CheckedAttributionOperation {
         if bytes > budget.limits().max_bytes {
             return Err(CausalError::Resource { message: "temporal result row byte limit".into() });
         }
-        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: "temporal attribution" }
-            }
-            other => CausalError::Resource { message: other.to_string() },
-        })?;
+        let lease = ctx
+            .acquire_admission(0, bytes)
+            .map_err(|error| crate::error::resource_admission_error(error, "temporal attribution"))?;
         Ok(Some(Arc::new(lease)))
     }
 
@@ -334,12 +331,9 @@ impl CheckedAttributionOperation {
         budget
             .charge_work(work)
             .map_err(|error| CausalError::Resource { message: error.to_string() })?;
-        let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: "temporal attribution" }
-            }
-            other => CausalError::Resource { message: other.to_string() },
-        })?;
+        let lease = ctx
+            .acquire_admission(0, bytes)
+            .map_err(|error| crate::error::resource_admission_error(error, "temporal attribution"))?;
         let mut positions = Vec::new();
         positions.try_reserve_exact(count).map_err(|_| CausalError::Resource {
             message: "temporal selector allocation refused".into(),

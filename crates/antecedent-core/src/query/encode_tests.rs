@@ -1705,6 +1705,10 @@ fn temporal_design() -> TemporalDesignQuery {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one fixture checks every field in the encoded temporal design"
+)]
 fn the_temporal_design_kind_appends_its_tag_and_every_field_reaches_the_bytes() {
     assert_eq!(
         digest(&CausalQuery::TemporalDesign(temporal_design())),

@@ -190,12 +190,13 @@ impl RefutationTarget {
                 message: "a refutation-target coordinate label is empty",
             });
         }
-        let identity = antecedent_core::identity::refutation_target_identity(
-            family.as_str(),
-            quadrant.as_str(),
-            &labels,
-            &source,
-        );
+        let mut writer = CanonicalWriter::new("antecedent.refutation_target");
+        writer
+            .text(family.as_str())
+            .text(quadrant.as_str())
+            .texts(&labels)
+            .bytes(&source);
+        let identity = writer.finish();
         Ok(Self { family, quadrant, labels, source, identity })
     }
 

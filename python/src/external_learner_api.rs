@@ -12,9 +12,11 @@ use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
+type PythonReceipt = (u64, Py<PyAny>, Py<PyAny>);
+
 struct CallbackState {
     error: Mutex<Option<PyErr>>,
-    receipts: Mutex<Vec<(u64, Py<PyAny>, Py<PyAny>)>>,
+    receipts: Mutex<Vec<PythonReceipt>>,
     next: AtomicU64,
 }
 
@@ -54,7 +56,7 @@ fn admission_error(error: impl std::fmt::Display, ctx: &ExecutionContext) -> PyE
     if ctx.cancellation.is_cancelled() {
         crate::py_err(antecedent::CausalError::Cancelled { stage: "nuisance" })
     } else {
-        pyo3::exceptions::PyValueError::new_err(error.to_string())
+        crate::value_err(error.to_string())
     }
 }
 
@@ -68,7 +70,7 @@ fn callback_context(
     ctx.parallelism.max_threads = std::num::NonZeroU32::MIN;
     match (ctx.memory_limit_bytes(), limit) {
         (Some(existing), Some(requested)) if requested < existing => {
-            return Err(pyo3::exceptions::PyValueError::new_err(
+            return Err(crate::value_err(
                 "a smaller per-call memory limit cannot replace an active shared execution budget",
             ));
         }
@@ -144,7 +146,7 @@ impl FittedPredictor for PythonPredictor {
             let result = fitted.call_method1("predict", (matrix,))?;
             let values: Vec<f64> = result.getattr("estimate")?.call_method0("tolist")?.extract()?;
             if values.len() != out.len() {
-                return Err(pyo3::exceptions::PyValueError::new_err(
+                return Err(crate::value_err(
                     "provider prediction length does not match held-out rows",
                 ));
             }
@@ -189,12 +191,12 @@ fn external_aipw_crossfit(
     seed: u64,
     cancel: Option<crate::PyCancellationToken>,
     memory_limit_bytes: Option<u64>,
-) -> PyResult<(Vec<f64>, Vec<f64>, Vec<f64>, Vec<Vec<String>>, Vec<(u64, Py<PyAny>, Py<PyAny>)>)> {
+) -> PyResult<(Vec<f64>, Vec<f64>, Vec<f64>, Vec<Vec<String>>, Vec<PythonReceipt>)> {
     if design.is_empty()
         || design[0].is_empty()
         || design.iter().any(|row| row.len() != design[0].len())
     {
-        return Err(pyo3::exceptions::PyValueError::new_err(
+        return Err(crate::value_err(
             "design must be a nonempty rectangular matrix",
         ));
     }
@@ -206,11 +208,11 @@ fn external_aipw_crossfit(
         .and_then(|v| v.checked_mul(n))
         .and_then(|v| v.checked_mul(8))
         .and_then(|v| u64::try_from(v).ok())
-        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("design size overflow"))?;
+        .ok_or_else(|| crate::value_err("design size overflow"))?;
     let _input_hold = ctx.acquire_admission(0, bytes).map_err(|e| admission_error(e, &ctx))?;
     let mut column_major = Vec::with_capacity(
         n.checked_mul(cols)
-            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("design size overflow"))?,
+            .ok_or_else(|| crate::value_err("design size overflow"))?,
     );
     for c in 0..cols {
         for row in &design {
@@ -221,7 +223,7 @@ fn external_aipw_crossfit(
         let bound = obj.bind(py);
         let task: String = bound.getattr("task")?.extract()?;
         if task != expected {
-            return Err(pyo3::exceptions::PyValueError::new_err("nuisance learner task mismatch"));
+            return Err(crate::value_err("nuisance learner task mismatch"));
         }
         bound.getattr("supports_weights")?.extract()
     };
@@ -269,7 +271,7 @@ fn external_aipw_crossfit(
         antecedent::estimate::external_learner::AipwCrossFitError::Cancelled => {
             crate::py_err(antecedent::CausalError::Cancelled { stage: "nuisance" })
         }
-        other => pyo3::exceptions::PyValueError::new_err(other.to_string()),
+        other => crate::value_err(other.to_string()),
     })?;
     let provenance = record
         .model_provenance
@@ -317,11 +319,11 @@ fn external_dml_ate(
     String,
     Option<Vec<f64>>,
     Option<Vec<f64>>,
-    Vec<(u64, Py<PyAny>, Py<PyAny>)>,
+    Vec<PythonReceipt>,
 )> {
     use antecedent::data::TableView;
     if names.len() != columns.len() || names.is_empty() {
-        return Err(pyo3::exceptions::PyValueError::new_err(
+        return Err(crate::value_err(
             "one data column is required per name",
         ));
     }
@@ -329,7 +331,7 @@ fn external_dml_ate(
         let bound = obj.bind(py);
         let task: String = bound.getattr("task")?.extract()?;
         if task != expected {
-            return Err(pyo3::exceptions::PyValueError::new_err("nuisance learner task mismatch"));
+            return Err(crate::value_err("nuisance learner task mismatch"));
         }
         bound.getattr("supports_weights")?.extract()
     };
@@ -344,7 +346,7 @@ fn external_dml_ate(
     let result: PyResult<_> = py.detach(|| {
         let bytes = columns.iter().try_fold(0usize, |sum, column| sum.checked_add(column.len()))
             .and_then(|n| n.checked_mul(16)).and_then(|n| u64::try_from(n).ok())
-            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("input size overflow"))?;
+            .ok_or_else(|| crate::value_err("input size overflow"))?;
         let _input_hold = ctx.acquire_admission(0, bytes).map_err(|e| admission_error(e, &ctx))?;
         let data = antecedent::prelude::TabularData::from_f64_columns(
             names.iter().zip(&columns).map(|(name, column)| (name.as_str(), column.as_slice())),
@@ -360,19 +362,19 @@ fn external_dml_ate(
             .identify_structure_within(&ctx)
             .map_err(crate::py_err)?;
         if !identification.is_identified() {
-            return Err(pyo3::exceptions::PyValueError::new_err(
+            return Err(crate::value_err(
                 "DML requires an identified adjustment estimand",
             ));
         }
         let estimand = identification.estimands().first().ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err(
+            crate::value_err(
                 "identification produced no adjustment estimand",
             )
         })?;
         let assumptions = match &identification {
             antecedent::Identification::Point { result, .. } => result.required_assumptions.clone(),
             _ => {
-                return Err(pyo3::exceptions::PyValueError::new_err(
+                return Err(crate::value_err(
                     "DML requires point identification",
                 ));
             }
@@ -409,12 +411,12 @@ fn external_dml_ate(
             }
             "aipw" => {
                 if score != "aipw" {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
+                    return Err(crate::value_err(
                         "AIPW requires the AIPW score",
                     ));
                 }
                 if folds != 5 {
-                    return Err(pyo3::exceptions::PyValueError::new_err("AIPW uses five folds"));
+                    return Err(crate::value_err("AIPW uses five folds"));
                 }
                 let mut estimator =
                     antecedent::estimate::AipwAte::new().with_bootstrap_replicates(0);
@@ -428,7 +430,7 @@ fn external_dml_ate(
                 (problem, effect)
             }
             "dr_learner" => {
-                if score != "aipw" { return Err(pyo3::exceptions::PyValueError::new_err("DR learner requires the AIPW score")); }
+                if score != "aipw" { return Err(crate::value_err("DR learner requires the AIPW score")); }
                 let mut estimator = antecedent::estimate::DrLearner::new().with_folds(folds);
                 if let Some(weights) = sampling { estimator = estimator.with_sampling_weights(weights); }
                 let problem = estimator.prepare(&data, estimand, &query).map_err(crate::py_err)?;
@@ -437,14 +439,14 @@ fn external_dml_ate(
             }
             "causal_forest" => {
                 if score != "aipw" || folds != 5 || sampling.is_some() {
-                    return Err(pyo3::exceptions::PyValueError::new_err("causal forest requires its five-fold AIPW score and does not support sampling weights"));
+                    return Err(crate::value_err("causal forest requires its five-fold AIPW score and does not support sampling weights"));
                 }
                 let estimator = antecedent::estimate::CausalForest::new();
                 let problem = estimator.prepare(&data, estimand, &query).map_err(crate::py_err)?;
                 let effect = estimator.fit_with_factories(&problem, &ctx, assumptions, &outcome, &treatment).map_err(crate::py_err)?;
                 (problem, effect)
             }
-            _ => return Err(pyo3::exceptions::PyValueError::new_err("unknown external estimator")),
+            _ => return Err(crate::value_err("unknown external estimator")),
         };
         let row_ids = problem.row_index.iter().map(|row| row.get()).collect();
         let adjustment = problem.adjustment_set.iter().map(|id| id.raw()).collect();
@@ -458,7 +460,7 @@ fn external_dml_ate(
         let assumptions = serde_json::to_string(&antecedent::io::assumptions_to_wire(
             &effect.provenance.assumptions,
         ))
-        .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))?;
+        .map_err(|error| crate::value_err(error.to_string()))?;
         Ok((
             effect.ate,
             effect.se_analytic(),

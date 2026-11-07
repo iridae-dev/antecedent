@@ -1,7 +1,13 @@
 //! Evidence relations, operations and atom combination.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    AtomCombination, AtomEvidence, AtomPlan, Bound, BoundaryError, CompositionOperation,
+    DecisionInput, DependenceRoute, Deserialize, EvidenceRelation, Pair, PairRelation,
+    PyDecisionInput, PyModule, PyModuleMethods, PyRef, PyResult, RouteKind, StructuralAtom,
+    boundary_refusal, check_atom_combination, check_composition, check_paired_draws, check_size,
+    json, pyfunction, wrap_pyfunction,
+};
 
 // ---------------------------------------------------------------------------
 // Evidence relations, declared operations and atom combination.

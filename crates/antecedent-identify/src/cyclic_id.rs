@@ -583,7 +583,7 @@ mod invalid_refusal_tests {
         for value in ["", "line\nbreak: \"quoted\""] {
             match invalid(value) {
                 CyclicIdError::Invalid(message) => assert_eq!(message, value),
-                other => panic!("unexpected error: {other}"),
+                other @ CyclicIdError::Resource(_) => panic!("unexpected error: {other}"),
             }
         }
     }

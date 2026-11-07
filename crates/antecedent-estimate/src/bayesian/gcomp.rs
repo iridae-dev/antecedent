@@ -496,10 +496,6 @@ impl BayesianGComputationAte {
     /// # Errors
     ///
     /// Backend / evaluation failures.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one linear fit: draw, optional interval supplement, then summaries"
-    )]
     pub fn fit(
         &self,
         problem: &PreparedBayesianProblem,
@@ -1001,7 +997,7 @@ impl EffectEvaluation<'_> {
             let plan = AdaptiveRedraw {
                 map: &fit.map,
                 cov,
-                seed: seed,
+                seed,
                 max_draws,
                 budget: ctx.adaptive_draws,
             };

@@ -1211,11 +1211,12 @@ fn parse_requested_kind(kind: &str) -> PyResult<ValueKind> {
 mod compact_refusal_caller_tests {
     #[test]
     fn kind_parse_keeps_names_and_unknown_text() {
+        use pyo3::prelude::*;
+
         pyo3::Python::initialize();
         assert_eq!(super::parse_requested_kind("mean").unwrap(), super::ValueKind::Mean);
         pyo3::Python::attach(|py| {
             let error = super::parse_requested_kind("unknown\nkind").unwrap_err();
-            use pyo3::prelude::*;
             assert_eq!(
                 error.value(py).str().unwrap().to_str().unwrap(),
                 "unknown value kind `unknown\nkind`"

@@ -167,7 +167,7 @@ impl PreparedStudy {
     ) -> Result<TargetWeightsIdentityWire, CausalError> {
         let identities = self.contract()?.identities;
         let score=self.retarget_reuse_digest(&identities)?.ok_or(CausalError::Unsupported {
-            message:"row-weight target requires frozen scores or a compatible retained adjusted fit",
+            message:"row-weight target requires a prepared score table (frozen scores) or a compatible retained adjusted fit",
         })?;
         Ok(TargetWeightsIdentityWire::new(weights, identities.data_snapshot, score, depends_on))
     }

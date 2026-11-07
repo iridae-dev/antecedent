@@ -485,12 +485,12 @@ mod tests {
         let outcome = ConstantFactory {
             task: PredictionTask::Regression,
             value: 2.0,
-            rows: Default::default(),
+            rows: std::sync::Mutex::default(),
         };
         let treatment = ConstantFactory {
             task: PredictionTask::BinaryProbability,
             value: 0.5,
-            rows: Default::default(),
+            rows: std::sync::Mutex::default(),
         };
         let ctx = ExecutionContext::for_tests(1);
         let (_, _, p, record) = cross_fit_aipw_with_factories(
@@ -519,7 +519,7 @@ mod tests {
         let bad = ConstantFactory {
             task: PredictionTask::BinaryProbability,
             value: 1.1,
-            rows: Default::default(),
+            rows: std::sync::Mutex::default(),
         };
         assert!(
             cross_fit_aipw_with_factories(&outcome, &bad, x, x, &y, &t, (2, ids), &ctx, None)

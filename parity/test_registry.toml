@@ -23166,3 +23166,10 @@ crate = "antecedent-learn"
 cargo_target = "lib"
 path = "crates/antecedent-learn/src/learner.rs"
 gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-src-predictive-assessment-api-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/predictive_assessment_api.rs"
+gates = ["inventory"]

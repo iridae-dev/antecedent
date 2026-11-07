@@ -864,8 +864,6 @@ fn matched_outcome_diffs(
     MatchedDiffs { diffs, queries: used_queries, pool, spans }
 }
 
-/// A caliper is a maximum distance: finite and non-negative.
-
 /// Exact nearest-donor index for one scalar score.
 ///
 /// Donors stay in the index after a query matches them, so a later query can use the same
@@ -1443,7 +1441,6 @@ pub(crate) fn matching_contrast(
 /// - **ATT/ATC** (`ate_form = false`): `Var = σ̂² (n + Σⱼ uⱼ²) / n²`
 /// - **ATE** (`ate_form = true`): `Var = σ̂² Σⱼ (1 + uⱼ)² / n²`
 ///   `= σ̂² (n_donors + 2 Σ u + Σ u²) / n²` (the ATT form misses the cross term).
-
 #[cfg(test)]
 fn abadie_imbens_se(effects: &[f64], donor_usage: &[f64], ate_form: bool, noise_share: f64) -> f64 {
     let n = effects.len();

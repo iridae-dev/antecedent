@@ -6,8 +6,8 @@ the exact request. Verification of one fold, prediction, or forecast origin does
 different request. Provider receipts remain attached to the returned result.
 Provider calls through one registry are serialized, and Antecedent admits its bridge data copies;
 provider-internal threads, devices, memory, model artifacts, retained receipts, and external
-service calls are not bounded by that admission. Pass `memory_limit_bytes` to the
-estimation or cross-fitting entry point to bound the native execution's admitted memory.
+service calls are not bounded by that admission. Pass `execution=Execution(limits=ResourceLimits(memory_bytes=...))`
+to the estimation or cross-fitting entry point to bound the native execution's admitted memory.
 An already active shared execution budget is preserved; a request for a smaller independent
 limit is refused rather than replacing that shared pool.
 Cancellation is cooperative: an in-progress provider call must return before the run can stop;

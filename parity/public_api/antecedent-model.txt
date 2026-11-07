@@ -4316,7 +4316,7 @@ pub field antecedent_model::continuous_cyclic::TimedClamp::clamps: alloc::vec::V
 pub field antecedent_model::continuous_cyclic::TimedClamp::time: f64
 pub field antecedent_model::cyclic_actions::EquilibriumActionWorld::actions: alloc::vec::Vec<antecedent_model::cyclic_actions::EquilibriumAction>
 pub field antecedent_model::cyclic_actions::EquilibriumActionWorld::id: alloc::string::String
-pub field antecedent_model::cyclic_world::CyclicInterventionRefusal::family: core::option::Option<antecedent_core::intervention::CyclicFamily>
+pub field antecedent_model::cyclic_world::CyclicInterventionRefusal::family: core::option::Option<antecedent_core::intervention::capability::CyclicFamily>
 pub field antecedent_model::cyclic_world::CyclicInterventionRefusal::kind: antecedent_model::cyclic_world::CyclicRefusalKind
 pub field antecedent_model::cyclic_world::CyclicInterventionRefusal::next_attempt: antecedent_core::refusal::NextAttempt
 pub field antecedent_model::cyclic_world::CyclicInterventionRefusal::operation: &'static str
@@ -4324,7 +4324,7 @@ pub field antecedent_model::cyclic_world::CyclicInterventionRefusal::world: core
 pub field antecedent_model::cyclic_world::CyclicWorldSummary::certificate_gap: core::option::Option<&'static str>
 pub field antecedent_model::cyclic_world::CyclicWorldSummary::certified: bool
 pub field antecedent_model::cyclic_world::CyclicWorldSummary::failed_mass: f64
-pub field antecedent_model::cyclic_world::CyclicWorldSummary::family: antecedent_core::intervention::CyclicFamily
+pub field antecedent_model::cyclic_world::CyclicWorldSummary::family: antecedent_core::intervention::capability::CyclicFamily
 pub field antecedent_model::cyclic_world::CyclicWorldSummary::means: core::option::Option<alloc::vec::Vec<(antecedent_core::ids::VariableId, f64)>>
 pub field antecedent_model::cyclic_world::CyclicWorldSummary::next_attempt: core::option::Option<antecedent_core::refusal::NextAttempt>
 pub field antecedent_model::cyclic_world::CyclicWorldSummary::solved_by: &'static str
@@ -4947,14 +4947,14 @@ pub fn <antecedent_model::cyclic_world::CyclicVariables>::fn try_new(ids: alloc:
 pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::const fn temporal(&self) -> core::option::Option<&antecedent_core::intervention::TemporalPolicy>
 pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::const fn world(&self) -> antecedent_core::scientific_target::model::ScientificWorldId
 pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn from_action(world: antecedent_core::scientific_target::model::ScientificWorldId, action: &antecedent_core::scientific_target::model::WorldAction) -> Self
-pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn initial_states(&self) -> &[antecedent_core::intervention::InterventionOperation]
+pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn initial_states(&self) -> &[antecedent_core::intervention::capability::InterventionOperation]
 pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn interventions(&self) -> &[antecedent_core::intervention::Intervention]
 pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn new(world: antecedent_core::scientific_target::model::ScientificWorldId, interventions: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::intervention::Intervention>) -> Self
 pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn observational(world: antecedent_core::scientific_target::model::ScientificWorldId) -> Self
 pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn timed(self, policy: antecedent_core::intervention::TemporalPolicy) -> Self
 pub fn <antecedent_model::cyclic_world::CyclicWorldRequest>::fn with_initial_state(self, law_name: impl core::convert::Into<alloc::sync::Arc<str>>, level: f64) -> core::result::Result<Self, antecedent_model::cyclic_world::CyclicInterventionRefusal>
 pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn certificate(&self) -> &antecedent_model::cyclic_world::WorldCertificate
-pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn family(&self) -> antecedent_core::intervention::CyclicFamily
+pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn family(&self) -> antecedent_core::intervention::capability::CyclicFamily
 pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn mass(&self) -> antecedent_model::cyclic_world::WorldMass
 pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn outcome(&self) -> &antecedent_model::cyclic_world::CyclicWorldOutcome
 pub fn <antecedent_model::cyclic_world::CyclicWorldResult>::const fn physical_stability(&self) -> antecedent_model::PhysicalStability
@@ -4983,7 +4983,7 @@ pub fn <antecedent_model::cyclic_world::LinearCyclicSpecification>::fn try_new(v
 pub fn <antecedent_model::cyclic_world::NonlinearCyclicSpecification>::const fn model(&self) -> &antecedent_model::nonlinear_equilibrium::EquilibriumModel
 pub fn <antecedent_model::cyclic_world::NonlinearCyclicSpecification>::const fn variables(&self) -> &antecedent_model::cyclic_world::CyclicVariables
 pub fn <antecedent_model::cyclic_world::NonlinearCyclicSpecification>::fn try_new(variables: antecedent_model::cyclic_world::CyclicVariables, model: antecedent_model::nonlinear_equilibrium::EquilibriumModel) -> core::result::Result<Self, antecedent_model::cyclic_world::CyclicInterventionRefusal>
-pub fn <antecedent_model::cyclic_world::ResolvedCyclicWorld>::const fn family(&self) -> antecedent_core::intervention::CyclicFamily
+pub fn <antecedent_model::cyclic_world::ResolvedCyclicWorld>::const fn family(&self) -> antecedent_core::intervention::capability::CyclicFamily
 pub fn <antecedent_model::cyclic_world::ResolvedCyclicWorld>::const fn world(&self) -> antecedent_core::scientific_target::model::ScientificWorldId
 pub fn <antecedent_model::cyclic_world::ResolvedCyclicWorld>::fn actions(&self) -> &[antecedent_model::cyclic_world::CyclicAction]
 pub fn <antecedent_model::cyclic_world::WorldCertificate>::const fn gap(&self) -> core::option::Option<&antecedent_model::cyclic_world::CertificateGap>
@@ -5356,7 +5356,7 @@ pub fn antecedent_model::cyclic_world::evaluate_linear_world(spec: &antecedent_m
 pub fn antecedent_model::cyclic_world::evaluate_linear_worlds(spec: &antecedent_model::cyclic_world::LinearCyclicSpecification, requests: &[antecedent_model::cyclic_world::CyclicWorldRequest], demand: antecedent_model::cyclic_world::CertificateDemand, budget: antecedent_model::scc_compile::CompileBudget) -> core::result::Result<antecedent_model::cyclic_world::CyclicWorldResults, antecedent_model::cyclic_world::CyclicInterventionRefusal>
 pub fn antecedent_model::cyclic_world::evaluate_linear_worlds_routed(spec: &antecedent_model::cyclic_world::LinearCyclicSpecification, requests: &[antecedent_model::cyclic_world::CyclicWorldRequest], demand: antecedent_model::cyclic_world::CertificateDemand, budget: antecedent_model::scc_compile::CompileBudget, routes: &antecedent_model::scc_compile::LinearRouteSet) -> core::result::Result<antecedent_model::cyclic_world::CyclicWorldResults, antecedent_model::cyclic_world::CyclicInterventionRefusal>
 pub fn antecedent_model::cyclic_world::evaluate_nonlinear_world(spec: &antecedent_model::cyclic_world::NonlinearCyclicSpecification, request: &antecedent_model::cyclic_world::CyclicWorldRequest, noise_draws: &[f64], initial: &[f64], policy: antecedent_model::nonlinear_equilibrium::SolvePolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::cyclic_world::CyclicWorldResult, antecedent_model::cyclic_world::CyclicInterventionRefusal>
-pub fn antecedent_model::cyclic_world::resolve_cyclic_world(family: antecedent_core::intervention::CyclicFamily, variables: &antecedent_model::cyclic_world::CyclicVariables, initial_laws: &[alloc::sync::Arc<str>], request: &antecedent_model::cyclic_world::CyclicWorldRequest) -> core::result::Result<antecedent_model::cyclic_world::ResolvedCyclicWorld, antecedent_model::cyclic_world::CyclicInterventionRefusal>
+pub fn antecedent_model::cyclic_world::resolve_cyclic_world(family: antecedent_core::intervention::capability::CyclicFamily, variables: &antecedent_model::cyclic_world::CyclicVariables, initial_laws: &[alloc::sync::Arc<str>], request: &antecedent_model::cyclic_world::CyclicWorldRequest) -> core::result::Result<antecedent_model::cyclic_world::ResolvedCyclicWorld, antecedent_model::cyclic_world::CyclicInterventionRefusal>
 pub fn antecedent_model::discretized_scm::parity_row(route: antecedent_model::discretized_scm::ParityRoute) -> &'static antecedent_model::discretized_scm::ParityRow
 pub fn antecedent_model::discretized_scm::require_paradigm(route: antecedent_model::discretized_scm::ParityRoute, paradigm: antecedent_model::discretized_scm::InferenceParadigm) -> core::result::Result<&'static str, antecedent_model::discretized_scm::BridgeRefusal>
 pub fn antecedent_model::discretized_scm_artifact::consume_discretized_scm(bytes: &[u8], expected_identity: core::option::Option<[u8; 32]>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::discretized_scm::DiscretizedLinearGaussian, antecedent_model::discretized_scm_artifact::ArtifactRefusal>

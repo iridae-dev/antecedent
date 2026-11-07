@@ -445,12 +445,12 @@ pub(crate) fn ate_result_from_analysis(
         refutations,
         policy_value: result.policy_value().map(|value| {
             let mut section = crate::policy_api::PolicyValueSection::from(value);
-            section.graphless_support_status = graphless_support_status.clone();
+            section.graphless_support_status.clone_from(&graphless_support_status);
             section
         }),
         continuous_dose_response: result.continuous_dose_response().map(|value| {
             let mut section = crate::policy_api::ContinuousDoseResponseSection::from(value);
-            section.graphless_support_status = graphless_support_status.clone();
+            section.graphless_support_status.clone_from(&graphless_support_status);
             section
         }),
         assumption_count: result.identification.required_assumptions.len(),
@@ -657,19 +657,19 @@ pub(crate) fn ate_result_from_analysis(
         }),
         randomized_effect: result.randomized_effect().map(|value| {
             let mut section = crate::experiment_api::RandomizedEffectSection::from(value);
-            section.graphless_support_status = graphless_support_status.clone();
+            section.graphless_support_status.clone_from(&graphless_support_status);
             section
         }),
         panel_did: result.panel_did().map(|value| {
             let mut section = crate::quasi_api::PanelDidSection::from(value);
-            section.graphless_support_status = graphless_support_status.clone();
+            section.graphless_support_status.clone_from(&graphless_support_status);
             section
         }),
         synthetic_control: result.synthetic_control().map(Into::into),
         synthetic_did: result.synthetic_did().map(Into::into),
         local_polynomial_ratio: result.local_polynomial_ratio().map(|value| {
             let mut section = crate::quasi_api::LocalPolynomialRatioSection::from(value);
-            section.graphless_support_status = graphless_support_status.clone();
+            section.graphless_support_status.clone_from(&graphless_support_status);
             section
         }),
         survival: result.survival().map(Into::into),

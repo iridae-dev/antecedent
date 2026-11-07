@@ -731,38 +731,9 @@ impl ReusableProduct {
     }
 }
 
-/// Hash the ordered wire fields of a refutation target using its established identity domain.
-///
-/// Callers validate the family, quadrant and labels for their own intake contract.
-#[must_use]
-pub fn refutation_target_identity<S: AsRef<str>>(
-    family: &str,
-    quadrant: &str,
-    labels: &[S],
-    source: &[u8; 32],
-) -> [u8; 32] {
-    let mut writer = CanonicalWriter::new("antecedent.refutation_target");
-    writer.text(family).text(quadrant).texts(labels).bytes(source);
-    writer.finish()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn refutation_target_identity_matches_fixed_wire_vector() {
-        let actual = refutation_target_identity(
-            "conditional_effect",
-            "temporal.bayesian",
-            &["alpha", "β"],
-            &[0x42; 32],
-        );
-        assert_eq!(
-            SemanticDigest::from_bytes(actual).to_hex(),
-            "43cf05f9c0a50ec49e6401fed1df62cbcbc096b06fe78d0b9c6451c5c3f302d5"
-        );
-    }
 
     #[test]
     fn checked_hashing_preserves_framing_and_stops_between_chunks() {

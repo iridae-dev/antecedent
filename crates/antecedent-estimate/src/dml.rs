@@ -295,6 +295,10 @@ impl DmlAte {
     ///
     /// Refuses unsupported targets, incompatible factories, invalid predictions,
     /// and the same invalid folds, overlap and admission conditions as [`Self::fit`].
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one cohesive factory-driven nuisance fit and result-publication path"
+    )]
     pub fn fit_with_factories(
         &self,
         problem: &PreparedPropensityProblem,

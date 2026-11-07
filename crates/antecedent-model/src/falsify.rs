@@ -657,10 +657,12 @@ fn falsification_permutation_allocation(
     Ok((count, bytes))
 }
 
+type GraphFalsificationColumns<'a> = (Vec<VariableId>, Vec<Cow<'a, [f64]>>);
+
 fn graph_falsification_columns<'a>(
     dag: &Dag,
     data: &'a TabularData,
-) -> Result<(Vec<VariableId>, Vec<Cow<'a, [f64]>>), ModelError> {
+) -> Result<GraphFalsificationColumns<'a>, ModelError> {
     let n = dag.node_count();
     let mut variables = Vec::with_capacity(n);
     for node in dag.nodes() {

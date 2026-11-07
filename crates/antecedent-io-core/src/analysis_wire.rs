@@ -356,6 +356,17 @@ pub struct RefutationReportWire {
     pub scope: Option<RefutationScopeWire>,
 }
 
+fn refutation_target_identity<S: AsRef<str>>(
+    family: &str,
+    quadrant: &str,
+    labels: &[S],
+    source: &[u8; 32],
+) -> [u8; 32] {
+    let mut writer = antecedent_core::CanonicalWriter::new("antecedent.refutation_target");
+    writer.text(family).text(quadrant).texts(labels).bytes(source);
+    writer.finish()
+}
+
 /// Validate descriptive target metadata, without granting execution authority.
 ///
 /// # Errors
@@ -499,7 +510,7 @@ pub fn validate_refutation_scope(scope: &RefutationScopeWire) -> Result<(), IoEr
         (true, false) => "temporal.frequentist",
         (true, true) => "temporal.bayesian",
     };
-    let identity = antecedent_core::identity::refutation_target_identity(
+    let identity = refutation_target_identity(
         &target.family,
         quadrant,
         &target.labels,

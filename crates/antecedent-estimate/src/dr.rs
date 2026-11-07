@@ -48,6 +48,8 @@ pub struct DrLearner {
     pub sampling_weights: Option<SamplingWeights>,
 }
 
+type CateFitResult = (EffectEstimate, Option<Arc<[PointwiseCateEstimate]>>);
+
 /// A prespecified profile in the complete ordered adjustment set.
 ///
 /// Profile inference is deliberately restricted to exact empirical support: the complete
@@ -439,8 +441,7 @@ impl DrLearner {
 
     #[allow(
         clippy::too_many_lines,
-        clippy::type_complexity,
-        reason = "one cohesive nuisance-fit-and-profile routine; the Result return names the optional pointwise-profile vector"
+        reason = "one cohesive nuisance-fit-and-profile routine"
     )]
     fn fit_with_profiles(
         &self,
@@ -448,7 +449,7 @@ impl DrLearner {
         profiles: &[CateProfile],
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
-    ) -> Result<(EffectEstimate, Option<Arc<[PointwiseCateEstimate]>>), EstimationError> {
+    ) -> Result<CateFitResult, EstimationError> {
         if !matches!(problem.target_population, TargetPopulation::AllObserved) {
             return Err(EstimationError::TargetPopulation);
         }
@@ -460,6 +461,10 @@ impl DrLearner {
         self.fit_from_nuisance(problem, profiles, ctx, assumptions, &nuisance)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one cohesive final-stage fit, prediction, uncertainty, and profile assembly"
+    )]
     fn fit_from_nuisance(
         &self,
         problem: &PreparedPropensityProblem,
@@ -467,7 +472,7 @@ impl DrLearner {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
         nuisance: &crate::learn_nuisance::AipwPredictions,
-    ) -> Result<(EffectEstimate, Option<Arc<[PointwiseCateEstimate]>>), EstimationError> {
+    ) -> Result<CateFitResult, EstimationError> {
         let crate::dml::AipwMarginal { phi, ehat, effect } =
             crate::dml::aipw_marginal_from_nuisance(problem, nuisance, assumptions)?;
         let raw_e = &nuisance.2;

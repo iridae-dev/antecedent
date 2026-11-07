@@ -1026,6 +1026,7 @@ pub fn prior_data_overlap_from_ledger(
 #[cfg(test)]
 mod shared_refusal_tests {
     use super::{IoError, JointTransportRefusal, engine_refusal};
+    use antecedent_estimate::joint_bayesian_transport::FailedFitDiagnostics;
 
     #[test]
     fn temporal_and_scenario_refusals_keep_their_parts() {
@@ -1055,7 +1056,7 @@ mod shared_refusal_tests {
             code: "test_code",
             detail: "test.detail",
             message: "message: with\nnewline".into(),
-            failure: Default::default(),
+            failure: FailedFitDiagnostics::default(),
         };
         match engine_refusal(&refusal) {
             IoError::Refused { code, message } => {

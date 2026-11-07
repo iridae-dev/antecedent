@@ -19,7 +19,7 @@
 
 ## Claim
 
-- **Claim id:** 6e5f052439cf4593baed2ecc8554eaf67966d89a04d1a76487ef6155df90596c
+- **Claim id:** ea534785f7bae9201d1d7173746e56d31d849c519200705ea1c6788e7c08f662
 - **Kind:** point
 - **Value:** 2
 - **Outcome units:** none
@@ -320,6 +320,6 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **Inference binding:** 122227db05904a9fdcabbcab561919a16691db0b8a445cffef22541a91240ba4
 - **Observation:** ce6fe76d79b8e0d0cc58ebbbeb1a4dcac0b651b8c0d124f0a590f82102d46be8
 - **Data snapshot:** 7acd4e323d010cf6c9a4fb5b578a6461f2d751ce3591de0d5f593f57dea1e9d5
-- **Score reuse:** none
+- **Score reuse:** b8b350f6c3fedf6fc4feb96752af1bc3040a2461a784db78f75aa638bf64ff4e
 - **Target weights:** none
 

@@ -708,9 +708,15 @@ mod tests {
             assert!(super::validate_floor(value).is_ok());
         }
         let expected = super::invalid("the positivity floor must be in (0, 0.5]").to_string();
-        for value in
-            [0.0, -0.0, -1.0, 0.5000000000000001, f64::NAN, f64::INFINITY, f64::NEG_INFINITY]
-        {
+        for value in [
+            0.0,
+            -0.0,
+            -1.0,
+            0.500_000_000_000_000_1,
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+        ] {
             assert_eq!(super::validate_floor(value).unwrap_err().to_string(), expected);
         }
     }
@@ -726,8 +732,8 @@ mod tests {
         let (actual, failed) = bootstrap_unit_draws(3, 40, stream, &ctx, evaluate).unwrap();
         let mut expected: [Vec<f64>; 3] = std::array::from_fn(|_| Vec::new());
         let mut failures = 0;
-        for replicate in 0..40 {
-            let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream | replicate as u64);
+        for replicate in 0_u64..40 {
+            let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream | replicate);
             let mut counts = [0.0; 3];
             for _ in 0..3 {
                 counts[antecedent_kernels::unbiased_index(&mut rng, 3)] += 1.0;
@@ -753,7 +759,7 @@ mod tests {
         let (errors, intervals) = bootstrap_intervals(&mut columns);
         let expected = (5.0_f64 / 3.0).sqrt();
         assert!((errors[0] - expected).abs() < 1e-12);
-        assert_eq!(errors[1], 0.0);
+        assert_eq!(errors[1].to_bits(), 0.0_f64.to_bits());
         assert!((errors[2] - expected).abs() < 1e-12);
         assert_eq!(intervals, [(1.0, 4.0), (4.0, 4.0), (-4.0, -1.0)]);
     }

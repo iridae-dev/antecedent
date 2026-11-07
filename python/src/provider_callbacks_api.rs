@@ -13,7 +13,11 @@ mod transport;
 mod wire;
 
 use std::collections::BTreeMap;
-use wire::*;
+use wire::{
+    IdentityJson, OutputBitsJson, SupportJson, bad, declaration_json, declaration_of,
+    evidence_json, output_json, output_of, policy_of, quantity_of, query_json, request_of,
+    support_of,
+};
 
 use antecedent::analysis::evidence_ledger::{SourceId, TransportIdentity};
 use antecedent::analysis::interface_contract::{

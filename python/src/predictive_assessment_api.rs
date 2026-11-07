@@ -40,29 +40,25 @@ use crate::transport_common::execution_context;
 type Refused<T> = (Option<T>, Option<String>);
 
 fn refusal_json(refusal: &PredictiveAssessmentRefusal) -> String {
-    json!({
-        "code": refusal.code,
-        "stage": "predictive_assessment",
-        "detail": refusal.detail,
-        "message": refusal.message,
-        "offending": Json::Null,
-        "remedy": Json::Null,
-    })
-    .to_string()
+    crate::bridge::compact_refusal_json(
+        refusal.code,
+        "predictive_assessment",
+        &refusal.detail,
+        &refusal.message,
+        None,
+    )
 }
 
 fn contract_refusal(
     error: &antecedent::validate::predictive_assessment::PredictiveAssessmentError,
 ) -> String {
-    json!({
-        "code": error.code,
-        "stage": "predictive_assessment",
-        "detail": error.detail,
-        "message": error.message,
-        "offending": Json::Null,
-        "remedy": Json::Null,
-    })
-    .to_string()
+    crate::bridge::compact_refusal_json(
+        error.code,
+        "predictive_assessment",
+        error.detail,
+        &error.message,
+        None,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -909,4 +905,33 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(predictive_assessment_ledger_fit, module)?)?;
     module.add_function(wrap_pyfunction!(predictive_assessment_ledger_observations, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod compact_refusal_tests {
+    use super::*;
+
+    #[test]
+    fn predictive_refusals_keep_all_six_fields() {
+        let refusal = PredictiveAssessmentRefusal {
+            code: "invalid_argument",
+            detail: "predictive_assessment.example".to_owned(),
+            message: "bad \"value\"\nretry".to_owned(),
+        };
+        let error = antecedent::validate::predictive_assessment::PredictiveAssessmentError {
+            code: "invalid_argument",
+            detail: "predictive_assessment.example",
+            message: refusal.message.clone(),
+        };
+        let expected = json!({
+            "code": "invalid_argument",
+            "stage": "predictive_assessment",
+            "detail": "predictive_assessment.example",
+            "message": "bad \"value\"\nretry",
+            "offending": null,
+            "remedy": null,
+        });
+        assert_eq!(serde_json::from_str::<Json>(&refusal_json(&refusal)).unwrap(), expected);
+        assert_eq!(serde_json::from_str::<Json>(&contract_refusal(&error)).unwrap(), expected);
+    }
 }

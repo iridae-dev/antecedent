@@ -1,7 +1,15 @@
 //! Independent per-population selective discovery.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Bound, DiscoveryClaimKeys, Json, NumericColumn, PerPopulationDiscovery, PerPopulationReport,
+    PopulationRows, PyModule, PyModuleMethods, PyResult, Python, Reply, STAGE,
+    SelectiveDiscoveryError, StaticSelectiveDiscovery, TabularData, VariableId,
+    add_per_population_claims, claim_graph, claim_graph_refusal, claims_json, contract_map,
+    get_u64, hex, input_err, json, node_json, outcome_json, parse_json, pyclass, pymethods,
+    refusal_json, reply, report_value, request_selection_targets_from_differences, static_contract,
+    structure_refusal,
+};
 
 fn per_population_report_json(report: &PerPopulationReport) -> String {
     let populations: Vec<Json> = report

@@ -738,7 +738,12 @@ fn attribution_uncertainty(
         };
         let (outcome, route) =
             source.attribute_resampled(target, inference, bootstrap_replicates, &ctx)?;
-        attribution_uncertainty_output(&outcome, route.execution.result(), &kind, &names)
+        Ok(attribution_uncertainty_output(
+            &outcome,
+            route.execution.result(),
+            &kind,
+            &names,
+        ))
     })
 }
 
@@ -747,7 +752,7 @@ fn attribution_uncertainty_output(
     result: &antecedent::StudyResult,
     kind: &str,
     names: &[String],
-) -> PyResult<String> {
+) -> String {
     let point =
         antecedent::analysis::structure_route::attribution_quantities(outcome).unwrap_or_default();
     let posterior = result.posterior.as_ref().map(|posterior| {
@@ -787,13 +792,13 @@ fn attribution_uncertainty_output(
         .iter()
         .map(|(name, value)| serde_json::json!({ "name": named_quantity(name, names), "value": value }))
         .collect();
-    Ok(serde_json::json!({
+    serde_json::json!({
         "kind": kind,
         "point": point_json,
         "posterior": posterior,
         "bootstrap": bootstrap,
     })
-    .to_string())
+    .to_string()
 }
 
 fn mechanism_test(name: &str) -> PyResult<MechanismChangeTest> {

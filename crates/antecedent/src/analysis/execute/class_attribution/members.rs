@@ -191,12 +191,10 @@ pub(super) fn temporal_mixed_member(
     if bytes > budget.limits().max_bytes {
         return Err(CausalError::Resource { message: "attribution byte limit".into() });
     }
-    let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| match e {
-        antecedent_core::execution::AdmissionError::Cancelled => {
-            CausalError::Cancelled { stage: "temporal attribution" }
-        }
-        other => CausalError::Resource { message: other.to_string() },
-    })?);
+    let lease = Arc::new(
+        ctx.acquire_admission(0, bytes)
+            .map_err(|error| crate::error::resource_admission_error(error, "temporal attribution"))?,
+    );
     let (unfolding, admg) =
         LagAlignedScm::unfold_mixed(series, history, window.admg(), lease, ctx)?;
     Ok((
@@ -252,12 +250,9 @@ pub(super) fn temporal_mag_template(
     if bytes > budget.limits().max_bytes {
         return Err(CausalError::Resource { message: "temporal template byte limit".into() });
     }
-    let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-        antecedent_core::execution::AdmissionError::Cancelled => {
-            CausalError::Cancelled { stage: "temporal attribution" }
-        }
-        other => CausalError::Resource { message: other.to_string() },
-    })?;
+    let lease = ctx
+        .acquire_admission(0, bytes)
+        .map_err(|error| crate::error::resource_admission_error(error, "temporal attribution"))?;
     let mut template = TemporalAdmg::empty();
     for node in mag.nodes() {
         template.add_node(*node).map_err(CausalError::rejected)?;

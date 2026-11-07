@@ -120,7 +120,7 @@ mod tests {
             vec![
                 (1, "a".into(), None),
                 (1, "a".into(), None),
-                (1, "a".into(), Some("".into())),
+                (1, "a".into(), Some(String::new())),
                 (2, "z".into(), None),
             ]
         );

@@ -76,6 +76,14 @@ def test_example_runs(path, monkeypatch, tmp_path):
     # prints its skip, so the run is reported as skipped rather than as checked.
     if path.name == "parquet_e2e.py":
         pytest.importorskip("pyarrow")
+    # These examples render figures as part of their walkthrough; without the optional
+    # plotting dependency they cannot run, just like notebooks below.
+    if path.name in {
+        "marketing_channel_structural_uncertainty.py",
+        "marketing_experiment_design.py",
+        "sales_campaign_prior_transfer.py",
+    }:
+        pytest.importorskip("matplotlib")
     monkeypatch.setattr("sys.argv", argv)
     runpy.run_path(str(path), run_name="__main__")
 

@@ -24,7 +24,7 @@ record_sha256 = "d1b78e0582886ae1751da8accbc4044013315d81669c0ebf66b770b6115e2e4
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
 items = ["const LAPLACE_RANK_INTERVAL_BELOW_DRAWS", "enum BayesianBackendKind", "enum ReferenceArm", "fn adaptive_schedule", "fn add_modifier_mean_uncertainty", "fn apply_coefficient_names", "fn assemble_posterior_draws", "fn at", "fn center_interactions_on_arm", "fn check_sequential_prior", "fn coefficient_names_from_design", "fn conjugate", "fn default", "fn draw_budget", "fn effective_likelihood", "fn effects", "fn evaluate_draws", "fn fit", "fn from_fit", "fn gcomp_evaluator", "fn glm_family", "fn new", "fn prepare", "fn prepare_conditional", "fn prior_assumptions", "fn prior_in_force", "fn random_intercept_gls_whiten", "fn redraw", "fn reusable_gaussian_design", "fn summarize_gcomp_draws", "fn temper_likelihood", "fn whiten_design", "fn with_n_draws", "fn with_prior_scale", "fn with_seed", "struct AdaptiveOutcome", "struct AdaptiveRedraw", "struct BackendInputs", "struct BayesianGCompWorkspace", "struct BayesianGComputationAte", "struct EffectEvaluation", "struct EvaluatedDraws", "struct PreparedBayesianProblem", "struct ResidualVarianceDraws", "type CenteredDesign", "type WhitenedDesign"]
-sha256 = "e388658a167975460e23d469b5d7ec9db3ddb505e990951388aab0f6727dd71e"
+sha256 = "e4563aee0c077176501fb9fbd0b8c933e572bcd3ac587847a7fdca6555a1027d"
 
 [[method_review.artifacts]]
 role = "implementation"

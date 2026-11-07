@@ -117,6 +117,11 @@ ALLOWLIST: dict[str, str] = {
     "antecedent.cyclic.SdeSimulation:seed": "declared Monte Carlo stream of the ensemble, in the request and replayed from it",
     "antecedent.cyclic.StochasticDifferentialEquation.fit:parameter_seed": "declared stream of the parameter draws, in the request and replayed from it",
     "antecedent.transport._joint_sensitivity.consume_joint_mechanism_sensitivity_artifact:max_memory_bytes": "consumer ceiling on the stored search envelope, not Execution memory",
+    "antecedent.transport._joint_interval_artifact.JointSensitivityIntervalArtifact.replay:max_bytes": "hard artifact replay byte ceiling, distinct from the Execution memory pool",
+    "antecedent.transport._joint_interval_artifact.JointSensitivityIntervalArtifact.replay:max_memory_bytes": "hard artifact replay memory ceiling, distinct from the Execution memory pool",
+    "antecedent.transport._joint_interval_artifact.consume_joint_sensitivity_interval:max_bytes": "hard artifact replay byte ceiling, distinct from the Execution memory pool",
+    "antecedent.transport._joint_interval_artifact.consume_joint_sensitivity_interval:max_memory_bytes": "hard artifact replay memory ceiling, distinct from the Execution memory pool",
+    "antecedent.transport._joint_interval_artifact.export_joint_sensitivity_interval:seed": "scientific interval bootstrap seed recorded in the exported artifact",
 }
 
 

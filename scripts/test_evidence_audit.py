@@ -32,6 +32,16 @@ from review_items import artifact_digest
 
 
 class Classification(unittest.TestCase):
+    def test_split_id_assertions_resolve_to_the_registered_libtest_identity(self):
+        path = "crates/antecedent-identify/src/id/tests.rs"
+        rows = evidence.registered_rust_assertions(
+            [(path, "frontdoor_admg_identified"), (path, "hedge_not_identified")]
+        )
+        self.assertEqual(
+            [row["libtest_name"] for row in rows],
+            ["id::tests::frontdoor_admg_identified", "id::tests::hedge_not_identified"],
+        )
+
     def test_reason_namespaces_keep_prose_and_device_fallbacks_out_of_scientific_codes(self):
         from parity_rows import reason_obligation, runtime_code_literals
 

@@ -61,7 +61,7 @@ use antecedent_core::{
     ContractIdentities, ExecutionContext, Intervention, Lag, ResponseFunctional, ResponseQuery,
     Value, VariableId,
 };
-use antecedent_data::{TabularData, TimeSeriesData};
+use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_design::{AffineUtility, DecisionProblem, DesignError, Utility};
 use antecedent_discovery::BackgroundKnowledge;
 use antecedent_graph::{Cpdag, TemporalCpdag, ensure_lagged};
@@ -1302,13 +1302,26 @@ fn staleness_findings(
     }
 }
 
+fn retained_row_count(rep: &Rep) -> usize {
+    match &rep.retained {
+        Retained::Table { same, .. } => same().row_count(),
+        Retained::Series { same, .. } => same().row_count(),
+    }
+}
+
 #[allow(
     clippy::useless_vec,
     reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
 )]
-fn retarget_findings(prepared: &PreparedStudy, found: &mut Findings) {
+fn retarget_findings(rep: &Rep, prepared: &PreparedStudy, found: &mut Findings) {
     let context = ctx();
     let Some(base) = identities_of(prepared, found) else { return };
+    let base_effect = prepared.estimate_retained(&context).ok().map(|result| result.effect());
+    let base_reuse = prepared
+        .score_reuse_identity()
+        .ok()
+        .flatten()
+        .or_else(|| prepared.adjusted_fit_reuse_identity().ok().flatten());
     let preview = match prepared.preview_transform(TransformIntent::Retarget) {
         Ok(preview) => preview,
         Err(error) => {
@@ -1316,14 +1329,18 @@ fn retarget_findings(prepared: &PreparedStudy, found: &mut Findings) {
             return;
         }
     };
-    let base_effect = prepared.estimate_retained(&context).ok().map(|result| result.effect());
-    let base_score = prepared.score_reuse_identity().ok().flatten();
-    let Some(rows) = prepared.score_table().map(|table| table.n_rows) else {
+    let score_rows = prepared.score_table().map(|table| table.n_rows);
+    let Some(rows) = score_rows.or_else(|| {
+        // A retained adjusted mean fit can retarget without exporting a score table.
+        // These rows come from the representative's frozen input; the static fixture
+        // uses complete cases, matching the fitted design's row count.
+        (rep.label == "static_effect").then(|| retained_row_count(rep))
+    }) else {
         found.check(
             preview.refused,
             "retarget previews as possible on a handle with no score table",
         );
-        match prepared.retarget(&vec![1.0; 8], &[], &context) {
+        match prepared.retarget(&[1.0], &[], &context) {
             Ok(_) => found.check(false, "a handle with no score table retargeted"),
             Err(error) => found.check(
                 preview.refusal.as_deref() == Some(error.to_string().as_str()),
@@ -1332,11 +1349,20 @@ fn retarget_findings(prepared: &PreparedStudy, found: &mut Findings) {
         }
         return;
     };
-    found.check(!preview.refused, "retarget previews as refused on a handle with a score table");
+    if score_rows.is_some() {
+        found.check(!preview.refused, "retarget previews as refused on a handle with a score table");
+    } else {
+        found.check(
+            !preview.refused,
+            "retarget previews as refused on a handle with a retained adjusted mean fit",
+        );
+    }
+    let adjusted_dependencies = [VariableId::from_raw(2)];
+    let depends_on = if score_rows.is_some() { &[][..] } else { &adjusted_dependencies };
     let tilted: Vec<f64> = (0..rows).map(|row| 1.0 + 0.5 * (row % 3) as f64).collect();
     let mut digests = Vec::new();
     for (name, weights) in [("uniform", vec![1.0; rows]), ("tilted", tilted)] {
-        let retargeted = match prepared.retarget(&weights, &[], &context) {
+        let retargeted = match prepared.retarget(&weights, depends_on, &context) {
             Ok(result) => result,
             Err(error) => {
                 found.refused(&format!("{name} retarget"), &error);
@@ -1367,7 +1393,7 @@ fn retarget_findings(prepared: &PreparedStudy, found: &mut Findings) {
                     format!("{name} retarget binds the wrong target weights"),
                 );
                 found.check(
-                    contract.score_reuse == base_score,
+                    contract.score_reuse == base_reuse,
                     format!("{name} retarget changed the score-reuse key"),
                 );
                 digests.push(contract.target_weights);
@@ -1389,7 +1415,7 @@ fn retarget_findings(prepared: &PreparedStudy, found: &mut Findings) {
 fn reuse_findings(rep: &mut Rep) -> Vec<String> {
     let mut found = Findings::new(rep.label);
     let Some(mut prepared) = prepare(rep, &mut found) else { return found.items };
-    retarget_findings(&prepared, &mut found);
+    retarget_findings(rep, &prepared, &mut found);
     refresh_findings(rep, &mut prepared, &mut found);
     found.items
 }
@@ -1440,8 +1466,15 @@ fn refusal_findings(rep: &mut Rep) -> Vec<String> {
             Ok(_) => found.check(false, "retarget accepted weights of the wrong length"),
             Err(error) => found.refused("retarget with mis-shaped weights", &error),
         }
-    } else if let Err(error) = prepared.retarget(&[1.0], &[], &context) {
-        found.refused("retarget without a score table", &error);
+    } else {
+        let mut weights = vec![1.0; retained_row_count(rep)];
+        if let Some(first) = weights.first_mut() {
+            *first = 2.0;
+        }
+        match prepared.retarget(&weights, &[], &context) {
+            Ok(_) => found.check(false, "retarget accepted undeclared nonconstant weights"),
+            Err(error) => found.refused("retarget with undeclared nonconstant weights", &error),
+        }
     }
     found.items
 }

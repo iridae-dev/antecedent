@@ -199,9 +199,17 @@ def test_native_crossfit_preserves_callback_failure_and_cancellation():
     token = _native.CancellationToken()
     token.cancel()
     with pytest.raises(Exception, match="cancel"):
-        cross_fit_aipw(outcome, treatment, x, y, t, folds, cancel=token)
+        cross_fit_aipw(outcome, treatment, x, y, t, folds, execution=Execution(cancel=token))
     with pytest.raises(Exception, match="admission|memory|budget"):
-        cross_fit_aipw(outcome, treatment, x, y, t, folds, memory_limit_bytes=1)
+        cross_fit_aipw(
+            outcome,
+            treatment,
+            x,
+            y,
+            t,
+            folds,
+            execution=Execution(limits=ResourceLimits(memory_bytes=1)),
+        )
     shared = Execution(threads=4, limits=ResourceLimits(memory_bytes=1))
     with pytest.raises(Exception, match="admission|memory|budget"):
         shared._call(cross_fit_aipw, outcome, treatment, x, y, t, folds)
@@ -254,6 +262,7 @@ def test_native_crossfit_cancellation_after_callback_returns_no_result():
     import threading
 
     from antecedent import _native
+    from antecedent.execution import Execution
 
     entered, release = threading.Event(), threading.Event()
 
@@ -281,7 +290,7 @@ def test_native_crossfit_cancellation_after_callback_returns_no_result():
                     [1, 2, 3, 4],
                     [0, 1, 0, 1],
                     [0, 0, 1, 1],
-                    cancel=token,
+                    execution=Execution(cancel=token),
                 )
             )
         except Exception as error:

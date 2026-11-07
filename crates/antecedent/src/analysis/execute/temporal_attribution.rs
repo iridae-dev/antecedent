@@ -212,12 +212,10 @@ impl LagAlignedScm {
         if bytes > budget.limits().max_bytes {
             return Err(CausalError::Resource { message: "attribution byte limit".into() });
         }
-        let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: "temporal attribution" }
-            }
-            other => CausalError::Resource { message: other.to_string() },
-        })?);
+        let lease = Arc::new(
+            ctx.acquire_admission(0, bytes)
+                .map_err(|error| crate::error::resource_admission_error(error, "temporal attribution"))?,
+        );
         let (dag, columns) = Self::align_unfolded(&unfolded.dag, &indexer, ctx)?;
         Ok(Self { dag, columns: Arc::from(columns), history, _temporal_lease: Some(lease) })
     }
@@ -449,12 +447,9 @@ impl LagAlignedScm {
         if bytes > budget.limits().max_bytes {
             return Err(CausalError::Resource { message: "rollout history byte limit".into() });
         }
-        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: "temporal attribution" }
-            }
-            other => CausalError::Resource { message: other.to_string() },
-        })?;
+        let lease = ctx
+            .acquire_admission(0, bytes)
+            .map_err(|error| crate::error::resource_admission_error(error, "temporal attribution"))?;
         let mut tail_start = n.saturating_sub(1);
         if let Some(p) = input.0.provenance.as_ref() {
             while tail_start > 0
@@ -626,12 +621,9 @@ impl TemporalRowProvenance {
             });
         }
         budget.charge_work(n).map_err(|e| CausalError::Resource { message: e.to_string() })?;
-        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: "temporal attribution" }
-            }
-            other => CausalError::Resource { message: other.to_string() },
-        })?;
+        let lease = ctx
+            .acquire_admission(0, bytes)
+            .map_err(|error| crate::error::resource_admission_error(error, "temporal attribution"))?;
         let mut ticks = Vec::new();
         ticks.try_reserve_exact(count).map_err(|_| CausalError::Resource {
             message: "temporal refit tick allocation refused".into(),
@@ -890,12 +882,9 @@ impl CompleteWindowInput {
         if bytes > budget.limits().max_bytes {
             return Err(CausalError::Resource { message: "attribution byte limit".into() });
         }
-        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: "temporal attribution" }
-            }
-            other => CausalError::Resource { message: other.to_string() },
-        })?;
+        let lease = ctx
+            .acquire_admission(0, bytes)
+            .map_err(|error| crate::error::resource_admission_error(error, "temporal attribution"))?;
         let CompleteWindowRows { ticks, originals, runs } =
             Self::complete_rows(series, provenance, h, ctx)?;
         let table = Self::materialize_table(aligned, series, provenance, &ticks, h, ctx)?;
@@ -953,12 +942,9 @@ impl CompleteWindowInput {
         if bytes > budget.limits().max_bytes {
             return Err(CausalError::Resource { message: "temporal run byte limit".into() });
         }
-        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: "temporal attribution" }
-            }
-            other => CausalError::Resource { message: other.to_string() },
-        })?;
+        let lease = ctx
+            .acquire_admission(0, bytes)
+            .map_err(|error| crate::error::resource_admission_error(error, "temporal attribution"))?;
         let mut ranges = Vec::new();
         ranges.try_reserve_exact(positions.len()).map_err(|_| CausalError::Resource {
             message: "temporal run allocation refused".into(),

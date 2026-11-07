@@ -9410,7 +9410,7 @@ pub field antecedent_design::ConfounderValueError::message: alloc::string::Strin
 pub field antecedent_design::ConfounderValueFrame::action_ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_design::ConfounderValueFrame::artifact_identity: alloc::string::String
 pub field antecedent_design::ConfounderValueFrame::coordinates: alloc::vec::Vec<f64>
-pub field antecedent_design::ConfounderValueFrame::outcome: antecedent_io_core::sensitivity_artifact::SensitivityOutcome
+pub field antecedent_design::ConfounderValueFrame::outcome: antecedent_io_core::sensitivity_artifact::classification::SensitivityOutcome
 pub field antecedent_design::ConfounderValueFrame::prior: antecedent_design::ConfounderPriorDeclaration
 pub field antecedent_design::ConfounderValueFrame::utilities: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_design::ConstraintViolation::candidate_index: usize
@@ -11517,7 +11517,7 @@ pub field antecedent_design::sensitivity_decision::SensitivityDecisionResult::ar
 pub field antecedent_design::sensitivity_decision::SensitivityDecisionResult::coordinates: alloc::vec::Vec<f64>
 pub field antecedent_design::sensitivity_decision::SensitivityDecisionResult::coverage: antecedent_design::sensitivity_decision::ScenarioCoverage
 pub field antecedent_design::sensitivity_decision::SensitivityDecisionResult::interpretation: &'static str
-pub field antecedent_design::sensitivity_decision::SensitivityDecisionResult::outcome: antecedent_io_core::sensitivity_artifact::SensitivityOutcome
+pub field antecedent_design::sensitivity_decision::SensitivityDecisionResult::outcome: antecedent_io_core::sensitivity_artifact::classification::SensitivityOutcome
 pub field antecedent_design::sensitivity_decision::SensitivityDecisionResult::sampling: antecedent_design::sensitivity_decision::SamplingReport
 pub field antecedent_design::sensitivity_decision::SensitivityDecisionResult::structural: antecedent_design::decision_structural::StructuralDecisionResult
 pub field antecedent_design::sensitivity_decision::SensitivityDecisionSpec::range: core::option::Option<(f64, f64)>
@@ -11935,7 +11935,7 @@ pub fn <antecedent_design::CandidateTemplate>::fn validate(&self) -> core::resul
 pub fn <antecedent_design::ConfounderPriorDeclaration>::fn identity(&self) -> alloc::string::String
 pub fn <antecedent_design::ConfounderValueFrame>::fn decision_prior(&self) -> antecedent_design::DecisionPrior<f64>
 pub fn <antecedent_design::ConfounderValueFrame>::fn from_sensitivity(result: &antecedent_design::sensitivity_decision::SensitivityDecisionResult, prior: antecedent_design::ConfounderPriorDeclaration) -> core::result::Result<Self, antecedent_design::ConfounderValueError>
-pub fn <antecedent_design::ConfounderValueFrame>::fn from_table(coordinates: alloc::vec::Vec<f64>, action_ids: alloc::vec::Vec<alloc::string::String>, utilities: alloc::vec::Vec<alloc::vec::Vec<f64>>, outcome: antecedent_io_core::sensitivity_artifact::SensitivityOutcome, artifact_identity: alloc::string::String, prior: antecedent_design::ConfounderPriorDeclaration) -> core::result::Result<Self, antecedent_design::ConfounderValueError>
+pub fn <antecedent_design::ConfounderValueFrame>::fn from_table(coordinates: alloc::vec::Vec<f64>, action_ids: alloc::vec::Vec<alloc::string::String>, utilities: alloc::vec::Vec<alloc::vec::Vec<f64>>, outcome: antecedent_io_core::sensitivity_artifact::classification::SensitivityOutcome, artifact_identity: alloc::string::String, prior: antecedent_design::ConfounderPriorDeclaration) -> core::result::Result<Self, antecedent_design::ConfounderValueError>
 pub fn <antecedent_design::ConfounderValueFrame>::fn prior_draws(&self) -> alloc::vec::Vec<f64>
 pub fn <antecedent_design::ConfounderValueFrame>::fn problem(&self) -> core::result::Result<antecedent_design::DecisionProblem<usize, f64>, antecedent_design::DesignError>
 pub fn <antecedent_design::ConfounderValueFrame>::fn source_digests(&self) -> alloc::vec::Vec<alloc::string::String>

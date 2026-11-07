@@ -1141,8 +1141,10 @@ mod prepared_table_tests {
             structural_zeros: vec![],
         })
         .unwrap();
-        let mut limits = SampledTransportLimits::default();
-        limits.max_unseen_fraction = 1.0;
+        let limits = SampledTransportLimits {
+            max_unseen_fraction: 1.0,
+            ..SampledTransportLimits::default()
+        };
         let mut request = SampledTransportRequest {
             tables: vec![],
             overlap: OverlapDeclaration::all_independent(),

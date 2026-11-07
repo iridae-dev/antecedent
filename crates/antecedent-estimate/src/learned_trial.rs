@@ -149,6 +149,10 @@ pub struct TrialAipwEstimate {
     pub external_nuisances_unverified: bool,
 }
 
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if callbacks take a reference to the field"
+)]
 fn is_false(value: &bool) -> bool {
     !*value
 }

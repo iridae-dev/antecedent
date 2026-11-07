@@ -2294,8 +2294,8 @@ impl core::convert::From<antecedent_io_core::transport_errors::SmoothedDoseArtif
 impl core::convert::From<antecedent_io_core::transport_errors::TemporalTransportArtifactError> for antecedent_io_core::IoError
 impl core::convert::From<antecedent_io_core::transport_errors::TransportScenarioArtifactError> for antecedent_io_core::IoError
 impl core::convert::From<antecedent_io_core::transport_errors::ZTransportArtifactError> for antecedent_io_core::IoError
-impl core::convert::From<antecedent_stats::joint_law::DecisionVerdict> for antecedent_io_core::VerdictWire
 impl core::convert::From<antecedent_stats::joint_law::ValueBounds> for antecedent_io_core::BoundsWire
+impl core::convert::From<antecedent_stats::joint_law::projection::DecisionVerdict> for antecedent_io_core::VerdictWire
 impl core::convert::From<std::io::error::Error> for antecedent_io_core::IoError
 impl core::convert::From<std::io::error::Error> for antecedent_io_core::IoFailure
 impl core::convert::TryFrom<&antecedent_core::identity::ContractIdentities> for antecedent_io_core::ContractIdentitiesWire
@@ -15046,7 +15046,7 @@ pub fn <antecedent_io_core::ConsumedJointLawPropagation>::fn is_envelope(&self) 
 pub fn <antecedent_io_core::ConsumedJointLawPropagation>::fn n_rows(&self) -> core::option::Option<u64>
 pub fn <antecedent_io_core::ConsumedJointLawPropagation>::fn value(&self, name: &str) -> core::option::Option<f64>
 pub fn <antecedent_io_core::ConsumedJointLawPropagation>::fn values(&self) -> alloc::vec::Vec<(&'static str, f64)>
-pub fn <antecedent_io_core::ConsumedJointLawPropagation>::fn verdict(&self) -> core::option::Option<antecedent_stats::joint_law::DecisionVerdict>
+pub fn <antecedent_io_core::ConsumedJointLawPropagation>::fn verdict(&self) -> core::option::Option<antecedent_stats::joint_law::projection::DecisionVerdict>
 pub fn <antecedent_io_core::ConsumedPropagationChain>::fn answer(&self) -> core::option::Option<&antecedent_io_core::ChainStageResultWire>
 pub fn <antecedent_io_core::ConsumedPropagationChain>::fn stage(&self, id: &str) -> core::option::Option<&antecedent_io_core::ChainStageResultWire>
 pub fn <antecedent_io_core::ContainerLimits>::const fn with_max_section_bytes(max_section_bytes: usize) -> Self
@@ -15176,7 +15176,7 @@ pub fn <antecedent_io_core::PropagationResultWire>::fn float_entries(&self) -> a
 pub fn <antecedent_io_core::PropagationResultWire>::fn n_rows(&self) -> core::option::Option<u64>
 pub fn <antecedent_io_core::PropagationResultWire>::fn named_entries(&self) -> alloc::vec::Vec<(alloc::string::String, u64)>
 pub fn <antecedent_io_core::PropagationResultWire>::fn value(&self, name: &str) -> core::option::Option<f64>
-pub fn <antecedent_io_core::PropagationResultWire>::fn verdict(&self) -> core::option::Option<antecedent_stats::joint_law::DecisionVerdict>
+pub fn <antecedent_io_core::PropagationResultWire>::fn verdict(&self) -> core::option::Option<antecedent_stats::joint_law::projection::DecisionVerdict>
 pub fn <antecedent_io_core::ProvenanceRole>::const fn as_str(self) -> &'static str
 pub fn <antecedent_io_core::ReplayReport>::fn failed(&self) -> bool
 pub fn <antecedent_io_core::ReplayReport>::fn replayed(&self) -> bool
@@ -15464,7 +15464,7 @@ pub fn <antecedent_io_core::counterfactual_transport_wire::CounterfactualTranspo
 pub fn <antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire>::fn expected_data_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire>::fn expected_premises_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
-pub fn <antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire>::fn identified(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, data: &antecedent_expr::exact::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, variable_names: &[alloc::string::String], result: antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportResultWire) -> core::result::Result<Self, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
+pub fn <antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire>::fn identified(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, data: &antecedent_expr::exact::transport::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, variable_names: &[alloc::string::String], result: antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportResultWire) -> core::result::Result<Self, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
 pub fn <antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire>::fn identity(&self) -> antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity
 pub fn <antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire>::fn obstructed(problem: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportProblem, query: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, search: antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSearchLimitsWire, variable_names: &[alloc::string::String], obstruction: antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportObstructionWire) -> core::result::Result<Self, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
 pub fn <antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire>::fn sealed(self) -> core::result::Result<Self, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
@@ -16081,7 +16081,7 @@ pub fn antecedent_io_core::interventional_distribution_from_wire(w: &antecedent_
 pub fn antecedent_io_core::interventional_distribution_to_wire(q: &antecedent_core::query::distribution::InterventionalDistributionQuery) -> core::result::Result<antecedent_io_core::InterventionalDistributionQueryWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::is_supported_source(v: antecedent_io_core::FormatVersion) -> bool
 pub fn antecedent_io_core::joint_law_propagation_artifact::joint_law_propagation_identity(rule: &antecedent_io_core::PropagationRuleWire, inputs: &[antecedent_io_core::PropagationInputWire], request: &antecedent_io_core::PropagationRequestWire, route: &str, label: &str, alignment_id: core::option::Option<&str>, covariance_id: core::option::Option<&str>, shared_evidence: &[alloc::string::String]) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
-pub fn antecedent_io_core::joint_law_propagation_artifact::verdict_code(verdict: antecedent_stats::joint_law::DecisionVerdict) -> u64
+pub fn antecedent_io_core::joint_law_propagation_artifact::verdict_code(verdict: antecedent_stats::joint_law::projection::DecisionVerdict) -> u64
 pub fn antecedent_io_core::logical_plan_from_wire(w: &antecedent_io_core::LogicalAnalysisPlanWire) -> core::result::Result<antecedent_contract::plan::LogicalAnalysisPlanRecord, antecedent_io_core::IoError>
 pub fn antecedent_io_core::logical_plan_to_wire(p: &antecedent_contract::plan::LogicalAnalysisPlanRecord) -> antecedent_io_core::LogicalAnalysisPlanWire
 pub fn antecedent_io_core::lower_plan(plan: &antecedent_contract::mechanism_composition::MechanismCompositionPlan, numbers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_io_core::MechanismNumbers>, dependence: antecedent_model::compose::descriptor::PosteriorDependence) -> core::result::Result<antecedent_model::compose::descriptor::ComposedModelSpec, antecedent_io_core::MechanismCompositionArtifactError>
@@ -18747,8 +18747,8 @@ pub variant antecedent_io_core::measurement_model_wire::CategoricalReplayFunctio
 pub variant antecedent_io_core::measurement_model_wire::CategoricalReplayFunctional::OutcomeMean(alloc::string::String)
 pub variant antecedent_io_core::measurement_model_wire::CategoricalReplayFunctional::Proportion(alloc::string::String)
 pub variant antecedent_io_core::measurement_model_wire::MeasurementReplay::BinaryPrevalence { events: u64, total: u64, arm_id: core::option::Option<alloc::string::String> }
-pub variant antecedent_io_core::measurement_model_wire::MeasurementReplay::BinaryRiskDifference { exposed_arm_id: alloc::string::String, unexposed_arm_id: alloc::string::String, table: antecedent_stats::measurement_error::TwoByTwoCounts }
-pub variant antecedent_io_core::measurement_model_wire::MeasurementReplay::Categorical { classes: alloc::vec::Vec<antecedent_stats::measurement_error::ObservedClassSummary>, functional: antecedent_io_core::measurement_model_wire::CategoricalReplayFunctional }
+pub variant antecedent_io_core::measurement_model_wire::MeasurementReplay::BinaryRiskDifference { exposed_arm_id: alloc::string::String, unexposed_arm_id: alloc::string::String, table: antecedent_stats::measurement_error::classification::TwoByTwoCounts }
+pub variant antecedent_io_core::measurement_model_wire::MeasurementReplay::Categorical { classes: alloc::vec::Vec<antecedent_stats::measurement_error::classification::ObservedClassSummary>, functional: antecedent_io_core::measurement_model_wire::CategoricalReplayFunctional }
 pub variant antecedent_io_core::measurement_model_wire::MeasurementReplay::Linear { moments: antecedent_stats::measurement_error::LinearMoments, coefficient_index: usize }
 pub variant antecedent_io_core::measurement_model_wire::MeasurementReplay::MultipleImputation { coefficients: alloc::vec::Vec<alloc::vec::Vec<f64>>, covariances: alloc::vec::Vec<alloc::vec::Vec<f64>>, coefficient_index: usize }
 pub variant antecedent_io_core::mechanism_composition_artifact::DependenceWire::CrossCovariance { blocks: alloc::vec::Vec<antecedent_io_core::mechanism_composition_artifact::CrossBlockWire> }

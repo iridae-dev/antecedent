@@ -1303,7 +1303,8 @@ mod design_tests {
                         while draw >= ceiling {
                             draw = reference_rng.next_u64();
                         }
-                        expected.push(rows[indices[(draw % size) as usize]].values[0]);
+                        let sampled = usize::try_from(draw % size).expect("draw index fits usize");
+                        expected.push(rows[indices[sampled]].values[0]);
                     }
                 }
                 assert_eq!(sampled.iter().map(|row| row.values[0]).collect::<Vec<_>>(), expected);
