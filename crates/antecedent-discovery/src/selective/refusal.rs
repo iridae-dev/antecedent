@@ -49,3 +49,30 @@ impl SelectiveDiscoveryError {
         }
     }
 }
+
+pub(super) fn invalid(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
+    SelectiveDiscoveryError::refused(
+        antecedent_core::reason_code!("invalid_argument"),
+        detail,
+        remedy,
+    )
+}
+
+#[cfg(test)]
+mod invalid_refusal_tests {
+    use super::{SelectiveDiscoveryError, invalid};
+
+    #[test]
+    fn invalid_refusal_keeps_code_detail_and_remedy() {
+        for remedy in ["", "retry"] {
+            assert_eq!(
+                invalid("selective.example", remedy),
+                SelectiveDiscoveryError::Refused {
+                    code: "invalid_argument",
+                    detail: "selective.example",
+                    remedy: remedy.into(),
+                }
+            );
+        }
+    }
+}

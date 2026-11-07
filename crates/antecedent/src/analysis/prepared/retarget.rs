@@ -679,12 +679,8 @@ pub(super) fn admit_retarget_bytes(
     ctx: &ExecutionContext,
     bytes: u64,
 ) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
-    ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => {
-            CausalError::Cancelled { stage: "retarget" }
-        }
-        error => CausalError::Resource { message: error.to_string() },
-    })
+    ctx.acquire_admission(0, bytes)
+        .map_err(|error| crate::error::resource_admission_error(error, "retarget"))
 }
 
 fn check_retarget_cancelled(ctx: &ExecutionContext) -> Result<(), CausalError> {

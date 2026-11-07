@@ -5,6 +5,7 @@
 //! likelihood. Root enclosures yield likelihood bounds; unresolved roots or
 //! overlapping likelihood bounds withhold an optimum certificate.
 
+use crate::cyclic_likelihood::invalid_equilibrium_input as invalid;
 use antecedent_core::ExecutionContext;
 use antecedent_model::{
     equation_system::{Interval, IsolatedSolutions, IsolationPolicy, PolynomialSystem},
@@ -75,9 +76,7 @@ pub struct PolynomialFit {
     /// Following numerical attempt when ranking could not be certified.
     pub next_attempt: Option<String>,
 }
-fn invalid(s: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(s.into())
-}
+
 fn logsumexp(values: &[f64]) -> f64 {
     let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     max + values.iter().map(|v| (v - max).exp()).sum::<f64>().ln()

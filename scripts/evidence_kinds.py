@@ -4,12 +4,11 @@ Calibration is measured evidence with its own scope/commit attestation. No categ
 here, including agreement with an external package, grants calibration support.
 """
 
-import hashlib
 import json
 import re
 from pathlib import Path
 
-from review_items import artifact_problem
+from review_items import artifact_problem, review_json_digest
 
 EVIDENCE_KINDS = frozenset(
     {
@@ -156,11 +155,7 @@ def fixture_payload_digest(document: dict) -> str:
             for key, value in document["oracle"].items()
             if key != "reference_review"
         }
-    return hashlib.sha256(
-        json.dumps(
-            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-        ).encode("utf-8")
-    ).hexdigest()
+    return review_json_digest(payload)
 
 
 def fixture_review_problems(root: Path, document: dict) -> list[str]:

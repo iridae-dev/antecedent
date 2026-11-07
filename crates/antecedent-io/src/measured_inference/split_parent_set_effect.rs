@@ -44,6 +44,7 @@ use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, build_report,
     compare_replay, decode,
 };
+use super::{invalid as malformed, refused};
 use crate::IoError;
 use antecedent_core::{CalibrationBasis, ExecutionContext, IdentityDomain, RngFactory, VariableId};
 use antecedent_data::TabularData;
@@ -60,17 +61,6 @@ use antecedent_discovery::selective::{
 use antecedent_graph::Cpdag;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-
-fn refused(code: &'static str, detail: &str, message: &str) -> IoError {
-    IoError::Refused { code, message: format!("{detail}: {message}") }
-}
-
-fn malformed(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("{detail}: {message}"),
-    }
-}
 
 /// Route name the measured consumer registers.
 pub const PARENT_SET_EFFECT_ROUTE: &str = "split_parent_set_effect";
@@ -309,44 +299,25 @@ impl ParentSetEffectSource {
 
     fn validate(&self) -> Result<usize, IoError> {
         let k = self.columns.len();
-        if !matches!(self.version, 1 | FORMAT_VERSION) || self.names.len() != k {
-            return Err(malformed(
-                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
-                "unknown format version or names and columns of different counts",
-            ));
-        }
-        if k < 3 {
-            return Err(malformed(
-                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
-                "a treatment, an outcome and at least one more searched variable are needed",
-            ));
-        }
+        super::validate_split_header(
+            matches!(self.version, 1 | FORMAT_VERSION),
+            self.names.len(),
+            self.columns.len(),
+            antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
+        )?;
         if self.max_degree == 0 {
             return Err(malformed(
                 antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
                 "the declared maximum graph degree must be at least one",
             ));
         }
-        let rows = self.columns[0].len();
-        if !(8..=MAX_ROWS).contains(&rows) || self.columns.iter().any(|c| c.len() != rows) {
-            return Err(malformed(
-                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
-                "columns must have one length between 8 and 2^20 rows",
-            ));
-        }
-        if self.columns.iter().flatten().any(|v| !v.is_finite()) {
-            return Err(malformed(
-                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
-                "missing or non-finite values are not supported",
-            ));
-        }
-        let (t, y) = (self.treatment as usize, self.outcome as usize);
-        if t >= k || y >= k || t == y {
-            return Err(malformed(
-                antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
-                "treatment and outcome must be two distinct columns",
-            ));
-        }
+        let rows = super::validate_split_columns(
+            &self.columns,
+            self.treatment,
+            self.outcome,
+            MAX_ROWS,
+            antecedent_core::reason_details::parent_set_effect::SOURCE_INVALID,
+        )?;
         match (self.transformation, self.log_shift) {
             (Transformation::Linear, None) => {}
             (Transformation::LogLinear, Some(shift)) if shift.is_finite() && shift != 0.0 => {}
@@ -1229,5 +1200,33 @@ mod tests {
             (linear.point, linear.lower, linear.upper, linear.standard_error),
             (0.4, 0.1, 0.7, 0.15)
         );
+    }
+}
+
+#[cfg(test)]
+mod shared_validation_order_tests {
+    #[test]
+    fn degree_refusal_precedes_bad_rows_after_header() {
+        use super::{ParentSetEffectSource, Transformation};
+        let mut source = ParentSetEffectSource::new(
+            vec!["a".into(), "b".into(), "c".into()],
+            vec![vec![], vec![], vec![]],
+            0,
+            1,
+            0,
+            0,
+            Transformation::Linear,
+            0,
+            None,
+        );
+        assert!(source.validate().unwrap_err().to_string().contains("maximum graph degree"));
+        source.version = 99;
+        assert!(source.validate().unwrap_err().to_string().contains("unknown format version"));
+        source.max_degree = 1;
+        source.columns = vec![vec![1.0; 8]; 3];
+        source.version = 1;
+        assert_eq!(source.validate().unwrap(), 8);
+        source.version = 2;
+        assert_eq!(source.validate().unwrap(), 8);
     }
 }

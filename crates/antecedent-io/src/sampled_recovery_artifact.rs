@@ -714,18 +714,7 @@ impl SampledRecoveryArtifactWire {
     /// The catalog does not decode or the identity does not encode.
     pub fn expected_data_digest(&self) -> Result<String, IoError> {
         let catalog = self.catalog.to_catalog()?;
-        let mut bindings: Vec<(u32, String, Option<String>)> = catalog
-            .bindings
-            .iter()
-            .map(|b| {
-                (
-                    b.regime.raw(),
-                    b.snapshot_identity.to_string(),
-                    b.dataset_identity.as_deref().map(str::to_owned),
-                )
-            })
-            .collect();
-        bindings.sort();
+        let bindings = crate::exact_transport_laws::sorted_catalog_bindings(&catalog);
         let view = DataView {
             tag: "sampled_observation_recovery_data_v2",
             bindings,

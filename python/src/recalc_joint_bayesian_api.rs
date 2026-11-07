@@ -87,12 +87,7 @@ fn prior(wire: GaussianPriorWire) -> GaussianPrior {
     }
 }
 fn check_identity(identity: &DataIdentityWire, rows: usize) -> PyResult<()> {
-    let ids: std::collections::HashSet<_> = identity.datum_ids.iter().collect();
-    if identity.snapshot_digest.trim().is_empty()
-        || identity.datum_ids.len() != rows
-        || ids.len() != rows
-        || identity.datum_ids.iter().any(|id| id.trim().is_empty())
-    {
+    if crate::bridge::invalid_joint_data_identity(identity, rows) {
         return Err(invalid(
             antecedent::reason::reason_details::recalc::JOINT_BAYESIAN_INVALID_DATA,
             "observation identity must name every unit once",

@@ -64,8 +64,8 @@ use antecedent_core::{CanonicalWriter, ExecutionContext};
 
 use super::finite_executor::{ExogenousInference, FiniteExecutionRequest, FiniteExecutionResult};
 use super::finite_scm::{
-    CompensatedSum, MAX_ABDUCTION_WORK, MAX_EVALUATION_WORK, WorldPlan, abduct_unit,
-    evaluate_worlds, validate_units, validate_worlds,
+    CompensatedSum, CompiledScm, FactualUnit, MAX_ABDUCTION_WORK, MAX_EVALUATION_WORK, WorldPlan,
+    abduct_unit, evaluate_worlds, validate_units, validate_worlds,
 };
 use super::refusal::{CrossWorldExecutionError, from_external, invalid, poll, refuse};
 use super::stages::WorkCounters;
@@ -226,88 +226,77 @@ fn rule_failure(request: &PropagationRequest) -> Result<&'static str, CrossWorld
     check_propagation(request).map(|plan| plan.route.as_str()).map_err(from_external)
 }
 
-/// Derive the whole-path uncertainty of an executed finite-row request.
-///
-/// `result` must be the result of executing `request`; the derivation
-/// re-abduces and re-predicts every unit and refuses a result that differs.
-///
-/// # Errors
-/// A typed refusal ([`CrossWorldExecutionError::Refused`]): undeclared unit
-/// sampling, a sampled or transported request, a coupling the joint-law rule
-/// does not support for the within-unit spread, units with shared evidence
-/// declared independent, invalid declarations, a result that does not match
-/// the request, or an exceeded bound; or cancellation.
-#[allow(clippy::too_many_lines, reason = "one sequential derivation of the four named sources")]
-pub fn derive_whole_path_uncertainty(
+struct WholePathReplay {
+    unit_spreads: Vec<UnitSpread>,
+    mean: f64,
+    work: WorkCounters,
+    weight_defect: f64,
+}
+
+fn replay_whole_path(
     request: &FiniteExecutionRequest,
     result: &FiniteExecutionResult,
-    unit_sampling: UnitSampling,
+    units: &[FactualUnit],
+    compiled: &CompiledScm<'_>,
     ctx: &ExecutionContext,
-) -> Result<WholePathUncertainty, CrossWorldExecutionError> {
-    poll(ctx)?;
-    if unit_sampling == UnitSampling::Undeclared {
-        return Err(refuse(
-            antecedent_core::reason_code!("sampling_dependence_unknown"),
-            antecedent_core::reason_details::cross_world_uncertainty::UNIT_SAMPLING_UNDECLARED,
-            Some("unit_sampling".to_owned()),
-            "declare whether the units are the whole set the claim is about (fixed units) or an \
-             independent sample of a population; the estimand and its sampling variance depend on it",
-        ));
+) -> Result<WholePathReplay, CrossWorldExecutionError> {
+    // Re-abduce and re-predict; the executed values must be reproduced exactly.
+    let plans: Vec<WorldPlan> = (0..request.worlds.len())
+        .map(|w| WorldPlan::from_validated(&request.scm, &request.worlds, w))
+        .collect();
+    let n_vars = request.scm.variables.len();
+    let mut values = vec![vec![0u8; n_vars]; request.worlds.len()];
+    let mut work = WorkCounters::default();
+    let mut unit_spreads = Vec::with_capacity(units.len());
+    let mut total = CompensatedSum::default();
+    let mut weight_defect = 0.0_f64;
+    for (unit, executed) in units.iter().zip(&result.units) {
+        poll(ctx)?;
+        if executed.unit != unit.unit {
+            return Err(mismatch("unit_identity"));
+        }
+        let posterior = abduct_unit(compiled, unit, ctx)?;
+        work.abductions += 1;
+        work.abduction_states_enumerated += compiled.joint_states as u64;
+        let mut at_state = Vec::with_capacity(posterior.states.len());
+        let mut expectation = CompensatedSum::default();
+        let mut weight_sum = CompensatedSum::default();
+        for (state, weight) in &posterior.states {
+            evaluate_worlds(compiled, &plans, *state as usize, &mut values);
+            let g = request.quantity.at_state(&values);
+            at_state.push((*weight, g));
+            expectation.add(weight * g);
+            weight_sum.add(*weight);
+        }
+        let value = expectation.total();
+        let weight_sum = weight_sum.total();
+        work.world_predictions += request.worlds.len() as u64;
+        work.posterior_states_predicted += (posterior.states.len() * request.worlds.len()) as u64;
+        if value.to_bits() != executed.value.to_bits() {
+            return Err(mismatch("unit_value"));
+        }
+        // Two-pass predictive variance about the unit's own mean.
+        let predictive_variance: f64 =
+            at_state.iter().map(|(w, g)| w * (g - value) * (g - value)).sum();
+        weight_defect = weight_defect.max((weight_sum - 1.0).abs());
+        total.add(value);
+        unit_spreads.push(UnitSpread { unit: unit.unit.clone(), value, predictive_variance });
     }
-    if request.exogenous == ExogenousInference::PosteriorSampling {
-        return Err(refuse(
-            antecedent_core::reason_code!("estimator_inference_mismatch"),
-            antecedent_core::reason_details::cross_world_uncertainty::SAMPLED_PATH_NOT_SUPPORTED,
-            Some("posterior_sampling".to_owned()),
-            "with declared mechanisms the exogenous posterior is enumerated exactly; a sampled \
-             posterior only adds Monte Carlo and mixing error to a quantity that is exactly \
-             computable, so use exact enumeration, whose posterior has no estimation error",
-        ));
-    }
-    if request.target_population.as_ref().is_some_and(|t| t != &request.scm.population) {
-        return Err(refuse(
-            antecedent_core::reason_code!("transport_not_certified"),
-            antecedent_core::reason_details::cross_world_uncertainty::NO_TRANSPORTED_PATH_DERIVATION,
-            request.target_population.clone(),
-            "the uncertainty of a transported cross-world quantity composes the transport \
-             identification with a target-population abduction, for which no derivation exists; \
-             derive the uncertainty in the population the mechanisms were declared for",
-        ));
-    }
-    if request.evidence_history != request.scm.history {
-        return Err(refuse(
-            antecedent_core::reason_code!("route_not_supported"),
-            antecedent_core::reason_details::cross_world_uncertainty::INCOMPATIBLE_HISTORY,
-            Some(request.evidence_history.clone()),
-            "declare the mechanisms for the history the evidence was gathered under",
-        ));
-    }
-
-    let compiled = request.scm.compile()?;
-    let units = validate_units(&request.scm, &request.units)?;
-    validate_worlds(&request.scm, &request.worlds)?;
-    request.quantity.validate(&request.scm, request.worlds.len())?;
-    if units.len().saturating_mul(compiled.joint_states) > MAX_ABDUCTION_WORK {
-        return Err(invalid(
-            antecedent_core::reason_details::cross_world_uncertainty::BOUNDS_EXCEEDED,
-            "abduction_work",
-        ));
-    }
-    if compiled
-        .joint_states
-        .saturating_mul(request.scm.variables.len())
-        .saturating_mul(request.worlds.len())
-        > MAX_EVALUATION_WORK
-    {
-        return Err(invalid(
-            antecedent_core::reason_details::cross_world_uncertainty::BOUNDS_EXCEEDED,
-            "evaluation_work",
-        ));
-    }
-    if result.units.len() != units.len() {
-        return Err(mismatch("unit_count"));
+    let n = unit_spreads.len() as f64;
+    let mean = total.total() / n;
+    if mean.to_bits() != result.value.to_bits() {
+        return Err(mismatch("mean"));
     }
 
+    Ok(WholePathReplay { unit_spreads, mean, work, weight_defect })
+}
+
+fn whole_path_propagation_routes(
+    request: &FiniteExecutionRequest,
+    result: &FiniteExecutionResult,
+    units: &[FactualUnit],
+    unit_sampling: UnitSampling,
+) -> Result<Vec<&'static str>, CrossWorldExecutionError> {
     // Rule checks run before any enumeration. The within-unit spread of a
     // quantity over several worlds is an expectation under the one joint law
     // of the worlds, so it needs the shared exogenous state declared.
@@ -377,53 +366,105 @@ pub fn derive_whole_path_uncertainty(
         routes.push(rule_failure(&between)?);
     }
 
-    // Re-abduce and re-predict; the executed values must be reproduced exactly.
-    let plans: Vec<WorldPlan> = (0..request.worlds.len())
-        .map(|w| WorldPlan::from_validated(&request.scm, &request.worlds, w))
-        .collect();
-    let n_vars = request.scm.variables.len();
-    let mut values = vec![vec![0u8; n_vars]; request.worlds.len()];
-    let mut work = WorkCounters::default();
-    let mut unit_spreads = Vec::with_capacity(units.len());
-    let mut total = CompensatedSum::default();
-    let mut weight_defect = 0.0_f64;
-    for (unit, executed) in units.iter().zip(&result.units) {
-        poll(ctx)?;
-        if executed.unit != unit.unit {
-            return Err(mismatch("unit_identity"));
-        }
-        let posterior = abduct_unit(&compiled, unit, ctx)?;
-        work.abductions += 1;
-        work.abduction_states_enumerated += compiled.joint_states as u64;
-        let mut at_state = Vec::with_capacity(posterior.states.len());
-        let mut expectation = CompensatedSum::default();
-        let mut weight_sum = CompensatedSum::default();
-        for (state, weight) in &posterior.states {
-            evaluate_worlds(&compiled, &plans, *state as usize, &mut values);
-            let g = request.quantity.at_state(&values);
-            at_state.push((*weight, g));
-            expectation.add(weight * g);
-            weight_sum.add(*weight);
-        }
-        let value = expectation.total();
-        let weight_sum = weight_sum.total();
-        work.world_predictions += request.worlds.len() as u64;
-        work.posterior_states_predicted += (posterior.states.len() * request.worlds.len()) as u64;
-        if value.to_bits() != executed.value.to_bits() {
-            return Err(mismatch("unit_value"));
-        }
-        // Two-pass predictive variance about the unit's own mean.
-        let predictive_variance: f64 =
-            at_state.iter().map(|(w, g)| w * (g - value) * (g - value)).sum();
-        weight_defect = weight_defect.max((weight_sum - 1.0).abs());
-        total.add(value);
-        unit_spreads.push(UnitSpread { unit: unit.unit.clone(), value, predictive_variance });
+    Ok(routes)
+}
+
+fn admit_whole_path_uncertainty(
+    request: &FiniteExecutionRequest,
+    unit_sampling: UnitSampling,
+) -> Result<(), CrossWorldExecutionError> {
+    if unit_sampling == UnitSampling::Undeclared {
+        return Err(refuse(
+            antecedent_core::reason_code!("sampling_dependence_unknown"),
+            antecedent_core::reason_details::cross_world_uncertainty::UNIT_SAMPLING_UNDECLARED,
+            Some("unit_sampling".to_owned()),
+            "declare whether the units are the whole set the claim is about (fixed units) or an \
+             independent sample of a population; the estimand and its sampling variance depend on it",
+        ));
     }
+    if request.exogenous == ExogenousInference::PosteriorSampling {
+        return Err(refuse(
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
+            antecedent_core::reason_details::cross_world_uncertainty::SAMPLED_PATH_NOT_SUPPORTED,
+            Some("posterior_sampling".to_owned()),
+            "with declared mechanisms the exogenous posterior is enumerated exactly; a sampled \
+             posterior only adds Monte Carlo and mixing error to a quantity that is exactly \
+             computable, so use exact enumeration, whose posterior has no estimation error",
+        ));
+    }
+    if request.target_population.as_ref().is_some_and(|t| t != &request.scm.population) {
+        return Err(refuse(
+            antecedent_core::reason_code!("transport_not_certified"),
+            antecedent_core::reason_details::cross_world_uncertainty::NO_TRANSPORTED_PATH_DERIVATION,
+            request.target_population.clone(),
+            "the uncertainty of a transported cross-world quantity composes the transport \
+             identification with a target-population abduction, for which no derivation exists; \
+             derive the uncertainty in the population the mechanisms were declared for",
+        ));
+    }
+    if request.evidence_history != request.scm.history {
+        return Err(refuse(
+            antecedent_core::reason_code!("route_not_supported"),
+            antecedent_core::reason_details::cross_world_uncertainty::INCOMPATIBLE_HISTORY,
+            Some(request.evidence_history.clone()),
+            "declare the mechanisms for the history the evidence was gathered under",
+        ));
+    }
+
+    Ok(())
+}
+
+/// Derive the whole-path uncertainty of an executed finite-row request.
+///
+/// `result` must be the result of executing `request`; the derivation
+/// re-abduces and re-predicts every unit and refuses a result that differs.
+///
+/// # Errors
+/// A typed refusal ([`CrossWorldExecutionError::Refused`]): undeclared unit
+/// sampling, a sampled or transported request, a coupling the joint-law rule
+/// does not support for the within-unit spread, units with shared evidence
+/// declared independent, invalid declarations, a result that does not match
+/// the request, or an exceeded bound; or cancellation.
+#[allow(clippy::too_many_lines, reason = "one sequential derivation of the four named sources")]
+pub fn derive_whole_path_uncertainty(
+    request: &FiniteExecutionRequest,
+    result: &FiniteExecutionResult,
+    unit_sampling: UnitSampling,
+    ctx: &ExecutionContext,
+) -> Result<WholePathUncertainty, CrossWorldExecutionError> {
+    poll(ctx)?;
+    admit_whole_path_uncertainty(request, unit_sampling)?;
+
+    let compiled = request.scm.compile()?;
+    let units = validate_units(&request.scm, &request.units)?;
+    validate_worlds(&request.scm, &request.worlds)?;
+    request.quantity.validate(&request.scm, request.worlds.len())?;
+    if units.len().saturating_mul(compiled.joint_states) > MAX_ABDUCTION_WORK {
+        return Err(invalid(
+            antecedent_core::reason_details::cross_world_uncertainty::BOUNDS_EXCEEDED,
+            "abduction_work",
+        ));
+    }
+    if compiled
+        .joint_states
+        .saturating_mul(request.scm.variables.len())
+        .saturating_mul(request.worlds.len())
+        > MAX_EVALUATION_WORK
+    {
+        return Err(invalid(
+            antecedent_core::reason_details::cross_world_uncertainty::BOUNDS_EXCEEDED,
+            "evaluation_work",
+        ));
+    }
+    if result.units.len() != units.len() {
+        return Err(mismatch("unit_count"));
+    }
+
+    let routes = whole_path_propagation_routes(request, result, &units, unit_sampling)?;
+
+    let WholePathReplay { unit_spreads, mean, mut work, weight_defect } =
+        replay_whole_path(request, result, &units, &compiled, ctx)?;
     let n = unit_spreads.len() as f64;
-    let mean = total.total() / n;
-    if mean.to_bits() != result.value.to_bits() {
-        return Err(mismatch("mean"));
-    }
 
     let realized: f64 = unit_spreads.iter().map(|u| u.predictive_variance).sum::<f64>() / (n * n);
     let sampling_variance =

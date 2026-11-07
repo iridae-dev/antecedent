@@ -482,7 +482,7 @@ impl SampledRecoveryReceipt {
                 }
             }
         }
-        hex_digest(&digest)
+        digest.finish_hex()
     }
 
     /// Whether the stored digest is the recomputed one.
@@ -604,11 +604,6 @@ pub fn derive_sampled_recovery(
 /// One observation pattern as its three bit masks, length-prefixed.
 fn write_pattern(digest: &mut CanonicalWriter, pattern: ObservationPattern) {
     digest.bytes(&[pattern.responses, pattern.proxies, pattern.fully]);
-}
-
-/// Lowercase hex of a finished canonical digest.
-fn hex_digest(digest: &CanonicalWriter) -> String {
-    digest.finish_hex()
 }
 
 fn to_u64(value: usize) -> u64 {
@@ -860,7 +855,7 @@ fn input_digest(input: &SampledObservationInput) -> String {
         digest.word(row.id);
         write_pattern(&mut digest, row.pattern);
     }
-    hex_digest(&digest)
+    digest.finish_hex()
 }
 
 /// Probability that the outcome is 1, normalized by the evaluated total.
@@ -999,7 +994,7 @@ impl Run<'_> {
             counts[self.cells_of_row[draw]] += 1;
             digest.word(rows[draw].id);
         }
-        (counts, hex_digest(&digest))
+        (counts, digest.finish_hex())
     }
 
     fn replicate(&self, id: usize) -> Result<Replicated, SampledRecoveryError> {

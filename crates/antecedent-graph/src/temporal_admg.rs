@@ -377,10 +377,9 @@ impl TemporalAdmg {
         if group_bytes > limits.max_bytes {
             return Err(limit("bytes"));
         }
-        let group_lease = ctx.acquire_admission(0, group_bytes).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
-            other => T::Admission(other),
-        })?;
+        let group_lease = ctx
+            .acquire_admission(0, group_bytes)
+            .map_err(crate::error::temporal_admission_error)?;
         let mut groups = std::collections::BTreeMap::<(usize, i64), u64>::new();
         let mut pairs = 0u64;
         let mut count_groups = |from: usize, to: usize| -> Result<(), GraphError> {
@@ -573,10 +572,8 @@ impl TemporalAdmg {
         if bytes > limits.max_bytes {
             return Err(limit("bytes"));
         }
-        let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
-            other => T::Admission(other),
-        })?;
+        let lease =
+            ctx.acquire_admission(0, bytes).map_err(crate::error::temporal_admission_error)?;
         self.unroll_window_over_inner(periods, variable_count, Some(ctx), Some(lease))
     }
 

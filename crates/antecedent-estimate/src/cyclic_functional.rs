@@ -61,7 +61,7 @@ pub struct CyclicFunctionalInputs<'a> {
     /// Retained executable expression; this component grants no identification claim.
     pub program: &'a antecedent_expr::FunctionalProgram,
 }
-fn invalid(s: impl std::fmt::Display) -> EstimationError {
+pub(crate) fn invalid(s: impl std::fmt::Display) -> EstimationError {
     EstimationError::data_msg(s.to_string())
 }
 struct Provider<'a> {
@@ -253,4 +253,22 @@ pub fn evaluate_finite_cyclic_functional(
         values,
         operations: provider.steps.get(),
     })
+}
+
+#[cfg(test)]
+mod invalid_refusal_tests {
+    use super::invalid;
+    use crate::EstimationError;
+    use antecedent_data::DataError;
+
+    #[test]
+    fn cyclic_functional_invalid_preserves_variant_and_display_text() {
+        let value = format_args!("bad {}", "input").to_string();
+        match invalid(&value) {
+            EstimationError::Data(DataError::InvalidArgument { message }) => {
+                assert_eq!(message, "bad input");
+            }
+            other => panic!("unexpected error: {other}"),
+        }
+    }
 }

@@ -7,6 +7,18 @@ use antecedent_graph::GraphError;
 use antecedent_stats::StatsError;
 use thiserror::Error;
 
+pub(crate) fn admission_error(
+    error: antecedent_core::execution::AdmissionError,
+    message: &'static str,
+    required_bytes: u64,
+    available_bytes: impl FnOnce() -> u64,
+) -> ModelError {
+    match error {
+        antecedent_core::execution::AdmissionError::Cancelled => ModelError::Cancelled,
+        _ => ModelError::ResourceLimit { message, required_bytes, limit_bytes: available_bytes() },
+    }
+}
+
 /// Errors from compiling, fitting, or sampling causal models.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 #[non_exhaustive]
@@ -112,5 +124,23 @@ mod tests {
         assert_eq!(CallbackFailure::in_chain(&error), Some(&failure));
         assert!(CallbackFailure::in_chain(&ModelError::Cancelled).is_none());
         assert_eq!(error.clone(), error);
+    }
+}
+
+#[cfg(test)]
+mod shared_admission_tests {
+    use super::{ModelError, admission_error};
+    use antecedent_core::execution::AdmissionError;
+
+    #[test]
+    fn admission_error_preserves_cancellation_and_resource_fields() {
+        assert_eq!(
+            admission_error(AdmissionError::Cancelled, "route", 9, || panic!("must be lazy")),
+            ModelError::Cancelled
+        );
+        assert_eq!(
+            admission_error(AdmissionError::Overflow, "route", 9, || 4),
+            ModelError::ResourceLimit { message: "route", required_bytes: 9, limit_bytes: 4 }
+        );
     }
 }

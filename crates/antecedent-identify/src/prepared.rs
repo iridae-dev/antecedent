@@ -145,10 +145,7 @@ impl PreparedAdmg {
         if bytes > limits.max_bytes {
             return Err(IdentificationError::budget(IdentificationBudget::Memory));
         }
-        let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-            _ => IdentificationError::budget(IdentificationBudget::Memory),
-        })?;
+        let lease = ctx.acquire_admission(0, bytes).map_err(crate::error::map_admission_error)?;
         // The graph's own Kahn order, polling cancellation at every node and edge. The window
         // was built by checked insertions, so a cycle here is an invariant failure.
         let graph = window.admg();

@@ -48,9 +48,15 @@ record_sha256 = "17416b025b5f1b4d61a9309bed7b12ecec2427df5fbdb545950d6e801f08161
 
 [[method_review.artifacts]]
 role = "implementation"
+path = "crates/antecedent-design/src/program_search.rs"
+items = ["fn admission_error"]
+sha256 = "c7ee217f45dcff0dad880dcc6d9c9dce6831b64130880620fb6bd9b09a98ca72"
+
+[[method_review.artifacts]]
+role = "implementation"
 path = "crates/antecedent-design/src/program_search/certified.rs"
 items = ["enum CertificateStop", "fn adjacent", "fn bounds", "fn compile", "fn constraint_bounds", "fn enclose", "fn exact", "fn execute", "fn feasible", "fn objective_gap", "fn op", "fn possible", "fn reserve_frontier", "fn root", "fn rounded", "struct CertificateOptions", "struct CertifiedControl", "struct CertifiedRegion", "struct CertifiedRestriction", "struct GlobalProgramCertificate", "struct ObjectiveInterval", "struct PreparedCertifiedSearch"]
-sha256 = "49f022f947ea809e5434151d47c8e04182ee34a8dc9aa05647d491d2b5911f61"
+sha256 = "88afe28eda2a3c10a0eea62ac3338d637aa85e6ae329796f71a0781b8f93d196"
 
 [[method_review.artifacts]]
 role = "assertion"

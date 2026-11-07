@@ -35,7 +35,7 @@ pub struct RetainedBootstrap {
     retention: RetentionMode,
 }
 
-fn invalid(message: String) -> CausalError {
+pub(crate) fn invalid(message: String) -> CausalError {
     CausalError::State(StateError::InvalidEvent(message))
 }
 
@@ -292,5 +292,20 @@ impl SpilledBootstrap {
     /// to rerun the bootstrap), or the file was changed.
     pub fn reload(&self, ctx: &ExecutionContext) -> Result<RetainedBootstrap, CausalError> {
         reload_admitted(ctx, &self.handle)
+    }
+}
+
+#[cfg(test)]
+mod shared_invalid_tests {
+    use super::{CausalError, StateError, invalid};
+
+    #[test]
+    fn invalid_event_preserves_message() {
+        match invalid("event:\ninvalid".into()) {
+            CausalError::State(StateError::InvalidEvent(message)) => {
+                assert_eq!(message, "event:\ninvalid")
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 }

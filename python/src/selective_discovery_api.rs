@@ -72,15 +72,7 @@ pub(crate) fn refusal_json(
     message: &str,
     remedy: &str,
 ) -> String {
-    json!({
-        "code": code,
-        "stage": stage,
-        "detail": detail,
-        "message": message,
-        "offending": Json::Null,
-        "remedy": remedy,
-    })
-    .to_string()
+    crate::bridge::compact_refusal_json(code, stage, detail, message, Some(remedy))
 }
 
 pub(crate) fn error_json(error: &SelectiveDiscoveryError) -> Option<String> {
@@ -1243,5 +1235,18 @@ mod selective_link_json_tests {
         let tested = link_json(&link, 1.0, 0.25, Some(0.5));
         assert_eq!(tested["tested"], true);
         assert_eq!(tested["p_value"], 0.25);
+    }
+}
+
+#[cfg(test)]
+mod compact_refusal_tests {
+    use super::refusal_json;
+
+    #[test]
+    fn selective_discovery_refusal_preserves_six_field_json() {
+        for remedy in ["", "retry \"quoted\""] {
+            let expected = serde_json::json!({"code":"code", "stage":"stage", "detail":"detail", "message":"line\nbreak", "offending":null, "remedy":remedy}).to_string();
+            assert_eq!(refusal_json("code", "stage", "detail", "line\nbreak", remedy), expected);
+        }
     }
 }

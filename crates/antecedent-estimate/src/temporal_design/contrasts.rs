@@ -10,7 +10,7 @@
 
 use antecedent_core::ProbabilityTable;
 
-use super::{LaggedPairs, invalid};
+use super::{LaggedPairs, invalid, validate_floor};
 use crate::error::EstimationError;
 use crate::util::refuse;
 
@@ -50,14 +50,6 @@ fn checked_probability(p: f64, floor: f64) -> Result<f64, EstimationError> {
         ));
     }
     Ok(p)
-}
-
-fn validate_floor(floor: f64) -> Result<(), EstimationError> {
-    if floor.is_finite() && floor > 0.0 && floor <= 0.5 {
-        Ok(())
-    } else {
-        Err(invalid("the positivity floor must be in (0, 0.5]"))
-    }
 }
 
 fn require_aligned(rows: usize, lengths: &[usize]) -> Result<(), EstimationError> {

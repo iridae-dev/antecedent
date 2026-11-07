@@ -152,10 +152,7 @@ fn ancestry_depth(
     if bytes > budget.limits().max_bytes {
         return Err(IdentificationError::budget(IdentificationBudget::Memory));
     }
-    let _lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-        _ => IdentificationError::budget(IdentificationBudget::Memory),
-    })?;
+    let _lease = ctx.acquire_admission(0, bytes).map_err(crate::error::map_admission_error)?;
     let nodes = graph.nodes();
     let mut relations_all: Vec<(u32, u32, u32)> = Vec::new();
     // A contemporaneous circle-circle edge lets either endpoint be the parent of the other; the
@@ -297,12 +294,9 @@ fn closure(
             if bytes > budget.limits().max_bytes {
                 return Err(IdentificationError::budget(IdentificationBudget::Memory));
             }
-            leases.push(ctx.acquire_admission(0, batch * 128).map_err(|e| match e {
-                antecedent_core::execution::AdmissionError::Cancelled => {
-                    IdentificationError::Cancelled
-                }
-                _ => IdentificationError::budget(IdentificationBudget::Memory),
-            })?);
+            leases.push(
+                ctx.acquire_admission(0, batch * 128).map_err(crate::error::map_admission_error)?,
+            );
             *admitted = next;
         }
         reached.insert(key);

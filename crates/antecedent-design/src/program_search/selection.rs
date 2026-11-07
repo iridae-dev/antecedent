@@ -97,8 +97,7 @@ pub fn simultaneous_program_intervals(
         ));
     }
     let retention = Arc::new(
-        ctx.acquire_admission(0, quote as u64)
-            .map_err(|error| ProgramSearchError::Resource(error.to_string()))?,
+        ctx.acquire_admission(0, quote as u64).map_err(crate::program_search::admission_error)?,
     );
     let mut roots = Vec::with_capacity(bootstrap.len());
     for row in bootstrap {

@@ -418,13 +418,10 @@ fn check_budget(
             limit_bytes,
         });
     }
-    ctx.acquire_admission(0, required_bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => ModelError::Cancelled,
-        _ => ModelError::ResourceLimit {
-            message: NOISE_TABLE_BUDGET,
-            required_bytes,
-            limit_bytes: ctx.admission().available().bytes(),
-        },
+    ctx.acquire_admission(0, required_bytes).map_err(|error| {
+        crate::error::admission_error(error, NOISE_TABLE_BUDGET, required_bytes, || {
+            ctx.admission().available().bytes()
+        })
     })
 }
 

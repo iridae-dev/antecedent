@@ -3,6 +3,7 @@
 //! intervention-regime validation stopping. The smooth Armijo path is not
 //! substituted at `ReLU` Jacobian jumps. Validation convergence, training-score
 //! stationarity and epoch exhaustion are distinct reported facts.
+use crate::cyclic_likelihood::invalid_equilibrium_input as invalid;
 use crate::cyclic_likelihood::{CyclicParameter, parameter_values, with_parameters};
 use antecedent_core::ExecutionContext;
 use antecedent_model::nonlinear_equilibrium::{
@@ -88,9 +89,7 @@ pub struct CyclicAdamFit {
     /// Explicit piecewise-linear derivative convention when applicable.
     pub nonsmooth_convention: Option<String>,
 }
-fn invalid(s: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(s.into())
-}
+
 fn supported(
     model: &EquilibriumModel,
     margin: f64,

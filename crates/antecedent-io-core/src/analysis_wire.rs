@@ -499,10 +499,13 @@ pub fn validate_refutation_scope(scope: &RefutationScopeWire) -> Result<(), IoEr
         (true, false) => "temporal.frequentist",
         (true, true) => "temporal.bayesian",
     };
-    let mut writer =
-        antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
-    writer.text(&target.family).text(quadrant).texts(&target.labels).bytes(&target.source);
-    if writer.finish() != target.identity {
+    let identity = antecedent_core::identity::refutation_target_identity(
+        &target.family,
+        quadrant,
+        &target.labels,
+        &target.source,
+    );
+    if identity != target.identity {
         return Err(IoError::Convert("refutation target identity mismatch".into()));
     }
     Ok(())
@@ -828,5 +831,33 @@ mod route_diagnostic_wire_tests {
             assert_eq!(restored, diagnostic);
             assert_eq!(RouteNativeDiagnostic::from_diagnostic(&restored), Some(record));
         }
+    }
+}
+
+#[cfg(test)]
+mod refutation_target_identity_tests {
+    use super::{RefutationScopeWire, RefutationTargetWire, validate_refutation_scope};
+
+    #[test]
+    fn fixed_target_identity_is_accepted_and_tampering_is_refused() {
+        let target = RefutationTargetWire {
+            version: 1,
+            family: "conditional_effect".into(),
+            temporal: true,
+            bayesian: true,
+            labels: vec!["alpha".into(), "β".into()],
+            source: [0x42; 32],
+            identity: antecedent_core::identity::digest_from_hex(
+                "43cf05f9c0a50ec49e6401fed1df62cbcbc096b06fe78d0b9c6451c5c3f302d5",
+            )
+            .unwrap(),
+        };
+        let mut changed = target.clone();
+        changed.labels.swap(0, 1);
+        assert!(validate_refutation_scope(&RefutationScopeWire::WholeTarget { target }).is_ok());
+        assert!(
+            validate_refutation_scope(&RefutationScopeWire::WholeTarget { target: changed })
+                .is_err()
+        );
     }
 }

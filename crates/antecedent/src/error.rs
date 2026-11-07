@@ -13,6 +13,21 @@ use antecedent_expr::ProgramError;
 use antecedent_graph::GraphError;
 use antecedent_identify::IdentificationError;
 use antecedent_io::IoError;
+
+pub(crate) fn resource_admission_error(
+    error: antecedent_core::execution::AdmissionError,
+    stage: &'static str,
+) -> CausalError {
+    match error {
+        antecedent_core::execution::AdmissionError::Cancelled => CausalError::Cancelled { stage },
+        other => CausalError::Resource { message: other.to_string() },
+    }
+}
+
+pub(crate) fn io_refused(code: &'static str, detail: &str, message: &str) -> IoError {
+    IoError::Refused { code, message: format!("{detail}: {message}") }
+}
+
 use antecedent_learn::LearnError;
 use antecedent_model::ModelError;
 use antecedent_prob::ProbError;
@@ -1536,3 +1551,34 @@ where
 #[cfg(test)]
 #[path = "error_worker_tests.rs"]
 mod worker_admission_classification_tests;
+
+#[cfg(test)]
+mod io_refusal_tests {
+    #[test]
+    fn io_parts_preserve_code_and_message() {
+        match super::io_refused("code", "detail", "message:\nnext") {
+            antecedent_io::IoError::Refused { code, message } => {
+                assert_eq!(code, "code");
+                assert_eq!(message, "detail: message:\nnext");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod point_admission_tests {
+    #[test]
+    fn preserves_cancel_stage_and_resource_text() {
+        use super::{CausalError, resource_admission_error};
+        use antecedent_core::execution::AdmissionError;
+        assert!(matches!(
+            resource_admission_error(AdmissionError::Cancelled, "point"),
+            CausalError::Cancelled { stage: "point" }
+        ));
+        let expected = AdmissionError::Overflow.to_string();
+        assert!(
+            matches!(resource_admission_error(AdmissionError::Overflow, "point"), CausalError::Resource { message } if message == expected)
+        );
+    }
+}

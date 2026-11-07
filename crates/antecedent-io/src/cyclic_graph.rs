@@ -2,7 +2,7 @@
 //! Serializable cyclic graph reasoning requests, with theorem-scoped answers.
 //! Graphical identification/discovery never inherits a numerical model-fit claim.
 
-use crate::cyclic_system_artifact::CyclicArtifactError;
+use crate::cyclic_system_artifact::{CyclicArtifactError, invalid};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_graph::{CyclicMixedGraph, DenseNodeId, Endpoint};
 use antecedent_identify::cyclic_id::{cyclic_backdoor_valid, identify_cyclic, CyclicIdPremises};
@@ -18,9 +18,6 @@ pub struct CyclicGraphSpec {
     pub directed: Vec<(u32, u32)>,
     /// Latent-confounding edges, each unordered pair listed once.
     pub bidirected: Vec<(u32, u32)>,
-}
-fn invalid(e: impl std::fmt::Display) -> CyclicArtifactError {
-    CyclicArtifactError::Invalid(e.to_string())
 }
 impl CyclicGraphSpec {
     /// Build a validated graph, refusing unknown/self/duplicate edges.

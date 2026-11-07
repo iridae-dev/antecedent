@@ -105,11 +105,8 @@ impl TemporalPag {
         if bytes > budget.limits().max_bytes {
             return Err(limit("bytes"));
         }
-        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                GraphError::TemporalMaterialization(T::Cancelled)
-            }
-            other => GraphError::TemporalMaterialization(T::Admission(other)),
+        let lease = ctx.acquire_admission(0, bytes).map_err(|error| {
+            GraphError::TemporalMaterialization(crate::error::temporal_admission_error(error))
         })?;
         for (i, _) in self.nodes().iter().enumerate() {
             if ctx.cancellation.is_cancelled() {

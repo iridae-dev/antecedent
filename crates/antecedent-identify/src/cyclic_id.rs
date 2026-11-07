@@ -57,7 +57,7 @@ pub enum CyclicIdError {
     #[error("cyclic identification resource refusal: {0}")]
     Resource(String),
 }
-fn invalid(s: impl std::fmt::Display) -> CyclicIdError {
+pub(crate) fn invalid(s: impl std::fmt::Display) -> CyclicIdError {
     CyclicIdError::Invalid(s.to_string())
 }
 fn id(i: usize) -> DenseNodeId {
@@ -570,6 +570,21 @@ mod numerical_tests {
             let found =
                 program.evaluate_with(&Joint(joint), &EvalContext::default(), &assignment).unwrap();
             assert!((found - expected).abs() < 1e-12, "frontdoor {found} vs {expected}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod invalid_refusal_tests {
+    use super::{CyclicIdError, invalid};
+
+    #[test]
+    fn cyclic_invalid_keeps_error_variant_and_display_text() {
+        for value in ["", "line\nbreak: \"quoted\""] {
+            match invalid(value) {
+                CyclicIdError::Invalid(message) => assert_eq!(message, value),
+                other => panic!("unexpected error: {other}"),
+            }
         }
     }
 }

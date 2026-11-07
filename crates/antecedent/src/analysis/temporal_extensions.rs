@@ -38,9 +38,7 @@ use antecedent_io::temporal_refresh_artifact::{
 };
 use std::collections::BTreeSet;
 
-fn refused(code: &'static str, detail: &str, message: &str) -> IoError {
-    IoError::Refused { code, message: format!("{detail}: {message}") }
-}
+use crate::error::io_refused as refused;
 
 /// A declared observation window of a prepared result.
 #[derive(Clone, Debug)]

@@ -5,6 +5,17 @@
 use antecedent_core::{Lag, VariableId};
 use thiserror::Error;
 
+pub(crate) fn temporal_admission_error(
+    error: antecedent_core::execution::AdmissionError,
+) -> antecedent_core::TemporalMaterializationError {
+    match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            antecedent_core::TemporalMaterializationError::Cancelled
+        }
+        other => antecedent_core::TemporalMaterializationError::Admission(other),
+    }
+}
+
 /// Graph-layer errors.
 #[derive(Clone, Debug, Eq, PartialEq, Error)]
 #[non_exhaustive]
@@ -540,5 +551,18 @@ mod tests {
         let text = refusal.to_string();
         assert!(text.contains("example has no cyclic support"), "{text}");
         assert!(text.contains("CyclicDigraph"), "{text}");
+    }
+}
+
+#[cfg(test)]
+mod shared_temporal_admission_tests {
+    #[test]
+    fn maps_cancellation_and_admission_error() {
+        use antecedent_core::{TemporalMaterializationError as T, execution::AdmissionError};
+        assert!(matches!(super::temporal_admission_error(AdmissionError::Cancelled), T::Cancelled));
+        assert!(matches!(
+            super::temporal_admission_error(AdmissionError::Overflow),
+            T::Admission(AdmissionError::Overflow)
+        ));
     }
 }

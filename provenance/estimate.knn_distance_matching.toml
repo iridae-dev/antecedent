@@ -39,6 +39,12 @@ record_sha256 = "121aeb7a985a2808f4d3e66d438ab09b4157924af79579a7454d85cb3eeff1d
 
 [[method_review.artifacts]]
 role = "implementation"
+path = "crates/antecedent-estimate/src/util/mod.rs"
+items = ["fn validate_caliper"]
+sha256 = "35211f3ba5380a814eb8782bbbf8b4248ca21faa530ec9926c0fc3f456410fa8"
+
+[[method_review.artifacts]]
+role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/knn.rs"
 items = ["fn fit", "fn new", "fn prepare", "struct KnnDistanceMatching"]
 sha256 = "53c49608841fb60c789558f77468d2fee9253729eb6a4d9861de67e299c1bdd1"
@@ -46,8 +52,8 @@ sha256 = "53c49608841fb60c789558f77468d2fee9253729eb6a4d9861de67e299c1bdd1"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/matching.rs"
-items = ["const BOUNDING_BOX_MIN_DIMENSION", "const DIRECT_RUN", "const MATCH_CANCELLATION_CHUNK", "enum CaliperScale", "enum SpatialIndex", "fn add_donor_usage", "fn check_label_lengths", "fn control_to_treated", "fn default", "fn donor_usage", "fn fit", "fn fit_linear_mean", "fn for_dimension", "fn from_donors", "fn match_diffs", "fn match_diffs_with", "fn match_nearest_k", "fn match_nearest_tied", "fn match_scalar_sorted", "fn match_target", "fn match_with_box_tree", "fn matched_outcome_diffs", "fn matched_point_effect", "fn matching_contrast", "fn mean_noise_inflation", "fn nearest", "fn new", "fn predict_linear", "fn prepare", "fn quote_exact_matching", "fn require_match_counts", "fn require_read_inference", "fn set_sizes", "fn treated_to_control", "fn validate_caliper", "fn with_caliper", "fn with_overlap", "fn with_sampling_weights", "struct MatchSide", "struct MatchedArms", "struct MatchedDiffs", "struct MatchedEffects", "struct MatchedEstimate", "struct MatchingSample", "struct SortedScalarIndex", "struct TiedDonors"]
-sha256 = "e37a077f233e99ffaf4b86738065c83c536ff56c166c8c6eb4325f3bf8ff9a8b"
+items = ["const BOUNDING_BOX_MIN_DIMENSION", "const DIRECT_RUN", "const MATCH_CANCELLATION_CHUNK", "enum CaliperScale", "enum SpatialIndex", "fn add_donor_usage", "fn check_label_lengths", "fn control_to_treated", "fn default", "fn donor_usage", "fn fit", "fn fit_linear_mean", "fn for_dimension", "fn from_donors", "fn match_diffs", "fn match_diffs_with", "fn match_nearest_k", "fn match_nearest_tied", "fn match_scalar_sorted", "fn match_target", "fn match_with_box_tree", "fn matched_outcome_diffs", "fn matched_point_effect", "fn matching_contrast", "fn mean_noise_inflation", "fn nearest", "fn new", "fn predict_linear", "fn prepare", "fn quote_exact_matching", "fn require_match_counts", "fn require_read_inference", "fn set_sizes", "fn treated_to_control", "fn with_caliper", "fn with_overlap", "fn with_sampling_weights", "struct MatchSide", "struct MatchedArms", "struct MatchedDiffs", "struct MatchedEffects", "struct MatchedEstimate", "struct MatchingSample", "struct SortedScalarIndex", "struct TiedDonors"]
+sha256 = "24c9aff6e61b9ef2305ec1a7cad486147ad3cf2676475d15918bdfc6dab47d25"
 
 [[method_review.artifacts]]
 role = "implementation"

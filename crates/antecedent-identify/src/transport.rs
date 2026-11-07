@@ -342,21 +342,7 @@ impl TransportIdentifier {
         if safe_standardizers {
             let over: Arc<[VariableId]> = relevant_selection.clone().into();
             return Ok(TransportIdentification::Transportable {
-                formula: TransportFormula::Standardize {
-                    over: Arc::clone(&over),
-                    source_response: response_factor(
-                        Arc::clone(&query.source_population),
-                        &outcomes,
-                        &over,
-                        &treatments,
-                    ),
-                    target_law: response_factor(
-                        Arc::clone(&query.target_population),
-                        &over,
-                        &[],
-                        &[],
-                    ),
-                },
+                formula: standardization_formula(query, &outcomes, &treatments, &over),
                 certificate: TransportCertificate {
                     rule: Arc::from("transport.sid.standardize"),
                     selection_targets: over,
@@ -383,21 +369,7 @@ impl TransportIdentifier {
         if let StandardizerSearch::Found(over) = &search {
             let over = Arc::clone(over);
             return Ok(TransportIdentification::Transportable {
-                formula: TransportFormula::Standardize {
-                    over: Arc::clone(&over),
-                    source_response: response_factor(
-                        Arc::clone(&query.source_population),
-                        &outcomes,
-                        &over,
-                        &treatments,
-                    ),
-                    target_law: response_factor(
-                        Arc::clone(&query.target_population),
-                        &over,
-                        &[],
-                        &[],
-                    ),
-                },
+                formula: standardization_formula(query, &outcomes, &treatments, &over),
                 certificate: TransportCertificate {
                     rule: Arc::from("transport.sid.s_admissible"),
                     selection_targets: diagram.selection_targets().to_vec().into(),
@@ -486,6 +458,24 @@ impl TransportIdentifier {
                 "a population-varying outcome ancestor lies in a graph requiring general c-component recursion; no non-transportability claim is made",
             ),
         }))
+    }
+}
+
+fn standardization_formula(
+    query: &TransportQuery,
+    outcomes: &[VariableId],
+    treatments: &[VariableId],
+    over: &Arc<[VariableId]>,
+) -> TransportFormula {
+    TransportFormula::Standardize {
+        over: Arc::clone(over),
+        source_response: response_factor(
+            Arc::clone(&query.source_population),
+            outcomes,
+            over,
+            treatments,
+        ),
+        target_law: response_factor(Arc::clone(&query.target_population), over, &[], &[]),
     }
 }
 

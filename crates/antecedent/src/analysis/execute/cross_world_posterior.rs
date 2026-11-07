@@ -338,15 +338,6 @@ fn atom_identified_bounds(result: &StudyResult) -> Option<(f64, f64)> {
     (lower.is_finite() && upper.is_finite() && lower <= upper).then_some((lower, upper))
 }
 
-/// Whether an error is the query's own refusal on every structure (a shape the explicit route
-/// does not execute) rather than a failure of one atom.
-fn is_query_refusal(error: &CausalError) -> bool {
-    matches!(
-        error,
-        CausalError::Unsupported { .. } | CausalError::Support { .. } | CausalError::Compile { .. }
-    ) && !error.is_identification_refusal()
-}
-
 /// What an atom's failed executor means for the mixture: a cancellation or a resource refusal
 /// ends the run, the identifier's refusal is the atom's unidentified mass, and any other failure
 /// is its unevaluable mass. The first failure that is the query's own refusal is kept in
@@ -361,7 +352,7 @@ fn atom_outcome_of(
     if error.is_identification_refusal() {
         return Ok(AtomRun::Unidentified);
     }
-    if refusal.is_none() && is_query_refusal(&error) {
+    if refusal.is_none() && super::atom_route_posterior::is_query_refusal(&error) {
         *refusal = Some(error);
     }
     Ok(AtomRun::Unevaluable)

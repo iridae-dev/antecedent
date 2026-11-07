@@ -511,11 +511,8 @@ fn admit_values(
         .checked_mul(size_of::<f64>())
         .and_then(|bytes| u64::try_from(bytes).ok())
         .ok_or_else(|| resource("temporal point posterior size overflow".to_owned()))?;
-    ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => {
-            CausalError::Cancelled { stage: super::super::stage::STAGE_ESTIMATE_POINT }
-        }
-        other => resource(other.to_string()),
+    ctx.acquire_admission(0, bytes).map_err(|error| {
+        crate::error::resource_admission_error(error, super::super::stage::STAGE_ESTIMATE_POINT)
     })
 }
 

@@ -3,14 +3,12 @@
 use crate::FunctionalProgramWire;
 use crate::cyclic_family_artifact::CyclicFamilyRequest;
 use crate::cyclic_graph::CyclicGraphRequest;
-use crate::cyclic_system_artifact::CyclicArtifactError;
+use crate::cyclic_system_artifact::{CyclicArtifactError, invalid};
 use antecedent_core::ExecutionContext;
 pub use antecedent_estimate::cyclic_gaussian_functional::{
     GaussianCyclicFunctionalReport, GaussianCyclicLaw,
 };
-fn invalid(s: impl std::fmt::Display) -> CyclicArtifactError {
-    CyclicArtifactError::Invalid(s.to_string())
-}
+
 /// Recheck the theorem-derived IR, estimate an optional IID Gaussian density,
 /// analytically marginalize its canonical factors, and evaluate original assignments.
 /// Returns the common compiled family report, retaining its admitted output allocation.

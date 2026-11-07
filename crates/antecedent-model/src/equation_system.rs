@@ -6,6 +6,7 @@
 //! undecided boxes remain explicit; no solver seed supplies a selection law.
 
 use crate::linear_algebra::equilibrated_general_solve;
+use crate::nonlinear_equilibrium::invalid_equilibrium_input as invalid;
 use crate::nonlinear_equilibrium::{EquilibriumError, check_cancel};
 use antecedent_core::ExecutionContext;
 use serde::{Deserialize, Serialize};
@@ -191,9 +192,6 @@ pub struct EquilibriumSelection {
     pub probabilities: Vec<f64>,
 }
 
-fn invalid(s: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(s.into())
-}
 fn evaluate(e: &PolynomialEquation, x: &[Interval], derivative: Option<usize>) -> Interval {
     e.terms.iter().fold(Interval::point(0.0), |sum, term| {
         let mut value = Interval::point(term.coefficient);

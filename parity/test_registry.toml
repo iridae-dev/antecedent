@@ -22921,3 +22921,227 @@ crate = "antecedent-io"
 cargo_target = "lib"
 path = "crates/antecedent-io/src/exact_transport_laws.rs"
 gates = ["inventory"]
+
+[[test]]
+id = "inventory-scripts-test-review-json-digest-py"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_review_json_digest.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-src-digest-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/digest.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-contract-src-bridge-claim-rs"
+crate = "antecedent-contract"
+cargo_target = "lib"
+path = "crates/antecedent-contract/src/bridge/claim.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-estimate-src-joint-bayesian-transport-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_bayesian_transport.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-estimate-src-scenario-covariance-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/scenario_covariance.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-validate-src-target-native-mod-rs"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/target_native/mod.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-src-mixed-decision-api-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/mixed_decision_api.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-src-adaptive-inference-api-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/adaptive_inference_api.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-src-measurement-model-api-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/measurement_model_api.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-src-scientific-bridge-api-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/scientific_bridge_api.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-contract-src-adaptive-design-declaration-rs"
+crate = "antecedent-contract"
+cargo_target = "lib"
+path = "crates/antecedent-contract/src/adaptive_design/declaration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-design-src-decision-structural-artifact-rs"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/decision_structural_artifact.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-discovery-src-selective-refusal-rs"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/selective/refusal.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-estimate-src-cyclic-functional-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/cyclic_functional.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-model-src-compose-rs"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/compose.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-io-src-joint-bayesian-transport-artifact-rs"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/joint_bayesian_transport_artifact.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-discovery-src-ges-validity-rs"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/ges_validity.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-discovery-src-ges-score-delta-rs"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/ges_score_delta.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-atom-route-posterior-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/atom_route_posterior.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-bootstrap-retention-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/bootstrap_retention.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-src-errors-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/errors.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-data-src-file-source-mod-rs"
+crate = "antecedent-data"
+cargo_target = "lib"
+path = "crates/antecedent-data/src/file_source/mod.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-estimate-src-temporal-response-mod-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_response/mod.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-identify-src-error-rs"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/error.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-io-src-choice-inference-result-artifact-rs"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/choice_inference_result_artifact.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-src-bayesian-gcomp-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "inventory-crates-antecedent-contract-src-adaptive-design-rs"
+crate = "antecedent-contract"
+cargo_target = "lib"
+path = "crates/antecedent-contract/src/adaptive_design.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-estimate-src-counterfactual-transport-sampled-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-state-src-ols-refresh-rs"
+crate = "antecedent-state"
+cargo_target = "lib"
+path = "crates/antecedent-state/src/ols_refresh.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-contract-src-bridge-refusal-rs"
+crate = "antecedent-contract"
+cargo_target = "lib"
+path = "crates/antecedent-contract/src/bridge/refusal.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "external-cyclic-mechanism-resource-limits"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/external_mechanism.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "nonlinear-sde-contrast-slot-engineering"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/nonlinear_sde/simulation.rs"
+gates = ["inventory", "named"]

@@ -2,15 +2,14 @@
 //! Exact eligible-mechanism lowering into the shared bounded equation solver.
 //! Addition retains separate monomials. Products use an error-free FMA split
 //! so a rounded coefficient cannot silently certify roots of another equation.
+use crate::nonlinear_equilibrium::invalid_equilibrium_input as invalid;
 use crate::{
     equation_system::{Interval, Monomial, PolynomialEquation, PolynomialSystem},
     mechanism_expr::MechanismExpression as E,
     nonlinear_equilibrium::{Activation, Clamp, EquilibriumError, EquilibriumModel},
 };
 use antecedent_core::ExecutionContext;
-fn invalid(s: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(s.into())
-}
+
 fn constant(value: f64, n: usize) -> Monomial {
     Monomial { coefficient: value, powers: vec![0; n] }
 }

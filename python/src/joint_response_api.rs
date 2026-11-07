@@ -55,9 +55,7 @@ fn context(
     ctx.set_memory_limit(max_bytes);
     Ok(ctx)
 }
-fn invalid(error: impl std::fmt::Display) -> PyErr {
-    crate::value_err(error.to_string())
-}
+use crate::value_err_display as invalid;
 fn target(schema: &CausalSchema, text: &str) -> PyResult<ScientificTarget> {
     crate::bridge::check_declared_size(
         text,

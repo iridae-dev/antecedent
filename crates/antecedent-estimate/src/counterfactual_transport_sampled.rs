@@ -722,103 +722,10 @@ pub fn estimate_sampled_counterfactual_transport(
         identities.push(identity);
         tables.push(table);
     }
-    #[allow(
-        clippy::items_after_statements,
-        reason = "the local helper belongs to this bounded calculation"
-    )]
-    fn same_population(
-        a: &str,
-        b: &str,
-        work: &mut SampledWork<'_>,
-    ) -> Result<bool, EstimationError> {
-        work.charge(0)?;
-        if a.len() != b.len() {
-            return Ok(false);
-        }
-        for (left, right) in a.as_bytes().chunks(512).zip(b.as_bytes().chunks(512)) {
-            work.charge(0)?;
-            if left != right {
-                return Ok(false);
-            }
-        }
-        Ok(true)
-    }
-    for table in &tables {
-        let mut cited = false;
-        for c in &derivation.cited {
-            work.charge(0)?;
-            if c.regime == table.regime()
-                && same_population(c.population.as_ref(), table.population(), &mut work)?
-            {
-                cited = true;
-                break;
-            }
-        }
-        if !cited {
-            return Err(refused(
-                antecedent_core::reason_code!("invalid_argument"),
-                DETAIL_NOT_CITED,
-                format!(
-                    "population {} regime {} is not cited by the stored derivation; evidence the \
-                     derivation does not read is refused rather than ignored",
-                    name_preview(table.population()),
-                    table.regime().raw()
-                ),
-            ));
-        }
-    }
-    for cited in &derivation.cited {
-        let mut supplied = false;
-        for table in &tables {
-            work.charge(0)?;
-            if table.regime() == cited.regime
-                && same_population(table.population(), cited.population.as_ref(), &mut work)?
-            {
-                supplied = true;
-                break;
-            }
-        }
-        if !supplied {
-            return Err(refused(
-                antecedent_core::reason_code!("transport_missing_provider"),
-                DETAIL_MISSING_TABLE,
-                format!(
-                    "the derivation cites population {} regime {} and no count table was supplied",
-                    name_preview(&cited.population),
-                    cited.regime.raw()
-                ),
-            ));
-        }
-    }
+    validate_cited_tables(&tables, derivation, &mut work)?;
     let groups: DatasetGroups = resolve_overlap_checked(&tables, &request.overlap, &mut work)?;
-    let mut probabilities: Vec<Vec<f64>> = Vec::with_capacity(tables.len());
-    let mut smoothed: Vec<bool> = Vec::with_capacity(tables.len());
-    for table in &tables {
-        let (p, was_smoothed) =
-            table_probabilities(table, request.unseen_rule, &request.limits, &mut work)?;
-        probabilities.push(p);
-        smoothed.push(was_smoothed);
-    }
-    let mut flavors = Vec::with_capacity(smoothed.len());
-    let mut any_smoothed = false;
-    for chunk in smoothed.chunks(512) {
-        work.charge(0)?;
-        for &s in chunk {
-            any_smoothed |= s;
-            flavors.push(if s { LawFlavor::Model } else { LawFlavor::Empirical });
-        }
-    }
-    let mut any_unseen = false;
-    for table in &tables {
-        if !table.checked_unseen_cells(&mut work)?.is_empty() {
-            any_unseen = true;
-            break;
-        }
-    }
-    let envelope_mass = match request.unseen_rule {
-        UnseenCellRule::UnseenMassEnvelope { unseen_mass } if any_unseen => Some(unseen_mass),
-        _ => None,
-    };
+    let PreparedSampledTables { probabilities, smoothed, flavors, any_smoothed, envelope_mass } =
+        prepare_sampled_tables(&tables, request, &mut work)?;
 
     let mut repairs = SampledRepairs::default();
     let mut point: Option<SampledPointEstimate> = None;
@@ -1093,6 +1000,168 @@ pub fn cited_identities(
     derivation: &CounterfactualTransportDerivation,
 ) -> Vec<(Arc<str>, RegimeId)> {
     derivation.cited.iter().map(|c| (Arc::clone(&c.population), c.regime)).collect()
+}
+
+struct PreparedSampledTables {
+    probabilities: Vec<Vec<f64>>,
+    smoothed: Vec<bool>,
+    flavors: Vec<LawFlavor>,
+    any_smoothed: bool,
+    envelope_mass: Option<f64>,
+}
+
+fn prepare_sampled_tables(
+    tables: &[SampledRegimeCounts],
+    request: &SampledTransportRequest,
+    work: &mut SampledWork<'_>,
+) -> Result<PreparedSampledTables, EstimationError> {
+    let mut probabilities: Vec<Vec<f64>> = Vec::with_capacity(tables.len());
+    let mut smoothed: Vec<bool> = Vec::with_capacity(tables.len());
+    for table in tables {
+        let (p, was_smoothed) =
+            table_probabilities(table, request.unseen_rule, &request.limits, work)?;
+        probabilities.push(p);
+        smoothed.push(was_smoothed);
+    }
+    let mut flavors = Vec::with_capacity(smoothed.len());
+    let mut any_smoothed = false;
+    for chunk in smoothed.chunks(512) {
+        work.charge(0)?;
+        for &s in chunk {
+            any_smoothed |= s;
+            flavors.push(if s { LawFlavor::Model } else { LawFlavor::Empirical });
+        }
+    }
+    let mut any_unseen = false;
+    for table in tables {
+        if !table.checked_unseen_cells(work)?.is_empty() {
+            any_unseen = true;
+            break;
+        }
+    }
+    let envelope_mass = match request.unseen_rule {
+        UnseenCellRule::UnseenMassEnvelope { unseen_mass } if any_unseen => Some(unseen_mass),
+        _ => None,
+    };
+
+    Ok(PreparedSampledTables { probabilities, smoothed, flavors, any_smoothed, envelope_mass })
+}
+
+fn validate_cited_tables(
+    tables: &[SampledRegimeCounts],
+    derivation: &CounterfactualTransportDerivation,
+    work: &mut SampledWork<'_>,
+) -> Result<(), EstimationError> {
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the local helper belongs to this bounded calculation"
+    )]
+    fn same_population(
+        a: &str,
+        b: &str,
+        work: &mut SampledWork<'_>,
+    ) -> Result<bool, EstimationError> {
+        work.charge(0)?;
+        if a.len() != b.len() {
+            return Ok(false);
+        }
+        for (left, right) in a.as_bytes().chunks(512).zip(b.as_bytes().chunks(512)) {
+            work.charge(0)?;
+            if left != right {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+    for table in tables {
+        let mut cited = false;
+        for c in &derivation.cited {
+            work.charge(0)?;
+            if c.regime == table.regime()
+                && same_population(c.population.as_ref(), table.population(), work)?
+            {
+                cited = true;
+                break;
+            }
+        }
+        if !cited {
+            return Err(refused(
+                antecedent_core::reason_code!("invalid_argument"),
+                DETAIL_NOT_CITED,
+                format!(
+                    "population {} regime {} is not cited by the stored derivation; evidence the \
+                     derivation does not read is refused rather than ignored",
+                    name_preview(table.population()),
+                    table.regime().raw()
+                ),
+            ));
+        }
+    }
+    for cited in &derivation.cited {
+        let mut supplied = false;
+        for table in tables {
+            work.charge(0)?;
+            if table.regime() == cited.regime
+                && same_population(table.population(), cited.population.as_ref(), work)?
+            {
+                supplied = true;
+                break;
+            }
+        }
+        if !supplied {
+            return Err(refused(
+                antecedent_core::reason_code!("transport_missing_provider"),
+                DETAIL_MISSING_TABLE,
+                format!(
+                    "the derivation cites population {} regime {} and no count table was supplied",
+                    name_preview(&cited.population),
+                    cited.regime.raw()
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod prepared_table_tests {
+    use super::*;
+    use antecedent_core::VariableId;
+
+    #[test]
+    fn preparation_labels_smoothing_and_preserves_unseen_envelope() {
+        let table = SampledRegimeCounts::try_new(SampledRegimeCountsParts {
+            population: Arc::from("source"),
+            regime: RegimeId::from_raw(0),
+            interventions: vec![],
+            axes: vec![SampledAxis { variable: VariableId::from_raw(0), levels: vec![0.0, 1.0] }],
+            counts: vec![100, 0],
+            snapshot_identity: Arc::from("sample"),
+            design: SamplingDesign::IndependentUnits,
+            structural_zeros: vec![],
+        })
+        .unwrap();
+        let mut limits = SampledTransportLimits::default();
+        limits.max_unseen_fraction = 1.0;
+        let mut request = SampledTransportRequest {
+            tables: vec![],
+            overlap: OverlapDeclaration::all_independent(),
+            unseen_rule: UnseenCellRule::AdditiveSmoothing { pseudo_count: 1.0 },
+            limits,
+        };
+        let ctx = ExecutionContext::for_tests(1);
+        let mut work = SampledWork { remaining: 100_000, ctx: &ctx };
+        let smooth =
+            prepare_sampled_tables(std::slice::from_ref(&table), &request, &mut work).unwrap();
+        assert_eq!(smooth.probabilities[0], vec![101.0 / 102.0, 1.0 / 102.0]);
+        assert_eq!(smooth.smoothed, vec![true]);
+        assert!(smooth.any_smoothed && smooth.envelope_mass.is_none());
+        request.unseen_rule = UnseenCellRule::UnseenMassEnvelope { unseen_mass: 0.1 };
+        let envelope = prepare_sampled_tables(&[table], &request, &mut work).unwrap();
+        assert_eq!(envelope.probabilities[0], vec![1.0, 0.0]);
+        assert_eq!(envelope.envelope_mass, Some(0.1));
+        assert!(!envelope.any_smoothed);
+    }
 }
 
 #[cfg(test)]

@@ -32,9 +32,15 @@ record_sha256 = "81f37b7da62aad936df0b73178c2db9dda74d59d79bb29d952e8bb49ddc0deb
 
 [[method_review.artifacts]]
 role = "implementation"
+path = "crates/antecedent/src/error.rs"
+items = ["fn io_refused"]
+sha256 = "be07126586983f1e402802e149ba7f49a049c998ce69d59a3ab833756c92bbe5"
+
+[[method_review.artifacts]]
+role = "implementation"
 path = "crates/antecedent/src/inference.rs"
 items = ["const RESIDUAL_VARIANCE_TOLERANCE", "fn as_str", "fn build_coefficient_map", "fn check_residual_variance", "fn check_source_meaning", "fn hydrate_mapped_prior", "fn map_refuse", "fn mapped_posterior_transfer_with", "fn meaning_refuse", "fn prior", "fn transfer_refusal", "fn variance_refuse", "struct MappedCoefficient", "struct MappedTransferSpec"]
-sha256 = "5bc002028def52fe73e032a158d938cd61735f94bc960eb25d2d5e5e2cb4ca1c"
+sha256 = "efd5f42ead9e2b6603aa799f706df3d241d4b89ee8999256384dde995d736394"
 
 [[method_review.artifacts]]
 role = "implementation"

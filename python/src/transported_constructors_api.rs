@@ -532,14 +532,14 @@ fn temporal_policy_construct(
 
 fn adaptive_refusal(refusals: &[AdaptiveInferenceRefusal]) -> Built {
     let row = |r: &AdaptiveInferenceRefusal| {
-        json!({
-            "code": r.code,
-            "stage": "adaptive_transport",
-            "detail": r.detail,
-            "message": r.message,
-            "offending": Json::Null,
-            "remedy": Json::Null,
-        })
+        crate::bridge::compact_refusal_value(
+            r.code,
+            "adaptive_transport",
+            &r.detail,
+            &r.message,
+            None,
+            None,
+        )
     };
     let mut first = refusals.first().map_or_else(|| json!({}), row);
     first["refusals"] = Json::Array(refusals.iter().map(row).collect());

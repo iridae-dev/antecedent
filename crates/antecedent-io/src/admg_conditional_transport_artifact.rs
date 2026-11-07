@@ -307,23 +307,8 @@ struct PremisesView<'a> {
 /// snapshot and dataset ids), the sorted `(regime, snapshot, dataset)` of every
 /// binding and the `(population, regime, snapshot)` of every law.
 fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<String, IoError> {
-    let mut bindings = catalog
-        .bindings
-        .iter()
-        .map(|b| {
-            (
-                b.regime.raw(),
-                b.snapshot_identity.to_string(),
-                b.dataset_identity.as_deref().map(str::to_owned),
-            )
-        })
-        .collect::<Vec<_>>();
-    bindings.sort();
-    let mut snapshots = laws
-        .iter()
-        .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
-        .collect::<Vec<_>>();
-    snapshots.sort();
+    let bindings = crate::exact_transport_laws::sorted_catalog_bindings(catalog);
+    let snapshots = crate::exact_transport_laws::sorted_law_snapshots(laws);
     crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &(

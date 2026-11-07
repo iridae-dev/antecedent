@@ -96,6 +96,7 @@ mod discovered_transport_api;
 mod discovered_transport_trial_api;
 mod discovery_api;
 mod discretized_composition_api;
+mod digest;
 mod distribution_api;
 mod dose_grid_api;
 mod effect_constancy_api;

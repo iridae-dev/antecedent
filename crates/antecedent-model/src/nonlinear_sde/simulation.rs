@@ -382,6 +382,25 @@ pub(super) fn numerical_error(
     })
 }
 
+fn sde_contrast_slots(
+    plans: &[WorldPlan],
+    contrasts: &[SdeContrast],
+) -> Result<Vec<(usize, usize)>, SdeError> {
+    let mut contrast_slots = Vec::with_capacity(contrasts.len());
+    let mut contrast_ids = std::collections::BTreeSet::new();
+    for c in contrasts {
+        let find = |id: &str| plans.iter().position(|p| p.id == id);
+        let (Some(t), Some(r)) = (find(&c.treated), find(&c.control)) else {
+            return Err(bad("SDE contrast references an undeclared world"));
+        };
+        if c.id.trim().is_empty() || !contrast_ids.insert(c.id.clone()) {
+            return Err(bad("SDE contrast identity"));
+        }
+        contrast_slots.push((t, r));
+    }
+    Ok(contrast_slots)
+}
+
 /// Simulate every world at the declared step, with paired contrasts and step halving.
 ///
 /// `worlds` need not contain the baseline: it is always simulated first, as
@@ -430,18 +449,7 @@ pub fn simulate_sde(
         }
         plans.push(compiled.system.plan_world(world, policy.start, policy.step)?);
     }
-    let mut contrast_slots = Vec::with_capacity(contrasts.len());
-    let mut contrast_ids = std::collections::BTreeSet::new();
-    for c in contrasts {
-        let find = |id: &str| plans.iter().position(|p| p.id == id);
-        let (Some(t), Some(r)) = (find(&c.treated), find(&c.control)) else {
-            return Err(bad("SDE contrast references an undeclared world"));
-        };
-        if c.id.trim().is_empty() || !contrast_ids.insert(c.id.clone()) {
-            return Err(bad("SDE contrast identity"));
-        }
-        contrast_slots.push((t, r));
-    }
+    let contrast_slots = sde_contrast_slots(&plans, contrasts)?;
     let name_bytes = plans
         .iter()
         .try_fold(0usize, |total, p| total.checked_add(p.id.len()))
@@ -632,4 +640,33 @@ pub fn sample_sde_paths(
         states: run.coarse,
         retention: SdeRetention(Some(Arc::new(retained))),
     })
+}
+
+#[cfg(test)]
+mod contrast_slot_tests {
+    use super::*;
+
+    #[test]
+    fn contrast_slots_reject_missing_worlds_and_duplicate_ids() {
+        let plans = vec![
+            WorldPlan { id: "baseline".into(), actions: vec![], inputs: vec![] },
+            WorldPlan { id: "treated".into(), actions: vec![], inputs: vec![] },
+        ];
+        let contrast = SdeContrast {
+            id: "effect".into(),
+            treated: "treated".into(),
+            control: "baseline".into(),
+        };
+        assert_eq!(
+            sde_contrast_slots(&plans, std::slice::from_ref(&contrast)).unwrap(),
+            vec![(1, 0)]
+        );
+        assert!(sde_contrast_slots(&plans, &[contrast.clone(), contrast]).is_err());
+        let missing = SdeContrast {
+            id: "other".into(),
+            treated: "missing".into(),
+            control: "baseline".into(),
+        };
+        assert!(sde_contrast_slots(&plans, &[missing]).is_err());
+    }
 }

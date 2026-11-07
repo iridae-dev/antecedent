@@ -8,7 +8,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cell::Cell;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
@@ -616,201 +616,17 @@ fn required_pair(
     constraints.is_required(link_ab) || constraints.is_required(link_ba)
 }
 
-fn na_yx(cpdag: &Cpdag, y: DenseNodeId, x: DenseNodeId) -> Vec<DenseNodeId> {
-    let mut out: Vec<_> =
-        cpdag.undirected_neighbors(y).into_iter().filter(|&n| cpdag.has_edge(n, x)).collect();
-    out.sort_unstable_by_key(|node| node.raw());
-    out
-}
-
-fn is_clique(cpdag: &Cpdag, nodes: &[DenseNodeId]) -> bool {
-    for i in 0..nodes.len() {
-        for j in i + 1..nodes.len() {
-            if !cpdag.has_edge(nodes[i], nodes[j]) {
-                return false;
-            }
-        }
-    }
-    true
-}
-
-/// Semi-directed reachability: undirected either way; directed only forward.
-///
-/// Every node whose edges the search reads (each node it expands) is added to `footprint`.
-fn semi_directed_reaches_avoiding(
-    cpdag: &Cpdag,
-    from: DenseNodeId,
-    to: DenseNodeId,
-    avoid: &HashSet<DenseNodeId>,
-    mut footprint: Option<&mut Footprint>,
-) -> bool {
-    if from == to {
-        return true;
-    }
-    let n = cpdag.node_count();
-    let mut seen = vec![false; n];
-    let mut q = VecDeque::new();
-    q.push_back(from);
-    seen[from.as_usize()] = true;
-    while let Some(u) = q.pop_front() {
-        if let Some(footprint) = footprint.as_deref_mut() {
-            footprint.add(u);
-        }
-        for v in cpdag.children(u) {
-            if avoid.contains(&v) && v != to {
-                continue;
-            }
-            if v == to {
-                return true;
-            }
-            if !seen[v.as_usize()] {
-                seen[v.as_usize()] = true;
-                q.push_back(v);
-            }
-        }
-        for v in cpdag.undirected_neighbors(u) {
-            if avoid.contains(&v) && v != to {
-                continue;
-            }
-            if v == to {
-                return true;
-            }
-            if !seen[v.as_usize()] {
-                seen[v.as_usize()] = true;
-                q.push_back(v);
-            }
-        }
-    }
-    false
-}
-
+#[path = "ges_validity.rs"]
+mod validity;
 #[cfg(test)]
-fn insert_valid(cpdag: &Cpdag, x: DenseNodeId, y: DenseNodeId, t: &[DenseNodeId]) -> bool {
-    if cpdag.has_edge(x, y) || x == y {
-        return false;
-    }
-    insert_valid_given(cpdag, x, y, &na_yx(cpdag, y, x), t, None)
-}
+use validity::insert_valid;
+use validity::{delete_valid, insert_valid_given, is_clique, na_yx};
 
-/// Insert validity for an `x`, `y` known to be non-adjacent, with `NA(Y,X)` already computed.
-fn insert_valid_given(
-    cpdag: &Cpdag,
-    x: DenseNodeId,
-    y: DenseNodeId,
-    na: &[DenseNodeId],
-    t: &[DenseNodeId],
-    footprint: Option<&mut Footprint>,
-) -> bool {
-    let mut clique_nodes = na.to_vec();
-    clique_nodes.extend_from_slice(t);
-    if !is_clique(cpdag, &clique_nodes) {
-        return false;
-    }
-    let avoid: HashSet<DenseNodeId> = clique_nodes.into_iter().collect();
-    // Every semi-directed path Y ↝ X hits NA∪T ⇔ no path avoiding NA∪T.
-    !semi_directed_reaches_avoiding(cpdag, y, x, &avoid, footprint)
-}
-
-fn delete_valid(cpdag: &Cpdag, x: DenseNodeId, y: DenseNodeId, h: &[DenseNodeId]) -> bool {
-    let Some(e) = cpdag.edge_between(x, y) else {
-        return false;
-    };
-    // Edge must be X→Y or X—Y (not Y→X alone as X,Y ordered for operator).
-    let xy_directed = matches!(
-        (e.at_a, e.at_b),
-        (Endpoint::Tail, Endpoint::Arrow) | (Endpoint::Arrow, Endpoint::Tail)
-    ) && e.parent_child() == Some((x, y));
-    let undirected = e.is_undirected();
-    if !xy_directed && !undirected {
-        return false;
-    }
-    let na = na_yx(cpdag, y, x);
-    let h_set: HashSet<DenseNodeId> = h.iter().copied().collect();
-    if h.iter().any(|n| !na.contains(n)) {
-        return false;
-    }
-    let rest: Vec<DenseNodeId> = na.into_iter().filter(|n| !h_set.contains(n)).collect();
-    is_clique(cpdag, &rest)
-}
-
-/// The parent sets Insert(X, Y, T) compares: `Pa(Y) ∪ NA(Y,X) ∪ T` and the same with `{X}`
-/// added, each sorted and without repeats.
-///
-/// The larger set is what the operator scores, so it is also what counts against
-/// `max_parents`: counting only `Pa` and `T` would let neighbours in `NA(Y,X)` push a node past
-/// the limit while the operator is still accepted.
-fn insert_parent_sets(
-    cpdag: &Cpdag,
-    x: DenseNodeId,
-    y: DenseNodeId,
-    na: &[DenseNodeId],
-    t: &[DenseNodeId],
-) -> (Vec<u32>, Vec<u32>) {
-    let mut base = parents_u32(cpdag, y);
-    for n in na.iter().chain(t.iter()) {
-        base.push(n.raw());
-    }
-    base.sort_unstable();
-    base.dedup();
-    let mut neu = base.clone();
-    neu.push(x.raw());
-    neu.sort_unstable();
-    neu.dedup();
-    (base, neu)
-}
-
-fn parents_u32(cpdag: &Cpdag, y: DenseNodeId) -> Vec<u32> {
-    let mut out: Vec<_> =
-        cpdag.parents(y).into_iter().map(antecedent_graph::DenseNodeId::raw).collect();
-    out.sort_unstable();
-    out
-}
-
+#[path = "ges_score_delta.rs"]
+mod score_delta;
+use score_delta::{cached_operator_delta, delete_delta, insert_parent_sets};
 #[cfg(test)]
-fn insert_delta(
-    cpdag: &Cpdag,
-    cache: &mut LocalScoreCache,
-    deltas: &mut GesDeltaCache,
-    data: &GraphScoreData,
-    x: DenseNodeId,
-    y: DenseNodeId,
-    t: &[DenseNodeId],
-) -> Result<f64, DiscoveryError> {
-    // Corollary 16: s(Y, NA∪T∪Pa∪{X}) − s(Y, NA∪T∪Pa)
-    let (base, neu) = insert_parent_sets(cpdag, x, y, &na_yx(cpdag, y, x), t);
-    cached_operator_delta(cache, deltas, data, y.raw(), &base, &neu)
-}
-
-fn delete_delta(
-    cpdag: &Cpdag,
-    cache: &mut LocalScoreCache,
-    deltas: &mut GesDeltaCache,
-    data: &GraphScoreData,
-    x: DenseNodeId,
-    y: DenseNodeId,
-    h: &[DenseNodeId],
-) -> Result<f64, DiscoveryError> {
-    // Corollary 18: s(Y, (NA\H) ∪ (Pa\{X})) − s(Y, (NA\H) ∪ Pa)
-    let na = na_yx(cpdag, y, x);
-    let h_set: HashSet<DenseNodeId> = h.iter().copied().collect();
-    let na_rest: Vec<u32> = na
-        .into_iter()
-        .filter(|n| !h_set.contains(n))
-        .map(antecedent_graph::DenseNodeId::raw)
-        .collect();
-    let mut pa = parents_u32(cpdag, y);
-    let mut with_x = pa.clone();
-    with_x.push(x.raw());
-    with_x.extend_from_slice(&na_rest);
-    with_x.sort_unstable();
-    with_x.dedup();
-    pa.retain(|&p| p != x.raw());
-    let mut without_x = pa;
-    without_x.extend_from_slice(&na_rest);
-    without_x.sort_unstable();
-    without_x.dedup();
-    cached_operator_delta(cache, deltas, data, y.raw(), &with_x, &without_x)
-}
+use score_delta::{insert_delta, operator_delta};
 
 /// A set of nodes, as a bitset.
 #[derive(Clone, Debug, Default)]
@@ -952,29 +768,6 @@ struct GesDeltaCache {
     reverses: ReverseCache,
 }
 
-fn cached_operator_delta(
-    cache: &mut LocalScoreCache,
-    deltas: &mut GesDeltaCache,
-    data: &GraphScoreData,
-    node: u32,
-    old_parents: &[u32],
-    new_parents: &[u32],
-) -> Result<f64, DiscoveryError> {
-    deltas.scratch.clear();
-    deltas.scratch.push(node);
-    deltas.scratch.push(crate::indexing::dense_u32(old_parents.len()));
-    deltas.scratch.extend_from_slice(old_parents);
-    deltas.scratch.extend_from_slice(new_parents);
-    if let Some(delta) = deltas.entries.get(deltas.scratch.as_slice()).copied() {
-        return Ok(delta);
-    }
-    let old = local_score_or_degenerate(cache, data, node, &Arc::from(old_parents))?;
-    let new = local_score_or_degenerate(cache, data, node, &Arc::from(new_parents))?;
-    let delta = operator_delta(old, new);
-    deltas.entries.insert(deltas.scratch.as_slice().into(), delta);
-    Ok(delta)
-}
-
 /// A zero-residual (deterministic) local score is not a finite BIC. Treat that parent set as
 /// `−∞` so the operator is never selected, instead of aborting the search.
 fn local_score_or_degenerate(
@@ -987,18 +780,6 @@ fn local_score_or_degenerate(
         Ok(score) => Ok(score),
         Err(antecedent_state::StateError::DegenerateScore(_)) => Ok(f64::NEG_INFINITY),
         Err(error) => Err(error.into()),
-    }
-}
-
-/// `new − old`, with a non-finite candidate scoring `−∞` (never chosen) and a non-finite
-/// current score yielding `+∞` when the candidate is finite (leaving the degenerate set).
-fn operator_delta(old: f64, new: f64) -> f64 {
-    if !new.is_finite() {
-        f64::NEG_INFINITY
-    } else if !old.is_finite() {
-        f64::INFINITY
-    } else {
-        new - old
     }
 }
 
@@ -1527,65 +1308,9 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
     Ok(dag)
 }
 
-/// Essential graph: skeleton + DAG v-structures + Meek R1–R4.
-pub(crate) fn dag_to_cpdag(dag: &Dag) -> Result<Cpdag, DiscoveryError> {
-    dag_to_cpdag_with_known(dag, |_, _| false)
-}
-
-/// Essential graph under known orientations: the edges `known(from, to)` names start directed
-/// (time order, for an unrolled window), then v-structures and Meek R1–R4 orient the rest.
-pub(crate) fn dag_to_cpdag_with_known(
-    dag: &Dag,
-    known: impl Fn(DenseNodeId, DenseNodeId) -> bool,
-) -> Result<Cpdag, DiscoveryError> {
-    let mut cpdag = Cpdag::empty();
-    for node in dag.nodes() {
-        cpdag.add_node(*node)?;
-    }
-    for e in dag.edges() {
-        if let Some((from, to)) = e.parent_child() {
-            if !cpdag.has_edge(from, to) {
-                if known(from, to) {
-                    cpdag.insert_directed(from, to)?;
-                } else {
-                    cpdag.insert_undirected(from, to)?;
-                }
-            }
-        }
-    }
-    // Orient unshielded colliders present in the DAG.
-    let n = dag.node_count();
-    for zi in 0..n {
-        let z = DenseNodeId::from_raw(crate::indexing::dense_u32(zi));
-        let parents = dag.parents(z);
-        for i in 0..parents.len() {
-            for j in i + 1..parents.len() {
-                let p = parents[i];
-                let q = parents[j];
-                if !dag.has_edge(p, q) && !dag.has_edge(q, p) {
-                    // p → z ← q
-                    if cpdag
-                        .edge_between(p, z)
-                        .is_some_and(antecedent_graph::MarkedEdge::is_undirected)
-                    {
-                        cpdag.orient_undirected(p, z)?;
-                    }
-                    if cpdag
-                        .edge_between(q, z)
-                        .is_some_and(antecedent_graph::MarkedEdge::is_undirected)
-                    {
-                        cpdag.orient_undirected(q, z)?;
-                    }
-                }
-            }
-        }
-    }
-    let mut state = OrientationState::default();
-    let rules: [&dyn OrientationRule<antecedent_graph::Cpdag>; 4] =
-        [&MeekR1, &MeekR2, &MeekR3, &MeekR4];
-    let _ = run_static_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
-    Ok(cpdag)
-}
+#[path = "ges_conversion.rs"]
+mod conversion;
+pub(crate) use conversion::{dag_to_cpdag, dag_to_cpdag_with_known};
 
 // Dag adjacency helper used by `dag_to_cpdag`.
 trait DagEdgeHelpers {
@@ -1949,6 +1674,19 @@ mod tests {
         assert!(cpdag.has_edge(x, y));
     }
 
+    #[test]
+    fn operator_validity_rejects_a_cycle_and_reverse_delete() {
+        let mut cpdag = Cpdag::with_variables(3);
+        let x = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let z = DenseNodeId::from_raw(2);
+        cpdag.insert_directed(y, z).unwrap();
+        cpdag.insert_directed(z, x).unwrap();
+        assert!(!insert_valid(&cpdag, x, y, &[]));
+        assert!(delete_valid(&cpdag, y, z, &[]));
+        assert!(!delete_valid(&cpdag, z, y, &[]));
+    }
+
     /// PDAG `0 → 2 — 1` (no 0—1): the weakened undirected-only clique test would
     /// accept 2 as a sink and invent the v-structure `0 → 2 ← 1`. With parents in
     /// the clique, the unique consistent extension is `0 → 2 → 1`.
@@ -1967,6 +1705,22 @@ mod tests {
         assert!(dag.children(c).contains(&b));
         assert!(!dag.children(b).contains(&c));
         assert!(dag.parents(c).iter().all(|&p| p == a));
+    }
+
+    #[test]
+    fn graph_conversion_retains_declared_orientations() {
+        let mut graph = Cpdag::with_variables(3);
+        let a = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        let c = DenseNodeId::from_raw(2);
+        graph.insert_directed(a, b).unwrap();
+        graph.insert_directed(b, c).unwrap();
+        let dag = pdag_to_dag(&graph).unwrap();
+        let ordinary = dag_to_cpdag(&dag).unwrap();
+        assert!(ordinary.edge_between(a, b).unwrap().is_undirected());
+        let known = dag_to_cpdag_with_known(&dag, |from, to| (from, to) == (a, b)).unwrap();
+        assert_eq!(known.edge_between(a, b).unwrap().parent_child(), Some((a, b)));
+        assert_eq!(known.edge_between(b, c).unwrap().parent_child(), Some((b, c)));
     }
 
     #[test]

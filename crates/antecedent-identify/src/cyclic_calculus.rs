@@ -3,7 +3,7 @@
 //! Fixed input nodes are explicitly conditioned; intervention indicators are
 //! added after baseline graph surgery. A failed sufficient test is never a
 //! non-identifiability proof, and exhausted checks are a separate outcome.
-use crate::cyclic_id::{CyclicIdError, CyclicIdPremises, cyclic_backdoor_valid};
+use crate::cyclic_id::{CyclicIdError, CyclicIdPremises, cyclic_backdoor_valid, invalid};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_expr::{
     CausalExprArena, DomainRef, FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable,
@@ -41,9 +41,6 @@ pub struct CyclicCalculusApplication {
     pub sigma_checks: usize,
     /// Original theorem scope, fixed inputs and graph transformation.
     pub derivation: Vec<String>,
-}
-fn invalid(s: impl std::fmt::Display) -> CyclicIdError {
-    CyclicIdError::Invalid(s.to_string())
 }
 fn id(i: usize) -> DenseNodeId {
     DenseNodeId::from_raw(u32::try_from(i).expect("bounded graph"))

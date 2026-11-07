@@ -36,9 +36,15 @@ record_sha256 = "10c818d0d9383caa2162cbbc0b74cbd4468feaf2ffa40ed5acbf895d258ff51
 
 [[method_review.artifacts]]
 role = "implementation"
+path = "crates/antecedent-identify/src/error.rs"
+items = ["fn map_admission_error"]
+sha256 = "a41aaad61a297afcac568d9e9be6156010d7bba0eb3a95a320b3c4e708959d45"
+
+[[method_review.artifacts]]
+role = "implementation"
 path = "crates/antecedent-identify/src/temporal_iv.rs"
 items = ["const TEMPORAL_IV_METHOD", "fn assemble", "fn candidates", "fn derivation_header", "fn grow", "fn identified", "fn identify_temporal_iv", "fn identify_temporal_iv_within", "fn new", "fn of", "fn search", "fn seed_count", "fn stationarity", "struct InstrumentPlan", "struct Search", "struct TemporalIvIdentifier", "struct TemporalIvResult", "struct Window"]
-sha256 = "72e47c26099c37162c51e2fcad2d174c64867e9ad8cb172c0dc6614b1a263483"
+sha256 = "1570b10ebaa6c8b3e0d0040b30fae6330f9faeac508833710b8eb91c599de518"
 
 [[method_review.artifacts]]
 role = "implementation"

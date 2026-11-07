@@ -19,7 +19,6 @@ use antecedent::analysis::composition_verification::{
     unresolved_registry_calibrations,
 };
 use antecedent::analysis::evidence_ledger::SourceId;
-use antecedent::contract::evidence_ledger::parse_digest_hex;
 use antecedent::io::composition_verification_artifact::{
     CompositionVerificationArtifact, CompositionVerificationArtifactError,
 };
@@ -28,6 +27,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
 
+pub(crate) use crate::digest::digest;
 use crate::measurement_model_api::{list, member, object, opt_text, parse, present, text};
 
 const STAGE: &str = "composition_verification";
@@ -66,14 +66,14 @@ pub(crate) fn refusal_json(
     message: &str,
     offending: Option<&str>,
 ) -> String {
-    json!({
-        "code": code,
-        "stage": STAGE,
-        "detail": detail,
-        "message": message,
-        "offending": offending,
-        "remedy": remedy_for(detail),
-    })
+    crate::bridge::compact_refusal_value(
+        code,
+        STAGE,
+        detail,
+        message,
+        offending,
+        Some(remedy_for(detail)),
+    )
     .to_string()
 }
 
@@ -119,11 +119,6 @@ fn claim_refusal(claim: &ClaimRevalidation) -> Option<String> {
 // ---------------------------------------------------------------------------
 // Declarations.
 // ---------------------------------------------------------------------------
-
-pub(crate) fn digest(value: &str, what: &str) -> PyResult<SemanticDigest> {
-    parse_digest_hex(value)
-        .ok_or_else(|| crate::value_err(format!("{what} must be 64 hexadecimal characters")))
-}
 
 fn opt_texts(map: &Map<String, Json>, key: &str) -> PyResult<Vec<String>> {
     match present(map, key) {

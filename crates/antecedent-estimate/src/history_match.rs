@@ -187,7 +187,7 @@ impl FrequentistHistoryContrast {
     /// # Errors
     /// `caliper` is non-finite or negative.
     pub fn try_with_caliper(caliper: f64) -> Result<Self, EstimationError> {
-        validate_caliper(Some(caliper))?;
+        crate::util::validate_caliper(Some(caliper))?;
         Ok(Self { caliper: Some(caliper) })
     }
 
@@ -244,7 +244,7 @@ impl BayesianHistoryContrast {
     /// # Errors
     /// `caliper` is `Some` and is non-finite or negative.
     pub fn try_new(prior: ContrastPrior, caliper: Option<f64>) -> Result<Self, EstimationError> {
-        validate_caliper(caliper)?;
+        crate::util::validate_caliper(caliper)?;
         Ok(Self { caliper, prior })
     }
 
@@ -313,7 +313,7 @@ impl PeriodHistoryContrast {
     /// # Errors
     /// `caliper` is `Some` and is non-finite or negative.
     pub fn try_new(caliper: Option<f64>) -> Result<Self, EstimationError> {
-        validate_caliper(caliper)?;
+        crate::util::validate_caliper(caliper)?;
         Ok(Self { caliper })
     }
 
@@ -327,7 +327,7 @@ impl PeriodHistoryContrast {
         &self,
         units: &[HistoryUnit],
     ) -> Result<PeriodHistoryEstimate, EstimationError> {
-        validate_caliper(self.caliper)?;
+        crate::util::validate_caliper(self.caliper)?;
         let Some(first) = units.first() else {
             return Err(EstimationError::data_msg(
                 "history match requires treated and control histories",
@@ -627,20 +627,12 @@ struct MatchedHistories {
 }
 
 /// A caliper is a maximum distance: finite and non-negative.
-fn validate_caliper(caliper: Option<f64>) -> Result<(), EstimationError> {
-    match caliper {
-        Some(limit) if !(limit.is_finite() && limit >= 0.0) => {
-            Err(EstimationError::data_msg("matching caliper must be finite and non-negative"))
-        }
-        _ => Ok(()),
-    }
-}
 
 fn match_histories(
     caliper: Option<f64>,
     units: &[HistoryUnit],
 ) -> Result<MatchedHistories, EstimationError> {
-    validate_caliper(caliper)?;
+    crate::util::validate_caliper(caliper)?;
     if units.is_empty() {
         return Err(EstimationError::data_msg(
             "history match requires treated and control histories",

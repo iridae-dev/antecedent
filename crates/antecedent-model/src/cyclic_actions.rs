@@ -4,6 +4,7 @@
 //! parameter choice makes their numerical answers coincide. Numerical solver
 //! initialization is separate from every action here; causal initial states
 //! belong to the continuous-time family.
+use crate::nonlinear_equilibrium::invalid_equilibrium_input as invalid;
 use crate::nonlinear_equilibrium::{
     Activation, Clamp, Equation, EquilibriumError, EquilibriumModel, EquilibriumOutcome,
     SolvePolicy, SolveShape, retain_numerical_failure,
@@ -65,9 +66,7 @@ pub struct EquilibriumActionPlan {
     shocks: Vec<f64>,
     shape: SolveShape,
 }
-fn invalid(message: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(message.into())
-}
+
 impl EquilibriumModel {
     /// Compile named mechanism actions, rejecting conflicting changes/clamps.
     /// One deterministic change and one shock may target the same mechanism.

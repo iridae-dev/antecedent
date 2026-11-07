@@ -5,6 +5,7 @@
 //! Synthetic Bicycle-style interventions are a specialization with fixed
 //! incoming coefficients, forcing and diffusion rows in the targeted equations.
 use crate::cyclic_gradient::CyclicGradientPolicy;
+use crate::cyclic_likelihood::invalid_equilibrium_input as invalid;
 use antecedent_core::ExecutionContext;
 use antecedent_kernels::gauss_jordan_solve;
 use antecedent_model::continuous_cyclic::OrnsteinUhlenbeck;
@@ -99,9 +100,7 @@ pub struct OuMechanismFit {
     /// Actual bounded optimizer, retaining the named replacement of steepest ascent.
     pub optimizer: String,
 }
-fn invalid(s: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(s.into())
-}
+
 fn invert(mut matrix: Vec<f64>, n: usize) -> Result<Vec<f64>, EquilibriumError> {
     let mut output = vec![0.0; n * n];
     for i in 0..n {

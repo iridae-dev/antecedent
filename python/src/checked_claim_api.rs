@@ -25,9 +25,7 @@ use pyo3::prelude::*;
 use serde::Deserialize;
 use serde_json::json;
 
-fn invalid(error: impl std::fmt::Display) -> PyErr {
-    crate::value_err(error.to_string())
-}
+use crate::value_err_display as invalid;
 
 /// The caller's work and memory budgets (see `CheckedClaimLimits` in Python).
 #[derive(Deserialize)]

@@ -290,13 +290,7 @@ pub fn rank_studies_with_context(
         .and_then(|n| n.checked_add(alpha.len().saturating_mul(64)))
         .and_then(|n| u64::try_from(n).ok())
         .ok_or_else(|| ChoiceEvsiError::Resource("admission size overflow".into()))?;
-    let _lease = ctx.acquire_admission(0, bytes).map_err(|e| {
-        if ctx.cancellation.is_cancelled() {
-            ChoiceEvsiError::Cancelled
-        } else {
-            ChoiceEvsiError::Resource(e.to_string())
-        }
-    })?;
+    let _lease = ctx.acquire_admission(0, bytes).map_err(|error| admission_error(ctx, error))?;
     let mut work = 0u64;
     if values.len() != alpha.len() || values.iter().any(|v| !v.is_finite()) {
         return Err(ChoiceEvsiError::Invalid("one finite value per option is required".into()));
@@ -373,8 +367,34 @@ pub fn rank_studies_with_context(
     Ok(rows)
 }
 
+fn admission_error(
+    ctx: &antecedent_core::ExecutionContext,
+    error: antecedent_core::execution::AdmissionError,
+) -> ChoiceEvsiError {
+    if ctx.cancellation.is_cancelled() {
+        ChoiceEvsiError::Cancelled
+    } else {
+        ChoiceEvsiError::Resource(error.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn admission_error_uses_context_cancellation_state() {
+        use antecedent_core::execution::AdmissionError;
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        let expected = AdmissionError::Overflow.to_string();
+        assert!(
+            matches!(super::admission_error(&ctx, AdmissionError::Overflow), super::ChoiceEvsiError::Resource(message) if message == expected)
+        );
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            super::admission_error(&ctx, AdmissionError::Overflow),
+            super::ChoiceEvsiError::Cancelled
+        ));
+    }
+
     use super::*;
 
     #[test]
@@ -516,13 +536,7 @@ pub fn rank_hierarchical_studies(
         .and_then(|n| n.checked_mul(64))
         .and_then(|n| u64::try_from(n).ok())
         .ok_or_else(|| ChoiceEvsiError::Resource("hierarchical ranking size overflow".into()))?;
-    let _lease = ctx.acquire_admission(0, cells).map_err(|e| {
-        if ctx.cancellation.is_cancelled() {
-            ChoiceEvsiError::Cancelled
-        } else {
-            ChoiceEvsiError::Resource(e.to_string())
-        }
-    })?;
+    let _lease = ctx.acquire_admission(0, cells).map_err(|error| admission_error(ctx, error))?;
     let cancelled = || ctx.cancellation.is_cancelled();
     let convert = |e: antecedent_stats::adaptive_inference::AdaptiveInferenceError| {
         if cancelled() {

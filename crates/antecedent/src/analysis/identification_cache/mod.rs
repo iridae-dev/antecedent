@@ -202,10 +202,8 @@ pub(super) fn temporal_atom_lease(
     bytes: u64,
     stage: &'static str,
 ) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
-    ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => CausalError::Cancelled { stage },
-        other => CausalError::Resource { message: other.to_string() },
-    })
+    ctx.acquire_admission(0, bytes)
+        .map_err(|error| crate::error::resource_admission_error(error, stage))
 }
 
 /// One admitted temporal class template; the lease must follow the graph owner.

@@ -4,6 +4,7 @@
 //! conditions and known independent Gaussian measurement variances. This is
 //! not an SDE/process-noise estimator, nor nonparametric identification.
 
+use crate::cyclic_likelihood::invalid_equilibrium_input as invalid;
 use antecedent_core::ExecutionContext;
 use antecedent_model::{
     continuous_cyclic::{OdeParameter, OdePolicy, OdeSystem, TimedClamp},
@@ -59,9 +60,7 @@ pub struct OdeFit {
     /// Score tolerance was reached; no global optimality/calibration is implied.
     pub converged: bool,
 }
-fn invalid(s: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(s.into())
-}
+
 pub(crate) fn bind(template: &OdeSystem, parameters: &[OdeParameter], values: &[f64]) -> OdeSystem {
     let mut model = template.clone();
     for (&parameter, &value) in parameters.iter().zip(values) {

@@ -3,6 +3,7 @@
 //! Selection is declared jointly across worlds. Root-search order and numerical
 //! initialization never supply a probability or cross-world coupling. Independent
 //! training units share a model-parameter candidate, not their exogenous atom.
+use crate::cyclic_likelihood::invalid_equilibrium_input as invalid;
 use antecedent_core::ExecutionContext;
 use antecedent_model::{
     equation_system::{Interval, IsolationPolicy, Monomial, PolynomialEquation, PolynomialSystem},
@@ -65,9 +66,7 @@ impl MassBounds {
         .probability()
     }
 }
-fn invalid(message: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(message.into())
-}
+
 #[allow(
     clippy::float_cmp,
     reason = "the selected maximum is an exact input; only exact x/x equality supports the outward-bound shortcut"

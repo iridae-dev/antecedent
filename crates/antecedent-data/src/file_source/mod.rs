@@ -358,6 +358,22 @@ impl TableFile {
     }
 }
 
+fn admit_file_bytes(
+    ctx: &ExecutionContext,
+    stage: MemoryStage,
+    bytes: u64,
+    chunk_rows: usize,
+) -> Result<AdmissionLease, FileSourceError> {
+    match ctx.acquire_admission(0, bytes) {
+        Ok(lease) => Ok(lease),
+        Err(AdmissionError::Cancelled) => Err(FileSourceError::Cancelled),
+        Err(AdmissionError::ExceedsRemainder { remaining_bytes, .. }) => {
+            Err(memory_refusal(stage, bytes, remaining_bytes, chunk_rows))
+        }
+        Err(_) => Err(memory_refusal(stage, bytes, ctx.admission.available().bytes(), chunk_rows)),
+    }
+}
+
 pub(crate) fn memory_refusal(
     stage: MemoryStage,
     required_bytes: u64,
@@ -384,5 +400,36 @@ pub(crate) fn memory_refusal(
         available_bytes,
         chunk_rows,
         next_attempt,
+    }
+}
+
+#[cfg(test)]
+mod shared_admission_tests {
+    use super::{FileSourceError, MemoryStage, admit_file_bytes};
+    use antecedent_core::{ExecutionContext, execution::AdmissionPool};
+
+    #[test]
+    fn admission_preserves_stage_remainder_and_cancellation() {
+        let ctx = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 7));
+        for stage in [MemoryStage::ChunkDecode, MemoryStage::Materialization] {
+            match admit_file_bytes(&ctx, stage, 9, 4) {
+                Err(FileSourceError::MemoryRefused {
+                    stage: actual,
+                    required_bytes,
+                    available_bytes,
+                    chunk_rows,
+                    ..
+                }) => {
+                    assert_eq!(actual, stage);
+                    assert_eq!((required_bytes, available_bytes, chunk_rows), (9, 7, 4));
+                }
+                other => panic!("unexpected admission: {other:?}"),
+            }
+        }
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            admit_file_bytes(&ctx, MemoryStage::ChunkDecode, 1, 4),
+            Err(FileSourceError::Cancelled)
+        ));
     }
 }

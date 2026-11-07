@@ -14,6 +14,17 @@
     )
 )]
 
+pub(crate) fn temporal_admission_error(
+    error: antecedent_core::execution::AdmissionError,
+) -> antecedent_core::TemporalMaterializationError {
+    match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            antecedent_core::TemporalMaterializationError::Cancelled
+        }
+        other => antecedent_core::TemporalMaterializationError::Admission(other),
+    }
+}
+
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -642,5 +653,18 @@ impl TemporalResponseEstimator {
     pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
         self.inner.inference.bootstrap_replicates = replicates;
         self
+    }
+}
+
+#[cfg(test)]
+mod admission_mapping_tests {
+    #[test]
+    fn preserves_cancelled_and_other_admission_errors() {
+        use antecedent_core::{TemporalMaterializationError as T, execution::AdmissionError};
+        assert!(matches!(super::temporal_admission_error(AdmissionError::Cancelled), T::Cancelled));
+        assert!(matches!(
+            super::temporal_admission_error(AdmissionError::Overflow),
+            T::Admission(AdmissionError::Overflow)
+        ));
     }
 }

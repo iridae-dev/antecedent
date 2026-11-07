@@ -310,7 +310,7 @@ pub fn execute_heldout_selection<D: Clone, P: ProgramSelectionProcedure<D>>(
         .ok_or_else(|| invalid("selection partition storage overflow"))?;
     let _partition_scratch = ctx
         .acquire_admission(0, partition_bytes as u64)
-        .map_err(|e| ProgramSearchError::Resource(e.to_string()))?;
+        .map_err(crate::program_search::admission_error)?;
     let partition = ProgramHoldoutPartition {
         training: training.iter().map(|b| b.span.clone()).collect(),
         validation: validation.iter().map(|b| b.span.clone()).collect(),
@@ -322,8 +322,7 @@ pub fn execute_heldout_selection<D: Clone, P: ProgramSelectionProcedure<D>>(
     let quote =
         selection_quote(&train_clusters, &validation_clusters, repetitions, partition_bytes)?;
     let retention = Arc::new(
-        ctx.acquire_admission(0, quote as u64)
-            .map_err(|e| ProgramSearchError::Resource(e.to_string()))?,
+        ctx.acquire_admission(0, quote as u64).map_err(crate::program_search::admission_error)?,
     );
     let train = training.iter().map(|b| &*b.observations).collect::<Vec<_>>();
     let valid = validation.iter().map(|b| &*b.observations).collect::<Vec<_>>();

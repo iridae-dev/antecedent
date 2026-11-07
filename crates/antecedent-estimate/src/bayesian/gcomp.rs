@@ -45,6 +45,65 @@ use super::{
 /// at this count and above. Keyed separately (`rank_quantile_interval`).
 pub const LAPLACE_RANK_INTERVAL_BELOW_DRAWS: usize = 1000;
 
+fn reusable_gaussian_design(
+    ctx: &ExecutionContext,
+    likelihood: BayesLikelihood,
+    backend: BayesianBackendKind,
+    whitened: bool,
+    tempered: bool,
+) -> bool {
+    ctx.cache_policy.enabled
+        && ctx.cache_policy.max_bytes.is_none()
+        && ctx.admission.byte_budget() == u64::MAX
+        && likelihood == BayesLikelihood::GaussianIdentity
+        && !whitened
+        && !tempered
+        && backend != BayesianBackendKind::Hmc
+}
+
+fn summarize_gcomp_draws(
+    draws: &PosteriorDraws,
+    backend: BayesianBackendKind,
+    n_draws: usize,
+) -> antecedent_prob::PosteriorSummary {
+    let summaries = draws.summarize();
+    // A Laplace interval is the type-7 quantile interval of the draws, whose expected posterior
+    // mass `0.95(m-1)/(m+1)` is 0.921 at 64 draws and 0.949 at 1,000. Below the measured draw
+    // count the effect's interval is the exchangeable-rank (type-6) interval of the same
+    // draws instead, whose expected mass is exactly 0.95 at every count. It is a function of
+    // the embedded draws alone, so artifacts stay self-verifying, and the declared draws,
+    // their count and every other summary are untouched.
+    let mut summaries = summaries;
+    if matches!(backend, BayesianBackendKind::Laplace)
+        && n_draws < LAPLACE_RANK_INTERVAL_BELOW_DRAWS
+    {
+        let column = draws
+            .schema
+            .quantities
+            .iter()
+            .position(|quantity| matches!(quantity, PosteriorQuantityKind::Effect { .. }));
+        let values = column.and_then(|column| draws.column(column).ok());
+        if let (Some(column), Some(values)) = (column, values) {
+            if values.len() >= 2 && values.iter().all(|value| value.is_finite()) {
+                let mut sorted = values.to_vec();
+                sorted.sort_by(f64::total_cmp);
+                let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+                    &sorted,
+                    0.95,
+                    antecedent_stats::QuantileRule::ExchangeableRank,
+                );
+                let mut q025 = summaries.q025.to_vec();
+                let mut q975 = summaries.q975.to_vec();
+                q025[column] = lower;
+                q975[column] = upper;
+                summaries.q025 = Arc::from(q025);
+                summaries.q975 = Arc::from(q975);
+            }
+        }
+    }
+    summaries
+}
+
 /// Which inference backend to use for Bayesian g-computation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum BayesianBackendKind {
@@ -472,14 +531,13 @@ impl BayesianGComputationAte {
             weights: tempering_weights.as_deref(),
             offsets: None,
         };
-        if ctx.cache_policy.enabled
-            && ctx.cache_policy.max_bytes.is_none()
-            && ctx.admission.byte_budget() == u64::MAX
-            && likelihood == BayesLikelihood::GaussianIdentity
-            && whitened.is_none()
-            && tempering_weights.is_none()
-            && self.backend != BayesianBackendKind::Hmc
-        {
+        if reusable_gaussian_design(
+            ctx,
+            likelihood,
+            self.backend,
+            whitened.is_some(),
+            tempering_weights.is_some(),
+        ) {
             workspace
                 .laplace
                 .bind_immutable_gaussian_design(
@@ -520,25 +578,16 @@ impl BayesianGComputationAte {
         // columns so batch merges match `PosteriorSchema::coefficients`.
         let coef_draws = coefficient_only_draws(&fit.draws)?;
 
-        let n_draws = fit.draws.n_draws;
-        let (mechanism_draws, effects, n_draws, early_stopped) = if laplace_adaptive {
-            let cov = fit.cov.as_deref().ok_or_else(|| {
-                EstimationError::stats_msg("Laplace adaptive draws require posterior covariance")
-            })?;
-            let plan = AdaptiveRedraw {
-                map: &fit.map,
-                cov,
-                seed: self.seed,
+        let EvaluatedDraws { mechanism_draws, effects, n_draws, early_stopped } = eval
+            .evaluate_draws(
+                &fit,
+                coef_draws,
+                laplace_adaptive,
                 max_draws,
-                budget: ctx.adaptive_draws,
-            };
-            let outcome = eval.redraw(&plan, &coef_draws, n_draws, workspace, ctx)?;
-            let mechanism_draws = concat_coefficient_draws(&coef_draws, &outcome.extra_blocks)?;
-            (mechanism_draws, outcome.effects, outcome.n_draws, outcome.early_stopped)
-        } else {
-            let effects = eval.effects(&coef_draws, n_draws, workspace, ctx)?;
-            (coef_draws, effects, n_draws, false)
-        };
+                self.seed,
+                workspace,
+                ctx,
+            )?;
 
         // Adaptive MVN path only runs for known-σ² Laplace, whose residual column is
         // the constant σ², so it is re-attached at the final draw count.
@@ -550,41 +599,7 @@ impl BayesianGComputationAte {
             &effects,
             self.seed,
         )?;
-        let summaries = draws.summarize();
-        // A Laplace interval is the type-7 quantile interval of the draws, whose expected posterior
-        // mass `0.95(m-1)/(m+1)` is 0.921 at 64 draws and 0.949 at 1,000. Below the measured draw
-        // count the effect's interval is the exchangeable-rank (type-6) interval of the same
-        // draws instead, whose expected mass is exactly 0.95 at every count. It is a function of
-        // the embedded draws alone, so artifacts stay self-verifying, and the declared draws,
-        // their count and every other summary are untouched.
-        let mut summaries = summaries;
-        if matches!(self.backend, BayesianBackendKind::Laplace)
-            && n_draws < LAPLACE_RANK_INTERVAL_BELOW_DRAWS
-        {
-            let column = draws
-                .schema
-                .quantities
-                .iter()
-                .position(|quantity| matches!(quantity, PosteriorQuantityKind::Effect { .. }));
-            let values = column.and_then(|column| draws.column(column).ok());
-            if let (Some(column), Some(values)) = (column, values) {
-                if values.len() >= 2 && values.iter().all(|value| value.is_finite()) {
-                    let mut sorted = values.to_vec();
-                    sorted.sort_by(f64::total_cmp);
-                    let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
-                        &sorted,
-                        0.95,
-                        antecedent_stats::QuantileRule::ExchangeableRank,
-                    );
-                    let mut q025 = summaries.q025.to_vec();
-                    let mut q975 = summaries.q975.to_vec();
-                    q025[column] = lower;
-                    q975[column] = upper;
-                    summaries.q025 = Arc::from(q025);
-                    summaries.q975 = Arc::from(q975);
-                }
-            }
-        }
+        let summaries = summarize_gcomp_draws(&draws, self.backend, n_draws);
         Ok(CausalPosterior {
             subsampled_out_mass: 0.0,
             unevaluable_mass: 0.0,
@@ -956,7 +971,51 @@ struct EffectEvaluation<'a> {
     ncols: usize,
 }
 
+struct EvaluatedDraws {
+    mechanism_draws: PosteriorDraws,
+    effects: Vec<f64>,
+    n_draws: usize,
+    early_stopped: bool,
+}
+
 impl EffectEvaluation<'_> {
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "evaluation coordinates the fitted draws and adaptive schedule"
+    )]
+    fn evaluate_draws(
+        &self,
+        fit: &BayesFitResult,
+        coef_draws: PosteriorDraws,
+        laplace_adaptive: bool,
+        max_draws: usize,
+        seed: u64,
+        workspace: &mut BayesianGCompWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<EvaluatedDraws, EstimationError> {
+        let n_draws = fit.draws.n_draws;
+        let (mechanism_draws, effects, n_draws, early_stopped) = if laplace_adaptive {
+            let cov = fit.cov.as_deref().ok_or_else(|| {
+                EstimationError::stats_msg("Laplace adaptive draws require posterior covariance")
+            })?;
+            let plan = AdaptiveRedraw {
+                map: &fit.map,
+                cov,
+                seed: seed,
+                max_draws,
+                budget: ctx.adaptive_draws,
+            };
+            let outcome = self.redraw(&plan, &coef_draws, n_draws, workspace, ctx)?;
+            let mechanism_draws = concat_coefficient_draws(&coef_draws, &outcome.extra_blocks)?;
+            (mechanism_draws, outcome.effects, outcome.n_draws, outcome.early_stopped)
+        } else {
+            let effects = self.effects(&coef_draws, n_draws, workspace, ctx)?;
+            (coef_draws, effects, n_draws, false)
+        };
+
+        Ok(EvaluatedDraws { mechanism_draws, effects, n_draws, early_stopped })
+    }
+
     /// Effect of each of the first `n` draws of `coefficients`.
     fn effects(
         &self,
@@ -1464,4 +1523,86 @@ pub struct BayesianGCompWorkspace {
     pub laplace: LaplaceWorkspace,
     /// Posterior functional eval scratch.
     pub eval: PosteriorEvalWorkspace,
+}
+
+#[cfg(test)]
+mod summary_tests {
+    use super::*;
+
+    #[test]
+    fn gaussian_design_reuse_respects_cache_backend_and_transforms() {
+        let mut ctx = ExecutionContext::for_tests(0);
+        ctx.cache_policy = antecedent_core::CachePolicy::enabled(None);
+        let eligible = |ctx: &ExecutionContext, likelihood, backend, whitened, tempered| {
+            reusable_gaussian_design(ctx, likelihood, backend, whitened, tempered)
+        };
+        assert!(eligible(
+            &ctx,
+            BayesLikelihood::GaussianIdentity,
+            BayesianBackendKind::Laplace,
+            false,
+            false
+        ));
+        assert!(!eligible(
+            &ctx,
+            BayesLikelihood::GaussianIdentity,
+            BayesianBackendKind::Hmc,
+            false,
+            false
+        ));
+        assert!(!eligible(
+            &ctx,
+            BayesLikelihood::GaussianIdentity,
+            BayesianBackendKind::Laplace,
+            true,
+            false
+        ));
+        assert!(!eligible(
+            &ctx,
+            BayesLikelihood::GaussianIdentity,
+            BayesianBackendKind::Laplace,
+            false,
+            true
+        ));
+        ctx.cache_policy = antecedent_core::CachePolicy::enabled(Some(1024));
+        assert!(!eligible(
+            &ctx,
+            BayesLikelihood::GaussianIdentity,
+            BayesianBackendKind::Laplace,
+            false,
+            false
+        ));
+    }
+
+    #[test]
+    fn small_laplace_summary_updates_only_effect_interval() {
+        let schema = PosteriorSchema {
+            quantities: vec![
+                PosteriorQuantityKind::Coefficient { index: 0, name: None },
+                PosteriorQuantityKind::Effect { name: Arc::from("ate") },
+            ]
+            .into(),
+        };
+        let draws = PosteriorDraws::from_column_major(
+            schema,
+            4,
+            vec![2.0, 3.0, 4.0, 5.0, 0.0, 1.0, 2.0, 3.0],
+        )
+        .unwrap();
+        let baseline = draws.summarize();
+        let untouched = summarize_gcomp_draws(&draws, BayesianBackendKind::ConjugateGaussian, 4);
+        assert_eq!(untouched, baseline);
+        let actual = summarize_gcomp_draws(&draws, BayesianBackendKind::Laplace, 4);
+        let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+            &[0.0, 1.0, 2.0, 3.0],
+            0.95,
+            antecedent_stats::QuantileRule::ExchangeableRank,
+        );
+        assert_eq!(actual.q025[0].to_bits(), baseline.q025[0].to_bits());
+        assert_eq!(actual.q975[0].to_bits(), baseline.q975[0].to_bits());
+        assert_eq!(actual.q025[1].to_bits(), lower.to_bits());
+        assert_eq!(actual.q975[1].to_bits(), upper.to_bits());
+        assert_eq!(actual.mean, baseline.mean);
+        assert_eq!(actual.sd, baseline.sd);
+    }
 }

@@ -339,6 +339,13 @@ pub fn wrong_value_kind(requested: ValueKind, held: ValueKind) -> BridgeRefusal 
     )
 }
 
+pub(crate) fn require_value_kind(
+    requested: ValueKind,
+    held: ValueKind,
+) -> Result<(), BridgeRefusal> {
+    if held == requested { Ok(()) } else { Err(wrong_value_kind(requested, held)) }
+}
+
 // -- missing assumptions (bridge_assumption_missing) ---------------------------------------------------
 
 /// Mapping uncertainty was required to propagate and was not declared.
@@ -820,4 +827,27 @@ pub fn chain_stage_not_affine(supplied: &str) -> BridgeRefusal {
     .with_remedy(
         "express the bridge as a measurement-mapping stage only where it is an affine map of its inputs; bridge a predictive law or a measurement correction by deriving the bridged draws and supplying them to the chain as a source",
     )
+}
+
+#[cfg(test)]
+mod value_kind_tests {
+    #[test]
+    fn preserves_all_held_and_requested_kind_pairs() {
+        use super::{require_value_kind, wrong_value_kind};
+        use crate::bridge::kind::ValueKind;
+        let kinds = [
+            ValueKind::Mean,
+            ValueKind::PredictiveLaw,
+            ValueKind::Posterior,
+            ValueKind::IdentifiedSet,
+            ValueKind::JointOutcomeLaw,
+        ];
+        for held in kinds {
+            for requested in kinds {
+                let expected =
+                    if held == requested { Ok(()) } else { Err(wrong_value_kind(requested, held)) };
+                assert_eq!(require_value_kind(requested, held), expected);
+            }
+        }
+    }
 }

@@ -5,7 +5,7 @@
 //! create a JSON value tree or estimate capacity from an encoded-size multiplier.
 use crate::IoError;
 use antecedent_core::ExecutionContext;
-use antecedent_core::execution::{AdmissionError, AdmissionLease};
+use antecedent_core::execution::AdmissionLease;
 use serde::Serialize;
 use std::io::{self, Write};
 
@@ -43,10 +43,7 @@ fn admit(ctx: &ExecutionContext, bytes: usize) -> Result<AdmissionLease, IoError
     let bytes = u64::try_from(bytes).map_err(|_| IoError::StreamBudgetRefused {
         message: "native JSON admission exceeds u64 bytes".into(),
     })?;
-    ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        AdmissionError::Cancelled => IoError::StreamCancelled,
-        other => IoError::StreamBudgetRefused { message: other.to_string() },
-    })
+    ctx.acquire_admission(0, bytes).map_err(crate::error::stream_admission_error)
 }
 #[allow(
     clippy::needless_pass_by_value,

@@ -68,10 +68,7 @@ pub use antecedent_io_core::transport_errors::TemporalTransportArtifactError;
 // doc(hidden): the facade and the python bindings map refusals through it.
 #[doc(hidden)]
 pub fn temporal_refusal(refusal: TemporalRefusal) -> IoError {
-    IoError::Refused {
-        code: refusal.code,
-        message: format!("{}: {}", refusal.detail, refusal.message),
-    }
+    crate::refusal::refused(refusal.code, refusal.detail, &refusal.message)
 }
 
 /// A decision failure as an IO error: a refusal keeps its code.
@@ -326,23 +323,8 @@ fn data_digest(
     catalog: &antecedent_core::EvidenceCatalog,
     laws: &[ExactLawWire],
 ) -> Result<String, IoError> {
-    let mut bindings = catalog
-        .bindings
-        .iter()
-        .map(|b| {
-            (
-                b.regime.raw(),
-                b.snapshot_identity.to_string(),
-                b.dataset_identity.as_deref().map(str::to_owned),
-            )
-        })
-        .collect::<Vec<_>>();
-    bindings.sort();
-    let mut snapshots = laws
-        .iter()
-        .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
-        .collect::<Vec<_>>();
-    snapshots.sort();
+    let bindings = crate::exact_transport_laws::sorted_catalog_bindings(catalog);
+    let snapshots = crate::exact_transport_laws::sorted_law_snapshots(laws);
     crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("temporal_transport_data_v1", bindings, snapshots),

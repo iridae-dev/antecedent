@@ -55,13 +55,10 @@ pub(crate) fn admit_cells(
         Some(ctx) => Some(ctx.acquire_admission(0, bytes)),
         None => antecedent_core::numerical_admission::acquire(bytes),
     };
-    outcome.transpose().map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => ModelError::Cancelled,
-        _ => ModelError::ResourceLimit {
-            message: "sample buffer",
-            required_bytes: bytes,
-            limit_bytes: ctx.map_or(0, |ctx| ctx.admission().available().bytes()),
-        },
+    outcome.transpose().map_err(|error| {
+        crate::error::admission_error(error, "sample buffer", bytes, || {
+            ctx.map_or(0, |ctx| ctx.admission().available().bytes())
+        })
     })
 }
 

@@ -19,6 +19,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::declaration_refusal as declare;
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 
 use super::matrix::{
@@ -37,7 +38,6 @@ pub const ADAPTIVE_DESIGN_VERSION: u64 = 1;
 /// indexed by `u32` and looks are strictly increasing in units.
 pub const MAX_CONTRACT_UNITS: usize = u32::MAX as usize;
 
-const STAGE_DECLARE: &str = "declare";
 const STAGE_BIND: &str = "bind";
 /// Absolute tolerance on an assignment-probability row sum (rows are caller-supplied decimal
 /// probabilities, so it is looser than the identification partition tolerance).
@@ -245,10 +245,6 @@ impl std::error::Error for AdaptiveContractError {}
 
 fn is_binary(value: f64) -> bool {
     value.to_bits() == 0.0_f64.to_bits() || value.to_bits() == 1.0_f64.to_bits()
-}
-
-fn declare(code: &'static str, detail: &'static str, remedy: &'static str) -> ExternalRefusal {
-    ExternalRefusal::new(code, STAGE_DECLARE, detail).with_remedy(remedy)
 }
 
 fn missing(detail: &'static str, remedy: &'static str) -> ExternalRefusal {

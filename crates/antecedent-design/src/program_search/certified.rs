@@ -350,7 +350,7 @@ impl PreparedCertifiedSearch {
         }
         Ok(Arc::new(
             ctx.acquire_admission(0, quote as u64)
-                .map_err(|e| ProgramSearchError::Resource(e.to_string()))?,
+                .map_err(crate::program_search::admission_error)?,
         ))
     }
     /// Maximize the actual expression by deterministic best-bound subdivision.

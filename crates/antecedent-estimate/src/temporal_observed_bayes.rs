@@ -519,10 +519,9 @@ impl Evaluation {
         if bytes > budget.limits().max_bytes {
             return Err(T::Limit { dimension: "bytes" }.into());
         }
-        let evaluation_lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
-            other => T::Admission(other),
-        })?;
+        let evaluation_lease = ctx
+            .acquire_admission(0, bytes)
+            .map_err(crate::temporal_response::temporal_admission_error)?;
         let mut order = Vec::with_capacity(indexer.dense_len());
         for id in unfolded.topological_order() {
             if ctx.cancellation.is_cancelled() {
@@ -955,10 +954,9 @@ fn compile_cells(
             if bytes > budget.limits().max_bytes {
                 return Err(T::Limit { dimension: "bytes" }.into());
             }
-            let overlay_lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-                antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
-                other => T::Admission(other),
-            })?;
+            let overlay_lease = ctx
+                .acquire_admission(0, bytes)
+                .map_err(crate::temporal_response::temporal_admission_error)?;
             let mut overlays = Vec::new();
             overlays
                 .try_reserve_exact(usize::try_from(count).map_err(|_| T::Allocation)?)

@@ -14,7 +14,7 @@ use antecedent_io_core::convert::to_cbor;
 use antecedent_io_core::error::IoError;
 use serde::{Deserialize, Serialize};
 
-use crate::decision_artifact::source_digest;
+use crate::decision_artifact::{refused, source_digest};
 use crate::decision_contract::{DecisionContract, DecisionCriterion, StructuralPolicy};
 use crate::decision_eval::{
     ActionOutcome, ConstraintExclusion, DecisionResult, SourceReceipt, Verdict,
@@ -429,14 +429,6 @@ fn decode(bytes: &[u8]) -> Result<StructuralBody, IoError> {
     crate::decision_artifact::decode_section(bytes, RESULT_KIND, BODY_SECTION)
 }
 
-fn refused(slot: &str, message: &str) -> IoError {
-    crate::plan_common::refused_with(
-        antecedent_core::reason_code!("decision_contract_unsatisfied"),
-        &format!("decision_artifact.{slot}"),
-        message,
-    )
-}
-
 /// Each atom's retained id and, for an evaluated atom, the digest of its draws.
 fn digests_of(atoms: &[StructuralAtom]) -> Vec<AtomDigest> {
     atoms
@@ -544,5 +536,23 @@ impl StructuralResultArtifact {
             ));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod shared_decision_refusal_tests {
+    use antecedent_io_core::error::IoError;
+
+    use super::refused;
+
+    #[test]
+    fn structural_refusal_keeps_code_and_exact_message() {
+        match refused("atom:\"id", "line\nbreak") {
+            IoError::Refused { code, message } => {
+                assert_eq!(code, "decision_contract_unsatisfied");
+                assert_eq!(message, "decision_artifact.atom:\"id: line\nbreak");
+            }
+            other => panic!("unexpected error: {other}"),
+        }
     }
 }

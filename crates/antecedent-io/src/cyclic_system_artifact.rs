@@ -155,7 +155,7 @@ struct Record {
     report: CyclicExecutionReport,
 }
 
-fn invalid(e: impl std::fmt::Display) -> CyclicArtifactError {
+pub(crate) fn invalid(e: impl std::fmt::Display) -> CyclicArtifactError {
     CyclicArtifactError::Invalid(e.to_string())
 }
 
@@ -886,5 +886,20 @@ mod tests {
         assert!(pool.available().bytes() < pool.byte_budget());
         drop(report);
         assert_eq!(pool.available().bytes(), pool.byte_budget());
+    }
+}
+
+#[cfg(test)]
+mod shared_invalid_tests {
+    use super::{CyclicArtifactError, invalid};
+
+    #[test]
+    fn invalid_preserves_display_text() {
+        for input in ["", "detail: with\nnewline"] {
+            match invalid(input) {
+                CyclicArtifactError::Invalid(message) => assert_eq!(message, input),
+                other => panic!("unexpected error: {other:?}"),
+            }
+        }
     }
 }

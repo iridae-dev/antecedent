@@ -227,8 +227,7 @@ impl PreparedContinuousProgramSearch {
             ));
         }
         let retention = Arc::new(
-            ctx.acquire_admission(0, bytes)
-                .map_err(|e| ProgramSearchError::Resource(e.to_string()))?,
+            ctx.acquire_admission(0, bytes).map_err(crate::program_search::admission_error)?,
         );
         let mut attempts = Vec::new();
         let mut dependency = None;

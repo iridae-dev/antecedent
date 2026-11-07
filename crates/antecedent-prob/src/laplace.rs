@@ -85,6 +85,109 @@ pub fn fit_laplace_glm_owned(
     fit_laplace_glm(likelihood, design, prior, options, &mut owned.workspace)
 }
 
+fn laplace_derivatives(
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'_>,
+    coef_prior: &GaussianCoefficientPrior,
+    prec: &CoefficientPrecision,
+    workspace: &mut LaplaceWorkspace,
+) -> Result<(bool, f64), ProbError> {
+    let nrows = design.nrows;
+    let ncols = design.ncols;
+    let (_, separation) = accumulate_likelihood(
+        likelihood,
+        design,
+        &workspace.beta[..ncols],
+        LikelihoodScratch {
+            grad: &mut workspace.grad[..ncols],
+            neg_hess: &mut workspace.neg_hessian[..ncols * ncols],
+            eta: &mut workspace.eta[..nrows],
+            work_w: &mut workspace.work_w[..nrows],
+        },
+        1.0,
+        true,
+    )?;
+    prec.sub_prior_gradient(
+        &workspace.beta[..ncols],
+        &coef_prior.mean,
+        &mut workspace.grad[..ncols],
+    );
+    prec.add_divided_to(&mut workspace.neg_hessian[..ncols * ncols], ncols, 1.0);
+    let mut grad_inf: f64 = 0.0;
+    for i in 0..ncols {
+        grad_inf = grad_inf.max(workspace.grad[i].abs());
+    }
+    Ok((separation, grad_inf))
+}
+
+fn laplace_line_search(
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'_>,
+    coef_prior: &GaussianCoefficientPrior,
+    prec: &CoefficientPrecision,
+    workspace: &mut LaplaceWorkspace,
+    known_objective: &mut Option<f64>,
+) -> Result<(bool, bool), ProbError> {
+    let nrows = design.nrows;
+    let ncols = design.ncols;
+    // Damped line search
+    let mut step_scale = 1.0;
+    workspace.q[..ncols].copy_from_slice(&workspace.beta[..ncols]);
+    let mut accepted = false;
+    let old_obj = match *known_objective {
+        Some(value) => value,
+        None => log_posterior_value(
+            likelihood,
+            design,
+            &workspace.q[..ncols],
+            coef_prior,
+            prec,
+            &mut workspace.eta[..nrows],
+            1.0,
+        )?,
+    };
+    for _ in 0..8 {
+        for i in 0..ncols {
+            workspace.beta[i] = workspace.q[i] + step_scale * workspace.step[i];
+        }
+        match log_posterior_value(
+            likelihood,
+            design,
+            &workspace.beta[..ncols],
+            coef_prior,
+            prec,
+            &mut workspace.eta[..nrows],
+            1.0,
+        ) {
+            Ok(new_obj) if new_obj >= old_obj - 1e-12 => {
+                accepted = true;
+                *known_objective = Some(new_obj);
+                break;
+            }
+            Ok(_) | Err(ProbError::Numerical { .. }) => {
+                step_scale *= 0.5;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    if !accepted {
+        for i in 0..ncols {
+            workspace.beta[i] = workspace.q[i];
+        }
+        // A Newton step whose predicted gain (half the Newton decrement
+        // `grad · step`) is below the rounding error of the summed
+        // log-posterior cannot be verified by the line search: at large n
+        // the objective's roundoff exceeds the absolute gradient tolerance.
+        // The iterate is then the mode to working precision.
+        let decrement: f64 = (0..ncols).map(|i| workspace.grad[i] * workspace.step[i]).sum();
+        let roundoff = 64.0 * f64::EPSILON * (1.0 + old_obj.abs());
+        let within_roundoff =
+            decrement.is_finite() && decrement >= 0.0 && 0.5 * decrement <= roundoff;
+        return Ok((false, within_roundoff));
+    }
+    Ok((true, false))
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "unchanged numerical Laplace fit with its iteration state"
@@ -137,32 +240,7 @@ fn fit_laplace_glm_inner(
             return Err(ProbError::Numerical { message: "Laplace fit cancelled".into() });
         }
         iterations = iter + 1;
-        let _ = accumulate_likelihood(
-            likelihood,
-            design,
-            &workspace.beta[..ncols],
-            LikelihoodScratch {
-                grad: &mut workspace.grad[..ncols],
-                neg_hess: &mut workspace.neg_hessian[..ncols * ncols],
-                eta: &mut workspace.eta[..nrows],
-                work_w: &mut workspace.work_w[..nrows],
-            },
-            1.0,
-            true,
-        )?;
-
-        // Add prior: log π(β) = -0.5 (β - μ)' P (β - μ)
-        prec.sub_prior_gradient(
-            &workspace.beta[..ncols],
-            &coef_prior.mean,
-            &mut workspace.grad[..ncols],
-        );
-        prec.add_divided_to(&mut workspace.neg_hessian[..ncols * ncols], ncols, 1.0);
-
-        grad_inf = 0.0;
-        for i in 0..ncols {
-            grad_inf = grad_inf.max(workspace.grad[i].abs());
-        }
+        (_, grad_inf) = laplace_derivatives(likelihood, design, &coef_prior, &prec, workspace)?;
 
         if grad_inf < options.grad_tol {
             converged = true;
@@ -189,89 +267,25 @@ fn fit_laplace_glm_inner(
             }
         }
 
-        // Damped line search
-        let mut step_scale = 1.0;
-        workspace.q[..ncols].copy_from_slice(&workspace.beta[..ncols]);
-        let mut accepted = false;
-        let old_obj = match known_objective {
-            Some(value) => value,
-            None => log_posterior_value(
-                likelihood,
-                design,
-                &workspace.q[..ncols],
-                &coef_prior,
-                &prec,
-                &mut workspace.eta[..nrows],
-                1.0,
-            )?,
-        };
-        for _ in 0..8 {
-            for i in 0..ncols {
-                workspace.beta[i] = workspace.q[i] + step_scale * workspace.step[i];
-            }
-            match log_posterior_value(
-                likelihood,
-                design,
-                &workspace.beta[..ncols],
-                &coef_prior,
-                &prec,
-                &mut workspace.eta[..nrows],
-                1.0,
-            ) {
-                Ok(new_obj) if new_obj >= old_obj - 1e-12 => {
-                    accepted = true;
-                    known_objective = Some(new_obj);
-                    break;
-                }
-                Ok(_) | Err(ProbError::Numerical { .. }) => {
-                    step_scale *= 0.5;
-                }
-                Err(e) => return Err(e),
-            }
-        }
+        let (accepted, within_roundoff) = laplace_line_search(
+            likelihood,
+            design,
+            &coef_prior,
+            &prec,
+            workspace,
+            &mut known_objective,
+        )?;
         if !accepted {
-            for i in 0..ncols {
-                workspace.beta[i] = workspace.q[i];
-            }
-            // A Newton step whose predicted gain (half the Newton decrement
-            // `grad · step`) is below the rounding error of the summed
-            // log-posterior cannot be verified by the line search: at large n
-            // the objective's roundoff exceeds the absolute gradient tolerance.
-            // The iterate is then the mode to working precision.
-            let decrement: f64 = (0..ncols).map(|i| workspace.grad[i] * workspace.step[i]).sum();
-            let roundoff = 64.0 * f64::EPSILON * (1.0 + old_obj.abs());
-            if decrement.is_finite() && decrement >= 0.0 && 0.5 * decrement <= roundoff {
-                converged = true;
-            }
+            converged = within_roundoff;
             break;
         }
     }
 
     // Final gradient / Hessian at MAP. Intermediate Newton steps can visit
     // extreme η; publication cares about fitted probabilities at the mode.
-    let (_, sep_map) = accumulate_likelihood(
-        likelihood,
-        design,
-        &workspace.beta[..ncols],
-        LikelihoodScratch {
-            grad: &mut workspace.grad[..ncols],
-            neg_hess: &mut workspace.neg_hessian[..ncols * ncols],
-            eta: &mut workspace.eta[..nrows],
-            work_w: &mut workspace.work_w[..nrows],
-        },
-        1.0,
-        true,
-    )?;
-    prec.sub_prior_gradient(
-        &workspace.beta[..ncols],
-        &coef_prior.mean,
-        &mut workspace.grad[..ncols],
-    );
-    prec.add_divided_to(&mut workspace.neg_hessian[..ncols * ncols], ncols, 1.0);
-    grad_inf = 0.0;
-    for i in 0..ncols {
-        grad_inf = grad_inf.max(workspace.grad[i].abs());
-    }
+    let (sep_map, final_grad_inf) =
+        laplace_derivatives(likelihood, design, &coef_prior, &prec, workspace)?;
+    grad_inf = final_grad_inf;
     if grad_inf < options.grad_tol {
         converged = true;
     }
@@ -544,6 +558,39 @@ mod tests {
     use crate::gaussian_target::{gaussian_target_from_model, prior_quadratic, rss_and_xtwr};
     use crate::linalg::invert_spd;
     use crate::prior::PriorSpec;
+
+    #[test]
+    fn rejected_line_search_restores_iterate_and_cached_objective() {
+        let design = BayesDesignRef {
+            x_colmajor: &[1.0, 1.0],
+            nrows: 2,
+            ncols: 1,
+            y: &[0.0, 1.0],
+            weights: None,
+            offsets: None,
+        };
+        let prior = PriorSet::weakly_informative(1);
+        let coef_prior = prior.gaussian_coefficients().unwrap();
+        let prec = prior.coefficient_precision(coef_prior).unwrap();
+        let mut workspace = LaplaceWorkspace::default();
+        workspace.prepare(2, 1, 0);
+        workspace.beta[0] = 0.0;
+        workspace.step[0] = 1000.0;
+        workspace.grad[0] = 1.0;
+        let mut known_objective = None;
+        let (accepted, within_roundoff) = laplace_line_search(
+            BayesLikelihood::BernoulliLogit,
+            design,
+            coef_prior,
+            &prec,
+            &mut workspace,
+            &mut known_objective,
+        )
+        .unwrap();
+        assert!(!accepted && !within_roundoff);
+        assert_eq!(workspace.beta[0].to_bits(), 0.0_f64.to_bits());
+        assert!(known_objective.is_none());
+    }
 
     #[test]
     fn caller_admission_precedes_workspace_allocation_and_preserves_logistic_fit_bits() {

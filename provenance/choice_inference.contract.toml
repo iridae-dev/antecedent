@@ -37,8 +37,8 @@ record_sha256 = "d5f65233f2dacca5741d5ae53441609e851d11296f2451f01a205e2380806b3
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/adaptive_design/choice.rs"
-items = ["const CHOICE_DESIGN_VERSION", "const MAX_CHOICES_PER_RESPONDENT", "const MAX_CHOICE_CONTRACT_OPTIONS", "const MAX_CHOICE_RESPONDENTS", "const MAX_CHOICE_SOURCES", "const ROW_DOMAIN", "const STAGE_BIND", "const STAGE_DECLARE", "fn account", "fn admit_paradigm", "fn cell", "fn check_frame", "fn check_monitoring_and_rule", "fn check_overlap", "fn check_respondents", "fn check_sources", "fn declaration", "fn details", "fn distinct_labels", "fn ensure_current", "fn evidence", "fn identity", "fn identity_of", "fn invalid", "fn looks", "fn new", "fn options", "fn refusal", "fn respondent_rows", "fn respondents_at", "fn row_id", "fn scope", "fn source_row", "fn withdraw_retained_source", "struct ChoiceContractError", "struct ChoiceDesignContract", "struct ChoiceDesignDeclaration", "struct ChoiceEvidence", "struct ChoiceLook", "struct ChoiceRespondent", "struct RetainedChoiceProof", "struct RetainedChoiceSource"]
-sha256 = "eb8bf658fd5789176fa1b5acd9610208e65c8198dcf43425875de3c01ac19691"
+items = ["const CHOICE_DESIGN_VERSION", "const MAX_CHOICES_PER_RESPONDENT", "const MAX_CHOICE_CONTRACT_OPTIONS", "const MAX_CHOICE_RESPONDENTS", "const MAX_CHOICE_SOURCES", "const ROW_DOMAIN", "const STAGE_BIND", "const STAGE_DECLARE", "fn account", "fn admit_paradigm", "fn cell", "fn check_frame", "fn check_monitoring_and_rule", "fn check_overlap", "fn check_respondents", "fn check_sources", "fn declaration", "fn details", "fn distinct_labels", "fn ensure_current", "fn evidence", "fn identity", "fn identity_of", "fn invalid", "fn looks", "fn new", "fn options", "fn respondent_rows", "fn respondents_at", "fn row_id", "fn scope", "fn source_row", "fn withdraw_retained_source", "struct ChoiceContractError", "struct ChoiceDesignContract", "struct ChoiceDesignDeclaration", "struct ChoiceEvidence", "struct ChoiceLook", "struct ChoiceRespondent", "struct RetainedChoiceProof", "struct RetainedChoiceSource"]
+sha256 = "610d1806686db216eaf010b61bbf153dd7135c5370ecc623b62775916d40f8b7"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -49,20 +49,26 @@ sha256 = "eebe0b35896a1fb312b240ceada2f3fc7b61600e722ea9b7b4a2bd501bfdbc94"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/choice_inference_result_artifact.rs"
-items = ["const ARTIFACT_KIND", "const CHOICE_INFERENCE_CALIBRATION", "const CHOICE_INFERENCE_RESULT_ARTIFACT_FEATURE", "const CHOICE_INFERENCE_RESULT_ARTIFACT_VERSION", "const CHOICE_RESULT_REPLAY_TOLERANCE", "const MAX_CHOICE_INFERENCE_RESULT_BYTES", "const META_SECTION", "const REPLAY", "const SOURCE_DEPTH", "enum ChoiceResultSpec", "fn bits", "fn check", "fn compute_choice_result", "fn compute_identity", "fn contract", "fn contract_from", "fn contract_refusal", "fn declaration_from_wire", "fn declaration_to_wire", "fn decode_meta", "fn decode_unchecked", "fn drop", "fn encode_meta", "fn from", "fn from_bytes", "fn from_meta", "fn hierarchical_inputs", "fn identity", "fn look", "fn malformed", "fn outcome", "fn paradigm", "fn reals", "fn request_invalid", "fn reseal_identity", "fn result", "fn result_refusal", "fn retained_choice_source_from_artifact", "fn seal", "fn spec", "fn spec_from_wire", "fn spec_to_wire", "fn to_bytes", "fn verify_retained_choice_sources", "struct ChoiceDeclarationWire", "struct ChoiceInferenceResultArtifact", "struct ChoiceResult", "struct ChoiceResultError", "struct ChoiceResultMeta", "struct ChoiceSpecWire", "struct DepthGuard", "struct RespondentWire", "struct SourceWire", "type Error"]
-sha256 = "f68769ad26561dea06d2e93aa393c4e6e08342f94240ec3ba6581860bab4b9e1"
+items = ["const ARTIFACT_KIND", "const CHOICE_INFERENCE_CALIBRATION", "const CHOICE_INFERENCE_RESULT_ARTIFACT_FEATURE", "const CHOICE_INFERENCE_RESULT_ARTIFACT_VERSION", "const CHOICE_RESULT_REPLAY_TOLERANCE", "const MAX_CHOICE_INFERENCE_RESULT_BYTES", "const META_SECTION", "const REPLAY", "const SOURCE_DEPTH", "enum ChoiceResultSpec", "fn bits", "fn check", "fn compute_choice_result", "fn compute_identity", "fn contract", "fn contract_from", "fn contract_refusal", "fn declaration_from_wire", "fn declaration_to_wire", "fn decode_meta", "fn decode_unchecked", "fn drop", "fn encode_meta", "fn from", "fn from_bytes", "fn from_meta", "fn hierarchical_inputs", "fn identity", "fn look", "fn malformed", "fn outcome", "fn paradigm", "fn reals", "fn request_invalid", "fn reseal_identity", "fn result", "fn result_refusal", "fn retained_choice_source_from_artifact", "fn seal", "fn spec", "fn spec_from_wire", "fn source_admission_error", "fn spec_to_wire", "fn to_bytes", "fn verify_retained_choice_sources", "struct ChoiceDeclarationWire", "struct ChoiceInferenceResultArtifact", "struct ChoiceResult", "struct ChoiceResultError", "struct ChoiceResultMeta", "struct ChoiceSpecWire", "struct DepthGuard", "struct RespondentWire", "struct SourceWire", "type Error"]
+sha256 = "c7b4353c1edced31a0d31a34cb2bff72e4a5fa18068c152de770498fc8a62beb"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/choice_evsi.rs"
 items = ["module"]
-sha256 = "42873a8b07c104f7aa0e03886519e37ec3d804b3466acd987def98e2598bde1f"
+sha256 = "e6734a2ab58d3b87f0bcec95caa1d0a617f3eedd7977aa898cda5edc594833ec"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/choice_inference.rs"
 items = ["fn contract", "fn contract_identity", "fn from", "fn identity", "fn result"]
 sha256 = "751bbeacf2f26a52984c0b172a0a627168d984dd9cb78430ac52d4abee79dca8"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/adaptive_design.rs"
+items = ["fn declaration_refusal"]
+sha256 = "b073e47ec1e8ccab2ea820ad91a9369e3c60ff452a3ffd2a85f91a700ae13935"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

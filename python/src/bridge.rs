@@ -170,10 +170,23 @@ pub(crate) fn compact_refusal_json(
     message: &str,
     remedy: Option<&str>,
 ) -> String {
-    let mut refusal = RefusalJson::new(code, stage, detail, message).remedy(remedy);
+    compact_refusal_value(code, stage, detail, message, None, remedy).to_string()
+}
+
+/// Six-field refusal value, including an optional offending field.
+pub(crate) fn compact_refusal_value(
+    code: &str,
+    stage: &str,
+    detail: &str,
+    message: &str,
+    offending: Option<&str>,
+    remedy: Option<&str>,
+) -> serde_json::Value {
+    let mut refusal =
+        RefusalJson::new(code, stage, detail, message).offending(offending).remedy(remedy);
     refusal.0.remove("expected");
     refusal.0.remove("supplied");
-    refusal.json()
+    refusal.value()
 }
 
 /// Split `"{detail}: {text}"` where `detail` is a dotted identifier such as
@@ -299,8 +312,34 @@ fn wire_json(wire: &antecedent::io::external_binding_wire::RefusalWire) -> Strin
     )
 }
 
+pub(crate) fn invalid_joint_data_identity(
+    identity: &antecedent::io::joint_bayesian_transport_artifact::DataIdentityWire,
+    rows: usize,
+) -> bool {
+    let ids: std::collections::HashSet<_> = identity.datum_ids.iter().collect();
+    identity.snapshot_digest.trim().is_empty()
+        || identity.datum_ids.len() != rows
+        || ids.len() != rows
+        || identity.datum_ids.iter().any(|id| id.trim().is_empty())
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn joint_data_identity_preserves_empty_unique_and_blank_rules() {
+        use antecedent::io::joint_bayesian_transport_artifact::DataIdentityWire;
+        let identity = |digest: &str, ids: &[&str]| DataIdentityWire {
+            snapshot_digest: digest.into(),
+            datum_ids: ids.iter().map(|id| (*id).into()).collect(),
+        };
+        assert!(!super::invalid_joint_data_identity(&identity("d", &[]), 0));
+        assert!(!super::invalid_joint_data_identity(&identity("d", &["a", "b"]), 2));
+        assert!(super::invalid_joint_data_identity(&identity(" ", &["a"]), 1));
+        assert!(super::invalid_joint_data_identity(&identity("d", &["a"]), 2));
+        assert!(super::invalid_joint_data_identity(&identity("d", &["a", "a"]), 2));
+        assert!(super::invalid_joint_data_identity(&identity("d", &[" "]), 1));
+    }
+
     use super::{
         MAX_RESAMPLES, check_count, check_mcmc_schedule, check_paths, external_refusal_json,
     };
@@ -366,6 +405,22 @@ mod tests {
             })
             .to_string();
             assert_eq!(actual, expected);
+        }
+    }
+
+    #[test]
+    fn compact_refusal_value_preserves_optional_fields_and_escaping() {
+        for offending in [None, Some("field\"quoted")] {
+            for remedy in [None, Some(""), Some("try\nagain")] {
+                let actual = super::compact_refusal_value(
+                    "code", "stage", "detail", "message", offending, remedy,
+                );
+                let expected = serde_json::json!({
+                    "code":"code", "stage":"stage", "detail":"detail", "message":"message",
+                    "offending":offending, "remedy":remedy,
+                });
+                assert_eq!(actual, expected);
+            }
         }
     }
 

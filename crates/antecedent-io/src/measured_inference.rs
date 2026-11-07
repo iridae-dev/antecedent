@@ -9,6 +9,7 @@
 use crate::IoError;
 use crate::calibration::{CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire};
 use crate::contract_section::CalibrationSlotWire;
+use crate::refusal::refused;
 use antecedent_core::{CalibrationBasis, IdentityDomain};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -30,6 +31,52 @@ pub(crate) mod recovery_temporal;
 pub mod split_effect;
 pub mod split_parent_set_effect;
 pub(crate) mod transport;
+
+fn invalid(detail: &str, message: &str) -> IoError {
+    refused(antecedent_core::reason_code!("invalid_argument"), detail, message)
+}
+
+fn validate_split_header(
+    version_ok: bool,
+    names: usize,
+    columns: usize,
+    detail: &str,
+) -> Result<(), IoError> {
+    if !version_ok || names != columns {
+        return Err(invalid(
+            detail,
+            "unknown format version or names and columns of different counts",
+        ));
+    }
+    if columns < 3 {
+        return Err(invalid(
+            detail,
+            "a treatment, an outcome and at least one more searched variable are needed",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_split_columns(
+    columns: &[Vec<f64>],
+    treatment: u32,
+    outcome: u32,
+    max_rows: usize,
+    detail: &str,
+) -> Result<usize, IoError> {
+    let rows = columns[0].len();
+    if !(8..=max_rows).contains(&rows) || columns.iter().any(|c| c.len() != rows) {
+        return Err(invalid(detail, "columns must have one length between 8 and 2^20 rows"));
+    }
+    if columns.iter().flatten().any(|v| !v.is_finite()) {
+        return Err(invalid(detail, "missing or non-finite values are not supported"));
+    }
+    let (t, y) = (treatment as usize, outcome as usize);
+    if t >= columns.len() || y >= columns.len() || t == y {
+        return Err(invalid(detail, "treatment and outcome must be two distinct columns"));
+    }
+    Ok(rows)
+}
 
 /// A caller's immutable expected source and reported question. This is a
 /// declaration, never support or a substitute for actual source replay.
@@ -522,5 +569,70 @@ mod tests {
             changed.level = 0.9;
             assert!(decode(&bytes, &changed).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod shared_refusal_tests {
+    use super::{IoError, invalid, refused};
+
+    #[test]
+    fn measured_refusals_preserve_code_and_exact_detail_message() {
+        for (code, value) in [
+            ("route_not_supported", refused("route_not_supported", "detail:slot", "line\nbreak")),
+            ("invalid_argument", invalid("detail:slot", "line\nbreak")),
+        ] {
+            match value {
+                IoError::Refused { code: actual, message } => {
+                    assert_eq!(actual, code);
+                    assert_eq!(message, "detail:slot: line\nbreak");
+                }
+                other => panic!("unexpected error: {other}"),
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod shared_split_validation_tests {
+    #[test]
+    fn header_then_columns_preserve_error_order_and_bounds() {
+        use super::{validate_split_columns, validate_split_header};
+        assert!(
+            validate_split_header(false, 0, 0, "detail")
+                .unwrap_err()
+                .to_string()
+                .contains("unknown format version")
+        );
+        assert!(
+            validate_split_header(true, 2, 2, "detail")
+                .unwrap_err()
+                .to_string()
+                .contains("at least one more")
+        );
+        let mut columns = vec![vec![0.0; 8]; 3];
+        assert_eq!(validate_split_columns(&columns, 0, 1, 8, "detail").unwrap(), 8);
+        columns[0].push(f64::NAN);
+        assert!(
+            validate_split_columns(&columns, 0, 0, 8, "detail")
+                .unwrap_err()
+                .to_string()
+                .contains("one length")
+        );
+        columns[0].pop();
+        columns[0][0] = f64::NAN;
+        assert!(
+            validate_split_columns(&columns, 0, 0, 8, "detail")
+                .unwrap_err()
+                .to_string()
+                .contains("non-finite")
+        );
+        columns[0][0] = 0.0;
+        assert!(
+            validate_split_columns(&columns, 0, 0, 8, "detail")
+                .unwrap_err()
+                .to_string()
+                .contains("distinct columns")
+        );
     }
 }

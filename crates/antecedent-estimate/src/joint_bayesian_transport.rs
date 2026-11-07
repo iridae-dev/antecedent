@@ -222,6 +222,16 @@ impl GaussianPrior {
     }
 }
 
+pub(crate) fn prior_identity_bits(prior: &GaussianPrior) -> String {
+    let bits: Vec<String> = prior
+        .mean
+        .iter()
+        .chain(&prior.covariance)
+        .map(|value| format!("{:016x}", value.to_bits()))
+        .collect();
+    bits.join(",")
+}
+
 /// Priors of the invariant block and of every varying block.
 #[derive(Clone, Debug, PartialEq)]
 pub struct JointPriors {
@@ -362,7 +372,7 @@ impl From<JointTransportRefusal> for EstimationError {
 /// point unboxes it.
 type Refused = Box<JointTransportRefusal>;
 
-fn invalid(detail: &'static str, message: impl Into<String>) -> JointTransportRefusal {
+pub(crate) fn invalid(detail: &'static str, message: impl Into<String>) -> JointTransportRefusal {
     JointTransportRefusal::new(antecedent_core::reason_code!("invalid_argument"), detail, message)
         .at("validate")
 }
@@ -1413,11 +1423,6 @@ fn model_identity_with_source_labels(
     sources: &[SourceData],
     labels: &[&str],
 ) -> String {
-    let prior = |p: &GaussianPrior| {
-        let bits: Vec<String> =
-            p.mean.iter().chain(&p.covariance).map(|v| format!("{:016x}", v.to_bits())).collect();
-        bits.join(",")
-    };
     format!(
         "joint_bayesian_transport_v1|graph=fixed_dag|features={:?}|varying={:?}|sharing={:?}|\
          sources={}|noise={:?}|theta_prior={}|gamma_prior={}|dim={}|max_draws={}|max_parameters={}",
@@ -1426,8 +1431,8 @@ fn model_identity_with_source_labels(
         model.sharing,
         labels.join(","),
         sources.iter().map(|s| s.noise_variance.to_bits()).collect::<Vec<_>>(),
-        prior(&model.priors.invariant),
-        prior(&model.priors.varying),
+        prior_identity_bits(&model.priors.invariant),
+        prior_identity_bits(&model.priors.varying),
         layout.dim(),
         JOINT_TRANSPORT_MAX_DRAWS,
         JOINT_TRANSPORT_MAX_PARAMETERS,
@@ -1650,4 +1655,47 @@ fn fit_inner(
         draws,
         identification,
     })
+}
+
+#[cfg(test)]
+mod prior_identity_bits_tests {
+    use super::{GaussianPrior, PriorProvenance, prior_identity_bits};
+
+    #[test]
+    fn prior_identity_preserves_order_and_float_bits() {
+        let prior = GaussianPrior {
+            mean: vec![0.0, -0.0, f64::INFINITY],
+            covariance: vec![f64::from_bits(0x7ff8_0000_0000_1234), -1.0],
+            provenance: PriorProvenance::Declared,
+        };
+        assert_eq!(
+            prior_identity_bits(&prior),
+            "0000000000000000,8000000000000000,7ff0000000000000,7ff8000000001234,bff0000000000000"
+        );
+        let empty = GaussianPrior {
+            mean: vec![],
+            covariance: vec![],
+            provenance: PriorProvenance::Declared,
+        };
+        assert_eq!(prior_identity_bits(&empty), "");
+    }
+}
+
+#[cfg(test)]
+mod invalid_refusal_tests {
+    use super::{FailedFitDiagnostics, invalid};
+
+    #[test]
+    fn joint_invalid_refusal_preserves_all_fields() {
+        for message in ["", "line\nbreak"] {
+            let value = invalid("joint.example", message);
+            assert_eq!(value.code, "invalid_argument");
+            assert_eq!(value.detail, "joint.example");
+            assert_eq!(value.message, message);
+            assert_eq!(
+                value.failure,
+                FailedFitDiagnostics { stage: "validate", ..Default::default() }
+            );
+        }
+    }
 }

@@ -12,9 +12,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::{
-    ClassicalTransportDerivation, ClassicalTransportQuery, Engine, Rule, SHedgeCertificate,
-    SelectionForest, SidLimits, SidMeter, State, check_sid_memory, difference, graph_signature,
-    intersection, meta,
+    ClassicalTransportDerivation, ClassicalTransportQuery, Engine, ProofStep, Rule,
+    SHedgeCertificate, SelectionForest, SidLimits, SidMeter, State, check_sid_memory, difference,
+    graph_signature, intersection, meta,
 };
 
 /// Verify recorded local premises and expression transformations without rerunning sID.
@@ -31,21 +31,13 @@ pub fn verify_classical_transport(
     verify_charged(diagram, query, derivation, SidMeter::Limits(limits), (0, 0), ctx)
 }
 
-/// [`verify_classical_transport`] charging `meter`, with the checker rooted at
-/// `(depth offset, live bytes)` of the search it verifies for.
-#[allow(
-    clippy::too_many_lines,
-    reason = "One auditable premise dispatch for the seven pinned rules"
-)]
-pub(super) fn verify_charged(
+fn validate_derivation_header(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
     derivation: &ClassicalTransportDerivation,
-    meter: SidMeter<'_>,
-    (depth_offset, base_bytes): (usize, u64),
+    limits: SidLimits,
     ctx: &ExecutionContext,
 ) -> Result<(), IdentificationError> {
-    let limits = meter.limits();
     let bad = || IdentificationError::invalid_derivation("transport.invalid_derivation");
     let mut recorded_selections = derivation.selection_targets.to_vec();
     recorded_selections.sort_unstable();
@@ -69,6 +61,182 @@ pub(super) fn verify_charged(
             return Err(bad());
         }
     }
+    Ok(())
+}
+
+fn validate_step_state(
+    state: &State,
+    initial: &State,
+    output: ExprId,
+    arena_len: usize,
+) -> Result<(), IdentificationError> {
+    let bad = || IdentificationError::invalid_derivation("transport.invalid_derivation");
+    if state.v.bit_len() != initial.v.bit_len()
+        || state.x.bit_len() != initial.v.bit_len()
+        || state.y.bit_len() != initial.v.bit_len()
+        || !state.y.is_subset_of(&state.v)
+        || !state.x.is_subset_of(&state.v)
+        || intersection(&state.x, &state.y).any()
+        || state.kernel.raw() as usize >= arena_len
+        || output.raw() as usize >= arena_len
+    {
+        return Err(bad());
+    }
+    Ok(())
+}
+
+fn verify_factor_or_recurse(
+    checker: &mut Engine<'_>,
+    state: &State,
+    children: &[&ProofStep],
+    rule: Rule,
+) -> Result<ExprId, IdentificationError> {
+    let bad = || IdentificationError::invalid_derivation("transport.invalid_derivation");
+    let districts = checker.prepared.c_components(&difference(&state.v, &state.x));
+    if districts.len() != 1 {
+        return Err(bad());
+    }
+    let district = &districts[0];
+    let containing = checker.prepared.c_components(&state.v);
+    if containing.len() <= 1 {
+        return Err(bad());
+    }
+    Ok(if rule == Rule::Factor {
+        if !containing.iter().any(|d| d.equal_set(district)) || !children.is_empty() {
+            return Err(bad());
+        }
+        let kernel = checker.factor(state, district)?;
+        checker.marginal(kernel, &difference(district, &state.y))?
+    } else {
+        let larger = containing
+            .iter()
+            .find(|d| district.is_subset_of(d) && !district.equal_set(d))
+            .ok_or_else(bad)?;
+        let expected = State {
+            y: state.y.clone(),
+            x: intersection(&state.x, larger),
+            v: larger.clone(),
+            kernel: checker.factor(state, larger)?,
+        };
+        if children.len() != 1 || children[0].state != expected {
+            return Err(bad());
+        }
+        children[0].output
+    })
+}
+
+fn verify_source_or_direct(
+    checker: &mut Engine<'_>,
+    state: &State,
+    step: &ProofStep,
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    derivation: &ClassicalTransportDerivation,
+) -> Result<ExprId, IdentificationError> {
+    let bad = || IdentificationError::invalid_derivation("transport.invalid_derivation");
+    let mut ws = GraphWorkspace::default();
+    if !step.children.is_empty() {
+        return Err(bad());
+    }
+    if step.rule == Rule::Source {
+        // Figure 5 line 10 fires only after lines 2-4 declined: the
+        // vertices are their own ancestors, nothing is enlargeable,
+        // and both C(D minus X) and C(D) are single components.
+        let ancestors = checker.cached_ancestors(&state.y, &state.v, &mut ws);
+        let bar = checker.prepared.ancestors_bar_x(&state.y, &state.v, &state.x, &mut ws);
+        let mut non_x = difference(&state.v, &state.x);
+        non_x.difference_with(&bar);
+        if !state.x.any()
+            || !ancestors.equal_set(&state.v)
+            || non_x.any()
+            || checker.prepared.c_components(&difference(&state.v, &state.x)).len() != 1
+            || checker.prepared.c_components(&state.v).len() != 1
+        {
+            return Err(bad());
+        }
+    }
+    let population = match checker.arena.node(step.output) {
+        ExprNode::Distribution { population, .. } => {
+            checker.arena.population(*population).to_string()
+        }
+        _ => return Err(bad()),
+    };
+    let selections: Vec<_> = if derivation.sources.is_empty() {
+        if population != query.source.as_ref() {
+            return Err(bad());
+        }
+        diagram.selection_targets().to_vec()
+    } else {
+        derivation
+            .sources
+            .iter()
+            .find(|s| s.population == population)
+            .ok_or_else(bad)?
+            .selections
+            .iter()
+            .copied()
+            .map(VariableId::from_raw)
+            .collect()
+    };
+    if !checker.admissible_selections(state, &[], &selections)?
+        || !checker.independently_admissible(state, &[], &selections)?
+    {
+        return Err(bad());
+    }
+    // Compare the source leaf explicitly: symbolic values use the
+    // dedicated intervention marker, not a NaN float payload.
+    let expected = checker.source_from(state, Arc::from(population))?;
+    let (
+        ExprNode::Distribution {
+            variables: av,
+            conditioned_on: ac,
+            intervention: ai,
+            domain: ad,
+            population: ap,
+            regime: ar,
+        },
+        ExprNode::Distribution {
+            variables: bv,
+            conditioned_on: bc,
+            intervention: bi,
+            domain: bd,
+            population: bp,
+            regime: br,
+        },
+    ) = (checker.arena.node(expected), checker.arena.node(step.output))
+    else {
+        return Err(bad());
+    };
+    if av != bv
+        || ac != bc
+        || ad != bd
+        || ap != bp
+        || ar != br
+        || checker.arena.intervention_set(*ai) != checker.arena.intervention_set(*bi)
+        || checker.arena.intervention_assignments(*bi).iter().any(|a| !a.is_symbolic())
+    {
+        return Err(bad());
+    }
+    Ok(step.output)
+}
+
+/// [`verify_classical_transport`] charging `meter`, with the checker rooted at
+/// `(depth offset, live bytes)` of the search it verifies for.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One auditable premise dispatch for the seven pinned rules"
+)]
+pub(super) fn verify_charged(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    derivation: &ClassicalTransportDerivation,
+    meter: SidMeter<'_>,
+    (depth_offset, base_bytes): (usize, u64),
+    ctx: &ExecutionContext,
+) -> Result<(), IdentificationError> {
+    let limits = meter.limits();
+    let bad = || IdentificationError::invalid_derivation("transport.invalid_derivation");
+    validate_derivation_header(diagram, query, derivation, limits, ctx)?;
     let mut checker = Engine::new_metered(diagram, query, meter, ctx)?;
     checker.depth_offset = depth_offset;
     checker.base_bytes = base_bytes;
@@ -88,17 +256,7 @@ pub(super) fn verify_charged(
         checker.charge(depth)?;
         depths.push(depth);
         let state = &step.state;
-        if state.v.bit_len() != initial.v.bit_len()
-            || state.x.bit_len() != initial.v.bit_len()
-            || state.y.bit_len() != initial.v.bit_len()
-            || !state.y.is_subset_of(&state.v)
-            || !state.x.is_subset_of(&state.v)
-            || intersection(&state.x, &state.y).any()
-            || state.kernel.raw() as usize >= checker.arena.len()
-            || step.output.raw() as usize >= checker.arena.len()
-        {
-            return Err(bad());
-        }
+        validate_step_state(state, &initial, step.output, checker.arena.len())?;
         let children = step.children.iter().map(|i| &derivation.proof[*i]).collect::<Vec<_>>();
         let mut ws = GraphWorkspace::default();
         if step.rule != Rule::Standardize && !step.parameters.is_empty() {
@@ -167,123 +325,10 @@ pub(super) fn verify_charged(
                 checker.marginal(product, &difference(&difference(&state.v, &state.x), &state.y))?
             }
             Rule::Factor | Rule::Recurse => {
-                let districts = checker.prepared.c_components(&difference(&state.v, &state.x));
-                if districts.len() != 1 {
-                    return Err(bad());
-                }
-                let district = &districts[0];
-                let containing = checker.prepared.c_components(&state.v);
-                if containing.len() <= 1 {
-                    return Err(bad());
-                }
-                if step.rule == Rule::Factor {
-                    if !containing.iter().any(|d| d.equal_set(district)) || !children.is_empty() {
-                        return Err(bad());
-                    }
-                    let kernel = checker.factor(state, district)?;
-                    checker.marginal(kernel, &difference(district, &state.y))?
-                } else {
-                    let larger = containing
-                        .iter()
-                        .find(|d| district.is_subset_of(d) && !district.equal_set(d))
-                        .ok_or_else(bad)?;
-                    let expected = State {
-                        y: state.y.clone(),
-                        x: intersection(&state.x, larger),
-                        v: larger.clone(),
-                        kernel: checker.factor(state, larger)?,
-                    };
-                    if children.len() != 1 || children[0].state != expected {
-                        return Err(bad());
-                    }
-                    children[0].output
-                }
+                verify_factor_or_recurse(&mut checker, state, &children, step.rule)?
             }
             Rule::Source | Rule::DirectTransport => {
-                if !children.is_empty() {
-                    return Err(bad());
-                }
-                if step.rule == Rule::Source {
-                    // Figure 5 line 10 fires only after lines 2-4 declined: the
-                    // vertices are their own ancestors, nothing is enlargeable,
-                    // and both C(D minus X) and C(D) are single components.
-                    let ancestors = checker.cached_ancestors(&state.y, &state.v, &mut ws);
-                    let bar =
-                        checker.prepared.ancestors_bar_x(&state.y, &state.v, &state.x, &mut ws);
-                    let mut non_x = difference(&state.v, &state.x);
-                    non_x.difference_with(&bar);
-                    if !state.x.any()
-                        || !ancestors.equal_set(&state.v)
-                        || non_x.any()
-                        || checker.prepared.c_components(&difference(&state.v, &state.x)).len() != 1
-                        || checker.prepared.c_components(&state.v).len() != 1
-                    {
-                        return Err(bad());
-                    }
-                }
-                let population = match checker.arena.node(step.output) {
-                    ExprNode::Distribution { population, .. } => {
-                        checker.arena.population(*population).to_string()
-                    }
-                    _ => return Err(bad()),
-                };
-                let selections: Vec<_> = if derivation.sources.is_empty() {
-                    if population != query.source.as_ref() {
-                        return Err(bad());
-                    }
-                    diagram.selection_targets().to_vec()
-                } else {
-                    derivation
-                        .sources
-                        .iter()
-                        .find(|s| s.population == population)
-                        .ok_or_else(bad)?
-                        .selections
-                        .iter()
-                        .copied()
-                        .map(VariableId::from_raw)
-                        .collect()
-                };
-                if !checker.admissible_selections(state, &[], &selections)?
-                    || !checker.independently_admissible(state, &[], &selections)?
-                {
-                    return Err(bad());
-                }
-                // Compare the source leaf explicitly: symbolic values use the
-                // dedicated intervention marker, not a NaN float payload.
-                let expected = checker.source_from(state, Arc::from(population))?;
-                let (
-                    ExprNode::Distribution {
-                        variables: av,
-                        conditioned_on: ac,
-                        intervention: ai,
-                        domain: ad,
-                        population: ap,
-                        regime: ar,
-                    },
-                    ExprNode::Distribution {
-                        variables: bv,
-                        conditioned_on: bc,
-                        intervention: bi,
-                        domain: bd,
-                        population: bp,
-                        regime: br,
-                    },
-                ) = (checker.arena.node(expected), checker.arena.node(step.output))
-                else {
-                    return Err(bad());
-                };
-                if av != bv
-                    || ac != bc
-                    || ad != bd
-                    || ap != bp
-                    || ar != br
-                    || checker.arena.intervention_set(*ai) != checker.arena.intervention_set(*bi)
-                    || checker.arena.intervention_assignments(*bi).iter().any(|a| !a.is_symbolic())
-                {
-                    return Err(bad());
-                }
-                step.output
+                verify_source_or_direct(&mut checker, state, step, diagram, query, derivation)?
             }
         };
         if expected != step.output

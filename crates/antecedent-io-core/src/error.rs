@@ -4,6 +4,13 @@
 
 use thiserror::Error;
 
+pub(crate) fn stream_admission_error(error: antecedent_core::execution::AdmissionError) -> IoError {
+    match error {
+        antecedent_core::execution::AdmissionError::Cancelled => IoError::StreamCancelled,
+        other => IoError::StreamBudgetRefused { message: other.to_string() },
+    }
+}
+
 /// Artifact IO errors.
 #[derive(Clone, Debug, Eq, PartialEq, Error)]
 #[non_exhaustive]
@@ -365,5 +372,19 @@ mod count_tests {
         assert!(declared_exceeds_usize_limit(Some(8), 7));
         assert!(!declared_exceeds_usize_limit(Some(7), 7));
         assert!(declared_exceeds_usize_limit(None, usize::MAX));
+    }
+}
+
+#[cfg(test)]
+mod shared_admission_tests {
+    use super::{IoError, stream_admission_error};
+    use antecedent_core::execution::AdmissionError;
+
+    #[test]
+    fn stream_admission_preserves_cancel_and_other_error_text() {
+        assert_eq!(stream_admission_error(AdmissionError::Cancelled), IoError::StreamCancelled);
+        let error = AdmissionError::Overflow;
+        let message = error.to_string();
+        assert_eq!(stream_admission_error(error), IoError::StreamBudgetRefused { message });
     }
 }

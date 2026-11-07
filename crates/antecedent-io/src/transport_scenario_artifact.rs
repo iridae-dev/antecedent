@@ -79,10 +79,7 @@ pub use antecedent_io_core::transport_errors::TransportScenarioArtifactError;
 #[doc(hidden)]
 #[allow(clippy::needless_pass_by_value, reason = "A `map_err` adapter")]
 pub fn scenario_refusal(refusal: ScenarioSetRefusal) -> IoError {
-    IoError::Refused {
-        code: refusal.code,
-        message: format!("{}: {}", refusal.detail, refusal.message),
-    }
+    crate::refusal::refused(refusal.code, refusal.detail, &refusal.message)
 }
 
 /// Consumer bounds. Nothing the artifact stores raises them.

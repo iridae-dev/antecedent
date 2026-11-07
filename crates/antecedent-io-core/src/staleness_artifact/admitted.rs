@@ -42,10 +42,8 @@ fn add(a: usize, b: usize) -> Result<usize, IoError> {
 fn lease(ctx: &ExecutionContext, bytes: usize) -> Result<AdmissionLease, IoError> {
     let bytes =
         u64::try_from(bytes).map_err(|_| invalid("staleness decoded storage overflows u64"))?;
-    ctx.acquire_admission_bounded(0, bytes, Duration::ZERO).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => IoError::StreamCancelled,
-        other => IoError::StreamBudgetRefused { message: other.to_string() },
-    })
+    ctx.acquire_admission_bounded(0, bytes, Duration::ZERO)
+        .map_err(crate::error::stream_admission_error)
 }
 
 impl StalenessBaselineWire {

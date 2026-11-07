@@ -10,6 +10,8 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod refusal;
+
 pub use antecedent_io_core::{
     AUTO_COMPRESS_MAX_RATIO, AUTO_COMPRESS_MIN_BYTES, AdaptiveBudgetWire,
     AdjustedFitReuseIdentityWire, AdmgJson, AdmgWire, AnalysisResultConsumption,

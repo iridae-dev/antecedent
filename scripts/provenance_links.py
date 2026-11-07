@@ -8,21 +8,15 @@ gate and the route-method inventory read the same table.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from pathlib import Path
 
 from _repo import REPO_ROOT
-from review_items import artifact_problem
+from review_items import artifact_problem, review_json_digest
 
 
 def method_review_digest(record: dict) -> str:
     payload = {key: value for key, value in record.items() if key != "method_review"}
-    return hashlib.sha256(
-        json.dumps(
-            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-        ).encode("utf-8")
-    ).hexdigest()
+    return review_json_digest(payload)
 
 
 def method_review_problems(root: Path, record: dict) -> list[str]:
@@ -103,11 +97,7 @@ def non_algorithm_digest(record: dict) -> str:
         for key, value in record.items()
         if key not in ("method_review", "non_algorithm_review")
     }
-    return hashlib.sha256(
-        json.dumps(
-            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-        ).encode("utf-8")
-    ).hexdigest()
+    return review_json_digest(payload)
 
 
 def non_algorithm_review_problems(

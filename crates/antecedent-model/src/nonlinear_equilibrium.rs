@@ -7,6 +7,7 @@
 //! Newton result has no such interpretation. Likelihood uses the free-system
 //! Jacobian; hard clamps retain the marginal, not conditional, disturbance law.
 
+use self::invalid_equilibrium_input as invalid;
 use crate::sparse_equilibrium::{
     CsrMatrix, FactorError, SolveEvidence, SolverBudgetCode, SparseLu, infinity_condition_estimate,
     nonnegative_spectral_upper_bound,
@@ -406,7 +407,9 @@ pub enum EquilibriumError {
     },
 }
 
-fn invalid(message: &str) -> EquilibriumError {
+/// Construct an invalid equilibrium input error with the supplied message.
+#[must_use]
+pub(crate) fn invalid_equilibrium_input(message: &str) -> EquilibriumError {
     EquilibriumError::Invalid(message.into())
 }
 fn finite(values: &[f64]) -> bool {
@@ -1682,5 +1685,20 @@ mod compositional_tests {
                 .abs()
                 < 1e-8
         );
+    }
+}
+
+#[cfg(test)]
+mod invalid_equilibrium_input_tests {
+    use super::{EquilibriumError, invalid_equilibrium_input};
+
+    #[test]
+    fn invalid_input_preserves_variant_and_exact_message() {
+        for message in ["", "line\nbreak: \"quoted\""] {
+            assert_eq!(
+                invalid_equilibrium_input(message),
+                EquilibriumError::Invalid(message.into())
+            );
+        }
     }
 }

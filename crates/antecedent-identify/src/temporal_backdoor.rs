@@ -82,12 +82,7 @@ pub struct TemporalIdentificationResult {
     _schedule_lease: Option<Arc<antecedent_core::execution::AdmissionLease>>,
 }
 
-fn map_admission_error(error: antecedent_core::execution::AdmissionError) -> IdentificationError {
-    match error {
-        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-        _ => IdentificationError::budget(crate::error::IdentificationBudget::Memory),
-    }
-}
+use crate::error::map_admission_error;
 // Charge the temporary graph copy and its indexes, distinct from the retained window.
 fn admit_graph_copy(
     dag: &antecedent_graph::Dag,

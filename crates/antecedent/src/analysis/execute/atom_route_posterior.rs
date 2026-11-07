@@ -454,7 +454,7 @@ fn answer_on_atom(
 
 /// Whether an error is the query's own refusal on every structure (a shape the explicit route
 /// does not execute) rather than a failure of one atom.
-fn is_query_refusal(error: &CausalError) -> bool {
+pub(super) fn is_query_refusal(error: &CausalError) -> bool {
     matches!(
         error,
         CausalError::Unsupported { .. } | CausalError::Support { .. } | CausalError::Compile { .. }
@@ -1420,5 +1420,21 @@ impl super::Study {
             treatment,
             outcome,
         }))
+    }
+}
+
+#[cfg(test)]
+mod query_refusal_tests {
+    use super::{CausalError, is_query_refusal};
+
+    #[test]
+    fn query_refusal_excludes_identification_and_cancellation() {
+        assert!(is_query_refusal(&CausalError::Unsupported { message: "unsupported" }));
+        assert!(is_query_refusal(&CausalError::Compile { message: "bad query".into() }));
+        assert!(!is_query_refusal(&crate::compile_reason!(
+            "effect_not_identified",
+            "no identification"
+        )));
+        assert!(!is_query_refusal(&CausalError::Cancelled { stage: "test" }));
     }
 }

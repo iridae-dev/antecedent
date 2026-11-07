@@ -4,12 +4,7 @@ use antecedent::io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-fn invalid(detail: &str, message: impl AsRef<str>) -> PyErr {
-    crate::with_reason_code(
-        crate::value_err(format!("{detail}: {}", message.as_ref())),
-        antecedent::reason::reason_code!("invalid_argument"),
-    )
-}
+use crate::invalid_detail as invalid;
 fn error(cause: SourceEvidenceError) -> PyErr {
     invalid(cause.detail, cause.to_string())
 }

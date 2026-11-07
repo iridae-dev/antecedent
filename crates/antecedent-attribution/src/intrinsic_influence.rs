@@ -724,7 +724,56 @@ pub fn intrinsic_influence_with_temporal_runs(
     let fit =
         fit_component(model, data, query, &spec, &pooled, &sources_sim, runs, shared_budget, ctx)?;
 
-    let tail = 0.5 + 0.5 * query.level;
+    let sources = build_source_uncertainties(&pooled, &fit, &sources_sim, b, query.level);
+
+    let refits = match &fit {
+        FitComponent::Quantified { .. } => query.fit_bootstrap_replicates,
+        FitComponent::Unquantified(_) => 0,
+    };
+    let fit_draws: Arc<[Vec<f64>]> = match fit {
+        FitComponent::Quantified { draws, .. } => Arc::from(draws),
+        FitComponent::Unquantified(_) => Arc::from(Vec::<Vec<f64>>::new()),
+    };
+    Ok(IntrinsicInfluenceResult {
+        target: query.target,
+        sources: Arc::from(sources),
+        total_variance,
+        total_variance_stderr: sim_se(&direct_variance),
+        allocation_residual,
+        allocation_residual_stderr: sim_se(&residuals),
+        level: query.level,
+        method: IntrinsicMethod {
+            game: GAME,
+            estimator: ESTIMATOR,
+            shapley,
+            outer_draws: query.outer_draws,
+            inner_draws: query.inner_draws,
+            replicates: query.replicates,
+            fit_bootstrap_replicates: query.fit_bootstrap_replicates,
+            fit_resampling: query.fit_resampling,
+        },
+        budget: IntrinsicBudget {
+            coalition_evaluations: evaluations,
+            rows_replayed: evaluations
+                .saturating_mul(rows_per_batch as u64)
+                .saturating_mul(query.replicates as u64),
+            permutations: pooled.budget.samples,
+            exact_coalitions: pooled.budget.exact_coalitions,
+            refits,
+        },
+        cache_stats,
+        fit_draws,
+    })
+}
+
+fn build_source_uncertainties(
+    pooled: &ShapleyEstimate,
+    fit: &FitComponent,
+    sources_sim: &[f64],
+    b: f64,
+    level: f64,
+) -> Vec<SourceInfluence> {
+    let tail = 0.5 + 0.5 * level;
     let sim_df = b - 1.0;
     let sim_t = student_t_ppf(tail, sim_df);
     let perm_df = pooled.budget.samples.saturating_sub(1) as f64;
@@ -733,7 +782,7 @@ pub fn intrinsic_influence_with_temporal_runs(
         stderr,
         ci_low: estimate - t * stderr,
         ci_high: estimate + t * stderr,
-        level: query.level,
+        level,
         df,
     };
     let sources: Vec<SourceInfluence> = pooled
@@ -778,44 +827,7 @@ pub fn intrinsic_influence_with_temporal_runs(
         })
         .collect();
 
-    let refits = match &fit {
-        FitComponent::Quantified { .. } => query.fit_bootstrap_replicates,
-        FitComponent::Unquantified(_) => 0,
-    };
-    let fit_draws: Arc<[Vec<f64>]> = match fit {
-        FitComponent::Quantified { draws, .. } => Arc::from(draws),
-        FitComponent::Unquantified(_) => Arc::from(Vec::<Vec<f64>>::new()),
-    };
-    Ok(IntrinsicInfluenceResult {
-        target: query.target,
-        sources: Arc::from(sources),
-        total_variance,
-        total_variance_stderr: sim_se(&direct_variance),
-        allocation_residual,
-        allocation_residual_stderr: sim_se(&residuals),
-        level: query.level,
-        method: IntrinsicMethod {
-            game: GAME,
-            estimator: ESTIMATOR,
-            shapley,
-            outer_draws: query.outer_draws,
-            inner_draws: query.inner_draws,
-            replicates: query.replicates,
-            fit_bootstrap_replicates: query.fit_bootstrap_replicates,
-            fit_resampling: query.fit_resampling,
-        },
-        budget: IntrinsicBudget {
-            coalition_evaluations: evaluations,
-            rows_replayed: evaluations
-                .saturating_mul(rows_per_batch as u64)
-                .saturating_mul(query.replicates as u64),
-            permutations: pooled.budget.samples,
-            exact_coalitions: pooled.budget.exact_coalitions,
-            refits,
-        },
-        cache_stats,
-        fit_draws,
-    })
+    sources
 }
 
 fn over_budget(message: &'static str) -> AttributionError {
@@ -1505,5 +1517,18 @@ mod bootstrap_component_tests {
             summarize_fit_outcomes(&[Some(a), Some(b)], &pooled, &[0.5], 1, 2, 0.95),
             FitComponent::Quantified { .. }
         ));
+        let mut one = pooled.clone();
+        one.players = vec![ComponentId::from_variable(VariableId::from_raw(0))];
+        one.values = vec![1.0];
+        let sources = build_source_uncertainties(
+            &one,
+            &FitComponent::Unquantified(REASON_REFIT_FAILED),
+            &[0.5],
+            2.0,
+            0.95,
+        );
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].uncertainty.len(), 3);
+        assert!(matches!(sources[0].whole_procedure, ComponentStatus::Unquantified { .. }));
     }
 }

@@ -43,15 +43,21 @@ record_sha256 = "b355908c6b2035da512b4783aeabd9d33c882cf0d46279d59acda5534d30839
 
 [[method_review.artifacts]]
 role = "implementation"
+path = "crates/antecedent-model/src/compose.rs"
+items = ["fn cyclic_simulation_refusal"]
+sha256 = "e542ecbde3d75c4562577e9eddbfec41375c0f1e3b70d0164456d77888994288"
+
+[[method_review.artifacts]]
+role = "implementation"
 path = "crates/antecedent-model/src/compose/gaussian.rs"
-items = ["enum GaussianConditioningError", "fn add", "fn backward_solve", "fn cholesky_lower", "fn compile", "fn condition", "fn covariance_of", "fn cyclic_simulation_refusal", "fn div", "fn evidence_log_density", "fn forward_solve", "fn from_finite", "fn law", "fn law_with", "fn mean", "fn mean_contrast", "fn mean_contrast_uncertainty", "fn mean_of", "fn mul", "fn neg", "fn normalized", "fn observed", "fn position", "fn resolve", "fn spec", "fn sum", "fn to_f64", "fn variables", "fn variance_of", "struct ComposedLinearGaussian", "struct ConditionedGaussian", "struct ContrastArm", "struct FunctionalUncertainty", "struct JointGaussian", "struct MeanContrast", "struct Node", "struct Wide"]
-sha256 = "51118fa4b0df3a20c9484ab0c5f85451bf5251ae9158094008a50b5f75551ff3"
+items = ["enum GaussianConditioningError", "fn add", "fn backward_solve", "fn cholesky_lower", "fn compile", "fn condition", "fn covariance_of", "fn div", "fn evidence_log_density", "fn forward_solve", "fn from_finite", "fn law", "fn law_with", "fn mean", "fn mean_contrast", "fn mean_contrast_uncertainty", "fn mean_of", "fn mul", "fn neg", "fn normalized", "fn observed", "fn position", "fn resolve", "fn spec", "fn sum", "fn to_f64", "fn variables", "fn variance_of", "struct ComposedLinearGaussian", "struct ConditionedGaussian", "struct ContrastArm", "struct FunctionalUncertainty", "struct JointGaussian", "struct MeanContrast", "struct Node", "struct Wide"]
+sha256 = "652e32d3f793d5a3283d609f7dbe0ff51218003f78910935defaa7a1de66087f"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/compose/tabular.rs"
-items = ["fn compile", "fn config", "fn cyclic_simulation_refusal", "fn law", "fn levels", "fn normalize_probability_rows", "fn probabilities", "fn probability", "fn resolve", "fn spec", "fn variables", "struct ComposedFinite", "struct FiniteLaw"]
-sha256 = "9d28200384f6e214a016bf7a929a2ea771309905648c591054cf241d37442ff5"
+items = ["fn compile", "fn config", "fn law", "fn levels", "fn normalize_probability_rows", "fn probabilities", "fn probability", "fn resolve", "fn spec", "fn variables", "struct ComposedFinite", "struct FiniteLaw"]
+sha256 = "953c59cd1b683aa4c25c537e358f15b6badc193098e83855f6aa09026dded805"
 
 [[method_review.artifacts]]
 role = "implementation"

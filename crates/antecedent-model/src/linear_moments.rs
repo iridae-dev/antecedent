@@ -45,9 +45,7 @@ pub struct LinearRegimeMoments {
     order: usize,
     groups: Vec<Group>,
 }
-fn invalid(s: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(s.into())
-}
+use crate::nonlinear_equilibrium::invalid_equilibrium_input as invalid;
 fn inverse(mut matrix: Vec<f64>, n: usize) -> Result<Vec<f64>, EquilibriumError> {
     if n.checked_mul(n) != Some(matrix.len()) || matrix.iter().any(|v| !v.is_finite()) {
         return Err(EquilibriumError::Singular);

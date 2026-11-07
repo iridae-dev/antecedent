@@ -387,6 +387,23 @@ struct PhaseWork<'a> {
     ctx: &'a ExecutionContext,
 }
 
+fn ancestral_conditioning_candidates(
+    pag: &TemporalPag,
+    idx: &NodeIndex,
+    target: LaggedParent,
+    other: LaggedParent,
+    max_lag: u32,
+) -> (Vec<LaggedParent>, Vec<LaggedParent>) {
+    let mut s_def = shifted_known_parents(pag, idx, target.0, target.1, max_lag);
+    s_def.extend(shifted_known_parents(pag, idx, other.0, other.1, max_lag));
+    s_def.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
+    s_def.dedup();
+    s_def.retain(|node| *node != (target.0, target.1) && *node != (other.0, other.1));
+    let mut search = potential_parents_at(pag, idx, target.0, target.1, other, max_lag);
+    search.retain(|p| !s_def.contains(p));
+    (s_def, search)
+}
+
 /// One ancestral removal phase (Algorithm S2).
 #[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
 #[allow(
@@ -457,22 +474,13 @@ fn ancestral_removal_phase(
                     (Option<(Vec<(VariableId, Lag)>, f64, f64)>, u64),
                     DiscoveryError,
                 > {
-                    let mut s_def = shifted_known_parents(pag, idx, target, target_lag, max_lag);
-                    s_def.extend(shifted_known_parents(pag, idx, other, other_lag, max_lag));
-                    s_def.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
-                    s_def.dedup();
-                    s_def.retain(|node| {
-                        *node != (target, target_lag) && *node != (other, other_lag)
-                    });
-                    let mut search = potential_parents_at(
+                    let (s_def, search) = ancestral_conditioning_candidates(
                         pag,
                         idx,
-                        target,
-                        target_lag,
+                        (target, target_lag),
                         (other, other_lag),
                         max_lag,
                     );
-                    search.retain(|p| !s_def.contains(p));
                     if search.len() < p_pc {
                         return Ok((None, 0));
                     }

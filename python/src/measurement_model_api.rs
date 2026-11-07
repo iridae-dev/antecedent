@@ -180,15 +180,13 @@ pub(crate) fn present<'a>(map: &'a Map<String, Json>, key: &str) -> Option<&'a J
 // ---------------------------------------------------------------------------
 
 fn refusal_json(refusal: &MeasurementModelRefusal) -> String {
-    json!({
-        "code": refusal.code,
-        "stage": "measurement_model",
-        "detail": refusal.detail,
-        "message": refusal.message,
-        "offending": Json::Null,
-        "remedy": refusal.remedy,
-    })
-    .to_string()
+    crate::bridge::compact_refusal_json(
+        refusal.code,
+        "measurement_model",
+        &refusal.detail,
+        &refusal.message,
+        refusal.remedy.as_deref(),
+    )
 }
 
 fn declaration_refusal(code: &'static str, detail: &str, message: &str) -> MeasurementModelRefusal {
@@ -1418,4 +1416,23 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(measurement_model_transport, module)?)?;
     module.add_function(wrap_pyfunction!(measurement_model_transport_verify, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod compact_refusal_caller_tests {
+    use super::{MeasurementModelRefusal, refusal_json};
+
+    #[test]
+    fn measurement_remedy_none_and_empty_remain_distinct() {
+        for remedy in [None, Some(String::new()), Some("retry\nnow".to_owned())] {
+            let value = MeasurementModelRefusal {
+                code: "invalid_argument",
+                detail: "measurement_model.example".into(),
+                message: "invalid input".into(),
+                remedy: remedy.clone(),
+            };
+            let expected = serde_json::json!({"code":"invalid_argument", "stage":"measurement_model", "detail":"measurement_model.example", "message":"invalid input", "offending":null, "remedy":remedy}).to_string();
+            assert_eq!(refusal_json(&value), expected);
+        }
+    }
 }

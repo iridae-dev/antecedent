@@ -142,11 +142,24 @@ pub(crate) fn value_err(message: impl AsRef<str>) -> PyErr {
     attach_reason_from_message(value_error_of(message), message)
 }
 
+/// Invalid input rendered from an existing displayable error.
+pub(crate) fn value_err_display(error: impl std::fmt::Display) -> PyErr {
+    value_err(error.to_string())
+}
+
 /// [`value_err`] with an explicit registered reason code.
 ///
 /// The code is an attribute. It is not written into the message.
 pub(crate) fn value_err_code(code: &str, message: impl AsRef<str>) -> PyErr {
     with_reason_code(value_error_of(message.as_ref()), code)
+}
+
+/// Invalid argument carrying its detail in the original exception message.
+pub(crate) fn invalid_detail(detail: &str, message: impl AsRef<str>) -> PyErr {
+    with_reason_code(
+        value_err(format!("{detail}: {}", message.as_ref())),
+        antecedent::reason::reason_code!("invalid_argument"),
+    )
 }
 
 pub(crate) fn value_error_of(message: &str) -> PyErr {
@@ -655,5 +668,26 @@ impl IntoCausalPyErr for antecedent::gcm::ModelError {
 impl IntoCausalPyErr for antecedent::design::DesignError {
     fn into_antecedent_py_err(self) -> PyErr {
         RustCausalError::from(self).into_antecedent_py_err()
+    }
+}
+
+#[cfg(test)]
+mod shared_invalid_tests {
+    use super::*;
+
+    #[test]
+    fn invalid_detail_keeps_message_and_reason() {
+        Python::initialize();
+        Python::attach(|py| {
+            let rendered = value_err_display("raw error");
+            assert_eq!(rendered.value(py).str().unwrap().to_str().unwrap(), "raw error");
+            let error = invalid_detail("detail", "message:\nnext");
+            let value = error.value(py);
+            assert_eq!(value.str().unwrap().to_str().unwrap(), "detail: message:\nnext");
+            assert_eq!(
+                value.getattr("reason_code").unwrap().extract::<String>().unwrap(),
+                "invalid_argument"
+            );
+        });
     }
 }

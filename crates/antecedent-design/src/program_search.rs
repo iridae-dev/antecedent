@@ -324,11 +324,11 @@ impl PreparedFiniteProgramSearch {
         }
         let retention = Arc::new(
             ctx.acquire_admission(0, retained_bytes)
-                .map_err(|error| ProgramSearchError::Resource(error.to_string()))?,
+                .map_err(crate::program_search::admission_error)?,
         );
         let _scratch = ctx
             .acquire_admission(0, scratch_bytes)
-            .map_err(|error| ProgramSearchError::Resource(error.to_string()))?;
+            .map_err(crate::program_search::admission_error)?;
         let search_identity = self.contract.identity().map_err(invalid)?;
         let source_identity = source_identity(&source);
         let operation = OperationGuard::begin(Operation::Decision);
@@ -765,8 +765,24 @@ fn decision(
     })
 }
 
+fn admission_error(error: antecedent_core::execution::AdmissionError) -> ProgramSearchError {
+    ProgramSearchError::Resource(error.to_string())
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn admission_error_preserves_resource_variant_and_text() {
+        use antecedent_core::execution::AdmissionError;
+        for error in [AdmissionError::Cancelled, AdmissionError::Overflow] {
+            let text = error.to_string();
+            match super::admission_error(error) {
+                super::ProgramSearchError::Resource(message) => assert_eq!(message, text),
+                other => panic!("unexpected error: {other:?}"),
+            }
+        }
+    }
+
     use super::*;
     use crate::decision_contract::{HardConstraint, ProgramSearchSpace, UtilityExpr};
     use antecedent_contract::QuantityRole;

@@ -43,14 +43,14 @@ record_sha256 = "d7df356a91d406ff05e9435330dfadb332dd366e04ab44c36054c319f6c24cb
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/contrasts.rs"
-items = ["fn checked_probability", "fn factorial_scores", "fn interference_scores", "fn multi_arm_scores", "fn require_aligned", "fn require_populated", "fn two_arm_scores", "fn validate_floor", "struct DesignScores"]
-sha256 = "57694ec65d3d0ea36ced5cfb9b7885edda1f2cc70f259c594e26a9d6ca321af3"
+items = ["fn checked_probability", "fn factorial_scores", "fn interference_scores", "fn multi_arm_scores", "fn require_aligned", "fn require_populated", "fn two_arm_scores", "struct DesignScores"]
+sha256 = "bca00fe8bd7d0a26a17aa8155d4691b80c9edeeb221138267d770d483827e1d1"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/mod.rs"
-items = ["const MIN_CLUSTERS", "fn accumulate", "fn accumulate_weighted", "fn clusters", "fn covariance", "fn estimate", "fn holm_adjusted", "fn invalid", "fn lagged_pairs", "fn residuals", "fn sampling_summary", "fn weighted_estimate", "struct ClusterScores", "struct LaggedPairs", "struct PanelRows", "struct SamplingSummary", "struct SimultaneousBand"]
-sha256 = "a104cd1a54c3cb6118ed20880ac62037fa9a2520093f20f2569b9f14d99e60dc"
+items = ["const MIN_CLUSTERS", "fn accumulate", "fn accumulate_weighted", "fn clusters", "fn covariance", "fn estimate", "fn holm_adjusted", "fn invalid", "fn lagged_pairs", "fn residuals", "fn sampling_summary", "fn validate_floor", "fn weighted_estimate", "struct ClusterScores", "struct LaggedPairs", "struct PanelRows", "struct SamplingSummary", "struct SimultaneousBand"]
+sha256 = "359bca8deb37d6b3cc389b4a00ca10daedafbf93b37c2a4b77b37b73d5d056a4"
 
 [[method_review.artifacts]]
 role = "assertion"

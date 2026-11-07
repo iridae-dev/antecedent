@@ -87,15 +87,13 @@ fn error_json(error: &ReliabilityError) -> String {
 }
 
 fn invalid_json(message: String) -> String {
-    json!({
-        "code": antecedent::reason::reason_code!("invalid_argument"),
-        "stage": "decision_reliability",
-        "detail": antecedent::reason::reason_details::decision_reliability::INVALID_INPUT,
-        "message": message,
-        "offending": Json::Null,
-        "remedy": Json::Null,
-    })
-    .to_string()
+    crate::bridge::compact_refusal_json(
+        antecedent::reason::reason_code!("invalid_argument"),
+        "decision_reliability",
+        antecedent::reason::reason_details::decision_reliability::INVALID_INPUT,
+        &message,
+        None,
+    )
 }
 
 fn parse<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> Result<T, String> {

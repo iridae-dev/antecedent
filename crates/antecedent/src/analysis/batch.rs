@@ -1022,11 +1022,11 @@ struct BatchExecutionOwner {
 
 impl BatchExecutionOwner {
     fn capture(ctx: &ExecutionContext) -> Result<Self, CausalError> {
-        let lease = ctx.acquire_admission(0, 0).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT }
-            }
-            other => CausalError::Resource { message: other.to_string() },
+        let lease = ctx.acquire_admission(0, 0).map_err(|error| {
+            crate::error::resource_admission_error(
+                error,
+                crate::analysis::stage::STAGE_ESTIMATE_POINT,
+            )
         })?;
         Ok(Self {
             pool_identity: Arc::new(lease),

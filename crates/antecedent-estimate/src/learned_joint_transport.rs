@@ -60,8 +60,8 @@ use crate::joint_bayesian_transport::{
     JOINT_TRANSPORT_MAX_PARAMETERS, JointDraws, JointPriors, JointTransportCalibration,
     JointTransportOptions, JointTransportRefusal, OverlapDiagnostic, PairDisagreement, SourceData,
     SourceDependence, SourceDisagreement, SourceEffectSummary, SourceSharing, TargetData,
-    TransportGraphClass, VaryingBlock, check_prior_data_overlap, support_test_refusal,
-    unsupported_mass,
+    TransportGraphClass, VaryingBlock, check_prior_data_overlap, invalid, prior_identity_bits,
+    support_test_refusal, unsupported_mass,
 };
 use crate::util::dot;
 use antecedent_core::ExecutionContext;
@@ -303,10 +303,6 @@ fn refuse(
         message: message.into(),
         failure: FailedFitDiagnostics { stage, ..FailedFitDiagnostics::default() },
     }
-}
-
-fn invalid(detail: &'static str, message: impl Into<String>) -> JointTransportRefusal {
-    refuse(antecedent_core::reason_code!("invalid_argument"), detail, "validate", message)
 }
 
 /// The refusal of a graph class other than the fixed DAG.
@@ -891,11 +887,6 @@ fn model_identity_with_source_labels(
     sources: &[SourceData],
     labels: &[&str],
 ) -> String {
-    let prior = |p: &GaussianPrior| {
-        let bits: Vec<String> =
-            p.mean.iter().chain(&p.covariance).map(|v| format!("{:016x}", v.to_bits())).collect();
-        bits.join(",")
-    };
     format!(
         "learned_joint_transport_v1|provider={LEARNED_JOINT_PROVIDER}|graph=fixed_dag|\
          query={LEARNED_JOINT_QUERY}|features={:?}|basis=polynomial_degree_{}|varying={:?}|\
@@ -907,8 +898,8 @@ fn model_identity_with_source_labels(
         model.sharing,
         labels.join(","),
         sources.iter().map(|s| s.noise_variance.to_bits()).collect::<Vec<_>>(),
-        prior(&model.priors.invariant),
-        prior(&model.priors.varying),
+        prior_identity_bits(&model.priors.invariant),
+        prior_identity_bits(&model.priors.varying),
         layout.dim(),
         JOINT_TRANSPORT_MAX_DRAWS,
         JOINT_TRANSPORT_MAX_PARAMETERS,

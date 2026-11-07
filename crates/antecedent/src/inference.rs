@@ -809,7 +809,7 @@ pub struct MappedTransferSpec<'a> {
 const RESIDUAL_VARIANCE_TOLERANCE: f64 = 1e-12;
 
 fn transfer_refusal(code: &'static str, detail: &str, message: &str) -> CausalError {
-    antecedent_io::IoError::Refused { code, message: format!("{detail}: {message}") }.into()
+    crate::error::io_refused(code, detail, message).into()
 }
 
 fn map_refuse(message: &str) -> CausalError {

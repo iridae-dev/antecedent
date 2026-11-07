@@ -39,9 +39,15 @@ record_sha256 = "32cabcb24453fce2dc27d1f3db5c382c2ed62d292c668f6a8b7699297c6dace
 
 [[method_review.artifacts]]
 role = "implementation"
+path = "crates/antecedent-estimate/src/util/mod.rs"
+items = ["fn validate_caliper"]
+sha256 = "35211f3ba5380a814eb8782bbbf8b4248ca21faa530ec9926c0fc3f456410fa8"
+
+[[method_review.artifacts]]
+role = "implementation"
 path = "crates/antecedent-estimate/src/history_match.rs"
-items = ["fn contrast", "fn from_donors", "fn in_period", "fn match_histories", "fn match_rows", "fn mean", "fn nearest", "fn new", "fn outcome", "fn period", "fn score", "fn try_new", "fn validate_caliper", "fn weight", "struct CollapsedHistoryIndex", "struct FrequentistHistoryContrast", "struct FrequentistHistoryEstimate", "struct HistoryUnit", "struct MatchedHistories", "struct Pair", "struct PeriodHistoryContrast", "struct Row"]
-sha256 = "71afae7008922f62a98715343f8c3db6f227cc5a734b981457515e2e176324f8"
+items = ["fn contrast", "fn from_donors", "fn in_period", "fn match_histories", "fn match_rows", "fn mean", "fn nearest", "fn new", "fn outcome", "fn period", "fn score", "fn try_new", "fn weight", "struct CollapsedHistoryIndex", "struct FrequentistHistoryContrast", "struct FrequentistHistoryEstimate", "struct HistoryUnit", "struct MatchedHistories", "struct Pair", "struct PeriodHistoryContrast", "struct Row"]
+sha256 = "d749e39fb56eae1b2c6a73ca858da4988d5bd8dec52a39117470f65792941849"
 
 [[method_review.artifacts]]
 role = "assertion"

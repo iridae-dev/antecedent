@@ -3,9 +3,10 @@
 use super::{
     Arc, AttributionError, CausalRng, CompiledCausalModel, ExecutionContext, FdrAdjustment,
     KERNEL_STREAM, MIN_BLOCK_PERMUTATIONS, MechanismChangeDetection, MechanismChangeMethod,
-    MechanismChangeQuery, PopulationRuns, TabularData, adjust_pvalues, attribution_stream,
-    change_point_two_sample, charge_run_validation, classifier_two_sample, gaussian_lr_statistic,
-    kernel_two_sample_with_permutations, poll_run_cancellation, residual_pairs, validate_runs,
+    MechanismChangeQuery, PopulationRuns, TabularData, TargetResiduals, adjust_pvalues,
+    attribution_stream, change_point_two_sample, charge_run_validation, classifier_two_sample,
+    gaussian_lr_statistic, kernel_two_sample_with_permutations, poll_run_cancellation,
+    residual_pairs, validate_runs,
 };
 
 /// Seed of the kernel statistic's bandwidth stream in a dependent-series test: fixed, so the
@@ -144,6 +145,33 @@ pub(super) fn partition_permutation_blocks(
     Ok(segments)
 }
 
+fn charge_permutation_work(
+    pairs: &[TargetResiduals],
+    permutations: usize,
+    budget: &mut antecedent_core::TemporalBudget,
+) -> Result<(), AttributionError> {
+    let mut work = 0_u64;
+    for (_, rb, rc) in pairs {
+        let n = rb
+            .len()
+            .checked_add(rc.len())
+            .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
+        let rounds = permutations
+            .checked_add(1)
+            .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
+        let cost = n
+            .checked_mul(rounds)
+            .and_then(|v| v.checked_mul((usize::BITS - n.max(1).leading_zeros()) as usize + 1))
+            .and_then(|v| u64::try_from(v).ok())
+            .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
+        work = work
+            .checked_add(cost)
+            .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
+    }
+    budget.charge_work(work).map_err(|e| AttributionError::Budget { message: e.to_string() })?;
+    Ok(())
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "the bounded attribution calculation keeps its checks together"
@@ -172,27 +200,7 @@ fn detect_mechanism_changes_block_impl(
     let pairs = residual_pairs(graph_model, data, query, ctx)?;
     let max_bytes = budget.as_ref().map(|b| b.limits().max_bytes);
     if let Some(budget) = budget {
-        let mut work = 0_u64;
-        for (_, rb, rc) in &pairs {
-            let n = rb
-                .len()
-                .checked_add(rc.len())
-                .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
-            let rounds = permutations
-                .checked_add(1)
-                .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
-            let cost = n
-                .checked_mul(rounds)
-                .and_then(|v| v.checked_mul((usize::BITS - n.max(1).leading_zeros()) as usize + 1))
-                .and_then(|v| u64::try_from(v).ok())
-                .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
-            work = work
-                .checked_add(cost)
-                .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
-        }
-        budget
-            .charge_work(work)
-            .map_err(|e| AttributionError::Budget { message: e.to_string() })?;
+        charge_permutation_work(&pairs, permutations, budget)?;
     }
     let raw = ctx.map_indexed(pairs.len(), |i, worker| {
         let (target, rb, rc) = &pairs[i];

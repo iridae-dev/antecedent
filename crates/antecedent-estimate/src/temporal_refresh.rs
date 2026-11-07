@@ -117,11 +117,6 @@ fn write_list<'a>(
     }
 }
 
-/// Lowercase hex of a finished canonical digest.
-fn hex_digest(writer: &CanonicalWriter) -> String {
-    writer.finish_hex()
-}
-
 impl TemporalWindowIdentity {
     /// Content fingerprint over every identity input.
     #[must_use]
@@ -144,7 +139,7 @@ impl TemporalWindowIdentity {
         write_list(&mut d, "unit_ids", self.unit_ids.iter().map(String::as_str));
         d.text(&self.snapshot_id);
         d.text(&self.proof_id);
-        hex_digest(&d)
+        d.finish_hex()
     }
 
     fn validate(&self) -> Result<(), EstimationError> {
@@ -325,7 +320,7 @@ impl RefreshReceipt {
         d.text(&self.proof_id);
         d.text(if self.interval_invalidated { "interval_invalidated" } else { "no_interval" });
         d.text(self.inference_claim);
-        hex_digest(&d)
+        d.finish_hex()
     }
 
     fn bind(old: &TemporalWindowIdentity, new: &TemporalWindowIdentity, interval: bool) -> Self {

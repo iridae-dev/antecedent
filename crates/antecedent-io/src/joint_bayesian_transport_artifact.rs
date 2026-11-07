@@ -94,11 +94,8 @@ impl From<JointBayesianArtifactError> for IoError {
     }
 }
 
-fn engine_refusal(refusal: &JointTransportRefusal) -> IoError {
-    IoError::Refused {
-        code: refusal.code,
-        message: format!("{}: {}", refusal.detail, refusal.message),
-    }
+pub(crate) fn engine_refusal(refusal: &JointTransportRefusal) -> IoError {
+    crate::refusal::refused(refusal.code, refusal.detail, &refusal.message)
 }
 
 /// Bounds a consumer imposes. Nothing the artifact stores raises them.
@@ -1024,4 +1021,48 @@ pub fn prior_data_overlap_from_ledger(
     }
     let pairs = prior_sources.iter().flat_map(|&a| likelihood_sources.iter().map(move |&b| (a, b)));
     fold_pair_overlap(ledger, pairs)
+}
+
+#[cfg(test)]
+mod shared_refusal_tests {
+    use super::{IoError, JointTransportRefusal, engine_refusal};
+
+    #[test]
+    fn temporal_and_scenario_refusals_keep_their_parts() {
+        use antecedent_identify::sid::scenarios::ScenarioSetRefusal;
+        use antecedent_identify::sid::temporal_sequence::TemporalRefusal;
+
+        let temporal = TemporalRefusal { code: "code", detail: "detail", message: "x:\ny".into() };
+        let scenario =
+            ScenarioSetRefusal { code: "code", detail: "detail", message: "x:\ny".into() };
+        for error in [
+            crate::temporal_transport_artifact::temporal_refusal(temporal),
+            crate::transport_scenario_artifact::scenario_refusal(scenario),
+        ] {
+            match error {
+                IoError::Refused { code, message } => {
+                    assert_eq!(code, "code");
+                    assert_eq!(message, "detail: x:\ny");
+                }
+                other => panic!("unexpected error: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn transport_refusal_preserves_code_and_detail_message() {
+        let refusal = JointTransportRefusal {
+            code: "test_code",
+            detail: "test.detail",
+            message: "message: with\nnewline".into(),
+            failure: Default::default(),
+        };
+        match engine_refusal(&refusal) {
+            IoError::Refused { code, message } => {
+                assert_eq!(code, "test_code");
+                assert_eq!(message, "test.detail: message: with\nnewline");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
 }

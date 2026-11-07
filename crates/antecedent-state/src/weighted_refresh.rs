@@ -112,12 +112,7 @@ impl WeightedRow {
     }
 
     fn validate(&self, ncols: usize) -> Result<(), StateError> {
-        if self.x.len() != ncols {
-            return Err(StateError::Shape(format!("row len {} != ncols {ncols}", self.x.len())));
-        }
-        if !self.y.is_finite() || self.x.iter().any(|value| !value.is_finite()) {
-            return Err(StateError::Numerical("design row and response must be finite".into()));
-        }
+        crate::ols_refresh::validate_regression_row(&self.x, self.y, ncols)?;
         check_weight(self.weight)
     }
 }
@@ -445,14 +440,7 @@ impl WeightedOlsRefresh {
     }
 
     fn check_source(&self, source: &str) -> Result<(), StateError> {
-        if source == self.source.as_ref() {
-            return Ok(());
-        }
-        Err(StateError::StaleCache(format!(
-            "rows are from source {source}, the summary is of {}; replace the source and \
-             recompute from its rows",
-            self.source
-        )))
+        crate::ols_refresh::check_refresh_source(self.source.as_ref(), source)
     }
 
     fn take(&mut self, row: &WeightedRow) {

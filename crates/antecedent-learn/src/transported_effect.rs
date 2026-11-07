@@ -142,19 +142,6 @@ fn support_failure(
     )
 }
 
-fn invalid_input(
-    detail: &'static str,
-    subject: impl Into<String>,
-    remedy: &'static str,
-) -> TransportRefusal {
-    TransportRefusal::new(
-        antecedent_core::reason_code!("invalid_argument"),
-        detail,
-        subject,
-        remedy,
-    )
-}
-
 /// A request the transported cohort mean cannot answer.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TransportedRequest {
@@ -688,7 +675,7 @@ pub fn transport_cohort_effect(
     cohort.validate()?;
     check_model(effect, feature_names, model_identity, model_population)?;
     let Some(support) = &effect.support else {
-        return Err(invalid_input(
+        return Err(invalid(
             antecedent_core::reason_details::transported_effect::SUPPORT_CONTRACT_ABSENT,
             "fitted_effect.support",
             "refit with a producer that retains the fitted-row support contract; overlap \
@@ -746,7 +733,7 @@ pub fn transport_cohort_effect(
     let ids: Vec<VariableId> = effect.features.iter().map(|v| VariableId::from_raw(*v)).collect();
     let row_contrasts =
         effect.predict(&ids, &ordered, cohort.weights.len(), ctx).map_err(|error| {
-            invalid_input(
+            invalid(
                 antecedent_core::reason_details::transported_effect::PREDICTION_REFUSED,
                 error.to_string(),
                 "the retained model could not predict at these rows; check the cohort features",
@@ -755,7 +742,7 @@ pub fn transport_cohort_effect(
     let mean_contrast =
         TargetCohort::total(row_contrasts.iter().zip(&cohort.weights).map(|(v, w)| v * w));
     if !mean_contrast.is_finite() {
-        return Err(invalid_input(
+        return Err(invalid(
             antecedent_core::reason_details::transported_effect::NON_FINITE_RESULT,
             "mean_contrast",
             "the cohort mean is not finite; check the model and the cohort",
@@ -782,6 +769,15 @@ pub fn transport_cohort_effect(
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss)]
 mod tests {
+    #[test]
+    fn invalid_refusal_preserves_all_parts() {
+        let refusal = super::invalid("transported_effect.example", "subject:\nline", "retry");
+        assert_eq!(refusal.code, antecedent_core::reason_code!("invalid_argument"));
+        assert_eq!(refusal.detail, "transported_effect.example");
+        assert_eq!(refusal.subject, "subject:\nline");
+        assert_eq!(refusal.remedy, "retry");
+    }
+
     use super::*;
     use crate::fitted_effect::FeatureRange;
     use crate::learner::LearnerProvenance;

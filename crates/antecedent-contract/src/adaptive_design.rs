@@ -23,6 +23,14 @@ mod choice;
 mod declaration;
 mod matrix;
 
+fn declaration_refusal(
+    code: &'static str,
+    detail: &'static str,
+    remedy: &'static str,
+) -> crate::ExternalRefusal {
+    crate::ExternalRefusal::new(code, "declare", detail).with_remedy(remedy)
+}
+
 pub use accounting::{INTERIM_REUSE_STAGE, InterimEvidence};
 pub use choice::{
     CHOICE_DESIGN_VERSION, ChoiceContractError, ChoiceDesignContract, ChoiceDesignDeclaration,
@@ -40,3 +48,23 @@ pub use matrix::{
     AssignmentFamily, CellStatus, InferenceParadigm, MonitoringStrategy, OutcomeStructure,
     ProcedureCell, StoppingRuleKind, procedure_cells, procedure_status, supported_routes,
 };
+
+#[cfg(test)]
+mod declaration_refusal_tests {
+    use super::declaration_refusal;
+
+    #[test]
+    fn declaration_refusal_preserves_all_structured_fields() {
+        for remedy in ["", "retry"] {
+            let value = declaration_refusal("invalid_argument", "choice.example", remedy);
+            assert_eq!(value.code, "invalid_argument");
+            assert_eq!(value.stage, "declare");
+            assert_eq!(value.detail, "choice.example");
+            assert_eq!(value.remedy, Some(remedy));
+            assert_eq!(value.offending, None);
+            assert_eq!(value.expected, None);
+            assert_eq!(value.supplied, None);
+            assert_eq!(value.capability, None);
+        }
+    }
+}

@@ -66,10 +66,7 @@ fn admit_mediation_scratch(
     if bytes > budget.limits().max_bytes {
         return Err(IdentificationError::budget(IdentificationBudget::Memory));
     }
-    ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-        _ => IdentificationError::budget(IdentificationBudget::Memory),
-    })
+    ctx.acquire_admission(0, bytes).map_err(crate::error::map_admission_error)
 }
 
 /// Certified shared adjustment set for one horizon (see

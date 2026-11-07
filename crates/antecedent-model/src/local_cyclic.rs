@@ -3,6 +3,7 @@
 //! Callbacks declare their reads and supply derivatives. Their purity and
 //! derivative correctness are caller obligations; numerical roots carry no
 //! existence, uniqueness, stability or portability certificate.
+use crate::nonlinear_equilibrium::invalid_equilibrium_input as invalid;
 use crate::nonlinear_equilibrium::{Clamp, EquilibriumError, EquilibriumResult, MAX_ORDER};
 use antecedent_core::ExecutionContext;
 use antecedent_graph::{CyclicDigraph, DenseNodeId};
@@ -53,9 +54,7 @@ pub struct LocalCyclicModel {
     /// Exactly one mechanism per endogenous variable.
     pub mechanisms: Vec<Box<dyn LocalCyclicMechanism>>,
 }
-fn invalid(s: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(s.into())
-}
+
 impl LocalCyclicModel {
     /// Validate identities, read ordering and dimensions, without executing callbacks.
     pub fn validate(&self) -> Result<(), EquilibriumError> {

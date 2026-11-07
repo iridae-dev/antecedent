@@ -32,8 +32,14 @@ record_sha256 = "97caca60cd7b6c1e4a47ba87a4b41c6469330548242ac5f68b47de4d041ca2d
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/selective/populations.rs"
-items = ["const POPULATIONS_TAG", "fn adapter", "fn compare", "fn default", "fn for_population", "fn invalid", "fn new", "fn refuse_duplicate_rows", "fn report", "fn run", "fn set_identity", "fn validate_request", "struct PerPopulationReport", "struct PopulationDiscovery", "struct PopulationEdgeComparison", "struct PopulationRows"]
-sha256 = "2b334aea9b9ae5123595dfa7ff47e5aa935a0968207ef640cc56f0906ccad7e3"
+items = ["const POPULATIONS_TAG", "fn adapter", "fn compare", "fn default", "fn for_population", "fn new", "fn refuse_duplicate_rows", "fn report", "fn run", "fn set_identity", "fn validate_request", "struct PerPopulationReport", "struct PopulationDiscovery", "struct PopulationEdgeComparison", "struct PopulationRows"]
+sha256 = "e9dbd6a024c79796be1fd44c0aa4da9e25c693b203cdfe5c70de7a3cbe6c021d"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/selective/refusal.rs"
+items = ["fn invalid"]
+sha256 = "56cdd5badd06f4237db2556c9833cf163da5c35a09f1d9bc980a88f21e05eb5a"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

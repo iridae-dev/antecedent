@@ -241,10 +241,8 @@ impl TemporalDag {
         if bytes > limits.max_bytes {
             return Err(limit("bytes"));
         }
-        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
-            other => T::Admission(other),
-        })?;
+        let lease =
+            ctx.acquire_admission(0, bytes).map_err(crate::error::temporal_admission_error)?;
         let dag = self.materialize_admitted_window(&indexer, ctx)?;
         let topo = checked_unfold_topological_order(&dag, indexer.dense_len(), ctx)?;
         Ok(AdmittedUnfoldedTemporalGraph(std::sync::Arc::new(AdmittedUnfoldedTemporalGraphInner {

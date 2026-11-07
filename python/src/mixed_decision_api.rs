@@ -52,15 +52,7 @@ fn on_big_stack_attached<T: Send>(run: impl FnOnce() -> T + Send) -> PyResult<T>
 }
 
 fn refusal(code: &str, detail: &str, message: &str, remedy: &str) -> String {
-    json!({
-        "code": code,
-        "stage": STAGE,
-        "detail": detail,
-        "message": message,
-        "offending": Json::Null,
-        "remedy": remedy,
-    })
-    .to_string()
+    crate::bridge::compact_refusal_json(code, STAGE, detail, message, Some(remedy))
 }
 
 /// A workflow error as a typed refusal, or the error to raise.
@@ -428,4 +420,17 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(mixed_decision_execute, module)?)?;
     module.add_function(wrap_pyfunction!(mixed_decision_replay, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod compact_refusal_tests {
+    use super::{STAGE, refusal};
+
+    #[test]
+    fn mixed_decision_refusal_preserves_six_field_json() {
+        for remedy in ["", "retry \"quoted\""] {
+            let expected = serde_json::json!({"code":"code", "stage":STAGE, "detail":"detail", "message":"line\nbreak", "offending":null, "remedy":remedy}).to_string();
+            assert_eq!(refusal("code", "detail", "line\nbreak", remedy), expected);
+        }
+    }
 }

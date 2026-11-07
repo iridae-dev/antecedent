@@ -4,6 +4,7 @@
 //! conditional on the specified structure and covariance, not nonparametric ID.
 //! Calibration remains `not_measured`; optimization is local and its status explicit.
 
+use self::invalid_equilibrium_input as invalid;
 use antecedent_core::ExecutionContext;
 #[cfg(test)]
 use antecedent_model::nonlinear_equilibrium::SolvePolicy;
@@ -93,10 +94,6 @@ pub struct CyclicPosterior {
     pub min_tail_ess: f64,
     /// R-hat <= 1.01, bulk/tail ESS >= 100, all chains moved.
     pub diagnostics_pass: bool,
-}
-
-fn invalid(s: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(s.into())
 }
 
 /// Read a parameter vector, rejecting duplicates and non-estimable coordinates.
@@ -1330,5 +1327,24 @@ mod design_tests {
                 .unwrap(),
             &vec![0, 1]
         );
+    }
+}
+
+pub(crate) fn invalid_equilibrium_input(message: &str) -> EquilibriumError {
+    EquilibriumError::Invalid(message.into())
+}
+
+#[cfg(test)]
+mod invalid_equilibrium_input_tests {
+    use super::{EquilibriumError, invalid_equilibrium_input};
+
+    #[test]
+    fn invalid_input_preserves_variant_and_exact_message() {
+        for message in ["", "line\nbreak: \"quoted\""] {
+            assert_eq!(
+                invalid_equilibrium_input(message),
+                EquilibriumError::Invalid(message.into())
+            );
+        }
     }
 }

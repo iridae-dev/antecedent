@@ -107,12 +107,9 @@ fn input_digest(
     storage: &antecedent_data::OwnedColumnarStorage,
     ctx: &ExecutionContext,
 ) -> Result<[u8; 32], CausalError> {
-    storage.content_digest_with_context(ctx).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => {
-            CausalError::Cancelled { stage: "refutation input identity" }
-        }
-        other => CausalError::Resource { message: other.to_string() },
-    })
+    storage
+        .content_digest_with_context(ctx)
+        .map_err(|error| crate::error::resource_admission_error(error, "refutation input identity"))
 }
 
 #[allow(
@@ -176,11 +173,8 @@ pub(crate) fn executed_input_identity(
                 .ok_or_else(|| CausalError::Resource {
                     message: "input identity size overflow".into(),
                 })?;
-            let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-                antecedent_core::execution::AdmissionError::Cancelled => {
-                    CausalError::Cancelled { stage: "refutation input identity" }
-                }
-                other => CausalError::Resource { message: other.to_string() },
+            let lease = ctx.acquire_admission(0, bytes).map_err(|error| {
+                crate::error::resource_admission_error(error, "refutation input identity")
             })?;
             let mut parts = Vec::new();
             parts
@@ -210,11 +204,8 @@ pub(crate) fn executed_input_identity(
                 .ok_or_else(|| CausalError::Resource {
                     message: "input identity size overflow".into(),
                 })?;
-            let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-                antecedent_core::execution::AdmissionError::Cancelled => {
-                    CausalError::Cancelled { stage: "refutation input identity" }
-                }
-                other => CausalError::Resource { message: other.to_string() },
+            let lease = ctx.acquire_admission(0, bytes).map_err(|error| {
+                crate::error::resource_admission_error(error, "refutation input identity")
             })?;
             let mut parts = Vec::new();
             parts

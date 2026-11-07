@@ -1,6 +1,8 @@
 //! Continuous selection evaluates the chosen joint structural-feature contrast
 //! using an independently fitted validation sample, rather than another RNG seed.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+use super::invalid;
+
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest, ValueExpr, VariableId};
 use antecedent_design::program_search::{
     ProgramSearchError,
@@ -105,9 +107,6 @@ pub struct InstrumentedSelectionResult {
     seed: u64,
     repetitions: usize,
     tie_tolerance: f64,
-}
-fn invalid(e: impl std::fmt::Display) -> ProgramSearchError {
-    ProgramSearchError::Invalid(e.to_string())
 }
 fn sum(mut values: Vec<ValueExpr>) -> ValueExpr {
     if values.is_empty() {
@@ -495,9 +494,7 @@ pub fn replay_instrumented_selection(
     if bytes.len() > 32 * 1024 * 1024 {
         return Err(invalid("structural selection artifact size limit"));
     }
-    let _input = ctx
-        .acquire_admission(0, (bytes.len() as u64).saturating_mul(16))
-        .map_err(|e| ProgramSearchError::Resource(e.to_string()))?;
+    let _input = super::admit_selection_input(ctx, bytes.len())?;
     let d: Document = antecedent_io::convert::from_cbor(bytes).map_err(super::codec)?;
     if d.version != 1 {
         return Err(invalid("unsupported structural selection artifact version"));

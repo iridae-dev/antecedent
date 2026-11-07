@@ -25,6 +25,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::declaration_refusal as refusal;
 use std::collections::BTreeSet;
 
 use antecedent_core::{CanonicalWriter, SemanticDigest};
@@ -151,10 +152,6 @@ impl std::fmt::Display for ChoiceContractError {
 }
 
 impl std::error::Error for ChoiceContractError {}
-
-fn refusal(code: &'static str, detail: &'static str, remedy: &'static str) -> ExternalRefusal {
-    ExternalRefusal::new(code, STAGE_DECLARE, detail).with_remedy(remedy)
-}
 
 fn invalid(detail: &'static str, remedy: &'static str) -> ExternalRefusal {
     refusal(antecedent_core::reason_code!("choice_evidence_invalid"), detail, remedy)

@@ -243,10 +243,8 @@ impl TemporalIvIdentifier {
         if bytes > budget.limits().max_bytes {
             return Err(IdentificationError::budget(IdentificationBudget::Memory));
         }
-        let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-            _ => IdentificationError::budget(IdentificationBudget::Memory),
-        })?);
+        let lease =
+            Arc::new(ctx.acquire_admission(0, bytes).map_err(crate::error::map_admission_error)?);
         let search = self.search(template, &window, budget, ctx)?;
         let mut seeds = vec![window.treatment_key, window.outcome_key];
         seeds.extend(search.valid.iter().copied());

@@ -33,15 +33,15 @@ record_sha256 = "5c421bb3547b4525e09b37fc5a15de29db9a6df722fac9cf3e5e026ccf1e3ff
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
-path = "crates/antecedent-discovery/src/selective/reuse.rs"
-items = ["fn invalid"]
-sha256 = "e6c1f95fa735a0f1122de2e504396579551f3fcb5552257fed44c09f08255627"
+path = "crates/antecedent-discovery/src/selective/adapter.rs"
+items = ["fn counts_of", "fn data_identity", "fn ensure_seed", "fn execute_candidate", "fn execute_static", "fn export", "fn export_state", "fn inputs", "fn limits", "fn map_failure", "fn missing_raw_data", "fn new", "fn outcome", "fn plan", "fn prepare_static", "fn resume", "fn resume_candidate", "fn resume_with_limits", "fn retained_statistics", "fn run", "fn statistics_invalid", "fn work_between", "struct LiveState", "struct Prepared", "struct SelectiveRunReport", "struct StaticSelectiveDiscovery", "struct TemporalSelectiveDiscovery"]
+sha256 = "6f6f0481ffa87c69da1d8ab556b718be5fb3746833de8795ca2a61c0061feb29"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
-path = "crates/antecedent-discovery/src/selective/adapter.rs"
-items = ["fn counts_of", "fn data_identity", "fn ensure_seed", "fn execute_candidate", "fn execute_static", "fn export", "fn export_state", "fn inputs", "fn invalid", "fn limits", "fn map_failure", "fn missing_raw_data", "fn new", "fn outcome", "fn plan", "fn prepare_static", "fn resume", "fn resume_candidate", "fn resume_with_limits", "fn retained_statistics", "fn run", "fn statistics_invalid", "fn work_between", "struct LiveState", "struct Prepared", "struct SelectiveRunReport", "struct StaticSelectiveDiscovery", "struct TemporalSelectiveDiscovery"]
-sha256 = "31ef3c5eed67974b0b04f5673d9543ce3c2133a249a4dea29c1b424406d22681"
+path = "crates/antecedent-discovery/src/selective/refusal.rs"
+items = ["fn invalid"]
+sha256 = "56cdd5badd06f4237db2556c9833cf163da5c35a09f1d9bc980a88f21e05eb5a"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

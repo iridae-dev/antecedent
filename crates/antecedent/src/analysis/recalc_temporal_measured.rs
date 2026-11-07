@@ -49,7 +49,7 @@ pub struct CheckedMeasuredTemporal {
     source: Arc<[u8]>,
 }
 fn refused(code: &'static str, detail: &str, message: &str) -> TemporalRunError {
-    IoError::Refused { code, message: format!("{detail}: {message}") }.into()
+    crate::error::io_refused(code, detail, message).into()
 }
 // Every method uses the same complete balanced history design as its calibration.
 // Counting sixteen rows alone would admit duplicated or missing cells in basic/percentile.

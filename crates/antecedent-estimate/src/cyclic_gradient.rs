@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Analytic joint-equilibrium likelihood fitting, including mixed derivatives
 //! of compositional mechanisms in the intervention-specific Jacobian term.
+use crate::cyclic_likelihood::invalid_equilibrium_input as invalid;
 use crate::cyclic_likelihood::{CyclicParameter, parameter_values, with_parameters};
 use antecedent_core::ExecutionContext;
 use antecedent_model::nonlinear_equilibrium::{EquilibriumError, EquilibriumModel, RegimeRow};
@@ -48,9 +49,7 @@ pub struct CyclicGradientFit {
     /// Explicit almost-everywhere derivative convention for piecewise-linear mechanisms.
     pub nonsmooth_convention: Option<String>,
 }
-fn invalid(s: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(s.into())
-}
+
 /// Fit a differentiable additive-noise equilibrium family from known regimes.
 /// Fixed covariance and specified graph are conditional assumptions. Every
 /// proposed model must satisfy the likelihood's contraction or affine-bijection conditions.

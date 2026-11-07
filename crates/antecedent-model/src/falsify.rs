@@ -583,6 +583,118 @@ fn limitations(config: &GraphFalsificationConfig, replicates: Option<u32>) -> Ve
     out
 }
 
+fn check_falsification_work(
+    n: usize,
+    count: usize,
+    implications: &[Implication],
+) -> Result<(), ModelError> {
+    let key_steps: u128 = implications.iter().map(|i| i.conditioning.len() as u128 + 2).sum();
+    let per_relabelling = (n as u128) * (n as u128 + 2) + key_steps;
+    let work = per_relabelling.saturating_mul(count as u128);
+    if work > MAX_FALSIFICATION_WORK {
+        return Err(ModelError::Unsupported {
+            message: format!(
+                "{}{}: graph_falsification.work_limit: {count} relabellings of a {n}-node graph \
+                 with {} implications cost {work} steps, over the limit of \
+                 {MAX_FALSIFICATION_WORK}. Next attempt: fewer relabellings",
+                antecedent_core::reason_code::PREFIX,
+                antecedent_core::reason_code!("execution_resource_limit"),
+                implications.len(),
+            ),
+        });
+    }
+    Ok(())
+}
+
+fn count_equivalent_permutations(
+    signature: &EquivalenceSignature,
+    permutations: &RelabellingPlan,
+    ctx: &ExecutionContext,
+) -> Result<usize, ModelError> {
+    let mut equivalent_permutations = 0usize;
+    for perm in permutations.iter() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(ModelError::Cancelled);
+        }
+        if signature.relabelled(&perm) == *signature {
+            equivalent_permutations += 1;
+        }
+    }
+    Ok(equivalent_permutations)
+}
+
+fn falsification_permutation_allocation(
+    n: usize,
+    n_permutations: usize,
+    ctx: &ExecutionContext,
+) -> Result<(usize, u64), ModelError> {
+    // Reserve both the retained counts (including the final Arc conversion) and
+    // any enumerated vector payload/headers before either allocation.
+    let enumerated = factorial_within(n, n_permutations.min(MAX_ENUMERATED_RELABELLINGS));
+    let count = enumerated.map_or(n_permutations, |v| v.saturating_sub(1));
+    let bytes = count
+        .checked_mul(std::mem::size_of::<u32>())
+        .and_then(|v| v.checked_mul(2))
+        .and_then(|v| {
+            if enumerated.is_some() {
+                count
+                    .checked_mul(
+                        n.checked_mul(std::mem::size_of::<usize>())?
+                            .checked_add(std::mem::size_of::<Vec<usize>>())?,
+                    )?
+                    .checked_add(v)
+            } else {
+                Some(v)
+            }
+        })
+        .and_then(|v| v.checked_add(n.checked_mul(std::mem::size_of::<usize>())?))
+        .and_then(|v| u64::try_from(v).ok())
+        .ok_or(ModelError::ResourceLimit {
+            message: "graph falsification permutations",
+            required_bytes: u64::MAX,
+            limit_bytes: ctx.admission().available().bytes(),
+        })?;
+    Ok((count, bytes))
+}
+
+fn graph_falsification_columns<'a>(
+    dag: &Dag,
+    data: &'a TabularData,
+) -> Result<(Vec<VariableId>, Vec<Cow<'a, [f64]>>), ModelError> {
+    let n = dag.node_count();
+    let mut variables = Vec::with_capacity(n);
+    for node in dag.nodes() {
+        let NodeRef::Static(variable) = node else {
+            return Err(refuse(
+                antecedent_core::reason_code!("route_not_supported"),
+                antecedent_core::reason_details::graph_falsification::NODE_NOT_STATIC,
+                "only static variable nodes are supported",
+            ));
+        };
+        if variables.contains(variable) {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::graph_falsification::DUPLICATE_VARIABLE,
+                "distinct nodes must carry distinct variables",
+            ));
+        }
+        variables.push(*variable);
+    }
+    let storage: Vec<Cow<'_, [f64]>> = variables
+        .iter()
+        .map(|&v| data.float64_cow(v))
+        .collect::<Result<_, _>>()
+        .map_err(ModelError::from)?;
+    if storage.iter().any(|col| col.iter().any(|v| !v.is_finite())) {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::graph_falsification::DATA_NOT_OBSERVED,
+            "graph columns must be fully observed and finite; rows are not dropped",
+        ));
+    }
+    Ok((variables, storage))
+}
+
 /// Test a causal DAG against data by comparing its violated local Markov implications with those
 /// of random relabellings of its nodes. No fitted mechanisms are needed.
 ///
@@ -627,36 +739,7 @@ pub fn falsify_graph(
             "graph falsification needs at least one row",
         ));
     }
-    let mut variables = Vec::with_capacity(n);
-    for node in dag.nodes() {
-        let NodeRef::Static(variable) = node else {
-            return Err(refuse(
-                antecedent_core::reason_code!("route_not_supported"),
-                antecedent_core::reason_details::graph_falsification::NODE_NOT_STATIC,
-                "only static variable nodes are supported",
-            ));
-        };
-        if variables.contains(variable) {
-            return Err(refuse(
-                antecedent_core::reason_code!("invalid_argument"),
-                antecedent_core::reason_details::graph_falsification::DUPLICATE_VARIABLE,
-                "distinct nodes must carry distinct variables",
-            ));
-        }
-        variables.push(*variable);
-    }
-    let storage: Vec<Cow<'_, [f64]>> = variables
-        .iter()
-        .map(|&v| data.float64_cow(v))
-        .collect::<Result<_, _>>()
-        .map_err(ModelError::from)?;
-    if storage.iter().any(|col| col.iter().any(|v| !v.is_finite())) {
-        return Err(refuse(
-            antecedent_core::reason_code!("invalid_argument"),
-            antecedent_core::reason_details::graph_falsification::DATA_NOT_OBSERVED,
-            "graph columns must be fully observed and finite; rows are not dropped",
-        ));
-    }
+    let (variables, storage) = graph_falsification_columns(dag, data)?;
     let columns: Vec<&[f64]> = storage.iter().map(AsRef::as_ref).collect();
 
     let test = ci_from_name(&config.ci_test)?;
@@ -683,65 +766,15 @@ pub fn falsify_graph(
         .stream_for(StreamDomain::Resample, PERMUTATION_STREAM);
     let implications = local_markov_implications(dag);
     let signature = EquivalenceSignature::of(dag);
-    // Reserve both the retained counts (including the final Arc conversion) and
-    // any enumerated vector payload/headers before either allocation.
-    let enumerated = factorial_within(n, config.n_permutations.min(MAX_ENUMERATED_RELABELLINGS));
-    let count = enumerated.map_or(config.n_permutations, |v| v.saturating_sub(1));
-    let bytes = count
-        .checked_mul(std::mem::size_of::<u32>())
-        .and_then(|v| v.checked_mul(2))
-        .and_then(|v| {
-            if enumerated.is_some() {
-                count
-                    .checked_mul(
-                        n.checked_mul(std::mem::size_of::<usize>())?
-                            .checked_add(std::mem::size_of::<Vec<usize>>())?,
-                    )?
-                    .checked_add(v)
-            } else {
-                Some(v)
-            }
+    let (count, bytes) = falsification_permutation_allocation(n, config.n_permutations, ctx)?;
+    let _lease = ctx.acquire_admission(0, bytes).map_err(|error| {
+        crate::error::admission_error(error, "graph falsification permutations", bytes, || {
+            ctx.admission().available().bytes()
         })
-        .and_then(|v| v.checked_add(n.checked_mul(std::mem::size_of::<usize>())?))
-        .and_then(|v| u64::try_from(v).ok())
-        .ok_or(ModelError::ResourceLimit {
-            message: "graph falsification permutations",
-            required_bytes: u64::MAX,
-            limit_bytes: ctx.admission().available().bytes(),
-        })?;
-    let _lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => ModelError::Cancelled,
-        _ => ModelError::ResourceLimit {
-            message: "graph falsification permutations",
-            required_bytes: bytes,
-            limit_bytes: ctx.admission().available().bytes(),
-        },
     })?;
-    let key_steps: u128 = implications.iter().map(|i| i.conditioning.len() as u128 + 2).sum();
-    let per_relabelling = (n as u128) * (n as u128 + 2) + key_steps;
-    let work = per_relabelling.saturating_mul(count as u128);
-    if work > MAX_FALSIFICATION_WORK {
-        return Err(ModelError::Unsupported {
-            message: format!(
-                "{}{}: graph_falsification.work_limit: {count} relabellings of a {n}-node graph \
-                 with {} implications cost {work} steps, over the limit of \
-                 {MAX_FALSIFICATION_WORK}. Next attempt: fewer relabellings",
-                antecedent_core::reason_code::PREFIX,
-                antecedent_core::reason_code!("execution_resource_limit"),
-                implications.len(),
-            ),
-        });
-    }
+    check_falsification_work(n, count, &implications)?;
     let (permutations, exhaustive) = draw_permutations(n, config.n_permutations, &mut rng, ctx)?;
-    let mut equivalent_permutations = 0usize;
-    for perm in permutations.iter() {
-        if ctx.cancellation.is_cancelled() {
-            return Err(ModelError::Cancelled);
-        }
-        if signature.relabelled(&perm) == signature {
-            equivalent_permutations += 1;
-        }
-    }
+    let equivalent_permutations = count_equivalent_permutations(&signature, &permutations, ctx)?;
     let equivalent_share = (1 + equivalent_permutations) as f64 / (1 + permutations.len()) as f64;
     let max_equivalent_share = config.max_equivalent_share.unwrap_or(config.significance);
 
@@ -908,6 +941,40 @@ fn stopped(
 )]
 mod tests {
     use super::*;
+
+    #[test]
+    fn permutation_allocation_accounts_for_enumeration_and_overflow() {
+        let ctx = ExecutionContext::for_tests(0);
+        let (count, bytes) = falsification_permutation_allocation(3, 6, &ctx).unwrap();
+        assert_eq!(count, 5);
+        let expected = 5 * std::mem::size_of::<u32>() * 2
+            + 5 * (3 * std::mem::size_of::<usize>() + std::mem::size_of::<Vec<usize>>())
+            + 3 * std::mem::size_of::<usize>();
+        assert_eq!(bytes, u64::try_from(expected).unwrap());
+        assert!(falsification_permutation_allocation(usize::MAX, usize::MAX, &ctx).is_err());
+    }
+
+    #[test]
+    fn equivalent_permutation_count_uses_each_listed_relabelling() {
+        let signature = EquivalenceSignature::of(&Dag::with_variables(3));
+        let permutations = RelabellingPlan::Listed(vec![vec![1, 0, 2], vec![2, 1, 0]]);
+        assert_eq!(
+            count_equivalent_permutations(
+                &signature,
+                &permutations,
+                &ExecutionContext::for_tests(0)
+            )
+            .unwrap(),
+            2
+        );
+    }
+
+    #[test]
+    fn graph_falsification_work_limit_refuses_excess_before_execution() {
+        let implications = [Implication { node: 0, other: 1, conditioning: vec![2, 3] }];
+        assert!(check_falsification_work(3, 1, &implications).is_ok());
+        assert!(check_falsification_work(100_000, 2, &implications).is_err());
+    }
 
     fn normal(rng: &mut CausalRng) -> f64 {
         let u1 = 1.0 - rng.next_f64();

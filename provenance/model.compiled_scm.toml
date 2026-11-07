@@ -36,6 +36,12 @@ record_sha256 = "14950c53cd1e3c6d252f74c42e2e5c707acfba33d7fd6bde640e1a3964478bc
 
 [[method_review.artifacts]]
 role = "implementation"
+path = "crates/antecedent-model/src/error.rs"
+items = ["fn admission_error"]
+sha256 = "9309c686e894469a7f3bdc93a2f594423a5429b012acca31a299e076f88da848"
+
+[[method_review.artifacts]]
+role = "implementation"
 path = "crates/antecedent-model/src/compile.rs"
 items = ["enum MechanismSlot", "fn compile", "fn compile_shared", "fn gather_for", "fn get", "fn infer_noise_column", "fn log_prob_column", "fn n_parents", "fn new", "fn noise_inference_mode", "fn standard_normal_log_density", "fn supports_noise_inference", "fn vacant", "fn with_mechanisms", "struct CompiledCausalModel", "struct CompiledMechanismStore", "struct ModelOutputLayout", "struct ParentGatherPlan", "trait DynamicMechanism"]
 sha256 = "e5768a0da3daec61c4b94720752174530fce70f7d52ec9511e47cb10be56adee"
@@ -50,7 +56,7 @@ sha256 = "e297430eaf5cc03272ae883a49833e8fb705220abdc7336ec2731cd190b367fe"
 role = "implementation"
 path = "crates/antecedent-model/src/sample.rs"
 items = ["enum NodeNoise", "fn admit_cells", "fn apply_shift", "fn count_param", "fn evaluate_node", "fn noise_kind_override", "fn noise_kind_slot", "fn positive", "fn refuse_cross_family_soft", "fn sample_stochastic", "fn sample_with_overlay", "fn sample_with_overlay_admitted", "fn sample_with_overlay_ctx", "fn sample_with_overlay_polled", "fn soft_discrete_slot", "fn soft_gp_slot", "fn soft_to_slot", "struct NodeEvaluation"]
-sha256 = "3786125d929029477c6ebbec83128197666eec0f159217008b91a702860574a0"
+sha256 = "a9ff5c9ac722ab96e2b40ac31b587405a3f70ea4d815c2e78780bbf864810555"
 
 [[method_review.artifacts]]
 role = "assertion"

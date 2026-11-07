@@ -27,14 +27,14 @@ kind = "derivation"
 rationale = "Accounting of the uncertainty sources of the finite Markovian cross-world row: the exact predictive variance of each unit's counterfactual quantity under its exogenous posterior, the realized-mean variance, and the sampling variance of the unit mean for sampled units."
 no_independent_algorithm = "whole_path_uncertainty.rs sums enumerated posterior weights and values (v_i = sum_s w_s (g_s - q_i)^2, sum v_i / n^2, s^2 / n) over the executed row; it fits nothing and propagates no structural uncertainty."
 covered_by = ["cross_world_execution.sampled_and_interval_readings"]
-derivation = "For unit i with exogenous posterior weights w_s and per-state quantity g_s, q_i = sum_s w_s g_s and v_i = sum_s w_s (g_s - q_i)^2 (the law of total variance for a finite mixture); the realized mean of n fixed units has variance sum v_i / n^2, and an independent sample of units has sampling variance s^2 / n of the unit values. The test evaluates these in exact fractions (169/210, 10/49, 21/100, 2029/44100, 2526/264600) to 1e-12."
+derivation = "For unit i with exogenous posterior weights w_s and per-state quantity g_s, q_i = sum_s w_s g_s and v_i = sum_s w_s (g_s - q_i)^2 (the law of total variance for a finite mixture); the realized mean of n fixed units has variance sum v_i / n^2, and an independent sample of units has sampling variance s^2 / n of the unit values. Scoped 2026-11-07 source comparison verifies unchanged sampling, exogenous method, population and history admission refusal ordering; its engineering refusal test does not extend the independent numerical comparison. A subsequent scoped comparison verified unchanged within-world and cross-world alignment, dependence, evidence identity, and independent-unit rule ordering. Further scoped comparison confirms the extracted replay keeps identity/refusal ordering, world evaluation and compensated accumulation, two-pass variance, weight defect and work counters unchanged. The test evaluates these in exact fractions (169/210, 10/49, 21/100, 2029/44100, 2526/264600) to 1e-12."
 record_sha256 = "914e7ef96a3be0171d5411a50eaf89d3fe3ad50da11f58aa5744e24c7b5de236"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/whole_path_uncertainty.rs"
-items = ["const WHOLE_PATH_UNCERTAINTY_VERSION", "enum SourceTreatment", "enum UncertaintySource", "enum UnitSampling", "fn derive_whole_path_uncertainty", "fn mismatch", "fn name", "fn realized_mean_standard_error", "fn rule_failure", "fn source", "struct SourceAccount", "struct UnitSpread", "struct WholePathUncertainty"]
-sha256 = "925cf8ca263866951748880b42949c3a6a5524ccec65934f0a421689b13135b2"
+items = ["const WHOLE_PATH_UNCERTAINTY_VERSION", "enum SourceTreatment", "enum UncertaintySource", "enum UnitSampling", "fn admit_whole_path_uncertainty", "fn derive_whole_path_uncertainty", "fn mismatch", "fn name", "fn realized_mean_standard_error", "fn replay_whole_path", "fn rule_failure", "fn source", "fn whole_path_propagation_routes", "struct SourceAccount", "struct UnitSpread", "struct WholePathReplay", "struct WholePathUncertainty"]
+sha256 = "ede6598728a9d5c40762ca4624bb653ad1d06fafcd6f45a1bf9cbaf4b68eb422"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

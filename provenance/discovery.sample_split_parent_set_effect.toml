@@ -51,14 +51,26 @@ record_sha256 = "4f7c028dfb82207ac1d8a2b26e303cded70540ead0fcb750ca4bc8ca7f873cd
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs"
-items = ["const DISCOVERY_FRACTION", "const FORMAT_VERSION", "const MAX_CONFLICTING_COLLIDERS", "const MAX_ROWS", "const MEAN_RATIO", "const PARENT_LIMIT_DIAGNOSTIC", "const TOTAL_EFFECT", "enum Transformation", "fn discovery_fraction", "fn frame", "fn label", "fn malformed", "fn name", "fn neighbourhood", "fn new", "fn parse", "fn refused", "fn reported_effect", "fn run", "fn run_with_collider_bound", "fn treatment_parent_set", "fn treatment_parent_set_under_conflicts", "fn unresolved_reason", "fn validate", "struct ConflictEvidence", "struct Knowledge", "struct ParentSetEffectRun", "struct ParentSetEffectSource", "struct ReportedEffect", "struct TreatmentNeighbourhood", "struct UnresolvedPair"]
-sha256 = "c28f4cb0584e80ef19ee0e8d65a90791292f1f13cfe957bf30ce42678b5f3278"
+items = ["const DISCOVERY_FRACTION", "const FORMAT_VERSION", "const MAX_CONFLICTING_COLLIDERS", "const MAX_ROWS", "const MEAN_RATIO", "const PARENT_LIMIT_DIAGNOSTIC", "const TOTAL_EFFECT", "enum Transformation", "fn discovery_fraction", "fn frame", "fn label", "fn name", "fn neighbourhood", "fn new", "fn parse", "fn reported_effect", "fn run", "fn run_with_collider_bound", "fn treatment_parent_set", "fn treatment_parent_set_under_conflicts", "fn unresolved_reason", "fn validate", "struct ConflictEvidence", "struct Knowledge", "struct ParentSetEffectRun", "struct ParentSetEffectSource", "struct ReportedEffect", "struct TreatmentNeighbourhood", "struct UnresolvedPair"]
+sha256 = "c4eae6c49f8a5b168523f6bc6bb88fec7d3917f387ab245dfcf483ab1695b3dd"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/measured_inference/split_effect.rs"
-items = ["const ALPHA", "const CI_TEST", "const DISCOVERY_FRACTION", "const FORMAT_VERSION", "const LEVEL", "const MAX_ROWS", "fn adjusted_effect", "fn centred_least_squares", "fn directed_parents", "fn discovery_refusal", "fn effect_on_structure", "fn frame", "fn malformed", "fn new", "fn refused", "fn run", "fn validate", "struct AdjustedEffect", "struct SplitEffectRun", "struct SplitEffectSource"]
-sha256 = "2bd250a6e82f0fb30bda9fd2f6be7240191d348d5b5f8899d0cc97b341307a07"
+items = ["const ALPHA", "const CI_TEST", "const DISCOVERY_FRACTION", "const FORMAT_VERSION", "const LEVEL", "const MAX_ROWS", "fn adjusted_effect", "fn centred_least_squares", "fn directed_parents", "fn discovery_refusal", "fn effect_on_structure", "fn frame", "fn new", "fn run", "fn validate", "struct AdjustedEffect", "struct SplitEffectRun", "struct SplitEffectSource"]
+sha256 = "5bb317201789f99fb16b868d9ffc3ff4be1936ede103f375d87d0345b1c4321a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/refusal.rs"
+items = ["fn refused"]
+sha256 = "335f5a2aeb43a22d26a7c166c3fd33b8b065c18da65756ed822afca9af6c04c7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/measured_inference.rs"
+items = ["fn invalid", "fn validate_split_columns", "fn validate_split_header"]
+sha256 = "44ac3273efb2810b54707c9b275e8a864554afe943bb5d3e1882499ac312b364"
 
 [[method_review.artifacts]]
 role = "assertion"

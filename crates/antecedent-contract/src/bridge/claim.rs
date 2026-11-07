@@ -13,7 +13,7 @@ use super::kind::{BridgeKind, ValueKind};
 use super::mapping::{MappingKind, TrialLevelFit};
 use super::refusal::{
     BridgeRefusal, interval_not_supported, provenance_failed, quantity_mismatch, source_not_point,
-    units_mismatch, wrong_value_kind,
+    units_mismatch,
 };
 use crate::claim::{
     ClaimDomains, ClaimEnvelope, ClaimFreshness, ClaimKind, DomainStatus, HandoffReceipt,
@@ -97,11 +97,7 @@ pub struct BridgedClaim {
 /// and every declared assumption) and the source claim identity.
 #[must_use]
 pub fn bridged_claim_id(contract: SemanticDigest, source_claim: SemanticDigest) -> SemanticDigest {
-    let mut out = CanonicalWriter::new(TAG_CLAIM);
-    out.word(BRIDGE_CLAIM_IDENTITY_VERSION)
-        .bytes(contract.as_bytes())
-        .bytes(source_claim.as_bytes());
-    SemanticDigest::from_bytes(out.finish())
+    SemanticDigest::from_bytes(claim_identity_prefix(contract, source_claim).finish())
 }
 
 /// The identity of the claim a contract derives from a source claim whose bridged value
@@ -113,13 +109,21 @@ pub fn bridged_claim_id_with_propagation(
     source_claim: SemanticDigest,
     propagation: &PointPropagation,
 ) -> SemanticDigest {
+    let mut out = claim_identity_prefix(contract, source_claim);
+    out.word(PROPAGATION_SECTION);
+    propagation.write(&mut out);
+    SemanticDigest::from_bytes(out.finish())
+}
+
+fn claim_identity_prefix(
+    contract: SemanticDigest,
+    source_claim: SemanticDigest,
+) -> CanonicalWriter {
     let mut out = CanonicalWriter::new(TAG_CLAIM);
     out.word(BRIDGE_CLAIM_IDENTITY_VERSION)
         .bytes(contract.as_bytes())
-        .bytes(source_claim.as_bytes())
-        .word(PROPAGATION_SECTION);
-    propagation.write(&mut out);
-    SemanticDigest::from_bytes(out.finish())
+        .bytes(source_claim.as_bytes());
+    out
 }
 
 pub(super) const fn mismatch_name(mismatch: QuantityMismatch) -> &'static str {
@@ -512,11 +516,7 @@ impl BridgedClaim {
     /// # Errors
     /// `bridge_substitution_refused` naming the held and requested kinds.
     pub fn require_value_kind(&self, requested: ValueKind) -> Result<(), BridgeRefusal> {
-        if self.value_kind == requested {
-            Ok(())
-        } else {
-            Err(wrong_value_kind(requested, self.value_kind))
-        }
+        super::refusal::require_value_kind(requested, self.value_kind)
     }
 
     /// An unscoped request for an interval, posterior or joint law of a bridged
@@ -548,5 +548,38 @@ impl BridgedClaim {
             withdrawn: false,
             as_of_snapshot: source.as_of_snapshot,
         }
+    }
+}
+
+#[cfg(test)]
+mod identity_prefix_tests {
+    use super::{
+        PointPropagation, SemanticDigest, bridged_claim_id, bridged_claim_id_with_propagation,
+    };
+    use crate::bridge::SourceMappingDependence;
+
+    #[test]
+    fn plain_and_propagated_claim_identities_keep_their_golden_bytes() {
+        let contract = SemanticDigest::from_bytes([0x11; 32]);
+        let source = SemanticDigest::from_bytes([0x22; 32]);
+        let propagation = PointPropagation {
+            construction: "affine_delta_method",
+            source_value: 1.0,
+            source_standard_error: 0.25,
+            plug_in_value: 0.0,
+            mean: -0.0,
+            variance: 0.5,
+            mapping_uncertainty: None,
+            dependence: SourceMappingDependence::Independent { evidence: "test".into() },
+            nonlinear: None,
+        };
+        assert_eq!(
+            bridged_claim_id(contract, source).to_hex(),
+            "b281becf0b194644b3eaeac085c37bcc469627dbb9d4d24676e3804dc2205d5e"
+        );
+        assert_eq!(
+            bridged_claim_id_with_propagation(contract, source, &propagation).to_hex(),
+            "4d0f72863257d0ed09ee01c4a8ff0608a8fff7985a422384be3d4e626ff3001e"
+        );
     }
 }

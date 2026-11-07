@@ -46,6 +46,12 @@ _RUST_KINDS = {"fn", "impl", "mod", "const", "static", "struct", "enum", "trait"
 _PY_KINDS = {"fn", "class", "const"}
 
 
+def review_json_digest(payload: object) -> str:
+    """Hash review payloads with the established compact UTF-8 JSON encoding."""
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def file_digest(path: Path) -> str:
     """Digest of a data artifact.  A fixture that carries its own ``oracle.reference_review``
     is bound by its payload, so rebinding that review never stales the reviews that read it."""

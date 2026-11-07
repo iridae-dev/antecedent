@@ -384,10 +384,7 @@ impl Quote {
         if self.work > operations.saturating_mul(WITNESS_WORK_PER_OPERATION) {
             return Err(IdentificationError::budget(crate::IdentificationBudget::Steps));
         }
-        ctx.acquire_admission(0, self.bytes).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-            _ => IdentificationError::budget(crate::IdentificationBudget::Memory),
-        })
+        ctx.acquire_admission(0, self.bytes).map_err(crate::error::map_admission_error)
     }
 }
 

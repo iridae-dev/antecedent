@@ -53,18 +53,10 @@ use super::contract::{
 use super::identity::{DataIdentity, Digest, static_data_identity, temporal_data_identity};
 use super::outcome::{DiscoveryOutcome, NativeResult};
 use super::portable::PortableDiscoveryState;
-use super::refusal::SelectiveDiscoveryError;
+use super::refusal::{SelectiveDiscoveryError, invalid};
 use super::stages::{DiscoveryPlan, DiscoveryStage, StageInputs};
 use super::store::{SelectiveCi, SelectiveLimits, StatisticStore};
 use super::work::{WorkUnits, observe_orientation};
-
-fn invalid(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
-    SelectiveDiscoveryError::refused(
-        antecedent_core::reason_code!("invalid_argument"),
-        detail,
-        remedy,
-    )
-}
 
 fn statistics_invalid(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
     SelectiveDiscoveryError::refused(

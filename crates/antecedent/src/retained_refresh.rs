@@ -242,9 +242,7 @@ pub struct RetainedRefresh {
     bound_to: Option<antecedent_core::SemanticDigest>,
 }
 
-fn invalid(message: String) -> CausalError {
-    CausalError::State(StateError::InvalidEvent(message))
-}
+use crate::bootstrap_retention::invalid;
 
 #[allow(
     clippy::cast_possible_truncation,

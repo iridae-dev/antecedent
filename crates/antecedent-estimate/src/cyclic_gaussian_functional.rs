@@ -2,7 +2,7 @@
 //! Analytic Gaussian numerical evaluation of retained cyclic functional programs.
 //! Observational density fitting is a parametric plug-in, not latent recovery or
 //! a statistical uncertainty certificate. Source authorization belongs to the caller.
-use crate::cyclic_functional::{CyclicFunctionalInputs, CyclicFunctionalValue};
+use crate::cyclic_functional::{CyclicFunctionalInputs, CyclicFunctionalValue, invalid};
 use crate::error::EstimationError;
 use antecedent_core::ExecutionContext;
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
@@ -58,9 +58,6 @@ pub struct FrozenGaussianDensity {
     pub covariance: Vec<f64>,
     /// Independent fit rows, or none for a specified law.
     pub fitted_rows: Option<usize>,
-}
-fn invalid(s: impl std::fmt::Display) -> EstimationError {
-    EstimationError::data_msg(s.to_string())
 }
 fn inverse(matrix: &[f64], n: usize) -> Result<(Vec<f64>, f64), EstimationError> {
     if n == 0 {

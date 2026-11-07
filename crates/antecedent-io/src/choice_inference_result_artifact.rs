@@ -66,6 +66,25 @@ crate::sectioned_artifact_error!(
 
 type Error = ChoiceInferenceResultArtifactError;
 
+fn source_admission_error(
+    ctx: &ExecutionContext,
+    error: antecedent_core::execution::AdmissionError,
+) -> Error {
+    if ctx.cancellation.is_cancelled() {
+        Error::refused(
+            antecedent_core::reason_code!("execution_cancelled"),
+            "choice_inference.source_cancelled",
+            error.to_string(),
+        )
+    } else {
+        Error::refused(
+            antecedent_core::reason_code!("execution_resource_limit"),
+            "choice_inference.source_resource_limit",
+            error.to_string(),
+        )
+    }
+}
+
 fn malformed(text: impl Into<String>) -> Error {
     Error::Malformed(text.into())
 }
@@ -770,21 +789,8 @@ pub fn retained_choice_source_from_artifact(
         .ok()
         .and_then(|n| n.checked_mul(8))
         .ok_or_else(|| malformed("retained posterior admission size overflow"))?;
-    let _lease = ctx.acquire_admission(0, quote).map_err(|error| {
-        if ctx.cancellation.is_cancelled() {
-            Error::refused(
-                antecedent_core::reason_code!("execution_cancelled"),
-                "choice_inference.source_cancelled",
-                error.to_string(),
-            )
-        } else {
-            Error::refused(
-                antecedent_core::reason_code!("execution_resource_limit"),
-                "choice_inference.source_resource_limit",
-                error.to_string(),
-            )
-        }
-    })?;
+    let _lease =
+        ctx.acquire_admission(0, quote).map_err(|error| source_admission_error(ctx, error))?;
     let meta = decode_meta(bytes)?;
     let source = check(&meta, Some(expected_identity), ctx)?;
     let ChoiceResultSpec::Posterior { look } = source.spec() else {
@@ -869,21 +875,8 @@ pub fn verify_retained_choice_sources(
             .ok()
             .and_then(|n| n.checked_mul(2))
             .ok_or_else(|| malformed("retained posterior admission size overflow"))?;
-        let _lease = ctx.acquire_admission(0, quote).map_err(|error| {
-            if ctx.cancellation.is_cancelled() {
-                Error::refused(
-                    antecedent_core::reason_code!("execution_cancelled"),
-                    "choice_inference.source_cancelled",
-                    error.to_string(),
-                )
-            } else {
-                Error::refused(
-                    antecedent_core::reason_code!("execution_resource_limit"),
-                    "choice_inference.source_resource_limit",
-                    error.to_string(),
-                )
-            }
-        })?;
+        let _lease =
+            ctx.acquire_admission(0, quote).map_err(|error| source_admission_error(ctx, error))?;
         let meta = decode_meta(&proof.artifact)?;
         if reals(&meta.declaration.initial_prior_bits) != target.initial_prior {
             return Err(malformed("retained posterior and target must have the same base prior"));
@@ -1049,5 +1042,30 @@ impl ChoiceInferenceResultArtifact {
     #[doc(hidden)]
     pub fn decode_unchecked(bytes: &[u8]) -> Result<ChoiceResultMeta, Error> {
         decode_meta(bytes)
+    }
+}
+
+#[cfg(test)]
+mod source_admission_tests {
+    #[test]
+    fn preserves_context_dependent_code_detail_and_text() {
+        use antecedent_core::{ExecutionContext, execution::AdmissionError};
+        let ctx = ExecutionContext::for_tests(1);
+        let text = AdmissionError::Overflow.to_string();
+        let error = super::source_admission_error(&ctx, AdmissionError::Overflow);
+        assert_eq!(
+            error.refusal(),
+            Some((
+                "execution_resource_limit",
+                "choice_inference.source_resource_limit".into(),
+                text.clone()
+            ))
+        );
+        ctx.cancellation.cancel();
+        let error = super::source_admission_error(&ctx, AdmissionError::Overflow);
+        assert_eq!(
+            error.refusal(),
+            Some(("execution_cancelled", "choice_inference.source_cancelled".into(), text))
+        );
     }
 }

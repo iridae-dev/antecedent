@@ -309,11 +309,6 @@ const ROW_DIGEST_TAG: &str = "antecedent.estimate.scenario_covariance.rows";
 /// Domain tag of the replicate digest (family identity, method, seed and every replicate).
 const REPLICATE_DIGEST_TAG: &str = "antecedent.estimate.scenario_covariance.replicates";
 
-/// Lowercase hex of a finished canonical digest.
-fn hex_digest(digest: &CanonicalWriter) -> String {
-    digest.finish_hex()
-}
-
 struct FamilyIdentity {
     n: usize,
     row_digest: String,
@@ -387,7 +382,7 @@ fn validate_family(scenarios: &[ScenarioRowEstimator]) -> Result<FamilyIdentity,
     }
     Ok(FamilyIdentity {
         n,
-        row_digest: hex_digest(&row_digest),
+        row_digest: row_digest.finish_hex(),
         snapshot: first.snapshot_digest.clone(),
     })
 }
@@ -604,7 +599,7 @@ fn finish(
         covariance,
         replicate_ids: Vec::new(),
         failed_replicate_ids: Vec::new(),
-        replicate_digest: hex_digest(digest),
+        replicate_digest: digest.finish_hex(),
         row_identity_digest: identity.row_digest.clone(),
         snapshot_digest: identity.snapshot.clone(),
         method,
@@ -880,4 +875,24 @@ pub fn exact_enumeration_covariance(
         finish(scenarios, &identity, &tally, CovarianceMethod::ExactEnumeration, &digest)?;
     out.replicates_total = u64::try_from(total).unwrap_or(u64::MAX);
     Ok(out)
+}
+
+#[cfg(test)]
+mod digest_tests {
+    use std::sync::Arc;
+
+    use super::{ScenarioRowEstimator, validate_family};
+
+    #[test]
+    fn ordered_row_identity_matches_golden_without_running_estimators() {
+        let units = (0..6).map(|i| Arc::<str>::from(format!("u{i}"))).collect();
+        let scenario = ScenarioRowEstimator::new("a", "snapshot", units, |_| {
+            panic!("identity validation must not run the estimator")
+        });
+        let identity = validate_family(&[scenario]).unwrap();
+        assert_eq!(
+            identity.row_digest,
+            "07a1c08b91f9778a2a42e520e0097ebb20e9e438bd7da562f1e21c41d74f7b7a"
+        );
+    }
 }

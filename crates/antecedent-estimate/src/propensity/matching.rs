@@ -276,7 +276,7 @@ impl PropensityMatching {
         // `se_bootstrap` even when a caller still requests replicates.
         let _ = self.inference.bootstrap_replicates;
         self.require_read_inference()?;
-        validate_caliper(self.caliper)?;
+        crate::util::validate_caliper(self.caliper)?;
         let trim = trim_of(problem.overlap);
         let model = PropensityModel::fit(
             problem,
@@ -865,14 +865,6 @@ fn matched_outcome_diffs(
 }
 
 /// A caliper is a maximum distance: finite and non-negative.
-fn validate_caliper(caliper: Option<f64>) -> Result<(), EstimationError> {
-    match caliper {
-        Some(limit) if !(limit.is_finite() && limit >= 0.0) => {
-            Err(EstimationError::data_msg("matching caliper must be finite and non-negative"))
-        }
-        _ => Ok(()),
-    }
-}
 
 /// Exact nearest-donor index for one scalar score.
 ///
@@ -1945,11 +1937,11 @@ mod tests {
     /// A NaN, infinite or negative caliper is refused instead of matching at any distance.
     #[test]
     fn invalid_calipers_are_refused() {
-        assert!(validate_caliper(None).is_ok());
-        assert!(validate_caliper(Some(0.0)).is_ok());
-        assert!(validate_caliper(Some(0.2)).is_ok());
+        assert!(crate::util::validate_caliper(None).is_ok());
+        assert!(crate::util::validate_caliper(Some(0.0)).is_ok());
+        assert!(crate::util::validate_caliper(Some(0.2)).is_ok());
         for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -0.1] {
-            assert!(validate_caliper(Some(bad)).is_err(), "{bad}");
+            assert!(crate::util::validate_caliper(Some(bad)).is_err(), "{bad}");
         }
         let index = SortedScalarIndex::from_donors(&[10.0]);
         assert!(index.nearest(0.0, Some(f64::NAN)).is_none());

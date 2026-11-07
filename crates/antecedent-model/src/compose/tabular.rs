@@ -16,19 +16,9 @@ use antecedent_core::ExecutionContext;
 
 use super::coherence::check_composition;
 use super::descriptor::{ComposedModelSpec, MAX_FINITE_STATES, MechanismFamily, MechanismForm};
-use super::{COMPOSITION_STREAM_DOMAIN, CompositionError, noise_stream_index};
-
-/// A topological simulation refused a directed cycle and named the next attempt.
-fn cyclic_simulation_refusal(consumer: &'static str, attempt: &'static str) -> CompositionError {
-    CompositionError::Numerical {
-        message: antecedent_graph::error::CyclicDagRefusal::unsupported(
-            antecedent_graph::error::DagOperation::Simulation,
-            consumer,
-            attempt,
-        )
-        .to_string(),
-    }
-}
+use super::{
+    COMPOSITION_STREAM_DOMAIN, CompositionError, cyclic_simulation_refusal, noise_stream_index,
+};
 
 #[allow(
     clippy::float_cmp,

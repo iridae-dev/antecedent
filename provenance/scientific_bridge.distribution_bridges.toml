@@ -29,6 +29,12 @@ record_sha256 = "e310bcf2af1cd6e25c891df683e65f68e10831798461f3bb1849b683a68db2c
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
+path = "crates/antecedent-contract/src/bridge/refusal.rs"
+items = ["fn require_value_kind", "fn wrong_value_kind"]
+sha256 = "2402e0e7cdd581c74e6f24bc9c914f5fdee2aabae6cb0cd41d26fb2cc710eccc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
 path = "crates/antecedent-contract/src/bridge/draws.rs"
 items = ["enum DrawMapping", "fn contract", "fn kind", "fn mapping", "struct AffineDrawLaw", "struct CorrectionDrawLaw"]
 sha256 = "d46e62e588ee6dfee75661ac59af77ecfedfd0684a351bd734c01d24e71d62e9"

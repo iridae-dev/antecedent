@@ -21,7 +21,6 @@ use antecedent::contract::bridge::{
     TransportabilityPremise, TrialEffectPair, TrialLevelValidation, ValueKind,
     point_propagation_unavailable,
 };
-use antecedent::contract::evidence_ledger::parse_digest_hex;
 use antecedent::contract::{
     ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, ReasoningView, SlotAvailability,
 };
@@ -38,6 +37,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
 
+use crate::digest::digest;
 use crate::distribution_api::PyJointDistributionArtifact;
 use crate::measurement_model_api::{
     list, member, model_json, object, opt_text, parse, parse_model, present, real,
@@ -49,26 +49,24 @@ use crate::measurement_model_api::{
 // ---------------------------------------------------------------------------
 
 fn refusal_json(refusal: &ScientificBridgeRefusal) -> String {
-    json!({
-        "code": refusal.code,
-        "stage": "scientific_bridge",
-        "detail": refusal.detail,
-        "message": refusal.message,
-        "offending": Json::Null,
-        "remedy": refusal.remedy,
-    })
-    .to_string()
+    crate::bridge::compact_refusal_json(
+        refusal.code,
+        "scientific_bridge",
+        &refusal.detail,
+        &refusal.message,
+        refusal.remedy.as_deref(),
+    )
 }
 
 fn external_refusal_json(refusal: &antecedent::contract::ExternalRefusal) -> String {
-    json!({
-        "code": refusal.code,
-        "stage": "scientific_bridge",
-        "detail": refusal.detail,
-        "message": refusal.remedy.unwrap_or_default(),
-        "offending": refusal.offending,
-        "remedy": refusal.remedy,
-    })
+    crate::bridge::compact_refusal_value(
+        refusal.code,
+        "scientific_bridge",
+        &refusal.detail,
+        refusal.remedy.unwrap_or_default(),
+        refusal.offending.as_deref(),
+        refusal.remedy,
+    )
     .to_string()
 }
 
@@ -98,11 +96,6 @@ fn freshness_of(
 // ---------------------------------------------------------------------------
 // Declarations.
 // ---------------------------------------------------------------------------
-
-fn digest(value: &str, what: &str) -> PyResult<SemanticDigest> {
-    parse_digest_hex(value)
-        .ok_or_else(|| crate::value_err(format!("{what} must be 64 hexadecimal characters")))
-}
 
 fn parse_quantity(value: &Json) -> PyResult<ScientificQuantity> {
     let wire: ScientificQuantityWire = serde_json::from_value(value.clone())
@@ -722,8 +715,7 @@ impl BridgedClaimHandle {
     /// The refusal when a consumer requires another kind of object.
     fn require_value_kind(&self, kind: &str) -> PyResult<Option<String>> {
         crate::catch_ffi(|| {
-            let kind = ValueKind::from_name(kind)
-                .ok_or_else(|| crate::value_err(format!("unknown value kind `{kind}`")))?;
+            let kind = parse_requested_kind(kind)?;
             Ok(self.inner.require_value_kind(kind).err().map(|r| refusal_json(&r)))
         })
     }
@@ -824,8 +816,7 @@ impl ConsumedBridgeHandle {
     /// The refusal when a consumer requires another kind of object.
     fn require_value_kind(&self, kind: &str) -> PyResult<Option<String>> {
         crate::catch_ffi(|| {
-            let kind = ValueKind::from_name(kind)
-                .ok_or_else(|| crate::value_err(format!("unknown value kind `{kind}`")))?;
+            let kind = parse_requested_kind(kind)?;
             Ok(self
                 .inner
                 .bridged
@@ -1077,8 +1068,7 @@ impl BridgedDistributionHandle {
     /// The refusal when a consumer requires another kind of object.
     fn require_value_kind(&self, kind: &str) -> PyResult<Option<String>> {
         crate::catch_ffi(|| {
-            let kind = ValueKind::from_name(kind)
-                .ok_or_else(|| crate::value_err(format!("unknown value kind `{kind}`")))?;
+            let kind = parse_requested_kind(kind)?;
             Ok(self.inner.require_value_kind(kind).err().map(|r| refusal_json(&r)))
         })
     }
@@ -1210,4 +1200,45 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(scientific_bridge_distribution_consume, module)?)?;
     module.add_function(wrap_pyfunction!(scientific_bridge_shape, module)?)?;
     Ok(())
+}
+
+fn parse_requested_kind(kind: &str) -> PyResult<ValueKind> {
+    ValueKind::from_name(kind)
+        .ok_or_else(|| crate::value_err(format!("unknown value kind `{kind}`")))
+}
+
+#[cfg(test)]
+mod compact_refusal_caller_tests {
+    #[test]
+    fn kind_parse_keeps_names_and_unknown_text() {
+        pyo3::Python::initialize();
+        assert_eq!(super::parse_requested_kind("mean").unwrap(), super::ValueKind::Mean);
+        pyo3::Python::attach(|py| {
+            let error = super::parse_requested_kind("unknown\nkind").unwrap_err();
+            use pyo3::prelude::*;
+            assert_eq!(
+                error.value(py).str().unwrap().to_str().unwrap(),
+                "unknown value kind `unknown\nkind`"
+            );
+        });
+    }
+
+    use super::{ScientificBridgeRefusal, external_refusal_json, refusal_json};
+    use antecedent::contract::ExternalRefusal;
+
+    #[test]
+    fn scientific_native_and_external_refusals_keep_distinct_fields() {
+        let native = ScientificBridgeRefusal {
+            code: "invalid_argument",
+            detail: "scientific_bridge.example".into(),
+            message: "invalid input".into(),
+            remedy: Some(String::new()),
+        };
+        assert_eq!(refusal_json(&native), serde_json::json!({"code":"invalid_argument", "stage":"scientific_bridge", "detail":"scientific_bridge.example", "message":"invalid input", "offending":null, "remedy":""}).to_string());
+        let external =
+            ExternalRefusal::new("invalid_argument", "other", "scientific_bridge.example")
+                .with_offending("field")
+                .with_remedy("retry");
+        assert_eq!(external_refusal_json(&external), serde_json::json!({"code":"invalid_argument", "stage":"scientific_bridge", "detail":"scientific_bridge.example", "message":"retry", "offending":"field", "remedy":"retry"}).to_string());
+    }
 }

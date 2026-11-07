@@ -32,6 +32,12 @@ record_sha256 = "b2fbe69ad733e0ee9805cfdebd1d4193f60216e84b64bd5da03e60c7ed84699
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
+path = "crates/antecedent-graph/src/error.rs"
+items = ["fn temporal_admission_error"]
+sha256 = "5c979bea5c58f5a8f79ebe6d57414eb44900c86f3cee4d2829f951992d37e642"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
 path = "crates/antecedent-graph/src/unfold.rs"
 items = ["module"]
-sha256 = "a5eb6058d707729dbdbb5e397da4abe1501c31f4e937610c5a91060ad4bb6832"
+sha256 = "bbc06f1f58cedaf6c2d0d084c27185fb3addc9e10f61407150529600f851dcc8"

@@ -401,18 +401,7 @@ impl RecoveryArtifactWire {
 }
 
 fn data_digest(catalog: &EvidenceCatalog, law: &ExactLawWire) -> Result<String, IoError> {
-    let mut bindings = catalog
-        .bindings
-        .iter()
-        .map(|b| {
-            (
-                b.regime.raw(),
-                b.snapshot_identity.to_string(),
-                b.dataset_identity.as_deref().map(str::to_owned),
-            )
-        })
-        .collect::<Vec<_>>();
-    bindings.sort();
+    let bindings = crate::exact_transport_laws::sorted_catalog_bindings(catalog);
     crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &(

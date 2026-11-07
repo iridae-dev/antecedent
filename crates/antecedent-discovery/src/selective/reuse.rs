@@ -164,7 +164,7 @@ use antecedent_data::{
 use super::identity::{
     DataIdentity, Digest, SELECTIVE_IDENTITY_VERSION, column_digest, static_data_identity,
 };
-use super::refusal::SelectiveDiscoveryError;
+use super::refusal::{SelectiveDiscoveryError, invalid};
 use crate::error::DiscoveryError;
 
 const SPLIT_TAG: &str = "antecedent.selective_discovery.sample_split.v1";
@@ -174,14 +174,6 @@ const MASK_TAG: &str = "antecedent.selective_discovery.sample_split.mask.v1";
 fn not_supported(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
     SelectiveDiscoveryError::refused(
         antecedent_core::reason_code!("route_not_supported"),
-        detail,
-        remedy,
-    )
-}
-
-fn invalid(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
-    SelectiveDiscoveryError::refused(
-        antecedent_core::reason_code!("invalid_argument"),
         detail,
         remedy,
     )

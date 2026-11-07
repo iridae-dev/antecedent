@@ -994,10 +994,6 @@ pub(in crate::contract_section) fn note_replay_dependencies(
     }
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
-)]
 pub(in crate::contract_section) fn note_functional_and_nested_replay(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
@@ -1074,6 +1070,27 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
     if body.identification.query != body.query {
         unresolved.push(ContractReason::BodyIdentificationQuery);
     }
+    note_distribution_atom_replay(contract, body, unresolved, limits, posterior_distribution);
+    note_scalar_effect_replay(
+        contract,
+        body,
+        unresolved,
+        limits,
+        functional_effect,
+        posterior_functional_effect,
+        graph_posterior_functional_effect,
+    );
+    note_nested_point_replay(contract, body, unresolved, functional_effect);
+}
+
+/// Replay a point distribution when its executable program and factor laws are present.
+fn note_distribution_atom_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+    limits: &ReplayLimits,
+    posterior_distribution: bool,
+) {
     if is_functional_distribution_contract(contract)
         && !posterior_distribution
         && !functional_distribution_over_class(contract)
@@ -1108,6 +1125,18 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
             }
         }
     }
+}
+
+/// Replay a scalar functional effect or record its missing inputs.
+fn note_scalar_effect_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+    limits: &ReplayLimits,
+    functional_effect: bool,
+    posterior_functional_effect: bool,
+    graph_posterior_functional_effect: bool,
+) {
     if functional_effect && !posterior_functional_effect && !graph_posterior_functional_effect {
         match (
             contract.program.as_ref().and_then(|program| program.functional_program.as_ref()),
@@ -1138,6 +1167,15 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
             (None, Some(_)) => unresolved.push(ContractReason::ProgramFunctionalProgram),
         }
     }
+}
+
+/// Replay nested points that do not use the functional-effect route.
+fn note_nested_point_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+    functional_effect: bool,
+) {
     if matches!(contract.target.query, crate::CausalQueryWire::NestedCounterfactual { .. })
         && !functional_effect
     {
@@ -1587,48 +1625,155 @@ pub(in crate::contract_section) fn verify_stored_payloads(
     contract: &AnalysisResultContractWire,
 ) -> Vec<ContractReason> {
     let mut unresolved = Vec::new();
+    note_stored_payload_identities(contract, &mut unresolved);
+    note_functional_program_payload(contract, &mut unresolved);
+    let frontdoor =
+        contract.program.as_ref().and_then(|item| item.checked_frontdoor_lowering.as_ref());
+    if contract_uses_estimator(contract, "frontdoor.linear_two_stage") && frontdoor.is_none() {
+        unresolved.push(ContractReason::ProgramCheckedFrontdoorLowering);
+    }
+    if let Some(frontdoor) = frontdoor {
+        if !verify_frontdoor_lowering(contract, frontdoor) {
+            unresolved.push(ContractReason::ProgramFrontdoorBinding);
+        }
+    }
+    let checked_iv = contract.program.as_ref().and_then(|item| item.checked_iv_lowering.as_ref());
+    let is_checked_iv = matches!(contract.estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
+        || contract.program.as_ref().is_some_and(|item| {
+            matches!(item.commitments.resolved_estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
+        });
+    if is_checked_iv && checked_iv.is_none() {
+        unresolved.push(ContractReason::ProgramCheckedIvLowering);
+    }
+    if let Some(iv) = checked_iv {
+        if !verify_checked_iv(contract, iv) {
+            unresolved.push(ContractReason::ProgramCheckedIvBinding);
+        }
+    }
+    verify_checked_linear_adjustment(contract, &mut unresolved);
+    verify_checked_aipw(contract, &mut unresolved);
+    note_stored_payload_links(contract, &mut unresolved);
+    verify_checked_aipw_rows(contract, &mut unresolved);
+    verify_graph_posterior_programs(contract, &mut unresolved);
+    verify_layer_links(contract, &mut unresolved);
+    match contract_seal_of(contract) {
+        Ok(seal) if seal == contract.seal => {}
+        _ => unresolved.push(ContractReason::ContractSeal),
+    }
+    unresolved
+}
+
+/// Verify the reasoning slots and top-level payload identities.
+fn note_stored_payload_identities(
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
     require_slot(
-        &mut unresolved,
+        unresolved,
         ContractReason::ReasoningIdentification,
         &contract.reasoning.identification,
     );
-    require_slot(&mut unresolved, ContractReason::ReasoningSupport, &contract.reasoning.support);
-    require_slot(
-        &mut unresolved,
-        ContractReason::ReasoningUncertainty,
-        &contract.reasoning.uncertainty,
-    );
-    require_slot(
-        &mut unresolved,
-        ContractReason::ReasoningAssumptions,
-        &contract.reasoning.assumptions,
-    );
+    require_slot(unresolved, ContractReason::ReasoningSupport, &contract.reasoning.support);
+    require_slot(unresolved, ContractReason::ReasoningUncertainty, &contract.reasoning.uncertainty);
+    require_slot(unresolved, ContractReason::ReasoningAssumptions, &contract.reasoning.assumptions);
     match digest_wire(IdentityDomain::Target, &contract.target) {
         Ok(target) if target.as_bytes() == &contract.identities.target => {}
         Ok(_) => unresolved.push(ContractReason::IdentitiesTarget),
         Err(_) => unresolved.push(ContractReason::TargetPayload),
     }
     require_payload_digest(
-        &mut unresolved,
+        unresolved,
         ContractReason::IdentitiesIdentification,
         contract.identification.as_ref(),
         Some(&contract.identities.identification),
         identification_digest,
     );
     require_payload_digest(
-        &mut unresolved,
+        unresolved,
         ContractReason::IdentitiesIdentificationProduct,
         contract.identification_product.as_ref(),
         contract.identities.identification_product.as_ref(),
         identification_product_digest_wire,
     );
     require_payload_digest(
-        &mut unresolved,
+        unresolved,
         ContractReason::IdentitiesProgram,
         contract.program.as_ref(),
         Some(&contract.identities.program),
         program_digest,
     );
+}
+
+/// Verify the inference, observation, execution, and nested identity links.
+fn note_stored_payload_links(
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
+    require_payload_digest(
+        unresolved,
+        ContractReason::IdentitiesInferenceBinding,
+        contract.inference_binding.as_ref(),
+        Some(&contract.identities.inference_binding),
+        inference_binding_digest,
+    );
+    require_payload_digest(
+        unresolved,
+        ContractReason::IdentitiesObservation,
+        contract.observation.as_ref(),
+        Some(&contract.identities.observation),
+        |observation| digest_wire(IdentityDomain::Observation, observation),
+    );
+    require_payload_digest(
+        unresolved,
+        ContractReason::IdentitiesDataSnapshot,
+        contract.data_snapshot.as_ref(),
+        Some(&contract.identities.data_snapshot),
+        data_snapshot_digest,
+    );
+    require_payload_digest(
+        unresolved,
+        ContractReason::IdentitiesExecution,
+        contract.execution.as_ref(),
+        contract.identities.execution.as_ref(),
+        execution_digest,
+    );
+    require_nested_digest(
+        unresolved,
+        ContractReason::IdentitiesExecution,
+        contract.identities.execution,
+        contract.claim.as_ref().and_then(|claim| claim.execution.as_ref()),
+    );
+    require_nested_digest(
+        unresolved,
+        ContractReason::ProgramTarget,
+        contract.program.as_ref().map(|item| item.target),
+        Some(&contract.identities.target),
+    );
+    require_nested_digest(
+        unresolved,
+        ContractReason::ProgramIdentification,
+        contract.program.as_ref().map(|item| item.identification),
+        Some(&contract.identities.identification),
+    );
+    require_nested_digest(
+        unresolved,
+        ContractReason::ProgramIdentificationProduct,
+        contract.program.as_ref().and_then(|item| item.identification_product),
+        contract.identities.identification_product.as_ref(),
+    );
+    require_nested_digest(
+        unresolved,
+        ContractReason::DataSnapshotObservation,
+        contract.data_snapshot.as_ref().map(|item| item.observation),
+        Some(&contract.identities.observation),
+    );
+}
+
+/// Verify the executable functional program and its identification binding.
+fn note_functional_program_payload(
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
     let graph_posterior_functional_effect = (contract.structure_source == "graph_posterior"
         && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
         && contract
@@ -1721,283 +1866,15 @@ pub(in crate::contract_section) fn verify_stored_payloads(
             unresolved.push(ContractReason::ProgramFunctionalBinding);
         }
     }
-    let frontdoor =
-        contract.program.as_ref().and_then(|item| item.checked_frontdoor_lowering.as_ref());
-    if contract_uses_estimator(contract, "frontdoor.linear_two_stage") && frontdoor.is_none() {
-        unresolved.push(ContractReason::ProgramCheckedFrontdoorLowering);
-    }
-    if let Some(frontdoor) = frontdoor {
-        if !verify_frontdoor_lowering(contract, frontdoor) {
-            unresolved.push(ContractReason::ProgramFrontdoorBinding);
-        }
-    }
-    let checked_iv = contract.program.as_ref().and_then(|item| item.checked_iv_lowering.as_ref());
-    let is_checked_iv = matches!(contract.estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
-        || contract.program.as_ref().is_some_and(|item| {
-            matches!(item.commitments.resolved_estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
-        });
-    if is_checked_iv && checked_iv.is_none() {
-        unresolved.push(ContractReason::ProgramCheckedIvLowering);
-    }
-    if let Some(iv) = checked_iv {
-        if !verify_checked_iv(contract, iv) {
-            unresolved.push(ContractReason::ProgramCheckedIvBinding);
-        }
-    }
-    verify_checked_linear_adjustment(contract, &mut unresolved);
-    verify_checked_aipw(contract, &mut unresolved);
-    require_payload_digest(
-        &mut unresolved,
-        ContractReason::IdentitiesInferenceBinding,
-        contract.inference_binding.as_ref(),
-        Some(&contract.identities.inference_binding),
-        inference_binding_digest,
-    );
-    require_payload_digest(
-        &mut unresolved,
-        ContractReason::IdentitiesObservation,
-        contract.observation.as_ref(),
-        Some(&contract.identities.observation),
-        |observation| digest_wire(IdentityDomain::Observation, observation),
-    );
-    require_payload_digest(
-        &mut unresolved,
-        ContractReason::IdentitiesDataSnapshot,
-        contract.data_snapshot.as_ref(),
-        Some(&contract.identities.data_snapshot),
-        data_snapshot_digest,
-    );
-    require_payload_digest(
-        &mut unresolved,
-        ContractReason::IdentitiesExecution,
-        contract.execution.as_ref(),
-        contract.identities.execution.as_ref(),
-        execution_digest,
-    );
-    require_nested_digest(
-        &mut unresolved,
-        ContractReason::IdentitiesExecution,
-        contract.identities.execution,
-        contract.claim.as_ref().and_then(|claim| claim.execution.as_ref()),
-    );
-    require_nested_digest(
-        &mut unresolved,
-        ContractReason::ProgramTarget,
-        contract.program.as_ref().map(|item| item.target),
-        Some(&contract.identities.target),
-    );
-    require_nested_digest(
-        &mut unresolved,
-        ContractReason::ProgramIdentification,
-        contract.program.as_ref().map(|item| item.identification),
-        Some(&contract.identities.identification),
-    );
-    require_nested_digest(
-        &mut unresolved,
-        ContractReason::ProgramIdentificationProduct,
-        contract.program.as_ref().and_then(|item| item.identification_product),
-        contract.identities.identification_product.as_ref(),
-    );
-    require_nested_digest(
-        &mut unresolved,
-        ContractReason::DataSnapshotObservation,
-        contract.data_snapshot.as_ref().map(|item| item.observation),
-        Some(&contract.identities.observation),
-    );
-    verify_checked_aipw_rows(contract, &mut unresolved);
-    verify_graph_posterior_programs(contract, &mut unresolved);
-    verify_layer_links(contract, &mut unresolved);
-    match contract_seal_of(contract) {
-        Ok(seal) if seal == contract.seal => {}
-        _ => unresolved.push(ContractReason::ContractSeal),
-    }
-    unresolved
 }
 
-/// Identification atoms (posterior samples) of a graph-posterior contract.
-fn posterior_identification_atoms(
-    contract: &AnalysisResultContractWire,
-) -> Option<&[crate::PosteriorAtomIdentityWire]> {
-    match &contract.identification.as_ref()?.graph {
-        crate::GraphIdentityWire::GraphPosterior { atoms, .. } => Some(atoms),
-        _ => None,
-    }
-}
-
-/// Check the per-atom programs of a static graph-posterior functional result against what the
-/// contract itself attests: the digest chain over the mixing rule, weights and programs; the
-/// atoms' samples, weights and structures against the identification payload; and each
-/// program against the target schema. A tampered atom program, weight or mixing rule fails
-/// here even when the payload digests and the section seal are recomputed.
-pub(in crate::contract_section) fn verify_graph_posterior_programs(
-    contract: &AnalysisResultContractWire,
-    unresolved: &mut Vec<ContractReason>,
-) {
-    if !graph_posterior_cross_world(contract) {
-        return;
-    }
-    let Some(programs) =
-        contract.program.as_ref().and_then(|program| program.graph_posterior_programs.as_ref())
-    else {
-        unresolved.push(ContractReason::ProgramGraphPosteriorPrograms);
-        return;
-    };
-    let chain_ok = programs.format == antecedent_core::IDENTITY_FORMAT
-        && programs.mixing == crate::GRAPH_POSTERIOR_MIXING_RULE
-        && crate::GraphPosteriorProgramsWire::compute_chain(&programs.mixing, &programs.atoms)
-            .is_ok_and(|chain| chain == programs.chain);
-    if !chain_ok {
-        unresolved.push(ContractReason::ProgramGraphPosteriorPrograms);
-    }
-    let Some(samples) = posterior_identification_atoms(contract) else {
-        unresolved.push(ContractReason::ProgramGraphPosteriorProgramsBinding);
-        return;
-    };
-    let expected_variables: Vec<_> = contract
-        .target
-        .schema
-        .variables
-        .iter()
-        .map(|variable| (variable.id, variable.name.clone()))
-        .collect();
-    let mut claimed = vec![false; samples.len()];
-    let mut keys = std::collections::BTreeSet::new();
-    let mut bound = true;
-    for atom in &programs.atoms {
-        bound &= keys.insert(atom.graph_key) && !atom.samples.is_empty();
-        let mut weight = 0.0_f64;
-        let mut structure = None;
-        for &index in &atom.samples {
-            let slot = usize::try_from(index).ok().filter(|slot| *slot < samples.len());
-            let Some(slot) = slot else {
-                bound = false;
-                continue;
-            };
-            bound &= !std::mem::replace(&mut claimed[slot], true);
-            weight += f64::from_bits(samples[slot].weight_bits);
-            bound &= structure.is_none_or(|graph| graph == &samples[slot].graph);
-            structure = Some(&samples[slot].graph);
-        }
-        let reported = f64::from_bits(atom.weight_bits);
-        bound &= reported.is_finite()
-            && (reported - weight).abs() <= ATOM_WEIGHT_RELATIVE_TOLERANCE * weight.abs().max(1.0);
-        let class_atom = matches!(
-            structure,
-            Some(crate::PosteriorAtomGraphWire::Cpdag(_) | crate::PosteriorAtomGraphWire::Pag(_))
-        );
-        let single_atom = matches!(
-            structure,
-            Some(
-                crate::PosteriorAtomGraphWire::Static(_)
-                    | crate::PosteriorAtomGraphWire::Admg(_)
-                    | crate::PosteriorAtomGraphWire::TemporalAdmg(_)
-            )
-        );
-        // A single structure is answered by one program, a class by its identification
-        // product; a refused or non-member atom carries neither.
-        bound &= match (&atom.functional_program, &atom.identification_product) {
-            (None, None) => true,
-            (Some(program), None) => {
-                single_atom
-                    && program.source == program.executable
-                    && program.variables == expected_variables
-                    && crate::functional_program_from_wire(
-                        program,
-                        antecedent_expr::ProgramLimits::default(),
-                    )
-                    .is_ok()
-            }
-            (None, Some(product)) => {
-                class_atom
-                    && product.envelope.is_some()
-                    && identification_product_digest_wire(product).is_ok()
-            }
-            (Some(_), Some(_)) => false,
-        };
-    }
-    bound &= claimed.iter().all(|claimed| *claimed);
-    if !bound {
-        unresolved.push(ContractReason::ProgramGraphPosteriorProgramsBinding);
-    }
-}
-
-/// Check the per-atom programs against the result body's structural mixture: the same atoms
-/// with the same weights, an evaluated atom carried by a program or class product, and the
-/// unidentified mass covering every atom the contract holds no program for.
-pub(in crate::contract_section) fn verify_graph_posterior_mixture(
-    contract: &AnalysisResultContractWire,
-    body: &AnalysisResultWire,
-    unresolved: &mut Vec<ContractReason>,
-) {
-    if !graph_posterior_cross_world(contract) {
-        return;
-    }
-    let Some(programs) =
-        contract.program.as_ref().and_then(|program| program.graph_posterior_programs.as_ref())
-    else {
-        return;
-    };
-    let Some(mixture) = body.structural_response.as_ref() else {
-        unresolved.push(ContractReason::BodyResponse);
-        return;
-    };
-    let mut consistent = mixture.atoms.len() == programs.atoms.len();
-    let published_by_key = first_published_atoms(&mixture.atoms);
-    let mut uncovered = 0.0_f64;
-    for atom in &programs.atoms {
-        let Some(published) = published_by_key.get(&atom.graph_key) else {
-            consistent = false;
-            continue;
-        };
-        let weight = f64::from_bits(atom.weight_bits);
-        let carried = atom.functional_program.is_some() || atom.identification_product.is_some();
-        consistent &= summed_masses_agree(published.weight, weight);
-        consistent &= published.value.is_none() || carried;
-        consistent &= carried
-            || published.identification_status == crate::IdentificationStatusWire::NotIdentified;
-        if !carried {
-            uncovered += weight;
-        }
-    }
-    consistent &= mixture.unidentified_mass + SUMMED_MASS_TOLERANCE >= uncovered;
-    consistent &= mixture_recomputes(mixture);
-    if !consistent {
-        unresolved.push(ContractReason::ProgramGraphPosteriorProgramsBinding);
-    }
-}
-
-/// Index atoms without changing which entry a duplicate key resolves to.
-fn first_published_atoms(
-    atoms: &[crate::StructuralResponseAtomWire],
-) -> std::collections::BTreeMap<u64, &crate::StructuralResponseAtomWire> {
-    let mut by_key = std::collections::BTreeMap::new();
-    for atom in atoms {
-        by_key.entry(atom.graph_key).or_insert(atom);
-    }
-    by_key
-}
-
-/// Recompute the identified-mass-conditional scalar from the published atoms: the
-/// weight-averaged value over the finite scalar atoms. Mixtures that carry no scalar
-/// conditional, or whose atoms are not all scalar, are left to the structural checks.
-fn mixture_recomputes(mixture: &crate::StructuralResponseMixtureWire) -> bool {
-    let Some(crate::ResponseValueWire::Scalar(stored)) = mixture.conditional_on_identified.as_ref()
-    else {
-        return true;
-    };
-    let (mut weight, mut weighted) = (0.0_f64, 0.0_f64);
-    for atom in &mixture.atoms {
-        match atom.value.as_ref() {
-            Some(crate::ResponseValueWire::Scalar(value)) if value.is_finite() => {
-                weight += atom.weight;
-                weighted += atom.weight * value;
-            }
-            Some(crate::ResponseValueWire::Scalar(_)) | None => {}
-            Some(_) => return true,
-        }
-    }
-    weight > 0.0 && close_replay_value(*stored, weighted / weight)
-}
+#[path = "verify/graph_posterior.rs"]
+mod graph_posterior;
+#[cfg(test)]
+use graph_posterior::first_published_atoms;
+use graph_posterior::{
+    posterior_identification_atoms, verify_graph_posterior_mixture, verify_graph_posterior_programs,
+};
 
 #[cfg(test)]
 mod posterior_index_tests {

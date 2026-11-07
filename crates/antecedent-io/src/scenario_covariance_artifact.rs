@@ -112,10 +112,7 @@ impl From<ScenarioCovarianceArtifactError> for IoError {
 }
 
 fn invalid(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: reason_code!("invalid_argument"),
-        message: format!("{detail}: {message}"),
-    }
+    crate::refusal::refused(reason_code!("invalid_argument"), detail, message)
 }
 
 fn unknown_dependence(message: &str) -> IoError {

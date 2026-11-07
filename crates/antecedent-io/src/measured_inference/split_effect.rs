@@ -16,6 +16,7 @@
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };
+use super::{invalid as malformed, refused};
 use crate::IoError;
 use antecedent_core::{CalibrationBasis, ExecutionContext, IdentityDomain, RngFactory, VariableId};
 use antecedent_data::{TableView, TabularData};
@@ -60,17 +61,6 @@ pub const MIN_VARIABLES: usize = 5;
 pub const MAX_VARIABLES: usize = 7;
 const MAX_ROWS: usize = 1 << 20;
 const FORMAT_VERSION: u32 = 1;
-
-fn refused(code: &'static str, detail: &str, message: &str) -> IoError {
-    IoError::Refused { code, message: format!("{detail}: {message}") }
-}
-
-fn malformed(detail: &str, message: &str) -> IoError {
-    IoError::Refused {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        message: format!("{detail}: {message}"),
-    }
-}
 
 pub(super) fn discovery_refusal(error: &SelectiveDiscoveryError) -> IoError {
     match error {
@@ -154,39 +144,19 @@ impl SplitEffectSource {
     }
 
     fn validate(&self) -> Result<usize, IoError> {
-        let k = self.columns.len();
-        if self.version != FORMAT_VERSION || self.names.len() != k {
-            return Err(malformed(
-                antecedent_core::reason_details::split_effect::SOURCE_INVALID,
-                "unknown format version or names and columns of different counts",
-            ));
-        }
-        if k < 3 {
-            return Err(malformed(
-                antecedent_core::reason_details::split_effect::SOURCE_INVALID,
-                "a treatment, an outcome and at least one more searched variable are needed",
-            ));
-        }
-        let rows = self.columns[0].len();
-        if !(8..=MAX_ROWS).contains(&rows) || self.columns.iter().any(|c| c.len() != rows) {
-            return Err(malformed(
-                antecedent_core::reason_details::split_effect::SOURCE_INVALID,
-                "columns must have one length between 8 and 2^20 rows",
-            ));
-        }
-        if self.columns.iter().flatten().any(|v| !v.is_finite()) {
-            return Err(malformed(
-                antecedent_core::reason_details::split_effect::SOURCE_INVALID,
-                "missing or non-finite values are not supported",
-            ));
-        }
-        let (t, y) = (self.treatment as usize, self.outcome as usize);
-        if t >= k || y >= k || t == y {
-            return Err(malformed(
-                antecedent_core::reason_details::split_effect::SOURCE_INVALID,
-                "treatment and outcome must be two distinct columns",
-            ));
-        }
+        super::validate_split_header(
+            self.version == FORMAT_VERSION,
+            self.names.len(),
+            self.columns.len(),
+            antecedent_core::reason_details::split_effect::SOURCE_INVALID,
+        )?;
+        let rows = super::validate_split_columns(
+            &self.columns,
+            self.treatment,
+            self.outcome,
+            MAX_ROWS,
+            antecedent_core::reason_details::split_effect::SOURCE_INVALID,
+        )?;
         Ok(rows)
     }
 

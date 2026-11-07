@@ -4,10 +4,10 @@
 
 use super::schema::SchemaView;
 use super::{
-    AdmissionError, AdmissionLease, Arc, ArrowCStream, BatchProvider, ChunkIndex, ColumnClosure,
-    ColumnDigest, ColumnState, DecodeNeed, ExecutionContext, FileColumn, FileContentIdentity,
-    FileSourceError, GlobalId, MemoryStage, OwnedColumn, PathBuf, ReadOptions, ReadPlan,
-    RecordBatch, RowCursor, TableFileFormat, chunk_local_index, fmt, memory_refusal, provider,
+    AdmissionLease, Arc, ArrowCStream, BatchProvider, ChunkIndex, ColumnClosure, ColumnDigest,
+    ColumnState, DecodeNeed, ExecutionContext, FileColumn, FileContentIdentity, FileSourceError,
+    GlobalId, MemoryStage, OwnedColumn, PathBuf, ReadOptions, ReadPlan, RecordBatch, RowCursor,
+    TableFileFormat, admit_file_bytes, chunk_local_index, fmt, provider,
 };
 
 /// An Arrow C stream read once, in bounded chunks.
@@ -461,19 +461,7 @@ impl TableChunkReader {
         stage: MemoryStage,
         bytes: u64,
     ) -> Result<AdmissionLease, FileSourceError> {
-        match self.ctx.acquire_admission(0, bytes) {
-            Ok(lease) => Ok(lease),
-            Err(AdmissionError::Cancelled) => Err(FileSourceError::Cancelled),
-            Err(AdmissionError::ExceedsRemainder { remaining_bytes, .. }) => {
-                Err(memory_refusal(stage, bytes, remaining_bytes, self.plan.chunk_rows))
-            }
-            Err(_) => Err(memory_refusal(
-                stage,
-                bytes,
-                self.ctx.admission.available().bytes(),
-                self.plan.chunk_rows,
-            )),
-        }
+        admit_file_bytes(&self.ctx, stage, bytes, self.plan.chunk_rows)
     }
 
     /// Start a new pass from the first row.

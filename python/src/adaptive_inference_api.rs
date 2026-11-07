@@ -30,14 +30,14 @@ use crate::transport_common::execution_context;
 pub(crate) type Refused<T> = (Option<T>, Option<String>);
 
 fn refusal_value(refusal: &AdaptiveInferenceRefusal) -> Json {
-    json!({
-        "code": refusal.code,
-        "stage": "adaptive_inference",
-        "detail": refusal.detail,
-        "message": refusal.message,
-        "offending": Json::Null,
-        "remedy": Json::Null,
-    })
+    crate::bridge::compact_refusal_value(
+        refusal.code,
+        "adaptive_inference",
+        &refusal.detail,
+        &refusal.message,
+        None,
+        None,
+    )
 }
 
 pub(crate) fn refused<T>(refusal: &AdaptiveInferenceRefusal) -> Refused<T> {
@@ -536,4 +536,29 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(adaptive_inference_result_consume, module)?)?;
     module.add_function(wrap_pyfunction!(adaptive_procedure_matrix, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod compact_refusal_caller_tests {
+    use super::{AdaptiveInferenceRefusal, refusal_value, refused_all};
+
+    #[test]
+    fn adaptive_refusal_values_and_aggregation_keep_their_shape() {
+        let first = AdaptiveInferenceRefusal {
+            code: "invalid_argument",
+            detail: "adaptive.first".into(),
+            message: "first".into(),
+        };
+        let second = AdaptiveInferenceRefusal {
+            code: "route_not_supported",
+            detail: "adaptive.second".into(),
+            message: "second".into(),
+        };
+        let expected_first = serde_json::json!({"code":"invalid_argument", "stage":"adaptive_inference", "detail":"adaptive.first", "message":"first", "offending":null, "remedy":null});
+        assert_eq!(refusal_value(&first), expected_first);
+        let (_, wire): (Option<()>, _) = refused_all(&[first, second]);
+        let parsed: serde_json::Value = serde_json::from_str(&wire.unwrap()).unwrap();
+        assert_eq!(parsed["code"], "invalid_argument");
+        assert_eq!(parsed["refusals"].as_array().unwrap().len(), 2);
+    }
 }

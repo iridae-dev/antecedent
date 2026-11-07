@@ -36,16 +36,8 @@ use crate::pcmci_plus::PcmciPlus;
 use crate::result::LaggedLink;
 
 use super::identity::{DataIdentity, Digest, SELECTIVE_IDENTITY_VERSION};
-use super::refusal::SelectiveDiscoveryError;
+use super::refusal::{SelectiveDiscoveryError, invalid};
 use super::stages::StageInputs;
-
-fn invalid(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
-    SelectiveDiscoveryError::refused(
-        antecedent_core::reason_code!("invalid_argument"),
-        detail,
-        remedy,
-    )
-}
 
 fn not_supported(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
     SelectiveDiscoveryError::refused(

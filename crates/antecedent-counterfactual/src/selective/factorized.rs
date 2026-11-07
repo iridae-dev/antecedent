@@ -48,7 +48,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 
-use super::finite_scm::{CompiledScm, FactualUnit, FiniteQuantity, WorldPlan};
+use super::finite_scm::{CompiledScm, FactualUnit, FiniteQuantity, FiniteScm, WorldPlan};
 use super::refusal::{CrossWorldExecutionError, invalid, poll, refuse};
 
 /// Most entries of any table the elimination forms (a factor or an intermediate product).
@@ -125,37 +125,14 @@ pub(crate) struct EliminationWork {
     pub multiplications: u64,
 }
 
-/// Exact `E[q | evidence]` for one unit by variable elimination.
-///
-/// `plans` holds one plan per request world followed by the factual world's plan (no
-/// interventions, no routes); the factual world is `plans.len() - 1`.
-///
-/// # Errors
-/// Cancellation; evidence with zero probability (`evidence_outside_model_support`) or a positive
-/// probability below the smallest `f64` (`evidence_probability_underflow`); a plan above the
-/// table or node bound (`elimination_bound_exceeded`); a request above the work budget
-/// (`bounds_exceeded`).
-#[allow(
-    clippy::too_many_lines,
-    reason = "one pass: build the factor graph, then eliminate in a fixed greedy order"
-)]
-#[allow(clippy::match_on_vec_items, reason = "the queue only contains indices of retained labels")]
-#[allow(
-    clippy::needless_range_loop,
-    reason = "the algorithm follows the world and variable indexing"
-)]
-pub(crate) fn infer_unit(
-    compiled: &CompiledScm<'_>,
+fn factor_dependencies(
+    scm: &FiniteScm,
     plans: &[WorldPlan],
     quantity: &FiniteQuantity,
     unit: &FactualUnit,
-    work: &mut EliminationWork,
-    ctx: &ExecutionContext,
-) -> Result<UnitInference, CrossWorldExecutionError> {
-    let scm = compiled.scm;
+) -> (Vec<Vec<bool>>, Vec<bool>) {
     let n_vars = scm.variables.len();
     let factual = plans.len() - 1;
-
     // ---- which (world, variable) pairs and exogenous terms the answer depends on ----
     let mut needed = vec![vec![false; n_vars]; plans.len()];
     for (world, variable) in quantity.atoms() {
@@ -178,37 +155,102 @@ pub(crate) fn infer_unit(
             }
         }
     }
-    let observed: BTreeMap<usize, u8> = unit.observed.iter().copied().collect();
-    let constant = |world: usize, variable: usize| -> Option<u8> {
-        plans[world].fixed[variable]
-            .or_else(|| if world == factual { observed.get(&variable).copied() } else { None })
-    };
+    (needed, exogenous_needed)
+}
 
-    // ---- variables ----
-    let mut labels: Vec<Label> = Vec::new();
-    let mut domains: Vec<usize> = Vec::new();
-    let mut exogenous_node: Vec<Option<usize>> = vec![None; scm.exogenous.len()];
-    for (k, exo) in scm.exogenous.iter().enumerate() {
-        if exogenous_needed[k] {
-            exogenous_node[k] = Some(labels.len());
-            labels.push(Label::Exogenous(k));
-            domains.push(exo.pmf.len());
-        }
-    }
-    let mut world_node: BTreeMap<(usize, usize), usize> = BTreeMap::new();
-    for variable in 0..n_vars {
-        for world in 0..plans.len() {
-            if needed[world][variable] && constant(world, variable).is_none() {
-                world_node.insert((world, variable), labels.len());
-                labels.push(Label::World { world, variable });
-                domains.push(scm.variables[variable].levels);
+struct EliminationGraph {
+    holders: Vec<BTreeSet<usize>>,
+    adjacent: Vec<BTreeSet<usize>>,
+    queue: BTreeSet<(u64, usize)>,
+    weight: Vec<u64>,
+}
+
+fn elimination_weight(node: usize, adjacent: &[BTreeSet<usize>], domains: &[usize]) -> u64 {
+    let cells = product(adjacent[node].iter().map(|v| domains[*v]));
+    u64::try_from(cells).unwrap_or(u64::MAX)
+}
+
+fn build_elimination_graph(
+    node_count: usize,
+    factors: &[Option<Factor>],
+    query: &BTreeSet<usize>,
+    domains: &[usize],
+) -> EliminationGraph {
+    let mut holders: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); node_count];
+    let mut adjacent: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); node_count];
+    for (id, factor) in factors.iter().enumerate() {
+        let Some(factor) = factor else { continue };
+        for &a in &factor.vars {
+            holders[a].insert(id);
+            for &b in &factor.vars {
+                if a != b {
+                    adjacent[a].insert(b);
+                }
             }
         }
     }
-    if labels.len() > MAX_ELIMINATION_NODES {
-        return Err(bound_exceeded("variables"));
+    let mut queue: BTreeSet<(u64, usize)> = BTreeSet::new();
+    let mut weight: Vec<u64> = vec![0; node_count];
+    for node in (0..node_count).filter(|n| !query.contains(n)) {
+        weight[node] = elimination_weight(node, &adjacent, domains);
+        queue.insert((weight[node], node));
     }
 
+    EliminationGraph { holders, adjacent, queue, weight }
+}
+
+fn answer_table_value(
+    table: &Factor,
+    domains: &[usize],
+    world_node: &BTreeMap<(usize, usize), usize>,
+    quantity: &FiniteQuantity,
+    total: f64,
+    constant: impl Fn(usize, usize) -> Option<u8>,
+) -> f64 {
+    // The quantity over the answer table, reading constants for intervened atoms.
+    let mut value = 0.0;
+    let dims: Vec<usize> = table.vars.iter().map(|v| domains[*v]).collect();
+    let mut assignment = vec![0usize; table.vars.len()];
+    for mass in &table.data {
+        let at = |world: usize, variable: usize| -> u8 {
+            match world_node.get(&(world, variable)) {
+                Some(node) => {
+                    let position = table.vars.iter().position(|v| v == node);
+                    // Levels fit the `u8` level code by the declaration bound.
+                    position.map_or(0, |p| u8::try_from(assignment[p]).unwrap_or(u8::MAX))
+                }
+                None => constant(world, variable).unwrap_or(0),
+            }
+        };
+        value += (mass / total) * quantity.at_lookup(at);
+        for p in (0..assignment.len()).rev() {
+            assignment[p] += 1;
+            if assignment[p] < dims[p] {
+                break;
+            }
+            assignment[p] = 0;
+        }
+    }
+
+    value
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the factor builder reads the compiled graph and its unit-specific node mapping"
+)]
+fn build_factors(
+    compiled: &CompiledScm<'_>,
+    plans: &[WorldPlan],
+    needed: &[Vec<bool>],
+    exogenous_node: &[Option<usize>],
+    world_node: &BTreeMap<(usize, usize), usize>,
+    domains: &[usize],
+    constant: impl Fn(usize, usize) -> Option<u8>,
+    ctx: &ExecutionContext,
+) -> Result<Vec<Option<Factor>>, CrossWorldExecutionError> {
+    let scm = compiled.scm;
+    let n_vars = scm.variables.len();
     // ---- factors ----
     let mut factors: Vec<Option<Factor>> = Vec::new();
     let mut cells_since_poll = 0usize;
@@ -296,6 +338,82 @@ pub(crate) fn infer_unit(
             factors.push(Some(Factor { vars: scope, data }));
         }
     }
+    Ok(factors)
+}
+
+/// Exact `E[q | evidence]` for one unit by variable elimination.
+///
+/// `plans` holds one plan per request world followed by the factual world's plan (no
+/// interventions, no routes); the factual world is `plans.len() - 1`.
+///
+/// # Errors
+/// Cancellation; evidence with zero probability (`evidence_outside_model_support`) or a positive
+/// probability below the smallest `f64` (`evidence_probability_underflow`); a plan above the
+/// table or node bound (`elimination_bound_exceeded`); a request above the work budget
+/// (`bounds_exceeded`).
+#[allow(
+    clippy::too_many_lines,
+    reason = "one pass: build the factor graph, then eliminate in a fixed greedy order"
+)]
+#[allow(clippy::match_on_vec_items, reason = "the queue only contains indices of retained labels")]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the algorithm follows the world and variable indexing"
+)]
+pub(crate) fn infer_unit(
+    compiled: &CompiledScm<'_>,
+    plans: &[WorldPlan],
+    quantity: &FiniteQuantity,
+    unit: &FactualUnit,
+    work: &mut EliminationWork,
+    ctx: &ExecutionContext,
+) -> Result<UnitInference, CrossWorldExecutionError> {
+    let scm = compiled.scm;
+    let n_vars = scm.variables.len();
+    let factual = plans.len() - 1;
+
+    let (needed, exogenous_needed) = factor_dependencies(scm, plans, quantity, unit);
+    let observed: BTreeMap<usize, u8> = unit.observed.iter().copied().collect();
+    let constant = |world: usize, variable: usize| -> Option<u8> {
+        plans[world].fixed[variable]
+            .or_else(|| if world == factual { observed.get(&variable).copied() } else { None })
+    };
+
+    // ---- variables ----
+    let mut labels: Vec<Label> = Vec::new();
+    let mut domains: Vec<usize> = Vec::new();
+    let mut exogenous_node: Vec<Option<usize>> = vec![None; scm.exogenous.len()];
+    for (k, exo) in scm.exogenous.iter().enumerate() {
+        if exogenous_needed[k] {
+            exogenous_node[k] = Some(labels.len());
+            labels.push(Label::Exogenous(k));
+            domains.push(exo.pmf.len());
+        }
+    }
+    let mut world_node: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+    for variable in 0..n_vars {
+        for world in 0..plans.len() {
+            if needed[world][variable] && constant(world, variable).is_none() {
+                world_node.insert((world, variable), labels.len());
+                labels.push(Label::World { world, variable });
+                domains.push(scm.variables[variable].levels);
+            }
+        }
+    }
+    if labels.len() > MAX_ELIMINATION_NODES {
+        return Err(bound_exceeded("variables"));
+    }
+
+    let mut factors = build_factors(
+        compiled,
+        plans,
+        &needed,
+        &exogenous_node,
+        &world_node,
+        &domains,
+        constant,
+        ctx,
+    )?;
     let n_factors = factors.len();
 
     // ---- query variables (the world variables the quantity reads) ----
@@ -306,29 +424,8 @@ pub(crate) fn infer_unit(
         .collect();
 
     // ---- interaction graph and greedy elimination ----
-    let mut holders: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); labels.len()];
-    let mut adjacent: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); labels.len()];
-    for (id, factor) in factors.iter().enumerate() {
-        let Some(factor) = factor else { continue };
-        for &a in &factor.vars {
-            holders[a].insert(id);
-            for &b in &factor.vars {
-                if a != b {
-                    adjacent[a].insert(b);
-                }
-            }
-        }
-    }
-    let weight_of = |node: usize, adjacent: &[BTreeSet<usize>]| -> u64 {
-        let cells = product(adjacent[node].iter().map(|v| domains[*v]));
-        u64::try_from(cells).unwrap_or(u64::MAX)
-    };
-    let mut queue: BTreeSet<(u64, usize)> = BTreeSet::new();
-    let mut weight: Vec<u64> = vec![0; labels.len()];
-    for node in (0..labels.len()).filter(|n| !query.contains(n)) {
-        weight[node] = weight_of(node, &adjacent);
-        queue.insert((weight[node], node));
-    }
+    let EliminationGraph { mut holders, mut adjacent, mut queue, mut weight } =
+        build_elimination_graph(labels.len(), &factors, &query, &domains);
 
     let mut log_scale = 0.0f64;
     let mut peak = 0usize;
@@ -389,7 +486,7 @@ pub(crate) fn infer_unit(
         for &a in &neighbours {
             if !query.contains(&a) {
                 queue.remove(&(weight[a], a));
-                weight[a] = weight_of(a, &adjacent);
+                weight[a] = elimination_weight(a, &adjacent, &domains);
                 queue.insert((weight[a], a));
             }
         }
@@ -424,30 +521,7 @@ pub(crate) fn infer_unit(
         ));
     }
 
-    // The quantity over the answer table, reading constants for intervened atoms.
-    let mut value = 0.0;
-    let dims: Vec<usize> = table.vars.iter().map(|v| domains[*v]).collect();
-    let mut assignment = vec![0usize; table.vars.len()];
-    for mass in &table.data {
-        let at = |world: usize, variable: usize| -> u8 {
-            match world_node.get(&(world, variable)) {
-                Some(node) => {
-                    let position = table.vars.iter().position(|v| v == node);
-                    // Levels fit the `u8` level code by the declaration bound.
-                    position.map_or(0, |p| u8::try_from(assignment[p]).unwrap_or(u8::MAX))
-                }
-                None => constant(world, variable).unwrap_or(0),
-            }
-        };
-        value += (mass / total) * quantity.at_lookup(at);
-        for p in (0..assignment.len()).rev() {
-            assignment[p] += 1;
-            if assignment[p] < dims[p] {
-                break;
-            }
-            assignment[p] = 0;
-        }
-    }
+    let value = answer_table_value(&table, &domains, &world_node, quantity, total, constant);
 
     let mut plan = CanonicalWriter::new("antecedent.counterfactual.selective.elimination_plan.v1");
     plan.text(&order.finish_hex()).word(peak as u64).word(n_factors as u64);

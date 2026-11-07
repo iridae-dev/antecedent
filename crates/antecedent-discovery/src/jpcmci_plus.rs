@@ -13,7 +13,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
-use antecedent_data::{DummyOptions, MultiEnvironmentData, pool_multi_env_lagged_frame};
+use antecedent_data::{
+    DummyOptions, LaggedFrame, MultiEnvironmentData, pool_multi_env_lagged_frame,
+};
 use antecedent_graph::{DenseNodeId, TemporalCpdag, TemporalCpdagReview};
 use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PairwiseMultivariateCi};
 
@@ -38,6 +40,27 @@ use crate::result::{
     CpdagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord, LaggedLink, ScoredLink,
     discovery_assumptions,
 };
+
+type PreparedDummyCi = (Arc<dyn ConditionalIndependence + Send + Sync>, Arc<[Arc<[usize]>]>);
+
+fn prepare_dummy_ci(
+    base_ci: &Arc<dyn ConditionalIndependence + Send + Sync>,
+    frame: &LaggedFrame,
+    mv_groups: Vec<Arc<[VariableId]>>,
+) -> Result<PreparedDummyCi, DiscoveryError> {
+    let (ci, column_blocks): (Arc<dyn ConditionalIndependence + Send + Sync>, _) =
+        if mv_groups.is_empty() {
+            (Arc::clone(base_ci), Arc::from([]) as Arc<[Arc<[usize]>]>)
+        } else {
+            let groups = antecedent_data::VectorVariableGroups::try_new(Arc::from(mv_groups))
+                .map_err(DiscoveryError::from)?;
+            let blocks = antecedent_data::column_blocks_for_frame(&groups, frame)
+                .map_err(DiscoveryError::from)?;
+            (Arc::new(PairwiseMultivariateCi::with_column_blocks(Arc::clone(&blocks))), blocks)
+        };
+
+    Ok((ci, column_blocks))
+}
 
 /// Alias for J-PCMCI+ discovery output (context-augmented temporal CPDAG).
 pub(crate) type JpcmciPlusDiscoveryResult = CpdagDiscoveryResult;
@@ -75,25 +98,11 @@ impl JpcmciPlus {
 
     pcmci_family_builders!();
 
-    /// Run J-PCMCI+ on multi-environment data.
-    ///
-    /// `variables` are **system** nodes. Observed context comes from
-    /// [`MultiDatasetConstraints::context_variables`]; dummies are synthesized.
-    ///
-    /// # Errors
-    ///
-    /// Empty multi-env, pooling / engine / orientation failures.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
-    )]
-    pub fn run(
+    fn admit_inputs(
         &self,
         data: &MultiEnvironmentData,
         variables: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<JpcmciPlusDiscoveryResult, DiscoveryError> {
+    ) -> Result<(), DiscoveryError> {
         if data.env_count() == 0 {
             return Err(DiscoveryError::Unsupported { message: "J-PCMCI+ needs ≥1 environment" });
         }
@@ -113,6 +122,31 @@ impl JpcmciPlus {
                 )));
             }
         }
+
+        Ok(())
+    }
+
+    /// Run J-PCMCI+ on multi-environment data.
+    ///
+    /// `variables` are **system** nodes. Observed context comes from
+    /// [`MultiDatasetConstraints::context_variables`]; dummies are synthesized.
+    ///
+    /// # Errors
+    ///
+    /// Empty multi-env, pooling / engine / orientation failures.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
+    pub fn run(
+        &self,
+        data: &MultiEnvironmentData,
+        variables: &[VariableId],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<JpcmciPlusDiscoveryResult, DiscoveryError> {
+        self.admit_inputs(data, variables)?;
+        let md = &self.engine.constraints.multi_dataset;
 
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
         let frame_depth = max_lag
@@ -195,16 +229,7 @@ impl JpcmciPlus {
         if use_mv_time_dummy {
             mv_groups.push(Arc::from(time_ids_full.to_vec()));
         }
-        let (ci, column_blocks): (Arc<dyn ConditionalIndependence + Send + Sync>, _) =
-            if mv_groups.is_empty() {
-                (Arc::clone(&self.engine.ci), Arc::from([]) as Arc<[Arc<[usize]>]>)
-            } else {
-                let groups = antecedent_data::VectorVariableGroups::try_new(Arc::from(mv_groups))
-                    .map_err(DiscoveryError::from)?;
-                let blocks = antecedent_data::column_blocks_for_frame(&groups, frame)
-                    .map_err(DiscoveryError::from)?;
-                (Arc::new(PairwiseMultivariateCi::with_column_blocks(Arc::clone(&blocks))), blocks)
-            };
+        let (ci, column_blocks) = prepare_dummy_ci(&self.engine.ci, frame, mv_groups)?;
 
         crate::ci::ensure_ci_decisions_meaningful(
             &*ci,
@@ -398,19 +423,7 @@ impl JpcmciPlus {
             crate::evidence::fdr_family_size(&scored, self.fdr),
         ));
         scored = threshold_scored_links(scored, self.fdr, constraints.alpha);
-        // A contemporaneous system link survives only when both directed tests do. An exogenous
-        // link (observed context or dummy to system) is tested in the one direction the link
-        // assumptions allow, so intersecting it with a direction that is never tested would
-        // drop every one of them from the graph; it bypasses the intersection.
-        let (exogenous, system_links): (Vec<ScoredLink>, Vec<ScoredLink>) =
-            scored.into_iter().partition(|s| {
-                constraints.multi_dataset.role_of(s.link.source).is_exogenous()
-                    || constraints.multi_dataset.role_of(s.link.target).is_exogenous()
-            });
-        scored = symmetrize_contemporaneous_links(system_links);
-        scored.extend(exogenous);
-        // Exogenous → system: force directed (no undirected symmetrize residue).
-        scored = orient_exogenous_links(scored, &constraints);
+        scored = orient_phase_scores(scored, &constraints);
 
         let logical_exog =
             logical_exogenous_ids(&context, &logical_space_dummies, &logical_time_dummies);
@@ -494,6 +507,25 @@ impl JpcmciPlus {
             sepsets,
         })
     }
+}
+
+fn orient_phase_scores(
+    scored: Vec<ScoredLink>,
+    constraints: &DiscoveryConstraints,
+) -> Vec<ScoredLink> {
+    // A contemporaneous system link survives only when both directed tests do. An exogenous
+    // link (observed context or dummy to system) is tested in the one direction the link
+    // assumptions allow, so intersecting it with a direction that is never tested would
+    // drop every one of them from the graph; it bypasses the intersection.
+    let (exogenous, system_links): (Vec<ScoredLink>, Vec<ScoredLink>) =
+        scored.into_iter().partition(|s| {
+            constraints.multi_dataset.role_of(s.link.source).is_exogenous()
+                || constraints.multi_dataset.role_of(s.link.target).is_exogenous()
+        });
+    let mut scored = symmetrize_contemporaneous_links(system_links);
+    scored.extend(exogenous);
+    // Exogenous → system: force directed (no undirected symmetrize residue).
+    orient_exogenous_links(scored, constraints)
 }
 
 fn logical_exogenous_ids(

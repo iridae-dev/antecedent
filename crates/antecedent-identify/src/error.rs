@@ -6,6 +6,15 @@ use antecedent_core::{TransportOutcomeKind, VariableId};
 use antecedent_graph::GraphError;
 use thiserror::Error;
 
+pub(crate) fn map_admission_error(
+    error: antecedent_core::execution::AdmissionError,
+) -> IdentificationError {
+    match error {
+        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
+        _ => IdentificationError::budget(IdentificationBudget::Memory),
+    }
+}
+
 /// Which budget an identification search or catalog binding exhausted.
 ///
 /// Exhaustion is never an impossibility claim; each kind keeps the stable code
@@ -311,5 +320,22 @@ pub(crate) fn temporal_materialization_error(
         T::Policy(error) => IdentificationError::construction(error),
         T::Limit { .. } => IdentificationError::budget(IdentificationBudget::Steps),
         _ => IdentificationError::budget(IdentificationBudget::Memory),
+    }
+}
+
+#[cfg(test)]
+mod shared_admission_tests {
+    #[test]
+    fn maps_cancellation_and_memory_budget() {
+        use super::{IdentificationBudget, IdentificationError, map_admission_error};
+        use antecedent_core::execution::AdmissionError;
+        assert!(matches!(
+            map_admission_error(AdmissionError::Cancelled),
+            IdentificationError::Cancelled
+        ));
+        assert_eq!(
+            map_admission_error(AdmissionError::Overflow).to_string(),
+            IdentificationError::budget(IdentificationBudget::Memory).to_string()
+        );
     }
 }

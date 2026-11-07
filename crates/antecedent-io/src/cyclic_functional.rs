@@ -3,7 +3,7 @@
 //! Re-identification binds the serialized program to its graph and assumptions.
 use crate::cyclic_family_artifact::CyclicFamilyRequest;
 use crate::cyclic_graph::{CyclicGraphReport, CyclicGraphRequest};
-use crate::cyclic_system_artifact::CyclicArtifactError;
+use crate::cyclic_system_artifact::{CyclicArtifactError, invalid};
 use crate::{FunctionalProgramWire, functional_program_from_wire};
 use antecedent_core::ExecutionContext;
 pub use antecedent_estimate::cyclic_functional::{
@@ -11,9 +11,6 @@ pub use antecedent_estimate::cyclic_functional::{
 };
 use antecedent_expr::ProgramLimits;
 
-fn invalid(s: impl std::fmt::Display) -> CyclicArtifactError {
-    CyclicArtifactError::Invalid(s.to_string())
-}
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedCyclicFunctionalSource {
     pub(crate) nodes: usize,

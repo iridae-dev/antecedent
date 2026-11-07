@@ -43,8 +43,8 @@ record_sha256 = "124c9e8a94abab2087e8c8f94cb498f62905ecafe25a9d83b43098ac8411402
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-learn/src/transported_effect.rs"
-items = ["const COHORT_TAG", "const IDENTITY_TAG", "const SELECTION_SHIFT_ASSUMPTION", "const TRANSPORT_WEIGHT_SUM_TOLERANCE", "fn assess_overlap", "fn check_declaration", "fn check_model", "fn digest", "fn fully_covered", "fn identity", "fn invalid", "fn invalid_input", "fn new", "fn not_certified", "fn refusal", "fn schema_mismatch", "fn support_failure", "fn total", "fn transport_cohort_effect", "fn validate", "fn write_canonical", "struct FeatureOverlap", "struct OverlapAssessment", "struct SelectionShiftDeclaration", "struct TargetCohort", "struct TransportRefusal", "struct TransportedCohortEffect"]
-sha256 = "9d74596cd44e565a6f38b0c256a129961ccf08eeddb2e67d7f284028ce129c44"
+items = ["const COHORT_TAG", "const IDENTITY_TAG", "const SELECTION_SHIFT_ASSUMPTION", "const TRANSPORT_WEIGHT_SUM_TOLERANCE", "fn assess_overlap", "fn check_declaration", "fn check_model", "fn digest", "fn fully_covered", "fn identity", "fn invalid", "fn new", "fn not_certified", "fn refusal", "fn schema_mismatch", "fn support_failure", "fn total", "fn transport_cohort_effect", "fn validate", "fn write_canonical", "struct FeatureOverlap", "struct OverlapAssessment", "struct SelectionShiftDeclaration", "struct TargetCohort", "struct TransportRefusal", "struct TransportedCohortEffect"]
+sha256 = "2a8bbbd28ca4d78fc974a36f49f6d84974b83d23d91d3d1aa11d4a106a019625"
 
 [[method_review.artifacts]]
 role = "assertion"

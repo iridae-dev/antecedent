@@ -29,6 +29,22 @@
     )
 )]
 
+mod effect;
+mod empirical_provider;
+use effect::push_free_variable_law;
+pub use effect::{FunctionalEffect, PreparedFunctionalEffect};
+mod probability_interval;
+pub use empirical_provider::EmpiricalFactorCache;
+use empirical_provider::{
+    EncodedColumns, provider_from_bayesian_bootstrap, provider_from_columns, resample_rows,
+};
+#[cfg(test)]
+use empirical_provider::{MAX_RETAINED_FITS, cpt_entries, cpt_entries_uncached, factor_identity};
+pub use probability_interval::{
+    AtomUncertainty, ProbabilityInterval, ProbabilityIntervalUnavailable,
+    logit_probability_interval,
+};
+
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
@@ -222,115 +238,6 @@ pub struct InterventionalDistributionEstimate {
     /// in `{0, 1}`, so the mean is the probability `P(Y = 1 | do(x)[, z])` and the
     /// interval is that atom's [`AtomUncertainty::interval`]. `None` otherwise.
     pub mean_interval: Option<ProbabilityInterval>,
-}
-
-/// Why a bounded probability interval could not be formed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProbabilityIntervalUnavailable {
-    /// The plug-in probability is exactly 0 or 1 (or not a probability): its
-    /// logit is infinite and every bootstrap replicate sits on the same
-    /// boundary, so no sampling spread is observed to build an interval from.
-    BoundaryEstimate,
-    /// Fewer than two usable bootstrap replicates, or more than half failed.
-    BootstrapUnavailable,
-    /// Every usable replicate reproduced the point value (zero spread).
-    ZeroSpread,
-}
-
-impl ProbabilityIntervalUnavailable {
-    /// Stable machine-readable reason.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::BoundaryEstimate => "boundary_estimate",
-            Self::BootstrapUnavailable => "bootstrap_unavailable",
-            Self::ZeroSpread => "zero_spread",
-        }
-    }
-}
-
-/// Two-sided interval for one interventional probability.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ProbabilityInterval {
-    /// Interval inside `[0, 1]` at nominal two-sided `level`.
-    Bounded {
-        /// Nominal two-sided coverage.
-        level: f64,
-        /// Lower endpoint.
-        lower: f64,
-        /// Upper endpoint.
-        upper: f64,
-    },
-    /// No interval could be formed honestly.
-    Unavailable(ProbabilityIntervalUnavailable),
-}
-
-impl ProbabilityInterval {
-    /// `(lower, upper)` when the interval exists.
-    #[must_use]
-    pub const fn bounds(&self) -> Option<(f64, f64)> {
-        match *self {
-            Self::Bounded { lower, upper, .. } => Some((lower, upper)),
-            Self::Unavailable(_) => None,
-        }
-    }
-}
-
-/// Frequentist bootstrap uncertainty of one [`DistributionAtom`].
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct AtomUncertainty {
-    /// Bootstrap SE of the atom probability (probability scale).
-    pub se_bootstrap: Option<f64>,
-    /// Replicates that produced a value for this atom.
-    pub replicates_ok: u32,
-    /// Bounded interval at the estimator's confidence level.
-    pub interval: ProbabilityInterval,
-}
-
-/// Logit-scale delta-method interval for a probability from its bootstrap SE:
-/// `antecedent_kernels::sigmoid(logit(p̂) ± z·se / (p̂(1 − p̂)))`, `z = Φ⁻¹(1/2 + level/2)`.
-///
-/// Why this construction: a probability's sampling law is skewed toward the
-/// interior near 0 and 1, so the symmetric `p̂ ± z·se` both leaves `[0, 1]` and
-/// under-covers on the short side. On the logit scale the law is close to
-/// symmetric, and `se / (p̂(1 − p̂))` is the delta-method SE of `logit(p̂)`
-/// (the same transformation that makes the logit Wald interval for a binomial
-/// proportion behave well at small counts). The back-transformed endpoints lie
-/// strictly inside `(0, 1)` and the interval widens on the interior side. It
-/// reuses the bootstrap SE that is already published, so the scalar SE and the
-/// interval describe the same replicates; a percentile interval would need the
-/// replicate probabilities to be retained and inherits the Wald-like
-/// short-side under-coverage of a discrete proportion.
-///
-/// At `p̂ ∈ {0, 1}` the logit is infinite and the bootstrap spread is
-/// degenerate, so the interval is [`ProbabilityIntervalUnavailable::BoundaryEstimate`]
-/// rather than a zero-width or clamped fake.
-#[must_use]
-pub fn logit_probability_interval(p: f64, se: Option<f64>, level: f64) -> ProbabilityInterval {
-    if !(p > 0.0 && p < 1.0) {
-        return ProbabilityInterval::Unavailable(ProbabilityIntervalUnavailable::BoundaryEstimate);
-    }
-    let Some(se) = se.filter(|s| s.is_finite() && *s >= 0.0) else {
-        return ProbabilityInterval::Unavailable(
-            ProbabilityIntervalUnavailable::BootstrapUnavailable,
-        );
-    };
-    if se == 0.0 {
-        return ProbabilityInterval::Unavailable(ProbabilityIntervalUnavailable::ZeroSpread);
-    }
-    let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
-    if !z.is_finite() || z <= 0.0 {
-        return ProbabilityInterval::Unavailable(
-            ProbabilityIntervalUnavailable::BootstrapUnavailable,
-        );
-    }
-    let centre = (p / (1.0 - p)).ln();
-    let half = z * se / (p * (1.0 - p));
-    ProbabilityInterval::Bounded {
-        level,
-        lower: antecedent_kernels::sigmoid(centre - half),
-        upper: antecedent_kernels::sigmoid(centre + half),
-    }
 }
 
 /// Reusable scratch for [`FunctionalDistribution`] estimation.
@@ -1074,438 +981,6 @@ impl FunctionalDistribution {
     }
 }
 
-/// Prepared scalar functional (ATE / path-specific NE contrast).
-#[derive(Clone, Debug)]
-pub struct PreparedFunctionalEffect {
-    semantic_schema: CausalSchema,
-    vars_needed: HashSet<VariableId>,
-    /// Identified estimand.
-    pub estimand: IdentifiedEstimand,
-    /// Arena owning the functional. Shared (never mutated after `prepare`);
-    /// see [`PreparedFunctionalDistribution::arena`].
-    pub arena: Arc<CausalExprArena>,
-    /// Compiled evaluator.
-    pub compiled: CompiledEvaluator,
-    /// Checked owner used by execution; the legacy public arena/evaluator fields
-    /// above are retained for low-level API compatibility only.
-    program: FunctionalProgram,
-    program_evaluator: ProgramEvaluator,
-    /// Empirical CPT provider.
-    pub provider: EmpiricalTableProvider,
-    /// Assumptions from identification.
-    pub assumptions: AssumptionSet,
-    /// Free variables of the scalar functional (see the module docs).
-    pub free_variables: Arc<[VariableId]>,
-    bootstrap_columns: EncodedColumns,
-    bootstrap_factors: Vec<FactorKey>,
-    bootstrap_signatures: Vec<FactorSignature>,
-    /// Input row count for the currently bound empirical law.
-    source_rows: usize,
-}
-
-impl PreparedFunctionalEffect {
-    /// Rebind empirical factors without reconstructing the checked causal program.
-    /// # Errors
-    /// Changed semantic schema or unavailable complete-case factors.
-    pub fn rebind_checked(&self, data: &TabularData) -> Result<Self, EstimationError> {
-        if data.schema() != &self.semantic_schema {
-            return Err(EstimationError::data_msg(
-                "functional effect refresh changed semantic schema",
-            ));
-        }
-        let (provider, columns) = build_empirical_provider(
-            data,
-            &self.vars_needed,
-            &self.bootstrap_factors,
-            &self.bootstrap_signatures,
-        )?;
-        Ok(Self {
-            semantic_schema: self.semantic_schema.clone(),
-            vars_needed: self.vars_needed.clone(),
-            estimand: self.estimand.clone(),
-            arena: Arc::clone(&self.arena),
-            compiled: self.compiled.clone(),
-            program: self.program.clone(),
-            program_evaluator: self.program_evaluator.clone(),
-            provider,
-            assumptions: self.assumptions.clone(),
-            free_variables: Arc::clone(&self.free_variables),
-            bootstrap_columns: columns,
-            bootstrap_factors: self.bootstrap_factors.clone(),
-            bootstrap_signatures: self.bootstrap_signatures.clone(),
-            source_rows: data.row_count(),
-        })
-    }
-    /// Checked expression owner used for every numerical evaluation.
-    #[must_use]
-    pub fn program(&self) -> &FunctionalProgram {
-        &self.program
-    }
-
-    /// Variables whose empirical laws the functional reads (the factors' variables and
-    /// conditioning variables and the extra variables the caller declared), ascending.
-    #[must_use]
-    pub fn variables_read(&self) -> Vec<VariableId> {
-        let mut variables: Vec<VariableId> = self.vars_needed.iter().copied().collect();
-        variables.sort_unstable();
-        variables
-    }
-
-    /// Export every empirical law needed to independently evaluate this
-    /// checked scalar functional, including its free-variable weighting law.
-    pub fn factor_snapshot(&self) -> Result<EmpiricalDistributionFactorSnapshot, EstimationError> {
-        let mut requirements = self.program.factor_requirements().to_vec();
-        if !self.free_variables.is_empty() {
-            requirements.push(FactorRequirement {
-                variables: Arc::clone(&self.free_variables),
-                conditioned_on: Arc::from([]),
-                intervention: Arc::from([]),
-                domain: DomainRef::Observational,
-                population: Arc::from(""),
-                regime: None,
-            });
-        }
-        let provider = self.provider.snapshot_factors(&requirements)?;
-        Ok(EmpiricalDistributionFactorSnapshot {
-            requirements: Arc::from(requirements),
-            provider,
-            provenance: EmpiricalProviderProvenance {
-                provider: "empirical_table",
-                source_rows: self.source_rows,
-                complete_case_rows: self.bootstrap_columns.n(),
-                missing_row_policy: "joint_complete_case",
-            },
-        })
-    }
-
-    /// Value of the scalar functional on `provider`'s row law, with the functional's free
-    /// variables resolved as the module docs describe.
-    ///
-    /// # Errors
-    ///
-    /// Evaluation failure; a cell error when no value of the free variables is supported.
-    pub fn evaluate(&self, provider: &EmpiricalTableProvider) -> Result<f64, EvalError> {
-        let ctx = EvalContext::default();
-        average_over_free_variables(provider, &self.free_variables, &Assignment::new(), |env| {
-            self.program_evaluator.evaluate_with(provider, &ctx, env).map(|v| vec![v])
-        })
-        .map(|values| {
-            antecedent_expr::execution_counts::note_static_work(
-                antecedent_expr::execution_counts::StaticWork::Integration,
-            );
-            values[0]
-        })
-    }
-}
-
-/// Add the marginal law of the free variables to the factors built from the data, so its
-/// empirical (or reweighted) masses are available as averaging weights.
-fn push_free_variable_law(factors: &mut Vec<FactorKey>, free: &[VariableId]) {
-    if free.is_empty() {
-        return;
-    }
-    let law: (Arc<[VariableId]>, Arc<[VariableId]>) = (Arc::from(free), Arc::from([]));
-    if !factors.contains(&law) {
-        factors.push(law);
-    }
-}
-
-/// Discrete plug-in estimator for identified scalar functionals (contrasts).
-#[derive(Clone, Debug)]
-pub struct FunctionalEffect {
-    /// Overlap policy.
-    pub overlap: OverlapPolicy,
-    /// Bootstrap replicates for the scalar SE (0 = skip).
-    pub bootstrap_replicates: u32,
-    /// How rows are resampled or reweighted.
-    pub row_resampling: RowResampling,
-    /// The sampling design the caller declared; a draw the design does not allow is refused.
-    pub sampling_design: crate::util::SamplingDeclaration,
-}
-
-impl Default for FunctionalEffect {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl FunctionalEffect {
-    /// Create with explicit overlap override.
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            overlap: OverlapPolicy::ExplicitOverride,
-            bootstrap_replicates: 0,
-            row_resampling: RowResampling::Rows,
-            sampling_design: crate::util::SamplingDeclaration::Undeclared,
-        }
-    }
-
-    /// Set the overlap policy recorded on the estimate artifact.
-    #[must_use]
-    pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
-        self.overlap = overlap;
-        self
-    }
-
-    crate::inference::with_bootstrap_replicates!();
-
-    /// Resample (or reweight) rows as `resampling` under the declared `design`.
-    #[must_use]
-    pub const fn with_row_resampling(
-        mut self,
-        resampling: RowResampling,
-        design: crate::util::SamplingDeclaration,
-    ) -> Self {
-        self.row_resampling = resampling;
-        self.sampling_design = design;
-        self
-    }
-
-    fn resample(
-        &self,
-        ctx: &ExecutionContext,
-        stream_base: u64,
-        n: usize,
-        estimate: impl Fn(&[usize]) -> Result<Option<f64>, EstimationError> + Sync,
-    ) -> Result<crate::util::BootstrapSeResult, EstimationError> {
-        resample_rows(
-            (self.bootstrap_replicates, self.row_resampling, self.sampling_design),
-            ctx,
-            stream_base,
-            n,
-            estimate,
-        )
-    }
-
-    /// Prepare CPT plug-in for a path-specific / general-ID contrast functional.
-    ///
-    /// # Errors
-    ///
-    /// Incompatible estimand, continuous columns, or compile failure.
-    pub fn prepare(
-        &self,
-        data: &TabularData,
-        estimand: &IdentifiedEstimand,
-        arena: &CausalExprArena,
-        assumptions: AssumptionSet,
-        extra_vars: &[VariableId],
-    ) -> Result<PreparedFunctionalEffect, EstimationError> {
-        require_method(
-            estimand,
-            &[EstimandMethod::PathSpecificNatural, EstimandMethod::GeneralId],
-            "functional.effect requires path_specific.natural or general.id",
-        )?;
-        let mut factor_specs = collect_observational_factors(arena, estimand.functional);
-        let signatures = collect_factor_signatures(arena, estimand.functional);
-        // A scalar functional binds nothing from outside: every free variable is a
-        // parameter of the identity.
-        let free_variables = functional_free_variables(arena, estimand.functional, &[]);
-        push_free_variable_law(&mut factor_specs, &free_variables);
-        let mut vars_needed = HashSet::new();
-        for (vars, cond) in &factor_specs {
-            vars_needed.extend(vars.iter().copied());
-            vars_needed.extend(cond.iter().copied());
-        }
-        vars_needed.extend(extra_vars.iter().copied());
-        let (provider, columns) =
-            build_empirical_provider(data, &vars_needed, &factor_specs, &signatures)?;
-        let program = functional_program(data, arena, estimand.functional)?;
-        let program_evaluator = program.compile().map_err(eval_err)?;
-        let compiled = program.arena().compile(estimand.functional).map_err(eval_err)?;
-        Ok(PreparedFunctionalEffect {
-            semantic_schema: data.schema().clone(),
-            vars_needed,
-            estimand: estimand.clone(),
-            arena: Arc::new(arena.clone()),
-            compiled,
-            program,
-            program_evaluator,
-            provider,
-            assumptions,
-            free_variables: Arc::from(free_variables),
-            bootstrap_columns: columns,
-            bootstrap_factors: factor_specs,
-            bootstrap_signatures: signatures,
-            source_rows: data.row_count(),
-        })
-    }
-
-    /// Evaluate the scalar functional.
-    ///
-    /// # Errors
-    ///
-    /// Evaluation / missing CPT entries.
-    pub fn estimate(
-        &self,
-        prepared: &PreparedFunctionalEffect,
-        _workspace: &mut FunctionalDistributionWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<crate::adjustment::EffectEstimate, EstimationError> {
-        let ate = prepared.evaluate(&prepared.provider).map_err(eval_err)?;
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            let n = prepared.bootstrap_columns.n();
-            Some(self.resample(ctx, 0xF02D_u64, n, |idx| {
-                let columns = prepared.bootstrap_columns.gather(idx);
-                let provider = provider_from_columns(
-                    &columns,
-                    idx.len(),
-                    &prepared.bootstrap_factors,
-                    &prepared.bootstrap_signatures,
-                    None,
-                )?;
-                match prepared.evaluate(&provider) {
-                    Ok(v) if v.is_finite() => Ok(Some(v)),
-                    _ => Ok(None),
-                }
-            })?)
-        };
-        let estimate = crate::adjustment::EffectEstimate::new(
-            ate,
-            // Multinomial delta-method analytic SE is out of scope for the discrete plug-in.
-            f64::NAN,
-            prepared.assumptions.clone(),
-            self.overlap,
-        )
-        .with_bootstrap(boot);
-        // Blocks of one series' consecutive rows: the SE is a row-block bootstrap SE.
-        Ok(match self.row_resampling {
-            RowResampling::SeriesBlocks | RowResampling::WindowBlocks { .. }
-                if self.bootstrap_replicates > 0 =>
-            {
-                estimate.with_block_family(crate::temporal_block::CircularBlockFamily::RowBlock)
-            }
-            _ => estimate,
-        })
-    }
-
-    /// Replicate values of several prepared functionals on the same resampled rows.
-    ///
-    /// Row `b` of the result holds, in input order, each functional's refit on replicate
-    /// `b`, so the columns are the shared replicates a class-level identified-set interval
-    /// reads. A replicate where any functional fails to evaluate is dropped for all of them.
-    /// Empty when no replicates are requested.
-    ///
-    /// # Errors
-    ///
-    /// Prepared functionals over different row counts, or a resampling the design refuses.
-    pub fn shared_replicate_draws(
-        &self,
-        prepared: &[&PreparedFunctionalEffect],
-        ctx: &ExecutionContext,
-    ) -> Result<Vec<Vec<f64>>, EstimationError> {
-        let Some(first) = prepared.first() else {
-            return Ok(Vec::new());
-        };
-        if self.bootstrap_replicates == 0 {
-            return Ok(Vec::new());
-        }
-        let n = first.bootstrap_columns.n();
-        if prepared.iter().any(|p| p.bootstrap_columns.n() != n) {
-            return Err(EstimationError::data_msg(
-                "shared replicates need functionals prepared on the same rows",
-            ));
-        }
-        let draws = std::sync::Mutex::new(Vec::<Vec<f64>>::new());
-        self.resample(ctx, 0xF02D_u64, n, |idx| {
-            let mut row = Vec::with_capacity(prepared.len());
-            for p in prepared {
-                let columns = p.bootstrap_columns.gather(idx);
-                let provider = provider_from_columns(
-                    &columns,
-                    idx.len(),
-                    &p.bootstrap_factors,
-                    &p.bootstrap_signatures,
-                    None,
-                )?;
-                match p.evaluate(&provider) {
-                    Ok(v) if v.is_finite() => row.push(v),
-                    _ => return Ok(None),
-                }
-            }
-            let head = row[0];
-            draws
-                .lock()
-                .map_err(|_| EstimationError::data_msg("shared replicate store poisoned"))?
-                .push(row);
-            Ok(Some(head))
-        })?;
-        draws.into_inner().map_err(|_| EstimationError::data_msg("shared replicate store poisoned"))
-    }
-
-    /// Bayesian bootstrap of the identified functional. All CPT factors are
-    /// derived from a shared Rubin (1981) Dirichlet(1, ..., 1) draw over
-    /// empirical rows.
-    /// Unobserved joint cells retain zero mass; this is an empirical-support
-    /// posterior, not a positive pseudocount prior over unobserved categories.
-    ///
-    /// # Errors
-    ///
-    /// Evaluation / missing CPT entries, or a non-finite posterior.
-    pub fn estimate_bayesian(
-        &self,
-        prepared: &PreparedFunctionalEffect,
-        n_draws: usize,
-        identification: antecedent_core::IdentificationStatus,
-        ctx: &ExecutionContext,
-    ) -> Result<crate::CausalPosterior, EstimationError> {
-        let n = prepared.bootstrap_columns.n();
-        if n == 0 {
-            return Err(EstimationError::data_msg(
-                "functional Bayesian requires complete discrete rows",
-            ));
-        }
-        let draws = crate::require_bayesian_n_draws(n_draws)?;
-        let _admitted = crate::util::admit_array::<f64>(ctx, draws, 1)?;
-        let mut values = Vec::with_capacity(draws);
-        let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 0xF02E_u64);
-        for _ in 0..draws {
-            if ctx.cancellation.is_cancelled() {
-                return Err(EstimationError::unsupported("functional Bayesian cancelled"));
-            }
-            let provider = provider_from_bayesian_bootstrap(
-                &prepared.bootstrap_columns,
-                n,
-                &prepared.bootstrap_factors,
-                &prepared.bootstrap_signatures,
-                (self.row_resampling.block_length(n), &mut rng),
-            )?;
-            let value = prepared.evaluate(&provider).map_err(eval_err)?;
-            if !value.is_finite() {
-                return Err(EstimationError::stats_msg("functional Bayesian draw was non-finite"));
-            }
-            values.push(value);
-        }
-        functional_posterior(values, prepared.assumptions.clone(), identification)
-    }
-
-    /// Check that several prepared functionals read the same rows, which is what makes their
-    /// Bayesian-bootstrap posteriors and bootstrap replicates paired draw by draw: every
-    /// functional consumes the same seeded stream of row weights (or row indices) over the
-    /// same `n`, so draw `k` of each is evaluated at the same resampled table.
-    ///
-    /// # Errors
-    ///
-    /// Prepared functionals over different complete-row counts.
-    pub fn assert_same_rows(
-        &self,
-        prepared: &[&PreparedFunctionalEffect],
-    ) -> Result<(), EstimationError> {
-        let Some(first) = prepared.first() else {
-            return Ok(());
-        };
-        let n = first.bootstrap_columns.n();
-        if prepared.iter().any(|p| p.bootstrap_columns.n() != n) {
-            return Err(EstimationError::data_msg(
-                "paired draws need functionals prepared on the same complete rows",
-            ));
-        }
-        Ok(())
-    }
-}
-
 /// Whether `err` is the evaluator refusing a required empirical CPT cell.
 #[must_use]
 pub const fn functional_cell_unevaluable(err: &EvalError) -> bool {
@@ -1582,28 +1057,18 @@ fn set_assignments(
     Ok(out)
 }
 
-fn collect_observational_factors(arena: &CausalExprArena, root: ExprId) -> Vec<FactorKey> {
-    let mut seen = HashSet::new();
-    let mut out = Vec::new();
+/// Visit distribution nodes in the same stack order for both factor inventories.
+fn visit_distribution_nodes(arena: &CausalExprArena, root: ExprId, mut visit: impl FnMut(ExprId)) {
     let mut stack = vec![root];
     while let Some(id) = stack.pop() {
         match arena.node(id) {
-            ExprNode::Distribution { variables, conditioned_on, .. } => {
-                let vars: Arc<[VariableId]> = Arc::from(arena.var_set(*variables).to_vec());
-                let cond: Arc<[VariableId]> = Arc::from(arena.var_set(*conditioned_on).to_vec());
-                let key = (vars.clone(), cond.clone());
-                if seen.insert((vars.as_ref().to_vec(), cond.as_ref().to_vec())) {
-                    out.push(key);
-                }
-            }
+            ExprNode::Distribution { .. } => visit(id),
             ExprNode::Product(list) => {
                 for &c in arena.list(*list) {
                     stack.push(c);
                 }
             }
-            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
-                stack.push(*expr);
-            }
+            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => stack.push(*expr),
             ExprNode::Ratio { numerator, denominator } => {
                 stack.push(*numerator);
                 stack.push(*denominator);
@@ -1616,6 +1081,21 @@ fn collect_observational_factors(arena: &CausalExprArena, root: ExprId) -> Vec<F
             }
         }
     }
+}
+
+fn collect_observational_factors(arena: &CausalExprArena, root: ExprId) -> Vec<FactorKey> {
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    visit_distribution_nodes(arena, root, |id| {
+        if let ExprNode::Distribution { variables, conditioned_on, .. } = arena.node(id) {
+            let vars: Arc<[VariableId]> = Arc::from(arena.var_set(*variables).to_vec());
+            let cond: Arc<[VariableId]> = Arc::from(arena.var_set(*conditioned_on).to_vec());
+            let key = (vars.clone(), cond.clone());
+            if seen.insert((vars.as_ref().to_vec(), cond.as_ref().to_vec())) {
+                out.push(key);
+            }
+        }
+    });
     out
 }
 
@@ -1623,44 +1103,25 @@ fn collect_observational_factors(arena: &CausalExprArena, root: ExprId) -> Vec<F
 fn collect_factor_signatures(arena: &CausalExprArena, root: ExprId) -> Vec<FactorSignature> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
-    let mut stack = vec![root];
-    while let Some(id) = stack.pop() {
-        match arena.node(id) {
-            ExprNode::Distribution { variables, conditioned_on, intervention, domain, .. } => {
-                let vars: Arc<[VariableId]> = Arc::from(arena.var_set(*variables).to_vec());
-                let cond: Arc<[VariableId]> = Arc::from(arena.var_set(*conditioned_on).to_vec());
-                let interv: Arc<[InterventionAssignment]> =
-                    Arc::from(arena.intervention_assignments(*intervention).to_vec());
-                let key = (
-                    vars.as_ref().to_vec(),
-                    cond.as_ref().to_vec(),
-                    interv.iter().map(|a| (a.variable.raw(), a.value.clone())).collect::<Vec<_>>(),
-                    *domain,
-                );
-                if seen.insert(key) {
-                    out.push((vars, cond, interv, *domain));
-                }
-            }
-            ExprNode::Product(list) => {
-                for &c in arena.list(*list) {
-                    stack.push(c);
-                }
-            }
-            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
-                stack.push(*expr);
-            }
-            ExprNode::Ratio { numerator, denominator } => {
-                stack.push(*numerator);
-                stack.push(*denominator);
-            }
-            ExprNode::Kernel { body, .. } => stack.push(*body),
-            ExprNode::Expectation { distribution, .. } => stack.push(*distribution),
-            ExprNode::Contrast { left, right, .. } => {
-                stack.push(*left);
-                stack.push(*right);
+    visit_distribution_nodes(arena, root, |id| {
+        if let ExprNode::Distribution { variables, conditioned_on, intervention, domain, .. } =
+            arena.node(id)
+        {
+            let vars: Arc<[VariableId]> = Arc::from(arena.var_set(*variables).to_vec());
+            let cond: Arc<[VariableId]> = Arc::from(arena.var_set(*conditioned_on).to_vec());
+            let interv: Arc<[InterventionAssignment]> =
+                Arc::from(arena.intervention_assignments(*intervention).to_vec());
+            let key = (
+                vars.as_ref().to_vec(),
+                cond.as_ref().to_vec(),
+                interv.iter().map(|a| (a.variable.raw(), a.value.clone())).collect::<Vec<_>>(),
+                *domain,
+            );
+            if seen.insert(key) {
+                out.push((vars, cond, interv, *domain));
             }
         }
-    }
+    });
     out
 }
 
@@ -1799,592 +1260,6 @@ fn functional_posterior_from_draws(
     }
 }
 
-/// Discrete columns pre-encoded to `u32` level codes.
-///
-/// Encoding once (per fit) turns every bootstrap replicate into an index gather and every
-/// CPT count into integer arithmetic: no per-row `Value` clones, hashing or key allocation.
-/// The level table is shared (`Arc`) across replicates; a replicate's own domain is the set
-/// of codes that occur in it, in order of first appearance.
-#[derive(Clone, Debug)]
-struct EncodedColumns {
-    n: usize,
-    row_ids: Vec<usize>,
-    columns: HashMap<VariableId, EncodedColumn>,
-}
-
-#[derive(Clone, Debug)]
-struct EncodedColumn {
-    /// Level index per row, or [`DiscreteColumn::MISSING`].
-    codes: Vec<u32>,
-    /// Level value by code.
-    levels: Arc<[Value]>,
-}
-
-impl EncodedColumns {
-    /// Read `ids` through the shared discrete reader (missing = invalid or outside the
-    /// analysis mask), failing closed on empty or oversized domains.
-    fn read(data: &TabularData, ids: &HashSet<VariableId>) -> Result<Self, EstimationError> {
-        let n = data.row_count();
-        let mut columns = HashMap::with_capacity(ids.len());
-        for &id in ids {
-            let col = data.discrete_column(id).map_err(|e| match e {
-                DataError::TypeMismatch { .. } => EstimationError::unsupported_coded(
-                    antecedent_core::reason_code!("route_not_supported"),
-                    "functional.distribution supports float64 / int64 / categorical columns only",
-                ),
-                other => EstimationError::from(other),
-            })?;
-            if col.codes.len() != n {
-                return Err(EstimationError::data_msg("column length mismatch"));
-            }
-            if col.levels.is_empty() {
-                return Err(EstimationError::data_msg("empty discrete domain"));
-            }
-            if col.levels.len() > MAX_DISCRETE_LEVELS.max(n / 4) {
-                return Err(EstimationError::unsupported(
-                    "variable exceeds discrete level cap for functional.distribution",
-                ));
-            }
-            columns.insert(id, EncodedColumn { codes: col.codes, levels: Arc::from(col.levels) });
-        }
-        Ok(Self { n, row_ids: (0..n).collect(), columns })
-    }
-
-    /// Row count.
-    fn n(&self) -> usize {
-        self.n
-    }
-
-    /// Rows where every column has a level.
-    fn complete_rows(&self) -> Vec<usize> {
-        (0..self.n)
-            .filter(|&row| self.columns.values().all(|c| c.codes[row] != DiscreteColumn::MISSING))
-            .collect()
-    }
-
-    /// The rows `idx` (repeats allowed) as a new sample sharing the level tables.
-    fn gather(&self, idx: &[usize]) -> Self {
-        let columns = self
-            .columns
-            .iter()
-            .map(|(&id, col)| {
-                let codes = idx
-                    .iter()
-                    .map(|&i| col.codes.get(i).copied().unwrap_or(DiscreteColumn::MISSING))
-                    .collect();
-                (id, EncodedColumn { codes, levels: Arc::clone(&col.levels) })
-            })
-            .collect();
-        Self { n: idx.len(), row_ids: idx.iter().map(|&i| self.row_ids[i]).collect(), columns }
-    }
-
-    fn column(&self, id: VariableId) -> Result<&EncodedColumn, EstimationError> {
-        self.columns.get(&id).ok_or_else(|| EstimationError::data_msg("missing column"))
-    }
-
-    /// Test constructor from explicit cells (`None` = missing); levels in first-seen order.
-    #[cfg(test)]
-    fn from_values(values: HashMap<VariableId, Vec<Option<Value>>>) -> Self {
-        let n = values.values().next().map_or(0, Vec::len);
-        let columns = values
-            .into_iter()
-            .map(|(id, cells)| {
-                let mut levels: Vec<Value> = Vec::new();
-                let codes = cells
-                    .into_iter()
-                    .map(|cell| match cell {
-                        None => DiscreteColumn::MISSING,
-                        Some(v) => {
-                            let at = levels.iter().position(|l| *l == v).unwrap_or_else(|| {
-                                levels.push(v);
-                                levels.len() - 1
-                            });
-                            at as u32
-                        }
-                    })
-                    .collect();
-                (id, EncodedColumn { codes, levels: Arc::from(levels) })
-            })
-            .collect();
-        Self { n, row_ids: (0..n).collect(), columns }
-    }
-
-    /// Test view of one column as cells.
-    #[cfg(test)]
-    fn values_of(&self, id: VariableId) -> Vec<Option<Value>> {
-        let col = &self.columns[&id];
-        col.codes
-            .iter()
-            .map(|&c| (c != DiscreteColumn::MISSING).then(|| col.levels[c as usize].clone()))
-            .collect()
-    }
-}
-
-impl EncodedColumn {
-    /// Codes that occur in the sample, in order of first appearance.
-    fn observed_codes(&self) -> Vec<u32> {
-        let mut seen = vec![false; self.levels.len()];
-        let mut order = Vec::new();
-        for &code in &self.codes {
-            if code != DiscreteColumn::MISSING && !std::mem::replace(&mut seen[code as usize], true)
-            {
-                order.push(code);
-            }
-        }
-        order
-    }
-}
-
-fn provider_from_columns(
-    columns: &EncodedColumns,
-    n: usize,
-    factors: &[FactorKey],
-    signatures: &[FactorSignature],
-    weights: Option<&[f64]>,
-) -> Result<EmpiricalTableProvider, EstimationError> {
-    let mut provider = EmpiricalTableProvider::new();
-    for (&id, col) in &columns.columns {
-        provider.set_domain(
-            id,
-            col.observed_codes().into_iter().map(|c| col.levels[c as usize].clone()),
-        );
-    }
-
-    // Vacuous empty factor used by some ID edge cases.
-    let empty_spec = FactorSpec {
-        variables: &[],
-        conditioned_on: &[],
-        intervention: &[],
-        domain: DomainRef::Observational,
-        population: "",
-        regime: None,
-    };
-    provider.insert_probability(&empty_spec, &Assignment::from_pairs([]), 1.0).map_err(eval_err)?;
-
-    for (vars, cond) in factors {
-        if vars.is_empty() && cond.is_empty() {
-            continue;
-        }
-        // One row scan per (vars, cond); every alias below reads the same entries.
-        let entries = cpt_entries(columns, n, vars, cond, weights)?;
-        // Observational CPT.
-        insert_cpt(&mut provider, vars, cond, &[], DomainRef::Observational, &entries)?;
-        // Duplicate under every interventional signature with the same (vars, cond).
-        for (s_vars, s_cond, interv, domain) in signatures {
-            if s_vars.as_ref() != vars.as_ref() || s_cond.as_ref() != cond.as_ref() {
-                continue;
-            }
-            if *domain == DomainRef::Observational && interv.is_empty() {
-                continue;
-            }
-            // The intervention slot of an identified functional binds values; it does not
-            // change the law the factor is read from. A factor that generates an intervened
-            // variable (ID line 7 keeps `P(x | w, z)` on the napkin graph) is therefore the
-            // observational conditional evaluated at the fixed value, not a point mass.
-            insert_cpt(&mut provider, vars, cond, interv.as_ref(), *domain, &entries)?;
-        }
-    }
-
-    Ok(provider)
-}
-
-// One random observational law per draw. All marginal/conditional factors and
-// interventional aliases are derived from the same row masses, preserving
-// probability identities even when the compiled expression reuses a kernel.
-//
-// With a block length the rows are one dependent series: one `Exp(1)` weight per
-// contiguous block of rows, shared by every row of the block.
-fn provider_from_bayesian_bootstrap(
-    columns: &EncodedColumns,
-    n: usize,
-    factors: &[FactorKey],
-    signatures: &[FactorSignature],
-    (block, rng): (Option<usize>, &mut CausalRng),
-) -> Result<EmpiricalTableProvider, EstimationError> {
-    let weights = match block {
-        None => antecedent_kernels::bayesian_bootstrap_weights(rng, n, false),
-        Some(block) => {
-            let block = block.clamp(1, n.max(1));
-            let draws =
-                antecedent_kernels::bayesian_bootstrap_weights(rng, n.div_ceil(block), false);
-            (0..n).map(|row| draws[row / block]).collect()
-        }
-    };
-    provider_from_columns(columns, n, factors, signatures, Some(&weights))
-}
-
-/// The frequentist bootstrap of a functional plug-in under its row resampling and
-/// declared design: single rows, or circular blocks of one series' consecutive rows.
-fn resample_rows(
-    (replicates, resampling, declared): (u32, RowResampling, crate::util::SamplingDeclaration),
-    ctx: &ExecutionContext,
-    stream_base: u64,
-    n: usize,
-    estimate: impl Fn(&[usize]) -> Result<Option<f64>, EstimationError> + Sync,
-) -> Result<crate::util::BootstrapSeResult, EstimationError> {
-    crate::util::bootstrap_by_design(
-        crate::util::BootstrapDesign {
-            clusters: None,
-            series_block: resampling.block_length(n),
-            declared,
-        },
-        replicates,
-        ctx,
-        stream_base,
-        n,
-        || (),
-        |(), idx| estimate(idx),
-    )
-}
-
-/// Every combination of one code per variable (first variable varies slowest).
-fn cartesian_codes(domains: &[Vec<u32>]) -> Vec<Vec<u32>> {
-    let mut rows: Vec<Vec<u32>> = vec![Vec::new()];
-    for domain in domains {
-        let mut next = Vec::with_capacity(rows.len() * domain.len());
-        for prefix in &rows {
-            for &code in domain {
-                let mut row = prefix.clone();
-                row.push(code);
-                next.push(row);
-            }
-        }
-        rows = next;
-    }
-    rows
-}
-
-/// Mixed-radix key of one code per column, `None` on `u64` overflow.
-fn pack_codes(radices: &[u64], codes: impl Iterator<Item = u32>) -> Option<u64> {
-    let mut key = 0u64;
-    for (radix, code) in radices.iter().zip(codes) {
-        key = key.checked_mul(*radix)?.checked_add(u64::from(code))?;
-    }
-    Some(key)
-}
-
-/// Observed level codes of each column, numerically ordered (first-seen order breaks ties).
-fn ordered_domains(cols: &[&EncodedColumn]) -> Result<Vec<Vec<u32>>, EstimationError> {
-    cols.iter()
-        .map(|c| {
-            let mut domain = c.observed_codes();
-            if domain.is_empty() {
-                return Err(EstimationError::data_msg("empty domain in CPT insert"));
-            }
-            domain.sort_by(|&a, &b| {
-                match (c.levels[a as usize].as_f64(), c.levels[b as usize].as_f64()) {
-                    (Some(x), Some(y)) => x.total_cmp(&y),
-                    (Some(_), None) => std::cmp::Ordering::Less,
-                    (None, Some(_)) => std::cmp::Ordering::Greater,
-                    (None, None) => a.cmp(&b),
-                }
-            });
-            Ok(domain)
-        })
-        .collect()
-}
-
-/// Conditional-probability table `P(vars | cond)` as `(assignment, probability)` entries.
-///
-/// Depends only on the rows and weights, not on the intervention slot or domain a
-/// factor is later registered under, so it is computed once per `(vars, cond)`. Counts
-/// are keyed by the mixed-radix integer of the rows' level codes.
-/// Bounded retained empirical factor fits, shared only under an explicit execution scope.
-#[derive(Default, Debug)]
-pub struct EmpiricalFactorCache {
-    state: Mutex<RetainedFactorFits>,
-}
-
-/// The retained fits in insertion order with their running cost, so eviction never re-sums.
-#[derive(Default, Debug)]
-struct RetainedFactorFits {
-    entries: Vec<RetainedFactorFit>,
-    cost: usize,
-}
-thread_local! {static ACTIVE_FACTOR_CACHE:std::cell::RefCell<Option<std::sync::Arc<EmpiricalFactorCache>>>=const{std::cell::RefCell::new(None)};}
-impl EmpiricalFactorCache {
-    /// Empty bounded retained factor cache.
-    #[must_use]
-    pub fn new() -> std::sync::Arc<Self> {
-        std::sync::Arc::new(Self::default())
-    }
-    /// Execute existing factor construction with exact physical identities and scoped reuse.
-    pub fn scope<R>(self: &std::sync::Arc<Self>, work: impl FnOnce() -> R) -> R {
-        struct Restore(Option<std::sync::Arc<EmpiricalFactorCache>>);
-        impl Drop for Restore {
-            fn drop(&mut self) {
-                ACTIVE_FACTOR_CACHE.with(|active| *active.borrow_mut() = self.0.take());
-            }
-        }
-        let _restore = Restore(
-            ACTIVE_FACTOR_CACHE.with(|active| active.replace(Some(std::sync::Arc::clone(self)))),
-        );
-        work()
-    }
-    /// Retained numeric factor identities; these are not identification supports.
-    pub fn identities(&self) -> Vec<antecedent_core::recalc::StageIdentity> {
-        self.state
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .entries
-            .iter()
-            .map(|entry| entry.0)
-            .collect()
-    }
-}
-/// The shared, immutable entries of one fitted factor.
-type FactorEntries = Arc<Vec<(Assignment, f64)>>;
-
-/// Most retained fits.
-const MAX_RETAINED_FITS: usize = 64;
-/// Retained-cost budget, in stored values.
-const MAX_RETAINED_VALUES: usize = 1 << 24;
-
-fn cpt_entries(
-    columns: &EncodedColumns,
-    n: usize,
-    vars: &[VariableId],
-    cond: &[VariableId],
-    weights: Option<&[f64]>,
-) -> Result<FactorEntries, EstimationError> {
-    let active = ACTIVE_FACTOR_CACHE.with(|active| active.borrow().clone());
-    let Some(active) = active else {
-        return cpt_entries_uncached(columns, n, vars, cond, weights).map(Arc::new);
-    };
-    let identity = factor_identity(columns, vars, cond, weights)?;
-    let lock =
-        || active.state.lock().map_err(|_| EstimationError::data_msg("factor cache lock poisoned"));
-    if let Some(entry) = lock()?.entries.iter().find(|entry| entry.0 == identity) {
-        return Ok(Arc::clone(&entry.1));
-    }
-    // The fit runs unlocked: concurrent callers on other keys are not serialized behind it.
-    // Two callers racing on one key both fit; the first to insert wins and both return the
-    // same values.
-    let result = Arc::new(cpt_entries_uncached(columns, n, vars, cond, weights)?);
-    let cost = result
-        .len()
-        .saturating_mul(vars.len().saturating_add(cond.len()).saturating_mul(2).saturating_add(1));
-    let mut state = lock()?;
-    if let Some(entry) = state.entries.iter().find(|entry| entry.0 == identity) {
-        return Ok(Arc::clone(&entry.1));
-    }
-    if cost <= MAX_RETAINED_VALUES {
-        while !state.entries.is_empty()
-            && (state.entries.len() >= MAX_RETAINED_FITS
-                || state.cost.saturating_add(cost) > MAX_RETAINED_VALUES)
-        {
-            let (_, _, evicted) = state.entries.remove(0);
-            state.cost -= evicted;
-        }
-        state.entries.push((identity, Arc::clone(&result), cost));
-        state.cost = state.cost.saturating_add(cost);
-    }
-    Ok(result)
-}
-
-/// Content identity of one factor fit: its variables, the row ids and level codes it reads,
-/// and its weights.
-///
-/// The digested bytes are the `Debug` text of each part (`[0, 1, 2]` for a code vector), so
-/// retained identities are stable; the code lists are written directly instead of through
-/// `format!`, which dominated a cache hit.
-fn factor_identity(
-    columns: &EncodedColumns,
-    vars: &[VariableId],
-    cond: &[VariableId],
-    weights: Option<&[f64]>,
-) -> Result<antecedent_core::recalc::StageIdentity, EstimationError> {
-    let mut pieces: Vec<Vec<u8>> = Vec::with_capacity(vars.len() + cond.len() + 2);
-    let mut head = format!("{vars:?}:{cond:?}:").into_bytes();
-    push_debug_list(&mut head, columns.row_ids.iter().map(|&row| row as u64));
-    pieces.push(head);
-    for &id in vars.iter().chain(cond) {
-        let column = columns.column(id)?;
-        let mut piece = format!("{:?}:", column.levels).into_bytes();
-        push_debug_list(&mut piece, column.codes.iter().map(|&code| u64::from(code)));
-        pieces.push(piece);
-    }
-    if let Some(weights) = weights {
-        pieces.push(weights.iter().flat_map(|value| value.to_bits().to_le_bytes()).collect());
-    }
-    Ok(antecedent_core::recalc::StageIdentity::of(
-        "empirical.cpt.fit.v1",
-        &pieces.iter().map(Vec::as_slice).collect::<Vec<_>>(),
-    ))
-}
-
-/// Append `values` as `{:?}` prints an integer vector: `[1, 20, 3]`.
-fn push_debug_list(out: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u64>) {
-    out.reserve(2 + values.len() * 4);
-    out.push(b'[');
-    for (index, mut value) in values.enumerate() {
-        if index > 0 {
-            out.extend_from_slice(b", ");
-        }
-        let mut digits = [0u8; 20];
-        let mut start = digits.len();
-        loop {
-            start -= 1;
-            digits[start] = b'0' + (value % 10) as u8;
-            value /= 10;
-            if value == 0 {
-                break;
-            }
-        }
-        out.extend_from_slice(&digits[start..]);
-    }
-    out.push(b']');
-}
-
-fn cpt_entries_uncached(
-    columns: &EncodedColumns,
-    n: usize,
-    vars: &[VariableId],
-    cond: &[VariableId],
-    weights: Option<&[f64]>,
-) -> Result<Vec<(Assignment, f64)>, EstimationError> {
-    antecedent_core::execution_attempt::run_operation(
-        antecedent_core::execution_attempt::Operation::FactorConstruction,
-        || construct_cpt_entries(columns, n, vars, cond, weights),
-    )
-}
-
-fn construct_cpt_entries(
-    columns: &EncodedColumns,
-    n: usize,
-    vars: &[VariableId],
-    cond: &[VariableId],
-    weights: Option<&[f64]>,
-) -> Result<Vec<(Assignment, f64)>, EstimationError> {
-    let var_cols: Vec<&EncodedColumn> =
-        vars.iter().map(|&v| columns.column(v)).collect::<Result<_, _>>()?;
-    let cond_cols: Vec<&EncodedColumn> =
-        cond.iter().map(|&v| columns.column(v)).collect::<Result<_, _>>()?;
-    // Bound the complete table before enumerating either Cartesian domain.
-    // The retained-cache budget cannot protect an uncached allocation.
-    let cells = var_cols.iter().chain(&cond_cols).try_fold(1usize, |cells, column| {
-        cells.checked_mul(column.levels.len()).filter(|&product| product <= 1_000_000)
-    });
-    if cells.is_none() {
-        return Err(EstimationError::refused_detail(
-            antecedent_core::reason_code!("invalid_argument"),
-            "functional.factor_cell_budget",
-            "empirical factor exceeds one million Cartesian cells",
-        ));
-    }
-    let radices = |cols: &[&EncodedColumn]| -> Vec<u64> {
-        cols.iter().map(|c| c.levels.len() as u64).collect()
-    };
-    let (var_radices, cond_radices) = (radices(&var_cols), radices(&cond_cols));
-    let joint_radices: Vec<u64> = var_radices.iter().chain(cond_radices.iter()).copied().collect();
-    let too_many = || EstimationError::data_msg("too many joint cells to key a CPT");
-
-    // Count (vars, cond) joint and cond marginal among complete cases.
-    let mut joint: HashMap<u64, f64> = HashMap::new();
-    let mut marg: HashMap<u64, f64> = HashMap::new();
-    let mut total = 0.0;
-    for row in 0..n {
-        let weight = weights.map_or(1.0, |w| w.get(row).copied().unwrap_or(0.0));
-        if weight <= 0.0 {
-            continue;
-        }
-        let code_at = |c: &&EncodedColumn| c.codes.get(row).copied();
-        let cond_codes: Option<Vec<u32>> = cond_cols.iter().map(code_at).collect();
-        let var_codes: Option<Vec<u32>> = var_cols.iter().map(code_at).collect();
-        let (Some(cond_codes), Some(var_codes)) = (cond_codes, var_codes) else {
-            continue;
-        };
-        if cond_codes.iter().chain(&var_codes).any(|&c| c == DiscreteColumn::MISSING) {
-            continue;
-        }
-        let cond_key =
-            pack_codes(&cond_radices, cond_codes.iter().copied()).ok_or_else(too_many)?;
-        let joint_key = pack_codes(&joint_radices, var_codes.iter().chain(&cond_codes).copied())
-            .ok_or_else(too_many)?;
-        *marg.entry(cond_key).or_insert(0.0) += weight;
-        *joint.entry(joint_key).or_insert(0.0) += weight;
-        total += weight;
-    }
-
-    let level_of = |cols: &[&EncodedColumn], k: usize, code: u32| -> Value {
-        cols[k].levels[code as usize].clone()
-    };
-
-    let mut entries = Vec::new();
-    let var_rows = cartesian_codes(&ordered_domains(&var_cols)?);
-    if cond.is_empty() {
-        if total <= 0.0 {
-            return Err(EstimationError::data_msg("no complete cases for CPT"));
-        }
-        for var_codes in &var_rows {
-            let key = pack_codes(&var_radices, var_codes.iter().copied()).ok_or_else(too_many)?;
-            let count = joint.get(&key).copied().unwrap_or(0.0);
-            let assign = Assignment::from_pairs(
-                vars.iter()
-                    .copied()
-                    .zip(var_codes.iter().enumerate().map(|(k, &c)| level_of(&var_cols, k, c))),
-            );
-            entries.push((assign, count / total));
-        }
-    } else {
-        let cond_rows = cartesian_codes(&ordered_domains(&cond_cols)?);
-        for cond_codes in &cond_rows {
-            let cond_key =
-                pack_codes(&cond_radices, cond_codes.iter().copied()).ok_or_else(too_many)?;
-            let cond_count = marg.get(&cond_key).copied().unwrap_or(0.0);
-            // An unobserved conditioning cell is not P=0. Leave it absent so
-            // `probability()` returns `MissingTableEntry` — the evaluator's
-            // existing "can I evaluate this cell?" contract.
-            if cond_count <= 0.0 {
-                continue;
-            }
-            for var_codes in &var_rows {
-                let joint_key =
-                    pack_codes(&joint_radices, var_codes.iter().chain(cond_codes).copied())
-                        .ok_or_else(too_many)?;
-                let count = joint.get(&joint_key).copied().unwrap_or(0.0);
-                let p = count / cond_count;
-                let assign = Assignment::from_pairs(
-                    vars.iter()
-                        .copied()
-                        .zip(var_codes.iter().enumerate().map(|(k, &c)| level_of(&var_cols, k, c)))
-                        .chain(cond.iter().copied().zip(
-                            cond_codes.iter().enumerate().map(|(k, &c)| level_of(&cond_cols, k, c)),
-                        )),
-                );
-                entries.push((assign, p));
-            }
-        }
-    }
-    antecedent_expr::execution_counts::note_static_work(
-        antecedent_expr::execution_counts::StaticWork::FactorBuild,
-    );
-    Ok(entries)
-}
-
-/// Register precomputed [`cpt_entries`] under one intervention slot and domain.
-fn insert_cpt(
-    provider: &mut EmpiricalTableProvider,
-    vars: &[VariableId],
-    cond: &[VariableId],
-    intervention: &[InterventionAssignment],
-    domain: DomainRef,
-    entries: &[(Assignment, f64)],
-) -> Result<(), EstimationError> {
-    let spec = FactorSpec {
-        variables: vars,
-        conditioned_on: cond,
-        intervention,
-        domain,
-        population: "",
-        regime: None,
-    };
-    for (assign, probability) in entries {
-        provider.insert_probability(&spec, assign, *probability).map_err(eval_err)?;
-    }
-    Ok(())
-}
-
 #[allow(
     clippy::needless_pass_by_value,
     reason = "a `map_err` adapter: the error arrives by value at every call site"
@@ -2424,6 +1299,38 @@ mod tests {
             RowResampling::WindowBlocks { span: 1 }.block_length(1000)
                 >= RowResampling::SeriesBlocks.block_length(1000)
         );
+    }
+
+    #[test]
+    fn factor_inventories_preserve_stack_order_and_distinct_interventions() {
+        let (x, y) = (VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut arena = CausalExprArena::new();
+        let x_set = arena.intern_var_set([x]);
+        let y_set = arena.intern_var_set([y]);
+        let empty = arena.empty_var_set();
+        let observed = arena.empty_intervention_set();
+        let intervened = arena.intern_intervention_set([x]);
+        let y_observed =
+            arena.intern_distribution(y_set, empty, observed, DomainRef::Observational);
+        let y_intervened =
+            arena.intern_distribution(y_set, empty, intervened, DomainRef::Observational);
+        let x_observed =
+            arena.intern_distribution(x_set, empty, observed, DomainRef::Observational);
+        let list = arena.intern_list([y_observed, y_intervened, x_observed, y_observed]);
+        let root = arena.intern(ExprNode::Product(list));
+
+        let factors = collect_observational_factors(&arena, root);
+        assert_eq!(factors.len(), 2);
+        assert_eq!(factors[0].0.as_ref(), &[y]);
+        assert_eq!(factors[1].0.as_ref(), &[x]);
+        let signatures = collect_factor_signatures(&arena, root);
+        assert_eq!(signatures.len(), 3);
+        assert_eq!(signatures[0].0.as_ref(), &[y]);
+        assert!(signatures[0].2.is_empty());
+        assert_eq!(signatures[1].0.as_ref(), &[x]);
+        assert_eq!(signatures[2].0.as_ref(), &[y]);
+        assert_eq!(signatures[2].2.len(), 1);
+        assert_eq!(signatures[2].2[0].variable, x);
     }
 
     #[test]

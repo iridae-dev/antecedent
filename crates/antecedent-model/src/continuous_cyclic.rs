@@ -5,15 +5,12 @@
 //! supported only when a positive-definite Lyapunov witness verifies stability.
 
 use crate::linear_algebra::equilibrated_general_solve;
+use crate::nonlinear_equilibrium::invalid_equilibrium_input as invalid;
 use crate::nonlinear_equilibrium::{
     Clamp, Equation, EquilibriumError, check_cancel, cholesky, dot,
 };
 use antecedent_core::ExecutionContext;
 use serde::{Deserialize, Serialize};
-
-fn invalid(s: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(s.into())
-}
 
 /// Autonomous vector field `dx_i/dt = c_i + activation_i(w_i x) - decay_i*x_i`.
 /// Self-dependence in `weights` is allowed for this continuous-time family.

@@ -82,10 +82,8 @@ pub(crate) fn grow_window(
     if edge_bytes > budget.limits().max_bytes {
         return Err(IdentificationError::budget(IdentificationBudget::Memory));
     }
-    let _edge_lease = ctx.acquire_admission(0, edge_bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-        _ => IdentificationError::budget(IdentificationBudget::Memory),
-    })?;
+    let _edge_lease =
+        ctx.acquire_admission(0, edge_bytes).map_err(crate::error::map_admission_error)?;
     let edges = StationaryEdges::from_template(template, variable_count, ctx)?;
     let mut depth = base_history;
     let history = loop {
@@ -131,10 +129,8 @@ pub(crate) fn grow_window(
         if bytes > budget.limits().max_bytes {
             return Err(IdentificationError::budget(IdentificationBudget::Memory));
         }
-        let _walk_lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-            _ => IdentificationError::budget(IdentificationBudget::Memory),
-        })?;
+        let _walk_lease =
+            ctx.acquire_admission(0, bytes).map_err(crate::error::map_admission_error)?;
         if !edges.ancestry_touches_boundary(seeds, depth, horizon, Some(ctx))? {
             break depth;
         }
@@ -162,10 +158,7 @@ pub(crate) fn grow_window(
     if bytes > budget.limits().max_bytes {
         return Err(IdentificationError::budget(IdentificationBudget::Memory));
     }
-    let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-        _ => IdentificationError::budget(IdentificationBudget::Memory),
-    })?;
+    let lease = ctx.acquire_admission(0, bytes).map_err(crate::error::map_admission_error)?;
     let mut dense = Vec::with_capacity(seeds.len());
     for seed in seeds {
         if ctx.cancellation.is_cancelled() {
@@ -276,10 +269,7 @@ pub(crate) fn reaches_in_window(
     if bytes > budget.limits().max_bytes {
         return Err(IdentificationError::budget(IdentificationBudget::Memory));
     }
-    let _lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-        _ => IdentificationError::budget(IdentificationBudget::Memory),
-    })?;
+    let _lease = ctx.acquire_admission(0, bytes).map_err(crate::error::map_admission_error)?;
     let edges = StationaryEdges::from_template(
         template,
         u32::try_from(variable_count)

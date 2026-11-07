@@ -4,6 +4,7 @@
 //! derivatives for the equilibrium Jacobian likelihood without finite-difference
 //! parameter scores. Bounds are domain-wide on R^n, not sampled derivatives.
 use crate::nonlinear_equilibrium::EquilibriumError;
+use crate::nonlinear_equilibrium::invalid_equilibrium_input as invalid;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -81,9 +82,7 @@ pub struct MechanismEvaluation {
     gradients: Vec<f64>,
     variables: usize,
 }
-fn invalid(message: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(message.into())
-}
+
 fn push(nodes: &mut Vec<Op>, op: Op) -> Result<usize, EquilibriumError> {
     if nodes.len() >= 4096 {
         return Err(invalid("mechanism expression node limit"));

@@ -31,14 +31,20 @@ record_sha256 = "d85c442309e39e96190665df5772826868c9402d4290c3a3aa1b3c5cf04fccc
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/adaptive_design/declaration.rs"
-items = ["const ADAPTIVE_DESIGN_VERSION", "const MAX_CONTRACT_UNITS", "const PROBABILITY_ROW_TOLERANCE", "const STAGE_BIND", "const STAGE_DECLARE", "enum BoundarySidedness", "enum DelayMechanism", "enum SpendingKind", "enum StoppingSpec", "fn admit_paradigm", "fn analysis_units", "fn arms", "fn as_str", "fn authorize_cell", "fn cell", "fn check_history", "fn check_monitoring", "fn check_rule", "fn check_shapes", "fn declaration", "fn declare", "fn declare_bind", "fn details", "fn identity", "fn identity_of", "fn invalid", "fn is_adaptive", "fn is_binary", "fn looks", "fn missing", "fn new", "fn required_elements", "fn units", "struct AdaptiveContractError", "struct AdaptiveDesignContract", "struct AdaptiveDesignDeclaration", "struct InterimAnalysis", "struct OutcomeAvailability", "struct PolicyEpoch", "struct RouteAuthorization", "struct StoppingRuleDeclaration"]
-sha256 = "f273dce9c5e792ddc6c495b6dd45645a4cc73d045596ffbc2a9b2decb07d9ce0"
+items = ["const ADAPTIVE_DESIGN_VERSION", "const MAX_CONTRACT_UNITS", "const PROBABILITY_ROW_TOLERANCE", "const STAGE_BIND", "enum BoundarySidedness", "enum DelayMechanism", "enum SpendingKind", "enum StoppingSpec", "fn admit_paradigm", "fn analysis_units", "fn arms", "fn as_str", "fn authorize_cell", "fn cell", "fn check_history", "fn check_monitoring", "fn check_rule", "fn check_shapes", "fn declaration", "fn declare_bind", "fn details", "fn identity", "fn identity_of", "fn invalid", "fn is_adaptive", "fn is_binary", "fn looks", "fn missing", "fn new", "fn required_elements", "fn units", "struct AdaptiveContractError", "struct AdaptiveDesignContract", "struct AdaptiveDesignDeclaration", "struct InterimAnalysis", "struct OutcomeAvailability", "struct PolicyEpoch", "struct RouteAuthorization", "struct StoppingRuleDeclaration"]
+sha256 = "0505b5a2c64b2394d7dcd84360464dc06c560842e99842b921b6bd725305f350"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/adaptive_design/accounting.rs"
 items = ["const INTERIM_REUSE_STAGE", "fn interim_evidence", "fn ledger_refusal", "fn observation_id", "fn refuse_independent_pooling_of_looks", "struct InterimEvidence"]
 sha256 = "7c802e692f54c202eb6cabf38859cccf492749b790d35be26537f0f06ab55ffd"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/adaptive_design.rs"
+items = ["fn declaration_refusal"]
+sha256 = "b073e47ec1e8ccab2ea820ad91a9369e3c60ff452a3ffd2a85f91a700ae13935"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

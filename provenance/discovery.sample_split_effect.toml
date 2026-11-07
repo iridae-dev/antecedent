@@ -44,14 +44,32 @@ record_sha256 = "092611d59e3df9f8a8dbea360e2c119f4672cb1096e8e9ffff8e109de0db94a
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/measured_inference/split_effect.rs"
-items = ["const ALPHA", "const CI_TEST", "const DISCOVERY_FRACTION", "const FORMAT_VERSION", "const LEVEL", "const MAX_ROWS", "fn adjusted_effect", "fn centred_least_squares", "fn directed_parents", "fn discovery_refusal", "fn effect_on_structure", "fn frame", "fn malformed", "fn new", "fn refused", "fn run", "fn validate", "struct AdjustedEffect", "struct SplitEffectRun", "struct SplitEffectSource"]
-sha256 = "2bd250a6e82f0fb30bda9fd2f6be7240191d348d5b5f8899d0cc97b341307a07"
+items = ["const ALPHA", "const CI_TEST", "const DISCOVERY_FRACTION", "const FORMAT_VERSION", "const LEVEL", "const MAX_ROWS", "fn adjusted_effect", "fn centred_least_squares", "fn directed_parents", "fn discovery_refusal", "fn effect_on_structure", "fn frame", "fn new", "fn run", "fn validate", "struct AdjustedEffect", "struct SplitEffectRun", "struct SplitEffectSource"]
+sha256 = "5bb317201789f99fb16b868d9ffc3ff4be1936ede103f375d87d0345b1c4321a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/selective/reuse.rs"
-items = ["const MASK_TAG", "const ROWS_TAG", "const SPLIT_TAG", "enum SplitRule", "fn analysis_effective_sample_size", "fn analysis_weights", "fn assign_eligible", "fn eligibility", "fn invalid", "fn mask_identity", "fn not_supported", "fn receipt_identity", "fn rows_identity", "fn split_rows", "fn splitmix64", "fn write", "struct Eligibility", "struct SampleSplitReceipt", "struct SplitRows", "struct SplitWeights"]
-sha256 = "254c833394a288023a3b80908ac7371409d5465eef142e6feb74af6fc32fd8d8"
+items = ["const MASK_TAG", "const ROWS_TAG", "const SPLIT_TAG", "enum SplitRule", "fn analysis_effective_sample_size", "fn analysis_weights", "fn assign_eligible", "fn eligibility", "fn mask_identity", "fn not_supported", "fn receipt_identity", "fn rows_identity", "fn split_rows", "fn splitmix64", "fn write", "struct Eligibility", "struct SampleSplitReceipt", "struct SplitRows", "struct SplitWeights"]
+sha256 = "8c0463627e5b9b3ffa9008f1d4a4ff6dabe075758b0f63ca5d9d384654371a48"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/selective/refusal.rs"
+items = ["fn invalid"]
+sha256 = "56cdd5badd06f4237db2556c9833cf163da5c35a09f1d9bc980a88f21e05eb5a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/refusal.rs"
+items = ["fn refused"]
+sha256 = "335f5a2aeb43a22d26a7c166c3fd33b8b065c18da65756ed822afca9af6c04c7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/measured_inference.rs"
+items = ["fn invalid", "fn validate_split_columns", "fn validate_split_header"]
+sha256 = "44ac3273efb2810b54707c9b275e8a864554afe943bb5d3e1882499ac312b364"
 
 [[method_review.artifacts]]
 role = "assertion"

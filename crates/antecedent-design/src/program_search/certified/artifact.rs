@@ -197,7 +197,7 @@ impl PreparedCertifiedSearch {
         }
         let _input = ctx
             .acquire_admission(0, (bytes.len() as u64).saturating_mul(16))
-            .map_err(|e| ProgramSearchError::Resource(e.to_string()))?;
+            .map_err(crate::program_search::admission_error)?;
         let d: Document = from_cbor(bytes).map_err(|e| invalid(e.to_string()))?;
         if d.version != 1 {
             return Err(invalid("unsupported certificate artifact version"));

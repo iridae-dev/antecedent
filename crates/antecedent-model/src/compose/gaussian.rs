@@ -24,20 +24,9 @@ use super::descriptor::{
 };
 use super::uncertainty::assemble_parameter_covariance;
 use super::{
-    COMPOSITION_STREAM_DOMAIN, CompositionError, MAX_SAMPLE_CELLS, incoherent, noise_stream_index,
+    COMPOSITION_STREAM_DOMAIN, CompositionError, MAX_SAMPLE_CELLS, cyclic_simulation_refusal,
+    incoherent, noise_stream_index,
 };
-
-/// A topological simulation refused a directed cycle and named the next attempt.
-fn cyclic_simulation_refusal(consumer: &'static str, attempt: &'static str) -> CompositionError {
-    CompositionError::Numerical {
-        message: antecedent_graph::error::CyclicDagRefusal::unsupported(
-            antecedent_graph::error::DagOperation::Simulation,
-            consumer,
-            attempt,
-        )
-        .to_string(),
-    }
-}
 
 /// Joint Gaussian law of all variables under one regime.
 #[derive(Clone, Debug, PartialEq)]

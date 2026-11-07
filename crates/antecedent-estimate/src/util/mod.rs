@@ -33,6 +33,31 @@ pub(crate) fn validate_prior_scale(
     Ok(())
 }
 
+pub(crate) fn validate_caliper(caliper: Option<f64>) -> Result<(), crate::EstimationError> {
+    match caliper {
+        Some(limit) if !(limit.is_finite() && limit >= 0.0) => Err(
+            crate::EstimationError::data_msg("matching caliper must be finite and non-negative"),
+        ),
+        _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod caliper_tests {
+    #[test]
+    fn validates_optional_finite_nonnegative_caliper() {
+        for value in [None, Some(0.0), Some(-0.0), Some(1.0)] {
+            assert!(super::validate_caliper(value).is_ok());
+        }
+        let expected =
+            crate::EstimationError::data_msg("matching caliper must be finite and non-negative")
+                .to_string();
+        for value in [-1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(super::validate_caliper(Some(value)).unwrap_err().to_string(), expected);
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod interval_test_support;
 

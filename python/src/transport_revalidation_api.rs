@@ -20,7 +20,6 @@ use antecedent::analysis::transport_revalidation::{
     revalidate, transported_claim_node, transported_claim_standing,
 };
 use antecedent::contract::ProviderTrust;
-use antecedent::contract::evidence_ledger::parse_digest_hex;
 use antecedent::scientific::SemanticDigest;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -28,6 +27,7 @@ use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
 use crate::bridge::{RefusalJson, check_declared_size, external_refusal_json};
+use crate::digest::digest;
 use crate::transported_response_api::TransportedResponseHandle;
 
 type Refused<T> = (Option<T>, Option<String>);
@@ -41,11 +41,6 @@ fn check_size(text: &str, what: &str) -> PyResult<()> {
 
 fn refusal_json(error: &TransportRevalidationRefusal) -> String {
     RefusalJson::new(error.code, STAGE, &error.detail, &error.message).remedy(error.remedy).json()
-}
-
-fn digest(value: &str, what: &str) -> PyResult<SemanticDigest> {
-    parse_digest_hex(value)
-        .ok_or_else(|| crate::value_err(format!("{what} must be 64 hexadecimal characters")))
 }
 
 // ---------------------------------------------------------------------------

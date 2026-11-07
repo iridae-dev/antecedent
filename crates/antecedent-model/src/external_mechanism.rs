@@ -13,6 +13,7 @@
 //! reason code. A system that contains such a mechanism is `verified_external`, never native.
 
 use crate::local_cyclic::{LocalCyclicMechanism, LocalCyclicModel};
+use crate::nonlinear_equilibrium::invalid_equilibrium_input as invalid;
 use crate::nonlinear_equilibrium::{
     Clamp, Equation, EquilibriumError, EquilibriumResult, MAX_ORDER, SolvePolicy, check_cancel,
     cholesky, local_positions,
@@ -98,10 +99,6 @@ impl SystemEquation {
             Self::External { id, .. } => id,
         }
     }
-}
-
-fn invalid(message: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(message.into())
 }
 
 fn validate_equations(equations: &[SystemEquation]) -> Result<(), EquilibriumError> {
@@ -541,6 +538,43 @@ pub struct ResolvedFeedbackSystem {
     local: LocalCyclicModel,
 }
 
+fn external_solver_resources(
+    n: usize,
+    free_count: usize,
+    jacobian_nnz: usize,
+    blocks: &[Vec<usize>],
+    policy: SolvePolicy,
+) -> Result<(usize, u64), EquilibriumError> {
+    if jacobian_nnz > policy.max_nnz {
+        return Err(
+            SolverBudgetCode::JacobianNnz.refusal(jacobian_nnz as u64, policy.max_nnz as u64)
+        );
+    }
+    let largest_block = blocks.iter().map(Vec::len).max().unwrap_or(0);
+    if largest_block > policy.max_block_size {
+        return Err(
+            SolverBudgetCode::BlockSize.refusal(largest_block as u64, policy.max_block_size as u64)
+        );
+    }
+    let fill = policy
+        .max_factor_fill
+        .min(jacobian_nnz.saturating_mul(8).saturating_add(64 * largest_block));
+    let bytes = u64::try_from(
+        16usize
+            .saturating_mul(n)
+            .saturating_mul(n)
+            .saturating_add(128 * n)
+            .saturating_add(jacobian_nnz.saturating_mul(32))
+            .saturating_add((free_count + 1).saturating_mul(16))
+            .saturating_add(fill.saturating_mul(24)),
+    )
+    .map_err(|_| invalid("resource size"))?;
+    if bytes > policy.max_bytes {
+        return Err(SolverBudgetCode::Memory.refusal(bytes, policy.max_bytes));
+    }
+    Ok((largest_block, bytes))
+}
+
 impl ResolvedFeedbackSystem {
     fn from_parts(
         system: ExternalFeedbackSystem,
@@ -684,6 +718,90 @@ impl ResolvedFeedbackSystem {
         CsrMatrix::from_rows(block.len(), rows)
     }
 
+    fn record_jacobian_condition(
+        &self,
+        values: &[f64],
+        free: &[usize],
+        policy: SolvePolicy,
+        all_contractive: bool,
+        evidence: &mut SolveEvidence,
+        mut tick: impl FnMut() -> Result<(), EquilibriumError>,
+    ) -> Result<Option<f64>, EquilibriumError> {
+        // Free-Jacobian conditioning at the returned state.
+        let mut jacobian_condition_estimate = None;
+        let mut factored = "not_applicable";
+        if !free.is_empty() {
+            let jacobian = self.sparse_jacobian(values, free)?;
+            evidence.jacobian_diagonal_dominance_margin =
+                jacobian.diagonal_dominance_margin().filter(|m| m.is_finite());
+            let factors = match SparseLu::factor(&jacobian, policy.max_factor_fill, &mut tick) {
+                Ok(lu) => {
+                    SparseLu::factor(&jacobian.transpose(), policy.max_factor_fill, &mut tick)
+                        .map(|lut| (lu, lut))
+                }
+                Err(error) => Err(error),
+            };
+            match factors {
+                Ok((lu, lut)) => {
+                    evidence.factorizations += 2;
+                    evidence.peak_factor_fill =
+                        evidence.peak_factor_fill.max(lu.fill()).max(lut.fill());
+                    jacobian_condition_estimate = infinity_condition_estimate(&jacobian, &lu, &lut);
+                    factored = "factorized";
+                }
+                Err(FactorError::Singular) => factored = "singular",
+                Err(FactorError::NonFinite) => factored = "nonfinite",
+                Err(FactorError::FillBudget(_)) => factored = "factor_fill_budget",
+                Err(FactorError::Interrupted(error)) => return Err(error),
+            }
+        }
+        evidence.jacobian_nonsingular_basis = if free.is_empty() {
+            "not_applicable".into()
+        } else if factored != "factorized" {
+            factored.into()
+        } else if all_contractive {
+            "contraction".into()
+        } else if evidence.jacobian_diagonal_dominance_margin.is_some_and(|m| m > 0.0) {
+            "strict_diagonal_dominance".into()
+        } else {
+            "factorization".into()
+        };
+        Ok(jacobian_condition_estimate)
+    }
+
+    fn certify_block_contraction(
+        &self,
+        block: &[usize],
+        reads: &[&[usize]],
+        policy: SolvePolicy,
+        evidence: &mut SolveEvidence,
+    ) -> Result<bool, EquilibriumError> {
+        // Positive summation error is bounded conservatively before comparing to one.
+        let inflation = 1.0 + (block.len() + 1) as f64 * f64::EPSILON;
+        let matrix = self.block_bound_matrix(block)?;
+        let row_sum = matrix.infinity_norm() * inflation;
+        let (spectral, spectral_iterations) = if row_sum < 1.0 || block.len() == 1 {
+            (row_sum, 0)
+        } else {
+            let found = nonnegative_spectral_upper_bound(&matrix, policy.spectral_iterations);
+            (found.upper.min(row_sum), found.iterations)
+        };
+        let bound = row_sum.min(spectral);
+        let retained = |x: f64| if x.is_finite() { x } else { f64::MAX };
+        evidence.row_sum_bound = evidence.row_sum_bound.max(retained(row_sum));
+        evidence.spectral_bound = evidence.spectral_bound.max(retained(spectral));
+        evidence.spectral_iterations += spectral_iterations;
+        evidence.contraction_bound = evidence.contraction_bound.max(retained(bound));
+        if block.len() > 1 || reads[block[0]].contains(&block[0]) {
+            evidence.cyclic_block_count += 1;
+        }
+        let contraction = bound < 1.0;
+        if policy.require_contraction && !contraction {
+            return Err(EquilibriumError::Uncertified { bound });
+        }
+        Ok(contraction)
+    }
+
     /// Numerical SCC solve under the same budgets, admission, cancellation and evidence as the
     /// built-in sparse solver: Jacobian nonzeros, block size, memory, factor fill, iteration
     /// count and wall clock. Existence and uniqueness are marked only when the declared global
@@ -722,32 +840,8 @@ impl ResolvedFeedbackSystem {
             .iter()
             .map(|&i| reads[i].iter().filter(|&&j| j != i && is_free[j]).count() + 1)
             .sum();
-        if jacobian_nnz > policy.max_nnz {
-            return Err(
-                SolverBudgetCode::JacobianNnz.refusal(jacobian_nnz as u64, policy.max_nnz as u64)
-            );
-        }
-        let largest_block = blocks.iter().map(Vec::len).max().unwrap_or(0);
-        if largest_block > policy.max_block_size {
-            return Err(SolverBudgetCode::BlockSize
-                .refusal(largest_block as u64, policy.max_block_size as u64));
-        }
-        let fill = policy
-            .max_factor_fill
-            .min(jacobian_nnz.saturating_mul(8).saturating_add(64 * largest_block));
-        let bytes = u64::try_from(
-            16usize
-                .saturating_mul(n)
-                .saturating_mul(n)
-                .saturating_add(128 * n)
-                .saturating_add(jacobian_nnz.saturating_mul(32))
-                .saturating_add((free.len() + 1).saturating_mul(16))
-                .saturating_add(fill.saturating_mul(24)),
-        )
-        .map_err(|_| invalid("resource size"))?;
-        if bytes > policy.max_bytes {
-            return Err(SolverBudgetCode::Memory.refusal(bytes, policy.max_bytes));
-        }
+        let (largest_block, bytes) =
+            external_solver_resources(n, free.len(), jacobian_nnz, &blocks, policy)?;
         let _lease = ctx
             .acquire_serial_numerical_admission(bytes)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
@@ -794,30 +888,9 @@ impl ResolvedFeedbackSystem {
         let mut all_contractive = true;
         for block in &blocks {
             tick(&mut checks)?;
-            // Positive summation error is bounded conservatively before comparing to one.
-            let inflation = 1.0 + (block.len() + 1) as f64 * f64::EPSILON;
-            let matrix = self.block_bound_matrix(block)?;
-            let row_sum = matrix.infinity_norm() * inflation;
-            let (spectral, spectral_iterations) = if row_sum < 1.0 || block.len() == 1 {
-                (row_sum, 0)
-            } else {
-                let found = nonnegative_spectral_upper_bound(&matrix, policy.spectral_iterations);
-                (found.upper.min(row_sum), found.iterations)
-            };
-            let bound = row_sum.min(spectral);
-            let retained = |x: f64| if x.is_finite() { x } else { f64::MAX };
-            evidence.row_sum_bound = evidence.row_sum_bound.max(retained(row_sum));
-            evidence.spectral_bound = evidence.spectral_bound.max(retained(spectral));
-            evidence.spectral_iterations += spectral_iterations;
-            evidence.contraction_bound = evidence.contraction_bound.max(retained(bound));
-            if block.len() > 1 || reads[block[0]].contains(&block[0]) {
-                evidence.cyclic_block_count += 1;
-            }
-            let contraction = bound < 1.0;
+            let contraction =
+                self.certify_block_contraction(block, &reads, policy, &mut evidence)?;
             all_contractive &= contraction;
-            if policy.require_contraction && !contraction {
-                return Err(EquilibriumError::Uncertified { bound });
-            }
             let mut converged = false;
             for _ in 0..policy.max_iterations {
                 tick(&mut checks)?;
@@ -883,49 +956,14 @@ impl ResolvedFeedbackSystem {
         {
             return Err(EquilibriumError::Nonconvergence { residual });
         }
-        // Free-Jacobian conditioning at the returned state.
-        let mut jacobian_condition_estimate = None;
-        let mut factored = "not_applicable";
-        if !free.is_empty() {
-            let jacobian = self.sparse_jacobian(&values, &free)?;
-            evidence.jacobian_diagonal_dominance_margin =
-                jacobian.diagonal_dominance_margin().filter(|m| m.is_finite());
-            let factors = match SparseLu::factor(&jacobian, policy.max_factor_fill, &mut || {
-                tick(&mut checks)
-            }) {
-                Ok(lu) => {
-                    SparseLu::factor(&jacobian.transpose(), policy.max_factor_fill, &mut || {
-                        tick(&mut checks)
-                    })
-                    .map(|lut| (lu, lut))
-                }
-                Err(error) => Err(error),
-            };
-            match factors {
-                Ok((lu, lut)) => {
-                    evidence.factorizations += 2;
-                    evidence.peak_factor_fill =
-                        evidence.peak_factor_fill.max(lu.fill()).max(lut.fill());
-                    jacobian_condition_estimate = infinity_condition_estimate(&jacobian, &lu, &lut);
-                    factored = "factorized";
-                }
-                Err(FactorError::Singular) => factored = "singular",
-                Err(FactorError::NonFinite) => factored = "nonfinite",
-                Err(FactorError::FillBudget(_)) => factored = "factor_fill_budget",
-                Err(FactorError::Interrupted(error)) => return Err(error),
-            }
-        }
-        evidence.jacobian_nonsingular_basis = if free.is_empty() {
-            "not_applicable".into()
-        } else if factored != "factorized" {
-            factored.into()
-        } else if all_contractive {
-            "contraction".into()
-        } else if evidence.jacobian_diagonal_dominance_margin.is_some_and(|m| m > 0.0) {
-            "strict_diagonal_dominance".into()
-        } else {
-            "factorization".into()
-        };
+        let jacobian_condition_estimate = self.record_jacobian_condition(
+            &values,
+            &free,
+            policy,
+            all_contractive,
+            &mut evidence,
+            || tick(&mut checks),
+        )?;
         evidence.unique_root_basis = if all_contractive { "contraction" } else { "none" }.into();
         if all_contractive
             && blocks.iter().any(|block| {
@@ -977,3 +1015,23 @@ impl ResolvedFeedbackSystem {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod resource_tests {
+    use super::*;
+
+    #[test]
+    fn solver_resource_limits_refuse_nnz_block_and_memory_excess() {
+        let blocks = vec![vec![0, 1]];
+        let mut policy = SolvePolicy::default();
+        assert!(external_solver_resources(2, 2, 4, &blocks, policy).is_ok());
+        policy.max_nnz = 3;
+        assert!(external_solver_resources(2, 2, 4, &blocks, policy).is_err());
+        policy.max_nnz = 4;
+        policy.max_block_size = 1;
+        assert!(external_solver_resources(2, 2, 4, &blocks, policy).is_err());
+        policy.max_block_size = 2;
+        policy.max_bytes = 0;
+        assert!(external_solver_resources(2, 2, 4, &blocks, policy).is_err());
+    }
+}

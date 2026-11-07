@@ -41,9 +41,15 @@ record_sha256 = "013da874a1d425631a42b42467763ec82fd6738873b1b3367b73921bee1dfd4
 
 [[method_review.artifacts]]
 role = "implementation"
+path = "crates/antecedent-identify/src/error.rs"
+items = ["fn map_admission_error"]
+sha256 = "a41aaad61a297afcac568d9e9be6156010d7bba0eb3a95a320b3c4e708959d45"
+
+[[method_review.artifacts]]
+role = "implementation"
 path = "crates/antecedent-identify/src/temporal_mediation.rs"
 items = ["fn adjustment_nodes_admitted", "fn admit_mediation_scratch", "fn describe_keys", "fn ensure_mediators_intercept", "fn identify", "fn identify_backdoor", "fn identify_horizon", "fn identify_with_horizon", "fn mediation_adjustment", "fn mediation_result", "fn new", "struct MediationAdjustment", "struct TemporalMediationIdentifier"]
-sha256 = "a5d29392468085f8bdcb465968efd88e563fc34fb49cca186b47116bd5b73d57"
+sha256 = "6f04f469787b3d889398db3c4b400873f7bf44c199a00788aeef878be5834743"
 
 [[method_review.artifacts]]
 role = "assertion"

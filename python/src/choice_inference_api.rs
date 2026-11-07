@@ -25,14 +25,14 @@ use crate::transport_common::execution_context;
 type Refused<T> = (Option<T>, Option<String>);
 
 fn refusal_value(refusal: &ChoiceInferenceRefusal) -> Json {
-    json!({
-        "code": refusal.code,
-        "stage": "choice_inference",
-        "detail": refusal.detail,
-        "message": refusal.message,
-        "offending": Json::Null,
-        "remedy": Json::Null,
-    })
+    crate::bridge::compact_refusal_value(
+        refusal.code,
+        "choice_inference",
+        &refusal.detail,
+        &refusal.message,
+        None,
+        None,
+    )
 }
 
 fn refused<T>(refusal: &ChoiceInferenceRefusal) -> Refused<T> {

@@ -33,6 +33,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::IoError;
+use crate::joint_bayesian_transport_artifact::engine_refusal;
 use crate::joint_bayesian_transport_artifact::{
     DataIdentityWire, GaussianPriorWire, JointDrawsWire, JointOptionsWire, JointSourceWire,
     JointTargetWire, PriorProvenanceWire,
@@ -44,11 +45,12 @@ use crate::transport_interference_wire::{
     TransportIdentificationWire, transport_identification_from_wire,
     transport_identification_to_wire,
 };
+
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::joint_bayesian_transport::{
     DataIdentity, GaussianPrior, JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS,
-    JointPriors, JointTransportCalibration, JointTransportOptions, JointTransportRefusal,
-    PriorProvenance, SourceData, TargetData,
+    JointPriors, JointTransportCalibration, JointTransportOptions, PriorProvenance, SourceData,
+    TargetData,
 };
 use antecedent_estimate::learned_joint_transport::{
     LearnedJointFit, LearnedJointModel, fit_learned_joint_transport,
@@ -93,13 +95,6 @@ impl From<LearnedJointArtifactError> for IoError {
             code: antecedent_core::reason_code!("invalid_argument"),
             message: format!("learned joint transport artifact: {error}"),
         }
-    }
-}
-
-fn engine_refusal(refusal: &JointTransportRefusal) -> IoError {
-    IoError::Refused {
-        code: refusal.code,
-        message: format!("{}: {}", refusal.detail, refusal.message),
     }
 }
 

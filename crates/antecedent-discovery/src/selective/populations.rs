@@ -56,18 +56,10 @@ use antecedent_data::TabularData;
 use super::adapter::{SelectiveRunReport, StaticSelectiveDiscovery};
 use super::contract::StaticDiscoveryContract;
 use super::identity::{DataIdentity, Digest, SELECTIVE_IDENTITY_VERSION, static_data_identity};
-use super::refusal::SelectiveDiscoveryError;
+use super::refusal::{SelectiveDiscoveryError, invalid};
 use super::structure::{Mark, StructureNode};
 
 const POPULATIONS_TAG: &str = "antecedent.selective_discovery.populations.v1";
-
-fn invalid(detail: &'static str, remedy: impl Into<String>) -> SelectiveDiscoveryError {
-    SelectiveDiscoveryError::refused(
-        antecedent_core::reason_code!("invalid_argument"),
-        detail,
-        remedy,
-    )
-}
 
 /// One population's rows, labelled.
 #[derive(Clone, Copy, Debug)]

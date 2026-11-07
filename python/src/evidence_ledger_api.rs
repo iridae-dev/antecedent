@@ -16,7 +16,7 @@ use antecedent::analysis::evidence_ledger::{
     SourceStatus, TransportIdentity,
 };
 use antecedent::analysis::sequential_evaluation::EvidenceLedger;
-use antecedent::contract::evidence_ledger::{EffectiveObservations, parse_digest_hex};
+use antecedent::contract::evidence_ledger::EffectiveObservations;
 use antecedent::inference::synthesis::{BetweenStudyMethod, MeanPrior, TauPrior};
 use antecedent::{
     BetweenStudy, BorrowingRequest, ConsumedEvidenceLedger, DependenceRangeRequest,
@@ -29,6 +29,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
 
+use crate::digest::digest;
 use crate::measurement_model_api::{
     list, member, object, opt_text, parse, present, real, reals, reject_unknown_keys, text, texts,
 };
@@ -80,11 +81,6 @@ fn source_ids(map: &Map<String, Json>, key: &str) -> PyResult<Vec<SourceId>> {
 
 fn optional_result(map: &Map<String, Json>, key: &str) -> PyResult<Option<ResultId>> {
     opt_text(map, key)?.map(|value| result_id(&value)).transpose()
-}
-
-fn digest(value: &str, what: &str) -> PyResult<antecedent::scientific::SemanticDigest> {
-    parse_digest_hex(value)
-        .ok_or_else(|| crate::value_err(format!("{what} must be 64 hexadecimal characters")))
 }
 
 fn unhex(value: &str) -> Option<Vec<u8>> {

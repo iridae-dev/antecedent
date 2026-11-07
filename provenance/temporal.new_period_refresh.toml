@@ -38,8 +38,8 @@ record_sha256 = "1193e1c49a2f63de4e4219c7d2372de8d6988bbd86d81b0894897e32f9cd36e
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_refresh.rs"
-items = ["const RECEIPT_TAG", "const TEMPORAL_REFRESH_HORIZON", "const TEMPORAL_REFRESH_INFERENCE_CLAIM", "const WINDOW_IDENTITY_TAG", "enum RefreshDecision", "enum RefreshInvalidation", "fn accept_refresh", "fn bind", "fn compute_digest", "fn decide_refresh", "fn detail", "fn digest", "fn hex_digest", "fn horizon", "fn into_error", "fn message", "fn new", "fn period", "fn refresh_held", "fn tick", "fn validate", "fn verify", "fn write_list", "struct HeldTemporalResult", "struct ObservationPeriod", "struct RefreshReceipt", "struct TemporalWindowIdentity"]
-sha256 = "563ad2eed13666a3aa873a967942a098661ef9e8f71a37a488439e692e6fbc7f"
+items = ["const RECEIPT_TAG", "const TEMPORAL_REFRESH_HORIZON", "const TEMPORAL_REFRESH_INFERENCE_CLAIM", "const WINDOW_IDENTITY_TAG", "enum RefreshDecision", "enum RefreshInvalidation", "fn accept_refresh", "fn bind", "fn compute_digest", "fn decide_refresh", "fn detail", "fn digest", "fn horizon", "fn into_error", "fn message", "fn new", "fn period", "fn refresh_held", "fn tick", "fn validate", "fn verify", "fn write_list", "struct HeldTemporalResult", "struct ObservationPeriod", "struct RefreshReceipt", "struct TemporalWindowIdentity"]
+sha256 = "a231cb68b350140fb5e555e5800707daf30860f8fa81dd34a6826f2454ed4cfc"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

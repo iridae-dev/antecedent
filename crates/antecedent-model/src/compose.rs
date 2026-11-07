@@ -89,6 +89,18 @@ pub fn noise_stream_index(role: u64, name: &str) -> u64 {
     h
 }
 
+/// A topological simulation refused a directed cycle and named the next attempt.
+fn cyclic_simulation_refusal(consumer: &'static str, attempt: &'static str) -> CompositionError {
+    CompositionError::Numerical {
+        message: antecedent_graph::error::CyclicDagRefusal::unsupported(
+            antecedent_graph::error::DagOperation::Simulation,
+            consumer,
+            attempt,
+        )
+        .to_string(),
+    }
+}
+
 /// Why a composition could not be compiled or executed.
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
 #[non_exhaustive]
@@ -130,4 +142,19 @@ impl CompositionError {
 
 pub(crate) fn incoherent(finding: CoherenceFinding) -> CompositionError {
     CompositionError::Incoherent { findings: vec![finding] }
+}
+
+#[cfg(test)]
+mod cyclic_refusal_tests {
+    use super::{CompositionError, cyclic_simulation_refusal};
+
+    #[test]
+    fn simulation_refusal_preserves_consumer_and_attempt() {
+        assert_eq!(
+            cyclic_simulation_refusal("consumer", "try\nthis"),
+            CompositionError::Numerical {
+                message: "simulation refused a directed cycle; next attempt: consumer has no cyclic support; next attempt: try\nthis".into(),
+            }
+        );
+    }
 }

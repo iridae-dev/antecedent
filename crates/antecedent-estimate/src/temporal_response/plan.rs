@@ -118,10 +118,9 @@ impl TemporalInterventionPlan {
         if bytes > budget.limits().max_bytes {
             return Err(T::Limit { dimension: "bytes" }.into());
         }
-        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
-            other => T::Admission(other),
-        })?;
+        let lease = ctx
+            .acquire_admission(0, bytes)
+            .map_err(crate::temporal_response::temporal_admission_error)?;
         let mut values = Vec::new();
         values
             .try_reserve_exact(usize::try_from(count).map_err(|_| T::Allocation)?)
@@ -185,10 +184,9 @@ impl TemporalInterventionPlan {
         if bytes > budget.limits().max_bytes {
             return Err(T::Limit { dimension: "bytes" }.into());
         }
-        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
-            other => T::Admission(other),
-        })?;
+        let lease = ctx
+            .acquire_admission(0, bytes)
+            .map_err(crate::temporal_response::temporal_admission_error)?;
         let mut values = Vec::new();
         values
             .try_reserve_exact(usize::try_from(count).map_err(|_| T::Allocation)?)
@@ -475,10 +473,9 @@ pub(crate) fn plan_temporal_intervention(
     if bytes > budget.limits().max_bytes {
         return Err(T::Limit { dimension: "bytes" }.into());
     }
-    let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-        antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
-        other => T::Admission(other),
-    })?;
+    let lease = ctx
+        .acquire_admission(0, bytes)
+        .map_err(crate::temporal_response::temporal_admission_error)?;
     let kind = plan_temporal_intervention_raw(interventions, spec, ctx)?;
     if ctx.cancellation.is_cancelled() {
         return Err(T::Cancelled.into());

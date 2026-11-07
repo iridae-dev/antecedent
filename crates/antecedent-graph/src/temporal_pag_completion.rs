@@ -185,10 +185,8 @@ impl TemporalPagCompletionSampler {
         if bytes > temporal_budget.limits().max_bytes {
             return Err(T::Limit { dimension: "bytes" }.into());
         }
-        let template_lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
-            other => T::Admission(other),
-        })?;
+        let template_lease =
+            ctx.acquire_admission(0, bytes).map_err(crate::error::temporal_admission_error)?;
         let projected = pag.as_static_pag_for_alg()?;
         let projection_budget = std::cell::RefCell::new(temporal_budget.clone());
         let projection_error = std::cell::RefCell::new(None);
@@ -293,10 +291,8 @@ fn admit_template_copy(
     if bytes > budget.limits().max_bytes {
         return Err(T::Limit { dimension: "bytes" }.into());
     }
-    ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled.into(),
-        other => T::Admission(other).into(),
-    })
+    ctx.acquire_admission(0, bytes)
+        .map_err(|error| crate::error::temporal_admission_error(error).into())
 }
 fn refine(base: &TemporalPag, candidate: &Pag) -> Option<TemporalPag> {
     let mut graph = base.clone();

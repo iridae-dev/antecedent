@@ -12,6 +12,7 @@
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };
+use super::{invalid, refused};
 use crate::IoError;
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::cohort_linear_effect::{
@@ -24,14 +25,6 @@ use serde::{Deserialize, Serialize};
 
 /// Route name the measured envelope is consumed under.
 pub const ROUTE: &str = "cohort_interval";
-
-fn refused(code: &'static str, detail: &str, message: &str) -> IoError {
-    IoError::Refused { code, message: format!("{detail}: {message}") }
-}
-
-fn invalid(detail: &str, message: &str) -> IoError {
-    refused(antecedent_core::reason_code!("invalid_argument"), detail, message)
-}
 
 fn from_interval(error: &CohortIntervalRefusal) -> IoError {
     IoError::Refused {

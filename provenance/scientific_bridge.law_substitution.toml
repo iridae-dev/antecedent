@@ -34,6 +34,12 @@ record_sha256 = "19f3a40029594e48118333f0a7fd137a0079984abeda314ff105b81d3a011d1
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
+path = "crates/antecedent-contract/src/bridge/refusal.rs"
+items = ["fn require_value_kind", "fn wrong_value_kind"]
+sha256 = "2402e0e7cdd581c74e6f24bc9c914f5fdee2aabae6cb0cd41d26fb2cc710eccc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
 path = "crates/antecedent-contract/src/bridge/kind.rs"
 items = ["enum AssumptionKind", "enum BridgeKind", "enum QuantityClass", "enum ValueKind", "fn allowed_mappings", "fn endpoint_pairs", "fn principal_assumption"]
 sha256 = "852932442e8822f52942a0a5beb3f72f9d3ec4f68b8d0aa9dfd269146961a188"
@@ -41,8 +47,8 @@ sha256 = "852932442e8822f52942a0a5beb3f72f9d3ec4f68b8d0aa9dfd269146961a188"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/bridge/claim.rs"
-items = ["const BRIDGE_CLAIM_IDENTITY_VERSION", "const PROPAGATION_SECTION", "const TAG_CLAIM", "const TAG_TARGET", "fn assumptions", "fn bridge_receipt", "fn bridged_claim_id", "fn bridged_claim_id_with_propagation", "fn bridged_identities", "fn bridged_reasoning", "fn bridged_uncertainty", "fn derive_bridged_claim", "fn derive_bridged_claim_propagating", "fn freshness", "fn is_alignment_evidence", "fn kind", "fn mismatch_name", "fn node", "fn obligation", "fn request_interval", "fn require_value_kind", "fn source_point_value", "struct BridgeSource", "struct BridgedClaim"]
-sha256 = "0011418f5b056de92267fe27bac17e71c04b8e8d04b29828ba5a2eef11b6342d"
+items = ["const BRIDGE_CLAIM_IDENTITY_VERSION", "const PROPAGATION_SECTION", "const TAG_CLAIM", "const TAG_TARGET", "fn assumptions", "fn bridge_receipt", "fn bridged_claim_id", "fn bridged_claim_id_with_propagation", "fn bridged_identities", "fn bridged_reasoning", "fn bridged_uncertainty", "fn claim_identity_prefix", "fn derive_bridged_claim", "fn derive_bridged_claim_propagating", "fn freshness", "fn is_alignment_evidence", "fn kind", "fn mismatch_name", "fn node", "fn obligation", "fn request_interval", "fn require_value_kind", "fn source_point_value", "struct BridgeSource", "struct BridgedClaim"]
+sha256 = "90e802665e0498f0be589de184183615903a20df67f04efb55f80295e9878875"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

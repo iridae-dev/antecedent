@@ -11,6 +11,7 @@
 //! verified implementation, so it takes the same trusted resolver as replay. The result is
 //! `verified_external` and model-conditional; local convergence is not a global optimum.
 
+use crate::cyclic_likelihood::invalid_equilibrium_input as invalid;
 use antecedent_core::ExecutionContext;
 use antecedent_model::external_mechanism::{
     ExternalFeedbackSystem, ExternalFitParameter, MechanismTrust, ResolvedFeedbackSystem,
@@ -66,10 +67,6 @@ pub struct ExternalFeedbackFit {
     pub score_basis: String,
     /// Always `verified_external` for a system with an external mechanism.
     pub trust: MechanismTrust,
-}
-
-fn invalid(s: &str) -> EquilibriumError {
-    EquilibriumError::Invalid(s.into())
 }
 
 struct Scored {

@@ -32,9 +32,15 @@ record_sha256 = "d38a826067beef5fb1a62bb6a58d5b40e7c4cadb82eed77aa241e7003ab62b6
 
 [[method_review.artifacts]]
 role = "implementation"
+path = "crates/antecedent-estimate/src/temporal_response/mod.rs"
+items = ["fn temporal_admission_error"]
+sha256 = "abfb7fc17e2ffb81f38f4c5e15a03e7455e387f8450bc6aafb417905fffbb801"
+
+[[method_review.artifacts]]
+role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_observed_bayes.rs"
 items = ["const CHAIN_START_STREAM", "enum Observation", "fn assemble_response", "fn compile_cells", "fn dispersed_latent_start", "fn draw", "fn estimate_observed_temporal_response", "fn gibbs_diagnostics", "fn latent_draw", "fn lower_normal", "fn mean", "fn mechanism_templates", "fn mechanism_templates_inner", "fn mechanisms", "fn new", "fn observation_assumption", "fn observations", "fn observed_inputs", "fn posterior_buffer_budget", "fn read_column", "fn require_observation_containment", "fn retain_outcome_dependencies", "fn response_target", "fn run_chains", "fn sweep", "fn validate_request", "fn value", "struct ChainDraws", "struct Evaluation", "struct EvaluationNode", "struct Mechanism", "struct ObservedInputs", "struct ResponseContext", "struct ResponseTarget", "type Horizons", "type MechanismTemplates"]
-sha256 = "ea97deb3b3043ab02f8fec7cdbe4615f96d1a3de5ddc5bd20e5b0dab2538fc9c"
+sha256 = "2e1937a60c3dc8a451c2a4215165f01594f946865146ffcfbc4825aa5b20a5c3"
 
 [[method_review.artifacts]]
 role = "assertion"

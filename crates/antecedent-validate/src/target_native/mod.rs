@@ -51,9 +51,6 @@ pub use joint::{
     JointStatistic, JointStatisticKind, joint_mahalanobis, joint_mahalanobis_with_bias,
 };
 
-/// Domain tag of a refutation-target identity.
-const TARGET_IDENTITY_TAG: &str = "antecedent.refutation_target";
-
 /// Family of the quantity a claim reports.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum TargetFamily {
@@ -193,9 +190,12 @@ impl RefutationTarget {
                 message: "a refutation-target coordinate label is empty",
             });
         }
-        let mut writer = CanonicalWriter::new(TARGET_IDENTITY_TAG);
-        writer.text(family.as_str()).text(quadrant.as_str()).texts(&labels[..]).bytes(&source);
-        let identity = writer.finish();
+        let identity = antecedent_core::identity::refutation_target_identity(
+            family.as_str(),
+            quadrant.as_str(),
+            &labels,
+            &source,
+        );
         Ok(Self { family, quadrant, labels, source, identity })
     }
 
@@ -776,5 +776,34 @@ pub fn refuse_scalar_reports_for_target(
             claim_family: claim.family(),
             next_attempt: TARGET_NATIVE_NEXT_ATTEMPT,
         }),
+    }
+}
+
+#[cfg(test)]
+mod identity_vector_tests {
+    use super::{RefutationTarget, TargetFamily, TargetQuadrant};
+
+    #[test]
+    fn refutation_target_keeps_fixed_identity_and_validation() {
+        let target = RefutationTarget::new(
+            TargetFamily::ConditionalEffect,
+            TargetQuadrant::TEMPORAL_BAYESIAN,
+            ["alpha", "β"],
+            [0x42; 32],
+        )
+        .unwrap();
+        assert_eq!(
+            target.identity_hex(),
+            "43cf05f9c0a50ec49e6401fed1df62cbcbc096b06fe78d0b9c6451c5c3f302d5"
+        );
+        assert!(
+            RefutationTarget::new(
+                TargetFamily::ScalarAverageEffect,
+                TargetQuadrant::TEMPORAL_BAYESIAN,
+                ["alpha", "β"],
+                [0x42; 32],
+            )
+            .is_err()
+        );
     }
 }

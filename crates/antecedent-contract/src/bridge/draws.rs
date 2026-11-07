@@ -868,11 +868,7 @@ impl BridgedDistributionClaim {
     /// bridged draws are a posterior or a predictive law, never a mean, an
     /// identified set or a joint outcome law.
     pub fn require_value_kind(&self, requested: ValueKind) -> Result<(), BridgeRefusal> {
-        if self.value_kind == requested {
-            Ok(())
-        } else {
-            Err(wrong_value_kind(requested, self.value_kind))
-        }
+        super::super::refusal::require_value_kind(requested, self.value_kind)
     }
 
     /// Freshness of the bridged claim given the freshness of its source: a

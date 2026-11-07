@@ -19,7 +19,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::execution::{AdmissionError, AdmissionLease};
+use antecedent_core::execution::AdmissionLease;
 use antecedent_core::{CausalRng, ExecutionContext, Intervention, InterventionSequence};
 
 use crate::batch::{MechanismWorkspace, ParentBatch, ValueBatch, ValueBatchMut};
@@ -228,13 +228,10 @@ fn admit_rollout_buffers(
         .and_then(|v| u64::try_from(v).ok())
         .ok_or_else(|| shape_error("temporal rollout byte size overflows"))?;
     let admit = |bytes: u64| {
-        ctx.acquire_admission(0, bytes).map_err(|error| match error {
-            AdmissionError::Cancelled => ModelError::Cancelled,
-            _ => ModelError::ResourceLimit {
-                message: "temporal rollout buffers",
-                required_bytes: bytes,
-                limit_bytes: ctx.admission().available().bytes(),
-            },
+        ctx.acquire_admission(0, bytes).map_err(|error| {
+            crate::error::admission_error(error, "temporal rollout buffers", bytes, || {
+                ctx.admission().available().bytes()
+            })
         })
     };
     let retention = Arc::new(admit(retained_bytes)?);

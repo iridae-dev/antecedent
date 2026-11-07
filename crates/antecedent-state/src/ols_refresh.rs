@@ -61,13 +61,7 @@ impl RefreshRow {
     }
 
     fn validate(&self, ncols: usize) -> Result<(), StateError> {
-        if self.x.len() != ncols {
-            return Err(StateError::Shape(format!("row len {} != ncols {ncols}", self.x.len())));
-        }
-        if !self.y.is_finite() || self.x.iter().any(|value| !value.is_finite()) {
-            return Err(StateError::Numerical("design row and response must be finite".into()));
-        }
-        Ok(())
+        validate_regression_row(&self.x, self.y, ncols)
     }
 }
 
@@ -136,6 +130,26 @@ pub struct OlsRefresh {
     digest: CanonicalWriter,
     ledger: OlsLedgerState,
     recomputes: u64,
+}
+
+pub(crate) fn validate_regression_row(x: &[f64], y: f64, ncols: usize) -> Result<(), StateError> {
+    if x.len() != ncols {
+        return Err(StateError::Shape(format!("row len {} != ncols {ncols}", x.len())));
+    }
+    if !y.is_finite() || x.iter().any(|value| !value.is_finite()) {
+        return Err(StateError::Numerical("design row and response must be finite".into()));
+    }
+    Ok(())
+}
+
+pub(crate) fn check_refresh_source(expected: &str, source: &str) -> Result<(), StateError> {
+    if source == expected {
+        return Ok(());
+    }
+    Err(StateError::StaleCache(format!(
+        "rows are from source {source}, the summary is of {expected}; replace the source and \
+         recompute from its rows"
+    )))
 }
 
 fn digest_start(source: &str, ncols: usize) -> CanonicalWriter {
@@ -284,14 +298,7 @@ impl OlsRefresh {
     }
 
     fn check_source(&self, source: &str) -> Result<(), StateError> {
-        if source == self.source.as_ref() {
-            return Ok(());
-        }
-        Err(StateError::StaleCache(format!(
-            "rows are from source {source}, the summary is of {}; replace the source and \
-             recompute from its rows",
-            self.source
-        )))
+        crate::ols_refresh::check_refresh_source(self.source.as_ref(), source)
     }
 
     fn take(&mut self, row: &RefreshRow) {
@@ -618,5 +625,40 @@ impl Spillable for OlsRefresh {
         }
         decoder.finish()?;
         Self::from_rows(source, ncols, rows)
+    }
+}
+
+#[cfg(test)]
+mod source_check_tests {
+    #[test]
+    fn row_validation_keeps_shape_finiteness_and_weight_order() {
+        use crate::{
+            StateError,
+            weighted_refresh::{WeightedOlsRefresh, WeightedRow},
+        };
+        let shape = WeightedRow::weighted(1, vec![f64::NAN], f64::NAN, -1.0);
+        assert!(matches!(
+            WeightedOlsRefresh::from_rows("s", 2, vec![shape]),
+            Err(StateError::Shape(_))
+        ));
+        let finite = WeightedRow::weighted(1, vec![f64::NAN], 0.0, -1.0);
+        assert!(matches!(
+            WeightedOlsRefresh::from_rows("s", 1, vec![finite]),
+            Err(StateError::Numerical(_))
+        ));
+        let weight = WeightedRow::weighted(1, vec![0.0], 0.0, -1.0);
+        assert!(matches!(
+            WeightedOlsRefresh::from_rows("s", 1, vec![weight]),
+            Err(StateError::InvalidEvent(_))
+        ));
+    }
+
+    #[test]
+    fn source_check_keeps_exact_stale_cache_error() {
+        assert!(super::check_refresh_source("same", "same").is_ok());
+        let error = super::check_refresh_source("old", "new\nline").unwrap_err();
+        assert!(
+            matches!(error, crate::StateError::StaleCache(message) if message == "rows are from source new\nline, the summary is of old; replace the source and recompute from its rows")
+        );
     }
 }

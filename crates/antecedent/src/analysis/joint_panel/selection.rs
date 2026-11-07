@@ -101,6 +101,14 @@ impl RandomizedSelectionResult {
 fn invalid(e: impl std::fmt::Display) -> ProgramSearchError {
     ProgramSearchError::Invalid(e.to_string())
 }
+fn admit_selection_input(
+    ctx: &ExecutionContext,
+    bytes: usize,
+) -> Result<antecedent_core::execution::AdmissionLease, ProgramSearchError> {
+    ctx.acquire_admission(0, (bytes as u64).saturating_mul(16))
+        .map_err(|error| ProgramSearchError::Resource(error.to_string()))
+}
+
 /// Artifact encode/decode failure, keeping the typed codec error as the source.
 fn codec(e: antecedent_io::IoError) -> ProgramSearchError {
     ProgramSearchError::upstream("selection artifact codec", e)
@@ -442,9 +450,7 @@ pub fn replay_randomized_selection(
     if bytes.len() > 32 * 1024 * 1024 {
         return Err(invalid("selection artifact size limit"));
     }
-    let _input = ctx
-        .acquire_admission(0, (bytes.len() as u64).saturating_mul(16))
-        .map_err(|e| ProgramSearchError::Resource(e.to_string()))?;
+    let _input = admit_selection_input(ctx, bytes.len())?;
     let d: Document = antecedent_io::convert::from_cbor(bytes).map_err(codec)?;
     if d.version != 1 {
         return Err(invalid("unsupported selection artifact version"));
@@ -466,6 +472,33 @@ pub fn replay_randomized_selection(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn input_admission_preserves_resource_mapping() {
+        let ctx = antecedent_core::ExecutionContext::for_tests(1)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 0));
+        assert!(matches!(
+            super::admit_selection_input(&ctx, 1),
+            Err(antecedent_design::program_search::ProgramSearchError::Resource(_))
+        ));
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            super::admit_selection_input(&ctx, 1),
+            Err(antecedent_design::program_search::ProgramSearchError::Resource(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_preserves_display_text() {
+        for input in ["", "selection:\nreason"] {
+            match super::invalid(input) {
+                antecedent_design::program_search::ProgramSearchError::Invalid(message) => {
+                    assert_eq!(message, input)
+                }
+                other => panic!("unexpected error: {other:?}"),
+            }
+        }
+    }
+
     use super::*;
     pub(super) fn fixture(
         generation: RandomizedCandidateGeneration,

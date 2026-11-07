@@ -21,6 +21,7 @@
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };
+use super::{invalid, refused};
 use crate::IoError;
 use antecedent_core::IdentityDomain;
 use antecedent_estimate::count_fitted_posterior::{
@@ -41,14 +42,6 @@ pub const MEASURED_DRAWS: u32 = 2000;
 /// Largest accepted ratio of an endpoint's Monte Carlo standard error to the interval
 /// width; one rule shared with every posterior-draw route.
 pub use antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION;
-
-fn refused(code: &'static str, detail: &str, message: &str) -> IoError {
-    IoError::Refused { code, message: format!("{detail}: {message}") }
-}
-
-fn invalid(detail: &str, message: &str) -> IoError {
-    refused(antecedent_core::reason_code!("invalid_argument"), detail, message)
-}
 
 fn protocol(message: &str) -> IoError {
     invalid(antecedent_core::reason_details::measured_interval::INVALID_SOURCE, message)

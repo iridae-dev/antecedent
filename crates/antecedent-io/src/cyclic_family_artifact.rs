@@ -8,7 +8,7 @@ mod request;
 
 pub use request::CyclicFamilyRequest;
 
-use crate::cyclic_system_artifact::{CyclicArtifactError, MAX_CYCLIC_ARTIFACT_BYTES};
+use crate::cyclic_system_artifact::{CyclicArtifactError, MAX_CYCLIC_ARTIFACT_BYTES, invalid};
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 #[cfg(test)]
 use antecedent_model::continuous_cyclic::OrnsteinUhlenbeck;
@@ -482,9 +482,6 @@ struct Record {
     version: u32,
     request: CyclicFamilyRequest,
     report: CyclicFamilyReport,
-}
-fn invalid(e: impl std::fmt::Display) -> CyclicArtifactError {
-    CyclicArtifactError::Invalid(e.to_string())
 }
 
 /// Typed trajectory-fit failure as the family's refusal, argument or resource error.

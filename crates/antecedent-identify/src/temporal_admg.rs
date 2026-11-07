@@ -154,10 +154,7 @@ pub fn plan_temporal_admg_window_within(
     }
     let len = usize::try_from(count)
         .map_err(|_| IdentificationError::budget(IdentificationBudget::Memory))?;
-    let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-        _ => IdentificationError::budget(IdentificationBudget::Memory),
-    })?;
+    let lease = ctx.acquire_admission(0, bytes).map_err(crate::error::map_admission_error)?;
     let mut treated = Vec::new();
     treated
         .try_reserve_exact(len)
@@ -369,10 +366,8 @@ pub fn identify_temporal_admg_contrast_over_within(
     if bytes > budget.limits().max_bytes {
         return Err(IdentificationError::budget(IdentificationBudget::Memory));
     }
-    let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-        _ => IdentificationError::budget(IdentificationBudget::Memory),
-    })?);
+    let lease =
+        Arc::new(ctx.acquire_admission(0, bytes).map_err(crate::error::map_admission_error)?);
     let mut schedule = Vec::new();
     schedule
         .try_reserve_exact(plan.treated.len())

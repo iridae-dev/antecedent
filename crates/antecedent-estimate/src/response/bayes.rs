@@ -171,6 +171,340 @@ fn stream_response_grid(
     Ok((columns, summary))
 }
 
+fn posterior_coefficient_columns(
+    draws: &antecedent_prob::PosteriorDraws,
+    ncols: usize,
+) -> Result<Vec<&[f64]>, EstimationError> {
+    let coefficient_columns: Vec<&[f64]> = (0..ncols)
+        .map(|index| {
+            let column = draws
+                .schema
+                .quantities
+                .iter()
+                .position(|quantity| matches!(quantity,
+                    antecedent_prob::PosteriorQuantityKind::Coefficient { index: i, .. } if *i == index))
+                .ok_or_else(|| EstimationError::stats_msg("Bayesian response missing coefficient draw"))?;
+            draws.column(column).map_err(EstimationError::from)
+        })
+        .collect::<Result<_, _>>()?;
+    Ok(coefficient_columns)
+}
+
+struct BayesianSupportRequest<'a> {
+    sample: &'a CompleteSample,
+    points: &'a [f64],
+    bandwidth: f64,
+    minimum_local_ess: f64,
+    treatment_count: usize,
+    per_grid: bool,
+    stochastic: bool,
+    scalar: bool,
+}
+
+fn bayesian_response_support(request: &BayesianSupportRequest<'_>) -> SupportReport {
+    let sample = request.sample;
+    let support_points = request.points;
+    let bandwidth = request.bandwidth;
+    let n = sample.len();
+    let mut ess = Vec::new();
+    let mut density = Vec::new();
+    for &dose in support_points {
+        let kernels: Vec<_> = sample
+            .treatments
+            .iter()
+            .map(|t| (-0.5 * ((t - dose) / bandwidth).powi(2)).exp())
+            .collect();
+        let sum = kernels.iter().sum::<f64>();
+        ess.push(sum * sum / kernels.iter().map(|k| k * k).sum::<f64>().max(f64::MIN_POSITIVE));
+        density.push(sum / (n as f64 * bandwidth * (2.0 * std::f64::consts::PI).sqrt()));
+    }
+    let mut support = support_report(
+        support_points,
+        &sample.treatments,
+        &ess,
+        density,
+        request.minimum_local_ess,
+        0,
+    );
+    // A shifted-policy query is assessed over its shifted range, not at the
+    // response grid, so it has no one-label-per-grid-coordinate evidence.
+    let per_grid = request.per_grid;
+    if !per_grid {
+        support.point_status = None;
+    }
+    if request.treatment_count > 1 {
+        support.status = SupportStatus::Extrapolative;
+        support.point_status =
+            per_grid.then(|| vec![SupportStatus::Extrapolative; support_points.len()].into());
+        support.query_region = SupportRegion {
+            minima: (0..request.treatment_count)
+                .map(|i| sample.treatment_column_range(i).0)
+                .collect(),
+            maxima: (0..request.treatment_count)
+                .map(|i| sample.treatment_column_range(i).1)
+                .collect(),
+        };
+        support.warnings.push(Diagnostic::new(
+            "response.joint_support_unverified", DiagnosticKind::Support, DiagnosticSeverity::Warning,
+            "per-treatment bounds do not certify joint policy support; posterior uncertainty conditions on the declared additive outcome model and empirical covariate distribution",
+        ));
+    }
+    if request.stochastic {
+        support.status = SupportStatus::Extrapolative;
+        support.point_status =
+            per_grid.then(|| vec![SupportStatus::Extrapolative; support_points.len()].into());
+        support.warnings.push(Diagnostic::new(
+            "response.stochastic_policy_support_unverified", DiagnosticKind::Support, DiagnosticSeverity::Warning,
+            "the Gaussian additive model integrates stochastic policies by their exact means; local support at the mean does not certify support over the policy distribution; intervals describe the policy mean, not a predictive draw",
+        ));
+    }
+    if !per_grid && request.scalar {
+        // A shifted-policy query answers one scalar at the shifted mean and is
+        // assessed over the shifted range; its single label is that range's
+        // (worst-endpoint) summary, never a per-grid-point claim.
+        support.point_status = Some(Arc::from([support.status]));
+    }
+    support
+}
+
+fn non_gaussian_row_features(
+    sample: &CompleteSample,
+    design_matrix: &[f64],
+    coefficient_count: usize,
+    primary_shift: Option<f64>,
+    treatment_count: usize,
+    joint_levels: &[(VariableId, Option<f64>, f64)],
+) -> Result<(Vec<f64>, u64, u64, u64), EstimationError> {
+    let n = sample.len();
+    // A primary shift puts the dose on each row. Otherwise the dose is the grid coordinate.
+    let encoding_degree = u64::from(primary_shift.is_none());
+    let encoding_columns = usize::from(primary_shift.is_none()) + 1;
+    if coefficient_count < encoding_columns {
+        return Err(EstimationError::data_msg(
+            "Bayesian response has fewer coefficient columns than the dose encoding",
+        ));
+    }
+    let row_width_usize = coefficient_count - encoding_columns;
+    let feature_cells = n
+        .checked_mul(row_width_usize)
+        .ok_or_else(|| EstimationError::data_msg("Bayesian response row features overflow"))?;
+    let mut row_features = vec![0.0_f64; feature_cells];
+    for row in 0..n {
+        for local in 0..row_width_usize {
+            let column = encoding_columns + local;
+            let value = if column == 1 {
+                let shift = primary_shift.ok_or_else(|| {
+                    EstimationError::data_msg(
+                        "Bayesian response put the dose column in the row features",
+                    )
+                })?;
+                sample.treatments[row] + shift
+            } else if column >= 2 && column < 1 + treatment_count {
+                let (level, shift) = (joint_levels[column - 2].1, joint_levels[column - 2].2);
+                level.unwrap_or(sample.treatment_matrix[(column - 1) * n + row] + shift)
+            } else {
+                design_matrix[column * n + row]
+            };
+            row_features[row * row_width_usize + local] = value;
+        }
+    }
+    let row_count = u64::try_from(n)
+        .map_err(|_| EstimationError::data_msg("Bayesian response row count does not fit u64"))?;
+    let row_width = u64::try_from(row_width_usize)
+        .map_err(|_| EstimationError::data_msg("Bayesian response row width does not fit u64"))?;
+    Ok((row_features, row_count, row_width, encoding_degree))
+}
+
+struct BayesianResponseSummary {
+    means: Vec<f64>,
+    lower: Vec<f64>,
+    upper: Vec<f64>,
+    sds: Vec<f64>,
+    retained: Vec<Vec<f64>>,
+    n_draws: usize,
+}
+
+impl BayesianResponseSummary {
+    fn from_columns(
+        columns: Vec<Vec<f64>>,
+        n_draws: usize,
+        confidence_level: f64,
+        simultaneous_minimum: Option<usize>,
+    ) -> Result<Self, EstimationError> {
+        let mut summary = Self {
+            means: Vec::new(),
+            lower: Vec::new(),
+            upper: Vec::new(),
+            sds: Vec::new(),
+            retained: Vec::with_capacity(columns.len()),
+            n_draws,
+        };
+        for values in columns {
+            let (mean, lo, hi, sd) =
+                crate::bayesian::summarize_linear_response_draws(values.clone(), confidence_level)?;
+            summary.retained.push(values);
+            summary.means.push(mean);
+            summary.lower.push(lo);
+            summary.upper.push(hi);
+            summary.sds.push(sd);
+        }
+        if simultaneous_minimum.is_some_and(|minimum| n_draws < minimum) {
+            return Err(EstimationError::unsupported(
+                "Bayesian simultaneous band requires at least the requested number of posterior draws",
+            ));
+        }
+        Ok(summary)
+    }
+
+    fn into_response(
+        self,
+        grid: Vec<f64>,
+        scalar: bool,
+        confidence_level: f64,
+        simultaneous: bool,
+    ) -> Result<(ResponseValue, ResponseUncertainty), EstimationError> {
+        let Self { means, lower, upper, sds, retained, n_draws } = self;
+        let draws = Some(CredibleDraws::columns(n_draws, &retained));
+        let value = if scalar {
+            ResponseValue::Scalar(means[0])
+        } else {
+            ResponseValue::Surface {
+                dimension: 1,
+                grid: Arc::from(grid),
+                mean: Arc::from(means.clone()),
+            }
+        };
+        let uncertainty = if scalar {
+            ResponseUncertainty::Scalar {
+                standard_error: sds[0],
+                level: confidence_level,
+                lower: lower[0],
+                upper: upper[0],
+                interpretation: antecedent_core::IntervalInterpretation::Credible,
+                draws,
+            }
+        } else if simultaneous {
+            simultaneous_posterior_band(&means, &retained, &lower, &upper, &sds, confidence_level)?
+        } else {
+            ResponseUncertainty::PointwiseBand {
+                level: confidence_level,
+                lower: Arc::from(lower),
+                upper: Arc::from(upper),
+                interpretation: antecedent_core::IntervalInterpretation::Credible,
+                draws,
+            }
+        };
+        Ok((value, uncertainty))
+    }
+}
+
+fn prepare_bayesian_response_design(
+    sample: &CompleteSample,
+    treatments: &[VariableId],
+    adjustment_set: &Arc<[VariableId]>,
+) -> Result<crate::PreparedBayesianProblem, EstimationError> {
+    let n = sample.len();
+    let mut covs: Vec<_> = treatments
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(i, &id)| (id, &sample.treatment_matrix[i * n..(i + 1) * n]))
+        .collect();
+    covs.extend(
+        adjustment_set
+            .iter()
+            .enumerate()
+            .map(|(i, &id)| (id, &sample.adjustment[i * n..(i + 1) * n])),
+    );
+    let design = antecedent_stats::CompiledDesign::linear_adjustment(
+        &sample.treatments,
+        &covs,
+        &sample.outcome,
+        &sample.keep,
+    )?;
+    let prep = crate::PreparedBayesianProblem {
+        design,
+        method: Arc::from("response.backdoor"),
+        adjustment_set: Arc::clone(adjustment_set),
+        active: 1.0,
+        control: 0.0,
+        overlap: crate::OverlapPolicy::ExplicitOverride,
+        coef_names: None,
+        unit_ids: None,
+        serial_dependence: crate::SerialDependence::Iid,
+        preparation: None,
+    };
+    Ok(prep)
+}
+
+struct BayesianResponseAdmission {
+    outcome: VariableId,
+    treatment: VariableId,
+    grid: Vec<f64>,
+    scalar: bool,
+    support_grid: Option<Vec<f64>>,
+    joint_levels: Vec<(VariableId, Option<f64>, f64)>,
+    primary_shift: Option<f64>,
+    stochastic: bool,
+}
+
+fn admit_bayesian_response(
+    data: &TabularData,
+    functional: &ResponseFunctional,
+    adjustment_set: &[VariableId],
+) -> Result<BayesianResponseAdmission, EstimationError> {
+    let mut support_grid = None;
+    let mut joint_levels = Vec::new();
+    let mut primary_shift = None;
+    let mut stochastic = false;
+    let (outcome, treatment, grid, scalar) = match functional {
+        ResponseFunctional::MeanCurve { outcome, treatment } => {
+            (*outcome, treatment.variable, treatment.grid.values()?, false)
+        }
+        ResponseFunctional::InterventionResponse { outcome, interventions } => {
+            if interventions.iter().any(|iv| matches!(iv, Intervention::Sequence(_))) {
+                return Err(EstimationError::unsupported_coded(
+                    antecedent_core::reason_code!("route_not_supported"),
+                    "static Bayesian response does not accept temporal Sequence",
+                ));
+            }
+            stochastic =
+                interventions.iter().any(|iv| matches!(iv, Intervention::Stochastic { .. }));
+            let (t, level, shift) = static_bayesian_policy(&interventions[0])?;
+            for intervention in &interventions[1..] {
+                let (target, level, shift) = static_bayesian_policy(intervention)?;
+                joint_levels.push((target, level, shift));
+            }
+            let sample = CompleteSample::read(data, *outcome, &[t], adjustment_set)?;
+            if level.is_none() {
+                primary_shift = Some(shift);
+                let (lo, hi) = range(&sample.treatments);
+                support_grid = Some(vec![lo + shift, hi + shift]);
+            }
+            let level = level.unwrap_or_else(|| {
+                sample.treatments.iter().sum::<f64>() / sample.len() as f64 + shift
+            });
+            (*outcome, t, vec![level], true)
+        }
+        _ => {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "Bayesian response supports MeanCurve, InterventionResponse, and derivative functionals",
+            ));
+        }
+    };
+    Ok(BayesianResponseAdmission {
+        outcome,
+        treatment,
+        grid,
+        scalar,
+        support_grid,
+        joint_levels,
+        primary_shift,
+        stochastic,
+    })
+}
+
 impl ContinuousResponseEstimator {
     /// Bayesian generalized-linear response levels, with posterior
     /// coefficient uncertainty propagated through every intervention coordinate.
@@ -215,46 +549,16 @@ impl ContinuousResponseEstimator {
                 "Bayesian response does not export frequentist row influence diagnostics",
             ));
         }
-        let mut support_grid = None;
-        let mut joint_levels = Vec::new();
-        let mut primary_shift = None;
-        let mut stochastic = false;
-        let (outcome, treatment, mut grid, scalar) = match &query.functional {
-            ResponseFunctional::MeanCurve { outcome, treatment } => {
-                (*outcome, treatment.variable, treatment.grid.values()?, false)
-            }
-            ResponseFunctional::InterventionResponse { outcome, interventions } => {
-                if interventions.iter().any(|iv| matches!(iv, Intervention::Sequence(_))) {
-                    return Err(EstimationError::unsupported_coded(
-                        antecedent_core::reason_code!("route_not_supported"),
-                        "static Bayesian response does not accept temporal Sequence",
-                    ));
-                }
-                stochastic =
-                    interventions.iter().any(|iv| matches!(iv, Intervention::Stochastic { .. }));
-                let (t, level, shift) = static_bayesian_policy(&interventions[0])?;
-                for intervention in &interventions[1..] {
-                    let (target, level, shift) = static_bayesian_policy(intervention)?;
-                    joint_levels.push((target, level, shift));
-                }
-                let sample = CompleteSample::read(data, *outcome, &[t], &self.adjustment_set)?;
-                if level.is_none() {
-                    primary_shift = Some(shift);
-                    let (lo, hi) = range(&sample.treatments);
-                    support_grid = Some(vec![lo + shift, hi + shift]);
-                }
-                let level = level.unwrap_or_else(|| {
-                    sample.treatments.iter().sum::<f64>() / sample.len() as f64 + shift
-                });
-                (*outcome, t, vec![level], true)
-            }
-            _ => {
-                return Err(EstimationError::unsupported_coded(
-                    antecedent_core::reason_code!("route_not_supported"),
-                    "Bayesian response supports MeanCurve, InterventionResponse, and derivative functionals",
-                ));
-            }
-        };
+        let BayesianResponseAdmission {
+            outcome,
+            treatment,
+            mut grid,
+            scalar,
+            mut support_grid,
+            joint_levels,
+            primary_shift,
+            stochastic,
+        } = admit_bayesian_response(data, &query.functional, &self.adjustment_set)?;
         let treatments: Vec<_> = std::iter::once(treatment)
             .chain(joint_levels.iter().map(|(target, _, _)| *target))
             .collect();
@@ -273,36 +577,7 @@ impl ContinuousResponseEstimator {
             support_grid = Some(vec![lo + shift, hi + shift]);
         }
 
-        let mut covs: Vec<_> = treatments
-            .iter()
-            .enumerate()
-            .skip(1)
-            .map(|(i, &id)| (id, &sample.treatment_matrix[i * n..(i + 1) * n]))
-            .collect();
-        covs.extend(
-            self.adjustment_set
-                .iter()
-                .enumerate()
-                .map(|(i, &id)| (id, &sample.adjustment[i * n..(i + 1) * n])),
-        );
-        let design = antecedent_stats::CompiledDesign::linear_adjustment(
-            &sample.treatments,
-            &covs,
-            &sample.outcome,
-            &sample.keep,
-        )?;
-        let prep = crate::PreparedBayesianProblem {
-            design,
-            method: Arc::from("response.backdoor"),
-            adjustment_set: self.adjustment_set.clone(),
-            active: 1.0,
-            control: 0.0,
-            overlap: crate::OverlapPolicy::ExplicitOverride,
-            coef_names: None,
-            unit_ids: None,
-            serial_dependence: crate::SerialDependence::Iid,
-            preparation: None,
-        };
+        let prep = prepare_bayesian_response_design(&sample, &treatments, &self.adjustment_set)?;
         let posterior = estimator.fit(
             &prep,
             identification_status,
@@ -314,29 +589,9 @@ impl ContinuousResponseEstimator {
         for (i, (_, level, shift)) in joint_levels.iter().enumerate() {
             weights[i + 2] = level.unwrap_or(weights[i + 2] + shift);
         }
-        let mut means = Vec::new();
-        let mut lower = Vec::new();
-        let mut upper = Vec::new();
-        let mut sds = Vec::new();
         let bandwidth = self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
-        let mut ess = Vec::new();
-        let mut density = Vec::new();
-        // The draw vector each grid point's interval is the quantiles of is
-        // retained on the published uncertainty (`CredibleDraws`).
-        let mut retained: Vec<Vec<f64>> = Vec::with_capacity(grid.len());
-        let coefficient_columns: Vec<&[f64]> = (0..prep.design.ncols)
-            .map(|index| {
-                let column = posterior
-                    .draws
-                    .schema
-                    .quantities
-                    .iter()
-                    .position(|quantity| matches!(quantity,
-                        antecedent_prob::PosteriorQuantityKind::Coefficient { index: i, .. } if *i == index))
-                    .ok_or_else(|| EstimationError::stats_msg("Bayesian response missing coefficient draw"))?;
-                posterior.draws.column(column).map_err(EstimationError::from)
-            })
-            .collect::<Result<_, _>>()?;
+        let coefficient_columns =
+            posterior_coefficient_columns(&posterior.draws, prep.design.ncols)?;
         let (coefficients, failed_draws) = aligned_coefficient_draws(&coefficient_columns)?;
         let gaussian = matches!(family, GlmFamily::GaussianIdentity);
         // One tile over the whole draw vector. A failed draw stays in its column as NaN.
@@ -364,45 +619,14 @@ impl ContinuousResponseEstimator {
                 ctx,
             )?
         } else {
-            // A primary shift puts the dose on each row. Otherwise the dose is the grid coordinate.
-            let encoding_degree = u64::from(primary_shift.is_none());
-            let encoding_columns = usize::from(primary_shift.is_none()) + 1;
-            if coefficient_columns.len() < encoding_columns {
-                return Err(EstimationError::data_msg(
-                    "Bayesian response has fewer coefficient columns than the dose encoding",
-                ));
-            }
-            let row_width_usize = coefficient_columns.len() - encoding_columns;
-            let feature_cells = n.checked_mul(row_width_usize).ok_or_else(|| {
-                EstimationError::data_msg("Bayesian response row features overflow")
-            })?;
-            let mut row_features = vec![0.0_f64; feature_cells];
-            for row in 0..n {
-                for local in 0..row_width_usize {
-                    let column = encoding_columns + local;
-                    let value = if column == 1 {
-                        let shift = primary_shift.ok_or_else(|| {
-                            EstimationError::data_msg(
-                                "Bayesian response put the dose column in the row features",
-                            )
-                        })?;
-                        sample.treatments[row] + shift
-                    } else if column >= 2 && column < 1 + treatments.len() {
-                        let (level, shift) =
-                            (joint_levels[column - 2].1, joint_levels[column - 2].2);
-                        level.unwrap_or(sample.treatment_matrix[(column - 1) * n + row] + shift)
-                    } else {
-                        prep.design.matrix[column * n + row]
-                    };
-                    row_features[row * row_width_usize + local] = value;
-                }
-            }
-            let row_count = u64::try_from(n).map_err(|_| {
-                EstimationError::data_msg("Bayesian response row count does not fit u64")
-            })?;
-            let row_width = u64::try_from(row_width_usize).map_err(|_| {
-                EstimationError::data_msg("Bayesian response row width does not fit u64")
-            })?;
+            let (row_features, row_count, row_width, encoding_degree) = non_gaussian_row_features(
+                &sample,
+                &prep.design.matrix,
+                coefficient_columns.len(),
+                primary_shift,
+                treatments.len(),
+                &joint_levels,
+            )?;
             stream_response_grid(
                 &ResponseGrid {
                     coefficients: &coefficients,
@@ -418,80 +642,22 @@ impl ContinuousResponseEstimator {
                 ctx,
             )?
         };
-        for values in columns {
-            let (mean, lo, hi, sd) = crate::bayesian::summarize_linear_response_draws(
-                values.clone(),
-                self.options.confidence_level,
-            )?;
-            retained.push(values);
-            means.push(mean);
-            lower.push(lo);
-            upper.push(hi);
-            sds.push(sd);
-        }
-        let draws = Some(CredibleDraws::columns(posterior.draws.n_draws, &retained));
-        if self
-            .options
-            .simultaneous_replicates
-            .is_some_and(|minimum| posterior.draws.n_draws < minimum as usize)
-        {
-            return Err(EstimationError::unsupported(
-                "Bayesian simultaneous band requires at least the requested number of posterior draws",
-            ));
-        }
-        let support_points = support_grid.as_deref().unwrap_or(&grid);
-        for &dose in support_points {
-            let kernels: Vec<_> = sample
-                .treatments
-                .iter()
-                .map(|t| (-0.5 * ((t - dose) / bandwidth).powi(2)).exp())
-                .collect();
-            let sum = kernels.iter().sum::<f64>();
-            ess.push(sum * sum / kernels.iter().map(|k| k * k).sum::<f64>().max(f64::MIN_POSITIVE));
-            density.push(sum / (n as f64 * bandwidth * (2.0 * std::f64::consts::PI).sqrt()));
-        }
-        let mut support = support_report(
-            support_points,
-            &sample.treatments,
-            &ess,
-            density,
-            self.options.minimum_local_ess,
-            0,
-        );
-        // A shifted-policy query is assessed over its shifted range, not at the
-        // response grid, so it has no one-label-per-grid-coordinate evidence.
-        let per_grid = support_grid.is_none();
-        if !per_grid {
-            support.point_status = None;
-        }
-        if treatments.len() > 1 {
-            support.status = SupportStatus::Extrapolative;
-            support.point_status =
-                per_grid.then(|| vec![SupportStatus::Extrapolative; support_points.len()].into());
-            support.query_region = SupportRegion {
-                minima: (0..treatments.len()).map(|i| sample.treatment_column_range(i).0).collect(),
-                maxima: (0..treatments.len()).map(|i| sample.treatment_column_range(i).1).collect(),
-            };
-            support.warnings.push(Diagnostic::new(
-                "response.joint_support_unverified", DiagnosticKind::Support, DiagnosticSeverity::Warning,
-                "per-treatment bounds do not certify joint policy support; posterior uncertainty conditions on the declared additive outcome model and empirical covariate distribution",
-            ));
-        }
-        if stochastic {
-            support.status = SupportStatus::Extrapolative;
-            support.point_status =
-                per_grid.then(|| vec![SupportStatus::Extrapolative; support_points.len()].into());
-            support.warnings.push(Diagnostic::new(
-                "response.stochastic_policy_support_unverified", DiagnosticKind::Support, DiagnosticSeverity::Warning,
-                "the Gaussian additive model integrates stochastic policies by their exact means; local support at the mean does not certify support over the policy distribution; intervals describe the policy mean, not a predictive draw",
-            ));
-        }
-        if !per_grid && scalar {
-            // A shifted-policy query answers one scalar at the shifted mean and is
-            // assessed over the shifted range; its single label is that range's
-            // (worst-endpoint) summary, never a per-grid-point claim.
-            support.point_status = Some(Arc::from([support.status]));
-        }
+        let summary = BayesianResponseSummary::from_columns(
+            columns,
+            posterior.draws.n_draws,
+            self.options.confidence_level,
+            self.options.simultaneous_replicates.map(|minimum| minimum as usize),
+        )?;
+        let support = bayesian_response_support(&BayesianSupportRequest {
+            sample: &sample,
+            points: support_grid.as_deref().unwrap_or(&grid),
+            bandwidth,
+            minimum_local_ess: self.options.minimum_local_ess,
+            treatment_count: treatments.len(),
+            per_grid: support_grid.is_none(),
+            stochastic,
+            scalar,
+        });
         assumptions.entries.extend(posterior.assumptions.entries);
         assumptions.push(AssumptionRecord {
             assumption: Assumption::ParametricRestriction(ParametricAssumption {
@@ -500,42 +666,12 @@ impl ContinuousResponseEstimator {
             source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("response.bayesian") },
             scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared,
         });
-        let value = if scalar {
-            ResponseValue::Scalar(means[0])
-        } else {
-            ResponseValue::Surface {
-                dimension: 1,
-                grid: Arc::from(grid),
-                mean: Arc::from(means.clone()),
-            }
-        };
-        let uncertainty = if scalar {
-            ResponseUncertainty::Scalar {
-                standard_error: sds[0],
-                level: self.options.confidence_level,
-                lower: lower[0],
-                upper: upper[0],
-                interpretation: antecedent_core::IntervalInterpretation::Credible,
-                draws,
-            }
-        } else if self.options.simultaneous_replicates.is_some() {
-            simultaneous_posterior_band(
-                &means,
-                &retained,
-                &lower,
-                &upper,
-                &sds,
-                self.options.confidence_level,
-            )?
-        } else {
-            ResponseUncertainty::PointwiseBand {
-                level: self.options.confidence_level,
-                lower: Arc::from(lower),
-                upper: Arc::from(upper),
-                interpretation: antecedent_core::IntervalInterpretation::Credible,
-                draws,
-            }
-        };
+        let (value, uncertainty) = summary.into_response(
+            grid,
+            scalar,
+            self.options.confidence_level,
+            self.options.simultaneous_replicates.is_some(),
+        )?;
         Ok(CausalResponse {
             estimand: query.functional.clone(),
             identification_status,
@@ -1177,6 +1313,166 @@ struct DerivativeDraw {
 #[cfg(test)]
 mod tests {
     use super::{GlmFamily, ResponseGrid, stream_response_grid};
+
+    #[test]
+    fn coefficient_columns_follow_indices_and_refuse_missing() {
+        use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
+        let schema = PosteriorSchema {
+            quantities: vec![
+                PosteriorQuantityKind::Coefficient { index: 1, name: None },
+                PosteriorQuantityKind::Coefficient { index: 0, name: None },
+            ]
+            .into(),
+        };
+        let draws = PosteriorDraws::from_column_major(schema, 2, vec![3.0, 4.0, 1.0, 2.0]).unwrap();
+        let columns = super::posterior_coefficient_columns(&draws, 2).unwrap();
+        assert_eq!(
+            columns[0].iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            vec![1.0_f64.to_bits(), 2.0_f64.to_bits()]
+        );
+        assert_eq!(
+            columns[1].iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            vec![3.0_f64.to_bits(), 4.0_f64.to_bits()]
+        );
+        assert!(super::posterior_coefficient_columns(&draws, 3).is_err());
+    }
+
+    #[test]
+    fn shifted_joint_stochastic_support_keeps_scalar_label() {
+        let sample = super::CompleteSample {
+            keep: vec![0, 1],
+            outcome: vec![0.0, 0.0],
+            treatments: vec![0.0, 1.0],
+            treatment_matrix: vec![0.0, 1.0, 2.0, 3.0],
+            adjustment: vec![],
+            treatment_cols: 2,
+            adjustment_cols: 0,
+            raw_cols: 2,
+        };
+        let report = super::bayesian_response_support(&super::BayesianSupportRequest {
+            sample: &sample,
+            points: &[-1.0, 2.0],
+            bandwidth: 1.0,
+            minimum_local_ess: 1.0,
+            treatment_count: 2,
+            per_grid: false,
+            stochastic: true,
+            scalar: true,
+        });
+        assert_eq!(report.status, super::SupportStatus::Extrapolative);
+        assert_eq!(
+            report.point_status.as_deref(),
+            Some(&[super::SupportStatus::Extrapolative][..])
+        );
+        assert_eq!(report.query_region.minima.len(), 2);
+        assert_eq!(report.query_region.maxima.len(), 2);
+        assert!(report.warnings.len() >= 2);
+    }
+
+    #[test]
+    fn non_gaussian_features_encode_shifted_and_fixed_grid_doses() {
+        let sample = super::CompleteSample {
+            keep: vec![0, 1],
+            outcome: vec![0.0, 0.0],
+            treatments: vec![1.0, 2.0],
+            treatment_matrix: vec![1.0, 2.0],
+            adjustment: vec![5.0, 6.0],
+            treatment_cols: 1,
+            adjustment_cols: 1,
+            raw_cols: 2,
+        };
+        let matrix = [1.0, 1.0, 1.0, 2.0, 5.0, 6.0];
+        let (shifted, count, width, degree) =
+            super::non_gaussian_row_features(&sample, &matrix, 3, Some(2.0), 1, &[]).unwrap();
+        assert_eq!((count, width, degree), (2, 2, 0));
+        assert_eq!(
+            shifted.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            [3.0_f64, 5.0, 4.0, 6.0].map(f64::to_bits)
+        );
+        let (fixed, count, width, degree) =
+            super::non_gaussian_row_features(&sample, &matrix, 3, None, 1, &[]).unwrap();
+        assert_eq!((count, width, degree), (2, 1, 1));
+        assert_eq!(
+            fixed.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            [5.0_f64, 6.0].map(f64::to_bits)
+        );
+        assert!(super::non_gaussian_row_features(&sample, &matrix, 1, None, 1, &[]).is_err());
+    }
+
+    #[test]
+    fn response_summary_publishes_scalar_and_pointwise_draws_and_enforces_minimum() {
+        let columns = vec![vec![1.0, 2.0, 3.0], vec![2.0, 3.0, 4.0]];
+        assert!(
+            super::BayesianResponseSummary::from_columns(columns.clone(), 3, 0.95, Some(4))
+                .is_err()
+        );
+        let summary =
+            super::BayesianResponseSummary::from_columns(columns.clone(), 3, 0.95, None).unwrap();
+        let (value, uncertainty) =
+            summary.into_response(vec![0.0, 1.0], false, 0.95, false).unwrap();
+        assert!(matches!(value, super::ResponseValue::Surface { dimension: 1, .. }));
+        assert!(matches!(
+            uncertainty,
+            super::ResponseUncertainty::PointwiseBand { draws: Some(_), .. }
+        ));
+        let summary =
+            super::BayesianResponseSummary::from_columns(vec![columns[0].clone()], 3, 0.95, None)
+                .unwrap();
+        let (value, uncertainty) = summary.into_response(vec![0.0], true, 0.95, false).unwrap();
+        assert!(matches!(value, super::ResponseValue::Scalar(_)));
+        assert!(matches!(uncertainty, super::ResponseUncertainty::Scalar { draws: Some(_), .. }));
+    }
+
+    #[test]
+    fn bayesian_design_keeps_joint_treatments_before_adjusters() {
+        let sample = super::CompleteSample {
+            keep: vec![0, 1, 2, 3, 4],
+            outcome: vec![1.0, 2.0, 3.0, 4.0, 5.0],
+            treatments: vec![0.0, 1.0, 2.0, 3.0, 4.0],
+            treatment_matrix: vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+            adjustment: vec![10.0, 11.0, 12.0, 13.0, 14.0],
+            treatment_cols: 2,
+            adjustment_cols: 1,
+            raw_cols: 3,
+        };
+        let treatments = [super::VariableId::from_raw(0), super::VariableId::from_raw(1)];
+        let adjustment: std::sync::Arc<[super::VariableId]> =
+            vec![super::VariableId::from_raw(2)].into();
+        let prep =
+            super::prepare_bayesian_response_design(&sample, &treatments, &adjustment).unwrap();
+        assert_eq!(prep.design.ncols, 4);
+        assert_eq!(prep.design.matrix[10].to_bits(), 5.0_f64.to_bits());
+        assert_eq!(prep.design.matrix[15].to_bits(), 10.0_f64.to_bits());
+        assert_eq!(prep.adjustment_set.as_ref(), adjustment.as_ref());
+    }
+
+    #[test]
+    fn bayesian_admission_keeps_mean_curve_grid_and_rejects_derivative() {
+        use antecedent_core::{
+            ContinuousDomain, DerivativeWeighting, GridSpec, ResponseFunctional, VariableId,
+        };
+        let data =
+            antecedent_data::TabularData::from_f64_columns([("a", &[0.0, 1.0][..])]).unwrap();
+        let outcome = VariableId::from_raw(1);
+        let treatment = VariableId::from_raw(0);
+        let functional = ResponseFunctional::MeanCurve {
+            outcome,
+            treatment: ContinuousDomain::new(treatment, GridSpec::Values(vec![0.0, 1.0].into())),
+        };
+        let admitted = super::admit_bayesian_response(&data, &functional, &[]).unwrap();
+        assert_eq!((admitted.outcome, admitted.treatment), (outcome, treatment));
+        assert_eq!(
+            admitted.grid.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            [0.0_f64, 1.0].map(f64::to_bits)
+        );
+        assert!(!admitted.scalar && !admitted.stochastic && admitted.support_grid.is_none());
+        let derivative = ResponseFunctional::AverageDerivative {
+            outcome,
+            treatment,
+            weighting: DerivativeWeighting::Observed,
+        };
+        assert!(super::admit_bayesian_response(&data, &derivative, &[]).is_err());
+    }
 
     fn bits(value: f64) -> u64 {
         value.to_bits()

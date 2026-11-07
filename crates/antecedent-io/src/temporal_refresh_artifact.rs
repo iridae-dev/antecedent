@@ -46,9 +46,7 @@ fn same(a: f64, b: f64) -> bool {
     a.to_bits() == b.to_bits()
 }
 
-fn refusal(code: &'static str, detail: &str, message: &str) -> IoError {
-    IoError::Refused { code, message: format!("{detail}: {message}") }
-}
+use crate::refusal::refused as refusal;
 
 fn invalid_replacement(message: &str) -> IoError {
     refusal(

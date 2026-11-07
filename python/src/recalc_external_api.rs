@@ -24,12 +24,7 @@ use serde::Deserialize;
 /// Largest output text an external recalculation callback may return.
 const MAX_CALLBACK_OUTPUT_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES;
 
-fn invalid(detail: &str, message: impl AsRef<str>) -> PyErr {
-    crate::with_reason_code(
-        crate::value_err(format!("{detail}: {}", message.as_ref())),
-        antecedent::reason::reason_code!("invalid_argument"),
-    )
-}
+use crate::invalid_detail as invalid;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

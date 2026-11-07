@@ -406,11 +406,7 @@ fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<Strin
         sorted_cbor(&wire.bindings)?,
         wire.target_sampling,
     );
-    let mut snapshots = laws
-        .iter()
-        .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
-        .collect::<Vec<_>>();
-    snapshots.sort();
+    let snapshots = crate::exact_transport_laws::sorted_law_snapshots(laws);
     crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("mz_transport_data_v2", bindings, snapshots),

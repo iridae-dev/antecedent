@@ -702,6 +702,19 @@ pub fn dense_labels<T: Eq + std::hash::Hash + Clone>(labels: &[T]) -> (Vec<usize
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn positivity_floor_keeps_finite_inclusive_bounds() {
+        for value in [f64::MIN_POSITIVE, 0.1, 0.5] {
+            assert!(super::validate_floor(value).is_ok());
+        }
+        let expected = super::invalid("the positivity floor must be in (0, 0.5]").to_string();
+        for value in
+            [0.0, -0.0, -1.0, 0.5000000000000001, f64::NAN, f64::INFINITY, f64::NEG_INFINITY]
+        {
+            assert_eq!(super::validate_floor(value).unwrap_err().to_string(), expected);
+        }
+    }
+
     use super::*;
 
     #[test]

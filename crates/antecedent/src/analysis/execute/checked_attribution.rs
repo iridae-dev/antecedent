@@ -1168,11 +1168,8 @@ fn admit_posterior_columns(
         .ok_or_else(|| CausalError::Resource {
             message: "attribution posterior size overflow".to_owned(),
         })?;
-    ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => {
-            CausalError::Cancelled { stage: super::super::stage::STAGE_ESTIMATE_POINT }
-        }
-        other => CausalError::Resource { message: other.to_string() },
+    ctx.acquire_admission(0, bytes).map_err(|error| {
+        crate::error::resource_admission_error(error, super::super::stage::STAGE_ESTIMATE_POINT)
     })
 }
 

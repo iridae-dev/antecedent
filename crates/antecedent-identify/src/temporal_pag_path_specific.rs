@@ -208,11 +208,9 @@ pub fn temporal_pag_mediation_window_within(
     if bytes > budget.limits().max_bytes {
         return Err(IdentificationError::budget(crate::error::IdentificationBudget::Memory));
     }
-    let lease =
-        std::sync::Arc::new(ctx.acquire_admission(0, bytes).map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
-            _ => IdentificationError::budget(crate::error::IdentificationBudget::Memory),
-        })?);
+    let lease = std::sync::Arc::new(
+        ctx.acquire_admission(0, bytes).map_err(crate::error::map_admission_error)?,
+    );
     let indexer = TemporalIndexer::new(variable_count, history, horizon)
         .map_err(IdentificationError::construction)?;
     let coordinate =

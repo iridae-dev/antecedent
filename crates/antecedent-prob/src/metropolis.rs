@@ -108,10 +108,7 @@ where
         return Err(MetropolisError::Invalid("start spread"));
     }
     let bytes = validate_and_admit_bytes(center, options)?;
-    let _lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-        antecedent_core::execution::AdmissionError::Cancelled => MetropolisError::Cancelled,
-        other => MetropolisError::Resource(other.to_string()),
-    })?;
+    let _lease = admit_draws(ctx, bytes)?;
     if !log_density(center).is_finite() {
         return Err(MetropolisError::Invalid("initial density"));
     }
@@ -130,6 +127,16 @@ where
     Ok(MetropolisDraws { samples, accepted })
 }
 
+fn admit_draws(
+    ctx: &ExecutionContext,
+    bytes: u64,
+) -> Result<antecedent_core::execution::AdmissionLease, MetropolisError> {
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => MetropolisError::Cancelled,
+        other => MetropolisError::Resource(other.to_string()),
+    })
+}
+
 fn sample_from_starts<F>(
     initial: &[f64],
     spread: f64,
@@ -141,10 +148,7 @@ where
     F: Fn(&[f64]) -> f64,
 {
     let bytes = validate_and_admit_bytes(initial, options)?;
-    let _lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
-        antecedent_core::execution::AdmissionError::Cancelled => MetropolisError::Cancelled,
-        other => MetropolisError::Resource(other.to_string()),
-    })?;
+    let _lease = admit_draws(ctx, bytes)?;
     if !log_density(initial).is_finite() {
         return Err(MetropolisError::Invalid("initial density"));
     }
@@ -253,6 +257,15 @@ where
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn draw_admission_keeps_resource_and_cancellation_refusals() {
+        let ctx = antecedent_core::ExecutionContext::for_tests(1)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 0));
+        assert!(matches!(super::admit_draws(&ctx, 1), Err(super::MetropolisError::Resource(_))));
+        ctx.cancellation.cancel();
+        assert!(matches!(super::admit_draws(&ctx, 1), Err(super::MetropolisError::Cancelled)));
+    }
+
     use super::*;
     #[test]
     fn dispersed_starts_differ_by_chain_and_still_recover_moments() {

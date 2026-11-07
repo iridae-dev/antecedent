@@ -17,7 +17,7 @@ use std::fmt;
 use std::ops::Range;
 use std::sync::Arc;
 
-use antecedent_core::execution::{AdmissionError, AdmissionLease};
+use antecedent_core::execution::AdmissionLease;
 use antecedent_core::{
     DiagnosticSet, EncodedWidth, ExecutionContext, RouteBudget, RouteMemoryDeclaration,
     RouteMemoryError, VariableId,
@@ -34,7 +34,9 @@ use crate::lazy_identity::{FullContentIdentity, LazyViewIdentity};
 use crate::source::{OwnedSource, SourceModality};
 
 use super::error::{FileSourceError, MemoryStage};
-use super::{FileColumnKind, ReadPlan, ScanReceipt, TableChunkReader, memory_refusal};
+use super::{
+    FileColumnKind, ReadPlan, ScanReceipt, TableChunkReader, admit_file_bytes, memory_refusal,
+};
 
 /// Bytes a resident read of a plan needs, declared before reading.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -299,19 +301,7 @@ fn resident_lease(
     bytes: u64,
     chunk_rows: usize,
 ) -> Result<AdmissionLease, FileSourceError> {
-    match ctx.acquire_admission(0, bytes) {
-        Ok(lease) => Ok(lease),
-        Err(AdmissionError::Cancelled) => Err(FileSourceError::Cancelled),
-        Err(AdmissionError::ExceedsRemainder { remaining_bytes, .. }) => {
-            Err(memory_refusal(MemoryStage::Materialization, bytes, remaining_bytes, chunk_rows))
-        }
-        Err(_) => Err(memory_refusal(
-            MemoryStage::Materialization,
-            bytes,
-            ctx.admission.available().bytes(),
-            chunk_rows,
-        )),
-    }
+    admit_file_bytes(ctx, MemoryStage::Materialization, bytes, chunk_rows)
 }
 
 enum Values {
