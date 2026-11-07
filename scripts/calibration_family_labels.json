@@ -436,7 +436,7 @@
     },
     {
       "path": "crates/antecedent-io-core/src/calibration.rs",
-      "sha256": "113f35d8779be044d63b93dde285a7a5827844f2cc2d7702c903644481e058fa",
+      "sha256": "3e28486240b749ce7729ba1ab154d0b8e07d7b8085a1738350a7ddb08e856c09",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Runtime calibration lookup and its test fixtures; no Monte Carlo family producer."
@@ -1550,6 +1550,19 @@
         }
       ],
       "review": "Prespecified predictive-score methods/truths/levels and source-fixed test names."
+    },
+    {
+      "path": "crates/antecedent/tests/prepared_adjusted_retarget_calibration.rs",
+      "sha256": "da743cc6139a4d5510fdfbf1fe36e58e5e64669f05516bb2afefafe21fa8a872",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 54,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: name,\n            dgp: \"fixed_four_cell_logit_target_1_to_3\",\n            interval: \"analytic_se\",\n        },\n        0.95,"
+        }
+      ],
+      "review": "Two fixed adjusted-retarget interval procedures with source-declared Fisher/HC1 keys, fixed four-cell target and truth, and one 0.95 confidence level; observed coverage selects no hypothesis."
     },
     {
       "path": "crates/antecedent/tests/randomized_interval_calibration.rs",

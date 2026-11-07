@@ -79,6 +79,7 @@ SOURCE_REVIEW = {
     "temporal_unit_calibration.rs": "Fixed temporal units, query configurations and confidence levels.",
     "coverage_records_data.rs": "Embedded registry consumer/tests only; no calibration hypothesis constructor.",
     "batch_retarget_calibration.rs": "Finite prespecified retarget rows and batch contrasts with static test keys.",
+    "prepared_adjusted_retarget_calibration.rs": "Two fixed adjusted-retarget interval procedures with source-declared Fisher/HC1 keys, fixed four-cell target and truth, and one 0.95 confidence level; observed coverage selects no hypothesis.",
     "calibration_admg.rs": "Fixed ADMG estimators, generative models and caller static test/level arguments.",
     "calibration_anomaly_bayesian.rs": "Fixed anomaly queries and Bayesian posterior constructions; static record identities.",
     "calibration_attribution_bayesian.rs": "Fixed attribution functionals and declared posterior confidence.",
