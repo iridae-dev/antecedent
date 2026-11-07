@@ -418,6 +418,34 @@ def rust_test_features(path: Path, name: str) -> list[str]:
         if block.body[0] < fns[0].start < block.body[1]:
             found |= {f for a in block.attrs for f in _cfg_features(a)
                       if _FEATURE_ONLY_CFG.fullmatch(re.sub(r"\s+", "", a))}
+    # Consolidated Cargo test targets include support files with `#[path] mod`.
+    # A cfg on that declaration controls whether the cited test exists, even
+    # though the test function itself lives in the included file. Carry that
+    # feature through so cargo listing and evidence execution compile the test.
+    target = target_root(path)
+    if target and target[0].resolve() != path.resolve():
+        root_file = target[0]
+        source = _rust.lex(_read(root_file)).kept
+        declarations = re.finditer(
+            r"(?P<prefix>(?:\s*#\[[^\]]+\]\s*)*)mod\s+[A-Za-z_]\w*\s*;",
+            source,
+        )
+        for declaration in declarations:
+            prefix = declaration.group("prefix")
+            path_attr = re.search(r'#\[path\s*=\s*"([^"]+)"\]', prefix)
+            if not path_attr:
+                continue
+            included = (root_file.parent / path_attr.group(1)).resolve()
+            if included != path.resolve():
+                continue
+            attrs = re.findall(r"#\[[^\]]+\]", prefix)
+            found |= {
+                feature
+                for attr in attrs
+                for feature in _cfg_features(attr)
+                if _FEATURE_ONLY_CFG.fullmatch(re.sub(r"\s+", "", attr))
+            }
+            break
     return sorted(found)
 
 
@@ -479,19 +507,25 @@ def static_rust_test(path: Path, name: str) -> StaticTest:
     return StaticTest(name, problems)
 
 
-_CARGO_LIST_CACHE: dict[tuple[str, tuple[str, ...]], tuple[set[str], set[str], str | None]] = {}
+_CARGO_LIST_CACHE: dict[
+    tuple[str, tuple[str, ...], tuple[str, ...]], tuple[set[str], set[str], str | None]
+] = {}
 
 
 def cargo_listed(
-    crate: str, target: list[str], cwd: Path = ROOT
+    crate: str, target: list[str], cwd: Path = ROOT, features: list[str] | None = None
 ) -> tuple[set[str], set[str], str | None]:
     """(all listed test names, ignored test names, error) for one cargo target."""
-    key = (crate, tuple(target))
+    features = sorted(set(features or ()))
+    key = (crate, tuple(target), tuple(features))
     if key in _CARGO_LIST_CACHE:
         return _CARGO_LIST_CACHE[key]
 
     def listing(extra: list[str]) -> tuple[set[str], str | None]:
-        command = ["cargo", "test", "-q", "-p", crate, *target, "--", "--list", *extra]
+        command = ["cargo", "test", "-q", "-p", crate, *target]
+        if features:
+            command.extend(["--features", ",".join(features)])
+        command.extend(["--", "--list", *extra])
         proc = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
         if (
             proc.returncode != 0
@@ -585,7 +619,9 @@ def resolve_rust_test(path: Path, name: str, cwd: Path = ROOT) -> tuple[str | No
     if root is None:
         return None, problems + [f"{path} is not under a cargo test or library target"]
     root_file, crate, target = root
-    listed, ignored, err = cargo_listed(crate, target, cwd)
+    listed, ignored, err = cargo_listed(
+        crate, target, cwd, rust_test_features(path, name)
+    )
     if err:
         return None, problems + [
             f"`cargo test -p {crate} {' '.join(target)} -- --list` failed:\n{err}"

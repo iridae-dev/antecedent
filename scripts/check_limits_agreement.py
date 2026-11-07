@@ -274,7 +274,7 @@ MAPPING: tuple[Bound, ...] = (
     # caller's bound (`TransportScenarioSet::try_new_within`) and has no fixed ceiling.
     Bound(
         "transport.finite_scenario_envelope",
-        "max_scenarios",
+        "python_max_scenarios",
         python=(L(SCEN_PY, r"^MAX_SCENARIOS = (\d+)"),),
     ),
     # ---- learned continuous trial transport
