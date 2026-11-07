@@ -23,33 +23,86 @@ FORBIDDEN = re.compile(r"\b(?:fn|impl|trait|struct|enum|union|mod|const|static|t
 class ProjectionChanged(ValueError):
     pass
 
-def has_opaque_attributes(source: str) -> bool:
-    skeleton = lex(source).skeleton
-    builtins = {'test','cfg','allow','warn','deny','forbid','inline','cold','must_use',
-                'repr','non_exhaustive','no_mangle','export_name','path','doc',
-                'track_caller','deprecated','automatically_derived'}
-    derives = {'Debug','Clone','Copy','Eq','PartialEq','Ord','PartialOrd','Default','Hash'}
+BUILTIN_ATTRIBUTES = frozenset({
+    'test', 'cfg', 'allow', 'warn', 'deny', 'forbid', 'inline', 'cold', 'must_use',
+    'repr', 'non_exhaustive', 'no_mangle', 'export_name', 'path', 'doc',
+    'track_caller', 'deprecated', 'automatically_derived'})
+STANDARD_DERIVES = frozenset({'Debug', 'Clone', 'Copy', 'Eq', 'PartialEq', 'Ord', 'PartialOrd', 'Default', 'Hash'})
+_DATA_ITEM = re.compile(
+    r'\s*(?:#\s*\[[^\[\]]*\]\s*)*'
+    r'(?:pub(?:\s*\([^()]*\))?\s+)?(?:struct|enum|union)\s+[A-Za-z_][A-Za-z_0-9]*\s*(?P<end>[{;(])')
+
+
+def _attributes(skeleton: str) -> list[tuple[int, int, str]] | None:
+    """(start, end, text) of every attribute, or None when one is malformed."""
+    found = []
     for match in re.finditer(r'#\s*!?\s*\[', skeleton):
         depth, end = 1, match.end()
         while end < len(skeleton) and depth:
-            depth += (skeleton[end]=='[') - (skeleton[end]==']')
+            depth += (skeleton[end] == '[') - (skeleton[end] == ']')
             end += 1
         if depth:
-            return True
-        attribute=skeleton[match.end():end-1].strip()
-        name=re.match(r'[A-Za-z_][A-Za-z_0-9]*',attribute)
+            return None
+        found.append((match.start(), end, skeleton[match.end():end - 1].strip()))
+    return found
+
+
+def _data_item_end(skeleton: str, after: int) -> int | None:
+    """End of the struct/enum/union that an attribute ending at `after` decorates."""
+    item = _DATA_ITEM.match(skeleton, after)
+    if item is None:
+        return None
+    delimiter = item.start('end')
+    if skeleton[delimiter] == ';':
+        return delimiter + 1
+    if skeleton[delimiter] == '(':
+        # Tuple struct: balanced parentheses, then optional where clause, then `;`.
+        depth = 0
+        for pos in range(delimiter, len(skeleton)):
+            depth += (skeleton[pos] == '(') - (skeleton[pos] == ')')
+            if depth == 0:
+                close = skeleton.find(';', pos)
+                return None if close < 0 or '{' in skeleton[pos:close] else close + 1
+        return None
+    try:
+        return end_of_body(skeleton, delimiter)
+    except ProjectionChanged:
+        return None
+
+
+def has_opaque_attributes(source: str, *, scoped_derives: bool = False,
+                          candidate_start: int | None = None) -> bool:
+    """Can an attribute macro or derive receive tokens that include the candidate body?
+
+    Without `scoped_derives`, any custom derive or attribute makes the file opaque.
+    With it (only under an audited compile-time policy whose derive macros read
+    nothing beyond their input tokens), a custom derive and the helper attributes
+    inside its data item are inputs to that item alone, so unrelated function
+    bodies stay projectable. Their positions are preserved by the layout guard.
+    """
+    skeleton = lex(source).skeleton
+    attributes = _attributes(skeleton)
+    if attributes is None:
+        return True
+    derived: list[tuple[int, int]] = []
+    for start, end, attribute in attributes:
+        if any(lo <= start < hi for lo, hi in derived):
+            continue  # a helper or further attribute inside a scoped derive input
+        name = re.match(r'[A-Za-z_][A-Za-z_0-9]*', attribute)
         if name is None:
             return True
         tail = attribute[name.end():].lstrip()
         if tail and not tail.startswith(('(', '=')):
             return True
-        if name[0]=='derive':
-            if ':' in attribute:
+        if name[0] == 'derive':
+            arguments = set(re.findall(r'[A-Za-z_][A-Za-z_0-9]*', attribute)) - {'derive'}
+            if ':' not in attribute and arguments <= STANDARD_DERIVES:
+                continue
+            item_end = _data_item_end(skeleton, end) if scoped_derives else None
+            if item_end is None or candidate_start is None or start <= candidate_start < item_end:
                 return True
-            arguments=set(re.findall(r'[A-Za-z_][A-Za-z_0-9]*',attribute)) - {'derive'}
-            if not arguments <= derives:
-                return True
-        elif name[0] not in builtins:
+            derived.append((start, item_end))
+        elif name[0] not in BUILTIN_ATTRIBUTES:
             return True
     return False
 
@@ -85,10 +138,15 @@ def check_body(body: str) -> None:
 
 
 def layout(body: str) -> list[int]:
-    # Preserve line/column positions of subsequent source. Changed byte lengths
-    # within earlier lines are harmless; later source byte offsets are not used
-    # as identity. Opaque span consumers require a full-source fallback at earning.
-    return [body.count("\n"), len(body.rsplit("\n", 1)[-1].encode())]
+    # Preserve the line/column position of every retained byte. Rust embeds
+    # source locations in generated code far beyond explicit line!/column!:
+    # every #[track_caller] call (unwrap, expect, indexing), overflow and bounds
+    # panics, and any macro reading an input span. None of these is visible
+    # lexically, so a hole may never shift later source. Changed byte lengths
+    # within a hole's earlier lines move no retained column. Columns are
+    # counted in characters by panic locations and in bytes elsewhere: keep both.
+    last = body.rsplit("\n", 1)[-1]
+    return [body.count("\n"), len(last.encode()), len(last)]
 
 
 def capture(source: str, spans: list[tuple[int, int]]) -> dict:
@@ -134,7 +192,9 @@ def matches(source: str, projection: dict, skeleton: str | None = None) -> bool:
 
 
 def from_compiler_coverage(source: str, candidates: dict[str, tuple[int, int]],
-                           covered_lines: set[int], *, opaque: bool = True) -> tuple[dict, list[str]]:
+                           covered_lines: set[int], *, opaque: bool = True,
+                           coverage_complete: bool = False,
+                           scoped_derives: bool = False) -> tuple[dict, list[str]]:
     """Conservative admission of compiler body spans using instrumented line coverage.
 
     `opaque` must be cleared by the earning adapter only after checking the whole
@@ -144,18 +204,38 @@ def from_compiler_coverage(source: str, candidates: dict[str, tuple[int, int]],
     """
     if opaque:
         return capture(source, []), ['opaque compilation: complete source retained']
-    if not covered_lines:
+    if not covered_lines and not coverage_complete:
         return capture(source, []), ['no instrumented source coverage: complete source retained']
     # The supported subset permits only the compiler's built-in test attribute.
     # Parent/module attributes and doc attributes may be inputs to a procedural
     # macro; retain the entire source until the adapter resolves their scope.
     skeleton = lex(source).skeleton
     import bisect
-    if has_opaque_attributes(source):
+    if not scoped_derives and has_opaque_attributes(source):
         return capture(source, []), ['unresolved attribute input: complete source retained']
     newlines = [pos for pos, char in enumerate(source) if char == '\n']
+    # A body written inside a function-like macro's input keeps its own spans
+    # (it is not marked as an expansion) yet is that macro's input: the macro
+    # may stringify, duplicate or otherwise consume it without executing it.
+    invocations = []
+    for invocation in re.finditer(r'[A-Za-z_][A-Za-z_0-9]*\s*!\s*(?:[A-Za-z_][A-Za-z_0-9]*\s*)?([(\[{])', skeleton):
+        close = {'(': ')', '[': ']', '{': '}'}[invocation[1]]
+        depth = 0
+        for pos in range(invocation.start(1), len(skeleton)):
+            depth += (skeleton[pos] == invocation[1]) - (skeleton[pos] == close)
+            if depth == 0:
+                invocations.append((invocation.start(1), pos + 1))
+                break
+        else:
+            invocations.append((invocation.start(1), len(skeleton)))
     spans, reasons = [], []
     for name, (start, end) in candidates.items():
+        if any(lo <= start < hi for lo, hi in invocations):
+            reasons.append(f'{name}: inside a macro invocation; body retained')
+            continue
+        if scoped_derives and has_opaque_attributes(source, scoped_derives=True, candidate_start=start):
+            reasons.append(f'{name}: unresolved attribute input; body retained')
+            continue
         first = bisect.bisect_left(newlines, start) + 1
         last = bisect.bisect_left(newlines, end - 1) + 1
         if any(line in covered_lines for line in range(first, last + 1)):

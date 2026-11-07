@@ -1,5 +1,6 @@
 """Disposable engineering checks for Nix source and coverage helpers."""
 from pathlib import Path
+import hashlib
 import subprocess
 import tempfile
 from types import SimpleNamespace
@@ -38,6 +39,24 @@ class SnapshotTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "checkout"):
             materialize_committed_source(self.root, self.destination)
         self.assertFalse(self.destination.exists())
+
+    def test_only_exact_run_output_bytes_can_be_allowed(self):
+        ledger = self.root / "parity/scientific_records.toml"
+        ledger.parent.mkdir()
+        ledger.write_text("run output")
+        allowed = {"parity/scientific_records.toml": hashlib.sha256(ledger.read_bytes()).hexdigest()}
+        result = materialize_committed_source(self.root, self.destination, allowed_outputs=allowed)
+        verify_committed_snapshot(self.root, self.destination, result["commit"], allowed_outputs=allowed)
+        ledger.write_text("other edit")
+        with self.assertRaisesRegex(ValueError, "checkout"):
+            verify_committed_snapshot(self.root, self.destination, result["commit"], allowed_outputs=allowed)
+
+    def test_allowlist_cannot_whitelist_arbitrary_source_edits(self):
+        path = self.root / "sub/source.rs"
+        path.write_text("changed")
+        allowed = {"sub/source.rs": hashlib.sha256(path.read_bytes()).hexdigest()}
+        with self.assertRaisesRegex(ValueError, "checkout"):
+            materialize_committed_source(self.root, self.destination, allowed_outputs=allowed)
 
     def test_export_substitution_and_omission_cannot_silently_change_snapshot(self):
         (self.root / ".gitattributes").write_text("sub/source.rs export-ignore\n")
@@ -127,6 +146,18 @@ class SnapshotTest(unittest.TestCase):
         coverage = {str(snapshot_file): {3, 7}, "/external/dependency.rs": {2}}
         self.assertEqual(map_coverage_sources(coverage, self.destination, self.root), {str(checkout_file.resolve()): {3, 7}})
         checkout_file.write_text("changed")
+        with self.assertRaisesRegex(ValueError, "differs"):
+            map_coverage_sources(coverage, self.destination, self.root)
+
+    def test_virtual_coverage_maps_only_verified_snapshot_bytes(self):
+        materialize_committed_source(self.root, self.destination)
+        target = self.root / "sub/source.rs"
+        coverage = {"/antecedent-source/sub/source.rs": {2, 4}}
+        self.assertEqual(map_coverage_sources(coverage, self.destination, self.root),
+                         {str(target.resolve()): {2, 4}})
+        with self.assertRaisesRegex(ValueError, "invalid"):
+            map_coverage_sources({"/antecedent-source/../outside.rs": {1}}, self.destination, self.root)
+        target.write_text("modified")
         with self.assertRaisesRegex(ValueError, "differs"):
             map_coverage_sources(coverage, self.destination, self.root)
 

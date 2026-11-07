@@ -96,6 +96,62 @@ fn unused() -> i32 { 7 }
             self.assertFalse(projection['layouts'])
             self.assertTrue(reasons)
 
+    def test_scoped_derive_does_not_make_unrelated_function_opaque(self):
+        source = '#[derive(serde::Serialize)]\nstruct S { x: u8 }\nfn unused() { 7 }\n'
+        start = source.index('{ 7 }')
+        opaque, _ = from_compiler_coverage(source, {'unused': (start, start + 5)}, set(),
+                                            opaque=False, coverage_complete=True)
+        self.assertFalse(opaque['layouts'])
+        projection, _ = from_compiler_coverage(source, {'unused': (start, start + 5)}, set(),
+                                                opaque=False, coverage_complete=True, scoped_derives=True)
+        self.assertEqual(len(projection['layouts']), 1)
+        self.assertTrue(matches(source.replace('{ 7 }', '{ 8 }'), projection))
+        self.assertFalse(matches(source.replace('x: u8', 'x: u16'), projection))
+
+    def test_function_and_enclosing_macro_attributes_stay_opaque(self):
+        for source in ('#[instrument]\nfn unused() { 7 }\n',
+                       '#[instrument]\nmod m { fn unused() { 7 } }\n',
+                       '#[derive(custom)]\nfn unused() { 7 }\n'):
+            start = source.index('{ 7 }')
+            projection, _ = from_compiler_coverage(source, {'unused': (start, start + 5)}, set(),
+                                                   opaque=False, coverage_complete=True, scoped_derives=True)
+            self.assertFalse(projection['layouts'])
+
+    def test_scoped_derive_helper_attributes_belong_to_their_item(self):
+        source = ('#[derive(serde::Serialize)]\n#[serde(rename_all = "lowercase")]\n'
+                  'enum E { #[serde(rename = "a")] A, B }\nstruct T(#[allow(dead_code)] u8);\nfn unused() { 7 }\n')
+        start = source.index('{ 7 }')
+        projection, _ = from_compiler_coverage(source, {'unused': (start, start + 5)}, set(),
+                                               opaque=False, coverage_complete=True, scoped_derives=True)
+        self.assertEqual(len(projection['layouts']), 1)
+        self.assertFalse(matches(source.replace('rename = "a"', 'rename = "b"'), projection))
+
+    def test_body_inside_macro_input_is_retained(self):
+        for source in ('seq!(N in 0..2 { fn unused() { 7 } });\n', 'm! { fn unused() { 7 } }\n',
+                       'macro_rules! m { () => { fn unused() { 7 } } }\n'):
+            start = source.index('{ 7 }')
+            projection, reasons = from_compiler_coverage(source, {'unused': (start, start + 5)}, set(),
+                                                         opaque=False, coverage_complete=True)
+            self.assertFalse(projection['layouts'], source)
+            self.assertTrue(reasons)
+
+    def test_hole_layout_preserves_every_later_position(self):
+        # Rust embeds caller locations in unwrap/indexing/overflow panics and in
+        # line!/column!/file!: no lexical check can prove later code position
+        # independent, so a hole may never move a later line or column.
+        source = 'fn unused() { 7 }\nfn used() { v[0].unwrap() }\n'
+        start = source.index('{ 7 }')
+        projection, _ = from_compiler_coverage(source, {'unused': (start, start + 5)}, {2},
+                                               opaque=False)
+        self.assertEqual(projection['version'], 1)
+        self.assertTrue(matches(source.replace('{ 7 }', '{ 8 }'), projection))
+        self.assertFalse(matches(source.replace('{ 7 }', '{\n7\n}'), projection))
+        self.assertFalse(matches(source.replace('{ 7 }', '{ 77 }'), projection))
+        # Same byte length, fewer characters: panic columns count characters.
+        changed = source.replace('{ 7 }', '{ é}')
+        self.assertEqual(len(changed.encode()), len(source.encode()))
+        self.assertFalse(matches(changed, projection))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,95 +1,80 @@
-# Experimental evidence build inputs
+# Nix evidence build boundary
 
-The pinned flake and target expression are prototypes. They are **not** used
-by evidence earning and do not establish an evidence boundary. Do not run
-scientific or calibration tests through them or treat their outputs as records.
+Scientific Rust evidence is earned by `scientific_records.py run`, whose default
+`--rust-build-backend nix` builds each Cargo target from the clean committed
+`HEAD` in the local Nix sandbox and runs that exact binary. The point of the
+boundary: a change to code a claim executed (or to anything that can affect
+its build) makes the claim owed again, while an unrelated change leaves it
+current, so CI only checks that records are up to date.
 
-`flake.lock` pins nixpkgs; `evidence-toolchain.nix` pins official Rust 1.85.1
-and LLVM tools archives by SHA-256 for `aarch64-darwin`. The disposable
-`evidence-fixture` builds and runs only a tiny engineering program:
+## What is pinned and checked
 
-```sh
-nix --extra-experimental-features 'nix-command flakes' build .#evidence-fixture
-```
+- `flake.lock` pins nixpkgs; `evidence-toolchain.nix` pins Rust 1.85.1, its LLVM
+  tools and `rustc-dev` (for the compiler-inventory driver) by SHA-256 for
+  `aarch64-darwin`. Cargo comes from the locked nixpkgs. Crates come from
+  `importCargoLock`, checksum-verified against `Cargo.lock`; this production
+  vendor is the one whose unit graph is validated.
+- `nix_evidence_source.py` copies the committed tree, imports it into the store
+  and compares NAR hashes; the checkout must stay clean except for this run's
+  own content-verified ledger and manifests.
+- `evidence-target.nix` builds with a private scratch tree, the pinned `rustc`,
+  a stable `--remap-path-prefix` (so `file!()` and panic locations do not depend
+  on the store hash), coverage instrumentation, and the analyzer driver as
+  workspace wrapper to inventory ordinary function bodies. It also emits Cargo
+  metadata and the unit graph of the build itself.
+- `nix_evidence_policy.validate_build` requires the daemon's `sandbox = true`
+  and `sandbox-fallback = false` with only the reviewed sandbox paths, then checks
+  every build-script and procedural-macro unit (and their dependencies) in the
+  emitted graph against `compile-time-reviewed.json`, which is bound to the
+  `Cargo.lock` hash. A new package, version, feature set or unit kind refuses.
+- The manifest records source commit and NAR hash, derivation output, binary
+  SHA-256, toolchain versions and the selected audit rows. Publication rechecks
+  all of them after execution.
 
-This checks only that the pinned toolchain can compile and run the fixture. It
-does not verify a sandbox. A regular `nix develop` shell also does not provide
-the required build isolation.
+## Compile-time review and precise evidence
 
-The local daemon was configured with `sandbox = true` and
-`sandbox-fallback = false` and restarted with administrator authorization.
-A disposable probe then found that workspace files and loopback connections
-were denied, while a file under `/private/tmp`, wall clock and OS entropy
-remained accessible. These results do not establish a complete boundary.
+`compile-time-reviewed.json` covers the union of compile-time units of every
+scientific Rust target and of the Python extension. Each row has a
+`source_projection` state:
 
-Those settings alone do not prove the desired boundary. In particular, Darwin
-Nix sandbox defaults can expose mutable host paths such as `/private/tmp` and
-system frameworks. The precise permitted read paths, network, clock, entropy,
-Nix substitutes and daemon behavior must be reviewed and verified with
-deliberately failing fixtures. Do not infer that a Nix store path or a caller's
-environment variable proves a sandboxed local build.
+- `reviewed-safe`: reads nothing that selects repository text. Procedural
+  macros read only their input tokens and spans.
+- `complete-source`: the unit has assessed host inputs, such as the Python
+  interpreter and linker that PyO3 and `python/build.rs` find. Evidence that
+  depends on it keeps complete source.
+- `unresolved`: not assessed. The Nix backend refuses it.
 
-`evidence-target.nix` is a prototype for building a specified Rust target
-without running it. Disposable fixtures have produced a usable binary and
-coverage paths both before and after daemon sandboxing was enabled; these check
-mechanics, not the evidence boundary. It requires a caller-supplied source
-snapshot. Helpers now verify a committed Git tree, its store import, artifact
-identity, and fixture coverage translation; they are not connected to earning.
-Dependency, runtime and environment bindings and earning integration remain
-open. The expression must not be used to issue evidence until those are fixed
-and tested with disposable fixtures.
+When every selected unit is `reviewed-safe`, unexecuted function bodies become
+holes in the evidence projection (`scripts/evidence_projection.py`). Such a hole
+keeps the exact line count, last-line bytes and last-line characters of the body,
+so every later line and column is unchanged. Rust embeds source locations in
+generated code far beyond `line!()`. Examples are `#[track_caller]` calls such as
+`unwrap` and indexing, overflow and bounds panics, and macros that read spans.
+Lexical analysis cannot rule these out, so no hole may move later source. Edits
+that change only the inside of an unexecuted body keep a claim current. Edits
+elsewhere in the file, or ones that change its layout, make it owed. A body is
+never a hole when it:
 
-## Integrated engineering fixture
+- contains a macro, item or attribute,
+- lies inside a function-like macro's input,
+- is under a custom attribute macro.
 
-`python3 scripts/nix_evidence_engineering_fixture.py` creates its own temporary
-Git repository containing one fixed Rust assertion. It checks the committed
-source, imports it into the Nix store, compares NAR hashes, builds and locally
-rebuilds the target with substitutions disabled, checks the derivation and
-binary identity, runs that one disposable assertion, and verifies the LLVM
-coverage paths. It does not accept a project target or publish evidence, and
-always reports `sandbox_verified: false`: an observed local rebuild is not an
-attestation of daemon policy.
+A custom derive scopes only to its own data item and helper attributes.
 
-The prototype uses Cargo from the locked nixpkgs and the separately pinned Rust
-1.85.1 compiler, recording both versions in the build output. Cargo's Nix
-closure may be populated from a trusted signed binary cache before the target
-rebuild; the target rebuild itself requests local execution and no substitution.
-This retains an explicit trust assumption in the Nix store, its cache keys and
-the integrity of substituted tool dependencies. macOS system libraries are also
-host inputs; the fixture does not establish their identity or immutability.
+## Python and calibration
 
-The experimental `nix_evidence_build.build_committed_target` helper builds a
-selected Rust target from a clean, rechecked Git snapshot; it never executes the
-target or authorizes evidence. The target derivation saves Cargo metadata and
-the selected target's unit graph generated by the pinned Nix Cargo. Cargo's
-unstable graph flag uses `RUSTC_BOOTSTRAP=1` only for the metadata subprocess;
-the actual test binary build does not receive it. The helper checks that the
-graph root matches the selected target and reports all normalized units as
-unreviewed. The helper is not called by evidence earning.
+The Python scientific rows run against the host extension checked by
+`native_build_identity.py`. Their compile-time boundary is the same registry
+applied to the host unit graph (`host_compiler_graph`), with complete source
+retained. Calibration snapshots use that host check too.
 
-Before this can earn records, implement and test a trustworthy daemon/sandbox
-policy, bind the verified source, derivation, binary, toolchain, system runtime
-and cache trust to portable manifests, recheck those identities before
-publication, and connect coverage source remapping to the evidence runner.
-The Python scientific route additionally needs a Nix-built interpreter and
-native extension with equivalent provenance; an existing host wheel is not
-covered. Unknown or unverified boundaries must continue to refuse earning.
+## Trust assumptions
 
-`scientific_records.py run --rust-build-backend nix` is deliberately disabled
-before row discovery or any ledger change. The internal
-`nix_evidence_capture.diagnose_target` helper can build and capture an explicitly
-authorized target without issuing evidence; it rechecks source and artifact
-identity around each exact assertion and remaps coverage. Diagnostic results
-are not receipts. Enabling Nix earning still requires a reviewed compiler-unit
-audit, verified daemon and runtime policy, portable source/build/execution
-receipts, publication checks, and a comparable Python extension boundary.
-
-`python3 scripts/nix_python_engineering_fixture.py` exercises a separate fixed
-PyO3 0.29.2 toy extension under the pinned nixpkgs Python 3.13 interpreter.
-It builds and locally rebuilds the disposable extension, records interpreter
-configuration and Cargo unit metadata, and imports only the toy module with
-`python -I`. It does not run Antecedent or publish evidence. Its output and
-source are content-checked, but the Python prototype does not yet independently
-cross-check the output against an instantiated derivation, bind the interpreter
-and system ABI to a portable evidence manifest, or build the actual wheel and
-its test dependencies. It must not be used to earn records.
+The local Nix daemon and its configuration, signed binary-cache substitutes for
+the tool closure, the macOS system runtime and frameworks, and the reviewed
+registry and toolchain sources are trusted. Under the Darwin sandbox,
+`/private/tmp` stays readable; the source review in `compile-time-audit.md`,
+`compile-time-suite01-review.md` and `compile-time-helpers-review.md` accounts for
+that exposure. Disposable fixtures (`nix_evidence_engineering_fixture.py`,
+`nix_python_engineering_fixture.py`, `probe_nix_sandbox.py`) exercise the
+mechanics without earning records.

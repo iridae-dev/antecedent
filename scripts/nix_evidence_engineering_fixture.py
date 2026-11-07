@@ -52,6 +52,9 @@ def _prepare_fixture(root: Path) -> None:
     (default / "src").mkdir(parents=True)
     (selected / "src/lib.rs").write_text(SOURCE, encoding="utf-8")
     (default / "src/lib.rs").write_text("pub fn unrelated_default() {}\n", encoding="utf-8")
+    analyzer = root / "tools/evidence-analyzer"
+    analyzer.mkdir(parents=True)
+    (analyzer / "driver.rs").write_bytes((ROOT / "tools/evidence-analyzer/driver.rs").read_bytes())
     (root / "Cargo.toml").write_text(
         '[workspace]\nmembers = ["crates/default_fixture", "crates/nix_boundary_fixture"]\n'
         'default-members = ["crates/default_fixture"]\nresolver = "2"\n',
@@ -77,7 +80,7 @@ def _prepare_fixture(root: Path) -> None:
            "GIT_AUTHOR_NAME": "Fixture", "GIT_AUTHOR_EMAIL": "fixture@example.test",
            "GIT_COMMITTER_NAME": "Fixture", "GIT_COMMITTER_EMAIL": "fixture@example.test"}
     _run(["git", "init", "-q"], cwd=root, env=env)
-    _run(["git", "add", "Cargo.toml", "Cargo.lock", "crates"], cwd=root, env=env)
+    _run(["git", "add", "Cargo.toml", "Cargo.lock", "crates", "tools/evidence-analyzer/driver.rs"], cwd=root, env=env)
     _run(["git", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
           "commit", "-qm", "disposable engineering fixture"], cwd=root, env=env)
 

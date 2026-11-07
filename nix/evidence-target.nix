@@ -33,10 +33,26 @@ pkgs.stdenv.mkDerivation {
   dontConfigure = true;
   dontStrip = true;
   buildPhase = ''
+    # Build scripts may reuse probe files in OUT_DIR. Never use an ambient or
+    # shared scratch tree: Nix's per-build TMPDIR must belong to this builder.
+    umask 077
+    python3 - "$TMPDIR" <<'PY'
+    import os, stat, sys
+    path = sys.argv[1]
+    info = os.lstat(path)
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+        raise SystemExit("Nix build scratch directory must be private to the builder")
+    PY
     export HOME="$TMPDIR/home" CARGO_HOME="$TMPDIR/cargo" CARGO_TARGET_DIR="$TMPDIR/target"
     export RUSTC=${rust}/bin/rustc
-    export RUSTFLAGS="-C instrument-coverage --remap-path-prefix=$PWD=${src}" CARGO_PROFILE_TEST_OPT_LEVEL=2 CARGO_PROFILE_TEST_DEBUG=line-tables-only
-    mkdir -p "$HOME" "$CARGO_HOME"
+    # A stable prefix keeps file!() independent of the Nix store hash, which
+    # changes even for unrelated commits. Coverage is mapped back only after
+    # verifying the store source against the committed checkout.
+    export RUSTFLAGS="-C instrument-coverage --remap-path-prefix=$PWD=/antecedent-source" CARGO_PROFILE_TEST_OPT_LEVEL=2 CARGO_PROFILE_TEST_DEBUG=line-tables-only
+    mkdir -m 700 "$HOME" "$CARGO_HOME" "$CARGO_TARGET_DIR"
+    # The private parents protect scratch; outputs must remain readable after
+    # Nix canonicalizes ownership in the store.
+    umask 022
     cat > "$CARGO_HOME/config.toml" <<'EOF'
     [source.crates-io]
     replace-with = "vendored-sources"
@@ -49,6 +65,11 @@ pkgs.stdenv.mkDerivation {
     # subprocess. The test build itself never sees RUSTC_BOOTSTRAP.
     ${pkgs.cargo}/bin/cargo ${pkgs.lib.escapeShellArgs metadataArgs} > "$TMPDIR/cargo-metadata.json"
     RUSTC_BOOTSTRAP=1 ${pkgs.cargo}/bin/cargo -Z unstable-options ${pkgs.lib.escapeShellArgs graphArgs} > "$TMPDIR/cargo-unit-graph.json"
+    # Inventory only this fresh workspace compilation; the analyzer is pinned
+    # to the same rustc and never wraps external dependency compilations.
+    mkdir -m 700 "$TMPDIR/compiler-inventory"
+    RUSTC_BOOTSTRAP=1 ${rust}/bin/rustc "$PWD/tools/evidence-analyzer/driver.rs" --edition=2021 -C rpath=yes -o "$TMPDIR/evidence-driver"
+    export RUSTC_WORKSPACE_WRAPPER="$TMPDIR/evidence-driver" ANTECEDENT_ANALYZER_OUTPUT="$TMPDIR/compiler-inventory"
     ${pkgs.cargo}/bin/cargo ${pkgs.lib.escapeShellArgs cargoArgs} > "$TMPDIR/cargo-messages.jsonl" || {
       cat "$TMPDIR/cargo-messages.jsonl" >&2
       exit 1
@@ -90,6 +111,24 @@ pkgs.stdenv.mkDerivation {
     for name in ("cargo-metadata.json", "cargo-unit-graph.json"):
         data = json.loads((pathlib.Path(temporary) / name).read_text(encoding="utf-8"))
         (pathlib.Path(out) / name).write_text(json.dumps(remap(data), sort_keys=True) + "\n", encoding="utf-8")
+    records = set()
+    for inventory in (pathlib.Path(temporary) / "compiler-inventory").glob("*.tsv"):
+        for line in inventory.read_text(encoding="utf-8").splitlines():
+            fields = line.split("\t")
+            if len(fields) != 6 or fields[0] != "body":
+                raise SystemExit("unexpected compiler inventory record")
+            path = bytes.fromhex(fields[2]).decode("utf-8")
+            if path == "/antecedent-source" or path.startswith("/antecedent-source/"):
+                path = workdir + path[len("/antecedent-source"):]
+            if path != workdir and not path.startswith(workdir + "/"):
+                raise SystemExit("compiler inventory references a non-workspace source")
+            fields[2] = (source + path[len(workdir):]).encode("utf-8").hex()
+            records.add("\t".join(fields))
+    if not records:
+        raise SystemExit("compiler inventory is empty")
+    inventory_dir = pathlib.Path(out) / "compiler-inventory"
+    inventory_dir.mkdir()
+    (inventory_dir / "bodies.tsv").write_text("\n".join(sorted(records)) + "\n", encoding="utf-8")
     PY
     ${rust}/bin/rustc -vV > "$out/rustc-version"
     ${pkgs.cargo}/bin/cargo --version > "$out/cargo-version"

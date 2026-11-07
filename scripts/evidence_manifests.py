@@ -116,12 +116,6 @@ def validate(manifest: dict, binding: dict) -> None:
     if (not isinstance(manifest, dict) or type(manifest.get("schema")) is not int
             or manifest["schema"] != SCHEMA):
         raise InvalidManifest("unsupported manifest schema")
-    # A Nix store path or caller-provided receipt does not establish that the
-    # binary was built under the required policy or that those bytes ran. Until
-    # earning and portable validation bind both facts, never silently ignore a
-    # manifest that purports to carry Nix build provenance.
-    if "nix_build" in manifest:
-        raise InvalidManifest("Nix build provenance is not yet supported")
     if manifest.get("normalization") != NORMALIZATION:
         raise InvalidManifest("unsupported normalization")
     if manifest.get("record") != binding:
@@ -166,6 +160,45 @@ def validate(manifest: dict, binding: dict) -> None:
         path = relative_path(fallback.get("path"))
         if ("tree", path) not in seen and ("membership", path) not in seen:
             raise InvalidManifest("fallback boundary must have a tree dependency")
+    if "nix_build" in manifest:
+        validate_nix_receipt(manifest["nix_build"], binding, inputs)
+
+
+def validate_nix_receipt(receipt: object, binding: dict, inputs: list[dict]) -> None:
+    """Validate portable Nix build identity; execution is attested by the earning runner."""
+    if not isinstance(receipt, dict) or receipt.get("schema") != "nix-build-v1":
+        raise InvalidManifest("Nix build provenance is not yet supported")
+    try:
+        artifact, source, policy, tools = (receipt[k] for k in ("artifact", "source", "policy", "tools"))
+        if binding.get("kind") != "scientific" or receipt.get("execution") != "exact-binary":
+            raise ValueError("invalid execution binding")
+        crate, target, _ = binding["key"].split("::", 2)
+        expected = "lib" if artifact["target_kind"] == "lib" else artifact["target_name"]
+        if artifact["crate"] != crate or target != expected or artifact["target_kind"] not in ("lib", "test"):
+            raise ValueError("target mismatch")
+        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", source["commit"]):
+            raise ValueError("invalid source commit")
+        if artifact["source"] != source["store_path"] or artifact["source_nar_hash"] != source["nar_hash"]:
+            raise ValueError("source mismatch")
+        for key in ("source_nar_hash", "output_nar_hash"):
+            if not re.fullmatch(r"sha256-[A-Za-z0-9+/]{43}=", artifact[key]):
+                raise ValueError("invalid NAR identity")
+        if not HEX.fullmatch(artifact["binary_sha256"]) or not HEX.fullmatch(receipt["compiler_graph_sha256"]):
+            raise ValueError("invalid content identity")
+        if not all(isinstance(tools[k], str) and tools[k] for k in ("rustc", "rustc_commit", "cargo")):
+            raise ValueError("missing tools")
+        if (policy["id"] != "nix-darwin-private-tmp-audit-v1"
+                or policy.get("source_projection_allowed") is not True
+                or not HEX.fullmatch(policy["audit_selection_sha256"])):
+            raise ValueError("invalid policy")
+        tracked = {i.get("path"): i.get("digest") for i in inputs if i.get("kind") == "evidence_file"}
+        required = dict(artifact["recipe_sha256"])
+        if set(required) != {"nix/evidence-target.nix", "nix/evidence-toolchain.nix", "flake.lock"}:
+            raise ValueError("incomplete recipe identity")
+        if not required or any(tracked.get(path) != value for path, value in required.items()):
+            raise ValueError("unbound recipe or audit registry")
+    except (AttributeError, KeyError, TypeError, ValueError):
+        raise InvalidManifest("invalid Nix build provenance") from None
 
 
 def tracked_files(root: Path) -> list[str] | None:
@@ -319,6 +352,9 @@ class Checker:
                 reasons.append("compiler_identity_changed")
             if manifest["analyzer"] != ANALYZER:
                 reasons.append("analyzer_policy_changed")
+            if "nix_build" in manifest:
+                from nix_evidence_policy import recheck_selection
+                recheck_selection(self.root, manifest["nix_build"]["policy"])
             for entry in manifest["inputs"]:
                 kind = entry["kind"]
                 key = entry["name"] if kind in ("env", "build_env") else entry["path"]

@@ -10,6 +10,22 @@ import nix_evidence_build as build
 
 
 class BuildOnlyTest(unittest.TestCase):
+    def test_toolchain_requires_pinned_compiler_and_reviewed_host(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pin = root / "tools/evidence-analyzer/pin.toml"
+            pin.parent.mkdir(parents=True)
+            pin.write_text('release = "1.85.1"\ncommit = "abc"\n')
+            out = root / "out"
+            out.mkdir()
+            (out / "cargo-version").write_text("cargo 1.97.0 (test)\n")
+            version = out / "rustc-version"
+            version.write_text("release: 1.85.1\ncommit-hash: abc\nhost: aarch64-apple-darwin\n")
+            self.assertEqual(build._versions(root, out)["host"], "aarch64-apple-darwin")
+            version.write_text("release: 1.85.1\ncommit-hash: abc\nhost: x86_64-unknown-linux-gnu\n")
+            with self.assertRaisesRegex(ValueError, "compiler"):
+                build._versions(root, out)
+
     def test_target_features_use_the_stable_scientific_manifest_mapping(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

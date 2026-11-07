@@ -95,6 +95,25 @@ def compile_time_code(root: Path) -> dict[str, set[str]] | None:
     return _COMPILE_TIME[root]
 
 
+_HOST_UNITS: dict[tuple, bool] = {}
+
+
+def _registry_assessed(root: Path, info: dict, required: set[str]) -> set[str]:
+    """`required` when every compile-time unit of the host build is reviewed, else nothing."""
+    from nix_evidence_policy import host_compiler_graph, validate_units
+    target = list(info['target']) if info['lang'] == 'rust' else ['python']
+    key = (root, info.get('crate', ''), tuple(target))
+    if key not in _HOST_UNITS:
+        try:
+            validate_units(root, host_compiler_graph(root, info.get('crate', ''), target),
+                           require_compile_time=False)
+            _HOST_UNITS[key] = True
+        except (OSError, ValueError, subprocess.CalledProcessError) as error:
+            print(f'compile-time registry does not cover {" ".join(target)}: {error}')
+            _HOST_UNITS[key] = False
+    return set(required) if _HOST_UNITS[key] else set()
+
+
 def untracked(root: Path, paths: list[str]) -> list[str]:
     """Untracked, unignored files under `paths` (empty outside a git work tree)."""
     if not (root / '.git').exists() or not paths:
@@ -114,8 +133,12 @@ class Snapshot:
     records only what its own row's fingerprint read.
     """
 
-    def __init__(self, root: Path, row: dict, record: dict, fp: Fingerprinter | None = None):
+    def __init__(self, root: Path, row: dict, record: dict, fp: Fingerprinter | None = None,
+                 *, nix_build: dict | None = None, allowed_outputs: dict | None = None):
         self.root = root
+        self.nix_build = nix_build
+        self.allowed_outputs = allowed_outputs if allowed_outputs is not None else {}
+        self.nix_executed = False
         require_compile_environment(root)
         fp = fp or Fingerprinter(root, platform=False, scientific_build=record.get('kind') == 'scientific')
         with fp.tracking() as used:
@@ -132,12 +155,28 @@ class Snapshot:
         if os.environ.get('RUSTC_WORKSPACE_WRAPPER'):
             raise RuntimeError('workspace compiler wrappers require explicit input analysis before earning evidence')
         checker = Checker(root)
-        version = subprocess.check_output([BUILD_ENV['RUSTC'], '-vV'], cwd=root, text=True)
-        identity = dict(line.split(': ', 1) for line in version.splitlines() if ': ' in line)
-        if identity.get('release') != checker.pin['release'] or identity.get('commit-hash') != checker.pin['commit']:
-            raise RuntimeError('the compiler does not match tools/evidence-analyzer/pin.toml')
+        if nix_build is None:
+            version = subprocess.check_output([BUILD_ENV['RUSTC'], '-vV'], cwd=root, text=True)
+            identity = dict(line.split(': ', 1) for line in version.splitlines() if ': ' in line)
+            if identity.get('release') != checker.pin['release'] or identity.get('commit-hash') != checker.pin['commit']:
+                raise RuntimeError('the compiler does not match tools/evidence-analyzer/pin.toml')
+        else:
+            tools = nix_build['tools']
+            if (record.get('kind') != 'scientific' or tools['rustc'] != checker.pin['release']
+                    or tools['rustc_commit'] != checker.pin['commit']):
+                raise RuntimeError('Nix build compiler or evidence kind is invalid')
+            from nix_evidence_policy import validate_build
+            from nix_artifact_identity import recheck_artifact
+            from nix_evidence_source import _clean_head
+            self.nix_policy = validate_build(root, nix_build)
+            recheck_artifact(root, nix_build['artifact'])
+            if _clean_head(root, self.allowed_outputs)[0] != nix_build['source']['commit']:
+                raise RuntimeError('Nix source commit does not match the checkout')
         files = {root / rel for rel in (INPUT_DECLARATIONS, '.cargo/config.toml', '.cargo/config',
                                          'scripts/compile_time_environment.py')} | used.files
+        if nix_build is not None:
+            files.update(root / rel for rel in ('flake.lock', 'nix/evidence-target.nix',
+                         'nix/evidence-toolchain.nix', 'scripts/nix_evidence_policy.py'))
         for rel in row.get('fixtures', []):
             for path in (root / rel, root / f'{rel}.json'):
                 if not path.is_dir():
@@ -147,6 +186,14 @@ class Snapshot:
             if (root / rel).is_dir():
                 dirs.add(rel)
         info = locate(root, row)
+        if nix_build is not None:
+            artifact = nix_build['artifact']
+            target = info['target']
+            expected = ('lib', '') if target == ['--lib'] else (
+                ('test', target[1]) if len(target) == 2 and target[0] == '--test' else None)
+            if info['lang'] != 'rust' or expected is None or (
+                    artifact['crate'], artifact['target_kind'], artifact['target_name']) != (info['crate'], *expected):
+                raise RuntimeError('Nix build target does not match the evidence assertion')
         names = closure(fp.graph, info['crate']) if info['lang'] == 'rust' else list(fp.graph)
         owned = {fp.crate_dir(name).resolve() for name in fp.graph}
         configs = [(root, load_toml(root / 'Cargo.toml'))]
@@ -173,16 +220,21 @@ class Snapshot:
         # see them, and can read any file, not just their own crate's. While one runs
         # anywhere in the compilation (or the metadata saying so cannot be read), no
         # body is projected: the whole snapshot keeps complete source.
-        compile_time = compile_time_code(root)
-        if compile_time is None:
-            raise RuntimeError('cannot establish compile-time dependencies; Cargo metadata is required before earning evidence')
-        required = set().union(*(compile_time.get(name, {name}) for name in names))
-        for name in names:
-            directory = fp.crate_dir(name)
-            config = load_toml(directory / 'Cargo.toml')
-            if config.get('lib', {}).get('proc-macro') or (directory / 'build.rs').exists():
-                required.add(name)
-        if required:
+        if nix_build is None:
+            compile_time = compile_time_code(root)
+            if compile_time is None:
+                raise RuntimeError('cannot establish compile-time dependencies; Cargo metadata is required before earning evidence')
+            required = set().union(*(compile_time.get(name, {name}) for name in names))
+            for name in names:
+                directory = fp.crate_dir(name)
+                config = load_toml(directory / 'Cargo.toml')
+                if config.get('lib', {}).get('proc-macro') or (directory / 'build.rs').exists():
+                    required.add(name)
+        else:
+            # The audited Nix compiler-unit graph supersedes the host Cargo
+            # overapproximation. Keep complete source for compile-time code.
+            required = {'nix-reviewed-compile-time-graph'}
+        if required and nix_build is None:
             consumer = fp.crate_dir(info['crate']) if info['lang'] == 'rust' else root / 'python'
             source = (consumer / 'Cargo.toml').relative_to(root).as_posix()
             boundaries = [entry for entry in fp.declarations() if entry['source'] == source
@@ -193,16 +245,23 @@ class Snapshot:
                 if not isinstance(packages, list) or not all(isinstance(p, str) for p in packages):
                     raise RuntimeError(f'{INPUT_DECLARATIONS}: compile_time must list assessed package names')
                 assessed.update(packages)
+            # The reviewed compile-time registry is the assessed boundary for every
+            # unit Cargo actually builds for this target. The metadata set above
+            # over-approximates it (other platforms and features).
+            assessed.update(_registry_assessed(root, info, required))
+            files.update({root / 'nix/compile-time-reviewed.json', root / 'Cargo.lock'})
             if not required <= assessed:
                 raise RuntimeError(f'undeclared compile-time input boundary for {source}: '
                                    f'{", ".join(sorted(required - assessed))}; add an assessed '
                                    f'compile_time input declaration to {INPUT_DECLARATIONS}')
             # A declared boundary covers data and environment reads, not just
             # source. Apply it even though no runtime path scanner reached it.
-            with fp.tracking() as compile_inputs:
-                _, compile_env = fp.declared([f'{source}: compile-time inputs'])
-            files.update(compile_inputs.files)
-            dirs.update(p.relative_to(root).as_posix() for p in compile_inputs.directories)
+            compile_env: set[str] = set()
+            if boundaries:  # extra data reads beyond the reviewed registry
+                with fp.tracking() as compile_inputs:
+                    _, compile_env = fp.declared([f'{source}: compile-time inputs'])
+                files.update(compile_inputs.files)
+                dirs.update(p.relative_to(root).as_posix() for p in compile_inputs.directories)
             for entry in boundaries:
                 for pattern in entry.get('inputs', []):
                     if not any(c in pattern for c in '*?[') and not (root / pattern).is_dir():
@@ -211,7 +270,9 @@ class Snapshot:
             wrong = noncanonical_environment(os.environ, compile_env)
             if wrong:
                 raise RuntimeError('compile-time inputs require the canonical environment; unset: ' + ', '.join(wrong))
-        self.opaque = bool(required)
+        if nix_build is not None and self.nix_policy.get('source_projection_allowed') is not True:
+            raise RuntimeError('Nix source-read audit does not permit precise per-function evidence')
+        self.opaque = bool(required) if nix_build is None else False
         for name in names:
             directory = fp.crate_dir(name)
             for sub in ('src', 'tests'):
@@ -241,9 +302,33 @@ class Snapshot:
         self.manifest = dict(schema=SCHEMA, normalization=NORMALIZATION, record=record,
                              compiler={k: checker.pin[k] for k in ('release', 'commit')},
                              analyzer=ANALYZER, inputs=inputs, fallbacks=[], declarations=declarations(row))
+        if nix_build is not None:
+            self.manifest['nix_build'] = {
+                'schema': 'nix-build-v1', 'execution': 'exact-binary',
+                'source': nix_build['source'], 'artifact': nix_build['artifact'],
+                'tools': nix_build['tools'], 'policy': self.nix_policy,
+                'compiler_graph_sha256': digest(canonical(nix_build['compiler_graph'])),
+            }
+
+    def mark_nix_executed(self, binary: str) -> None:
+        """Bind a successful exact capture to the verified Nix-built executable."""
+        if self.nix_build is None or binary != str(Path(self.nix_build['artifact']['output']) / 'bin/test'):
+            raise RuntimeError('captured binary does not match the Nix evidence build')
+        if not self.unchanged():
+            raise RuntimeError('Nix evidence inputs changed during execution')
+        self.nix_executed = True
 
     def unchanged(self) -> bool:
         require_compile_environment(self.root)
+        if self.nix_build is not None:
+            from nix_artifact_identity import recheck_artifact
+            from nix_evidence_policy import validate_build
+            from nix_evidence_source import _clean_head
+            if _clean_head(self.root, self.allowed_outputs)[0] != self.nix_build['source']['commit']:
+                return False
+            recheck_artifact(self.root, self.nix_build['artifact'])
+            if validate_build(self.root, self.nix_build) != self.nix_policy:
+                return False
         checker = Checker(self.root)
         from evidence_projection import matches
         for i in self.manifest['inputs']:
@@ -267,6 +352,8 @@ class Snapshot:
                 raise RuntimeError('measurement inputs differ from the measured commit')
 
     def publish(self) -> str:
+        if self.nix_build is not None and not self.nix_executed:
+            raise RuntimeError('Nix evidence cannot be published before exact execution')
         if not self.unchanged():
             raise RuntimeError('evidence inputs changed during execution; pass not recorded')
         # Share complete source-tree digests across records. Projected source
@@ -321,7 +408,8 @@ def build_analyzer(root: Path, output: Path) -> Path | None:
     return driver
 
 
-def inventory_bodies(directory: Path) -> dict[Path, dict[str, tuple[int, int]]]:
+def inventory_bodies(directory: Path, *, source_root: Path | None = None,
+                     checkout_root: Path | None = None) -> dict[Path, dict[str, tuple[int, int]]]:
     """Compiler-reported function body spans whose reported text still matches the file."""
     by_file: dict[Path, dict[str, tuple[int, int]]] = {}
     contents: dict[Path, bytes | None] = {}
@@ -331,6 +419,17 @@ def inventory_bodies(directory: Path) -> dict[Path, dict[str, tuple[int, int]]]:
                 continue
             _, name, hexpath, start, end, text = line.split('\t')
             source = Path(bytes.fromhex(hexpath).decode()).resolve()
+            if source_root is not None:
+                if checkout_root is None:
+                    raise ValueError('checkout root required for Nix compiler inventory')
+                try:
+                    relative = source.relative_to(source_root.resolve())
+                except ValueError:
+                    continue
+                checkout = (checkout_root / relative).resolve()
+                if not source.is_file() or not checkout.is_file() or source.read_bytes() != checkout.read_bytes():
+                    raise RuntimeError('Nix compiler inventory source differs from checkout')
+                source = checkout
             if source not in contents:
                 contents[source] = source.read_bytes() if source.is_file() else None
             lo, hi = int(start), int(end)
@@ -340,7 +439,8 @@ def inventory_bodies(directory: Path) -> dict[Path, dict[str, tuple[int, int]]]:
     return by_file
 
 
-def project_snapshot(snapshot: Snapshot, directory: Path, coverage: dict[str, set[int]]) -> None:
+def project_snapshot(snapshot: Snapshot, directory: Path, coverage: dict[str, set[int]],
+                     *, source_root: Path | None = None) -> None:
     """Replace sources with guarded projections whose holes are bodies proven unexecuted.
 
     Compile-time code anywhere in the compilation, missing inventory, missing coverage,
@@ -354,19 +454,28 @@ def project_snapshot(snapshot: Snapshot, directory: Path, coverage: dict[str, se
             dict(path=i['path'], reason='compile-time code may read any source; source retained')
             for i in snapshot.manifest['inputs'] if i['kind'] == 'membership']
         return
-    by_file = inventory_bodies(directory)
+    by_file = inventory_bodies(directory, source_root=source_root,
+                               checkout_root=snapshot.root if source_root is not None else None)
+    if source_root is not None and (not by_file or not coverage):
+        raise RuntimeError('Nix precision requires compiler inventory and instrumented coverage')
     for entry in snapshot.manifest['inputs']:
         rel = entry.get('path', '')
         if entry['kind'] != 'evidence_file' or not rel.endswith('.rs'):
             continue
         path = (snapshot.root / rel).resolve()
-        if path in snapshot.source_consumers or path not in by_file or str(path) not in coverage:
+        if path in snapshot.source_consumers or path not in by_file:
+            continue
+        if source_root is None and str(path) not in coverage:
             continue
         source = path.read_text(encoding="utf-8")
         raw = source.encode()
         spans = {name: (len(raw[:lo].decode()), len(raw[:hi].decode())) for name, (lo, hi) in by_file[path].items()}
         try:
-            projection, _ = from_compiler_coverage(source, spans, coverage[str(path)], opaque=False)
+            projection, _ = from_compiler_coverage(source, spans, coverage.get(str(path), set()),
+                                                    opaque=False, coverage_complete=source_root is not None,
+                                                    # Derives read only their item under the
+                                                    # audited Nix compile-time policy.
+                                                    scoped_derives=source_root is not None)
         except ProjectionChanged:
             continue
         if projection['layouts']:

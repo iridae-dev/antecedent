@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import hashlib
 import json
 import os
 import re
@@ -123,11 +124,11 @@ def classify(root: Path, rows: list[dict]) -> tuple[list[dict], list[dict]]:
         owed.append(item)
     return owed, current
 
-def record_passes(root: Path, items: list[dict]) -> int:
+def record_passes(root: Path, items: list[dict], *, source_state: tuple[str, bool] | None = None) -> int:
     """Merge passing rows, each with the dependency manifest it earned, into the ledger."""
     if not items:
         return 0
-    commit, dirty = git_state(root)
+    commit, dirty = source_state if source_state is not None else git_state(root)
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     records = load_records(root)  # reread: another gate may have written meanwhile
     for item in items:
@@ -257,8 +258,10 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str
     (through the compiler inventory driver when `rustc-dev` is installed), run each assertion
     exactly, and publish its manifest. The ledger is written after every target, so an
     interrupted run keeps what it finished. Returns the number of failures."""
+    if backend == "nix":
+        return earn_rust_nix(root, items, run)
     if backend != "cargo":
-        raise RuntimeError("Nix evidence earning is disabled until receipt and policy verification are integrated")
+        raise ValueError("unknown Rust evidence build backend")
     from evidence_earning import require_compile_environment
     require_compile_environment(root)
     groups: dict[tuple[str, tuple[str, ...]], list[tuple[dict, dict]]] = {}
@@ -323,6 +326,94 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str
             earned.append({**row, "selector": info["selector"], "dependency_manifest": ref,
                            "fingerprint": snapshot.manifest["record"]["fingerprint"]})
         recorded += record_passes(root, earned)
+        print(f"  {crate} {' '.join(target)}: {len(earned)}/{len(todo)} earned", flush=True)
+    print(f"scientific records: earned {recorded} Rust pass(es); {failed} failed")
+    return failed
+
+
+def _remember_nix_output(root: Path, allowed: dict[str, str], relative: str) -> None:
+    """Remember only this run's exact output bytes for subsequent source checks."""
+    path = root / relative
+    if path.is_symlink() or not path.is_file() or path.resolve() != path:
+        raise RuntimeError(f"evidence output is missing or linked: {relative}")
+    allowed[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run) -> int:
+    """Build, capture and record Rust evidence using an audited Nix target."""
+    from evidence_earning import Snapshot, binding, project_snapshot, require_compile_environment
+    from nix_evidence_build import build_committed_target
+    from nix_evidence_capture import capture_built_target
+    from nix_evidence_policy import validate_build
+    from nix_evidence_source import _clean_head
+
+    root = root.resolve()
+    require_compile_environment(root)
+    allowed: dict[str, str] = {}
+    _clean_head(root, allowed)  # Run outputs may be allowed only after starting clean.
+    groups: dict[tuple[str, tuple[str, ...]], list[tuple[dict, dict]]] = {}
+    for row in items:
+        info = locate(root, row)
+        if info["lang"] != "rust":
+            raise ValueError("Nix Rust earning requires Rust assertions")
+        groups.setdefault((info["crate"], tuple(info["target"])), []).append((row, info))
+    if not groups:
+        return 0
+    fp = Fingerprinter(root, scientific_build=True)
+    failed = recorded = 0
+    for (crate, target), todo in sorted(groups.items()):
+        if target == ("--lib",):
+            kind, name = "lib", ""
+        elif len(target) == 2 and target[0] == "--test":
+            kind, name = "test", target[1]
+        else:
+            raise ValueError("unsupported Cargo target")
+        _clean_head(root, allowed)
+        built = build_committed_target(root, crate, kind, name, allowed_outputs=allowed)
+        # Audit and builder policy must be checked before withdrawing or running.
+        validate_build(root, built)
+        snapshots = {
+            info["selector"]: Snapshot(root, row, binding("scientific", info["selector"], None), fp,
+                                       nix_build=built, allowed_outputs=allowed)
+            for row, info in todo
+        }
+        _clean_head(root, allowed)
+        withdraw_records(root, [info for _, info in todo])
+        ledger = "parity/scientific_records.toml"
+        if (root / ledger).is_file():
+            _remember_nix_output(root, allowed, ledger)
+        result = capture_built_target(root, [row for row, _ in todo], built, run,
+                                      continue_on_failure=True, allowed_outputs=allowed)
+        failed += len(result["failures"])
+        earned = []
+        for row, info in todo:
+            selector = info["selector"]
+            if selector not in result["coverage"]:
+                continue
+            _clean_head(root, allowed)
+            try:
+                snapshots[selector].mark_nix_executed(str(Path(built["artifact"]["output"]) / "bin/test"))
+                project_snapshot(snapshots[selector], Path(built["artifact"]["output"]) / "compiler-inventory",
+                                 result["coverage"][selector], source_root=Path(built["source"]["store_path"]))
+                ref = snapshots[selector].publish()
+            except RuntimeError as error:
+                print(f"FAIL: {selector}: {error}")
+                failed += 1
+                continue
+            manifest = f"parity/evidence_manifests/{ref}.json"
+            _remember_nix_output(root, allowed, manifest)
+            # Manifest filenames are content addresses, not merely paths to trust.
+            if allowed[manifest] != ref:
+                raise RuntimeError("published evidence manifest does not match its content address")
+            earned.append({**row, "selector": selector, "dependency_manifest": ref,
+                           "fingerprint": snapshots[selector].manifest["record"]["fingerprint"]})
+        source_commit, _ = _clean_head(root, allowed)
+        if source_commit != built["source"]["commit"]:
+            raise RuntimeError("checkout commit differs from Nix build source")
+        recorded += record_passes(root, earned, source_state=(source_commit, False))
+        if (root / ledger).is_file():
+            _remember_nix_output(root, allowed, ledger)
+        _clean_head(root, allowed)
         print(f"  {crate} {' '.join(target)}: {len(earned)}/{len(todo)} earned", flush=True)
     print(f"scientific records: earned {recorded} Rust pass(es); {failed} failed")
     return failed
@@ -396,9 +487,6 @@ def run_batch(root: Path, batch: list[dict]) -> tuple[int, set[str]]:
 
 
 def cmd_run(root: Path, args: argparse.Namespace) -> int:
-    if getattr(args, "rust_build_backend", "cargo") != "cargo":
-        print("FAIL: Nix evidence earning is disabled until receipt and policy verification are integrated")
-        return 1
     from evidence_earning import require_compile_environment
     require_compile_environment(root)
     rows = all_scientific_rows(root)
@@ -426,7 +514,7 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
     rust = [i for i in run_items if not i["evidence_test"].endswith(".py")]
     python = [i for i in run_items if i["evidence_test"].endswith(".py")]
     if rust:
-        failed = earn_rust(root, rust)
+        failed = earn_rust(root, rust, backend=getattr(args, "rust_build_backend", "nix"))
         recorded += len(rust) - failed
         status = status or int(bool(failed))
     if python:
@@ -464,8 +552,10 @@ def main() -> int:
     )
     run = sub.add_parser("run")
     run.add_argument("--all", action="store_true", help="rerun and re-record every assertion (manual)")
-    run.add_argument("--rust-build-backend", choices=("cargo", "nix"), default="cargo",
-                     help="Rust build backend; nix remains disabled until evidence receipts and policy are verified")
+    run.add_argument("--rust-build-backend", choices=("cargo", "nix"), default="nix",
+                     help="Rust build backend: nix (default) builds each target from committed HEAD under the "
+                          "audited sandbox policy and projects unexecuted bodies; cargo builds on the host "
+                          "and keeps complete source")
     run.add_argument(
         "--only",
         action="append",

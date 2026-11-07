@@ -66,12 +66,14 @@ def _versions(root: Path, output: Path) -> dict[str, str]:
     pin = tomllib.loads((root / "tools/evidence-analyzer/pin.toml").read_text(encoding="utf-8"))
     text = (output / "rustc-version").read_text(encoding="utf-8")
     fields = dict(line.split(": ", 1) for line in text.splitlines() if ": " in line)
-    if fields.get("release") != pin["release"] or fields.get("commit-hash") != pin["commit"]:
+    if (fields.get("release") != pin["release"] or fields.get("commit-hash") != pin["commit"]
+            or fields.get("host") != "aarch64-apple-darwin"):
         raise ValueError("Nix build compiler does not match the evidence compiler pin")
     cargo = (output / "cargo-version").read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"cargo \d+\.\d+\.\d+(?: \([^\n]*\))?", cargo):
         raise ValueError("Nix build Cargo version is missing or malformed")
-    return {"rustc": fields["release"], "rustc_commit": fields["commit-hash"], "cargo": cargo}
+    return {"rustc": fields["release"], "rustc_commit": fields["commit-hash"],
+            "host": fields["host"], "cargo": cargo}
 
 
 def _compiler_graph(output: Path, crate: str, target_kind: str,
@@ -90,15 +92,16 @@ def _compiler_graph(output: Path, crate: str, target_kind: str,
     return normalized
 
 
-def build_committed_target(root: Path, crate: str, target_kind: str, target_name: str = "") -> dict:
+def build_committed_target(root: Path, crate: str, target_kind: str, target_name: str = "", *,
+                           allowed_outputs: dict[str, str] | None = None) -> dict:
     """Build but never run a target from clean HEAD; the result is not attestation."""
     root = root.resolve()
     features = _target_features(root, crate, target_kind, target_name)
     with tempfile.TemporaryDirectory(prefix="antecedent-nix-source-") as tmp:
         snapshot = Path(tmp) / "snapshot"
-        commit = materialize_committed_source(root, snapshot)["commit"]
-        source = import_committed_snapshot(root, snapshot, commit)
-        verify_committed_snapshot(root, snapshot, commit)
+        commit = materialize_committed_source(root, snapshot, allowed_outputs=allowed_outputs)["commit"]
+        source = import_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
+        verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
         output = _build(root, source["store_path"], crate, target_kind, target_name, features)
         artifact = inspect_artifact(root, output, source["store_path"], crate, target_kind, target_name, features)
         if artifact["source_nar_hash"] != source["nar_hash"] or artifact["sandbox_verified"] is not False:
@@ -106,6 +109,6 @@ def build_committed_target(root: Path, crate: str, target_kind: str, target_name
         tools = _versions(root, Path(output))
         graph = _compiler_graph(Path(output), crate, target_kind, target_name, features)
         recheck_artifact(root, artifact)
-        verify_committed_snapshot(root, snapshot, commit)
+        verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
     return {"source": source, "artifact": artifact, "tools": tools, "compiler_graph": graph,
             "sandbox_verified": False, "evidence_authorized": False}
