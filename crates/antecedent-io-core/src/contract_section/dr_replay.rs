@@ -24,7 +24,8 @@ use std::fmt;
 use antecedent_core::{CancellationToken, Determinism, ExecutionContext, KernelPolicy};
 use antecedent_learn::LearnerSpec;
 use antecedent_learn::dr_replay::{
-    DrOverlap, DrReplayError, DrReplayInput, DrReplaySpec, MAX_REPLAY_FOLDS, replay_dr_ate,
+    DrOverlap, DrReplay, DrReplayError, DrReplayInput, DrReplaySpec, MAX_REPLAY_FOLDS,
+    replay_dr_ate,
 };
 
 use super::AnalysisResultContractWire;
@@ -542,11 +543,20 @@ pub fn verify_checked_dr_replay(
     )
     .map_err(refusal_of)?;
 
+    verify_replayed_output(&replay, body, published, &lowering.adjustment)
+}
+
+fn verify_replayed_output(
+    replay: &DrReplay,
+    body: &AnalysisResultWire,
+    published: f64,
+    adjustment: &[u32],
+) -> Result<(), DrReplayRefusal> {
     if replay.ate.to_bits() != published.to_bits() {
         return Err(DrReplayRefusal::Mismatch("the point estimate"));
     }
     let rebuilt = replay
-        .fitted_effect(lowering.adjustment.clone())
+        .fitted_effect(adjustment.to_vec())
         .map_err(|_| DrReplayRefusal::Mismatch("the replayed fitted effect is invalid"))?;
     match (rebuilt.as_ref(), body.fitted_effect.as_deref()) {
         (Some(replayed), Some(reported)) if cbor_eq(replayed, reported) => {}

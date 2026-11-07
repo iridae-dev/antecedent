@@ -353,23 +353,15 @@ fn resample_regime_rows(
     rows: &[RegimeRow],
     groups: &std::collections::BTreeMap<Vec<(usize, u64)>, Vec<usize>>,
     rng: &mut antecedent_core::CausalRng,
-    index_error: &'static str,
-) -> Result<Vec<RegimeRow>, EquilibriumError> {
+) -> Vec<RegimeRow> {
     let mut sampled = Vec::with_capacity(rows.len());
     for indices in groups.values() {
         for _ in indices {
-            // Rejection sampling avoids modulo bias for finite regime sizes.
-            let size = indices.len() as u64;
-            let ceiling = u64::MAX - u64::MAX % size;
-            let mut draw = rng.next_u64();
-            while draw >= ceiling {
-                draw = rng.next_u64();
-            }
-            let index = usize::try_from(draw % size).map_err(|_| invalid(index_error))?;
+            let index = antecedent_kernels::unbiased_index(rng, indices.len());
             sampled.push(rows[indices[index]].clone());
         }
     }
-    Ok(sampled)
+    sampled
 }
 
 /// Resample replicated fixed intervention assignments, preserving the existing API.
@@ -422,7 +414,7 @@ pub fn bootstrap_cyclic_fit_with_design(
         }
         let mut rng =
             ctx.rng.stream(antecedent_core::derive_stream(0x4359_434c_424f_4f54, r as u64));
-        let sampled = resample_regime_rows(rows, &groups, &mut rng, "row index")?;
+        let sampled = resample_regime_rows(rows, &groups, &mut rng);
         match fit_cyclic_likelihood(template, parameters, &sampled, options, ctx) {
             Ok(fit) if fit.converged => {
                 result.push(Some(parameter_values(&fit.model, parameters)?))
@@ -951,7 +943,7 @@ pub fn bootstrap_cyclic_structure_with_design(
         }
         let mut rng =
             ctx.rng.stream(antecedent_core::derive_stream(0x4359_434c_5345_4c42, r as u64));
-        let rows = resample_regime_rows(training, &groups, &mut rng, "bootstrap index")?;
+        let rows = resample_regime_rows(training, &groups, &mut rng);
         match learn_cyclic_structure(template, &rows, heldout, options, threshold, ctx) {
             Ok(fit) if fit.selection_converged && fit.fit.converged => output.push(Some(fit)),
             Ok(_)
@@ -1304,8 +1296,7 @@ mod design_tests {
             for stream in [0x4359_434c_424f_4f54, 0x4359_434c_5345_4c42] {
                 let mut actual_rng = antecedent_core::CausalRng::from_seed(stream);
                 let mut reference_rng = antecedent_core::CausalRng::from_seed(stream);
-                let sampled =
-                    resample_regime_rows(&rows, &groups, &mut actual_rng, "row index").unwrap();
+                let sampled = resample_regime_rows(&rows, &groups, &mut actual_rng);
                 let mut expected = Vec::new();
                 for indices in groups.values() {
                     let size = indices.len() as u64;

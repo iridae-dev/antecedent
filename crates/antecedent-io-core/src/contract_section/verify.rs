@@ -1017,36 +1017,29 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
         .data_snapshot
         .as_ref()
         .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref());
-    let posterior_distribution = is_functional_distribution_contract(contract)
-        && (contract.program.as_ref().is_some_and(|program| {
-            program.commitments.inference == "bayesian" || program.commitments.prior_required
-        }) || contract
-            .inference_binding
-            .as_ref()
-            .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some()));
+    let posterior_inference = contract.program.as_ref().is_some_and(|program| {
+        program.commitments.inference == "bayesian" || program.commitments.prior_required
+    }) || contract
+        .inference_binding
+        .as_ref()
+        .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some());
+    let posterior_distribution =
+        is_functional_distribution_contract(contract) && posterior_inference;
     let functional_effect = is_scalar_functional_effect_contract(contract);
-    let graph_posterior_functional_effect = (contract.structure_source == "graph_posterior"
+    let graph_posterior_effect = contract.structure_source == "graph_posterior"
         && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
         && contract
             .program
             .as_ref()
             .and_then(|program| program.commitments.resolved_estimator.as_deref())
             .or(contract.estimator.as_deref())
-            == Some("functional.effect"))
-        // An effect over an equivalence class is published per completion: no single
-        // program and provider law reproduces the class-level result, so the replay is
-        // that of the class's own identification, not of one functional.
-        || (functional_effect_over_class(contract))
-        // A graph-posterior effect is answered per atom: the per-atom programs replace the
-        // single program.
+            == Some("functional.effect");
+    // Equivalence-class and posterior-atom effects have per-member programs instead of a
+    // single functional that can replay the class-level result.
+    let graph_posterior_functional_effect = graph_posterior_effect
+        || functional_effect_over_class(contract)
         || graph_posterior_cross_world(contract);
-    let posterior_functional_effect = functional_effect
-        && (contract.program.as_ref().is_some_and(|program| {
-            program.commitments.inference == "bayesian" || program.commitments.prior_required
-        }) || contract
-            .inference_binding
-            .as_ref()
-            .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some()));
+    let posterior_functional_effect = functional_effect && posterior_inference;
     if posterior_distribution {
         // Posterior atoms require joint per-draw factor tables and draw
         // identity. Empirical marginal laws cannot replay their weights.
@@ -1070,59 +1063,14 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
         // results require the shared row weights for every posterior draw.
         unresolved.push(ContractReason::DependenciesFunctionalEffectPosteriorDraws);
     }
-    if is_response_functional_effect_contract(contract) {
-        let graph_posterior = contract.structure_source == "graph_posterior"
-            && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
-            && contract
-                .program
-                .as_ref()
-                .and_then(|program| program.commitments.resolved_estimator.as_deref())
-                .or(contract.estimator.as_deref())
-                == Some("functional.effect");
-        let posterior = contract.program.as_ref().is_some_and(|program| {
-            program.commitments.inference == "bayesian" || program.commitments.prior_required
-        }) || contract
-            .inference_binding
-            .as_ref()
-            .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some());
-        if graph_posterior {
-            // The atom-wise checked execution and frozen graph mass are the
-            // replay dependency; one scalar program cannot represent the family.
-        } else if posterior {
-            unresolved.push(ContractReason::DependenciesFunctionalEffectResponsePosteriorDraws);
-        } else {
-            match (
-                contract
-                    .program
-                    .as_ref()
-                    .and_then(|program| program.checked_functional_response_grid.as_ref()),
-                contract
-                    .data_snapshot
-                    .as_ref()
-                    .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref()),
-                body.response.as_ref(),
-            ) {
-                (Some(grid), Some(laws), Some(response)) => {
-                    if let Err(reason) = replay_functional_response_grid(
-                        &contract.target.query,
-                        grid,
-                        &response.estimate,
-                        laws,
-                        limits,
-                    ) {
-                        unresolved.push(reason);
-                    }
-                }
-                (None, _, _) => {
-                    unresolved.push(ContractReason::ProgramFunctionalEffectResponseGrid)
-                }
-                (_, None, _) => {
-                    unresolved.push(ContractReason::DependenciesFunctionalEffectResponseFactorLaws)
-                }
-                (_, _, None) => unresolved.push(ContractReason::BodyResponse),
-            }
-        }
-    }
+    note_functional_response_replay(
+        contract,
+        body,
+        unresolved,
+        limits,
+        graph_posterior_effect,
+        posterior_inference,
+    );
     if body.identification.query != body.query {
         unresolved.push(ContractReason::BodyIdentificationQuery);
     }
@@ -1200,6 +1148,55 @@ pub(in crate::contract_section) fn note_functional_and_nested_replay(
             }
         } else if let Err(reason) = verify_nested_counterfactual_result(contract, body) {
             unresolved.push(reason);
+        }
+    }
+}
+
+fn note_functional_response_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+    limits: &ReplayLimits,
+    graph_posterior_effect: bool,
+    posterior_inference: bool,
+) {
+    if is_response_functional_effect_contract(contract) {
+        if graph_posterior_effect {
+            // The atom-wise checked execution and frozen graph mass are the
+            // replay dependency; one scalar program cannot represent the family.
+        } else if posterior_inference {
+            unresolved.push(ContractReason::DependenciesFunctionalEffectResponsePosteriorDraws);
+        } else {
+            match (
+                contract
+                    .program
+                    .as_ref()
+                    .and_then(|program| program.checked_functional_response_grid.as_ref()),
+                contract
+                    .data_snapshot
+                    .as_ref()
+                    .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref()),
+                body.response.as_ref(),
+            ) {
+                (Some(grid), Some(laws), Some(response)) => {
+                    if let Err(reason) = replay_functional_response_grid(
+                        &contract.target.query,
+                        grid,
+                        &response.estimate,
+                        laws,
+                        limits,
+                    ) {
+                        unresolved.push(reason);
+                    }
+                }
+                (None, _, _) => {
+                    unresolved.push(ContractReason::ProgramFunctionalEffectResponseGrid)
+                }
+                (_, None, _) => {
+                    unresolved.push(ContractReason::DependenciesFunctionalEffectResponseFactorLaws)
+                }
+                (_, _, None) => unresolved.push(ContractReason::BodyResponse),
+            }
         }
     }
 }
@@ -1980,6 +1977,28 @@ fn first_published_atoms(
     by_key
 }
 
+/// Recompute the identified-mass-conditional scalar from the published atoms: the
+/// weight-averaged value over the finite scalar atoms. Mixtures that carry no scalar
+/// conditional, or whose atoms are not all scalar, are left to the structural checks.
+fn mixture_recomputes(mixture: &crate::StructuralResponseMixtureWire) -> bool {
+    let Some(crate::ResponseValueWire::Scalar(stored)) = mixture.conditional_on_identified.as_ref()
+    else {
+        return true;
+    };
+    let (mut weight, mut weighted) = (0.0_f64, 0.0_f64);
+    for atom in &mixture.atoms {
+        match atom.value.as_ref() {
+            Some(crate::ResponseValueWire::Scalar(value)) if value.is_finite() => {
+                weight += atom.weight;
+                weighted += atom.weight * value;
+            }
+            Some(crate::ResponseValueWire::Scalar(_)) | None => {}
+            Some(_) => return true,
+        }
+    }
+    weight > 0.0 && close_replay_value(*stored, weighted / weight)
+}
+
 #[cfg(test)]
 mod posterior_index_tests {
     use super::first_published_atoms;
@@ -2004,26 +2023,4 @@ mod posterior_index_tests {
         assert!(std::ptr::eq(index[&4], &atoms[1]));
         assert!(!index.contains_key(&8));
     }
-}
-
-/// Recompute the identified-mass-conditional scalar from the published atoms: the
-/// weight-averaged value over the finite scalar atoms. Mixtures that carry no scalar
-/// conditional, or whose atoms are not all scalar, are left to the structural checks.
-fn mixture_recomputes(mixture: &crate::StructuralResponseMixtureWire) -> bool {
-    let Some(crate::ResponseValueWire::Scalar(stored)) = mixture.conditional_on_identified.as_ref()
-    else {
-        return true;
-    };
-    let (mut weight, mut weighted) = (0.0_f64, 0.0_f64);
-    for atom in &mixture.atoms {
-        match atom.value.as_ref() {
-            Some(crate::ResponseValueWire::Scalar(value)) if value.is_finite() => {
-                weight += atom.weight;
-                weighted += atom.weight * value;
-            }
-            Some(crate::ResponseValueWire::Scalar(_)) | None => {}
-            Some(_) => return true,
-        }
-    }
-    weight > 0.0 && close_replay_value(*stored, weighted / weight)
 }

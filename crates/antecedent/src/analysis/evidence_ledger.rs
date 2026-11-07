@@ -72,20 +72,20 @@
 use std::collections::BTreeMap;
 
 use antecedent_contract::evidence_ledger::{
-    CombinationRequest, EvidenceLedger, LedgerError, LedgerOperation, MAX_COMBINATION_SOURCES,
-    OperationId, PoolingDependence, SynthesisOperation,
+    CombinationRequest, EvidenceLedger, LedgerError, LedgerOperation, OperationId,
+    PoolingDependence, SynthesisOperation, MAX_COMBINATION_SOURCES,
 };
 use antecedent_core::ExecutionContext;
-use antecedent_io::IoError;
 use antecedent_io::evidence_ledger_artifact::{
-    ComputedSynthesis, EvidenceLedgerArtifact, EvidenceLedgerArtifactError, SynthesisMethod,
-    SynthesisRecord, covariance_digest, covariance_has_cross_terms,
+    covariance_digest, covariance_has_cross_terms, ComputedSynthesis, EvidenceLedgerArtifact,
+    EvidenceLedgerArtifactError, SynthesisMethod, SynthesisRecord,
 };
+use antecedent_io::IoError;
 use antecedent_stats::synthesis::{
-    DependenceEnvelope, GaussianStudyEstimate, HierarchicalPosterior, MeanPrior, PooledEstimate,
-    RandomEffectsEstimate, SynthesisError, TauPrior, equal_study_gaussian, fixed_effect_gls,
-    fixed_effect_inverse_variance, hierarchical_normal_borrowing, pooled_dependence_envelope,
-    random_effects_dersimonian_laird, random_effects_reml,
+    equal_study_gaussian, fixed_effect_gls, fixed_effect_inverse_variance,
+    hierarchical_normal_borrowing, pooled_dependence_envelope, random_effects_dersimonian_laird,
+    random_effects_reml, DependenceEnvelope, GaussianStudyEstimate, HierarchicalPosterior,
+    MeanPrior, PooledEstimate, RandomEffectsEstimate, SynthesisError, TauPrior,
 };
 
 pub use antecedent_contract::evidence_ledger::{
@@ -1199,33 +1199,12 @@ impl EvidenceLedgerSession {
         })
     }
 
-    /// The interval construction of a pooled result before any coverage record
-    /// is consulted, with the basis a record is matched against. This is what a
-    /// calibration harness measures; it is never a published claim.
-    ///
-    /// # Errors
-    /// As [`Self::pooled_interval`], except for the missing record.
-    #[doc(hidden)]
-    #[allow(clippy::too_many_lines, reason = "one construction per synthesis variant")]
-    pub fn pooled_interval_candidate(
+    fn construct_pooled_interval(
         &self,
         result: ResultId,
-    ) -> Result<PooledIntervalCandidate, EvidenceLedgerRefusal> {
-        let Some(value) = self.values.get(&result) else {
-            return Err(EvidenceLedgerRefusal::new(
-                antecedent_core::reason_code!("invalid_argument"),
-                antecedent_core::reason_details::evidence_ledger::UNKNOWN_RESULT,
-                "the result is not in the ledger",
-            ));
-        };
-        self.ledger.require_valid(result).map_err(|e| EvidenceLedgerRefusal::from_ledger(&e))?;
-        let record = self.ledger.result(result).ok_or_else(|| {
-            EvidenceLedgerRefusal::new(
-                antecedent_core::reason_code!("invalid_argument"),
-                antecedent_core::reason_details::evidence_ledger::UNKNOWN_RESULT,
-                "the result is not in the ledger",
-            )
-        })?;
+        value: &SynthesisValue,
+        dependence: &'static str,
+    ) -> Result<IntervalConstruction, EvidenceLedgerRefusal> {
         let not_measured = |what: &str| {
             EvidenceLedgerRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
@@ -1234,18 +1213,7 @@ impl EvidenceLedgerSession {
             )
         };
         let level = POOLED_INTERVAL_LEVEL;
-        let dependence =
-            if record.dependence_declared { "declared_covariance" } else { "independent" };
-        let IntervalConstruction {
-            estimate,
-            half,
-            studies,
-            estimator,
-            interval_method,
-            se_kind,
-            variant,
-            dependence,
-        } = match value {
+        let construction = match value {
             SynthesisValue::EqualStudyGaussian(p) => {
                 #[allow(clippy::cast_precision_loss, reason = "bounded study count")]
                 let t = antecedent_stats::special::student_t_ppf(
@@ -1330,6 +1298,56 @@ impl EvidenceLedgerSession {
                 return Err(not_measured("an assumption range over a declared dependence"));
             }
         };
+        Ok(construction)
+    }
+
+    /// The interval construction of a pooled result before any coverage record
+    /// is consulted, with the basis a record is matched against. This is what a
+    /// calibration harness measures; it is never a published claim.
+    ///
+    /// # Errors
+    /// As [`Self::pooled_interval`], except for the missing record.
+    #[doc(hidden)]
+    #[allow(clippy::too_many_lines, reason = "one construction per synthesis variant")]
+    pub fn pooled_interval_candidate(
+        &self,
+        result: ResultId,
+    ) -> Result<PooledIntervalCandidate, EvidenceLedgerRefusal> {
+        let Some(value) = self.values.get(&result) else {
+            return Err(EvidenceLedgerRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::evidence_ledger::UNKNOWN_RESULT,
+                "the result is not in the ledger",
+            ));
+        };
+        self.ledger.require_valid(result).map_err(|e| EvidenceLedgerRefusal::from_ledger(&e))?;
+        let record = self.ledger.result(result).ok_or_else(|| {
+            EvidenceLedgerRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::evidence_ledger::UNKNOWN_RESULT,
+                "the result is not in the ledger",
+            )
+        })?;
+        let not_measured = |what: &str| {
+            EvidenceLedgerRefusal::new(
+                antecedent_core::reason_code!("route_not_supported"),
+                antecedent_core::reason_details::evidence_ledger::INTERVAL_CONSTRUCTION_UNAVAILABLE,
+                format!("no interval construction exists for {what}"),
+            )
+        };
+        let level = POOLED_INTERVAL_LEVEL;
+        let dependence =
+            if record.dependence_declared { "declared_covariance" } else { "independent" };
+        let IntervalConstruction {
+            estimate,
+            half,
+            studies,
+            estimator,
+            interval_method,
+            se_kind,
+            variant,
+            dependence,
+        } = self.construct_pooled_interval(result, value, dependence)?;
         if !(half.is_finite() && estimate.is_finite()) {
             return Err(not_measured("a non-finite pooled value"));
         }

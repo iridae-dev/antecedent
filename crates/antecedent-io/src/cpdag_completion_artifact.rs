@@ -30,6 +30,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use crate::exact_transport_laws::canonical_laws;
 use antecedent_core::{
     ExecutionContext, IdentityDomain, NodeRef, SearchLimits, SearchReceipt, SearchStop, VariableId,
     reason_code,
@@ -601,20 +602,6 @@ pub struct CpdagCompletionArtifactWire {
     /// Digest of the evidence bindings and catalogs, the laws and the provider.
     /// Separate from the premises so refreshed data replaces only it.
     pub data_digest: String,
-}
-
-fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let wire = ExactLawWire::from_law(law);
-            crate::to_cbor(&(&wire.population, wire.regime, &wire.interventions))
-                .map(|key| (key, wire))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
 fn premises_identity(wire: &CpdagCompletionArtifactWire) -> Result<String, IoError> {

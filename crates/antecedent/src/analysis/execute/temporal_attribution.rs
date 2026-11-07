@@ -44,24 +44,10 @@ impl LagAlignedScm {
         Self::unfold_within(graph, series, &mut budget, &ctx)
     }
 
-    #[allow(
-        clippy::too_many_lines,
-        reason = "temporal materialization keeps admission, bounds and alignment in one operation"
-    )]
-    pub(super) fn unfold_within(
+    fn input_history(
         graph: &TemporalDag,
         series: &TimeSeriesData,
-        budget: &mut antecedent_core::TemporalBudget,
-        ctx: &antecedent_core::ExecutionContext,
-    ) -> Result<Self, CausalError> {
-        let initial_work = (graph.nodes().len() as u64)
-            .checked_add(series.schema().variables().len() as u64)
-            .ok_or_else(|| CausalError::Resource {
-                message: "attribution input size overflow".into(),
-            })?;
-        budget
-            .charge_work(initial_work)
-            .map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    ) -> Result<(u32, u32), CausalError> {
         let variables = series.schema().variables();
         if variables.is_empty() || graph.nodes().is_empty() {
             return Err(CausalError::Compile {
@@ -101,44 +87,14 @@ impl LagAlignedScm {
                 message: "temporal attribution needs at least one row after the longest lag".into(),
             });
         }
-        let indexer = TemporalIndexer::new(variable_count, history, 1)?;
-        let unfolded = graph.unfold_within(indexer.clone(), budget, ctx)?;
-        let nodes = indexer.dense_len() as u64;
-        budget.charge_work(nodes).map_err(|e| CausalError::Resource { message: e.to_string() })?;
-        let mut edges = 0u64;
-        for i in 0..indexer.dense_len() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(CausalError::Cancelled { stage: "temporal attribution" });
-            }
-            edges = edges
-                .checked_add(unfolded.dag.children(DenseNodeId::from_index(i)).len() as u64)
-                .ok_or_else(|| CausalError::Resource {
-                    message: "attribution edge overflow".into(),
-                })?;
-        }
-        let work = edges
-            .checked_mul(nodes.checked_add(edges).and_then(|n| n.checked_add(1)).ok_or_else(
-                || CausalError::Resource { message: "attribution work overflow".into() },
-            )?)
-            .and_then(|n| n.checked_add(nodes))
-            .ok_or_else(|| CausalError::Resource { message: "attribution work overflow".into() })?;
-        budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
-        let bytes = nodes
-            .checked_mul(1024)
-            .and_then(|n| edges.checked_mul(512).and_then(|e| n.checked_add(e)))
-            .and_then(|n| n.checked_add(4096))
-            .ok_or_else(|| CausalError::Resource {
-                message: "attribution bytes overflow".into(),
-            })?;
-        if bytes > budget.limits().max_bytes {
-            return Err(CausalError::Resource { message: "attribution byte limit".into() });
-        }
-        let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| match e {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                CausalError::Cancelled { stage: "temporal attribution" }
-            }
-            other => CausalError::Resource { message: other.to_string() },
-        })?);
+        Ok((variable_count, history))
+    }
+
+    fn align_unfolded(
+        unfolded: &Dag,
+        indexer: &TemporalIndexer,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<(Dag, Vec<(VariableId, u32)>), CausalError> {
         let mut contemporaneous = Vec::new();
         let mut lagged = Vec::new();
         for dense in 0..indexer.dense_len() {
@@ -188,7 +144,7 @@ impl LagAlignedScm {
             }
             columns.push((key.variable, lag));
         }
-        for edge in unfolded.dag.edges() {
+        for edge in unfolded.edges() {
             if ctx.cancellation.is_cancelled() {
                 return Err(CausalError::Cancelled { stage: "temporal attribution" });
             }
@@ -202,6 +158,67 @@ impl LagAlignedScm {
                 Err(error) => return Err(error.into()),
             }
         }
+        Ok((dag, columns))
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "temporal materialization keeps admission, bounds and alignment in one operation"
+    )]
+    pub(super) fn unfold_within(
+        graph: &TemporalDag,
+        series: &TimeSeriesData,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        let initial_work = (graph.nodes().len() as u64)
+            .checked_add(series.schema().variables().len() as u64)
+            .ok_or_else(|| CausalError::Resource {
+                message: "attribution input size overflow".into(),
+            })?;
+        budget
+            .charge_work(initial_work)
+            .map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let (variable_count, history) = Self::input_history(graph, series)?;
+        let indexer = TemporalIndexer::new(variable_count, history, 1)?;
+        let unfolded = graph.unfold_within(indexer.clone(), budget, ctx)?;
+        let nodes = indexer.dense_len() as u64;
+        budget.charge_work(nodes).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let mut edges = 0u64;
+        for i in 0..indexer.dense_len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
+            edges = edges
+                .checked_add(unfolded.dag.children(DenseNodeId::from_index(i)).len() as u64)
+                .ok_or_else(|| CausalError::Resource {
+                    message: "attribution edge overflow".into(),
+                })?;
+        }
+        let work = edges
+            .checked_mul(nodes.checked_add(edges).and_then(|n| n.checked_add(1)).ok_or_else(
+                || CausalError::Resource { message: "attribution work overflow".into() },
+            )?)
+            .and_then(|n| n.checked_add(nodes))
+            .ok_or_else(|| CausalError::Resource { message: "attribution work overflow".into() })?;
+        budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let bytes = nodes
+            .checked_mul(1024)
+            .and_then(|n| edges.checked_mul(512).and_then(|e| n.checked_add(e)))
+            .and_then(|n| n.checked_add(4096))
+            .ok_or_else(|| CausalError::Resource {
+                message: "attribution bytes overflow".into(),
+            })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(CausalError::Resource { message: "attribution byte limit".into() });
+        }
+        let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| match e {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "temporal attribution" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?);
+        let (dag, columns) = Self::align_unfolded(&unfolded.dag, &indexer, ctx)?;
         Ok(Self { dag, columns: Arc::from(columns), history, _temporal_lease: Some(lease) })
     }
 

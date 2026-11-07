@@ -29,7 +29,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "IdcIdentifier::identify_conditional in crates/antecedent-identify/src/idc.rs for hard-set interventions on a static ADMG: the line-1 move of conditioning variables into the intervention set under rule 2 (Y independent of z given X and the rest of Z in the graph without arrows into X and out of z), the choice among moves, and the hand-off to ID of the unconditional law over Y and the unmoved Z (line 2) with its identified or refused status. Not a review of ID itself (covered by its hedge enumeration), of the emitted functional's numerical value beyond the existing three-node finite-SCM sweep, of baked-level evaluation, or of soft or non-Set interventions, which are refused."
+scope = "IdcIdentifier::identify_conditional in crates/antecedent-identify/src/idc.rs for hard-set interventions on a static ADMG: the line-1 move of conditioning variables into the intervention set under rule 2 (Y independent of z given X and the rest of Z in the graph without arrows into X and out of z), the choice among moves, and the hand-off to ID of the unconditional law over Y and the unmoved Z (line 2) with its identified or refused status. Not a review of ID itself (covered by its hedge enumeration), of the emitted functional's numerical value beyond the existing three-node finite-SCM sweep, of baked-level evaluation, or of soft or non-Set interventions, which are refused. ID expression-building definitions moved to id/expression.rs and bound items were compared unchanged apart from internal visibility and formatting. ID recursive definitions moved to id/recursion.rs and bound items were compared unchanged apart from internal visibility and formatting."
 assumptions = ["Causal sufficiency is not assumed: latent confounding is represented by bidirected edges of the ADMG and the graph is acyclic.", "m-separation in an ADMG is decided by simple paths with the collider rule: a collider needs the node or a descendant in the conditioning set, a non-collider must be outside it; mutilation by G_{X-bar z-underline} removes every arrowhead at X and every arrow leaving z.", "The status of the unconditional law over Y and Z'' after the moves is that of ID, which is checked separately against the hedge definition; a reduced query with no intervention is the observational law and is identified."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
 redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
@@ -47,8 +47,20 @@ sha256 = "6eba0e977b8b3ab46c3e5b5fef8b61e0cd6911876c1a84b79571a194f1314b69"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/id.rs"
-items = ["enum DistCtx", "enum Factor", "enum IdOutcome", "fn c_component_expression", "fn conditionals", "fn dist_marginal", "fn emit", "fn enter", "fn expectation_contrast", "fn get", "fn id_body", "fn id_lines_5_to_7", "fn id_recurse", "fn id_recurse_shared", "fn identify", "fn identify_ate", "fn identify_ate_impl", "fn identify_response", "fn identify_sets", "fn insert", "fn intern_nodes", "fn intervention_for_factor", "fn intervention_value", "fn leave", "fn len", "fn marginal_conditionals", "fn marginalize", "fn markov_product", "fn new", "fn not_identified_with_hedge", "fn observational_marginal", "fn prepare", "fn prepare_with_assumptions", "fn product_of", "fn q_component_product", "fn require_disjoint", "fn subproblem_hash", "fn sum_out_if_any", "fn admitted", "fn validate_distribution_query", "fn var", "fn with_causal_markov", "struct IdIdentifier", "struct IdMemo", "struct IdMeter", "struct IdQuery", "struct IdRun", "struct Law", "struct SubproblemKey", "type Assign"]
-sha256 = "ea4550272ac65a97a7f5c47063aa351a29269dc77bf4db1afdc63589525247a7"
+items = ["enum DistCtx", "enum Factor", "enum IdOutcome", "fn enter", "fn expectation_contrast", "fn get", "fn identify", "fn identify_ate", "fn identify_ate_impl", "fn identify_response", "fn identify_sets", "fn insert", "fn intervention_value", "fn leave", "fn len", "fn new", "fn not_identified_with_hedge", "fn prepare", "fn prepare_with_assumptions", "fn require_disjoint", "fn subproblem_hash", "fn admitted", "fn validate_distribution_query", "fn var", "fn with_causal_markov", "struct IdIdentifier", "struct IdMemo", "struct IdMeter", "struct IdQuery", "struct IdRun", "struct Law", "struct SubproblemKey", "type Assign"]
+sha256 = "afdcc63d41eeed72d7f4dc6d31344104ea0ea61ab7a538910377ea0a53aa1bf6"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/id/recursion.rs"
+items = ["fn id_body", "fn id_lines_5_to_7", "fn id_recurse", "fn id_recurse_shared", "fn marginal_conditionals"]
+sha256 = "4fcd9ab6713df50c603b87fe21dd6cdff1bfe1c9bf83af0cd3716ac25df4793b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/id/expression.rs"
+items = ["fn c_component_expression", "fn conditionals", "fn dist_marginal", "fn emit", "fn intern_nodes", "fn intervention_for_factor", "fn marginalize", "fn markov_product", "fn observational_marginal", "fn product_of", "fn q_component_product", "fn sum_out_if_any"]
+sha256 = "4026f88ad1de8f67b02b3c91428805504ba9c64abbf058e2ef37c5ae25897b8e"
 
 [[method_review.artifacts]]
 role = "assertion"

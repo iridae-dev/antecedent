@@ -15,7 +15,7 @@ test_sources = ["crates/antecedent/tests/bayesian_randomized_routes.rs"]
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "The composition of responder_pseudo_outcomes with posterior_arm_contrasts_with_draws for two-arm Gaussian superpopulation IPW, its exact graphless support, retained source and prior binding, and estimator-aware detached numerical replay. The pseudo-outcome helper computes R Y / pi minus the fitted-logistic score correction h' I^-1 s, with all assigned units retained. The underlying conjugate and observation-fit numerics have the separate reviews estimate.randomized.bayesian and estimate.randomized_missing_outcomes; this review checks the composition rather than expanding their scope."
+scope = "The composition of responder_pseudo_outcomes with posterior_arm_contrasts_with_draws for two-arm Gaussian superpopulation IPW, its exact graphless support, retained source and prior binding, and estimator-aware detached numerical replay. The pseudo-outcome helper computes R Y / pi minus the fitted-logistic score correction h' I^-1 s, with all assigned units retained. The underlying conjugate and observation-fit numerics have the separate reviews estimate.randomized.bayesian and estimate.randomized_missing_outcomes; this review checks the composition rather than expanding their scope. The posterior-index test module was moved after the production items in contract_section/verify.rs; the module body and all other content and bound artifacts were compared unchanged."
 assumptions = [
   "Observation is missing at random given assignment and the declared complete baseline covariates. The armwise linear-logistic observation model with an intercept is correctly specified; positivity and an estimable fit are required.",
   "The Gaussian working likelihood is on data-dependent score-adjusted pseudo-outcomes with a declared proper Normal-Inverse-Gamma prior. Observation-model coefficients are fitted and conditioned upon, not assigned a posterior.",
@@ -23,7 +23,7 @@ assumptions = [
 ]
 historical_exposure = "This review read the repository implementations and wrote definition-level assertions without consulting or copying any upstream implementation, test or publication. It does not claim a page-level review of a primary paper. Historical exposure of earlier authors is not independently established."
 redistribution = "Repository-authored code and tests under MIT OR Apache-2.0. No external source, reference software or paper is redistributed."
-limitations = "The independent new known-target check has 128 units, a saturated binary-baseline response model, nonuniform response by arm and stratum, structural effect 2 versus naive responder contrast 4.5, two prior strengths, and both supported designs. Its independently derived pseudo-outcomes and NIG moments agree with the numerical contrast law within 0.005 for the mean and 0.006 for the standard deviation. A separate 24-unit fixture checks intercept-only and binary-baseline moments. These are deterministic definition checks, not a calibration campaign, a reference for unsaturated logistic models, or evidence for joint multicontrast draws. Detached replay reuses the product numerical routines and establishes internal consistency of retained inputs, not external authenticity of observations."
+limitations = "The independent new known-target check has 128 units, a saturated binary-baseline response model, nonuniform response by arm and stratum, structural effect 2 versus naive responder contrast 4.5, two prior strengths, and both supported designs. Its independently derived pseudo-outcomes and NIG moments agree with the numerical contrast law within 0.005 for the mean and 0.006 for the standard deviation. A separate 24-unit fixture checks intercept-only and binary-baseline moments. These are deterministic definition checks, not a calibration campaign, a reference for unsaturated logistic models, or evidence for joint multicontrast draws. Detached replay reuses the product numerical routines and establishes internal consistency of retained inputs, not external authenticity of observations. Scoped 2026-11-07 source re-review compared the bound verifier module with 08a69d364: the only changes share the previously identical posterior and graph-posterior classifications and move response-grid replay into a helper; randomized inverse-probability checks are untouched and dependency order is preserved. Ninety-seven contract unit tests passed; no new independent reference was generated."
 sources = ["provenance/estimate.randomized.bayesian.toml", "provenance/estimate.randomized_missing_outcomes.toml", "crates/antecedent-estimate/src/randomized_missing.rs", "crates/antecedent-estimate/src/randomized_posterior.rs"]
 findings_resolved = [
   "Replaced the blanket unsupported execution of the supported IPW construction with a narrow graphless support and retained numerical replay; unsupported IPW designs now refuse.",
@@ -61,7 +61,7 @@ sha256 = "ec0f7f83eaa2bdd39624ead222789a87231c136ad05fc626928b99752a4c2011"
 role = "implementation"
 path = "crates/antecedent-io-core/src/contract_section/verify.rs"
 items = ["module"]
-sha256 = "34885c9f6b69cff50ee6e5e8766fab7affb0ff6a50b4f167de9d3cd7b07d5d46"
+sha256 = "cb95b488f9834560f8b3917e14bbf7d2f8bfa22aeabf4fbcf82e9c3c73ea203b"
 
 [[method_review.artifacts]]
 role = "assertion"

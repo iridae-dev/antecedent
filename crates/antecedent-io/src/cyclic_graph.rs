@@ -5,7 +5,7 @@
 use crate::cyclic_system_artifact::CyclicArtifactError;
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_graph::{CyclicMixedGraph, DenseNodeId, Endpoint};
-use antecedent_identify::cyclic_id::{CyclicIdPremises, cyclic_backdoor_valid, identify_cyclic};
+use antecedent_identify::cyclic_id::{cyclic_backdoor_valid, identify_cyclic, CyclicIdPremises};
 use serde::{Deserialize, Serialize};
 
 /// Dense cyclic graph serialization; reciprocal and bidirected edges are distinct.
@@ -257,7 +257,153 @@ fn mark(e: Endpoint) -> String {
     }
     .into()
 }
+fn report_program(
+    program: Option<&antecedent_expr::FunctionalProgram>,
+) -> Result<(Option<crate::FunctionalProgramWire>, Option<String>), CyclicArtifactError> {
+    let expression = program.map(|p| p.arena().pretty(p.mapping().executable));
+    let program = program.map(crate::functional_program_to_wire).transpose().map_err(invalid)?;
+    Ok((program, expression))
+}
+
+fn execute_domain_invariance(
+    variables: usize,
+    exogenous: &[usize],
+    equations: &[Vec<usize>],
+    changed_equations: &[usize],
+    outcomes: &[usize],
+    conditioning: &[usize],
+) -> Result<CyclicGraphReport, CyclicArtifactError> {
+    // The selector input is one more variable than the request names.
+    admit_bipartite_size(variables.saturating_add(1), equations, "domain invariance")?;
+    if outcomes.is_empty()
+        || outcomes.iter().chain(conditioning).any(|&v| v >= variables)
+        || changed_equations.iter().any(|&e| e >= equations.len())
+    {
+        return Err(invalid("domain invariance coordinates"));
+    }
+    let selector = variables;
+    let mut incidence = equations.to_vec();
+    for &equation in changed_equations {
+        if !incidence[equation].contains(&selector) {
+            incidence[equation].push(selector);
+        }
+    }
+    let mut external = exogenous.to_vec();
+    external.push(selector);
+    let graph =
+        antecedent_graph::bipartite::BipartiteCausalGraph::new(variables + 1, &external, incidence)
+            .map_err(invalid)?;
+    let mut invariant = true;
+    for &outcome in outcomes {
+        invariant &= graph.b_separates(outcome, selector, conditioning).map_err(invalid)?.separated;
+    }
+    Ok(CyclicGraphReport::DomainInvariance {invariant,assumptions:"BGCM domain-invariance recipe with a nonrandom selector input; every domain must have compatible measurable unique cluster solutions; original exogenous inputs independent; only named equations change".into()})
+}
+
 impl CyclicGraphRequest {
+    fn execute_discovery(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicGraphReport, CyclicArtifactError> {
+        use antecedent_discovery::{
+            cyclic_fci::{discover_cyclic_fci, CyclicFciPremises, SigmaCiOracle},
+            engine::DiscoveryWorkspace,
+            fci::Fci,
+        };
+        let Self::Discover {
+            seed,
+            columns,
+            oracle,
+            ci,
+            alpha,
+            max_cond_size,
+            pds_max_nodes,
+            simple_scm,
+            sigma_faithful,
+            independent_equilibrium_replicates,
+        } = self
+        else {
+            unreachable!("discovery helper is called only for a discovery request");
+        };
+        let n = columns.len();
+        if n == 0
+            || n > 32
+            || !alpha.is_finite()
+            || *alpha <= 0.0
+            || *alpha >= 1.0
+            || *max_cond_size > n
+            || *pds_max_nodes > 100_000
+            || ci.len() > 64
+            || columns
+                .iter()
+                .any(|c| c.len() < 4 || c.len() > 10_000 || c.iter().any(|v| !v.is_finite()))
+        {
+            return Err(invalid("cyclic discovery input limits"));
+        }
+        let data = antecedent_data::TabularData::from_f64_columns(
+            columns.iter().enumerate().map(|(i, c)| (format!("v{i}"), c.as_slice())),
+        )
+        .map_err(invalid)?;
+        let mut engine = Fci::new();
+        engine.constraints.alpha = *alpha;
+        engine.constraints.max_cond_size = *max_cond_size;
+        engine.pds_max_nodes = *pds_max_nodes;
+        let ci_source = if let Some(graph) = oracle {
+            if graph.nodes as usize != n {
+                return Err(invalid("sigma oracle/column binding size"));
+            }
+            engine = engine.with_ci(std::sync::Arc::new(
+                SigmaCiOracle::new(
+                    graph.graph()?,
+                    (0..graph.nodes).map(DenseNodeId::from_raw).collect(),
+                )
+                .map_err(invalid)?,
+            ));
+            "sigma_oracle".into()
+        } else {
+            engine = engine.with_ci(antecedent_stats::ci_from_name(ci).map_err(invalid)?);
+            ci.clone()
+        };
+        let variables: Vec<_> =
+            (0..u32::try_from(n).map_err(invalid)?).map(VariableId::from_raw).collect();
+        let mut context = ctx.clone();
+        context.rng = antecedent_core::RngFactory::from_seed(*seed);
+        let answer = discover_cyclic_fci(
+            &engine,
+            CyclicFciPremises {
+                simple_scm: *simple_scm,
+                sigma_faithful: *sigma_faithful,
+                independent_equilibrium_replicates: *independent_equilibrium_replicates,
+            },
+            &data,
+            &variables,
+            &mut DiscoveryWorkspace::default(),
+            &context,
+        )
+        .map_err(invalid)?;
+        let pag = &answer.discovery.evidence.graph;
+        let mut edges = Vec::new();
+        for i in 0..n {
+            let a = DenseNodeId::from_raw(u32::try_from(i).map_err(invalid)?);
+            for (b, at_a, at_b) in pag.neighbors(a) {
+                if b.raw() > a.raw() {
+                    edges.push((a.raw(), b.raw(), mark(at_a), mark(at_b)));
+                }
+            }
+        }
+        Ok(CyclicGraphReport::Discover {
+            conclusions: antecedent_discovery::cyclic_fci::cyclic_pag_conclusions(pag, ctx)
+                .map_err(invalid)?
+                .into_iter()
+                .map(|c| (c.source, c.target, c.relation, c.criterion))
+                .collect(),
+            edges,
+            diagnostics: answer.discovery.diagnostics.iter().map(|d| format!("{d:?}")).collect(),
+            interpretation: answer.interpretation.into(),
+            ci_source,
+        })
+    }
+
     /// Execute through existing identification/discovery engines.
     #[allow(
         clippy::too_many_lines,
@@ -280,7 +426,7 @@ impl CyclicGraphRequest {
                 max_checks,
             } => {
                 use antecedent_identify::cyclic_calculus::{
-                    CyclicCalculusStatus, apply_cyclic_calculus,
+                    apply_cyclic_calculus, CyclicCalculusStatus,
                 };
                 let answer = apply_cyclic_calculus(
                     &graph.graph()?,
@@ -301,14 +447,7 @@ impl CyclicGraphRequest {
                     CyclicCalculusStatus::BudgetExhausted => "budget_exhausted",
                 }
                 .into();
-                let expression =
-                    answer.program.as_ref().map(|p| p.arena().pretty(p.mapping().executable));
-                let program = answer
-                    .program
-                    .as_ref()
-                    .map(crate::functional_program_to_wire)
-                    .transpose()
-                    .map_err(invalid)?;
+                let (program, expression) = report_program(answer.program.as_ref())?;
                 Ok(CyclicGraphReport::Calculus {
                     status,
                     fully_observational: w.is_empty(),
@@ -344,12 +483,7 @@ impl CyclicGraphRequest {
                 let status =
                     if program.is_some() { "identified" } else { "not_supported_by_adjustment" }
                         .into();
-                let expression = program.as_ref().map(|p| p.arena().pretty(p.mapping().executable));
-                let program = program
-                    .as_ref()
-                    .map(crate::functional_program_to_wire)
-                    .transpose()
-                    .map_err(invalid)?;
+                let (program, expression) = report_program(program.as_ref())?;
                 Ok(CyclicGraphReport::Identify{status,program,expression,derivation:vec!["Forre-Mooij 2020 Corollary 8.4(4); ioSCM, standard measurable spaces, common support. Product-SCC density is not required for adjustment.".into()]})
             }
 
@@ -388,39 +522,14 @@ impl CyclicGraphRequest {
                 changed_equations,
                 outcomes,
                 conditioning,
-            } => {
-                // The selector input is one more variable than the request names.
-                admit_bipartite_size(variables.saturating_add(1), equations, "domain invariance")?;
-                if outcomes.is_empty()
-                    || outcomes.iter().chain(conditioning).any(|&v| v >= *variables)
-                    || changed_equations.iter().any(|&e| e >= equations.len())
-                {
-                    return Err(invalid("domain invariance coordinates"));
-                }
-                let selector = *variables;
-                let mut incidence = equations.clone();
-                for &equation in changed_equations {
-                    if !incidence[equation].contains(&selector) {
-                        incidence[equation].push(selector);
-                    }
-                }
-                let mut external = exogenous.clone();
-                external.push(selector);
-                let graph = antecedent_graph::bipartite::BipartiteCausalGraph::new(
-                    variables + 1,
-                    &external,
-                    incidence,
-                )
-                .map_err(invalid)?;
-                let mut invariant = true;
-                for &outcome in outcomes {
-                    invariant &= graph
-                        .b_separates(outcome, selector, conditioning)
-                        .map_err(invalid)?
-                        .separated;
-                }
-                Ok(CyclicGraphReport::DomainInvariance {invariant,assumptions:"BGCM domain-invariance recipe with a nonrandom selector input; every domain must have compatible measurable unique cluster solutions; original exogenous inputs independent; only named equations change".into()})
-            }
+            } => execute_domain_invariance(
+                *variables,
+                exogenous,
+                equations,
+                changed_equations,
+                outcomes,
+                conditioning,
+            ),
             Self::Identify {
                 graph,
                 outcomes,
@@ -451,14 +560,7 @@ impl CyclicGraphRequest {
                     }
                 }
                 .into();
-                let expression =
-                    answer.program.as_ref().map(|p| p.arena().pretty(p.mapping().executable));
-                let program = answer
-                    .program
-                    .as_ref()
-                    .map(crate::functional_program_to_wire)
-                    .transpose()
-                    .map_err(invalid)?;
+                let (program, expression) = report_program(answer.program.as_ref())?;
                 Ok(CyclicGraphReport::Identify {
                     program,
                     status,
@@ -485,106 +587,7 @@ impl CyclicGraphRequest {
                 .map_err(invalid)?;
                 Ok(CyclicGraphReport::Backdoor { valid })
             }
-            Self::Discover {
-                seed,
-                columns,
-                oracle,
-                ci,
-                alpha,
-                max_cond_size,
-                pds_max_nodes,
-                simple_scm,
-                sigma_faithful,
-                independent_equilibrium_replicates,
-            } => {
-                use antecedent_discovery::{
-                    cyclic_fci::{CyclicFciPremises, SigmaCiOracle, discover_cyclic_fci},
-                    engine::DiscoveryWorkspace,
-                    fci::Fci,
-                };
-                let n = columns.len();
-                if n == 0
-                    || n > 32
-                    || !alpha.is_finite()
-                    || *alpha <= 0.0
-                    || *alpha >= 1.0
-                    || *max_cond_size > n
-                    || *pds_max_nodes > 100_000
-                    || ci.len() > 64
-                    || columns.iter().any(|c| {
-                        c.len() < 4 || c.len() > 10_000 || c.iter().any(|v| !v.is_finite())
-                    })
-                {
-                    return Err(invalid("cyclic discovery input limits"));
-                }
-                let data = antecedent_data::TabularData::from_f64_columns(
-                    columns.iter().enumerate().map(|(i, c)| (format!("v{i}"), c.as_slice())),
-                )
-                .map_err(invalid)?;
-                let mut engine = Fci::new();
-                engine.constraints.alpha = *alpha;
-                engine.constraints.max_cond_size = *max_cond_size;
-                engine.pds_max_nodes = *pds_max_nodes;
-                let ci_source = if let Some(graph) = oracle {
-                    if graph.nodes as usize != n {
-                        return Err(invalid("sigma oracle/column binding size"));
-                    }
-                    engine = engine.with_ci(std::sync::Arc::new(
-                        SigmaCiOracle::new(
-                            graph.graph()?,
-                            (0..graph.nodes).map(DenseNodeId::from_raw).collect(),
-                        )
-                        .map_err(invalid)?,
-                    ));
-                    "sigma_oracle".into()
-                } else {
-                    engine = engine.with_ci(antecedent_stats::ci_from_name(ci).map_err(invalid)?);
-                    ci.clone()
-                };
-                let variables: Vec<_> =
-                    (0..u32::try_from(n).map_err(invalid)?).map(VariableId::from_raw).collect();
-                let mut context = ctx.clone();
-                context.rng = antecedent_core::RngFactory::from_seed(*seed);
-                let answer = discover_cyclic_fci(
-                    &engine,
-                    CyclicFciPremises {
-                        simple_scm: *simple_scm,
-                        sigma_faithful: *sigma_faithful,
-                        independent_equilibrium_replicates: *independent_equilibrium_replicates,
-                    },
-                    &data,
-                    &variables,
-                    &mut DiscoveryWorkspace::default(),
-                    &context,
-                )
-                .map_err(invalid)?;
-                let pag = &answer.discovery.evidence.graph;
-                let mut edges = Vec::new();
-                for i in 0..n {
-                    let a = DenseNodeId::from_raw(u32::try_from(i).map_err(invalid)?);
-                    for (b, at_a, at_b) in pag.neighbors(a) {
-                        if b.raw() > a.raw() {
-                            edges.push((a.raw(), b.raw(), mark(at_a), mark(at_b)));
-                        }
-                    }
-                }
-                Ok(CyclicGraphReport::Discover {
-                    conclusions: antecedent_discovery::cyclic_fci::cyclic_pag_conclusions(pag, ctx)
-                        .map_err(invalid)?
-                        .into_iter()
-                        .map(|c| (c.source, c.target, c.relation, c.criterion))
-                        .collect(),
-                    edges,
-                    diagnostics: answer
-                        .discovery
-                        .diagnostics
-                        .iter()
-                        .map(|d| format!("{d:?}"))
-                        .collect(),
-                    interpretation: answer.interpretation.into(),
-                    ci_source,
-                })
-            }
+            Self::Discover { .. } => self.execute_discovery(ctx),
         }
     }
 }
@@ -647,4 +650,36 @@ mod tests {
         let report = bipartite(2, vec![vec![0], vec![0, 1]]).execute(&ctx).unwrap();
         assert!(matches!(report, CyclicGraphReport::Bipartite { .. }));
     }
+    #[test]
+    fn domain_invariance_checks_coordinates_before_constructing_the_selector() {
+        let ctx = ExecutionContext::for_tests(1);
+        let request = CyclicGraphRequest::DomainInvariance {
+            variables: 2,
+            exogenous: vec![0],
+            equations: vec![vec![0, 1]],
+            changed_equations: vec![0],
+            outcomes: vec![2],
+            conditioning: vec![],
+        };
+        let error = request.execute(&ctx).unwrap_err();
+        assert!(error.to_string().contains("domain invariance coordinates"));
+    }
+    #[test]
+    fn cyclic_discovery_refuses_empty_columns_before_fitting() {
+        let request = CyclicGraphRequest::Discover {
+            seed: 0,
+            columns: vec![],
+            oracle: None,
+            ci: "fisher_z".into(),
+            alpha: 0.05,
+            max_cond_size: 0,
+            pds_max_nodes: 10,
+            simple_scm: true,
+            sigma_faithful: true,
+            independent_equilibrium_replicates: true,
+        };
+        let error = request.execute(&ExecutionContext::for_tests(1)).unwrap_err();
+        assert!(error.to_string().contains("cyclic discovery input limits"));
+    }
+
 }

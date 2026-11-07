@@ -26,8 +26,8 @@ use crate::batch::{MechanismWorkspace, ParentBatch, ValueBatch, ValueBatchMut};
 use crate::compile::CompiledCausalModel;
 use crate::error::ModelError;
 use crate::overlay::InterventionOverlay;
-use crate::program::{NodeProgram, refusal_history_not_yet_observed};
-use crate::sample::{NodeEvaluation, NodeNoise, evaluate_node};
+use crate::program::{refusal_history_not_yet_observed, NodeProgram};
+use crate::sample::{evaluate_node, NodeEvaluation, NodeNoise};
 
 /// What a rollout runs: the schedule, its length, the population and the history it keeps.
 #[derive(Clone, Copy, Debug)]
@@ -151,6 +151,98 @@ pub fn rollout_temporal(
     rollout_temporal_with_history_availability(model, plan, None, noise, ws, ctx)
 }
 
+fn check_history_availability(
+    plan: &TemporalPlan<'_>,
+    overlay: &InterventionOverlay,
+    history_available: Option<&[bool]>,
+    n_nodes: usize,
+    t: usize,
+) -> Result<usize, ModelError> {
+    let shape_error = |message: &str| ModelError::Shape { message: message.into() };
+    let available = plan
+        .initial_history
+        .len()
+        .checked_add(t)
+        .ok_or_else(|| shape_error("temporal history length overflows"))?;
+    let needed = overlay.programs.iter().flatten().map(NodeProgram::max_lag).max();
+    if let Some(needed) = needed.filter(|needed| *needed as usize > available) {
+        return Err(refusal_history_not_yet_observed(format!(
+            "a policy active at step {t} reads {needed} steps back but only {available} \
+             earlier steps exist"
+        ))
+        .into_error());
+    }
+    if let Some(mask) = history_available {
+        for program in overlay.programs.iter().flatten() {
+            for &slot in program.lag_slots() {
+                let lag = slot / n_nodes;
+                let node = slot % n_nodes;
+                if lag > t {
+                    let previous = lag - t - 1;
+                    if !mask[previous * n_nodes + node] {
+                        return Err(refusal_history_not_yet_observed(format!(
+                            "a policy active at step {t} reads unavailable history for node {node} at lag {lag}"
+                        )).into_error());
+                    }
+                }
+            }
+        }
+    }
+    Ok(available)
+}
+
+fn admit_rollout_buffers(
+    model: &CompiledCausalModel,
+    plan: &TemporalPlan<'_>,
+    block: usize,
+    cells: usize,
+    ctx: &ExecutionContext,
+) -> Result<(Arc<AdmissionLease>, AdmissionLease), ModelError> {
+    let n_rows = plan.n_rows;
+    let shape_error = |message: &str| ModelError::Shape { message: message.into() };
+    // Two leases. The path's own bytes (its columns and step headers) are the result: that
+    // lease moves into the returned `TemporalPath` and is held until the path is dropped. The
+    // history buffer, gather and workspace scratch and one step's overlay are transient and
+    // held through this call.
+    let path_cells = block
+        .checked_mul(plan.n_steps)
+        .ok_or_else(|| shape_error("temporal path size overflows"))?;
+    let scratch_cells = block
+        .checked_mul(2)
+        .and_then(|v| v.checked_add(n_rows))
+        .ok_or_else(|| shape_error("temporal scratch size overflows"))?;
+    let headers = plan
+        .n_steps
+        .checked_mul(std::mem::size_of::<ValueBatch>() + 2 * std::mem::size_of::<usize>())
+        .ok_or_else(|| shape_error("temporal rollout header size overflows"))?;
+    let retained_bytes = path_cells
+        .checked_mul(std::mem::size_of::<f64>())
+        .and_then(|v| v.checked_add(headers))
+        .and_then(|v| u64::try_from(v).ok())
+        .ok_or_else(|| shape_error("temporal rollout byte size overflows"))?;
+    let scratch_bytes = cells
+        .checked_add(scratch_cells)
+        .and_then(|v| v.checked_mul(std::mem::size_of::<f64>()))
+        .and_then(|v| v.checked_add(overlay_bytes(model, plan.sequence)?))
+        .and_then(|v| v.checked_add(4096))
+        .and_then(|v| u64::try_from(v).ok())
+        .ok_or_else(|| shape_error("temporal rollout byte size overflows"))?;
+    let admit = |bytes: u64| {
+        ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            AdmissionError::Cancelled => ModelError::Cancelled,
+            _ => ModelError::ResourceLimit {
+                message: "temporal rollout buffers",
+                required_bytes: bytes,
+                limit_bytes: ctx.admission().available().bytes(),
+            },
+        })
+    };
+    let retention = Arc::new(admit(retained_bytes)?);
+    let scratch = admit(scratch_bytes)?;
+
+    Ok((retention, scratch))
+}
+
 /// Roll out with per-history-step, per-node availability. `None` means all
 /// supplied history cells are available; otherwise entries are most-recent
 /// first, with exactly `initial_history.len() * model.n_nodes()` booleans.
@@ -215,45 +307,7 @@ pub fn rollout_temporal_with_history_availability(
     if ctx.cancellation.is_cancelled() {
         return Err(ModelError::Cancelled);
     }
-    // Two leases. The path's own bytes (its columns and step headers) are the result: that
-    // lease moves into the returned `TemporalPath` and is held until the path is dropped. The
-    // history buffer, gather and workspace scratch and one step's overlay are transient and
-    // held through this call.
-    let path_cells = block
-        .checked_mul(plan.n_steps)
-        .ok_or_else(|| shape_error("temporal path size overflows"))?;
-    let scratch_cells = block
-        .checked_mul(2)
-        .and_then(|v| v.checked_add(n_rows))
-        .ok_or_else(|| shape_error("temporal scratch size overflows"))?;
-    let headers = plan
-        .n_steps
-        .checked_mul(std::mem::size_of::<ValueBatch>() + 2 * std::mem::size_of::<usize>())
-        .ok_or_else(|| shape_error("temporal rollout header size overflows"))?;
-    let retained_bytes = path_cells
-        .checked_mul(std::mem::size_of::<f64>())
-        .and_then(|v| v.checked_add(headers))
-        .and_then(|v| u64::try_from(v).ok())
-        .ok_or_else(|| shape_error("temporal rollout byte size overflows"))?;
-    let scratch_bytes = cells
-        .checked_add(scratch_cells)
-        .and_then(|v| v.checked_mul(std::mem::size_of::<f64>()))
-        .and_then(|v| v.checked_add(overlay_bytes(model, plan.sequence)?))
-        .and_then(|v| v.checked_add(4096))
-        .and_then(|v| u64::try_from(v).ok())
-        .ok_or_else(|| shape_error("temporal rollout byte size overflows"))?;
-    let admit = |bytes: u64| {
-        ctx.acquire_admission(0, bytes).map_err(|error| match error {
-            AdmissionError::Cancelled => ModelError::Cancelled,
-            _ => ModelError::ResourceLimit {
-                message: "temporal rollout buffers",
-                required_bytes: bytes,
-                limit_bytes: ctx.admission().available().bytes(),
-            },
-        })
-    };
-    let retention = Arc::new(admit(retained_bytes)?);
-    let _scratch = admit(scratch_bytes)?;
+    let (retention, _scratch) = admit_rollout_buffers(model, plan, block, cells, ctx)?;
 
     let mut path: Vec<ValueBatch> = Vec::with_capacity(plan.n_steps);
     let mut buf = vec![0.0; cells];
@@ -269,35 +323,7 @@ pub fn rollout_temporal_with_history_availability(
             time,
             plan.window,
         )?;
-        let available = plan
-            .initial_history
-            .len()
-            .checked_add(t)
-            .ok_or_else(|| shape_error("temporal history length overflows"))?;
-        let needed = overlay.programs.iter().flatten().map(NodeProgram::max_lag).max();
-        if let Some(needed) = needed.filter(|needed| *needed as usize > available) {
-            return Err(refusal_history_not_yet_observed(format!(
-                "a policy active at step {t} reads {needed} steps back but only {available} \
-                 earlier steps exist"
-            ))
-            .into_error());
-        }
-        if let Some(mask) = history_available {
-            for program in overlay.programs.iter().flatten() {
-                for &slot in program.lag_slots() {
-                    let lag = slot / n_nodes;
-                    let node = slot % n_nodes;
-                    if lag > t {
-                        let previous = lag - t - 1;
-                        if !mask[previous * n_nodes + node] {
-                            return Err(refusal_history_not_yet_observed(format!(
-                                "a policy active at step {t} reads unavailable history for node {node} at lag {lag}"
-                            )).into_error());
-                        }
-                    }
-                }
-            }
-        }
+        let available = check_history_availability(plan, &overlay, history_available, n_nodes, t)?;
         buf.fill(0.0);
         for lag in 1..=available.min(plan.window as usize) {
             let source: &[f64] = if t >= lag {

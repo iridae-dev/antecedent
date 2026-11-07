@@ -177,14 +177,6 @@ pub fn bayesian_run_weights(
 ///
 /// # Errors
 /// Invalid run partitions, limits, or cancellation.
-#[allow(
-    clippy::cast_sign_loss,
-    reason = "the generator draws nonnegative indices within the admitted run"
-)]
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "the generator draws nonnegative indices within the admitted run"
-)]
 pub fn bootstrap_run_counts(
     n: usize,
     block: usize,
@@ -195,49 +187,7 @@ pub fn bootstrap_run_counts(
     ctx: &ExecutionContext,
 ) -> Result<RunWeights, AttributionError> {
     let (block, mut output) = setup(n, runs, block, budget, ctx)?;
-    let mut drawn = 0;
-    let mut block_index = 0;
-    while drawn < n {
-        if ctx.cancellation.is_cancelled() {
-            return Err(AttributionError::Cancelled);
-        }
-        let u = rng.next_f64();
-        let start = ((u * n as f64) as usize).min(n - 1);
-        let take = block.min(n - drawn);
-        let mut consumed = 0;
-        let mut segment = 0;
-        while consumed < take {
-            if ctx.cancellation.is_cancelled() {
-                return Err(AttributionError::Cancelled);
-            }
-            let source =
-                if consumed >= n - start { consumed - (n - start) } else { start + consumed };
-            let run = run_at(runs, source);
-            let segment_len = (runs[run].end - source).min(take - consumed);
-            let chosen = if segment == 0 {
-                source
-            } else {
-                let mut derived = segment_rng(u.to_bits(), replicate, block_index, run, segment);
-                runs[run].start
-                    + ((derived.next_f64() * (runs[run].end - runs[run].start) as f64) as usize)
-                        .min(runs[run].end - runs[run].start - 1)
-            };
-            for offset in 0..segment_len {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(AttributionError::Cancelled);
-                }
-                let len = runs[run].end - runs[run].start;
-                let base = chosen - runs[run].start;
-                let within =
-                    if offset >= len - base { offset - (len - base) } else { base + offset };
-                output.values[runs[run].start + within] += 1.0;
-            }
-            consumed += segment_len;
-            segment += 1;
-        }
-        drawn += take;
-        block_index += 1;
-    }
+    visit_bootstrap_rows(n, block, runs, replicate, rng, ctx, |row| output.values[row] += 1.0)?;
     Ok(output)
 }
 /// Draw compact row positions in their block order, preserving the primary
@@ -245,14 +195,6 @@ pub fn bootstrap_run_counts(
 ///
 /// # Errors
 /// Invalid runs, resource limits, or cancellation.
-#[allow(
-    clippy::cast_sign_loss,
-    reason = "the generator draws nonnegative indices within the admitted run"
-)]
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "the generator draws nonnegative indices within the admitted run"
-)]
 pub fn bootstrap_run_rows(
     n: usize,
     block: usize,
@@ -267,6 +209,25 @@ pub fn bootstrap_run_rows(
     values.try_reserve_exact(n).map_err(|_| AttributionError::Budget {
         message: "temporal resampling row allocation refused".into(),
     })?;
+    visit_bootstrap_rows(n, block, runs, replicate, rng, ctx, |row| values.push(row))?;
+    Ok(RunRows { values, _lease: admitted.lease })
+}
+
+/// Visit each drawn row in block order. `setup` has validated and admitted the run plan.
+#[allow(
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation,
+    reason = "the generator draws nonnegative indices within the admitted run"
+)]
+fn visit_bootstrap_rows(
+    n: usize,
+    block: usize,
+    runs: &[Range<usize>],
+    replicate: u64,
+    rng: &mut CausalRng,
+    ctx: &ExecutionContext,
+    mut visit: impl FnMut(usize),
+) -> Result<(), AttributionError> {
     let mut drawn = 0;
     let mut block_index = 0;
     while drawn < n {
@@ -302,7 +263,7 @@ pub fn bootstrap_run_rows(
                 let base = chosen - runs[run].start;
                 let within =
                     if offset >= len - base { offset - (len - base) } else { base + offset };
-                values.push(runs[run].start + within);
+                visit(runs[run].start + within);
             }
             consumed += segment_len;
             segment += 1;
@@ -310,7 +271,7 @@ pub fn bootstrap_run_rows(
         drawn += take;
         block_index += 1;
     }
-    Ok(RunRows { values, _lease: admitted.lease })
+    Ok(())
 }
 
 #[cfg(test)]
@@ -434,6 +395,12 @@ mod tests {
         assert!(pool.available().bytes() < before);
         drop(result);
         assert_eq!(pool.available().bytes(), before);
+        let rows =
+            bootstrap_run_rows(4, 4, &[0..1, 1..2, 2..3, 3..4], 2, &mut rng, &mut budget, &ctx)
+                .unwrap();
+        assert!(pool.available().bytes() < before);
+        drop(rows);
+        assert_eq!(pool.available().bytes(), before);
         assert!(matches!(
             bootstrap_run_counts(500, 1, &[0..500], 2, &mut rng, &mut budget, &ctx),
             Err(AttributionError::Budget { .. })
@@ -444,5 +411,14 @@ mod tests {
             bayesian_run_weights(4, 2, &[0..4], 0, &mut rng, &mut budget, &ctx),
             Err(AttributionError::Cancelled)
         ));
+        assert!(matches!(
+            bootstrap_run_counts(4, 2, &[0..4], 0, &mut rng, &mut budget, &ctx),
+            Err(AttributionError::Cancelled)
+        ));
+        assert!(matches!(
+            bootstrap_run_rows(4, 2, &[0..4], 0, &mut rng, &mut budget, &ctx),
+            Err(AttributionError::Cancelled)
+        ));
+        assert_eq!(pool.available().bytes(), before);
     }
 }

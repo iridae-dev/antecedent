@@ -21,7 +21,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "derivation"
-rationale = "Mean, spread and Monte Carlo standard error of a nonlinear functional g of aligned draws."
+rationale = "Mean, spread and Monte Carlo standard error of a nonlinear functional g of aligned draws. Marginal and coupling definitions moved to joint_law/marginal.rs and bound items were compared unchanged apart from formatting."
 no_independent_algorithm = "Row-wise evaluation of g on aligned draws and sample moments of the resulting rows."
 covered_by = ["joint_law.aligned_nonlinear_functional"]
 derivation = "Rows g(theta_i) are formed from one alignment; the mean is their average, the spread the n-1 divisor sample variance, and the Monte Carlo standard error sqrt(var/n)."
@@ -30,8 +30,14 @@ record_sha256 = "c854b75181cf2b001d9b02a1ccaeb2bbea3955be549fc3f03ec3a252cf72252
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/joint_law.rs"
-items = ["fn atoms", "fn mean", "fn value", "fn variance"]
-sha256 = "7f10546a36a4b361a0e8b88b15d52954cfa88600c127178c8fbb293dd7323ba7"
+items = ["fn value"]
+sha256 = "3483a02c7234b1f5ff2a63fd9299641dc0558ebc7babc5c14611f7532a34a1db"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law/marginal.rs"
+items = ["fn atoms", "fn mean", "fn variance"]
+sha256 = "f322febb4140b7aecd4e92d4457e35ff12b9441e3f4ffcd9555d050a37abc556"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

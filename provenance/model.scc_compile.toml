@@ -27,7 +27,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "compile_gaussian_equilibrium, compile_routed_gaussian_equilibrium and route_linear_support in crates/antecedent-model/src/scc_compile.rs for an admitted cyclic component of a specified linear map with a Gaussian disturbance and a hard clamp: equilibrium mean and covariance, the strongly connected block schedule, the acyclic-versus-cyclic route, and the block condition numbers. Not a review of the paper's solvability theory for every intervention subset, of non-hard interventions, or of models whose component cannot be admitted."
+scope = "compile_gaussian_equilibrium, compile_routed_gaussian_equilibrium and route_linear_support in crates/antecedent-model/src/scc_compile.rs for an admitted cyclic component of a specified linear map with a Gaussian disturbance and a hard clamp: equilibrium mean and covariance, the strongly connected block schedule, the acyclic-versus-cyclic route, and the block condition numbers. Not a review of the paper's solvability theory for every intervention subset, of non-hard interventions, or of models whose component cannot be admitted. Admission estimates were moved to scc_compile/admission.rs and all bound items compared unchanged apart from internal visibility and formatting. Blockwise propagation definitions moved to scc_compile/propagation.rs and were compared unchanged apart from internal visibility and formatting. Matrix diagnostics and solves moved to scc_compile/numerics.rs and bound items were compared unchanged apart from internal visibility and formatting. Support routing moved to scc_compile/routing.rs and bound items were compared unchanged apart from formatting."
 assumptions = ["The linear equilibrium is X = KX + c + e with a zero diagonal; a hard clamp deletes the clamped equations and leaves the free block (I - K_FF) X_F = K_FH a + c_F + e_F, whose solution is the Neumann series sum of K_FF^k whenever the spectral radius of K_FF is below one.", "The reference models are drawn with every row's absolute sum at most 0.9, so the Neumann series converges geometrically and the family certificate rho(|K|) < 1 is admitted.", "The covariance of the free block is (I - K_FF)^-1 S_FF (I - K_FF)^-T with the marginal disturbance covariance S_FF; a clamped variable has zero row and column; the strongly connected components of the free support are the diagonal blocks."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
 redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are cited and not redistributed."
@@ -39,8 +39,32 @@ record_sha256 = "d87163f6c867461cd9669bf1b15eb8bc1b2f4b16d89d8a8981016b3b4728667
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/scc_compile.rs"
-items = ["enum LinearSupportRoute", "enum SccCompileError", "fn admission", "fn batch_columns", "fn binds", "fn block_residual", "fn block_work", "fn blocks", "fn byte_overflow", "fn bytes", "fn compile_attempt", "fn compile_checked", "fn compile_gaussian_equilibrium", "fn compile_routed_gaussian_equilibrium", "fn compile_routed_with", "fn component_id", "fn condition_of", "fn condition_work", "fn covariance", "fn cross_input", "fn dag_support_refusal", "fn dimension", "fn disturbance_block", "fn disturbance_cross", "fn earlier_covariance", "fn equilibrium", "fn exact_infinity_kappa", "fn eye_minus_block", "fn finish_compile", "fn finite_matrix", "fn free_block_equation", "fn from", "fn get", "fn hager_one_norm_inverse", "fn identification", "fn is_empty", "fn len", "fn mean", "fn mean_right_hand_side", "fn model_dimension_u64", "fn new", "fn parent_coefficients", "fn physical_stability", "fn plan_bytes", "fn plan_work", "fn positions", "fn propagate", "fn psd_verified", "fn rechecked_solvability", "fn reject_compile_inputs", "fn require_psd", "fn require_psd_once", "fn residual_inf", "fn route", "fn route_linear_support", "fn route_work", "fn schedule", "fn solve_block", "fn solve_row_major", "fn solve_vector", "fn solver", "fn structural_coefficient", "fn structural_residual", "fn support_blocks", "fn symmetrize", "fn try_new", "fn unlimited", "fn work", "fn work_overflow", "struct AdmissionCost", "struct BlockDiagnostic", "struct CompileBudget", "struct CompiledEquilibrium", "struct GaussianDisturbance", "struct LinearRouteSet", "struct Moments", "struct ParentInputs", "struct PlannedSchedule", "struct Propagated", "struct PsdVerdict", "struct RoutedEquilibrium"]
-sha256 = "c66c2bbd8f54c7e58793920262b68bfff0fb45e385b8d4c790ed3b370fdbe163"
+items = ["enum SccCompileError", "fn admission", "fn blocks", "fn bytes", "fn compile_attempt", "fn compile_checked", "fn compile_gaussian_equilibrium", "fn component_id", "fn covariance", "fn dimension", "fn finish_compile", "fn free_block_equation", "fn from", "fn identification", "fn mean", "fn model_dimension_u64", "fn physical_stability", "fn psd_verified", "fn rechecked_solvability", "fn reject_compile_inputs", "fn require_psd_once", "fn residual_inf", "fn route_work", "fn schedule", "fn solver", "fn support_blocks", "fn try_new", "fn unlimited", "fn work", "struct AdmissionCost", "struct BlockDiagnostic", "struct CompileBudget", "struct CompiledEquilibrium", "struct GaussianDisturbance", "struct PlannedSchedule", "struct PsdVerdict"]
+sha256 = "876cb9266d492d0e911c29b4ec3ac630366d76a2ab297f7aa286ed6717a7f029"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/scc_compile/routing.rs"
+items = ["enum LinearSupportRoute", "fn binds", "fn compile_routed_gaussian_equilibrium", "fn compile_routed_with", "fn dag_support_refusal", "fn equilibrium", "fn get", "fn is_empty", "fn len", "fn new", "fn route", "fn route_linear_support", "struct LinearRouteSet", "struct RoutedEquilibrium"]
+sha256 = "281cada9922ca7248727184e59349e7a472e30e7a96239b5e944966f1595f8ca"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/scc_compile/numerics.rs"
+items = ["fn block_residual", "fn condition_of", "fn exact_infinity_kappa", "fn eye_minus_block", "fn finite_matrix", "fn hager_one_norm_inverse", "fn positions", "fn require_psd", "fn solve_row_major", "fn solve_vector", "fn structural_coefficient", "fn structural_residual", "fn symmetrize"]
+sha256 = "b6385d2d72b36090b5876431cf6f76852d5251665b2ff232ffe5248a06b2035a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/scc_compile/propagation.rs"
+items = ["fn batch_columns", "fn cross_input", "fn disturbance_block", "fn disturbance_cross", "fn earlier_covariance", "fn mean_right_hand_side", "fn parent_coefficients", "fn propagate", "fn solve_block", "struct Moments", "struct ParentInputs", "struct Propagated"]
+sha256 = "0377e5156511bd9123da04b7ef08f64ed9f548c32f1b554ed809670513162f7e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/scc_compile/admission.rs"
+items = ["fn block_work", "fn byte_overflow", "fn condition_work", "fn plan_bytes", "fn plan_work", "fn work_overflow"]
+sha256 = "ab3f54d1c409e563bdb59c691d65714c97d9cb8f96f6fc04b70d0e11c835676c"
 
 [[method_review.artifacts]]
 role = "implementation"

@@ -823,30 +823,7 @@ impl RepairReportArtifact {
                 )
             }
         };
-        let mut outcomes = Vec::with_capacity(report.outcomes.len());
-        for outcome in &report.outcomes {
-            let delta = match outcome.classification {
-                RepairClassification::Invalid | RepairClassification::Unevaluated => None,
-                _ => {
-                    let members = outcome
-                        .candidates
-                        .iter()
-                        .map(|id| {
-                            by_id.get(id).copied().ok_or_else(|| {
-                                RepairArtifactError::invalid(format!(
-                                    "an outcome names candidate {id}, which was not declared"
-                                ))
-                            })
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let regimes = owner
-                        .hypothetical_regimes(&members)
-                        .map_err(|reasons| RepairArtifactError::invalid(reasons.join("; ")))?;
-                    Some(regimes_wire(&regimes)?)
-                }
-            };
-            outcomes.push(outcome_wire(outcome, delta));
-        }
+        let outcomes = encode_repair_outcomes(owner, &report.outcomes, &by_id)?;
         let receipt = &report.receipt;
         RepairReportArtifact {
             version: REPAIR_ARTIFACT_VERSION,
@@ -1031,6 +1008,38 @@ impl RepairReportArtifact {
         }
         Ok(())
     }
+}
+
+fn encode_repair_outcomes(
+    owner: &dyn RepairFamily,
+    outcomes_in: &[RepairOutcome],
+    by_id: &BTreeMap<Arc<str>, &DurableStudyCandidate>,
+) -> Result<Vec<RepairOutcomeWire>, RepairArtifactError> {
+    let mut outcomes = Vec::with_capacity(outcomes_in.len());
+    for outcome in outcomes_in {
+        let delta = match outcome.classification {
+            RepairClassification::Invalid | RepairClassification::Unevaluated => None,
+            _ => {
+                let members = outcome
+                    .candidates
+                    .iter()
+                    .map(|id| {
+                        by_id.get(id).copied().ok_or_else(|| {
+                            RepairArtifactError::invalid(format!(
+                                "an outcome names candidate {id}, which was not declared"
+                            ))
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let regimes = owner
+                    .hypothetical_regimes(&members)
+                    .map_err(|reasons| RepairArtifactError::invalid(reasons.join("; ")))?;
+                Some(regimes_wire(&regimes)?)
+            }
+        };
+        outcomes.push(outcome_wire(outcome, delta));
+    }
+    Ok(outcomes)
 }
 
 // -------------------------------------------------------------------- consume

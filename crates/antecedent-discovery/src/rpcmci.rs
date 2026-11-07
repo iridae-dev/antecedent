@@ -476,38 +476,7 @@ fn reassign_by_lagged_residual(
         cols.push(col);
     }
 
-    // Retained lagged parents per regime and target variable.
-    let mut regime_parents: Vec<(RegimeId, LaggedParents)> = Vec::new();
-    for (regime, g) in graphs.graphs.iter() {
-        let mut by_target: LaggedParents = vec![Vec::new(); variables.len()];
-        for (i, node) in g.nodes().iter().enumerate() {
-            let antecedent_graph::NodeRef::Lagged { variable: tgt, lag: tlag } = node else {
-                continue;
-            };
-            if !tlag.is_contemporaneous() {
-                continue;
-            }
-            let Some(ti) = variables.iter().position(|v| v == tgt) else {
-                continue;
-            };
-            let from = antecedent_graph::DenseNodeId::from_raw(crate::indexing::dense_u32(i));
-            for p in g.parents(from) {
-                if let Some(antecedent_graph::NodeRef::Lagged { variable: src, lag: slag }) =
-                    g.nodes().get(p.as_usize())
-                {
-                    if slag.raw() >= 1 {
-                        if let Some(si) = variables.iter().position(|v| v == src) {
-                            let parent = (si, slag.raw() as usize);
-                            if !by_target[ti].contains(&parent) {
-                                by_target[ti].push(parent);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        regime_parents.push((*regime, by_target));
-    }
+    let regime_parents = retained_regime_parents(graphs, variables);
     if regime_parents.iter().all(|(_, by_target)| by_target.iter().all(Vec::is_empty)) {
         return Ok(None);
     }
@@ -548,51 +517,7 @@ fn reassign_by_lagged_residual(
         })
         .collect();
 
-    // Fit each regime's equations on the rows currently assigned to it.
-    let backend = FaerBackend;
-    let mut models: Vec<RegimeModel> = Vec::with_capacity(regime_parents.len());
-    'regimes: for (regime, by_target) in &regime_parents {
-        let regime_rows: Vec<usize> =
-            (first_row..n).filter(|&t| current.regimes[t] == *regime).collect();
-        let mut equations = Vec::with_capacity(variables.len());
-        for (ti, parents) in by_target.iter().enumerate() {
-            // A missing cell is not a residual. Fit only on a full finite window.
-            let rows: Vec<usize> = regime_rows
-                .iter()
-                .copied()
-                .filter(|&t| {
-                    cols[ti][t].is_finite()
-                        && parents.iter().all(|&(si, lag)| cols[si][t - lag].is_finite())
-                })
-                .collect();
-            let ncols = parents.len() + 1;
-            // Identification: more rows than free parameters.
-            if rows.len() <= ncols {
-                continue 'regimes;
-            }
-            let mut design = Vec::with_capacity(rows.len() * ncols);
-            // Column-major: intercept column first, then one lagged parent per column.
-            design.extend(std::iter::repeat_n(1.0, rows.len()));
-            for &(si, lag) in parents {
-                for &t in &rows {
-                    design.push(cols[si][t - lag]);
-                }
-            }
-            let y: Vec<f64> = rows.iter().map(|&t| cols[ti][t]).collect();
-            let mut ws = LeastSquaresWorkspace::default();
-            let Ok(fit) = backend.least_squares(&design, rows.len(), ncols, &y, &mut ws) else {
-                continue 'regimes;
-            };
-            if fit.coefficients.iter().any(|c| !c.is_finite()) {
-                continue 'regimes;
-            }
-            equations.push(RegimeEquation {
-                parents: parents.clone(),
-                coefficients: fit.coefficients.clone(),
-            });
-        }
-        models.push(RegimeModel { regime: *regime, equations });
-    }
+    let models = fit_regime_models(&regime_parents, &cols, first_row, n, current);
     if models.len() < 2 {
         return Ok(None);
     }
@@ -634,6 +559,100 @@ fn reassign_by_lagged_residual(
         out[t] = out[first_row];
     }
     Ok(Some(RegimeAssignment { regimes: Arc::from(out) }))
+}
+
+fn retained_regime_parents(
+    graphs: &RegimeGraphCollection,
+    variables: &[VariableId],
+) -> Vec<(RegimeId, LaggedParents)> {
+    // Retained lagged parents per regime and target variable.
+    let mut regime_parents: Vec<(RegimeId, LaggedParents)> = Vec::new();
+    for (regime, g) in graphs.graphs.iter() {
+        let mut by_target: LaggedParents = vec![Vec::new(); variables.len()];
+        for (i, node) in g.nodes().iter().enumerate() {
+            let antecedent_graph::NodeRef::Lagged { variable: tgt, lag: tlag } = node else {
+                continue;
+            };
+            if !tlag.is_contemporaneous() {
+                continue;
+            }
+            let Some(ti) = variables.iter().position(|v| v == tgt) else {
+                continue;
+            };
+            let from = antecedent_graph::DenseNodeId::from_raw(crate::indexing::dense_u32(i));
+            for p in g.parents(from) {
+                if let Some(antecedent_graph::NodeRef::Lagged { variable: src, lag: slag }) =
+                    g.nodes().get(p.as_usize())
+                {
+                    if slag.raw() >= 1 {
+                        if let Some(si) = variables.iter().position(|v| v == src) {
+                            let parent = (si, slag.raw() as usize);
+                            if !by_target[ti].contains(&parent) {
+                                by_target[ti].push(parent);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        regime_parents.push((*regime, by_target));
+    }
+    regime_parents
+}
+
+fn fit_regime_models(
+    regime_parents: &[(RegimeId, LaggedParents)],
+    cols: &[Vec<f64>],
+    first_row: usize,
+    n: usize,
+    current: &RegimeAssignment,
+) -> Vec<RegimeModel> {
+    // Fit each regime's equations on the rows currently assigned to it.
+    let backend = FaerBackend;
+    let mut models: Vec<RegimeModel> = Vec::with_capacity(regime_parents.len());
+    'regimes: for (regime, by_target) in regime_parents {
+        let regime_rows: Vec<usize> =
+            (first_row..n).filter(|&t| current.regimes[t] == *regime).collect();
+        let mut equations = Vec::with_capacity(cols.len());
+        for (ti, parents) in by_target.iter().enumerate() {
+            // A missing cell is not a residual. Fit only on a full finite window.
+            let rows: Vec<usize> = regime_rows
+                .iter()
+                .copied()
+                .filter(|&t| {
+                    cols[ti][t].is_finite()
+                        && parents.iter().all(|&(si, lag)| cols[si][t - lag].is_finite())
+                })
+                .collect();
+            let ncols = parents.len() + 1;
+            // Identification: more rows than free parameters.
+            if rows.len() <= ncols {
+                continue 'regimes;
+            }
+            let mut design = Vec::with_capacity(rows.len() * ncols);
+            // Column-major: intercept column first, then one lagged parent per column.
+            design.extend(std::iter::repeat_n(1.0, rows.len()));
+            for &(si, lag) in parents {
+                for &t in &rows {
+                    design.push(cols[si][t - lag]);
+                }
+            }
+            let y: Vec<f64> = rows.iter().map(|&t| cols[ti][t]).collect();
+            let mut ws = LeastSquaresWorkspace::default();
+            let Ok(fit) = backend.least_squares(&design, rows.len(), ncols, &y, &mut ws) else {
+                continue 'regimes;
+            };
+            if fit.coefficients.iter().any(|c| !c.is_finite()) {
+                continue 'regimes;
+            }
+            equations.push(RegimeEquation {
+                parents: parents.clone(),
+                coefficients: fit.coefficients.clone(),
+            });
+        }
+        models.push(RegimeModel { regime: *regime, equations });
+    }
+    models
 }
 
 /// Minimum-cost label path over `steps` time points and `k` regimes by Viterbi.

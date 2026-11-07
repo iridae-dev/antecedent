@@ -25,7 +25,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "fit_ridge_with (penalized normal equations with an optional unpenalized leading column), fit_lasso (coordinate descent for the lasso and elastic net, with centering, RMS standardization, back-transformation to the original scale and intercept recovery) and soft_threshold. Not a review of ridge_gram_inverse as a sandwich bread, the leading-ones wrapper beyond delegation, the callers' tuning, or any penalty selection."
+scope = "fit_ridge_with (penalized normal equations with an optional unpenalized leading column), fit_lasso (coordinate descent for the lasso and elastic net, with centering, RMS standardization, back-transformation to the original scale and intercept recovery) and soft_threshold. Not a review of ridge_gram_inverse as a sandwich bread, the leading-ones wrapper beyond delegation, the callers' tuning, or any penalty selection. Lasso predictor preparation was extracted unchanged after the same validation and response-mean computation; scales, centering, buffers and failure ordering were compared with the previously bound source."
 assumptions = ["The objective is 0.5 RSS + lambda alpha ||b||_1 + 0.5 lambda (1 - alpha) ||b||_2^2 on the (optionally standardized) centered columns, with an unpenalized intercept; this lambda scale differs from formulations that divide the RSS by n, as the record states.", "The design has full column rank on the active set, so the minimizer is unique.", "The convergence tolerance is relative to the response norm and bounds how far one sweep moves the fitted values, not the distance to the minimizer."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
 redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency."
@@ -37,8 +37,8 @@ record_sha256 = "c92caf5b47ff7a17de6b147db7f515f6b6ab74e624fb3009f74aa806982dbc1
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/regularized.rs"
-items = ["const MIN_REL_SCALE", "enum RidgeIntercept", "fn default", "fn fit_lasso", "fn fit_ridge_with", "fn predict_lasso", "fn ridge_gram_inverse", "fn ridge_gram_inverse_with", "fn ridge_penalized_gram", "fn sniff", "fn soft_threshold", "struct LassoFit", "struct LassoOptions"]
-sha256 = "0aefceaa40b336ad66c27b20fe51d49a73c7d2639cf804b1b547e70f63016026"
+items = ["const MIN_REL_SCALE", "enum RidgeIntercept", "fn default", "fn fit_lasso", "fn fit_ridge_with", "fn predict_lasso", "fn prepare_lasso_predictors", "fn ridge_gram_inverse", "fn ridge_gram_inverse_with", "fn ridge_penalized_gram", "fn sniff", "fn soft_threshold", "struct LassoFit", "struct LassoOptions", "struct LassoPredictors"]
+sha256 = "5839e0e5d28cfea059dcd72c26fe71c799324dc0fe846373481e064780a548c4"
 
 [[method_review.artifacts]]
 role = "assertion"

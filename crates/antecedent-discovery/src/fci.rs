@@ -72,6 +72,14 @@ pub struct Fci {
 
 crate::debug_with_ci!(Fci, pds_max_nodes, discriminating_path_budget);
 
+struct PdsWork<'a> {
+    adj: &'a mut UndirectedAdj,
+    sepsets: &'a mut PcSepsets,
+    pag: &'a mut Pag,
+    state: &'a mut OrientationState,
+    workspace: &'a mut DiscoveryWorkspace,
+}
+
 impl Default for Fci {
     fn default() -> Self {
         Self::new()
@@ -126,6 +134,84 @@ impl Fci {
     pub fn with_ci(mut self, ci: Arc<dyn ConditionalIndependence + Send + Sync>) -> Self {
         self.ci = ci;
         self
+    }
+
+    fn prune_possible_d_sep(
+        &self,
+        input: &StaticSkeletonInput<'_>,
+        work: PdsWork<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<u64, DiscoveryError> {
+        let PdsWork { adj, sepsets, pag, state, workspace } = work;
+        let variables = input.variables;
+        let dense_of = |v: VariableId| crate::pipeline::dense_of(input.var_index, v);
+        let alpha = self.constraints.alpha;
+        let max_cond = self.constraints.max_cond_size;
+        let mut combo_scratch = Vec::new();
+        // --- Phase 3: Possible-D-Sep adjacency ---
+        let mut pds_tests = 0u64;
+        // Same reproducibility hazard as the Phase 1 skeleton loop (see `sorted_edge_pairs`
+        // doc): this loop mutates `pag` (via `pag.remove_edge` below) and later pairs'
+        // `possible_d_sep` traversals read that same `pag`, so which edge is processed
+        // first affects the result.
+        let edges_pds = sorted_edge_pairs(adj);
+        for &(x, y) in &edges_pds {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
+            if !adj.contains(edge_key(x, y)) {
+                continue;
+            }
+            if self.constraints.static_required(x, y) {
+                continue;
+            }
+            let xd = dense_of(x)?;
+            let yd = dense_of(y)?;
+            let pds_x = possible_d_sep(pag, xd, yd, self.pds_max_nodes).map_err(pds_budget_err)?;
+            let pds_y = possible_d_sep(pag, yd, xd, self.pds_max_nodes).map_err(pds_budget_err)?;
+
+            let mut cand_pool: Vec<VariableId> = Vec::new();
+            for d in pds_x.iter().chain(pds_y.iter()) {
+                let v = variables[d.as_usize()];
+                if v != x && v != y {
+                    cand_pool.push(v);
+                }
+            }
+            cand_pool.sort_unstable();
+            cand_pool.dedup();
+
+            let mut independent = false;
+            let mut best_sep: Arc<[VariableId]> = Arc::from([]);
+
+            'pds_depth: for depth in 0..=max_cond.min(cand_pool.len()) {
+                let mut depth_sets = Vec::new();
+                for_each_combination_vars(&cand_pool, depth, &mut combo_scratch, |z| {
+                    depth_sets.push(z.to_vec());
+                    true
+                });
+                for z in &depth_sets {
+                    let outcome = static_ci_test(input, x, y, z, workspace, ctx)?;
+                    pds_tests += 1;
+                    // An untestable query carries no information and never separates.
+                    if outcome.is_some_and(|(_stat, p)| p > alpha) {
+                        independent = true;
+                        best_sep = Arc::from(z.as_slice());
+                        break 'pds_depth;
+                    }
+                }
+            }
+
+            if independent {
+                let key = edge_key(x, y);
+                adj.remove(key);
+                record_sepset(sepsets, x, y, &best_sep);
+                let _ = pag.remove_edge(xd, yd);
+                let dense_sep: Vec<DenseNodeId> =
+                    best_sep.iter().map(|v| dense_of(*v)).collect::<Result<_, _>>()?;
+                state.set_sepset(xd, yd, Arc::from(dense_sep));
+            }
+        }
+        Ok(pds_tests)
     }
 
     /// Run classic static FCI.
@@ -199,7 +285,6 @@ impl Fci {
             parent_limit_removed,
             ..
         } = skel;
-        let mut combo_scratch = Vec::new();
         let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
 
         // Build circle–circle PAG skeleton.
@@ -214,70 +299,18 @@ impl Fci {
         let collider_rules: [&dyn FciOrientationRule; 1] = [&LpcmciOrientCollider];
         let _ = run_fci_orientation_to_fixed_point(&mut pag, &collider_rules, &mut state)?;
 
-        // --- Phase 3: Possible-D-Sep adjacency ---
-        let mut pds_tests = 0u64;
-        // Same reproducibility hazard as the Phase 1 skeleton loop (see `sorted_edge_pairs`
-        // doc): this loop mutates `pag` (via `pag.remove_edge` below) and later pairs'
-        // `possible_d_sep` traversals read that same `pag`, so which edge is processed
-        // first affects the result.
-        let edges_pds = sorted_edge_pairs(&adj);
-        for &(x, y) in &edges_pds {
-            if ctx.cancellation.is_cancelled() {
-                return Err(DiscoveryError::Cancelled);
-            }
-            if !adj.contains(edge_key(x, y)) {
-                continue;
-            }
-            if self.constraints.static_required(x, y) {
-                continue;
-            }
-            let xd = dense_of(x)?;
-            let yd = dense_of(y)?;
-            let pds_x = possible_d_sep(&pag, xd, yd, self.pds_max_nodes).map_err(pds_budget_err)?;
-            let pds_y = possible_d_sep(&pag, yd, xd, self.pds_max_nodes).map_err(pds_budget_err)?;
-
-            let mut cand_pool: Vec<VariableId> = Vec::new();
-            for d in pds_x.iter().chain(pds_y.iter()) {
-                let v = variables[d.as_usize()];
-                if v != x && v != y {
-                    cand_pool.push(v);
-                }
-            }
-            cand_pool.sort_unstable();
-            cand_pool.dedup();
-
-            let mut independent = false;
-            let mut best_sep: Arc<[VariableId]> = Arc::from([]);
-
-            'pds_depth: for depth in 0..=max_cond.min(cand_pool.len()) {
-                let mut depth_sets = Vec::new();
-                for_each_combination_vars(&cand_pool, depth, &mut combo_scratch, |z| {
-                    depth_sets.push(z.to_vec());
-                    true
-                });
-                for z in &depth_sets {
-                    let outcome = static_ci_test(&input, x, y, z, workspace, ctx)?;
-                    pds_tests += 1;
-                    ci_tests += 1;
-                    // An untestable query carries no information and never separates.
-                    if outcome.is_some_and(|(_stat, p)| p > alpha) {
-                        independent = true;
-                        best_sep = Arc::from(z.as_slice());
-                        break 'pds_depth;
-                    }
-                }
-            }
-
-            if independent {
-                let key = edge_key(x, y);
-                adj.remove(key);
-                record_sepset(&mut sepsets, x, y, &best_sep);
-                let _ = pag.remove_edge(xd, yd);
-                let dense_sep: Vec<DenseNodeId> =
-                    best_sep.iter().map(|v| dense_of(*v)).collect::<Result<_, _>>()?;
-                state.set_sepset(xd, yd, Arc::from(dense_sep));
-            }
-        }
+        let pds_tests = self.prune_possible_d_sep(
+            &input,
+            PdsWork {
+                adj: &mut adj,
+                sepsets: &mut sepsets,
+                pag: &mut pag,
+                state: &mut state,
+                workspace,
+            },
+            ctx,
+        )?;
+        ci_tests += pds_tests;
         iterations.push(DiscoveryIteration {
             label: Arc::from("fci.possible_d_sep"),
             ci_tests: pds_tests,

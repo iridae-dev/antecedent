@@ -22,15 +22,15 @@ test_sources = [
 status = "justified_non_algorithm"
 kind = "derivation"
 rationale = "Robustness verdict of a decision across supplied structures: per-structure expected utilities, the leader of each structure and the range of each action."
-no_independent_algorithm = "Enumeration and range arithmetic over supplied per-structure values; no estimator."
+no_independent_algorithm = "Enumeration and range arithmetic over supplied per-structure values; no estimator. After extracting atom evaluation and action collection, the action ranges, leader order and exclusions were re-read against the prior implementation."
 derivation = "Each structure s supplies a point value v_s(a) per action a. The action ranges are [min_s v_s(a), max_s v_s(a)]. An action is structurally robust when it is the argmax in every structure; otherwise the verdict is graph-dependent, listing each structure's leader and selecting no action."
 record_sha256 = "6cb82817f8d9ce8e7ed5cbc545377465e0400a32e2cfaaa7bf9586034f5dac09"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_structural.rs"
-items = ["enum AtomEvidence", "enum AtomStatus", "enum StructuralError", "enum StructuralVerdict", "fn evaluate_structural", "fn per_atom_contract", "fn reason_code", "fn structural_verdict", "fn validate_atoms", "struct ActionStructure", "struct AtomSummary", "struct StructuralAtom", "struct StructuralDecisionResult"]
-sha256 = "ff74ff6f4ea1f5e8725fe0f4bd092f75900345aebe0f217d2e2eaa1d59cc8e22"
+items = ["enum AtomEvidence", "enum AtomStatus", "enum StructuralError", "enum StructuralVerdict", "fn collect_structural_actions", "fn evaluate_structural", "fn evaluate_structural_atoms", "fn per_atom_contract", "fn reason_code", "fn structural_verdict", "fn validate_atoms", "struct ActionStructure", "struct AtomSummary", "struct StructuralAtom", "struct StructuralDecisionResult", "type StructuralLeaders"]
+sha256 = "193a9305673590edbbebe8586ef3ddab7c6c3e7fd86ab6b2fd2bc4bb653894e6"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

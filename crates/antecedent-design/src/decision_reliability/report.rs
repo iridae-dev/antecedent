@@ -443,68 +443,20 @@ pub fn assess(
         }
     };
     let in_sample = select_validated(&selection_draws, &request.functional, plan, Some(ctx))?;
-    let (decided_id, selected) = match &request.decision {
-        DecisionChoice::SelectedByRule => (in_sample.selected_id.clone(), true),
-        DecisionChoice::PreSpecified(id) => {
-            if draws.candidate(id).is_none() {
-                return Err(ReliabilityError::invalid(
-                    "decision",
-                    "pre-specified id is not a candidate",
-                ));
-            }
-            if draws.origin == CandidateOrigin::AdaptivelyGenerated {
-                return Err(ReliabilityError::invalid(
-                    "decision",
-                    "a decision found by an adaptive search is not pre-specified",
-                ));
-            }
-            if validation_draws.is_some() {
-                return Err(ReliabilityError::invalid(
-                    "validation_plan",
-                    "a pre-specified decision has no selection effect to validate",
-                ));
-            }
-            (id.clone(), false)
-        }
-    };
+    let (decided_id, selected) = resolve_decision(
+        draws,
+        &request.decision,
+        &in_sample.selected_id,
+        validation_draws.is_some(),
+    )?;
     let decision_estimate = in_sample
         .estimates
         .iter()
         .find(|c| c.id == decided_id)
         .map(|c| c.estimate)
         .ok_or_else(|| ReliabilityError::invalid("decision", "decided candidate missing"))?;
-    let pair_coupling = if selection_draws.coupling == CandidateCoupling::SharedSimulation {
-        PairCoupling::SharedStream
-    } else {
-        PairCoupling::IndependentStreams
-    };
-    let decided_series = selection_draws
-        .candidate(&decided_id)
-        .map(|c| c.utilities.as_slice())
-        .ok_or_else(|| ReliabilityError::invalid("decision", "decided candidate missing"))?;
-    let mut differences = Vec::new();
-    for &i in &selection_draws.canonical_order() {
-        let other = &selection_draws.candidates[i];
-        if other.id == decided_id {
-            continue;
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(ReliabilityError::Cancelled);
-        }
-        differences.push(DifferenceVsDecision {
-            id: other.id.clone(),
-            difference: super::mc_error::estimate_difference_in_context(
-                decided_series,
-                &other.utilities,
-                selection_draws.weights.as_deref(),
-                selection_draws.within_stream,
-                plan,
-                &request.functional,
-                pair_coupling,
-                ctx,
-            )?,
-        });
-    }
+    let differences =
+        differences_from_decision(&selection_draws, &decided_id, &request.functional, plan, ctx)?;
     let held_out_checked = validation_draws.is_some();
     let selection_uncertainty = if selected {
         let _estimates = super::workspace::reserve::<McEstimate>(ctx, in_sample.estimates.len())?;
@@ -614,6 +566,81 @@ pub fn assess(
         },
         coordinate,
     })
+}
+
+fn differences_from_decision(
+    draws: &DecisionDraws,
+    decided_id: &str,
+    functional: &Functional,
+    plan: BatchPlan,
+    ctx: &ExecutionContext,
+) -> Result<Vec<DifferenceVsDecision>, ReliabilityError> {
+    let pair_coupling = if draws.coupling == CandidateCoupling::SharedSimulation {
+        PairCoupling::SharedStream
+    } else {
+        PairCoupling::IndependentStreams
+    };
+    let decided_series = draws
+        .candidate(decided_id)
+        .map(|c| c.utilities.as_slice())
+        .ok_or_else(|| ReliabilityError::invalid("decision", "decided candidate missing"))?;
+    let mut differences = Vec::new();
+    for &i in &draws.canonical_order() {
+        let other = &draws.candidates[i];
+        if other.id == decided_id {
+            continue;
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(ReliabilityError::Cancelled);
+        }
+        differences.push(DifferenceVsDecision {
+            id: other.id.clone(),
+            difference: super::mc_error::estimate_difference_in_context(
+                decided_series,
+                &other.utilities,
+                draws.weights.as_deref(),
+                draws.within_stream,
+                plan,
+                functional,
+                pair_coupling,
+                ctx,
+            )?,
+        });
+    }
+    Ok(differences)
+}
+
+fn resolve_decision(
+    draws: &DecisionDraws,
+    decision: &DecisionChoice,
+    selected_id: &str,
+    has_validation: bool,
+) -> Result<(String, bool), ReliabilityError> {
+    let result = match decision {
+        DecisionChoice::SelectedByRule => (selected_id.to_owned(), true),
+        DecisionChoice::PreSpecified(id) => {
+            if draws.candidate(id).is_none() {
+                return Err(ReliabilityError::invalid(
+                    "decision",
+                    "pre-specified id is not a candidate",
+                ));
+            }
+            if draws.origin == CandidateOrigin::AdaptivelyGenerated {
+                return Err(ReliabilityError::invalid(
+                    "decision",
+                    "a decision found by an adaptive search is not pre-specified",
+                ));
+            }
+            if has_validation {
+                return Err(ReliabilityError::invalid(
+                    "validation_plan",
+                    "a pre-specified decision has no selection effect to validate",
+                ));
+            }
+            (id.clone(), false)
+        }
+    };
+    Ok(result)
 }
 
 #[cfg(test)]

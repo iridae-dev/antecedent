@@ -488,20 +488,6 @@ fn pooled_credible_draws(fits: &[(&AtomRecord, &StudyResult, f64)]) -> Option<Ve
     )
 }
 
-/// Circular-block row indices of one resample of `n` rows (`block == 1` is the i.i.d. row
-/// bootstrap).
-fn resample_rows(n: usize, block: usize, rng: &mut antecedent_core::CausalRng) -> Vec<usize> {
-    let block = block.clamp(1, n.max(1));
-    let blocks = n.div_ceil(block);
-    let mut rows = Vec::with_capacity(blocks * block);
-    for _ in 0..blocks {
-        let start = antecedent_kernels::unbiased_index(rng, n);
-        rows.extend((0..block).map(|offset| (start + offset) % n));
-    }
-    rows.truncate(n);
-    rows
-}
-
 /// The draw-wise mixture of the atoms' replicates on shared resampled tables.
 struct SharedReplicates {
     se: Option<f64>,
@@ -906,7 +892,7 @@ impl super::Study {
                 antecedent_core::StreamDomain::Resample,
                 SHARED_REPLICATE_STREAM.wrapping_add(u64::from(replicate)),
             );
-            let picked = resample_rows(n, block, &mut rng);
+            let picked = super::gcm_bootstrap::resample_rows(n, block, &mut rng);
             let replacements: Vec<(VariableId, Arc<[f64]>)> = ids
                 .iter()
                 .zip(&columns)

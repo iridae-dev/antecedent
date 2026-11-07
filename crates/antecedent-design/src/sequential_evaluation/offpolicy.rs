@@ -421,46 +421,7 @@ pub fn evaluate_off_policy(
             "log data where the logging policy takes the actions the target policy takes",
         ));
     }
-    // Record every action and observation once.
-    let scope = format!("logged:{}", behaviour.identity_hex());
-    let mut ids = ledger_records(&scope, &ordered);
-    ids.sort_unstable();
-    if ids.windows(2).any(|pair| pair[0] == pair[1]) {
-        return Err(refusal!(
-            "evidence_double_counted",
-            "sequential_evaluation.observation_recorded_twice",
-            "an action or observation is recorded twice inside the log",
-            "record each action and observation once",
-        ));
-    }
-    let known = ids.iter().filter(|id| ledger.holds(**id)).count();
-    if known != 0 && known != ids.len() {
-        return Err(refusal!(
-            "evidence_double_counted",
-            "sequential_evaluation.log_partially_counted",
-            format!(
-                "{known} of {} logged records are already in the evidence ledger and the rest are not; the overlap would be counted twice",
-                ids.len()
-            ),
-            "evaluate the complete earlier log again, or only trajectories the ledger does not hold",
-        ));
-    }
-    let reused = known == ids.len();
-    let mut staged = ledger.clone();
-    if !reused {
-        for (chunk, rows) in ids.chunks(MAX_OBSERVATIONS_PER_SOURCE).enumerate() {
-            let mut writer = CanonicalWriter::new("antecedent.sequential_evaluation.logged_source");
-            writer.text(&scope).word(chunk as u64).word(rows.len() as u64);
-            let digest = writer.finish_hex();
-            let declaration = SourceDeclaration::new(
-                format!("logged_trajectories:{}", &digest[..32]),
-                SourceKind::ObservationSet,
-            )
-            .with_observations(rows.iter().copied());
-            staged.add_source(declaration).map_err(from_ledger)?;
-        }
-    }
-    let records_counted = ids.len() as u64;
+    let (staged, records_counted, reused) = stage_logged_records(behaviour, &ordered, ledger)?;
     let state = staged.state_digest().to_hex();
     let nf = n as f64;
     let ordinary = sum_wg / nf;
@@ -502,6 +463,54 @@ pub fn evaluate_off_policy(
         ledger_state: state,
         inference: SEQUENTIAL_EVALUATION_INFERENCE,
     })
+}
+
+fn stage_logged_records(
+    behaviour: &ContingentPolicy,
+    ordered: &[&LoggedTrajectory],
+    ledger: &EvidenceLedger,
+) -> SequentialResult<(EvidenceLedger, u64, bool)> {
+    // Record every action and observation once.
+    let scope = format!("logged:{}", behaviour.identity_hex());
+    let mut ids = ledger_records(&scope, ordered);
+    ids.sort_unstable();
+    if ids.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(refusal!(
+            "evidence_double_counted",
+            "sequential_evaluation.observation_recorded_twice",
+            "an action or observation is recorded twice inside the log",
+            "record each action and observation once",
+        ));
+    }
+    let known = ids.iter().filter(|id| ledger.holds(**id)).count();
+    if known != 0 && known != ids.len() {
+        return Err(refusal!(
+            "evidence_double_counted",
+            "sequential_evaluation.log_partially_counted",
+            format!(
+                "{known} of {} logged records are already in the evidence ledger and the rest are not; the overlap would be counted twice",
+                ids.len()
+            ),
+            "evaluate the complete earlier log again, or only trajectories the ledger does not hold",
+        ));
+    }
+    let reused = known == ids.len();
+    let mut staged = ledger.clone();
+    if !reused {
+        for (chunk, rows) in ids.chunks(MAX_OBSERVATIONS_PER_SOURCE).enumerate() {
+            let mut writer = CanonicalWriter::new("antecedent.sequential_evaluation.logged_source");
+            writer.text(&scope).word(chunk as u64).word(rows.len() as u64);
+            let digest = writer.finish_hex();
+            let declaration = SourceDeclaration::new(
+                format!("logged_trajectories:{}", &digest[..32]),
+                SourceKind::ObservationSet,
+            )
+            .with_observations(rows.iter().copied());
+            staged.add_source(declaration).map_err(from_ledger)?;
+        }
+    }
+    let records_counted = ids.len() as u64;
+    Ok((staged, records_counted, reused))
 }
 
 fn self_normalized_is_finite(sum_wg: f64, sum_w: f64) -> bool {

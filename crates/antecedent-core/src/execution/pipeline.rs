@@ -171,6 +171,39 @@ impl ExecutionContext {
         self.map_indexed_with_scratch_waiting(n, make_scratch, f, MapWait::IfFree)
     }
 
+    fn map_serial_with_worker<T, S, E, F>(
+        &self,
+        n: usize,
+        worker: Arc<AdmissionLease>,
+        make_scratch: &impl Fn() -> S,
+        f: &F,
+    ) -> Result<Vec<T>, MapExecutionError<E>>
+    where
+        F: Fn(usize, &Self, &mut S) -> Result<T, E>,
+    {
+        let inner = self.serial_inner();
+        crate::numerical_admission::with_context(&inner, || {
+            crate::numerical_admission::with_worker(worker, || {
+                if inner.cancellation.is_cancelled() {
+                    return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
+                }
+                let mut scratch = make_scratch();
+                let mut results = Vec::with_capacity(n);
+                for index in 0..n {
+                    if inner.cancellation.is_cancelled() {
+                        return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
+                    }
+                    let value = f(index, &inner, &mut scratch).map_err(MapExecutionError::Work)?;
+                    if inner.cancellation.is_cancelled() {
+                        return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
+                    }
+                    results.push(value);
+                }
+                Ok(results)
+            })
+        })
+    }
+
     #[allow(
         clippy::too_many_lines,
         reason = "The pipeline coordinates worker lifecycle, bounded ordering, and failure cleanup in one operation."
@@ -198,28 +231,7 @@ impl ExecutionContext {
         if let Some(worker) =
             crate::numerical_admission::worker().filter(|lease| lease.belongs_to(&self.admission))
         {
-            let inner = self.serial_inner();
-            return crate::numerical_admission::with_context(&inner, || {
-                crate::numerical_admission::with_worker(worker, || {
-                    if inner.cancellation.is_cancelled() {
-                        return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
-                    }
-                    let mut scratch = make_scratch();
-                    let mut results = Vec::with_capacity(n);
-                    for index in 0..n {
-                        if inner.cancellation.is_cancelled() {
-                            return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
-                        }
-                        let value =
-                            f(index, &inner, &mut scratch).map_err(MapExecutionError::Work)?;
-                        if inner.cancellation.is_cancelled() {
-                            return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
-                        }
-                        results.push(value);
-                    }
-                    Ok(results)
-                })
-            });
+            return self.map_serial_with_worker(n, worker, &make_scratch, &f);
         }
         let requested = u32::try_from(threads)
             .map_err(|_| MapExecutionError::Admission(AdmissionError::Overflow))?;
@@ -234,29 +246,7 @@ impl ExecutionContext {
             },
         };
         if granted == 1 {
-            let inner = self.serial_inner();
-            let worker = Arc::new(lease);
-            return crate::numerical_admission::with_context(&inner, || {
-                crate::numerical_admission::with_worker(worker, || {
-                    if inner.cancellation.is_cancelled() {
-                        return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
-                    }
-                    let mut scratch = make_scratch();
-                    let mut results = Vec::with_capacity(n);
-                    for index in 0..n {
-                        if inner.cancellation.is_cancelled() {
-                            return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
-                        }
-                        let value =
-                            f(index, &inner, &mut scratch).map_err(MapExecutionError::Work)?;
-                        if inner.cancellation.is_cancelled() {
-                            return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
-                        }
-                        results.push(value);
-                    }
-                    Ok(results)
-                })
-            });
+            return self.map_serial_with_worker(n, Arc::new(lease), &make_scratch, &f);
         }
         let threads = usize::try_from(granted).unwrap_or(threads).min(threads);
         let inner = self.serial_inner();
@@ -452,6 +442,50 @@ impl<T, E> Drop for PipelineStop<'_, T, E> {
 }
 
 impl ExecutionContext {
+    fn pipeline_serial<T, S, E, P, C>(
+        inner: &Self,
+        n: usize,
+        worker: Arc<AdmissionLease>,
+        make_scratch: &impl Fn() -> S,
+        produce: &P,
+        consume: &mut C,
+    ) -> Result<PipelineReceipt, MapExecutionError<E>>
+    where
+        P: Fn(usize, &Self, &mut S) -> Result<T, E>,
+        C: FnMut(usize, T) -> Result<PipelineStep, E>,
+    {
+        crate::numerical_admission::with_context(inner, || {
+            crate::numerical_admission::with_worker(worker, || {
+                if inner.cancellation.is_cancelled() {
+                    return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
+                }
+                let mut scratch = make_scratch();
+                for index in 0..n {
+                    if inner.cancellation.is_cancelled() {
+                        return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
+                    }
+                    let item =
+                        produce(index, inner, &mut scratch).map_err(MapExecutionError::Work)?;
+                    if inner.cancellation.is_cancelled() {
+                        return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
+                    }
+                    let step = consume(index, item).map_err(MapExecutionError::Work)?;
+                    if inner.cancellation.is_cancelled() {
+                        return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
+                    }
+                    if step == PipelineStep::Stop {
+                        return Ok(PipelineReceipt {
+                            items_consumed: index + 1,
+                            peak_live: 1,
+                            workers: 1,
+                        });
+                    }
+                }
+                Ok(PipelineReceipt { items_consumed: n, peak_live: 1, workers: 1 })
+            })
+        })
+    }
+
     /// Produce `0..n` on leased workers and consume them in index order on the caller,
     /// with at most `window` items produced and not yet consumed.
     ///
@@ -524,36 +558,7 @@ impl ExecutionContext {
                 Some(worker) => worker,
                 None => Arc::new(self.acquire_request(AdmissionRequest::new(1, 0), None)?),
             };
-            return crate::numerical_admission::with_context(&inner, || {
-                crate::numerical_admission::with_worker(worker, || {
-                    if inner.cancellation.is_cancelled() {
-                        return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
-                    }
-                    let mut scratch = make_scratch();
-                    for index in 0..n {
-                        if inner.cancellation.is_cancelled() {
-                            return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
-                        }
-                        let item = produce(index, &inner, &mut scratch)
-                            .map_err(MapExecutionError::Work)?;
-                        if inner.cancellation.is_cancelled() {
-                            return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
-                        }
-                        let step = consume(index, item).map_err(MapExecutionError::Work)?;
-                        if inner.cancellation.is_cancelled() {
-                            return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
-                        }
-                        if step == PipelineStep::Stop {
-                            return Ok(PipelineReceipt {
-                                items_consumed: index + 1,
-                                peak_live: 1,
-                                workers: 1,
-                            });
-                        }
-                    }
-                    Ok(PipelineReceipt { items_consumed: n, peak_live: 1, workers: 1 })
-                })
-            });
+            return Self::pipeline_serial(&inner, n, worker, &make_scratch, &produce, &mut consume);
         };
         let workers = usize::try_from(granted).unwrap_or(threads).clamp(2, threads);
         let WorkerScope { lease, observation, numerical } = WorkerScope::capture(lease);

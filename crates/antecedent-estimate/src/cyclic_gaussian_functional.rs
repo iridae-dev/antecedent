@@ -415,6 +415,25 @@ pub fn evaluate_gaussian_cyclic_functional(
     };
     let q = compiler.lower(checked.mapping().executable, 0)?;
     let operations = compiler.operations;
+    let values = evaluate_assignments(&q, n, assignments);
+    derivation.push("Observational Gaussian density provider; optional unregularized IID maximum-likelihood plug-in. Continuous integrals use canonical Gaussian elimination on all real coordinates; no truncation, latent recovery, statistical uncertainty or calibration claim.".into());
+    Ok(GaussianCyclicFunctionalReport {
+        source_identity: source_identity.into(),
+        derivation,
+        mean,
+        covariance,
+        fitted_rows,
+        covariance_condition_estimate: condition,
+        values,
+        operations,
+    })
+}
+
+fn evaluate_assignments(
+    q: &Quadratic,
+    n: usize,
+    assignments: &[Vec<(u32, f64)>],
+) -> Vec<CyclicFunctionalValue> {
     let mut values = Vec::new();
     for pairs in assignments {
         let mut state = vec![0.; n];
@@ -452,17 +471,7 @@ pub fn evaluate_gaussian_cyclic_functional(
         }
         values.push(CyclicFunctionalValue { assignment: pairs.clone(), value, failure });
     }
-    derivation.push("Observational Gaussian density provider; optional unregularized IID maximum-likelihood plug-in. Continuous integrals use canonical Gaussian elimination on all real coordinates; no truncation, latent recovery, statistical uncertainty or calibration claim.".into());
-    Ok(GaussianCyclicFunctionalReport {
-        source_identity: source_identity.into(),
-        derivation,
-        mean,
-        covariance,
-        fitted_rows,
-        covariance_condition_estimate: condition,
-        values,
-        operations,
-    })
+    values
 }
 
 #[cfg(test)]
@@ -481,6 +490,28 @@ mod tests {
             arena.intern_distribution(variables, empty, intervention, DomainRef::Observational);
         let schema = ProgramSchema::new([(variable, ProgramVariable { name: "observed".into() })]);
         FunctionalProgram::new(arena, schema, root, root, ProgramLimits::default()).unwrap()
+    }
+
+    #[test]
+    fn assignment_results_keep_order_and_distinct_failures() {
+        let q = Quadratic {
+            precision: vec![1.0],
+            linear: vec![0.0],
+            constant: 0.0,
+            active: vec![true],
+        };
+        let assignments = vec![vec![(0, 0.0)], vec![], vec![(0, 0.0), (0, 1.0)]];
+        let values = evaluate_assignments(&q, 1, &assignments);
+        assert_eq!(values[0].value, Some(1.0));
+        assert_eq!(
+            values[1].failure.as_deref(),
+            Some("missing continuous outcome/conditioning assignment")
+        );
+        assert_eq!(values[2].failure.as_deref(), Some("invalid or duplicate Gaussian assignment"));
+        assert_eq!(
+            values.iter().map(|v| &v.assignment).collect::<Vec<_>>(),
+            assignments.iter().collect::<Vec<_>>()
+        );
     }
 
     #[test]

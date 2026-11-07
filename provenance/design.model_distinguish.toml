@@ -30,7 +30,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "DesignObjective::DistinguishModels with model_distinguish_score, model_pair_rows and the model-distinction branch of validate_channel_context in crates/antecedent-design/src/ranker.rs: the design's declared reliability times the mean absolute pairwise log-likelihood gap over the requested model pairs, averaged over the equally likely draws of the log-likelihood table, and the refusal of contexts that cannot be scored. Not the Box-Hill expected symmetric divergence (a documented departure), posterior model probabilities, or the Python typing layer."
+scope = "DesignObjective::DistinguishModels with model_distinguish_score, model_pair_rows and the model-distinction branch of validate_channel_context in crates/antecedent-design/src/ranker.rs: the design's declared reliability times the mean absolute pairwise log-likelihood gap over the requested model pairs, averaged over the equally likely draws of the log-likelihood table, and the refusal of contexts that cannot be scored. Score helpers moved to ranker/score_helpers.rs; all bound definitions and other bound artifacts were compared unchanged apart from visibility and formatting. Not the Box-Hill expected symmetric divergence (a documented departure), posterior model probabilities, or the Python typing layer. Entropy and decision scoring definitions moved to dedicated ranker modules; every bound definition and the other bound artifacts were compared unchanged apart from visibility and formatting."
 assumptions = ["The log-likelihood table rows are indexed by the model ids listed in the table, the requested models are a subset in any order, and each draw column is an equally likely joint draw for all models.", "The reliability of a design is the repository's heuristic map; the score is a heuristic gap, not a Bayes factor or an expected information gain.", "All requested models are distinct and present, and all table entries are finite."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference by direct enumeration of draws and pairs; Box and Hill's paper was not consulted and no upstream implementation was read."
 redistribution = "The reference is repository-authored under MIT OR Apache-2.0 and lives in the integration test. The cited paper is linked, not redistributed."
@@ -42,8 +42,26 @@ record_sha256 = "ba196d5a11a0c5e09768b8bc0ac56933d3fe26f343cc6512856a0e5f553de2b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/ranker.rs"
-items = ["const MAX_RANK_DRAWS", "const RANK_STREAM", "fn assemble_ranking", "fn baseline_treatment_se", "fn check_constraints", "fn critical_value", "fn default", "fn draw", "fn evaluation", "fn exact_expectation", "fn exact_gain", "fn filter_active_candidates", "fn gram_side_len", "fn likelihood", "fn model_distinguish_score", "fn model_pair_rows", "fn n_looks", "fn new", "fn observation_reliability", "fn paired", "fn paired_difference", "fn posterior_entropy", "fn prepare_decision", "fn push", "fn rank", "fn run_mc_scoring_loop", "fn score", "fn treatment_se", "fn uncertainty_ok", "fn unmapped_decision_candidate", "fn validate", "fn validate_channel_context", "fn validate_config", "fn validate_rank_inputs", "fn with_config", "struct ActiveScoring", "struct DecisionRegistry", "struct DecisionScoring", "struct DesignConstraints", "struct DesignEvaluationContext", "struct DesignRankConfig", "struct DesignRanker", "struct EffectWidthContext", "struct EnvironmentGramSpec", "struct InterventionDesignEffect", "struct MeasureColumnSpec", "struct ModelLoglikDraws", "struct RankDrawStats", "struct ScoringRun"]
-sha256 = "75e48eb6a11b1d0b6af355a30761af0a3f6dcb54f4d6f29cfb76a3453dd86f75"
+items = ["const MAX_RANK_DRAWS", "const RANK_STREAM", "fn assemble_ranking", "fn check_constraints", "fn critical_value", "fn default", "fn exact_expectation", "fn filter_active_candidates", "fn n_looks", "fn new", "fn observation_reliability", "fn paired", "fn paired_difference", "fn prepare_decision", "fn push", "fn rank", "fn run_mc_scoring_loop", "fn uncertainty_ok", "fn unmapped_decision_candidate", "fn validate", "fn validate_channel_context", "fn validate_config", "fn validate_rank_inputs", "fn with_config", "struct ActiveScoring", "struct DecisionRegistry", "struct DesignConstraints", "struct DesignEvaluationContext", "struct DesignRankConfig", "struct DesignRanker", "struct EffectWidthContext", "struct EnvironmentGramSpec", "struct InterventionDesignEffect", "struct MeasureColumnSpec", "struct ModelLoglikDraws", "struct RankDrawStats", "struct ScoringRun"]
+sha256 = "6f6be48fc41642f2d32dc8ab727617d3ba8fc6fece8983037ec9968cfb42a053"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker/score_helpers.rs"
+items = ["fn baseline_treatment_se", "fn gram_side_len", "fn model_distinguish_score", "fn model_pair_rows", "fn treatment_se"]
+sha256 = "e474e03fb8d851202064df283427483168f257e2b39b3fcac9f6b1d88bae5c12"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker/entropy.rs"
+items = ["fn draw", "fn exact_gain", "fn likelihood", "fn new", "fn posterior_entropy"]
+sha256 = "6738647133437da1e2d9224ce517c4b8f75f5fe119356a794bc77a109f77cb60"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker/decision_scoring.rs"
+items = ["fn evaluation", "fn new", "fn score", "struct DecisionScoring"]
+sha256 = "d913dd6907113daf953c7a2688b7bd5203d1cf69ee6ec93890fd1a4319f11335"
 
 [[method_review.artifacts]]
 role = "assertion"

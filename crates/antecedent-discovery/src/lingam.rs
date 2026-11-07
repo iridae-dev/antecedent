@@ -113,49 +113,9 @@ impl DirectLingam {
             });
         }
 
-        let col_owned = collect_float_columns(data, variables)?;
-        let n = col_owned[0].len();
-        if n < 3 {
-            return Err(DiscoveryError::stats_msg("insufficient rows for DirectLiNGAM"));
-        }
-        for c in &col_owned {
-            if c.len() != n {
-                return Err(DiscoveryError::data_msg("column length mismatch"));
-            }
-            require_finite_column(c)?;
-        }
-
+        let PreparedColumns { centered, sd, standardized: cols } =
+            prepare_columns(data, variables)?;
         let p = variables.len();
-        // Centred columns (kept for the coefficient fits) and their standard deviations.
-        let centered: Vec<Vec<f64>> = col_owned
-            .iter()
-            .map(|c| {
-                let mut v = c.to_vec();
-                center_inplace(&mut v);
-                v
-            })
-            .collect();
-        let sd: Vec<f64> = centered
-            .iter()
-            .map(|c| (c.iter().map(|v| v * v).sum::<f64>() / n as f64).sqrt())
-            .collect();
-        for (i, raw) in col_owned.iter().enumerate() {
-            // A column is constant when its spread is rounding noise on its own magnitude.
-            let magnitude = raw.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
-            if sd[i].partial_cmp(&(64.0 * f64::EPSILON * magnitude))
-                != Some(std::cmp::Ordering::Greater)
-            {
-                return Err(DiscoveryError::data_msg(format!(
-                    "DirectLiNGAM refuses constant variable {}: a constant has no causal \
-                     order",
-                    variables[i].raw()
-                )));
-            }
-        }
-        // Working residual matrix, standardised so the degeneracy tests below are relative to
-        // each variable's own scale: rescaling a column cannot make it look degenerate.
-        let cols: Vec<Vec<f64>> =
-            centered.iter().zip(&sd).map(|(c, &s)| c.iter().map(|v| v / s).collect()).collect();
 
         // Required contemporaneous edges as index pairs `(parent, child)`.
         let required_pairs: Vec<(usize, usize)> = self
@@ -174,29 +134,7 @@ impl DirectLingam {
 
         let order = causal_order(cols, &required_pairs, ctx)?;
 
-        let gaussian = gaussian_consistent_residuals(&centered, &sd, &order)?;
-        let mut diagnostics = Vec::new();
-        if gaussian.len() >= 2 {
-            let names: Vec<String> = gaussian
-                .iter()
-                .map(|&i| {
-                    data.schema()
-                        .get(variables[i])
-                        .map_or_else(|_| format!("{:?}", variables[i]), |v| v.name.to_string())
-                })
-                .collect();
-            diagnostics.push(DiscoveryDiagnostic {
-                code: Arc::from("direct_lingam.gaussian_residuals"),
-                message: Arc::from(format!(
-                    "{} exogenous residuals are consistent with Gaussian errors (Jarque-Bera, \
-                     alpha 0.05): {}. LiNGAM identifies the causal order only when at most one \
-                     error is Gaussian, so the relative order of these variables, and the \
-                     direction of edges between them, is not identified",
-                    names.len(),
-                    names.join(", ")
-                )),
-            });
-        }
+        let diagnostics = residual_diagnostics(data, variables, &centered, &sd, &order)?;
 
         let mut dag = Dag::empty();
         for &v in variables {
@@ -281,6 +219,94 @@ impl DirectLingam {
             sepsets: crate::result::PcSepsets::default(),
         })
     }
+}
+
+fn residual_diagnostics(
+    data: &TabularData,
+    variables: &[VariableId],
+    centered: &[Vec<f64>],
+    sd: &[f64],
+    order: &[usize],
+) -> Result<Vec<DiscoveryDiagnostic>, DiscoveryError> {
+    let gaussian = gaussian_consistent_residuals(centered, sd, order)?;
+    let mut diagnostics = Vec::new();
+    if gaussian.len() >= 2 {
+        let names: Vec<String> = gaussian
+            .iter()
+            .map(|&i| {
+                data.schema()
+                    .get(variables[i])
+                    .map_or_else(|_| format!("{:?}", variables[i]), |v| v.name.to_string())
+            })
+            .collect();
+        diagnostics.push(DiscoveryDiagnostic {
+            code: Arc::from("direct_lingam.gaussian_residuals"),
+            message: Arc::from(format!(
+                "{} exogenous residuals are consistent with Gaussian errors (Jarque-Bera, \
+                 alpha 0.05): {}. LiNGAM identifies the causal order only when at most one \
+                 error is Gaussian, so the relative order of these variables, and the \
+                 direction of edges between them, is not identified",
+                names.len(),
+                names.join(", ")
+            )),
+        });
+    }
+
+    Ok(diagnostics)
+}
+
+struct PreparedColumns {
+    centered: Vec<Vec<f64>>,
+    sd: Vec<f64>,
+    standardized: Vec<Vec<f64>>,
+}
+
+fn prepare_columns(
+    data: &TabularData,
+    variables: &[VariableId],
+) -> Result<PreparedColumns, DiscoveryError> {
+    let col_owned = collect_float_columns(data, variables)?;
+    let n = col_owned[0].len();
+    if n < 3 {
+        return Err(DiscoveryError::stats_msg("insufficient rows for DirectLiNGAM"));
+    }
+    for c in &col_owned {
+        if c.len() != n {
+            return Err(DiscoveryError::data_msg("column length mismatch"));
+        }
+        require_finite_column(c)?;
+    }
+
+    // Centred columns (kept for the coefficient fits) and their standard deviations.
+    let centered: Vec<Vec<f64>> = col_owned
+        .iter()
+        .map(|c| {
+            let mut v = c.to_vec();
+            center_inplace(&mut v);
+            v
+        })
+        .collect();
+    let sd: Vec<f64> =
+        centered.iter().map(|c| (c.iter().map(|v| v * v).sum::<f64>() / n as f64).sqrt()).collect();
+    for (i, raw) in col_owned.iter().enumerate() {
+        // A column is constant when its spread is rounding noise on its own magnitude.
+        let magnitude = raw.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+        if sd[i].partial_cmp(&(64.0 * f64::EPSILON * magnitude))
+            != Some(std::cmp::Ordering::Greater)
+        {
+            return Err(DiscoveryError::data_msg(format!(
+                "DirectLiNGAM refuses constant variable {}: a constant has no causal \
+                 order",
+                variables[i].raw()
+            )));
+        }
+    }
+    // Working residual matrix, standardised so the degeneracy tests below are relative to
+    // each variable's own scale: rescaling a column cannot make it look degenerate.
+    let cols: Vec<Vec<f64>> =
+        centered.iter().zip(&sd).map(|(c, &s)| c.iter().map(|v| v / s).collect()).collect();
+
+    Ok(PreparedColumns { centered, sd, standardized: cols })
 }
 
 /// Insert a forward edge of a causal order. A directed cycle is refused and is

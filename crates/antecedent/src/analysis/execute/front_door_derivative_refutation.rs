@@ -294,16 +294,7 @@ fn bootstrap_stability(
         )));
     }
     finite.sort_by(f64::total_cmp);
-    let quantile = |p: f64| {
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "p in [0, 1] times the last index is a valid index"
-        )]
-        let index = (p * (finite.len() - 1) as f64).round() as usize;
-        finite[index.min(finite.len() - 1)]
-    };
-    let (lower, upper) = (quantile(0.025), quantile(0.975));
+    let (lower, upper) = super::gcm_bootstrap::nearest_95_range(&finite);
     let passed = (lower..=upper).contains(&value);
     let spread = upper - lower;
     Ok(Ok(RefutationReport::new(

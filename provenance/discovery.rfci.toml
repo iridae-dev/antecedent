@@ -29,7 +29,7 @@ scope = "Rfci::run in crates/antecedent-discovery/src/rfci.rs under a perfect m-
 assumptions = ["The data-generating mixed graph is a maximal ancestral graph without selection edges and the CI oracle answers exactly its m-separation statements.", "Two MAGs are in one Markov class when every pair has the same m-separation verdict against every conditioning set; the PAG of a class carries an endpoint mark exactly where all members agree and a circle elsewhere.", "On three and four nodes RFCI and FCI coincide under the oracle, so the class-invariant PAG is the expected output; this is checked here, not assumed from the papers."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied."
 redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI and are not redistributed."
-limitations = "The primary source was not re-read in this review (no downloads were made and no copy was read from this environment). Only three- and four-node graphs (11 and 248 classes) are swept; RFCI is designed to differ from FCI on larger graphs, and that difference (adjacencies kept because a Lemma 3.1 or 3.2 test is not run) is not exercised. The default conditioning bound of three is a documented deviation and is lifted in this test. Calibration remains deferred."
+limitations = "The primary source was not re-read in this review (no downloads were made and no copy was read from this environment). Only three- and four-node graphs (11 and 248 classes) are swept; RFCI is designed to differ from FCI on larger graphs, and that difference (adjacencies kept because a Lemma 3.1 or 3.2 test is not run) is not exercised. The default conditioning bound of three is a documented deviation and is lifted in this test. Calibration remains deferred. Scoped 2026-11-07 source re-review compared the orientation-round extraction with 73e7c5c6b: the same rules, round cap, discriminating-path retrials, sepset updates and aggregate CI count are retained. Three focused RFCI unit tests passed; no independent reference was regenerated."
 sources = ["https://doi.org/10.1214/11-AOS940"]
 findings_resolved = ["Under the oracle, RFCI returns the class-invariant PAG for every class on three and four nodes: no extra or missing adjacency, no unsound mark and no missed orientation.", "Defect found and fixed: RFCI applied the stricter primed R9 and R10 of the time-series algorithm (the same defect as static FCI, documented in discovery.orientation_rules) and left circles at tails every member of a four-node class shares. It now uses Zhang's R9 and R10."]
 record_sha256 = "a4f1f23aef5d2846c2babc09891d0729ec06269dc4fe31527bea020dcf395f65"
@@ -37,8 +37,8 @@ record_sha256 = "a4f1f23aef5d2846c2babc09891d0729ec06269dc4fe31527bea020dcf395f6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/rfci.rs"
-items = ["const ALGORITHM", "fn default", "fn new", "fn pop", "fn push", "fn remove_edge_update", "fn rfci_discriminating_paths", "fn rfci_unshielded_triples", "fn run", "fn sepset_vars", "fn with_ci", "fn with_fdr", "struct Rfci", "struct RfciGraph", "struct UnshieldedTriples"]
-sha256 = "bee0a284723d8082313c3b695b2d3d2e791ffa21fad5876faa075159fbd983b8"
+items = ["const ALGORITHM", "fn default", "fn new", "fn pop", "fn push", "fn remove_edge_update", "fn rfci_discriminating_paths", "fn rfci_unshielded_triples", "fn run", "fn sepset_vars", "fn with_ci", "fn with_fdr", "struct Rfci", "struct RfciGraph", "struct UnshieldedTriples", "fn orient_rfci"]
+sha256 = "0d85ea6057d3a9e389904ae3c027566ff15286f2da2e19ddb2fe2744658e0225"
 
 [[method_review.artifacts]]
 role = "implementation"

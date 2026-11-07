@@ -10,9 +10,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{
-    AdaptiveDesignContract, AdaptiveDesignDeclaration, AssignmentFamily, DelayMechanism,
-    InferenceParadigm, InterimAnalysis, MonitoringStrategy, OutcomeAvailability, OutcomeStructure,
-    PolicyEpoch, ProcedureCell, StoppingRuleDeclaration, StoppingRuleKind, StoppingSpec,
+    AdaptiveDesignContract, AdaptiveDesignDeclaration, AssignmentFamily, BoundarySidedness,
+    DelayMechanism, InferenceParadigm, InterimAnalysis, MonitoringStrategy, OutcomeAvailability,
+    OutcomeStructure, PolicyEpoch, ProcedureCell, SpendingKind, StoppingRuleDeclaration,
+    StoppingRuleKind, StoppingSpec,
 };
 use antecedent_core::{ExecutionContext, SemanticDigest};
 use antecedent_io::adaptive_inference_result_artifact::{
@@ -119,6 +120,30 @@ fn contract(declaration: AdaptiveDesignDeclaration) -> AdaptiveDesignContract {
 
 fn posterior(look: u32) -> AdaptiveResultSpec {
     AdaptiveResultSpec::BayesianPosterior { look, prior_alpha: 1.0, prior_beta: 1.0 }
+}
+
+#[test]
+fn group_sequential_replays_each_performed_look_and_rejects_duplicate_arms() {
+    let mut declaration = thompson();
+    declaration.cell.assignment = AssignmentFamily::FixedRandomization;
+    declaration.cell.monitoring = MonitoringStrategy::GroupSequential;
+    declaration.outcomes = (0..12).map(|unit| vec![f64::from((unit / 2) % 2)]).collect();
+    declaration.stopping_rule.as_mut().unwrap().spec = StoppingSpec::AlphaSpending {
+        spending: SpendingKind::OBrienFlemingType,
+        total_alpha: 0.05,
+        sidedness: BoundarySidedness::TwoSidedSymmetric,
+    };
+    let contract = contract(declaration);
+    let spec = AdaptiveResultSpec::GroupSequential { look: 1, control_arm: 0, treatment_arm: 1 };
+    let result = compute_adaptive_result(&contract, &spec, &ctx()).unwrap();
+    assert_eq!(result.method, "lan_demets_alpha_spending_group_sequential");
+    assert_eq!(result.values.len(), 7);
+    assert_eq!(result.values[0], -1.0);
+    assert_eq!(result.values[2], 0.0);
+    assert_eq!(result.values[5], 0.0);
+    let duplicate =
+        AdaptiveResultSpec::GroupSequential { look: 1, control_arm: 0, treatment_arm: 0 };
+    assert!(compute_adaptive_result(&contract, &duplicate, &ctx()).is_err());
 }
 
 #[test]

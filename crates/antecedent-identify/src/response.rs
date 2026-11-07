@@ -31,6 +31,26 @@ use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
 };
 
+fn merge_assumptions(target: &mut AssumptionSet, source: &AssumptionSet) {
+    for record in &source.entries {
+        if !target.entries.contains(record) {
+            target.push(record.clone());
+        }
+    }
+}
+
+fn accumulate_pair_evidence(
+    assumptions: &mut AssumptionSet,
+    performance: &mut IdentificationPerformanceRecord,
+    result: &IdentificationResult,
+) {
+    merge_assumptions(assumptions, &result.required_assumptions);
+    performance.candidates_examined =
+        performance.candidates_examined.saturating_add(result.performance.candidates_examined);
+    performance.sets_returned =
+        performance.sets_returned.saturating_add(result.performance.sets_returned);
+}
+
 /// Backdoor identifier for scalar/vector continuous-response functionals.
 #[derive(Clone, Debug, Default)]
 pub struct ResponseIdentifier {
@@ -99,11 +119,7 @@ impl ResponseIdentifier {
             let mut joint = crate::GeneralizedAdjustmentIdentifier::new();
             joint.config.context.clone_from(&self.backdoor.config.context);
             let mut result = joint.identify_joint_dag_response(prepared.dag(), response)?;
-            for record in &prepared.declared_assumptions().entries {
-                if !result.required_assumptions.entries.contains(record) {
-                    result.required_assumptions.push(record.clone());
-                }
-            }
+            merge_assumptions(&mut result.required_assumptions, prepared.declared_assumptions());
             return Ok(result);
         }
 
@@ -121,16 +137,7 @@ impl ResponseIdentifier {
                 .with_target_population(response.target_population.clone());
             let witness_query = CausalQuery::AverageEffect(witness.clone());
             let result = self.backdoor.identify(prepared, &witness_query, workspace)?;
-            for record in &result.required_assumptions.entries {
-                if !assumptions.entries.contains(record) {
-                    assumptions.push(record.clone());
-                }
-            }
-            performance.candidates_examined = performance
-                .candidates_examined
-                .saturating_add(result.performance.candidates_examined);
-            performance.sets_returned =
-                performance.sets_returned.saturating_add(result.performance.sets_returned);
+            accumulate_pair_evidence(&mut assumptions, &mut performance, &result);
             let target = answered
                 .iter()
                 .find(|(variable, _)| *variable == Some(treatment))
@@ -176,16 +183,7 @@ impl ResponseIdentifier {
                     ),
                 );
                 derivation.steps.extend(general.derivation.steps.iter().cloned());
-                for record in &general.required_assumptions.entries {
-                    if !assumptions.entries.contains(record) {
-                        assumptions.push(record.clone());
-                    }
-                }
-                performance.candidates_examined = performance
-                    .candidates_examined
-                    .saturating_add(general.performance.candidates_examined);
-                performance.sets_returned =
-                    performance.sets_returned.saturating_add(general.performance.sets_returned);
+                accumulate_pair_evidence(&mut assumptions, &mut performance, &general);
                 diagnostics.extend(general.diagnostics.iter().cloned());
                 for estimand in &general.estimands {
                     let mut copy = estimand.clone();
@@ -316,16 +314,7 @@ pub(crate) fn multi_treatment_joint_route(
                     .collect(),
             };
             let mut result = identify_surface(&surrogate)?;
-            for record in &result.required_assumptions.entries {
-                if !assumptions.entries.contains(record) {
-                    assumptions.push(record.clone());
-                }
-            }
-            performance.candidates_examined = performance
-                .candidates_examined
-                .saturating_add(result.performance.candidates_examined);
-            performance.sets_returned =
-                performance.sets_returned.saturating_add(result.performance.sets_returned);
+            accumulate_pair_evidence(&mut assumptions, &mut performance, &result);
             diagnostics.append(&mut result.diagnostics);
             if result.status != IdentificationStatus::NonparametricallyIdentified
                 || result.estimands.is_empty()

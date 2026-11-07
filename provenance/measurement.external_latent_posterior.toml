@@ -28,7 +28,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "posterior_means, rubin_combine and combine_imputations_linear in crates/antecedent-stats/src/measurement_error.rs: the posterior mean of a latent regressor over draws, the per-draw ordinary least squares fit and its HC0 covariance, and Rubin's combination (mean coefficients, mean within covariance, between covariance with S - 1, total W + (1 + 1/S) B) over five draws, with the refusal of fewer than two imputations. Not a review of the posterior provider, of whether the draws are proper imputations conditional on the outcome (declared, not verifiable here), or of any non-linear outcome family."
+scope = "posterior_means, rubin_combine and combine_imputations_linear in crates/antecedent-stats/src/measurement_error.rs: the posterior mean of a latent regressor over draws, the per-draw ordinary least squares fit and its HC0 covariance, and Rubin's combination (mean coefficients, mean within covariance, between covariance with S - 1, total W + (1 + 1/S) B) over five draws, with the refusal of fewer than two imputations. Not a review of the posterior provider, of whether the draws are proper imputations conditional on the outcome (declared, not verifiable here), or of any non-linear outcome family. Classification correction definitions moved to measurement_error/classification.rs and bound items were compared unchanged apart from formatting. Posterior and imputation definitions moved to measurement_error/imputation.rs and bound items were compared unchanged apart from formatting."
 assumptions = ["Draws are proper imputations of the latent regressor conditional on the outcome and the covariates, so Rubin's combining rules apply; a posterior of the latent value given only the error-prone data makes the draws Berkson-type and the regression of the outcome on them attenuated, which is why that case uses the posterior mean.", "The per-draw covariance is the HC0 sandwich of the draw's least squares fit and the total covariance is the standard combining rule with the (1 + 1/S) factor."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
 redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
@@ -40,8 +40,20 @@ record_sha256 = "2fb56d512c515d61519a78ea4ad0568bf18eaf548584d9bf427804b4c5b4d13
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/measurement_error.rs"
-items = ["const MAX_MEASUREMENT_COVARIATES", "const MAX_MEASUREMENT_ROWS", "enum MeasurementErrorError", "fn accumulate", "fn combine_imputations_linear", "fn finite_all", "fn from_external_replicates", "fn from_main_sample_replicates", "fn from_validation", "fn group_statistics", "fn implied_reliability", "fn known", "fn linear_functional", "fn matmul", "fn matvec", "fn posterior_means", "fn replicate_variance_components", "fn rubin_combine", "fn solve", "fn standard_error", "fn transpose", "fn youden", "struct CombinedImputations", "struct CorrectedLinear", "struct ErrorVariance", "struct LinearErrorData", "struct LinearMoments", "struct ValidationSummary", "struct VarianceComponents"]
-sha256 = "392c2b71a1f410d9d867e2628b51f3ea163af34fe86ca9f23dae2316ec2788a0"
+items = ["const MAX_MEASUREMENT_COVARIATES", "const MAX_MEASUREMENT_ROWS", "enum MeasurementErrorError", "fn accumulate", "fn finite_all", "fn from_external_replicates", "fn from_main_sample_replicates", "fn from_validation", "fn group_statistics", "fn implied_reliability", "fn known", "fn linear_functional", "fn matmul", "fn matvec", "fn replicate_variance_components", "fn solve", "fn standard_error", "fn transpose", "struct CorrectedLinear", "struct ErrorVariance", "struct LinearErrorData", "struct LinearMoments", "struct ValidationSummary", "struct VarianceComponents"]
+sha256 = "686d6567e24b5dc580c795666168468bd1c089555be6313830536a1637df821a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error/imputation.rs"
+items = ["fn combine_imputations_linear", "fn posterior_means", "fn rubin_combine", "struct CombinedImputations"]
+sha256 = "ccc256e58aa0f239cc22a2df6123b35c3f65c5809b27ad2d1284027cbbe2ead2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error/classification.rs"
+items = ["fn youden"]
+sha256 = "7987b86d37b73a49fc5d106ad34cfe3eac629d1e5419b9354679496646794bd0"
 
 [[method_review.artifacts]]
 role = "assertion"

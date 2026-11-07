@@ -68,6 +68,37 @@ pub(super) fn resampled_table_cells(n: usize, columns: usize) -> Option<usize> {
     columns.checked_mul(2)?.checked_add(1)?.checked_mul(n)
 }
 
+/// Circular-block row indices in draw order (`block == 1` draws independent rows).
+pub(super) fn resample_rows(
+    n: usize,
+    block: usize,
+    rng: &mut antecedent_core::CausalRng,
+) -> Vec<usize> {
+    let block = block.clamp(1, n.max(1));
+    let blocks = n.div_ceil(block);
+    let mut rows = Vec::with_capacity(blocks * block);
+    for _ in 0..blocks {
+        let start = antecedent_kernels::unbiased_index(rng, n);
+        rows.extend((0..block).map(|offset| (start + offset) % n));
+    }
+    rows.truncate(n);
+    rows
+}
+
+/// Nearest-order 95% endpoints of a sorted, nonempty sample.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the two fixed probabilities put the rounded rank inside the sample"
+)]
+pub(super) fn nearest_95_range(sorted: &[f64]) -> (f64, f64) {
+    let quantile = |p: f64| {
+        let index = (p * (sorted.len() - 1) as f64).round() as usize;
+        sorted[index.min(sorted.len() - 1)]
+    };
+    (quantile(0.025), quantile(0.975))
+}
+
 /// Lease `replicates * columns` replicate values plus one count vector of `rows` on
 /// the execution pool before anything is allocated.
 pub(super) fn admit_replicates(
@@ -201,7 +232,52 @@ pub(super) fn bootstrap_diagnostic_over(
 
 #[cfg(test)]
 mod tests {
-    use super::resampled_table_cells;
+    use super::{nearest_95_range, resample_rows, resampled_table_cells};
+
+    #[test]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the fixed probabilities put the rounded rank inside each nonempty sample"
+    )]
+    fn nearest_range_preserves_legacy_ranks_and_value_bits() {
+        for mut values in [
+            vec![2.0, 1.0],
+            vec![0.0, -0.0],
+            (0..21).map(f64::from).collect(),
+            vec![f64::NAN, 0.0, -0.0, f64::INFINITY, f64::NEG_INFINITY],
+        ] {
+            values.sort_by(f64::total_cmp);
+            let before: Vec<_> = values.iter().map(|value| value.to_bits()).collect();
+            let legacy = |p: f64| {
+                let index = (p * (values.len() - 1) as f64).round() as usize;
+                values[index.min(values.len() - 1)].to_bits()
+            };
+            let (lower, upper) = nearest_95_range(&values);
+            assert_eq!((lower.to_bits(), upper.to_bits()), (legacy(0.025), legacy(0.975)));
+            assert_eq!(values.iter().map(|value| value.to_bits()).collect::<Vec<_>>(), before);
+        }
+    }
+
+    #[test]
+    fn circular_resampling_preserves_rows_and_stream_position() {
+        for (n, block) in [(0, 0), (7, 1), (7, 3), (7, 20)] {
+            let mut actual_rng = antecedent_core::CausalRng::from_seed(91);
+            let mut reference_rng = antecedent_core::CausalRng::from_seed(91);
+            let actual = resample_rows(n, block, &mut actual_rng);
+            let width = block.clamp(1, n.max(1));
+            let starts: Vec<_> = (0..n.div_ceil(width))
+                .map(|_| antecedent_kernels::unbiased_index(&mut reference_rng, n))
+                .collect();
+            let expected: Vec<_> = starts
+                .iter()
+                .flat_map(|start| (0..width).map(move |offset| (start + offset) % n))
+                .take(n)
+                .collect();
+            assert_eq!(actual, expected);
+            assert_eq!(actual_rng.next_u64(), reference_rng.next_u64());
+        }
+    }
 
     #[test]
     fn a_table_bootstrap_leases_the_source_columns_and_the_replicate_copy() {

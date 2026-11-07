@@ -1434,20 +1434,32 @@ fn fit_component(
             }
         },
     )?;
+    Ok(summarize_fit_outcomes(
+        &outcomes,
+        pooled,
+        sources_sim,
+        spec.players.len(),
+        replicates,
+        query.level,
+    ))
+}
+
+fn summarize_fit_outcomes(
+    outcomes: &[Option<Vec<f64>>],
+    pooled: &ShapleyEstimate,
+    sources_sim: &[f64],
+    players: usize,
+    replicates: u32,
+    level: f64,
+) -> FitComponent {
     if outcomes.iter().any(Option::is_none) {
-        return Ok(FitComponent::Unquantified(REASON_REFIT_FAILED));
+        return FitComponent::Unquantified(REASON_REFIT_FAILED);
     }
     let draws: Vec<&Vec<f64>> = outcomes.iter().flatten().collect();
-    let (whole, stderr) = bootstrap_spread(&draws, pooled, sources_sim, spec.players.len());
+    let (whole, stderr) = bootstrap_spread(&draws, pooled, sources_sim, players);
     let df = f64::from(replicates) - 1.0;
     let draws: Vec<Vec<f64>> = draws.into_iter().cloned().collect();
-    Ok(FitComponent::Quantified {
-        stderr,
-        whole,
-        t: student_t_ppf(0.5 + 0.5 * query.level, df),
-        df,
-        draws,
-    })
+    FitComponent::Quantified { stderr, whole, t: student_t_ppf(0.5 + 0.5 * level, df), df, draws }
 }
 
 #[cfg(test)]
@@ -1485,5 +1497,13 @@ mod bootstrap_component_tests {
         assert!((fit[0] - 1.75_f64.sqrt()).abs() < 1e-14);
         let (_, no_simulation) = bootstrap_spread(&[&a, &b], &pooled, &[0.0], 1);
         assert!((no_simulation[0] - 2.0_f64.sqrt()).abs() < 1e-14);
+        assert!(matches!(
+            summarize_fit_outcomes(&[Some(a.clone()), None], &pooled, &[0.5], 1, 2, 0.95),
+            FitComponent::Unquantified(REASON_REFIT_FAILED)
+        ));
+        assert!(matches!(
+            summarize_fit_outcomes(&[Some(a), Some(b)], &pooled, &[0.5], 1, 2, 0.95),
+            FitComponent::Quantified { .. }
+        ));
     }
 }

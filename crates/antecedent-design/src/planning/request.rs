@@ -924,46 +924,7 @@ impl PlanningRequest {
             | PlannedDesign::Complete
             | PlannedDesign::Interference { .. }
             | PlannedDesign::OutcomeAdaptive { .. } => Ok(()),
-            PlannedDesign::Stratified { strata } => {
-                if strata.is_empty() {
-                    return Err(PlanningRefusal::invalid(
-                        "planning.stratified",
-                        "a stratified plan declares at least one stratum",
-                    ));
-                }
-                let total: f64 = strata.iter().map(|s| s.share).sum();
-                if strata.iter().any(|s| !(s.share.is_finite() && s.share > 0.0))
-                    || (total - 1.0).abs() > 1e-9
-                {
-                    return Err(PlanningRefusal::invalid(
-                        "planning.stratified",
-                        format!("stratum shares must be positive and sum to 1 (sum {total})"),
-                    ));
-                }
-                for stratum in strata {
-                    let ok = match a.outcome {
-                        OutcomeModel::Continuous { .. } => {
-                            stratum.within.is_finite() && stratum.within > 0.0
-                        }
-                        OutcomeModel::Binary { .. } => {
-                            probability(stratum.within)
-                                && a.effect
-                                    .is_none_or(|effect| probability(stratum.within + effect))
-                        }
-                    };
-                    if !ok {
-                        return Err(PlanningRefusal::invalid(
-                            "planning.stratified",
-                            format!(
-                                "stratum value {} is not a positive sd (continuous) or a rate \
-                                 that stays a probability under the effect (binary)",
-                                stratum.within
-                            ),
-                        ));
-                    }
-                }
-                Ok(())
-            }
+            PlannedDesign::Stratified { strata } => self.check_strata(strata),
             PlannedDesign::Cluster { mean_cluster_size, icc, cluster_size_cv } => {
                 if !(mean_cluster_size.is_finite()
                     && *mean_cluster_size >= 1.0
@@ -1130,6 +1091,47 @@ impl PlanningRequest {
                 Ok(())
             }
         }
+    }
+
+    fn check_strata(&self, strata: &[StratumSpec]) -> Result<(), PlanningRefusal> {
+        let a = &self.assumptions;
+        if strata.is_empty() {
+            return Err(PlanningRefusal::invalid(
+                "planning.stratified",
+                "a stratified plan declares at least one stratum",
+            ));
+        }
+        let total: f64 = strata.iter().map(|s| s.share).sum();
+        if strata.iter().any(|s| !(s.share.is_finite() && s.share > 0.0))
+            || (total - 1.0).abs() > 1e-9
+        {
+            return Err(PlanningRefusal::invalid(
+                "planning.stratified",
+                format!("stratum shares must be positive and sum to 1 (sum {total})"),
+            ));
+        }
+        for stratum in strata {
+            let ok = match a.outcome {
+                OutcomeModel::Continuous { .. } => {
+                    stratum.within.is_finite() && stratum.within > 0.0
+                }
+                OutcomeModel::Binary { .. } => {
+                    probability(stratum.within)
+                        && a.effect.is_none_or(|effect| probability(stratum.within + effect))
+                }
+            };
+            if !ok {
+                return Err(PlanningRefusal::invalid(
+                    "planning.stratified",
+                    format!(
+                        "stratum value {} is not a positive sd (continuous) or a rate \
+                         that stays a probability under the effect (binary)",
+                        stratum.within
+                    ),
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn check_goal_and_simulation(&self) -> Result<(), PlanningRefusal> {

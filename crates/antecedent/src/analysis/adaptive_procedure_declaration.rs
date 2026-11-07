@@ -24,7 +24,7 @@ use antecedent_contract::adaptive_design::{
 };
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_stats::adaptive_inference::group_sequential::{
-    Sidedness, SpendingFunction, boundaries,
+    boundaries, Sidedness, SpendingFunction,
 };
 use antecedent_stats::adaptive_inference::{
     AssignmentRule, Attribution, BetaPrior, ContractGap, ExposureModel, FinalSelection,
@@ -233,6 +233,163 @@ impl AdaptiveProcedure {
             .map_err(|error| error.gaps.into_iter().map(gap_refusal).collect())
     }
 
+    fn contract_agreement(
+        spec: &ProcedureSpec,
+        cell: antecedent_contract::adaptive_design::ProcedureCell,
+        delay: ContractDelay,
+        rows: &[Vec<f64>],
+    ) -> Vec<AdaptiveInferenceRefusal> {
+        let mut problems = Vec::new();
+        // Agreement with the contract's cell and realized rows.
+        let family_ok = match (rule_family(spec.assignment()), cell.assignment) {
+            (Some(rule), family) if rule == family => true,
+            (Some(_), AssignmentFamily::ContextualBandit) => spec.contexts().len() > 1,
+            (Some(rule), AssignmentFamily::BatchedAdaptive) => {
+                rule != AssignmentFamily::FixedRandomization
+            }
+            _ => false,
+        };
+        if !family_ok {
+            problems.push(invalid(
+                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                format!(
+                    "the declared assignment rule is a {} procedure but the contract's cell is {}",
+                    spec.family_name(),
+                    cell.assignment.as_str()
+                ),
+            ));
+        }
+        if spec.stopping_name() != cell.stopping.as_str() {
+            problems.push(invalid(
+                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                format!(
+                    "the declared stopping rule is {} but the contract's cell is {}",
+                    spec.stopping_name(),
+                    cell.stopping.as_str()
+                ),
+            ));
+        }
+        let monitoring_ok = match cell.monitoring {
+            MonitoringStrategy::FinalAnalysisOnly => spec.enrolment().len() == 1,
+            MonitoringStrategy::GroupSequential => {
+                matches!(spec.stopping(), StoppingRule::WaldBoundaries { .. })
+            }
+            _ => true,
+        };
+        if !monitoring_ok {
+            problems.push(invalid(
+                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                format!(
+                    "the contract's monitoring strategy {} disagrees with the declared looks and stopping rule",
+                    cell.monitoring.as_str()
+                ),
+            ));
+        }
+        if spec.observation().mechanism().as_str() != delay.as_str() {
+            problems.push(invalid(
+                antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID,
+                format!(
+                    "the declared retention makes outcome availability {} but the contract records {}",
+                    spec.observation().mechanism().as_str(),
+                    delay.as_str()
+                ),
+            ));
+        }
+        if let AssignmentRule::Fixed { probabilities } = spec.assignment() {
+            let replays = rows.iter().all(|row| {
+                row.len() == probabilities.len()
+                    && row
+                        .iter()
+                        .zip(probabilities)
+                        .all(|(a, b)| (a - b).abs() <= PROBABILITY_TOLERANCE)
+            });
+            if !replays {
+                problems.push(invalid(
+                    antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                    "the realized assignment probabilities do not replay the declared fixed probabilities",
+                ));
+            }
+        }
+        problems
+    }
+
+    fn stopping_from_contract(
+        rule: StoppingSpec,
+        stopping_prior: Option<BetaPrior>,
+        looks: &[antecedent_contract::adaptive_design::InterimAnalysis],
+        ctx: &ExecutionContext,
+        problems: &mut Vec<AdaptiveInferenceRefusal>,
+    ) -> Option<StoppingRule> {
+        // Stopping rule parameters.
+        let needs_prior = |detail: &str| {
+            incomplete(
+                antecedent_core::reason_details::adaptive_inference::STOPPING_RULE_MISSING,
+                format!(
+                    "a posterior stopping rule's prior is not retained ({detail}): declare the prior the rule used"
+                ),
+            )
+        };
+        match rule {
+            StoppingSpec::NoStopping => Some(StoppingRule::NoStopping),
+            StoppingSpec::ResourceCap { max_units } => {
+                Some(StoppingRule::ResourceCap { max_units })
+            }
+            StoppingSpec::PosteriorProbabilityBest { threshold } => {
+                if let Some(prior) = stopping_prior {
+                    Some(StoppingRule::PosteriorProbabilityBest { threshold, prior })
+                } else {
+                    problems.push(needs_prior("probability best"));
+                    None
+                }
+            }
+            StoppingSpec::PosteriorExpectedLoss { loss_threshold } => {
+                if let Some(prior) = stopping_prior {
+                    Some(StoppingRule::PosteriorExpectedLoss { loss_threshold, prior })
+                } else {
+                    problems.push(needs_prior("expected loss"));
+                    None
+                }
+            }
+            StoppingSpec::PosteriorFutility { margin, threshold } => {
+                if let Some(prior) = stopping_prior {
+                    Some(StoppingRule::PosteriorFutility { margin, threshold, prior })
+                } else {
+                    problems.push(needs_prior("futility"));
+                    None
+                }
+            }
+            StoppingSpec::AlphaSpending { spending, total_alpha, sidedness } => {
+                let fractions: Vec<f64> = looks.iter().map(|l| l.information_fraction).collect();
+                let spending = match spending {
+                    SpendingKind::PocockType => SpendingFunction::PocockType,
+                    _ => SpendingFunction::OBrienFlemingType,
+                };
+                let sidedness = match sidedness.as_str() {
+                    "two_sided_symmetric" => Sidedness::TwoSidedSymmetric,
+                    _ => Sidedness::OneSidedUpper,
+                };
+                let cancelled = || ctx.cancellation.is_cancelled();
+                match boundaries(&fractions, total_alpha, spending, sidedness, &cancelled) {
+                    Ok(b) => Some(StoppingRule::WaldBoundaries { critical: b.critical, sidedness }),
+                    Err(error) => {
+                        problems.push(invalid(
+                            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                            format!("the alpha-spending boundaries could not be computed: {error}"),
+                        ));
+                        None
+                    }
+                }
+            }
+            _ => {
+                problems.push(invalid(
+                    antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                    "the stopping rule has no procedure model",
+                ));
+                None
+            }
+        }
+    }
+
     /// Build the procedure of a retained analysis contract.
     ///
     /// The enrolment schedule, the delay (in looks), the stopping rule's
@@ -359,74 +516,13 @@ impl AdaptiveProcedure {
             }
         };
 
-        // Stopping rule parameters.
-        let needs_prior = |detail: &str| {
-            incomplete(
-                antecedent_core::reason_details::adaptive_inference::STOPPING_RULE_MISSING,
-                format!(
-                    "a posterior stopping rule's prior is not retained ({detail}): declare the prior the rule used"
-                ),
-            )
-        };
-        let stopping = match rule.spec {
-            StoppingSpec::NoStopping => Some(StoppingRule::NoStopping),
-            StoppingSpec::ResourceCap { max_units } => {
-                Some(StoppingRule::ResourceCap { max_units })
-            }
-            StoppingSpec::PosteriorProbabilityBest { threshold } => {
-                if let Some(prior) = elements.stopping_prior {
-                    Some(StoppingRule::PosteriorProbabilityBest { threshold, prior })
-                } else {
-                    problems.push(needs_prior("probability best"));
-                    None
-                }
-            }
-            StoppingSpec::PosteriorExpectedLoss { loss_threshold } => {
-                if let Some(prior) = elements.stopping_prior {
-                    Some(StoppingRule::PosteriorExpectedLoss { loss_threshold, prior })
-                } else {
-                    problems.push(needs_prior("expected loss"));
-                    None
-                }
-            }
-            StoppingSpec::PosteriorFutility { margin, threshold } => {
-                if let Some(prior) = elements.stopping_prior {
-                    Some(StoppingRule::PosteriorFutility { margin, threshold, prior })
-                } else {
-                    problems.push(needs_prior("futility"));
-                    None
-                }
-            }
-            StoppingSpec::AlphaSpending { spending, total_alpha, sidedness } => {
-                let fractions: Vec<f64> = looks.iter().map(|l| l.information_fraction).collect();
-                let spending = match spending {
-                    SpendingKind::PocockType => SpendingFunction::PocockType,
-                    _ => SpendingFunction::OBrienFlemingType,
-                };
-                let sidedness = match sidedness.as_str() {
-                    "two_sided_symmetric" => Sidedness::TwoSidedSymmetric,
-                    _ => Sidedness::OneSidedUpper,
-                };
-                let cancelled = || ctx.cancellation.is_cancelled();
-                match boundaries(&fractions, total_alpha, spending, sidedness, &cancelled) {
-                    Ok(b) => Some(StoppingRule::WaldBoundaries { critical: b.critical, sidedness }),
-                    Err(error) => {
-                        problems.push(invalid(
-                            antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
-                            format!("the alpha-spending boundaries could not be computed: {error}"),
-                        ));
-                        None
-                    }
-                }
-            }
-            _ => {
-                problems.push(invalid(
-                    antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
-                    "the stopping rule has no procedure model",
-                ));
-                None
-            }
-        };
+        let stopping = Self::stopping_from_contract(
+            rule.spec,
+            elements.stopping_prior,
+            looks,
+            ctx,
+            &mut problems,
+        );
         taken.push("stopping_rule_parameters");
 
         if elements.assignment.is_none() {
@@ -460,76 +556,7 @@ impl AdaptiveProcedure {
             return Err(dedupe(problems));
         }
 
-        // Agreement with the contract's cell and realized rows.
-        let family_ok = match (rule_family(spec.assignment()), cell.assignment) {
-            (Some(rule), family) if rule == family => true,
-            (Some(_), AssignmentFamily::ContextualBandit) => spec.contexts().len() > 1,
-            (Some(rule), AssignmentFamily::BatchedAdaptive) => {
-                rule != AssignmentFamily::FixedRandomization
-            }
-            _ => false,
-        };
-        if !family_ok {
-            problems.push(invalid(
-                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
-                format!(
-                    "the declared assignment rule is a {} procedure but the contract's cell is {}",
-                    spec.family_name(),
-                    cell.assignment.as_str()
-                ),
-            ));
-        }
-        if spec.stopping_name() != cell.stopping.as_str() {
-            problems.push(invalid(
-                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
-                format!(
-                    "the declared stopping rule is {} but the contract's cell is {}",
-                    spec.stopping_name(),
-                    cell.stopping.as_str()
-                ),
-            ));
-        }
-        let monitoring_ok = match cell.monitoring {
-            MonitoringStrategy::FinalAnalysisOnly => spec.enrolment().len() == 1,
-            MonitoringStrategy::GroupSequential => {
-                matches!(spec.stopping(), StoppingRule::WaldBoundaries { .. })
-            }
-            _ => true,
-        };
-        if !monitoring_ok {
-            problems.push(invalid(
-                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
-                format!(
-                    "the contract's monitoring strategy {} disagrees with the declared looks and stopping rule",
-                    cell.monitoring.as_str()
-                ),
-            ));
-        }
-        if spec.observation().mechanism().as_str() != availability.delay.as_str() {
-            problems.push(invalid(
-                antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID,
-                format!(
-                    "the declared retention makes outcome availability {} but the contract records {}",
-                    spec.observation().mechanism().as_str(),
-                    availability.delay.as_str()
-                ),
-            ));
-        }
-        if let AssignmentRule::Fixed { probabilities } = spec.assignment() {
-            let replays = rows.iter().all(|row| {
-                row.len() == probabilities.len()
-                    && row
-                        .iter()
-                        .zip(probabilities)
-                        .all(|(a, b)| (a - b).abs() <= PROBABILITY_TOLERANCE)
-            });
-            if !replays {
-                problems.push(invalid(
-                    antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
-                    "the realized assignment probabilities do not replay the declared fixed probabilities",
-                ));
-            }
-        }
+        problems.extend(Self::contract_agreement(&spec, cell, availability.delay, rows));
         if problems.is_empty() {
             Ok(Self::sealed(spec, Some(contract.identity().to_hex()), taken))
         } else {

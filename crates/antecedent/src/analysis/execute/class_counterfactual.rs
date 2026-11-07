@@ -35,17 +35,17 @@
 //! temporal ADMG is refused with that reason rather than reduced to one treatment of the set.
 
 use super::{
-    AcceptedGraph, Arc, CausalError, CausalExprArena, CausalPosterior, CausalQuery,
-    ClassAtomOutcome, CounterfactualProcedure, DerivationMeta, DerivationTrace, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate, EstimandMethod, EstimatorId,
-    ExecutionContext, ExprNode, GcmSlot, GraphRef, IdentificationEnvelope,
+    elapsed_ns, provenance_ids, AcceptedGraph, Arc, CausalError, CausalExprArena, CausalPosterior,
+    CausalQuery, ClassAtomOutcome, CounterfactualProcedure, DerivationMeta, DerivationTrace,
+    Diagnostic, DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate, EstimandMethod,
+    EstimatorId, ExecutionContext, ExprNode, GcmSlot, GraphRef, IdentificationEnvelope,
     IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
     IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, Instant,
     OutcomeExprId, OverlapPolicy, PhysicalExecutionPlan, RefuteSuite, Strategy, StudyResult,
-    TableView, TabularData, VariableId, elapsed_ns, provenance_ids,
+    TableView, TabularData, VariableId,
 };
 use crate::counterfactual_id::{
-    CounterfactualIdOptions, PreparedCounterfactualId, prepare_counterfactual_id,
+    prepare_counterfactual_id, CounterfactualIdOptions, PreparedCounterfactualId,
 };
 use crate::gcm::{
     ContrastedOutcome, CounterfactualContrasts, ExogenousPosterior, NoiseInferenceKind,
@@ -58,7 +58,7 @@ use antecedent_estimate::BootstrapAccounting;
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
 use antecedent_graph::{Admg, Cpdag, Dag, Pag};
 use antecedent_identify::counterfactual_id::{
-    COUNTERFACTUAL_ID_MAX_LEVELS, COUNTERFACTUAL_ID_MAX_VARIABLES, CounterfactualIdRefusal,
+    CounterfactualIdRefusal, COUNTERFACTUAL_ID_MAX_LEVELS, COUNTERFACTUAL_ID_MAX_VARIABLES,
 };
 use antecedent_identify::{GraphIdentificationCase, ProbabilityMass};
 
@@ -623,9 +623,9 @@ fn column_name(shape: &Shape, outcome: usize) -> String {
 
 mod resampling;
 
-use resampling::Resampled;
 #[cfg(test)]
 use resampling::admit_counterfactual_resamples;
+use resampling::Resampled;
 
 /// Refuse a validation suite the population-level route has no refuter for.
 fn ensure_validation_none(refute: RefuteSuite) -> Result<(), CausalError> {
@@ -737,32 +737,18 @@ impl super::Study {
         }
     }
 
-    /// The population-level route: ID* on every ADMG the structure stands for.
     #[allow(
         clippy::too_many_lines,
-        reason = "one execution: identify each candidate, evaluate, resample, then finish the identified result"
+        reason = "each completion keeps its own ordered candidate refusals and weights"
     )]
-    fn execute_counterfactual_latent(
-        &self,
-        data: &TabularData,
-        query: &CounterfactualQuery,
-        physical: &PhysicalExecutionPlan,
+    fn identify_latent_completions(
+        completions: Vec<Completion>,
+        shape: &Shape,
+        table: &Table,
+        events: &[CounterfactualEventQuery],
         ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        let started = Instant::now();
-        let shape = shape_of(query)?;
+    ) -> Result<(Vec<Case>, Vec<Record>), CausalError> {
         let width = shape.outcomes.len();
-        let (completions, order, incomplete) = self.latent_completions(ctx)?;
-        let completions_retained = completions.len();
-        let variables = order.len();
-        let table = Table::read(data, &order)?;
-        let events = shape
-            .outcomes
-            .iter()
-            .map(|&outcome| event_query(&shape, outcome, &order, &table))
-            .collect::<Result<Vec<_>, CausalError>>()?;
-        let required = assumptions();
-
         // Identify every candidate of every completion. A completion any of whose candidates
         // ID* refuses is unidentified: no functional is correct for every graph it stands for.
         let mut cases: Vec<Case> = Vec::new();
@@ -795,7 +781,7 @@ impl super::Study {
                             ) {
                                 Ok(prepared) => derived.push(prepared),
                                 Err(error) => {
-                                    refusal = Some(name_outcome(error, &shape, index));
+                                    refusal = Some(name_outcome(error, shape, index));
                                     break;
                                 }
                             }
@@ -856,6 +842,38 @@ impl super::Study {
             }));
         }
 
+        Ok((cases, records))
+    }
+
+    /// The population-level route: ID* on every ADMG the structure stands for.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one execution: identify each candidate, evaluate, resample, then finish the identified result"
+    )]
+    fn execute_counterfactual_latent(
+        &self,
+        data: &TabularData,
+        query: &CounterfactualQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let shape = shape_of(query)?;
+        let width = shape.outcomes.len();
+        let (completions, order, incomplete) = self.latent_completions(ctx)?;
+        let completions_retained = completions.len();
+        let variables = order.len();
+        let table = Table::read(data, &order)?;
+        let events = shape
+            .outcomes
+            .iter()
+            .map(|&outcome| event_query(&shape, outcome, &order, &table))
+            .collect::<Result<Vec<_>, CausalError>>()?;
+        let required = assumptions();
+
+        let (cases, records) =
+            Self::identify_latent_completions(completions, &shape, &table, &events, ctx)?;
+
         // The point: the identified functionals on the observed cell counts.
         let point_law = table.empirical_law(table.counts(&vec![1.0; table.cells.len()]))?;
         let values = case_values(&cases, &point_law, ctx)?;
@@ -866,38 +884,8 @@ impl super::Study {
         let agreeing = columns.iter().all(|column| agree(column));
         let resampled = self.resample_counterfactual(&table, &cases, ctx)?;
 
-        // Identification: one case's own result for an ADMG, the completion envelope for a PAG.
-        let case_results: Vec<(IdentificationResult, IdentifiedEstimand)> = cases
-            .iter()
-            .map(|case| identified_case(query, &shape, &case.prepared, &required))
-            .collect();
-        let envelope: Option<IdentificationEnvelope<Pag>> = records
-            .iter()
-            .map(|record| {
-                let graph = record.graph.clone()?;
-                let result = match record.case {
-                    Some(case) => case_results[case].0.clone(),
-                    None => refused_case(query, record.refusal.as_deref().unwrap_or("refused")),
-                };
-                Some(GraphIdentificationCase {
-                    graph,
-                    result,
-                    weight: ProbabilityMass(record.weight),
-                })
-            })
-            .collect::<Option<Vec<_>>>()
-            .map(IdentificationEnvelope::from_cases);
-        let identification = match &envelope {
-            Some(envelope) => super::envelope_to_identification_result_for(
-                envelope,
-                CausalQuery::Counterfactual(query.clone()),
-            ),
-            None => case_results[0].0.clone(),
-        };
-        let estimand =
-            identification.estimands.first().cloned().ok_or_else(|| CausalError::Compile {
-                message: "counterfactual identification produced no estimand".into(),
-            })?;
+        let LatentIdentification { envelope, identification, estimand } =
+            latent_identification(query, &shape, &cases, &records, &required)?;
 
         // Structural uncertainty across completions and candidates.
         let outcomes: Vec<ClassAtomOutcome> = records
@@ -913,155 +901,29 @@ impl super::Study {
             });
         let publishes_own_uncertainty = agreeing && !unidentified;
 
-        // Sampling uncertainty of the identified functional.
-        let mut estimate = EffectEstimate::new(
-            pooled,
-            f64::NAN,
-            required.clone(),
-            OverlapPolicy::ExplicitOverride,
-        );
-        let mut diagnostics = vec![population_level_diagnostic(&shape, cases.len())];
-        let mut posterior: Option<CausalPosterior> = None;
-        let mut replicates_ok = None;
-        let mut n_draws = None;
-        // Each outcome's published mean and standard error: the pooled point and no standard
-        // error until a resampling forms one.
-        let mut means: Vec<f64> =
-            (0..width).map(|outcome| pool(&values, &cases, width, outcome)).collect();
-        let mut standard_errors: Vec<Option<f64>> = vec![None; width];
-        match resampled {
-            Resampled::None => diagnostics.push(Diagnostic::new(
-                "estimate.counterfactual.uncertainty_unavailable",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "the population-level counterfactual is a point value of the identified \
-                 functional on the empirical cell table; request bootstrap_replicates for a \
-                 resampled standard error, or Bayesian inference for a Dirichlet-weighted \
-                 bootstrap posterior",
-            )),
-            Resampled::Replicates { held, failed, requested } => {
-                let matrix = &held.matrix;
-                let ok = u32::try_from(matrix.len()).unwrap_or(u32::MAX);
-                replicates_ok = Some(ok);
-                if publishes_own_uncertainty {
-                    let pooled_rows: Vec<f64> =
-                        matrix.iter().map(|row| pool(row, &cases, width, 0)).collect();
-                    estimate.uncertainty.bootstrap =
-                        super::gcm_bootstrap::accounting(&pooled_rows, failed, requested);
-                    standard_errors[0] = estimate.uncertainty.bootstrap.se;
-                    for (outcome, standard_error) in standard_errors.iter_mut().enumerate().skip(1)
-                    {
-                        let rows: Vec<f64> =
-                            matrix.iter().map(|row| pool(row, &cases, width, outcome)).collect();
-                        *standard_error =
-                            super::gcm_bootstrap::accounting(&rows, failed, requested).se;
-                    }
-                } else {
-                    estimate.uncertainty.bootstrap = BootstrapAccounting {
-                        se: None,
-                        replicates_ok: Some(ok),
-                        replicates_failed: Some(failed),
-                        cancelled: false,
-                        early_stopped: false,
-                    };
-                    diagnostics
-                        .extend(super::envelope_se_omission_diagnostic(cases.len(), f64::NAN));
-                    if let Some(mixture) = mixture.as_mut() {
-                        let primary: Vec<Vec<f64>> =
-                            matrix.iter().map(|row| outcome_column(row, width, 0)).collect();
-                        mixture.identified_set_interval =
-                            antecedent_estimate::imbens_manski_shared_replicates(
-                                &columns[0],
-                                &primary,
-                                1.0,
-                                table.cells.len(),
-                                0.95,
-                            );
-                    }
-                }
-                diagnostics.push(
-                    Diagnostic::new(
-                        "estimate.counterfactual.bootstrap",
-                        DiagnosticKind::Scientific,
-                        DiagnosticSeverity::Info,
-                        format!(
-                            "row bootstrap of the identified functional: each replicate \
-                             resamples the table's rows and re-evaluates the ID* derivation on \
-                             the resampled cell counts without re-identifying; \
-                             replicates_ok={ok}, replicates_failed={failed} (a replicate whose \
-                             conditioning event is empty is kept as failed mass). The standard \
-                             error is the sample standard deviation of the successful \
-                             replicates; no coverage record names this construction."
-                        ),
-                    )
-                    .with_fields([
-                        ("replicates_ok", ok.to_string()),
-                        ("replicates_failed", failed.to_string()),
-                        ("calibration", "not_measured".to_owned()),
-                    ]),
-                );
-            }
-            Resampled::Draws { held } => {
-                let matrix = &held.matrix;
-                n_draws = Some(u32::try_from(matrix.len()).unwrap_or(u32::MAX));
-                if publishes_own_uncertainty {
-                    let named: Vec<(String, Vec<f64>)> = (0..width)
-                        .map(|outcome| {
-                            (
-                                column_name(&shape, outcome),
-                                matrix
-                                    .iter()
-                                    .map(|row| pool(row, &cases, width, outcome))
-                                    .collect(),
-                            )
-                        })
-                        .collect();
-                    let draws = posterior_of(named, &required)?;
-                    let index = draws.effect_column().ok_or_else(|| CausalError::Compile {
-                        message: "counterfactual posterior missing effect column".into(),
-                    })?;
-                    estimate = EffectEstimate::new(
-                        draws.summaries.mean[index],
-                        draws.summaries.sd[index],
-                        draws.assumptions.clone(),
-                        OverlapPolicy::ExplicitOverride,
-                    );
-                    estimate.uncertainty.analytic.se = draws.summaries.sd[index];
-                    for (outcome, (mean, standard_error)) in
-                        means.iter_mut().zip(standard_errors.iter_mut()).enumerate()
-                    {
-                        *mean = draws.summaries.mean[outcome];
-                        *standard_error = Some(draws.summaries.sd[outcome]);
-                    }
-                    posterior = Some(draws);
-                } else {
-                    diagnostics
-                        .extend(super::envelope_se_omission_diagnostic(cases.len(), f64::NAN));
-                    if let Some(mixture) = mixture.as_mut() {
-                        for (atom, record) in mixture.atoms.iter_mut().zip(&records) {
-                            if let Some(case) = record.case {
-                                let column: Vec<f64> =
-                                    matrix.iter().map(|row| row[case * width]).collect();
-                                atom.posterior = Some(posterior_of(
-                                    vec![(column_name(&shape, 0), column)],
-                                    &required,
-                                )?);
-                            }
-                        }
-                    }
-                }
-                diagnostics.push(Diagnostic::new(
-                    "estimate.counterfactual.bayesian_bootstrap",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "Dirichlet(1,...,1) Bayesian bootstrap over the empirical row law: each draw \
-                     reweights the table's rows and evaluates the identified ID* functional on \
-                     the weighted cell law without re-identifying. The posterior is \
-                     conditional on the supplied structure and carries sampling uncertainty \
-                     only; it does not address misspecification of the graph.",
-                ));
-            }
-        }
+        let LatentSamplingOutput {
+            estimate,
+            mut diagnostics,
+            posterior,
+            replicates_ok,
+            n_draws,
+            means,
+            standard_errors,
+        } = latent_sampling_uncertainty(
+            LatentSamplingInput {
+                shape: &shape,
+                cases: &cases,
+                records: &records,
+                table: &table,
+                values: &values,
+                columns: &columns,
+                required: &required,
+                pooled,
+                publishes_own_uncertainty,
+                mixture: &mut mixture,
+            },
+            resampled,
+        )?;
         if let Some(envelope) = &envelope {
             diagnostics.push(super::pag_path::pag_envelope_diagnostic(envelope));
             if let Some(set) = mixture.as_ref().and_then(|mixture| {
@@ -1115,29 +977,7 @@ impl super::Study {
             ));
         }
 
-        // Several outcomes publish one contrast each. The contrast is the population-level mean
-        // effect, so it carries no per-unit effects, support flags or noise abduction.
-        let contrasts = (width > 1).then(|| {
-            Box::new(CounterfactualContrasts {
-                treatments: Arc::from([shape.treatment]),
-                contrasts: shape
-                    .outcomes
-                    .iter()
-                    .enumerate()
-                    .map(|(index, &outcome)| ContrastedOutcome {
-                        outcome,
-                        unit_effects: Arc::from([]),
-                        mean_ite: means[index],
-                        standard_error: standard_errors[index],
-                        unit_effect_intervals: None,
-                        unit_extrapolative: None,
-                        unit_effects_homogeneous: false,
-                    })
-                    .collect(),
-                noise_inference: NoiseInferenceKind::AssumedNoise,
-                exogenous: unabducted_exogenous(),
-            })
-        });
+        let contrasts = latent_outcome_contrasts(&shape, &means, &standard_errors);
 
         let certificate = envelope.map(|envelope| crate::Identification::Envelope {
             envelope,
@@ -1182,20 +1022,14 @@ impl super::Study {
         Ok(result)
     }
 
-    /// The per-unit counterfactual on every DAG completion of a CPDAG.
-    #[allow(
-        clippy::too_many_lines,
-        clippy::cast_precision_loss,
-        reason = "one execution: run each completion, compare, then publish the point or the identified set; the completion count is far below 2^53"
-    )]
-    fn execute_counterfactual_cpdag(
+    fn fit_counterfactual_completions(
         &self,
         data: &TabularData,
         cpdag: &Cpdag,
         query: &CounterfactualQuery,
         physical: &Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
+    ) -> Result<(Vec<Dag>, Vec<StudyResult>, bool), CausalError> {
         let limits = antecedent_core::SearchLimits {
             operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
             depth: usize::MAX,
@@ -1233,6 +1067,100 @@ impl super::Study {
             });
             results.push(completion.execute_counterfactual(data, dag, query, physical, ctx)?);
         }
+        Ok((dags, results, capped))
+    }
+
+    #[allow(clippy::cast_precision_loss, reason = "completion count is bounded well below 2^53")]
+    fn apply_disagreeing_counterfactuals(
+        &self,
+        result: &mut StudyResult,
+        columns: &[Vec<f64>],
+        query: &CounterfactualQuery,
+        mixture: &mut Option<crate::result::StructuralResponseMixture>,
+        posteriors: Vec<Option<CausalPosterior>>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let values = &columns[0];
+        let pooled = values.iter().sum::<f64>() / values.len() as f64;
+        // Per-unit effects belong to no single completion: the contrast set keeps each
+        // outcome's enumeration-weighted mean and nothing per unit.
+        let pooled_set = result.counterfactual_contrasts().map(|set| CounterfactualContrasts {
+            treatments: Arc::clone(&set.treatments),
+            contrasts: set
+                .contrasts
+                .iter()
+                .zip(columns)
+                .map(|(contrast, column)| ContrastedOutcome {
+                    outcome: contrast.outcome,
+                    unit_effects: Arc::from([]),
+                    mean_ite: column.iter().sum::<f64>() / column.len() as f64,
+                    standard_error: None,
+                    unit_effect_intervals: None,
+                    unit_extrapolative: None,
+                    unit_effects_homogeneous: false,
+                })
+                .collect(),
+            noise_inference: NoiseInferenceKind::AssumedNoise,
+            exogenous: unabducted_exogenous(),
+        });
+        if let Some(effect) = result.estimate.as_effect_mut() {
+            effect.ate = pooled;
+            effect.uncertainty.analytic.se = f64::NAN;
+            effect.uncertainty.bootstrap = BootstrapAccounting::default();
+        }
+        // Each completion keeps its own posterior on its atom; none is pooled.
+        if let Some(mixture) = mixture.as_mut() {
+            for (atom, posterior) in mixture.atoms.iter_mut().zip(posteriors) {
+                atom.posterior = posterior;
+            }
+        }
+        result.posterior = None;
+        result.payload = match pooled_set {
+            Some(set) => crate::result::ResultPayload::CounterfactualContrasts(Box::new(set)),
+            None => crate::result::ResultPayload::Scalar,
+        };
+        result.extras.interval = None;
+        result.rebind_interval(self.settings.inference.is_bayesian());
+        diagnostics.extend(super::envelope_se_omission_diagnostic(values.len(), f64::NAN));
+        if let Some(set) = mixture.as_ref().and_then(|mixture| {
+            super::pag_path::static_class_identified_set_diagnostic(mixture, "cpdag")
+        }) {
+            diagnostics.push(set);
+        }
+        if columns.len() > 1 {
+            diagnostics.push(outcomes_diagnostic(&query.outcomes, columns, false));
+        }
+        diagnostics.push(Diagnostic::new(
+            "estimate.counterfactual.completions_disagree",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "the per-unit counterfactual differs across the {} DAG completions of the \
+                 equivalence class, so it is partially identified: the published value is \
+                 the enumeration-weighted mean and the identified set is the range over \
+                 completions. Completion weights are enumeration weights, not posterior \
+                 probabilities, and per-unit effects belong to no single completion.",
+                values.len()
+            ),
+        ));
+    }
+
+    /// The per-unit counterfactual on every DAG completion of a CPDAG.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::cast_precision_loss,
+        reason = "one execution: run each completion, compare, then publish the point or the identified set; the completion count is far below 2^53"
+    )]
+    fn execute_counterfactual_cpdag(
+        &self,
+        data: &TabularData,
+        cpdag: &Cpdag,
+        query: &CounterfactualQuery,
+        physical: &Arc<PhysicalExecutionPlan>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let (dags, mut results, capped) =
+            self.fit_counterfactual_completions(data, cpdag, query, physical, ctx)?;
         // One column of completion values per outcome: a contrast set carries each outcome's
         // mean effect, the single form its one scalar.
         let width = results[0].counterfactual_contrasts().map_or(1, |set| set.contrasts.len());
@@ -1294,68 +1222,14 @@ impl super::Study {
                 ),
             ));
         } else {
-            let pooled = values.iter().sum::<f64>() / values.len() as f64;
-            // Per-unit effects belong to no single completion: the contrast set keeps each
-            // outcome's enumeration-weighted mean and nothing per unit.
-            let pooled_set = result.counterfactual_contrasts().map(|set| CounterfactualContrasts {
-                treatments: Arc::clone(&set.treatments),
-                contrasts: set
-                    .contrasts
-                    .iter()
-                    .zip(&columns)
-                    .map(|(contrast, column)| ContrastedOutcome {
-                        outcome: contrast.outcome,
-                        unit_effects: Arc::from([]),
-                        mean_ite: column.iter().sum::<f64>() / column.len() as f64,
-                        standard_error: None,
-                        unit_effect_intervals: None,
-                        unit_extrapolative: None,
-                        unit_effects_homogeneous: false,
-                    })
-                    .collect(),
-                noise_inference: NoiseInferenceKind::AssumedNoise,
-                exogenous: unabducted_exogenous(),
-            });
-            if let Some(effect) = result.estimate.as_effect_mut() {
-                effect.ate = pooled;
-                effect.uncertainty.analytic.se = f64::NAN;
-                effect.uncertainty.bootstrap = BootstrapAccounting::default();
-            }
-            // Each completion keeps its own posterior on its atom; none is pooled.
-            if let Some(mixture) = mixture.as_mut() {
-                for (atom, posterior) in mixture.atoms.iter_mut().zip(posteriors) {
-                    atom.posterior = posterior;
-                }
-            }
-            result.posterior = None;
-            result.payload = match pooled_set {
-                Some(set) => crate::result::ResultPayload::CounterfactualContrasts(Box::new(set)),
-                None => crate::result::ResultPayload::Scalar,
-            };
-            result.extras.interval = None;
-            result.rebind_interval(self.settings.inference.is_bayesian());
-            diagnostics.extend(super::envelope_se_omission_diagnostic(dags.len(), f64::NAN));
-            if let Some(set) = mixture.as_ref().and_then(|mixture| {
-                super::pag_path::static_class_identified_set_diagnostic(mixture, "cpdag")
-            }) {
-                diagnostics.push(set);
-            }
-            if width > 1 {
-                diagnostics.push(outcomes_diagnostic(&query.outcomes, &columns, false));
-            }
-            diagnostics.push(Diagnostic::new(
-                "estimate.counterfactual.completions_disagree",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                format!(
-                    "the per-unit counterfactual differs across the {} DAG completions of the \
-                     equivalence class, so it is partially identified: the published value is \
-                     the enumeration-weighted mean and the identified set is the range over \
-                     completions. Completion weights are enumeration weights, not posterior \
-                     probabilities, and per-unit effects belong to no single completion.",
-                    dags.len()
-                ),
-            ));
+            self.apply_disagreeing_counterfactuals(
+                &mut result,
+                &columns,
+                query,
+                &mut mixture,
+                posteriors,
+                &mut diagnostics,
+            );
         }
         if capped {
             diagnostics.push(Diagnostic::new(
@@ -1386,6 +1260,269 @@ impl super::Study {
         };
         Ok(self.attach_certificate(result, certificate))
     }
+}
+
+fn latent_outcome_contrasts(
+    shape: &Shape,
+    means: &[f64],
+    standard_errors: &[Option<f64>],
+) -> Option<Box<CounterfactualContrasts>> {
+    // Several outcomes publish one contrast each. The contrast is the population-level mean
+    // effect, so it carries no per-unit effects, support flags or noise abduction.
+    (shape.outcomes.len() > 1).then(|| {
+        Box::new(CounterfactualContrasts {
+            treatments: Arc::from([shape.treatment]),
+            contrasts: shape
+                .outcomes
+                .iter()
+                .enumerate()
+                .map(|(index, &outcome)| ContrastedOutcome {
+                    outcome,
+                    unit_effects: Arc::from([]),
+                    mean_ite: means[index],
+                    standard_error: standard_errors[index],
+                    unit_effect_intervals: None,
+                    unit_extrapolative: None,
+                    unit_effects_homogeneous: false,
+                })
+                .collect(),
+            noise_inference: NoiseInferenceKind::AssumedNoise,
+            exogenous: unabducted_exogenous(),
+        })
+    })
+}
+
+struct LatentIdentification {
+    envelope: Option<IdentificationEnvelope<Pag>>,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+}
+
+fn latent_identification(
+    query: &CounterfactualQuery,
+    shape: &Shape,
+    cases: &[Case],
+    records: &[Record],
+    required: &AssumptionSet,
+) -> Result<LatentIdentification, CausalError> {
+    // Identification: one case's own result for an ADMG, the completion envelope for a PAG.
+    let case_results: Vec<(IdentificationResult, IdentifiedEstimand)> =
+        cases.iter().map(|case| identified_case(query, shape, &case.prepared, required)).collect();
+    let envelope: Option<IdentificationEnvelope<Pag>> = records
+        .iter()
+        .map(|record| {
+            let graph = record.graph.clone()?;
+            let result = match record.case {
+                Some(case) => case_results[case].0.clone(),
+                None => refused_case(query, record.refusal.as_deref().unwrap_or("refused")),
+            };
+            Some(GraphIdentificationCase { graph, result, weight: ProbabilityMass(record.weight) })
+        })
+        .collect::<Option<Vec<_>>>()
+        .map(IdentificationEnvelope::from_cases);
+    let identification = match &envelope {
+        Some(envelope) => super::envelope_to_identification_result_for(
+            envelope,
+            CausalQuery::Counterfactual(query.clone()),
+        ),
+        None => case_results[0].0.clone(),
+    };
+    let estimand =
+        identification.estimands.first().cloned().ok_or_else(|| CausalError::Compile {
+            message: "counterfactual identification produced no estimand".into(),
+        })?;
+
+    Ok(LatentIdentification { envelope, identification, estimand })
+}
+
+struct LatentSamplingInput<'a> {
+    shape: &'a Shape,
+    cases: &'a [Case],
+    records: &'a [Record],
+    table: &'a Table,
+    values: &'a [f64],
+    columns: &'a [Vec<f64>],
+    required: &'a AssumptionSet,
+    pooled: f64,
+    publishes_own_uncertainty: bool,
+    mixture: &'a mut Option<crate::result::StructuralResponseMixture>,
+}
+
+struct LatentSamplingOutput {
+    estimate: EffectEstimate,
+    diagnostics: Vec<Diagnostic>,
+    posterior: Option<CausalPosterior>,
+    replicates_ok: Option<u32>,
+    n_draws: Option<u32>,
+    means: Vec<f64>,
+    standard_errors: Vec<Option<f64>>,
+}
+
+#[allow(clippy::too_many_lines, reason = "the three sampling routes share one uncertainty result")]
+fn latent_sampling_uncertainty(
+    input: LatentSamplingInput<'_>,
+    resampled: Resampled,
+) -> Result<LatentSamplingOutput, CausalError> {
+    let LatentSamplingInput {
+        shape,
+        cases,
+        records,
+        table,
+        values,
+        columns,
+        required,
+        pooled,
+        publishes_own_uncertainty,
+        mixture,
+    } = input;
+    let width = shape.outcomes.len();
+    // Sampling uncertainty of the identified functional.
+    let mut estimate =
+        EffectEstimate::new(pooled, f64::NAN, required.clone(), OverlapPolicy::ExplicitOverride);
+    let mut diagnostics = vec![population_level_diagnostic(shape, cases.len())];
+    let mut posterior: Option<CausalPosterior> = None;
+    let mut replicates_ok = None;
+    let mut n_draws = None;
+    // Each outcome's published mean and standard error: the pooled point and no standard
+    // error until a resampling forms one.
+    let mut means: Vec<f64> =
+        (0..width).map(|outcome| pool(values, cases, width, outcome)).collect();
+    let mut standard_errors: Vec<Option<f64>> = vec![None; width];
+    match resampled {
+        Resampled::None => diagnostics.push(Diagnostic::new(
+            "estimate.counterfactual.uncertainty_unavailable",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "the population-level counterfactual is a point value of the identified \
+                 functional on the empirical cell table; request bootstrap_replicates for a \
+                 resampled standard error, or Bayesian inference for a Dirichlet-weighted \
+                 bootstrap posterior",
+        )),
+        Resampled::Replicates { held, failed, requested } => {
+            let matrix = &held.matrix;
+            let ok = u32::try_from(matrix.len()).unwrap_or(u32::MAX);
+            replicates_ok = Some(ok);
+            if publishes_own_uncertainty {
+                let pooled_rows: Vec<f64> =
+                    matrix.iter().map(|row| pool(row, cases, width, 0)).collect();
+                estimate.uncertainty.bootstrap =
+                    super::gcm_bootstrap::accounting(&pooled_rows, failed, requested);
+                standard_errors[0] = estimate.uncertainty.bootstrap.se;
+                for (outcome, standard_error) in standard_errors.iter_mut().enumerate().skip(1) {
+                    let rows: Vec<f64> =
+                        matrix.iter().map(|row| pool(row, cases, width, outcome)).collect();
+                    *standard_error = super::gcm_bootstrap::accounting(&rows, failed, requested).se;
+                }
+            } else {
+                estimate.uncertainty.bootstrap = BootstrapAccounting {
+                    se: None,
+                    replicates_ok: Some(ok),
+                    replicates_failed: Some(failed),
+                    cancelled: false,
+                    early_stopped: false,
+                };
+                diagnostics.extend(super::envelope_se_omission_diagnostic(cases.len(), f64::NAN));
+                if let Some(mixture) = mixture.as_mut() {
+                    let primary: Vec<Vec<f64>> =
+                        matrix.iter().map(|row| outcome_column(row, width, 0)).collect();
+                    mixture.identified_set_interval =
+                        antecedent_estimate::imbens_manski_shared_replicates(
+                            &columns[0],
+                            &primary,
+                            1.0,
+                            table.cells.len(),
+                            0.95,
+                        );
+                }
+            }
+            diagnostics.push(
+                Diagnostic::new(
+                    "estimate.counterfactual.bootstrap",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    format!(
+                        "row bootstrap of the identified functional: each replicate \
+                             resamples the table's rows and re-evaluates the ID* derivation on \
+                             the resampled cell counts without re-identifying; \
+                             replicates_ok={ok}, replicates_failed={failed} (a replicate whose \
+                             conditioning event is empty is kept as failed mass). The standard \
+                             error is the sample standard deviation of the successful \
+                             replicates; no coverage record names this construction."
+                    ),
+                )
+                .with_fields([
+                    ("replicates_ok", ok.to_string()),
+                    ("replicates_failed", failed.to_string()),
+                    ("calibration", "not_measured".to_owned()),
+                ]),
+            );
+        }
+        Resampled::Draws { held } => {
+            let matrix = &held.matrix;
+            n_draws = Some(u32::try_from(matrix.len()).unwrap_or(u32::MAX));
+            if publishes_own_uncertainty {
+                let named: Vec<(String, Vec<f64>)> = (0..width)
+                    .map(|outcome| {
+                        (
+                            column_name(shape, outcome),
+                            matrix.iter().map(|row| pool(row, cases, width, outcome)).collect(),
+                        )
+                    })
+                    .collect();
+                let draws = posterior_of(named, required)?;
+                let index = draws.effect_column().ok_or_else(|| CausalError::Compile {
+                    message: "counterfactual posterior missing effect column".into(),
+                })?;
+                estimate = EffectEstimate::new(
+                    draws.summaries.mean[index],
+                    draws.summaries.sd[index],
+                    draws.assumptions.clone(),
+                    OverlapPolicy::ExplicitOverride,
+                );
+                estimate.uncertainty.analytic.se = draws.summaries.sd[index];
+                for (outcome, (mean, standard_error)) in
+                    means.iter_mut().zip(standard_errors.iter_mut()).enumerate()
+                {
+                    *mean = draws.summaries.mean[outcome];
+                    *standard_error = Some(draws.summaries.sd[outcome]);
+                }
+                posterior = Some(draws);
+            } else {
+                diagnostics.extend(super::envelope_se_omission_diagnostic(cases.len(), f64::NAN));
+                if let Some(mixture) = mixture.as_mut() {
+                    for (atom, record) in mixture.atoms.iter_mut().zip(records) {
+                        if let Some(case) = record.case {
+                            let column: Vec<f64> =
+                                matrix.iter().map(|row| row[case * width]).collect();
+                            atom.posterior = Some(posterior_of(
+                                vec![(column_name(shape, 0), column)],
+                                required,
+                            )?);
+                        }
+                    }
+                }
+            }
+            diagnostics.push(Diagnostic::new(
+                "estimate.counterfactual.bayesian_bootstrap",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "Dirichlet(1,...,1) Bayesian bootstrap over the empirical row law: each draw \
+                     reweights the table's rows and evaluates the identified ID* functional on \
+                     the weighted cell law without re-identifying. The posterior is \
+                     conditional on the supplied structure and carries sampling uncertainty \
+                     only; it does not address misspecification of the graph.",
+            ));
+        }
+    }
+    Ok(LatentSamplingOutput {
+        estimate,
+        diagnostics,
+        posterior,
+        replicates_ok,
+        n_draws,
+        means,
+        standard_errors,
+    })
 }
 
 /// The exogenous state of a contrast set no unit's noise was abducted for: empty, and labelled

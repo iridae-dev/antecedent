@@ -27,7 +27,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "repeated_measures_posterior in crates/antecedent-stats/src/adaptive_inference/repeated_measures_posterior.rs and the generalized-least-squares unit summary it takes from procedure_repeated_measures.rs (gls_unit_summary, the covariance build for compound-symmetric, first-order autoregressive and random-effect structures): the conjugate normal posterior of each arm mean from the per-unit summaries ybar_i = w'y_i with w = R^-1 1/(1'R^-1 1) and variance v = sigma^2/(1'R^-1 1), the exact normal posterior of the contrast, its equal-tailed credible interval and P(contrast > 0), the selection-mechanism refusal and the retained assignment evidence. Not the frequentist final analyses and monitoring of procedure_repeated_measures, a posterior that marginalizes over the variance or correlation (declared, not estimated), or any coverage of the credible interval."
+scope = "repeated_measures_posterior in crates/antecedent-stats/src/adaptive_inference/repeated_measures_posterior.rs and the generalized-least-squares unit summary it takes from procedure_repeated_measures.rs (gls_unit_summary, the covariance build for compound-symmetric, first-order autoregressive and random-effect structures): the conjugate normal posterior of each arm mean from the per-unit summaries ybar_i = w'y_i with w = R^-1 1/(1'R^-1 1) and variance v = sigma^2/(1'R^-1 1), the exact normal posterior of the contrast, its equal-tailed credible interval and P(contrast > 0), the selection-mechanism refusal and the retained assignment evidence. Not the frequentist final analyses and monitoring of procedure_repeated_measures, a posterior that marginalizes over the variance or correlation (declared, not estimated), or any coverage of the credible interval. Scoped re-review compared every bound definition across both paths; only internal visibility and formatting changed, not the numerical operations."
 assumptions = ["A unit's measurements are y ~ N(mu_arm 1, sigma^2 R) with the variance and the correlation structure declared and known; units are independent given the arm means; arm means have independent normal priors.", "The assignment of a unit depends on the observed earlier data and independent randomization only, so the assignment probabilities factor out of the likelihood and the posterior needs no correction; an assignment depending on an unobserved quantity is refused.", "The recorded assignment probabilities are retained as evidence and do not enter the posterior."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the multivariate normal model at 50 digits (mpmath, an explicit covariance and a general linear solve, so that the closed-form generalized-least-squares weights of the product are not reused); no upstream implementation was consulted. The cited sources were not retrieved."
 redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited sources are not redistributed."
@@ -45,8 +45,14 @@ sha256 = "b7d6ba7892e4339f4ee1eb4eeff0429197e1e34fca3baa9dfb68a434c9f5b770"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_repeated_measures.rs"
-items = ["enum AnalysisEstimator", "enum Dependence", "enum OutcomeStructure", "enum UnitSummary", "enum WithinUnitCorrelation", "fn analysis", "fn analysis_summary", "fn arms", "fn build", "fn correlation_matrix", "fn defined_mass", "fn gls_unit_summary", "fn marginal_variance", "fn mean", "fn measurements", "fn structure", "fn summary_variance", "fn unit_summary_variance", "fn variance", "fn weights", "struct Covariance", "struct FinalAnalysis"]
-sha256 = "f8c50e8a53423c64544c00c018b6ed6da8b69f2f8aa2d3b660e426d75103c23b"
+items = ["enum AnalysisEstimator", "enum OutcomeStructure", "enum UnitSummary", "enum WithinUnitCorrelation", "fn analysis", "fn analysis_summary", "fn arms", "fn defined_mass", "fn marginal_variance", "fn mean", "fn measurements", "fn structure", "fn unit_summary_variance", "fn variance", "struct FinalAnalysis"]
+sha256 = "7f39c3d45e7940fed84f5454e059bde2b538e47acc3c4dbb2654f268afa0b893"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/procedure_repeated_measures/covariance.rs"
+items = ["enum Dependence", "fn build", "fn correlation_matrix", "fn gls_unit_summary", "fn summary_variance", "fn weights", "struct Covariance"]
+sha256 = "8b488b59da2e6414444967c08d0813f370204fb53f464aa574fe6d39cf3250f7"
 
 [[method_review.artifacts]]
 role = "assertion"

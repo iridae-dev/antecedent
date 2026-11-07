@@ -10,9 +10,9 @@ use antecedent_expr::{
 
 use crate::contract_reason::ContractReason;
 use crate::{
-    CausalQueryWire, DistributionFactorDomainWire, DistributionFactorKeyWire,
-    DistributionFactorLawsWire, DistributionFactorTableWire, FunctionalProgramWire,
-    InterventionWire, InterventionalDistributionWire, ValueWire, functional_program_from_wire,
+    functional_program_from_wire, CausalQueryWire, DistributionFactorDomainWire,
+    DistributionFactorKeyWire, DistributionFactorLawsWire, DistributionFactorTableWire,
+    FunctionalProgramWire, InterventionWire, InterventionalDistributionWire, ValueWire,
 };
 
 /// Wire format version of the portable factor laws.
@@ -60,25 +60,13 @@ impl ReplayLimits {
     }
 }
 
-/// Recompute every finite-discrete distribution atom from its checked program and portable
-/// factor laws. Returns a stable dependency/error key suitable for a refusal report.
-#[allow(
-    clippy::too_many_lines,
-    reason = "The bounded joint atom enumeration and its validation must share one replay context."
-)]
-pub(crate) fn replay_distribution_atoms(
-    query: &CausalQueryWire,
+fn prepare_distribution_replay(
+    query: &crate::InterventionalDistributionQueryWire,
     result: &InterventionalDistributionWire,
     program_wire: &FunctionalProgramWire,
     laws: &DistributionFactorLawsWire,
     limits: &ReplayLimits,
-) -> Result<(), ContractReason> {
-    let CausalQueryWire::Distribution(query) = query else {
-        return Err(ContractReason::DistributionQueryKind);
-    };
-    if !matches!(query.target_population, crate::TargetPopulationWire::AllObserved) {
-        return Err(ContractReason::DistributionPopulation);
-    }
+) -> Result<(FunctionalProgram, EmpiricalTableProvider, usize), ContractReason> {
     if laws.format != FACTOR_LAWS_FORMAT {
         return Err(ContractReason::DistributionFactorLawsFormat);
     }
@@ -102,6 +90,161 @@ pub(crate) fn replay_distribution_atoms(
         return Err(ContractReason::DistributionReplayResourceLimit);
     }
     let provider = provider_from_laws(laws)?;
+    Ok((program, provider, scan_work))
+}
+
+#[derive(Clone, Copy)]
+struct DistributionEnumeration<'a> {
+    outcomes: &'a [VariableId],
+    conditioning: &'a [VariableId],
+    interventions: &'a [(VariableId, Value)],
+    free: &'a [VariableId],
+    y_support: &'a [std::sync::Arc<[Value]>],
+    z_support: &'a [std::sync::Arc<[Value]>],
+    free_support: &'a [std::sync::Arc<[Value]>],
+    provider: &'a EmpiricalTableProvider,
+    evaluator: &'a antecedent_expr::ProgramEvaluator,
+}
+
+#[allow(clippy::too_many_lines, reason = "enumeration and its atom verification share one replay context")]
+fn verify_distribution_enumeration(
+    input: DistributionEnumeration<'_>,
+    result: &InterventionalDistributionWire,
+) -> Result<(), ContractReason> {
+    let DistributionEnumeration {
+        outcomes,
+        conditioning,
+        interventions,
+        free,
+        y_support,
+        z_support,
+        free_support,
+        provider,
+        evaluator,
+    } = input;
+    let free_law = if free.is_empty() {
+        None
+    } else {
+        Some(FactorSpec::new(free, &[], &[], DomainRef::Observational))
+    };
+
+    let mut expected = Vec::with_capacity(y_support.len().saturating_mul(z_support.len()));
+    for z_row in z_support {
+        let z_pairs: Vec<_> = conditioning.iter().copied().zip(z_row.iter().cloned()).collect();
+        let mut probabilities = vec![0.0; y_support.len()];
+        let mut total_weight = 0.0;
+        for free_row in free_support {
+            let free_pairs: Vec<_> = free.iter().copied().zip(free_row.iter().cloned()).collect();
+            let mut base = Assignment::from_pairs(
+                interventions
+                    .iter()
+                    .cloned()
+                    .chain(z_pairs.iter().cloned())
+                    .chain(free_pairs.iter().cloned()),
+            );
+            let weight = match (&free_law, free.is_empty()) {
+                (Some(spec), false) => provider
+                    .probability(spec, &base, &EvalContext::default())
+                    .map_err(|_| ContractReason::DistributionFreeVariableLaw)?,
+                _ => 1.0,
+            };
+            if !weight.is_finite() || weight < 0.0 {
+                return Err(ContractReason::DistributionFreeVariableLaw);
+            }
+            if weight == 0.0 {
+                continue;
+            }
+            let mut row_values = Vec::with_capacity(y_support.len());
+            let mut evaluable = true;
+            for y_row in y_support {
+                for (variable, value) in outcomes.iter().copied().zip(y_row.iter().cloned()) {
+                    base.set(variable, value);
+                }
+                match evaluator.evaluate_with(provider, &EvalContext::default(), &base) {
+                    Ok(probability)
+                        if probability.is_finite() && (0.0..=1.0).contains(&probability) =>
+                    {
+                        row_values.push(probability)
+                    }
+                    Ok(_) => return Err(ContractReason::DistributionAtomProbability),
+                    Err(
+                        EvalError::MissingTableEntry
+                        | EvalError::EmptySupport(_)
+                        | EvalError::DivisionByZero,
+                    ) => {
+                        evaluable = false;
+                        break;
+                    }
+                    Err(_) => return Err(ContractReason::DistributionExpressionEvaluation),
+                }
+                for variable in outcomes {
+                    base.remove(*variable);
+                }
+            }
+            if !evaluable {
+                continue;
+            }
+            for (slot, value) in probabilities.iter_mut().zip(row_values) {
+                *slot += weight * value;
+            }
+            total_weight += weight;
+        }
+        if total_weight <= 0.0 {
+            return Err(ContractReason::DistributionNoEvaluableFreeVariableMass);
+        }
+        for (y_row, probability) in y_support.iter().zip(probabilities) {
+            let outcome_pairs = outcomes
+                .iter()
+                .copied()
+                .zip(y_row.iter().cloned())
+                .map(|(id, value)| (id.raw(), ValueWire::from_value(&value)))
+                .collect::<Vec<_>>();
+            let conditioning_pairs = conditioning
+                .iter()
+                .copied()
+                .zip(z_row.iter().cloned())
+                .map(|(id, value)| (id.raw(), ValueWire::from_value(&value)))
+                .collect::<Vec<_>>();
+            expected.push((outcome_pairs, conditioning_pairs, probability / total_weight));
+        }
+    }
+    if expected.len() != result.atoms.len() {
+        return Err(ContractReason::DistributionAtomCount);
+    }
+    for (outcomes, conditioning, probability) in expected {
+        let matches: Vec<_> = result
+            .atoms
+            .iter()
+            .filter(|atom| atom.outcomes == outcomes && atom.conditioning == conditioning)
+            .collect();
+        if matches.len() != 1 || (matches[0].probability - probability).abs() > MASS_TOLERANCE {
+            return Err(ContractReason::DistributionAtomReplayMismatch);
+        }
+    }
+    Ok(())
+}
+
+/// Recompute every finite-discrete distribution atom from its checked program and portable
+/// factor laws. Returns a stable dependency/error key suitable for a refusal report.
+#[allow(
+    clippy::too_many_lines,
+    reason = "The bounded joint atom enumeration and its validation must share one replay context."
+)]
+pub(crate) fn replay_distribution_atoms(
+    query: &CausalQueryWire,
+    result: &InterventionalDistributionWire,
+    program_wire: &FunctionalProgramWire,
+    laws: &DistributionFactorLawsWire,
+    limits: &ReplayLimits,
+) -> Result<(), ContractReason> {
+    let CausalQueryWire::Distribution(query) = query else {
+        return Err(ContractReason::DistributionQueryKind);
+    };
+    if !matches!(query.target_population, crate::TargetPopulationWire::AllObserved) {
+        return Err(ContractReason::DistributionPopulation);
+    }
+    let (program, provider, scan_work) =
+        prepare_distribution_replay(query, result, program_wire, laws, limits)?;
 
     let outcomes: Vec<_> = query.outcomes.iter().copied().map(VariableId::from_raw).collect();
     let conditioning: Vec<_> =
@@ -161,106 +304,20 @@ pub(crate) fn replay_distribution_atoms(
     let free_support = provider
         .support(&free, &EvalContext::default())
         .map_err(|_| ContractReason::DistributionFreeVariableSupport)?;
-    let free_law = if free.is_empty() {
-        None
-    } else {
-        Some(FactorSpec::new(&free, &[], &[], DomainRef::Observational))
-    };
-
-    let mut expected = Vec::with_capacity(y_support.len().saturating_mul(z_support.len()));
-    for z_row in z_support.iter() {
-        let z_pairs: Vec<_> = conditioning.iter().copied().zip(z_row.iter().cloned()).collect();
-        let mut probabilities = vec![0.0; y_support.len()];
-        let mut total_weight = 0.0;
-        for free_row in free_support.iter() {
-            let free_pairs: Vec<_> = free.iter().copied().zip(free_row.iter().cloned()).collect();
-            let mut base = Assignment::from_pairs(
-                interventions
-                    .iter()
-                    .cloned()
-                    .chain(z_pairs.iter().cloned())
-                    .chain(free_pairs.iter().cloned()),
-            );
-            let weight = match (&free_law, free.is_empty()) {
-                (Some(spec), false) => provider
-                    .probability(spec, &base, &EvalContext::default())
-                    .map_err(|_| ContractReason::DistributionFreeVariableLaw)?,
-                _ => 1.0,
-            };
-            if !weight.is_finite() || weight < 0.0 {
-                return Err(ContractReason::DistributionFreeVariableLaw);
-            }
-            if weight == 0.0 {
-                continue;
-            }
-            let mut row_values = Vec::with_capacity(y_support.len());
-            let mut evaluable = true;
-            for y_row in y_support.iter() {
-                for (variable, value) in outcomes.iter().copied().zip(y_row.iter().cloned()) {
-                    base.set(variable, value);
-                }
-                match evaluator.evaluate_with(&provider, &EvalContext::default(), &base) {
-                    Ok(probability)
-                        if probability.is_finite() && (0.0..=1.0).contains(&probability) =>
-                    {
-                        row_values.push(probability)
-                    }
-                    Ok(_) => return Err(ContractReason::DistributionAtomProbability),
-                    Err(
-                        EvalError::MissingTableEntry
-                        | EvalError::EmptySupport(_)
-                        | EvalError::DivisionByZero,
-                    ) => {
-                        evaluable = false;
-                        break;
-                    }
-                    Err(_) => return Err(ContractReason::DistributionExpressionEvaluation),
-                }
-                for variable in &outcomes {
-                    base.remove(*variable);
-                }
-            }
-            if !evaluable {
-                continue;
-            }
-            for (slot, value) in probabilities.iter_mut().zip(row_values) {
-                *slot += weight * value;
-            }
-            total_weight += weight;
-        }
-        if total_weight <= 0.0 {
-            return Err(ContractReason::DistributionNoEvaluableFreeVariableMass);
-        }
-        for (y_row, probability) in y_support.iter().zip(probabilities) {
-            let outcome_pairs = outcomes
-                .iter()
-                .copied()
-                .zip(y_row.iter().cloned())
-                .map(|(id, value)| (id.raw(), ValueWire::from_value(&value)))
-                .collect::<Vec<_>>();
-            let conditioning_pairs = conditioning
-                .iter()
-                .copied()
-                .zip(z_row.iter().cloned())
-                .map(|(id, value)| (id.raw(), ValueWire::from_value(&value)))
-                .collect::<Vec<_>>();
-            expected.push((outcome_pairs, conditioning_pairs, probability / total_weight));
-        }
-    }
-    if expected.len() != result.atoms.len() {
-        return Err(ContractReason::DistributionAtomCount);
-    }
-    for (outcomes, conditioning, probability) in expected {
-        let matches: Vec<_> = result
-            .atoms
-            .iter()
-            .filter(|atom| atom.outcomes == outcomes && atom.conditioning == conditioning)
-            .collect();
-        if matches.len() != 1 || (matches[0].probability - probability).abs() > MASS_TOLERANCE {
-            return Err(ContractReason::DistributionAtomReplayMismatch);
-        }
-    }
-    Ok(())
+    verify_distribution_enumeration(
+        DistributionEnumeration {
+            outcomes: &outcomes,
+            conditioning: &conditioning,
+            interventions: &interventions,
+            free: &free,
+            y_support: &y_support,
+            z_support: &z_support,
+            free_support: &free_support,
+            provider: &provider,
+            evaluator: &evaluator,
+        },
+        result,
+    )
 }
 
 /// Recompute a checked discrete scalar functional from its program and empirical factor laws.

@@ -620,43 +620,9 @@ pub fn transport_across_temporal_class_with_context(
         exhausted_search_bounds: request.exhausted_search_bounds,
         member_bound: request.member_bound,
     };
-    let nodes = class_nodes(request.class);
     let unresolved = unresolved_pairs(request.class);
-    let mut known: Vec<VariableId> = nodes
-        .iter()
-        .filter_map(|node| match node {
-            NodeRef::Lagged { variable, .. } => Some(*variable),
-            _ => None,
-        })
-        .collect();
-    known.sort_unstable_by_key(|v| v.raw());
-    known.dedup();
-    check_request(&facts, &unresolved, |target| known.contains(&target))?;
-
-    let (treatment, outcome) = query.response.functional.primary_pair().ok_or_else(|| {
-        invalid_query(&facts, "the query names no treatment and outcome".to_owned())
-    })?;
-    if let Some(missing) = [treatment, outcome].into_iter().find(|v| !known.contains(v)) {
-        return Err(invalid_query(
-            &facts,
-            format!("v{} is not a variable of the discovered temporal structure", missing.raw()),
-        ));
-    }
-    let max_lag = template_max_lag(nodes);
-    let history = request.history.unwrap_or_else(|| max_lag.saturating_mul(2));
-    let variable_count = match known.last() {
-        Some(variable) => variable.raw().checked_add(1).ok_or_else(|| {
-            invalid_query(&facts, "the temporal variable count overflows".to_owned())
-        })?,
-        None => 1,
-    };
-    let horizon = request
-        .horizon_steps
-        .checked_add(1)
-        .ok_or_else(|| invalid_query(&facts, "the horizon overflows".to_owned()))?;
-    let indexer = TemporalIndexer::new(variable_count, history, horizon)
-        .map_err(|e| invalid_query(&facts, format!("the window cannot be built: {e}")))?;
-    let window = window_query(&facts, query, &indexer, request.horizon_steps)?;
+    let PreparedTemporalWindow { indexer, window, history, max_lag } =
+        prepare_temporal_window(request, query, &facts, &unresolved)?;
 
     let limits = SearchLimits { operations: request.completion_operations, depth: usize::MAX };
     let mut temporal_budget =
@@ -782,6 +748,59 @@ pub fn transport_across_temporal_class_with_context(
         max_lag,
         window,
     })
+}
+
+struct PreparedTemporalWindow {
+    indexer: TemporalIndexer,
+    window: TemporalWindow,
+    history: u32,
+    max_lag: u32,
+}
+
+fn prepare_temporal_window(
+    request: &TemporalTransportRequest<'_>,
+    query: &TransportQuery,
+    facts: &RequestFacts<'_>,
+    unresolved: &[UnresolvedPair],
+) -> Result<PreparedTemporalWindow, DiscoveredTransportError> {
+    let nodes = class_nodes(request.class);
+    let mut known: Vec<VariableId> = nodes
+        .iter()
+        .filter_map(|node| match node {
+            NodeRef::Lagged { variable, .. } => Some(*variable),
+            _ => None,
+        })
+        .collect();
+    known.sort_unstable_by_key(|v| v.raw());
+    known.dedup();
+    check_request(facts, unresolved, |target| known.contains(&target))?;
+
+    let (treatment, outcome) = query.response.functional.primary_pair().ok_or_else(|| {
+        invalid_query(facts, "the query names no treatment and outcome".to_owned())
+    })?;
+    if let Some(missing) = [treatment, outcome].into_iter().find(|v| !known.contains(v)) {
+        return Err(invalid_query(
+            facts,
+            format!("v{} is not a variable of the discovered temporal structure", missing.raw()),
+        ));
+    }
+    let max_lag = template_max_lag(nodes);
+    let history = request.history.unwrap_or_else(|| max_lag.saturating_mul(2));
+    let variable_count = match known.last() {
+        Some(variable) => variable.raw().checked_add(1).ok_or_else(|| {
+            invalid_query(facts, "the temporal variable count overflows".to_owned())
+        })?,
+        None => 1,
+    };
+    let horizon = request
+        .horizon_steps
+        .checked_add(1)
+        .ok_or_else(|| invalid_query(facts, "the horizon overflows".to_owned()))?;
+    let indexer = TemporalIndexer::new(variable_count, history, horizon)
+        .map_err(|e| invalid_query(facts, format!("the window cannot be built: {e}")))?;
+    let window = window_query(facts, query, &indexer, request.horizon_steps)?;
+
+    Ok(PreparedTemporalWindow { indexer, window, history, max_lag })
 }
 
 /// The window's selection targets that are nodes of the restricted graph.

@@ -426,6 +426,26 @@ pub fn fit_weighted_local_polynomial_ratio(
         variance_t = (left.var_t + right.var_t) / bandwidth.powi(2);
         covariance_yt = (left.cov_yt + right.cov_yt) / bandwidth.powi(2);
     }
+    summarize_local_ratio(
+        reduced_form,
+        first_stage,
+        variance_y,
+        variance_t,
+        covariance_yt,
+        n_left,
+        n_right,
+    )
+}
+
+fn summarize_local_ratio(
+    reduced_form: f64,
+    first_stage: f64,
+    variance_y: f64,
+    variance_t: f64,
+    covariance_yt: f64,
+    n_left: usize,
+    n_right: usize,
+) -> Result<LocalPolynomialRatioFit, String> {
     if !first_stage.is_finite() || first_stage == 0.0 {
         return Err(String::from(
             "local treatment discontinuity is too small to form a fuzzy design estimate",

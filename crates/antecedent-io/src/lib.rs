@@ -145,6 +145,7 @@ mod artifact_budget;
 pub use artifact_budget::BudgetedTreatmentArtifact;
 mod artifact_kinds;
 mod evidence_digest;
+mod exact_transport_laws;
 mod width;
 
 /// Analysis / estimate / identification / refutation / diagnostic wire types.

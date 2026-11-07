@@ -22,7 +22,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "wrapper"
-rationale = "Study planning enumerates declared hypothetical evidence deltas, ranks the subsets by declared cost, and decides each with the existing multi-source limited-experiment identification routine under one shared search budget."
+rationale = "Study planning enumerates declared hypothetical evidence deltas, ranks the subsets by declared cost, and decides each with the existing multi-source limited-experiment identification routine under one shared search budget. Candidate validation and subset enumeration moved to study_planning/subsets.rs; all named bound definitions and other bound artifacts were compared unchanged apart from visibility and formatting. Preview replay and proposal construction moved to study_planning/preview.rs; every named bound definition and the other bound artifacts were compared unchanged apart from visibility and formatting."
 no_independent_algorithm = "Every identification decision is delegated to the covered multi-source route; the planner owns only subset enumeration, cost ordering, budget accounting and the replayable plan artifact."
 covered_by = ["transport.multi_source_limited_experiment.bayesian"]
 record_sha256 = "ae96b76611ad5e5ff324a35c7e9cb7a98614ad404b4cc974ab21750d597202ab"
@@ -30,8 +30,20 @@ record_sha256 = "ae96b76611ad5e5ff324a35c7e9cb7a98614ad404b4cc974ab21750d597202a
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/sid/study_planning.rs"
-items = ["const BOUNDS_EXCEEDED", "const BUDGET", "const INVALID_CANDIDATE", "const INVALID_QUERY", "const NO_FAILURE", "const PLACEHOLDER_SNAPSHOT_PREFIX", "const STUDY_PLAN_DEFAULT_LIMITS", "const STUDY_PLAN_MAX_CANDIDATES", "const STUDY_PLAN_MAX_COST_UNITS", "const STUDY_PLAN_MAX_PROPOSALS", "const STUDY_PLAN_MEMORY_BYTES", "const THEOREM_LIMITED", "enum BaseEnd", "enum Identified", "enum Preview", "enum StudyPlanRoute", "enum StudyPlanStop", "enum StudyProposalDerivation", "enum StudySubsetOutcome", "fn base_failure", "fn bound_leaves", "fn bounds_exceeded", "fn budget", "fn canonical", "fn certified_minimal", "fn check_bounds", "fn classify_identified", "fn conclusive", "fn decide_preview", "fn decision_operations", "fn default", "fn for_route", "fn infeasible", "fn invalid_candidate", "fn invalid_query", "fn label", "fn leaf_regimes", "fn max_candidates", "fn max_depth", "fn next_combination", "fn no_failure", "fn plan_study_additions", "fn plan_with_caps", "fn preview_bytes", "fn proposal", "fn raw", "fn reads", "fn receipt", "fn recheck_mz_citations", "fn require_base_lineage", "fn rerun_named", "fn route_refusal", "fn sources", "fn stage_facts", "fn status", "fn stop_error", "fn subset_label", "fn subset_size_limit", "fn subsets", "fn target", "fn valid_id", "fn validate_candidates", "struct BoundLeaf", "struct Found", "struct PlanCaps", "struct StudyBaseFailure", "struct StudyFactor", "struct StudyPlan", "struct StudyPlanCandidate", "struct StudyPlanLimits", "struct StudyPlanRefusal", "struct StudyProposal", "struct StudyRepair", "struct StudySubsetRecord"]
-sha256 = "08c89b5e375d106a69b0094674f37dc22a88551e732aea4da8c10d559e58b31e"
+items = ["const BOUNDS_EXCEEDED", "const BUDGET", "const INVALID_CANDIDATE", "const INVALID_QUERY", "const NO_FAILURE", "const PLACEHOLDER_SNAPSHOT_PREFIX", "const STUDY_PLAN_DEFAULT_LIMITS", "const STUDY_PLAN_MAX_CANDIDATES", "const STUDY_PLAN_MAX_COST_UNITS", "const STUDY_PLAN_MAX_PROPOSALS", "const STUDY_PLAN_MEMORY_BYTES", "const THEOREM_LIMITED", "enum BaseEnd", "enum Identified", "enum StudyPlanRoute", "enum StudyPlanStop", "enum StudyProposalDerivation", "enum StudySubsetOutcome", "fn base_failure", "fn bounds_exceeded", "fn budget", "fn canonical", "fn certified_minimal", "fn check_bounds", "fn classify_identified", "fn conclusive", "fn decision_operations", "fn default", "fn for_route", "fn invalid_candidate", "fn invalid_query", "fn label", "fn max_candidates", "fn max_depth", "fn no_failure", "fn plan_study_additions", "fn plan_with_caps", "fn preview_bytes", "fn raw", "fn receipt", "fn recheck_mz_citations", "fn require_base_lineage", "fn route_refusal", "fn sources", "fn stage_facts", "fn status", "fn target", "struct PlanCaps", "struct StudyBaseFailure", "struct StudyFactor", "struct StudyPlan", "struct StudyPlanCandidate", "struct StudyPlanLimits", "struct StudyPlanRefusal", "struct StudyProposal", "struct StudyRepair", "struct StudySubsetRecord"]
+sha256 = "77a04aec114b61abf974bc144fe49d12058af0eec40dd326381ea385d206e361"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/sid/study_planning/preview.rs"
+items = ["enum Preview", "fn bound_leaves", "fn decide_preview", "fn leaf_regimes", "fn proposal", "fn reads", "fn rerun_named", "fn stop_error", "struct BoundLeaf", "struct Found"]
+sha256 = "b532300fc366e62e2011bb1f3ef4a6dbfdfb56a38d8abce5ee9b138eb9af0e9f"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/sid/study_planning/subsets.rs"
+items = ["fn infeasible", "fn next_combination", "fn subset_label", "fn subset_size_limit", "fn subsets", "fn valid_id", "fn validate_candidates"]
+sha256 = "bd60ad8c3ac06b326f8d2980953b6bff82d46ec8e59d64a873a6f7131709e7a5"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

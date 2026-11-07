@@ -452,16 +452,7 @@ fn range_report(
         );
     }
     values.sort_by(f64::total_cmp);
-    let quantile = |p: f64| {
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "p in [0, 1] times the last index is a valid index"
-        )]
-        let index = (p * (values.len() - 1) as f64).round() as usize;
-        values[index.min(values.len() - 1)]
-    };
-    let (lower, upper) = (quantile(0.025), quantile(0.975));
+    let (lower, upper) = super::gcm_bootstrap::nearest_95_range(&values);
     let mean = values.iter().sum::<f64>() / values.len() as f64;
     let passed = (lower..=upper).contains(&published);
     RefutationReport::new(

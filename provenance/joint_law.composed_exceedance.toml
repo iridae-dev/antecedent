@@ -21,7 +21,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "derivation"
-rationale = "Exceedance probability of a composed quantity with its Monte Carlo band and verdict."
+rationale = "Exceedance probability of a composed quantity with its Monte Carlo band and verdict. Scoped re-review retained every bound definition across both source paths; the composed coordinate identity is unchanged. Marginal and coupling definitions moved to joint_law/marginal.rs and bound items were compared unchanged apart from formatting."
 no_independent_algorithm = "Weighted sum of component exceedances and the binomial Monte Carlo standard error."
 covered_by = ["joint_law.known_weight_mixture", "joint_law.composed_spread_and_exceedance"]
 derivation = "For a known-weight mixture, P(X > c) = sum_i w_i p_i with standard error sqrt(sum_i w_i^2 var_i); for aligned rows it is the fraction of rows exceeding c with standard error sqrt(p(1-p)/n)."
@@ -30,14 +30,26 @@ record_sha256 = "cd2c087885e28271ed5146e3bb4d772165b23ab9a7c38abf481f658c5f96b58
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/joint_law.rs"
-items = ["fn atoms", "fn mean", "fn value", "fn variance"]
-sha256 = "7f10546a36a4b361a0e8b88b15d52954cfa88600c127178c8fbb293dd7323ba7"
+items = ["fn value"]
+sha256 = "3483a02c7234b1f5ff2a63fd9299641dc0558ebc7babc5c14611f7532a34a1db"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law/marginal.rs"
+items = ["fn atoms", "fn mean", "fn variance"]
+sha256 = "f322febb4140b7aecd4e92d4457e35ff12b9441e3f4ffcd9555d050a37abc556"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/joint_law_rule.rs"
-items = ["const ASSUMPTION_RANGE_LABEL", "const JOINT_LAW_STAGE", "const POINT_ONLY_LABEL", "enum InputAlignment", "enum InputRole", "enum PropagationDependence", "enum PropagationOperation", "enum RequestedReading", "fn id", "fn invalid", "fn label", "fn refuse", "fn shared_evidence", "struct PropagationInput", "struct PropagationRequest"]
-sha256 = "24631a901d9fde384ca635f05a0ebc2a671cbefcabe86bb9c0db0bff371d68a8"
+items = ["const ASSUMPTION_RANGE_LABEL", "const JOINT_LAW_STAGE", "const POINT_ONLY_LABEL", "enum InputAlignment", "enum InputRole", "enum PropagationDependence", "enum PropagationOperation", "enum RequestedReading", "fn invalid", "fn label", "fn refuse", "fn shared_evidence", "struct PropagationInput", "struct PropagationRequest"]
+sha256 = "71ca910a203b0005b4b7ddcef60da9b65e0b57cd52b57818568a1dec120fbf62"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/joint_law_rule/composed_interval.rs"
+items = ["fn id"]
+sha256 = "c275115047af8debc16a55f35f5b4fdcd8e07cbeae34703c7ed20851a1e535ab"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

@@ -327,35 +327,7 @@ impl EfficientBackdoorIdentifier {
             return Ok(result);
         }
 
-        let parent_set: BitSet = {
-            let mut b = BitSet::with_len(dag.node_count());
-            for p in dag.parents(t) {
-                b.insert(*p);
-            }
-            b
-        };
-        // Order: fewest nodes, then most parents of T, then lowest cost, then lexicographic
-        // ids. The keys are computed once per set; only the first-ranked set is reported, and
-        // `min_by` keeps the earliest of equal keys like the stable sort it replaces.
-        let keys: Vec<SetRank> = valid
-            .iter()
-            .map(|z| {
-                let mut ids: Vec<usize> = z.iter().map(|n| n.as_usize()).collect();
-                ids.sort_unstable();
-                SetRank {
-                    len: z.len(),
-                    parents_of_t: z.iter().filter(|n| parent_set.contains(**n)).count(),
-                    cost: problem.total_cost(z),
-                    ids,
-                }
-            })
-            .collect();
-        let Some(best_index) = (0..valid.len()).min_by(|&a, &b| keys[a].compare(&keys[b])) else {
-            return Err(IdentificationError::InvariantViolated {
-                message: "the ancestral set passed its separation test but no valid set was kept",
-            });
-        };
-        let best = vec![valid.swap_remove(best_index)];
+        let best = choose_efficient_set(dag, t, &problem, valid)?;
         let choice =
             EfficientChoice { chosen: &best, examined, rule: "min_cardinality", truncated };
         Self::finish(&run, query, &choice)
@@ -433,6 +405,43 @@ pub(crate) fn optimal_adjustment_set(
     }
     o_set.sort_unstable_by_key(|d| d.as_usize());
     o_set
+}
+
+fn choose_efficient_set(
+    dag: &Dag,
+    t: DenseNodeId,
+    problem: &AdjustmentProblem,
+    mut valid: Vec<Vec<DenseNodeId>>,
+) -> Result<Vec<Vec<DenseNodeId>>, IdentificationError> {
+    let parent_set: BitSet = {
+        let mut b = BitSet::with_len(dag.node_count());
+        for p in dag.parents(t) {
+            b.insert(*p);
+        }
+        b
+    };
+    // Order: fewest nodes, then most parents of T, then lowest cost, then lexicographic
+    // ids. The keys are computed once per set; only the first-ranked set is reported, and
+    // `min_by` keeps the earliest of equal keys like the stable sort it replaces.
+    let keys: Vec<SetRank> = valid
+        .iter()
+        .map(|z| {
+            let mut ids: Vec<usize> = z.iter().map(|n| n.as_usize()).collect();
+            ids.sort_unstable();
+            SetRank {
+                len: z.len(),
+                parents_of_t: z.iter().filter(|n| parent_set.contains(**n)).count(),
+                cost: problem.total_cost(z),
+                ids,
+            }
+        })
+        .collect();
+    let Some(best_index) = (0..valid.len()).min_by(|&a, &b| keys[a].compare(&keys[b])) else {
+        return Err(IdentificationError::InvariantViolated {
+            message: "the ancestral set passed its separation test but no valid set was kept",
+        });
+    };
+    Ok(vec![valid.swap_remove(best_index)])
 }
 
 /// Sort key of one candidate set in the min-cardinality fallback.

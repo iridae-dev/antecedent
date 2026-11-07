@@ -3,8 +3,8 @@
 //! Aggregation retains each joint intervention regime and all cross moments;
 //! it never substitutes local equilibrium regressions for the joint likelihood.
 use crate::nonlinear_equilibrium::{
-    Activation, Clamp, EquilibriumError, EquilibriumModel, MAX_ORDER, MechanismLikelihoodScore,
-    RegimeRow, cholesky, local_positions,
+    cholesky, local_positions, Activation, Clamp, EquilibriumError, EquilibriumModel,
+    MechanismLikelihoodScore, RegimeRow, MAX_ORDER,
 };
 use crate::sparse_equilibrium::{FactorError, SolverBudgetCode, SparseLu};
 use antecedent_core::ExecutionContext;
@@ -88,6 +88,118 @@ fn inverse(mut matrix: Vec<f64>, n: usize) -> Result<Vec<f64>, EquilibriumError>
     }
     Ok(precision)
 }
+#[allow(
+    clippy::too_many_lines,
+    reason = "each regime's factorization and score share its admitted scratch"
+)]
+fn score_regime(
+    group: &Group,
+    model: &EquilibriumModel,
+    n: usize,
+    ctx: &ExecutionContext,
+    likelihood: &mut f64,
+    scores: &mut [MechanismLikelihoodScore],
+) -> Result<(), EquilibriumError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(EquilibriumError::Resource("cancelled".into()));
+    }
+    let free = model.free_indices(&group.clamps)?;
+    let k = free.len();
+    if k == 0 {
+        return Ok(());
+    }
+    for block in model.blocks(&group.clamps)? {
+        if !model.affine_certificate_checked(&block, ctx, usize::MAX, u64::MAX, &mut || {
+            crate::nonlinear_equilibrium::check_cancel(ctx)
+        })? {
+            return Err(EquilibriumError::Uncertified { bound: f64::INFINITY });
+        }
+    }
+    let count = group.count as f64;
+    let covariance: Vec<_> = free
+        .iter()
+        .flat_map(|&i| free.iter().map(move |&j| model.noise_covariance[i * n + j]))
+        .collect();
+    crate::nonlinear_equilibrium::check_cancel(ctx)?;
+    let lower = cholesky(&covariance, k)?;
+    let noise_logdet = 2.0 * (0..k).map(|i| lower[i * k + i].ln()).sum::<f64>();
+    let precision = inverse(covariance, k)?;
+    crate::nonlinear_equilibrium::check_cancel(ctx)?;
+    let reads = model.read_sets()?;
+    let local = local_positions(&free);
+    let jacobian = model.sparse_jacobian(&group.mean, &free, &reads, &local)?;
+    // Fill is capped at the dense `k x k` worst case the lease above covers.
+    let lu =
+        SparseLu::factor(&jacobian, k * k, &mut || crate::nonlinear_equilibrium::check_cancel(ctx))
+            .map_err(|error| match error {
+                FactorError::FillBudget(required) => {
+                    SolverBudgetCode::FactorFill.refusal(required as u64, (k * k) as u64)
+                }
+                FactorError::Interrupted(error) => error,
+                FactorError::Singular | FactorError::NonFinite => EquilibriumError::Singular,
+            })?;
+    let logdet = lu.log_abs_determinant();
+    let mut jacobian_inverse = vec![0.0; k * k];
+    for c in 0..k {
+        if c % 32 == 0 {
+            crate::nonlinear_equilibrium::check_cancel(ctx)?;
+        }
+        let mut unit = vec![0.0; k];
+        unit[c] = 1.0;
+        for (r, v) in lu.solve(&unit).into_iter().enumerate() {
+            jacobian_inverse[r * k + c] = v;
+        }
+    }
+    let residual_mean = model.residual(&group.mean, &vec![0.0; n], &free);
+    // Sparse rows of A = I - W over the free equations.
+    let a_rows: Vec<Vec<(usize, f64)>> = free
+        .iter()
+        .map(|&i| {
+            (0..n)
+                .filter_map(|j| {
+                    let v = (if i == j { 1.0 } else { 0.0 }) - model.equations[i].weights[j];
+                    (v != 0.0).then_some((j, v))
+                })
+                .collect()
+        })
+        .collect();
+    let mut a_scatter = vec![0.0; k * n];
+    for (i, row) in a_rows.iter().enumerate() {
+        for &(r, v) in row {
+            for j in 0..n {
+                a_scatter[i * n + j] += v * group.scatter[r * n + j];
+            }
+        }
+    }
+    let mut quadratic = 0.0;
+    for i in 0..k {
+        for r in 0..k {
+            let centered: f64 = a_rows[r].iter().map(|&(j, v)| a_scatter[i * n + j] * v).sum();
+            quadratic +=
+                precision[i * k + r] * (centered + count * residual_mean[i] * residual_mean[r]);
+        }
+    }
+    *likelihood += count * logdet
+        - 0.5 * (quadratic + count * (noise_logdet + k as f64 * (2.0 * std::f64::consts::PI).ln()));
+    for (i, &equation) in free.iter().enumerate() {
+        scores[equation].intercept +=
+            count * (0..k).map(|r| precision[i * k + r] * residual_mean[r]).sum::<f64>();
+        for j in 0..n {
+            scores[equation].weights[j] += (0..k)
+                .map(|r| {
+                    precision[i * k + r]
+                        * (a_scatter[r * n + j] + count * residual_mean[r] * group.mean[j])
+                })
+                .sum::<f64>();
+            if let Some(local_j) = free.iter().position(|&v| v == j) {
+                scores[equation].weights[j] -= count * jacobian_inverse[local_j * k + i];
+            }
+        }
+    }
+
+    Ok(())
+}
+
 impl LinearRegimeMoments {
     /// Aggregate the actual observations by joint clamp target set. Actual assigned values retain their joint cross moments.
     /// Multivariate Welford accumulation preserves the centered cross moments.
@@ -217,111 +329,7 @@ impl LinearRegimeMoments {
             n
         ];
         for group in &self.groups {
-            if ctx.cancellation.is_cancelled() {
-                return Err(EquilibriumError::Resource("cancelled".into()));
-            }
-            let free = model.free_indices(&group.clamps)?;
-            let k = free.len();
-            if k == 0 {
-                continue;
-            }
-            for block in model.blocks(&group.clamps)? {
-                if !model.affine_certificate_checked(
-                    &block,
-                    ctx,
-                    usize::MAX,
-                    u64::MAX,
-                    &mut || crate::nonlinear_equilibrium::check_cancel(ctx),
-                )? {
-                    return Err(EquilibriumError::Uncertified { bound: f64::INFINITY });
-                }
-            }
-            let count = group.count as f64;
-            let covariance: Vec<_> = free
-                .iter()
-                .flat_map(|&i| free.iter().map(move |&j| model.noise_covariance[i * n + j]))
-                .collect();
-            crate::nonlinear_equilibrium::check_cancel(ctx)?;
-            let lower = cholesky(&covariance, k)?;
-            let noise_logdet = 2.0 * (0..k).map(|i| lower[i * k + i].ln()).sum::<f64>();
-            let precision = inverse(covariance, k)?;
-            crate::nonlinear_equilibrium::check_cancel(ctx)?;
-            let reads = model.read_sets()?;
-            let local = local_positions(&free);
-            let jacobian = model.sparse_jacobian(&group.mean, &free, &reads, &local)?;
-            // Fill is capped at the dense `k x k` worst case the lease above covers.
-            let lu = SparseLu::factor(&jacobian, k * k, &mut || {
-                crate::nonlinear_equilibrium::check_cancel(ctx)
-            })
-            .map_err(|error| match error {
-                FactorError::FillBudget(required) => {
-                    SolverBudgetCode::FactorFill.refusal(required as u64, (k * k) as u64)
-                }
-                FactorError::Interrupted(error) => error,
-                FactorError::Singular | FactorError::NonFinite => EquilibriumError::Singular,
-            })?;
-            let logdet = lu.log_abs_determinant();
-            let mut jacobian_inverse = vec![0.0; k * k];
-            for c in 0..k {
-                if c % 32 == 0 {
-                    crate::nonlinear_equilibrium::check_cancel(ctx)?;
-                }
-                let mut unit = vec![0.0; k];
-                unit[c] = 1.0;
-                for (r, v) in lu.solve(&unit).into_iter().enumerate() {
-                    jacobian_inverse[r * k + c] = v;
-                }
-            }
-            let residual_mean = model.residual(&group.mean, &vec![0.0; n], &free);
-            // Sparse rows of A = I - W over the free equations.
-            let a_rows: Vec<Vec<(usize, f64)>> = free
-                .iter()
-                .map(|&i| {
-                    (0..n)
-                        .filter_map(|j| {
-                            let v =
-                                (if i == j { 1.0 } else { 0.0 }) - model.equations[i].weights[j];
-                            (v != 0.0).then_some((j, v))
-                        })
-                        .collect()
-                })
-                .collect();
-            let mut a_scatter = vec![0.0; k * n];
-            for (i, row) in a_rows.iter().enumerate() {
-                for &(r, v) in row {
-                    for j in 0..n {
-                        a_scatter[i * n + j] += v * group.scatter[r * n + j];
-                    }
-                }
-            }
-            let mut quadratic = 0.0;
-            for i in 0..k {
-                for r in 0..k {
-                    let centered: f64 =
-                        a_rows[r].iter().map(|&(j, v)| a_scatter[i * n + j] * v).sum();
-                    quadratic += precision[i * k + r]
-                        * (centered + count * residual_mean[i] * residual_mean[r]);
-                }
-            }
-            likelihood += count * logdet
-                - 0.5
-                    * (quadratic
-                        + count * (noise_logdet + k as f64 * (2.0 * std::f64::consts::PI).ln()));
-            for (i, &equation) in free.iter().enumerate() {
-                scores[equation].intercept +=
-                    count * (0..k).map(|r| precision[i * k + r] * residual_mean[r]).sum::<f64>();
-                for j in 0..n {
-                    scores[equation].weights[j] += (0..k)
-                        .map(|r| {
-                            precision[i * k + r]
-                                * (a_scatter[r * n + j] + count * residual_mean[r] * group.mean[j])
-                        })
-                        .sum::<f64>();
-                    if let Some(local_j) = free.iter().position(|&v| v == j) {
-                        scores[equation].weights[j] -= count * jacobian_inverse[local_j * k + i];
-                    }
-                }
-            }
+            score_regime(group, model, n, ctx, &mut likelihood, &mut scores)?;
         }
         if !likelihood.is_finite()
             || scores

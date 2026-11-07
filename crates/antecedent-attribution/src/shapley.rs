@@ -462,113 +462,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
     let eval = evaluate_coalition::<Prefetched<'_, P>>;
 
     match config.mode {
-        ShapleyMode::Exact => {
-            let n_coalitions = 1u64 << n;
-            budget.exact_coalitions = n_coalitions;
-            // Weighted marginals are summed with compensation: each player accumulates up to
-            // 2^(n-1) terms of mixed sign.
-            let mut phi = vec![CompensatedSum::default(); n];
-            let fact = factorial_weights(n);
-            let (mut v_empty, mut v_full) = (0.0, 0.0);
-            let report_every = (n_coalitions / PROGRESS_REPORTS).max(1);
-            if n <= MAX_DENSE_TABLE_PLAYERS {
-                // Evaluate every coalition exactly once into a dense table, whatever the
-                // cache policy: with the cache off (or saturated) the lazy walk below
-                // re-evaluates each `v(S ∪ {i})` and costs up to `2^k (1 + k/2)` payoff calls,
-                // which `check_coalition_sample_budget` (2^k) does not account for. The table
-                // already holds every value, so nothing is retained in the coalition cache.
-                #[allow(
-                    clippy::cast_possible_truncation,
-                    reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
-                )]
-                let mut table = Vec::with_capacity(n_coalitions as usize);
-                let block = PREFETCH_BLOCK * Prefetched::<P>::threads(ctx) as u64;
-                for mask in 0..n_coalitions {
-                    if mask % block == 0 {
-                        payoff.prefetch(
-                            (mask..(mask + block).min(n_coalitions)).map(Coalition::from_bits),
-                            ctx,
-                        )?;
-                    }
-                    if ctx.cancellation.is_cancelled() {
-                        return Err(AttributionError::Cancelled);
-                    }
-                    if mask % report_every == 0 {
-                        if let Some(p) = &ctx.progress {
-                            p.report(mask as f64 / n_coalitions as f64, "shapley");
-                        }
-                    }
-                    table.push(payoff.value(&Coalition::from_bits(mask))?);
-                    budget.evaluations += 1;
-                }
-                for mask in 0..n_coalitions {
-                    #[allow(
-                        clippy::cast_possible_truncation,
-                        reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
-                    )]
-                    let v_s = table[mask as usize];
-                    let s = (mask.count_ones()) as usize;
-                    for i in 0..n {
-                        let bit = 1u64 << i;
-                        if mask & bit != 0 {
-                            continue;
-                        }
-                        #[allow(
-                            clippy::cast_possible_truncation,
-                            reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
-                        )]
-                        let v_with_i = table[(mask | bit) as usize];
-                        phi[i].add(fact[s] * (v_with_i - v_s));
-                    }
-                }
-                v_empty = table[0];
-                v_full = table[table.len() - 1];
-            } else {
-                for mask in 0..n_coalitions {
-                    if ctx.cancellation.is_cancelled() {
-                        return Err(AttributionError::Cancelled);
-                    }
-                    if mask % report_every == 0 {
-                        if let Some(p) = &ctx.progress {
-                            p.report(mask as f64 / n_coalitions as f64, "shapley");
-                        }
-                    }
-                    let v_s = eval(&Coalition::from_bits(mask), payoff, &mut cache, &mut budget)?;
-                    if mask == 0 {
-                        v_empty = v_s;
-                    }
-                    if mask == n_coalitions - 1 {
-                        v_full = v_s;
-                    }
-                    for i in 0..n {
-                        let bit = 1u64 << i;
-                        if mask & bit != 0 {
-                            continue;
-                        }
-                        let v_si = eval(
-                            &Coalition::from_bits(mask | bit),
-                            payoff,
-                            &mut cache,
-                            &mut budget,
-                        )?;
-                        let s = (mask.count_ones()) as usize;
-                        phi[i].add(fact[s] * (v_si - v_s));
-                    }
-                }
-            }
-            let phi: Vec<f64> = phi.iter().map(|acc| acc.total()).collect();
-            let efficiency_residual = CompensatedSum::of(phi.iter().copied()) - (v_full - v_empty);
-            Ok(ShapleyEstimate {
-                players: players.to_vec(),
-                values: phi,
-                interactions: Vec::new(),
-                budget,
-                monte_carlo_stderr: None,
-                component_mc_stderr: None,
-                efficiency_residual: Some(efficiency_residual),
-                cache_stats: cache.stats(),
-            })
-        }
+        ShapleyMode::Exact => estimate_exact_shapley(players, payoff, ctx, cache, budget),
         ShapleyMode::MonteCarlo { n_samples }
         | ShapleyMode::Permutation { n_permutations: n_samples } => {
             budget.samples = n_samples as u64;
@@ -637,6 +531,119 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
         }
         _ => Err(AttributionError::unsupported("unsupported ShapleyMode variant")),
     }
+}
+
+#[allow(clippy::needless_range_loop, reason = "indices name coalition coordinates")]
+fn estimate_exact_shapley<P: CoalitionPayoff>(
+    players: &[ComponentId],
+    payoff: &mut Prefetched<'_, P>,
+    ctx: &ExecutionContext,
+    mut cache: CoalitionCache,
+    mut budget: ComputeBudget,
+) -> Result<ShapleyEstimate, AttributionError> {
+    let n = players.len();
+    let eval = evaluate_coalition::<Prefetched<'_, P>>;
+    let n_coalitions = 1u64 << n;
+    budget.exact_coalitions = n_coalitions;
+    // Weighted marginals are summed with compensation: each player accumulates up to
+    // 2^(n-1) terms of mixed sign.
+    let mut phi = vec![CompensatedSum::default(); n];
+    let fact = factorial_weights(n);
+    let (mut v_empty, mut v_full) = (0.0, 0.0);
+    let report_every = (n_coalitions / PROGRESS_REPORTS).max(1);
+    if n <= MAX_DENSE_TABLE_PLAYERS {
+        // Evaluate every coalition exactly once into a dense table, whatever the
+        // cache policy: with the cache off (or saturated) the lazy walk below
+        // re-evaluates each `v(S ∪ {i})` and costs up to `2^k (1 + k/2)` payoff calls,
+        // which `check_coalition_sample_budget` (2^k) does not account for. The table
+        // already holds every value, so nothing is retained in the coalition cache.
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
+        )]
+        let mut table = Vec::with_capacity(n_coalitions as usize);
+        let block = PREFETCH_BLOCK * Prefetched::<P>::threads(ctx) as u64;
+        for mask in 0..n_coalitions {
+            if mask % block == 0 {
+                payoff.prefetch(
+                    (mask..(mask + block).min(n_coalitions)).map(Coalition::from_bits),
+                    ctx,
+                )?;
+            }
+            if ctx.cancellation.is_cancelled() {
+                return Err(AttributionError::Cancelled);
+            }
+            if mask % report_every == 0 {
+                if let Some(p) = &ctx.progress {
+                    p.report(mask as f64 / n_coalitions as f64, "shapley");
+                }
+            }
+            table.push(payoff.value(&Coalition::from_bits(mask))?);
+            budget.evaluations += 1;
+        }
+        for mask in 0..n_coalitions {
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
+            )]
+            let v_s = table[mask as usize];
+            let s = (mask.count_ones()) as usize;
+            for i in 0..n {
+                let bit = 1u64 << i;
+                if mask & bit != 0 {
+                    continue;
+                }
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
+                )]
+                let v_with_i = table[(mask | bit) as usize];
+                phi[i].add(fact[s] * (v_with_i - v_s));
+            }
+        }
+        v_empty = table[0];
+        v_full = table[table.len() - 1];
+    } else {
+        for mask in 0..n_coalitions {
+            if ctx.cancellation.is_cancelled() {
+                return Err(AttributionError::Cancelled);
+            }
+            if mask % report_every == 0 {
+                if let Some(p) = &ctx.progress {
+                    p.report(mask as f64 / n_coalitions as f64, "shapley");
+                }
+            }
+            let v_s = eval(&Coalition::from_bits(mask), payoff, &mut cache, &mut budget)?;
+            if mask == 0 {
+                v_empty = v_s;
+            }
+            if mask == n_coalitions - 1 {
+                v_full = v_s;
+            }
+            for i in 0..n {
+                let bit = 1u64 << i;
+                if mask & bit != 0 {
+                    continue;
+                }
+                let v_si =
+                    eval(&Coalition::from_bits(mask | bit), payoff, &mut cache, &mut budget)?;
+                let s = (mask.count_ones()) as usize;
+                phi[i].add(fact[s] * (v_si - v_s));
+            }
+        }
+    }
+    let phi: Vec<f64> = phi.iter().map(|acc| acc.total()).collect();
+    let efficiency_residual = CompensatedSum::of(phi.iter().copied()) - (v_full - v_empty);
+    Ok(ShapleyEstimate {
+        players: players.to_vec(),
+        values: phi,
+        interactions: Vec::new(),
+        budget,
+        monte_carlo_stderr: None,
+        component_mc_stderr: None,
+        efficiency_residual: Some(efficiency_residual),
+        cache_stats: cache.stats(),
+    })
 }
 
 /// Sequential (path-dependent) allocation along a fixed order.

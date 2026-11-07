@@ -18,14 +18,14 @@ use std::sync::Arc;
 use antecedent_core::{CausalQuery, ExecutionContext, VariableId};
 use antecedent_data::column::OwnedColumn;
 use antecedent_data::{
-    ImputationModel, ImputationSpec, MissingDeclaration, RowAccounting, TableView, TabularData,
-    complete_float_columns,
+    complete_float_columns, ImputationModel, ImputationSpec, MissingDeclaration, RowAccounting,
+    TableView, TabularData,
 };
-use antecedent_estimate::EstimationError;
 use antecedent_estimate::bayesian::CausalPosterior;
 use antecedent_estimate::multiple_imputation::{
     self, ImputationColumn, ImputationFit, Imputer, MultipleImputationFailure, PooledEstimate,
 };
+use antecedent_estimate::EstimationError;
 use antecedent_prob::PosteriorDraws;
 
 use super::builder::DataInput;
@@ -290,6 +290,93 @@ pub(super) fn stacked_posterior(
     Ok(stacked)
 }
 
+fn apply_pooled_estimate(
+    study: &Study,
+    spec: ImputationSpec,
+    run: &multiple_imputation::MultipleImputationRun,
+    posteriors: &[CausalPosterior],
+    result: &mut StudyResult,
+) -> Result<ImputationReport, CausalError> {
+    let mut assumptions = run.assumptions.clone();
+    assumptions.design = study.declared.sampling_design;
+    let assumptions_digest: Arc<str> = Arc::from(assumptions.digest());
+    let points: Arc<[f64]> = run.fits.iter().map(|fit| fit.point).collect();
+    let estimator: Arc<str> = Arc::from(result.logical_plan.estimator.as_deref().unwrap_or(""));
+    let report = match &run.pooled {
+        PooledEstimate::Rubin(pooled) => {
+            if let Some(effect) = result.estimate.as_effect_mut() {
+                effect.ate = pooled.point;
+                effect.uncertainty.analytic.se = pooled.standard_error();
+                effect.uncertainty.analytic.kind = None;
+                effect.uncertainty.analytic.reference_df =
+                    pooled.df.is_finite().then_some(pooled.df);
+                effect.uncertainty.bootstrap = antecedent_estimate::BootstrapAccounting::default();
+            }
+            ImputationReport {
+                spec,
+                unit: Arc::from(run.unit),
+                units: run.units,
+                imputed_cells: run.imputed_cells.clone().into(),
+                estimator,
+                pooling: Arc::from("rubin"),
+                points,
+                within: pooled.within,
+                between: pooled.between,
+                total: pooled.total,
+                df: pooled.df.is_finite().then_some(pooled.df),
+                df_complete: pooled.df_complete,
+                fraction_missing_information: Some(pooled.fraction_missing_information),
+                relative_increase: pooled
+                    .relative_increase
+                    .is_finite()
+                    .then_some(pooled.relative_increase),
+                assumptions_digest,
+                imputation_domains: assumptions.domains.clone().into(),
+                binary_boundary_variables: assumptions.binary_boundary_variables.clone().into(),
+                lags: 0,
+                vector: None,
+            }
+        }
+        PooledEstimate::Stacked(stacked) => {
+            result.posterior = Some(stacked_posterior(posteriors)?);
+            let graph_mixture = study.graph_posterior.is_some();
+            if let Some(effect) = result.estimate.as_effect_mut() {
+                effect.ate = stacked.mean;
+                effect.uncertainty.analytic.se = stacked.variance.sqrt();
+                effect.uncertainty.analytic.kind = None;
+                effect.uncertainty.analytic.reference_df = None;
+            }
+            ImputationReport {
+                spec,
+                unit: Arc::from(run.unit),
+                units: run.units,
+                imputed_cells: run.imputed_cells.clone().into(),
+                estimator,
+                pooling: Arc::from(if graph_mixture {
+                    "stacked_graph_posterior"
+                } else {
+                    "stacked_posterior"
+                }),
+                points,
+                within: stacked.within,
+                between: stacked.between,
+                total: stacked.variance,
+                df: None,
+                df_complete: None,
+                fraction_missing_information: None,
+                relative_increase: None,
+                assumptions_digest,
+                imputation_domains: assumptions.domains.clone().into(),
+                binary_boundary_variables: assumptions.binary_boundary_variables.clone().into(),
+                lags: 0,
+                vector: None,
+            }
+        }
+        _ => return Err(refused("the pooling rule is not one this route reports")),
+    };
+    Ok(report)
+}
+
 /// Impute, fit with `click` on every completed table, and pool.
 ///
 /// `click` runs the route's estimator on one completed table and returns its result.
@@ -365,83 +452,7 @@ where
         MultipleImputationFailure::Fit { error, .. } => error,
     })?;
     let mut result = base.ok_or_else(|| refused("no completed table was fitted"))?;
-    let mut assumptions = run.assumptions.clone();
-    assumptions.design = study.declared.sampling_design;
-    let assumptions_digest: Arc<str> = Arc::from(assumptions.digest());
-    let points: Arc<[f64]> = run.fits.iter().map(|fit| fit.point).collect();
-    let estimator: Arc<str> = Arc::from(result.logical_plan.estimator.as_deref().unwrap_or(""));
-    let report = match &run.pooled {
-        PooledEstimate::Rubin(pooled) => {
-            if let Some(effect) = result.estimate.as_effect_mut() {
-                effect.ate = pooled.point;
-                effect.uncertainty.analytic.se = pooled.standard_error();
-                effect.uncertainty.analytic.kind = None;
-                effect.uncertainty.analytic.reference_df =
-                    pooled.df.is_finite().then_some(pooled.df);
-                effect.uncertainty.bootstrap = antecedent_estimate::BootstrapAccounting::default();
-            }
-            ImputationReport {
-                spec,
-                unit: Arc::from(run.unit),
-                units: run.units,
-                imputed_cells: run.imputed_cells.clone().into(),
-                estimator,
-                pooling: Arc::from("rubin"),
-                points,
-                within: pooled.within,
-                between: pooled.between,
-                total: pooled.total,
-                df: pooled.df.is_finite().then_some(pooled.df),
-                df_complete: pooled.df_complete,
-                fraction_missing_information: Some(pooled.fraction_missing_information),
-                relative_increase: pooled
-                    .relative_increase
-                    .is_finite()
-                    .then_some(pooled.relative_increase),
-                assumptions_digest,
-                imputation_domains: assumptions.domains.clone().into(),
-                binary_boundary_variables: assumptions.binary_boundary_variables.clone().into(),
-                lags: 0,
-                vector: None,
-            }
-        }
-        PooledEstimate::Stacked(stacked) => {
-            result.posterior = Some(stacked_posterior(&posteriors)?);
-            let graph_mixture = study.graph_posterior.is_some();
-            if let Some(effect) = result.estimate.as_effect_mut() {
-                effect.ate = stacked.mean;
-                effect.uncertainty.analytic.se = stacked.variance.sqrt();
-                effect.uncertainty.analytic.kind = None;
-                effect.uncertainty.analytic.reference_df = None;
-            }
-            ImputationReport {
-                spec,
-                unit: Arc::from(run.unit),
-                units: run.units,
-                imputed_cells: run.imputed_cells.clone().into(),
-                estimator,
-                pooling: Arc::from(if graph_mixture {
-                    "stacked_graph_posterior"
-                } else {
-                    "stacked_posterior"
-                }),
-                points,
-                within: stacked.within,
-                between: stacked.between,
-                total: stacked.variance,
-                df: None,
-                df_complete: None,
-                fraction_missing_information: None,
-                relative_increase: None,
-                assumptions_digest,
-                imputation_domains: assumptions.domains.clone().into(),
-                binary_boundary_variables: assumptions.binary_boundary_variables.clone().into(),
-                lags: 0,
-                vector: None,
-            }
-        }
-        _ => return Err(refused("the pooling rule is not one this route reports")),
-    };
+    let report = apply_pooled_estimate(study, spec, &run, &posteriors, &mut result)?;
     // The interval of the first completed table does not describe the pooled estimate, and
     // the pooled construction has no interval method.
     result.extras.interval = None;

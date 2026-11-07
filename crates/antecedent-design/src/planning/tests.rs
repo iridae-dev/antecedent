@@ -453,3 +453,22 @@ fn a_plan_feeds_design_ranking_candidates() {
     let variance_of_mean = future.noise_variance() / future.sample_size() as f64;
     assert!((variance_of_mean - result.analytic.estimator_variance).abs() < 1e-12);
 }
+
+#[test]
+fn stratified_request_checks_shares_before_outcome_values() {
+    let request = PlanningRequest::new(
+        PlannedDesign::Stratified { strata: vec![StratumSpec { share: 0.5, within: -1.0 }] },
+        PlanningAssumptions::continuous(1.0).with_effect(0.2),
+        power(0.8),
+        size(100),
+    );
+    let error = request.validate().unwrap_err();
+    assert!(error.to_string().contains("shares"));
+    let request = PlanningRequest::new(
+        PlannedDesign::Stratified { strata: vec![StratumSpec { share: 1.0, within: -1.0 }] },
+        PlanningAssumptions::continuous(1.0).with_effect(0.2),
+        power(0.8),
+        size(100),
+    );
+    assert!(request.validate().unwrap_err().to_string().contains("stratum value"));
+}

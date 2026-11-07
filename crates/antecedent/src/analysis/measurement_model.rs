@@ -67,32 +67,32 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::measurement::{
-    LatentPosteriorTrust, MeasurementOperation, MeasurementRequest, check_latent_posterior,
-    check_measurement_request, route_card,
+    check_latent_posterior, check_measurement_request, route_card, LatentPosteriorTrust,
+    MeasurementOperation, MeasurementRequest,
 };
 use antecedent_contract::{
     ExternalRefusal, ExternalScientificObject, ExternalTrustState, ScientificQuantity,
 };
-use antecedent_core::ExecutionContext;
 use antecedent_core::identity::SemanticDigest;
 use antecedent_core::measurement_model::{
     CorrectedFunctionalRecord, ErrorStructure, MeasurementIdentities, MeasurementInference,
     MeasurementModel, MeasurementParameters, MeasurementRoute, ParameterEvidence,
     ParameterUncertainty, RepresentationMapping, RepresentationVersion,
 };
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::measurement::{
-    CategoricalFunctional, CorrectedBinaryPrevalence, CorrectedBinaryRiskDifference,
-    CorrectedCategoricalOutcome, CorrectedLinearEffect, CorrectedPosteriorLinearEffect,
-    DataBinding, LinearMeasuredData, MeasurementError, PosteriorCombination, PosteriorLinearData,
-    RiskDifferenceInput, correct_binary_prevalence, correct_binary_risk_difference,
-    correct_categorical, correct_classical_linear_effect, correct_latent_posterior_linear_effect,
-    correct_repeated_linear_effect,
+    correct_binary_prevalence, correct_binary_risk_difference, correct_categorical,
+    correct_classical_linear_effect, correct_latent_posterior_linear_effect,
+    correct_repeated_linear_effect, CategoricalFunctional, CorrectedBinaryPrevalence,
+    CorrectedBinaryRiskDifference, CorrectedCategoricalOutcome, CorrectedLinearEffect,
+    CorrectedPosteriorLinearEffect, DataBinding, LinearMeasuredData, MeasurementError,
+    PosteriorCombination, PosteriorLinearData, RiskDifferenceInput,
+};
+use antecedent_io::measurement_model_wire::{
+    replay_values, CategoricalReplayFunctional, MeasurementModelArtifact, MeasurementReplay,
+    MeasurementResult, ReplayedValues,
 };
 use antecedent_io::IoError;
-use antecedent_io::measurement_model_wire::{
-    CategoricalReplayFunctional, MeasurementModelArtifact, MeasurementReplay, MeasurementResult,
-    ReplayedValues, replay_values,
-};
 use antecedent_stats::measurement_error::{ObservedClassSummary, TwoByTwoCounts};
 
 use super::StudyBuilder;
@@ -558,6 +558,41 @@ impl StudyBuilder {
     }
 }
 
+type MeasurementParts = (CorrectedFunctionalRecord, MeasurementReplay, MeasurementDetail);
+
+fn linear_measurement_parts(effect: CorrectedLinearEffect) -> MeasurementParts {
+    let replay =
+        MeasurementReplay::Linear { moments: effect.moments.clone(), coefficient_index: 1 };
+    (effect.record.clone(), replay, MeasurementDetail::Linear(effect))
+}
+
+fn posterior_measurement_parts(
+    effect: CorrectedPosteriorLinearEffect,
+) -> Result<MeasurementParts, MeasurementModelRefusal> {
+    let replay = match (effect.combination, &effect.imputations, &effect.moments) {
+        (PosteriorCombination::MultipleImputation, Some(combined), _) => {
+            MeasurementReplay::MultipleImputation {
+                coefficients: combined.draw_coefficients.clone(),
+                covariances: combined.draw_covariances.clone(),
+                coefficient_index: 1,
+            }
+        }
+        (_, _, Some(moments)) => {
+            MeasurementReplay::Linear { moments: moments.clone(), coefficient_index: 1 }
+        }
+        _ => {
+            return Err(MeasurementModelRefusal {
+                code: antecedent_core::reason_code!("invalid_argument"),
+                detail: antecedent_core::reason_details::measurement_model::INPUT_INVALID
+                    .to_owned(),
+                message: "the posterior route returned no replayable inputs".to_owned(),
+                remedy: None,
+            });
+        }
+    };
+    Ok((effect.record.clone(), replay, MeasurementDetail::PosteriorLinear(effect)))
+}
+
 impl PreparedMeasurementModel {
     /// The checked model.
     #[must_use]
@@ -680,11 +715,7 @@ impl PreparedMeasurementModel {
                 let effect =
                     correct_classical_linear_effect(&self.model, &data_binding, &data, ctx)
                         .map_err(from_estimate)?;
-                let replay = MeasurementReplay::Linear {
-                    moments: effect.moments.clone(),
-                    coefficient_index: 1,
-                };
-                (effect.record.clone(), replay, MeasurementDetail::Linear(effect))
+                linear_measurement_parts(effect)
             }
             MeasurementInput::RepeatedLinear {
                 outcome,
@@ -704,11 +735,7 @@ impl PreparedMeasurementModel {
                     ctx,
                 )
                 .map_err(from_estimate)?;
-                let replay = MeasurementReplay::Linear {
-                    moments: effect.moments.clone(),
-                    coefficient_index: 1,
-                };
-                (effect.record.clone(), replay, MeasurementDetail::Linear(effect))
+                linear_measurement_parts(effect)
             }
             MeasurementInput::BinaryPrevalence { events, total } => {
                 let corrected =
@@ -767,29 +794,7 @@ impl PreparedMeasurementModel {
                 let effect =
                     correct_latent_posterior_linear_effect(&self.model, &data_binding, &data, ctx)
                         .map_err(from_estimate)?;
-                let replay = match (effect.combination, &effect.imputations, &effect.moments) {
-                    (PosteriorCombination::MultipleImputation, Some(combined), _) => {
-                        MeasurementReplay::MultipleImputation {
-                            coefficients: combined.draw_coefficients.clone(),
-                            covariances: combined.draw_covariances.clone(),
-                            coefficient_index: 1,
-                        }
-                    }
-                    (_, _, Some(moments)) => {
-                        MeasurementReplay::Linear { moments: moments.clone(), coefficient_index: 1 }
-                    }
-                    _ => {
-                        return Err(MeasurementModelRefusal {
-                            code: antecedent_core::reason_code!("invalid_argument"),
-                            detail:
-                                antecedent_core::reason_details::measurement_model::INPUT_INVALID
-                                    .to_owned(),
-                            message: "the posterior route returned no replayable inputs".to_owned(),
-                            remedy: None,
-                        });
-                    }
-                };
-                (effect.record.clone(), replay, MeasurementDetail::PosteriorLinear(effect))
+                posterior_measurement_parts(effect)?
             }
         };
         Ok(MeasurementEstimate {
@@ -825,9 +830,10 @@ impl PreparedMeasurementModel {
                 code: antecedent_core::reason_code!("route_not_supported"),
                 detail: antecedent_core::reason_details::measurement_model::ROUTE_MISMATCH
                     .to_owned(),
-                message: "refresh keeps the question: new data of another route family, \
+                message:
+                    "refresh keeps the question: new data of another route family, \
                           functional or arm pair is a different request and needs a new preparation"
-                    .to_owned(),
+                        .to_owned(),
                 remedy: None,
             });
         }

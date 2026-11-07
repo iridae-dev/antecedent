@@ -67,7 +67,107 @@ pub struct LazyUnfoldedTemporalGraph {
     pub indexer: TemporalIndexer,
 }
 
+fn checked_unfold_topological_order(
+    dag: &Dag,
+    nodes: usize,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Vec<DenseNodeId>, GraphError> {
+    use antecedent_core::TemporalMaterializationError as T;
+    let mut indegree = Vec::with_capacity(nodes);
+    let mut ready = Vec::new();
+    for i in 0..nodes {
+        if ctx.cancellation.is_cancelled() {
+            return Err(T::Cancelled.into());
+        }
+        let id = DenseNodeId::try_from_usize(i)?;
+        indegree.push(dag.parents(id).len());
+        if indegree[i] == 0 {
+            ready.push(id);
+        }
+    }
+    let mut topo = Vec::with_capacity(nodes);
+    while let Some(id) = ready.pop() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(T::Cancelled.into());
+        }
+        topo.push(id);
+        for child in dag.children(id) {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            indegree[child.as_usize()] -= 1;
+            if indegree[child.as_usize()] == 0 {
+                ready.push(*child);
+            }
+        }
+    }
+    if topo.len() != nodes {
+        return Err(GraphError::Cycle { from: 0, to: 0 });
+    }
+    Ok(topo)
+}
+
 impl TemporalDag {
+    fn materialize_admitted_window(
+        &self,
+        indexer: &TemporalIndexer,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Dag, GraphError> {
+        use antecedent_core::TemporalMaterializationError as T;
+        let limit = |dimension| GraphError::TemporalMaterialization(T::Limit { dimension });
+        let mut dag = Dag::empty();
+        for dense in 0..indexer.dense_len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            let key = indexer
+                .key_of(u32::try_from(dense).map_err(|_| GraphError::TooManyNodes)?)
+                .map_err(|_| GraphError::TooManyNodes)?;
+            dag.add_node(NodeRef::Unfolded { variable: key.variable, offset: key.offset })?;
+        }
+        for (i, _) in self.nodes().iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            let from = DenseNodeId::try_from_usize(i)?;
+            let a = self
+                .temporal_key(from)
+                .ok_or(GraphError::InvalidEndpoints { message: "unfold requires lagged nodes" })?;
+            for &to in self.children(from) {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(T::Cancelled.into());
+                }
+                let b = self.temporal_key(to).ok_or(GraphError::InvalidEndpoints {
+                    message: "unfold requires lagged nodes",
+                })?;
+                for delta in stationary_shifts(indexer, i64::from(a.offset), i64::from(b.offset)) {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(T::Cancelled.into());
+                    }
+                    let a_offset = i32::try_from(i64::from(a.offset) + delta)
+                        .map_err(|_| limit("window coordinates"))?;
+                    let b_offset = i32::try_from(i64::from(b.offset) + delta)
+                        .map_err(|_| limit("window coordinates"))?;
+                    let ai = indexer
+                        .dense_id(TemporalNodeKey { variable: a.variable, offset: a_offset })
+                        .map_err(|_| GraphError::InvalidEndpoints {
+                            message: "unfold endpoint outside window",
+                        })?;
+                    let bi = indexer
+                        .dense_id(TemporalNodeKey { variable: b.variable, offset: b_offset })
+                        .map_err(|_| GraphError::InvalidEndpoints {
+                            message: "unfold endpoint outside window",
+                        })?;
+                    if ai != bi {
+                        dag.directed_mut()
+                            .push_if_absent(DenseNodeId::from_raw(ai), DenseNodeId::from_raw(bi));
+                    }
+                }
+            }
+        }
+        Ok(dag)
+    }
+
     /// Materialize a finite window using a shared logical budget and retained admission.
     /// Clones of this handle share the graph and lease; a graph copied by a caller
     /// from the borrowed `dag` is caller-owned.
@@ -145,87 +245,8 @@ impl TemporalDag {
             antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
             other => T::Admission(other),
         })?;
-        let mut dag = Dag::empty();
-        for dense in 0..indexer.dense_len() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(T::Cancelled.into());
-            }
-            let key = indexer
-                .key_of(u32::try_from(dense).map_err(|_| GraphError::TooManyNodes)?)
-                .map_err(|_| GraphError::TooManyNodes)?;
-            dag.add_node(NodeRef::Unfolded { variable: key.variable, offset: key.offset })?;
-        }
-        for (i, _) in self.nodes().iter().enumerate() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(T::Cancelled.into());
-            }
-            let from = DenseNodeId::try_from_usize(i)?;
-            let a = self
-                .temporal_key(from)
-                .ok_or(GraphError::InvalidEndpoints { message: "unfold requires lagged nodes" })?;
-            for &to in self.children(from) {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(T::Cancelled.into());
-                }
-                let b = self.temporal_key(to).ok_or(GraphError::InvalidEndpoints {
-                    message: "unfold requires lagged nodes",
-                })?;
-                for delta in stationary_shifts(&indexer, i64::from(a.offset), i64::from(b.offset)) {
-                    if ctx.cancellation.is_cancelled() {
-                        return Err(T::Cancelled.into());
-                    }
-                    let a_offset = i32::try_from(i64::from(a.offset) + delta)
-                        .map_err(|_| limit("window coordinates"))?;
-                    let b_offset = i32::try_from(i64::from(b.offset) + delta)
-                        .map_err(|_| limit("window coordinates"))?;
-                    let ai = indexer
-                        .dense_id(TemporalNodeKey { variable: a.variable, offset: a_offset })
-                        .map_err(|_| GraphError::InvalidEndpoints {
-                            message: "unfold endpoint outside window",
-                        })?;
-                    let bi = indexer
-                        .dense_id(TemporalNodeKey { variable: b.variable, offset: b_offset })
-                        .map_err(|_| GraphError::InvalidEndpoints {
-                            message: "unfold endpoint outside window",
-                        })?;
-                    if ai != bi {
-                        dag.directed_mut()
-                            .push_if_absent(DenseNodeId::from_raw(ai), DenseNodeId::from_raw(bi));
-                    }
-                }
-            }
-        }
-        let mut indegree = Vec::with_capacity(indexer.dense_len());
-        let mut ready = Vec::new();
-        for i in 0..indexer.dense_len() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(T::Cancelled.into());
-            }
-            let id = DenseNodeId::try_from_usize(i)?;
-            indegree.push(dag.parents(id).len());
-            if indegree[i] == 0 {
-                ready.push(id);
-            }
-        }
-        let mut topo = Vec::with_capacity(indexer.dense_len());
-        while let Some(id) = ready.pop() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(T::Cancelled.into());
-            }
-            topo.push(id);
-            for child in dag.children(id) {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(T::Cancelled.into());
-                }
-                indegree[child.as_usize()] -= 1;
-                if indegree[child.as_usize()] == 0 {
-                    ready.push(*child);
-                }
-            }
-        }
-        if topo.len() != indexer.dense_len() {
-            return Err(GraphError::Cycle { from: 0, to: 0 });
-        }
+        let dag = self.materialize_admitted_window(&indexer, ctx)?;
+        let topo = checked_unfold_topological_order(&dag, indexer.dense_len(), ctx)?;
         Ok(AdmittedUnfoldedTemporalGraph(std::sync::Arc::new(AdmittedUnfoldedTemporalGraphInner {
             window: UnfoldedTemporalGraph { dag, indexer },
             topo,
@@ -543,12 +564,10 @@ mod tests {
             assert!(!matches!(node, NodeRef::Static(_)));
         }
         // Positive offsets (the future window) are expressible; `Lagged` could not.
-        assert!(
-            unfolded
-                .dag
-                .nodes()
-                .contains(&NodeRef::Unfolded { variable: VariableId::from_raw(1), offset: 2 })
-        );
+        assert!(unfolded
+            .dag
+            .nodes()
+            .contains(&NodeRef::Unfolded { variable: VariableId::from_raw(1), offset: 2 }));
     }
 
     #[test]

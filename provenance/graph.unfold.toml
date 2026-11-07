@@ -26,7 +26,7 @@ status = "justified_non_algorithm"
 kind = "derivation"
 rationale = "Lazy bounded finite-window unfolding of a stationary lagged temporal DAG template into a static DAG, plus graph-review proposal artifacts."
 no_independent_algorithm = "Edge replication over a window index; the module has no square root, logarithm, exponential, power or solve, and per-edge queries exist only as the test oracle of the replication."
-derivation = "For a stationary template with lagged edges (u, lag l) -> v, the unfolded window [0, T) contains the edge (u, t-l) -> (v, t) for every t with t-l in the window; materialize replicates these edges and has_edge is the independent oracle."
+derivation = "For a stationary template with lagged edges (u, lag l) -> v, the unfolded window [0, T) contains the edge (u, t-l) -> (v, t) for every t with t-l in the window; materialize replicates these edges and has_edge is the independent oracle. After extracting admitted window construction and the checked topological walk, the window edge replication, cancellation polls, stack ordering, cycle refusal and admission lifetime were re-read against the prior implementation; the derivation is unchanged."
 inline_tests = true
 record_sha256 = "b2fbe69ad733e0ee9805cfdebd1d4193f60216e84b64bd5da03e60c7ed846999"
 
@@ -34,4 +34,4 @@ record_sha256 = "b2fbe69ad733e0ee9805cfdebd1d4193f60216e84b64bd5da03e60c7ed84699
 role = "implementation"
 path = "crates/antecedent-graph/src/unfold.rs"
 items = ["module"]
-sha256 = "a6829a3fcc1892407d6268431295c5539e77c61778717cd9bc198c10fc075271"
+sha256 = "a5eb6058d707729dbdbb5e397da4abe1501c31f4e937610c5a91060ad4bb6832"

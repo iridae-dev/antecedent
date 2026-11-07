@@ -25,7 +25,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "evaluate_multi_action_policy_value_scores, evaluate_multi_action_ipw_policy and evaluate_multi_action_cate in crates/antecedent-estimate/src/policy_value.rs: the multi-action Horvitz-Thompson row score 1{T = a} y / pi_{row, T} net of the per-action cost, the policy, reference and paired means and standard errors, the non-control rate, the point-only values, and the fixed-stratum action-against-control contrast (action score minus control score over the stratum's rows) with its standard error, row counts and interval floor. Not capacity, budget and availability coupling, or the intervals' coverage."
+scope = "evaluate_multi_action_policy_value_scores, evaluate_multi_action_ipw_policy and evaluate_multi_action_cate in crates/antecedent-estimate/src/policy_value.rs: the multi-action Horvitz-Thompson row score 1{T = a} y / pi_{row, T} net of the per-action cost, the policy, reference and paired means and standard errors, the non-control rate, the point-only values, and the fixed-stratum action-against-control contrast (action score minus control score over the stratum's rows) with its standard error, row counts and interval floor. Not capacity, budget and availability coupling, or the intervals' coverage. Point-only IPW definitions moved to policy_value/ipw.rs and bound items were compared unchanged apart from formatting."
 assumptions = ["Known action probabilities, frozen recommendations and strata fixed before the evaluation outcomes; independent subjects.", "A stratum effect is conditional on the fixed stratum and on the randomization within it."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
 redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), fractions from the Python standard library, imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
@@ -37,8 +37,14 @@ record_sha256 = "74d7999a61056d9fd70a43a7e33d3c7fab7111c221ee4ee0fea163b9af1b785
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/policy_value.rs"
-items = ["fn binary_ipw_value", "fn evaluate_binary_ipw_policy", "fn evaluate_fixed_candidate_regret", "fn evaluate_multi_action_cate", "fn evaluate_multi_action_ipw_policy", "fn evaluate_multi_action_policy_value_scores", "fn evaluate_policy_value_ipw_scores", "fn evaluate_policy_value_scores", "fn evaluate_scores", "fn evaluate_uplift_bins", "fn row_scores", "fn uplift_by_score_bin", "struct BinaryIpwDesign", "struct BinaryIpwPolicy", "struct BinaryPolicyDesign", "struct BinaryPolicyLimits", "struct FixedCandidateRegret", "struct MultiActionCatePoint", "struct MultiActionIpwDesign", "struct MultiActionIpwPolicy", "struct MultiActionLimits", "struct PolicyValueScores", "struct RowScores", "struct ScoreBinUplift", "struct UpliftBinScore"]
-sha256 = "5ca4216eb93f4d5c955939abb8dc2894e16ebb6f63778b7dea1bb22a986bb806"
+items = ["fn evaluate_fixed_candidate_regret", "fn evaluate_multi_action_cate", "fn evaluate_multi_action_policy_value_scores", "fn evaluate_policy_value_ipw_scores", "fn evaluate_policy_value_scores", "fn evaluate_scores", "fn evaluate_uplift_bins", "fn row_scores", "struct BinaryPolicyDesign", "struct FixedCandidateRegret", "struct MultiActionCatePoint", "struct PolicyValueScores", "struct RowScores", "struct UpliftBinScore"]
+sha256 = "6e59e4b532fab46e5dd609b7e2cdba1d51202fe2e162c5dc3f4405feb0495f05"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/policy_value/ipw.rs"
+items = ["fn binary_ipw_value", "fn evaluate_binary_ipw_policy", "fn evaluate_multi_action_ipw_policy", "fn uplift_by_score_bin", "struct BinaryIpwDesign", "struct BinaryIpwPolicy", "struct BinaryPolicyLimits", "struct MultiActionIpwDesign", "struct MultiActionIpwPolicy", "struct MultiActionLimits", "struct ScoreBinUplift"]
+sha256 = "39d1aeb44ea155f9b0ba0ddb860497a73ebdff24a329f5a05efafc58fbbafc24"
 
 [[method_review.artifacts]]
 role = "assertion"

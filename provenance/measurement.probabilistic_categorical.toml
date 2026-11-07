@@ -28,7 +28,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "ConfusionMatrix, ObservedClassSummary and corrected_categories in crates/antecedent-stats/src/measurement_error.rs: the inversion pi = C^{-1} p* for a column-stochastic confusion matrix C[observed, true], the outcome means by true category mu = Q^{-1} ybar with Q[j][t] = C[j][t] pi_t / p*_j, the delta-method covariances of the corrected proportions and of the outcome means over the observed proportions (multinomial), the class means (independent) and the confusion columns (independent multinomials from the validation counts), the central-difference Jacobian of the outcome-mean map, the 1-norm condition number and the condition refusal. Not the binary routes (reviewed under measurement.binary_misclassification), the estimator layer that supports a correction, or the externally supplied latent posterior."
+scope = "ConfusionMatrix, ObservedClassSummary and corrected_categories in crates/antecedent-stats/src/measurement_error.rs: the inversion pi = C^{-1} p* for a column-stochastic confusion matrix C[observed, true], the outcome means by true category mu = Q^{-1} ybar with Q[j][t] = C[j][t] pi_t / p*_j, the delta-method covariances of the corrected proportions and of the outcome means over the observed proportions (multinomial), the class means (independent) and the confusion columns (independent multinomials from the validation counts), the central-difference Jacobian of the outcome-mean map, the 1-norm condition number and the condition refusal. Not the binary routes (reviewed under measurement.binary_misclassification), the estimator layer that supports a correction, or the externally supplied latent posterior. Classification correction definitions moved to measurement_error/classification.rs and bound items were compared unchanged apart from formatting."
 assumptions = ["Misclassification depends on the true category only (non-differential given the true category); the observed class summaries and the validation columns are independent samples.", "The confusion matrix is known or estimated from validation counts with one multinomial per true category.", "Corrected proportions are not projected onto the simplex."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated definitions, derivatives derived by hand, in exact rational arithmetic and at 60 digits (mpmath); no upstream implementation was consulted. The cited sources were not retrieved."
 redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited sources are linked, not redistributed."
@@ -40,8 +40,14 @@ record_sha256 = "d5abc4d3d4acb2eef99214010f423998a2cedd2059b32fc114ed655bb21e3f8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/measurement_error.rs"
-items = ["enum MeasurementErrorError", "fn category_outcome_means", "fn check_count", "fn column_counts", "fn congruence", "fn corrected_categories", "fn corrected_prevalence", "fn corrected_risk_difference_differential", "fn corrected_risk_difference_nondifferential", "fn from_validation_counts", "fn levels", "fn matrix", "fn matvec", "fn new", "fn one_norm", "fn require_youden", "fn youden", "struct BinaryErrorRates", "struct ConfusionMatrix", "struct CorrectedCategorical", "struct CorrectedProportion", "struct CorrectedRiskDifference", "struct ObservedClassSummary", "struct TwoByTwoCounts"]
-sha256 = "67b1373719e9bef37427f1a0f38b01e6f3d1dd951c4e45671091fbe73b5c971f"
+items = ["enum MeasurementErrorError", "fn matvec"]
+sha256 = "ef1c3ef5c606e4adc0a5c92addedf455130e81d259fc3f00d7098fcc19394328"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error/classification.rs"
+items = ["fn category_outcome_means", "fn check_count", "fn column_counts", "fn congruence", "fn corrected_categories", "fn corrected_prevalence", "fn corrected_risk_difference_differential", "fn corrected_risk_difference_nondifferential", "fn from_validation_counts", "fn levels", "fn matrix", "fn new", "fn one_norm", "fn require_youden", "fn youden", "struct BinaryErrorRates", "struct ConfusionMatrix", "struct CorrectedCategorical", "struct CorrectedProportion", "struct CorrectedRiskDifference", "struct ObservedClassSummary", "struct TwoByTwoCounts"]
+sha256 = "7200b43014cdac3eb8f07fbd62881eb9269506143dbdca2ffe05dc5cc3814135"
 
 [[method_review.artifacts]]
 role = "assertion"

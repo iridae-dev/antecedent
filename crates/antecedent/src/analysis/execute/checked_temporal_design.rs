@@ -17,13 +17,13 @@ use super::bayesian_quasi_common::{
     assemble_posterior, effect_quantity, model_assumption, require_built_in_model, scalar_quantity,
 };
 use super::{
-    Arc, CausalError, CausalExprArena, CausalQuery, DerivationMeta, DerivationTrace, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate, EstimatorId, ExecutionContext,
-    ExprNode, GraphClass, IdentificationPerformanceRecord, IdentificationResult,
-    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId,
-    InferenceDiagnostics, InferenceMode, OutcomeExprId, OverlapPolicy, PhysicalExecutionPlan,
-    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult,
-    TableView, TabularData, finish_identified_execute_with_context,
+    finish_identified_execute_with_context, Arc, CausalError, CausalExprArena, CausalQuery,
+    DerivationMeta, DerivationTrace, Diagnostic, DiagnosticKind, DiagnosticSeverity, DomainRef,
+    EffectEstimate, EstimatorId, ExecutionContext, ExprNode, GraphClass,
+    IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceDiagnostics,
+    InferenceMode, OutcomeExprId, OverlapPolicy, PhysicalExecutionPlan, RandomizedTrialOperation,
+    RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData,
 };
 use antecedent_core::DeclaredSamplingDesign;
 use antecedent_core::{
@@ -34,20 +34,20 @@ use antecedent_core::{
 use antecedent_data::{MissingDeclaration, MissingPolicy};
 use antecedent_estimate::sampling_weights::{SamplingWeightRecord, SamplingWeights};
 use antecedent_estimate::temporal_design::contrasts::{
-    DesignScores, factorial_scores, interference_scores, multi_arm_scores, two_arm_scores,
+    factorial_scores, interference_scores, multi_arm_scores, two_arm_scores, DesignScores,
 };
-use antecedent_estimate::temporal_design::dose::{DosePairs, DoseTarget, fit_dose};
+use antecedent_estimate::temporal_design::dose::{fit_dose, DosePairs, DoseTarget};
 use antecedent_estimate::temporal_design::misclassification::{
-    ValidationCounts, correct_posterior, correct_sampling,
+    correct_posterior, correct_sampling, ValidationCounts,
 };
-use antecedent_estimate::temporal_design::quantile::{QUANTILE_COORDINATES, fit_quantile};
+use antecedent_estimate::temporal_design::quantile::{fit_quantile, QUANTILE_COORDINATES};
 use antecedent_estimate::temporal_design::serial::{
-    SERIAL_METHOD, serial_sampling_summary, serial_sup_t_band,
+    serial_sampling_summary, serial_sup_t_band, SERIAL_METHOD,
 };
 use antecedent_estimate::temporal_design::{
-    ClusterScores, DEFAULT_BAND_REPLICATES, LaggedPairs, PanelRows, PosteriorSummary,
-    SamplingSummary, bayesian_bootstrap, dense_labels, holm_adjusted, lagged_pairs,
-    sampling_summary, sup_t_band,
+    bayesian_bootstrap, dense_labels, holm_adjusted, lagged_pairs, sampling_summary, sup_t_band,
+    ClusterScores, LaggedPairs, PanelRows, PosteriorSummary, SamplingSummary,
+    DEFAULT_BAND_REPLICATES,
 };
 
 use crate::analysis::missing_data::{self, MissingRoute};
@@ -318,6 +318,122 @@ impl CheckedTemporalDesignOperation {
         self.fit(data, ctx).map(|output| (output, FitExtras::default()))
     }
 
+    fn fit_quantile_design(
+        &self,
+        pairs: &LaggedPairs,
+        outcome: &[f64],
+        unit: &[usize],
+        level: f64,
+        ctx: &ExecutionContext,
+    ) -> Result<FitOutput, CausalError> {
+        let query = &self.query;
+        let draws = self.extra.bayesian.as_ref().map(|config| config.n_draws);
+        let floor = query.min_probability;
+        let TemporalAssignment::TwoArm { assignment, probability } = &query.assignment else {
+            return Err(CausalError::Compile {
+                message: "the quantile functional lost its two-arm design".into(),
+            });
+        };
+        let fit = fit_quantile(
+            pairs,
+            outcome,
+            assignment,
+            probability,
+            unit,
+            floor,
+            level,
+            self.extra.replicates as usize,
+            draws,
+            ctx,
+        )
+        .map_err(CausalError::from)?;
+        let coordinates = QUANTILE_COORDINATES.iter().map(|name| (*name).to_owned()).collect();
+        let summary = match (&fit.posterior, fit.standard_error, fit.interval) {
+            (Some(posterior), _, _) => Summary::Posterior(posterior.clone()),
+            (None, Some(se), Some(interval)) => Summary::Bootstrap {
+                estimate: fit.estimate.to_vec(),
+                standard_error: se.to_vec(),
+                interval: interval.to_vec(),
+            },
+            _ => {
+                return Err(CausalError::Compile {
+                    message: "the quantile fit reported no uncertainty".into(),
+                })
+            }
+        };
+        Ok(FitOutput {
+            coordinates,
+            family: vec![0],
+            summary,
+            pairs: fit.pairs,
+            clusters: fit.clusters,
+            unpaired: pairs.unpaired,
+            minimum_probability: f64::NAN,
+            replicates: (fit.posterior.is_none())
+                .then_some((fit.replicates.0 as u64, fit.replicates.1 as u64)),
+            functional: format!("quantile:{level}"),
+            uncertainty: if fit.posterior.is_some() {
+                "bayesian_bootstrap_over_units_weighted_quantile"
+            } else {
+                "whole_procedure_cluster_bootstrap_percentile"
+            },
+        })
+    }
+
+    fn fit_dose_design(
+        &self,
+        pairs: &LaggedPairs,
+        outcome: &[f64],
+        unit: &[usize],
+        (dose, density, bandwidth, target): (&[f64], &[f64], f64, &TemporalDoseTarget),
+        ctx: &ExecutionContext,
+    ) -> Result<FitOutput, CausalError> {
+        let draws = self.extra.bayesian.as_ref().map(|config| config.n_draws);
+        let input = DosePairs { pairs, outcome, dose, density, cluster: unit };
+        let (estimate_target, label) = dose_target(target);
+        let fit = fit_dose(input, bandwidth, &estimate_target, draws, DEFAULT_BAND_REPLICATES, ctx)
+            .map_err(CausalError::from)?;
+        let summary = match (fit.sampling, fit.posterior) {
+            (Some(sampling), _) => Summary::Sampling(sampling),
+            (None, Some(posterior)) => Summary::Posterior(posterior),
+            (None, None) => {
+                return Err(CausalError::Compile {
+                    message: "the dose fit reported no uncertainty".into(),
+                });
+            }
+        };
+        let uncertainty = match &summary {
+            Summary::Sampling(sampling) => sampling.method,
+            Summary::Posterior(posterior) => posterior.method,
+            Summary::Bootstrap { .. } => "whole_procedure_cluster_bootstrap_percentile",
+        };
+        let family = if matches!(target, TemporalDoseTarget::SmoothedContrast { .. }) {
+            vec![0]
+        } else {
+            Vec::new()
+        };
+        let mut output = FitOutput {
+            coordinates: fit.coordinates,
+            family,
+            summary,
+            pairs: fit.pairs,
+            clusters: fit.clusters,
+            unpaired: pairs.unpaired,
+            minimum_probability: f64::NAN,
+            replicates: None,
+            functional: label,
+            uncertainty,
+        };
+        if let (Summary::Posterior(_), Some(bias)) = (&output.summary, fit.smoothing_bias_bound) {
+            output.functional = format!(
+                "{}; posterior of the bandwidth projection, worst-case smoothing bias {:?} \
+                 reported beside it",
+                output.functional, bias
+            );
+        }
+        Ok(output)
+    }
+
     /// Run the design's procedure.
     #[allow(
         clippy::too_many_lines,
@@ -327,8 +443,6 @@ impl CheckedTemporalDesignOperation {
         let query = &self.query;
         let outcome = read_column(data, query.outcome)?;
         let (unit, _) = dense_labels(&query.units);
-        let draws = self.extra.bayesian.as_ref().map(|config| config.n_draws);
-        let floor = query.min_probability;
         if let TemporalAssignment::RegimeSurvival { treatment, censored, confounders, horizon } =
             &query.assignment
         {
@@ -370,103 +484,16 @@ impl CheckedTemporalDesignOperation {
             );
         }
         if let TemporalDesignFunctional::Quantile { level } = query.functional {
-            let TemporalAssignment::TwoArm { assignment, probability } = &query.assignment else {
-                return Err(CausalError::Compile {
-                    message: "the quantile functional lost its two-arm design".into(),
-                });
-            };
-            let fit = fit_quantile(
-                &pairs,
-                &outcome,
-                assignment,
-                probability,
-                &unit,
-                floor,
-                level,
-                self.extra.replicates as usize,
-                draws,
-                ctx,
-            )
-            .map_err(CausalError::from)?;
-            let coordinates = QUANTILE_COORDINATES.iter().map(|name| (*name).to_owned()).collect();
-            let summary = match (&fit.posterior, fit.standard_error, fit.interval) {
-                (Some(posterior), _, _) => Summary::Posterior(posterior.clone()),
-                (None, Some(se), Some(interval)) => Summary::Bootstrap {
-                    estimate: fit.estimate.to_vec(),
-                    standard_error: se.to_vec(),
-                    interval: interval.to_vec(),
-                },
-                _ => {
-                    return Err(CausalError::Compile {
-                        message: "the quantile fit reported no uncertainty".into(),
-                    });
-                }
-            };
-            return Ok(FitOutput {
-                coordinates,
-                family: vec![0],
-                summary,
-                pairs: fit.pairs,
-                clusters: fit.clusters,
-                unpaired: pairs.unpaired,
-                minimum_probability: f64::NAN,
-                replicates: (fit.posterior.is_none())
-                    .then_some((fit.replicates.0 as u64, fit.replicates.1 as u64)),
-                functional: format!("quantile:{level}"),
-                uncertainty: if fit.posterior.is_some() {
-                    "bayesian_bootstrap_over_units_weighted_quantile"
-                } else {
-                    "whole_procedure_cluster_bootstrap_percentile"
-                },
-            });
+            return self.fit_quantile_design(&pairs, &outcome, &unit, level, ctx);
         }
         if let TemporalAssignment::Dose { dose, density, bandwidth, target } = &query.assignment {
-            let input =
-                DosePairs { pairs: &pairs, outcome: &outcome, dose, density, cluster: &unit };
-            let (estimate_target, label) = dose_target(target);
-            let fit =
-                fit_dose(input, *bandwidth, &estimate_target, draws, DEFAULT_BAND_REPLICATES, ctx)
-                    .map_err(CausalError::from)?;
-            let summary = match (fit.sampling, fit.posterior) {
-                (Some(sampling), _) => Summary::Sampling(sampling),
-                (None, Some(posterior)) => Summary::Posterior(posterior),
-                (None, None) => {
-                    return Err(CausalError::Compile {
-                        message: "the dose fit reported no uncertainty".into(),
-                    });
-                }
-            };
-            let uncertainty = match &summary {
-                Summary::Sampling(sampling) => sampling.method,
-                Summary::Posterior(posterior) => posterior.method,
-                Summary::Bootstrap { .. } => "whole_procedure_cluster_bootstrap_percentile",
-            };
-            let family = if matches!(target, TemporalDoseTarget::SmoothedContrast { .. }) {
-                vec![0]
-            } else {
-                Vec::new()
-            };
-            let mut output = FitOutput {
-                coordinates: fit.coordinates,
-                family,
-                summary,
-                pairs: fit.pairs,
-                clusters: fit.clusters,
-                unpaired: pairs.unpaired,
-                minimum_probability: f64::NAN,
-                replicates: None,
-                functional: label,
-                uncertainty,
-            };
-            if let (Summary::Posterior(_), Some(bias)) = (&output.summary, fit.smoothing_bias_bound)
-            {
-                output.functional = format!(
-                    "{}; posterior of the bandwidth projection, worst-case smoothing bias {:?} \
-                     reported beside it",
-                    output.functional, bias
-                );
-            }
-            return Ok(output);
+            return self.fit_dose_design(
+                &pairs,
+                &outcome,
+                &unit,
+                (dose, density, *bandwidth, target),
+                ctx,
+            );
         }
         Err(CausalError::Compile {
             message: "an arm design is fitted by the arm path, which reads weights, missing \

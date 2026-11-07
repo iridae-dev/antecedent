@@ -26,13 +26,13 @@ use std::collections::VecDeque;
 
 use antecedent_core::CausalRng;
 
-use super::AdaptiveInferenceError as Error;
 use super::capacity::{CapacityError, ResourceBudget, ResourceReceipt, SimulationShape};
 use super::procedure_contract::{Attribution, ProcedureSpec};
-use super::procedure_law::{Rules, deliveries};
+use super::procedure_law::{deliveries, Rules};
 use super::weighting::{
-    Estimand, OutcomeModelPrior, WeightScheme, adaptive_scores, weighted_estimate,
+    adaptive_scores, weighted_estimate, Estimand, OutcomeModelPrior, WeightScheme,
 };
+use super::AdaptiveInferenceError as Error;
 
 /// Most replications one simulation accepts.
 pub const MAX_SIMULATION_REPLICATIONS: u32 = 1_000_000;
@@ -215,6 +215,139 @@ pub fn simulate_procedure(
     simulate_procedure_within(spec, truth, request, &ResourceBudget::DEFAULT, cancelled)
 }
 
+struct ProcedureSimulationInput<'a> {
+    spec: &'a ProcedureSpec,
+    truth: &'a [f64],
+    request: &'a SimulationRequest,
+    contexts: &'a [f64],
+    cumulative: &'a [u32],
+    cancelled: &'a dyn Fn() -> bool,
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one replicate retains its evolving history and rule state"
+)]
+fn simulate_one_procedure(
+    input: &ProcedureSimulationInput<'_>,
+    replicate: u32,
+    rules: &mut Rules<'_>,
+) -> Result<Option<SimulatedReplicate>, Error> {
+    let ProcedureSimulationInput { spec, truth, request, contexts, cumulative, cancelled } = *input;
+    let arms = spec.arms();
+    let lag = spec.observation().lag_looks;
+    let looks = spec.enrolment().len();
+    let mut rng =
+        CausalRng::from_seed(request.seed ^ (u64::from(replicate) + 1).wrapping_mul(STREAM_MIX));
+    let mut observed = vec![0_u16; 2 * spec.cells()];
+    let mut units: Vec<Unit> = Vec::new();
+    let mut row_store: Vec<Vec<f64>> = Vec::new();
+    let mut pending: VecDeque<Vec<usize>> = VecDeque::new();
+    let mut revealed: Vec<usize> = Vec::new();
+    for (look, &cumulative_look) in cumulative.iter().enumerate().take(looks) {
+        if cancelled() {
+            return Err(Error::Cancelled);
+        }
+        let mut rows = Vec::with_capacity(contexts.len());
+        let mut row_index = Vec::with_capacity(contexts.len());
+        for c in 0..contexts.len() {
+            let row = rules.policy_row(&observed[2 * arms * c..2 * arms * (c + 1)])?;
+            row_index.push(row_store.len());
+            row_store.push(effective_row(spec, &row));
+            rows.push(row);
+        }
+        let mut batch = Vec::new();
+        for _ in 0..spec.enrolment()[look] {
+            let context = draw(&mut rng, contexts);
+            let assigned = draw(&mut rng, &rows[context]);
+            let options = deliveries(spec, assigned);
+            let weights: Vec<f64> = options.iter().map(|o| o.1).collect();
+            let delivered = options[draw(&mut rng, &weights)].0;
+            let success = rng.next_f64() < truth[context * arms + delivered];
+            let retained = if success {
+                spec.observation().retain_success
+            } else {
+                spec.observation().retain_failure
+            };
+            let observed_flag = rng.next_f64() < retained;
+            let attributed = match spec.exposure().attribution {
+                Attribution::Assigned => assigned,
+                Attribution::Delivered => delivered,
+            };
+            batch.push(units.len());
+            units.push(Unit {
+                context,
+                attributed,
+                row: row_index[context],
+                success,
+                observed: observed_flag,
+            });
+        }
+        pending.push_back(batch);
+        if pending.len() > lag {
+            if let Some(aged) = pending.pop_front() {
+                for index in aged {
+                    let unit = &units[index];
+                    if unit.observed {
+                        let cell = unit.context * arms + unit.attributed;
+                        observed[2 * cell + usize::from(!unit.success)] += 1;
+                        revealed.push(index);
+                    }
+                }
+            }
+        }
+        let assessment = rules.assess(look, cumulative_look, &observed)?;
+        if assessment.stop || look + 1 == looks {
+            let decision = if assessment.stop {
+                assessment.decision.or_else(|| rules.select(&observed))
+            } else {
+                rules.select(&observed)
+            };
+            revealed.sort_unstable();
+            let mut estimate = None;
+            let mut variance = None;
+            if revealed.len() >= 2 {
+                let assigned: Vec<usize> = revealed.iter().map(|&i| units[i].attributed).collect();
+                let probabilities: Vec<f64> = revealed
+                    .iter()
+                    .flat_map(|&i| row_store[units[i].row].iter().copied())
+                    .collect();
+                let outcomes: Vec<f64> =
+                    revealed.iter().map(|&i| f64::from(u8::from(units[i].success))).collect();
+                let scores = adaptive_scores(
+                    arms,
+                    &assigned,
+                    &probabilities,
+                    &outcomes,
+                    request.outcome_prior,
+                    cancelled,
+                )?;
+                let fit = weighted_estimate(
+                    arms,
+                    &probabilities,
+                    &scores,
+                    request.estimand,
+                    request.scheme,
+                    None,
+                    request.probability_floor,
+                )?;
+                estimate = Some(fit.estimate);
+                variance = Some(fit.variance);
+            }
+            return Ok(Some(SimulatedReplicate {
+                estimate,
+                variance,
+                look,
+                rule_stopped: assessment.stop,
+                decision,
+                enrolled: cumulative[look],
+                analysed_units: revealed.len(),
+            }));
+        }
+    }
+    Ok(None)
+}
+
 /// [`simulate_procedure`] within an explicit work and memory budget.
 ///
 /// The request is admitted before any replicate runs: replications times
@@ -254,8 +387,6 @@ pub fn simulate_procedure_within(
     let arms = spec.arms();
     let contexts = spec.contexts().to_vec();
     let cumulative = spec.cumulative_enrolment();
-    let lag = spec.observation().lag_looks;
-    let looks = spec.enrolment().len();
     let total_units = cumulative.last().copied().unwrap_or(0);
     let admitted = budget.admit(&SimulationShape {
         replications: request.replications,
@@ -274,123 +405,23 @@ pub fn simulate_procedure_within(
         estimated_peak_bytes: admitted.estimated_peak_bytes,
         ..ResourceReceipt::default()
     };
+    let input = ProcedureSimulationInput {
+        spec,
+        truth,
+        request,
+        contexts: &contexts,
+        cumulative: &cumulative,
+        cancelled,
+    };
     for replicate in 0..request.replications {
         if cancelled() {
             return Err(Error::Cancelled);
         }
-        let mut rng = CausalRng::from_seed(
-            request.seed ^ (u64::from(replicate) + 1).wrapping_mul(STREAM_MIX),
-        );
-        let mut observed = vec![0_u16; 2 * spec.cells()];
-        let mut units: Vec<Unit> = Vec::new();
-        let mut row_store: Vec<Vec<f64>> = Vec::new();
-        let mut pending: VecDeque<Vec<usize>> = VecDeque::new();
-        let mut revealed: Vec<usize> = Vec::new();
-        for (look, &cumulative_look) in cumulative.iter().enumerate().take(looks) {
-            if cancelled() {
-                return Err(Error::Cancelled);
-            }
-            let mut rows = Vec::with_capacity(contexts.len());
-            let mut row_index = Vec::with_capacity(contexts.len());
-            for c in 0..contexts.len() {
-                let row = rules.policy_row(&observed[2 * arms * c..2 * arms * (c + 1)])?;
-                row_index.push(row_store.len());
-                row_store.push(effective_row(spec, &row));
-                rows.push(row);
-            }
-            let mut batch = Vec::new();
-            for _ in 0..spec.enrolment()[look] {
-                let context = draw(&mut rng, &contexts);
-                let assigned = draw(&mut rng, &rows[context]);
-                let options = deliveries(spec, assigned);
-                let weights: Vec<f64> = options.iter().map(|o| o.1).collect();
-                let delivered = options[draw(&mut rng, &weights)].0;
-                let success = rng.next_f64() < truth[context * arms + delivered];
-                let retained = if success {
-                    spec.observation().retain_success
-                } else {
-                    spec.observation().retain_failure
-                };
-                let observed_flag = rng.next_f64() < retained;
-                let attributed = match spec.exposure().attribution {
-                    Attribution::Assigned => assigned,
-                    Attribution::Delivered => delivered,
-                };
-                batch.push(units.len());
-                units.push(Unit {
-                    context,
-                    attributed,
-                    row: row_index[context],
-                    success,
-                    observed: observed_flag,
-                });
-            }
-            pending.push_back(batch);
-            if pending.len() > lag {
-                if let Some(aged) = pending.pop_front() {
-                    for index in aged {
-                        let unit = &units[index];
-                        if unit.observed {
-                            let cell = unit.context * arms + unit.attributed;
-                            observed[2 * cell + usize::from(!unit.success)] += 1;
-                            revealed.push(index);
-                        }
-                    }
-                }
-            }
-            let assessment = rules.assess(look, cumulative_look, &observed)?;
-            if assessment.stop || look + 1 == looks {
-                let decision = if assessment.stop {
-                    assessment.decision.or_else(|| rules.select(&observed))
-                } else {
-                    rules.select(&observed)
-                };
-                revealed.sort_unstable();
-                let mut estimate = None;
-                let mut variance = None;
-                if revealed.len() >= 2 {
-                    let assigned: Vec<usize> =
-                        revealed.iter().map(|&i| units[i].attributed).collect();
-                    let probabilities: Vec<f64> = revealed
-                        .iter()
-                        .flat_map(|&i| row_store[units[i].row].iter().copied())
-                        .collect();
-                    let outcomes: Vec<f64> =
-                        revealed.iter().map(|&i| f64::from(u8::from(units[i].success))).collect();
-                    let scores = adaptive_scores(
-                        arms,
-                        &assigned,
-                        &probabilities,
-                        &outcomes,
-                        request.outcome_prior,
-                        cancelled,
-                    )?;
-                    let fit = weighted_estimate(
-                        arms,
-                        &probabilities,
-                        &scores,
-                        request.estimand,
-                        request.scheme,
-                        None,
-                        request.probability_floor,
-                    )?;
-                    estimate = Some(fit.estimate);
-                    variance = Some(fit.variance);
-                }
-                replicates.push(SimulatedReplicate {
-                    estimate,
-                    variance,
-                    look,
-                    rule_stopped: assessment.stop,
-                    decision,
-                    enrolled: cumulative[look],
-                    analysed_units: revealed.len(),
-                });
-                receipt
-                    .record_replicate(look + 1, cumulative[look], 1, states)
-                    .map_err(Error::Capacity)?;
-                break;
-            }
+        if let Some(record) = simulate_one_procedure(&input, replicate, &mut rules)? {
+            receipt
+                .record_replicate(record.look + 1, record.enrolled, 1, states)
+                .map_err(Error::Capacity)?;
+            replicates.push(record);
         }
     }
     Ok(SimulatedLaw { replicates, receipt })

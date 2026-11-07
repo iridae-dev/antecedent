@@ -1303,7 +1303,7 @@ gates = ["inventory"]
 id = "identification-failure-repair-families"
 crate = "antecedent-design"
 cargo_target = "lib"
-path = "crates/antecedent-design/src/identification_repair.rs"
+path = "crates/antecedent-design/src/identification_repair/tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -11167,7 +11167,21 @@ gates = ["inventory", "named"]
 id = "engineering-crates-antecedent-identify-src-generalized"
 crate = "antecedent-identify"
 cargo_target = "lib"
-path = "crates/antecedent-identify/src/generalized.rs"
+path = "crates/antecedent-identify/src/generalized/tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-generalized-conditional-search-tests"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/generalized/conditional_search_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-generalized-enumeration-admission-tests"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/generalized/enumeration_admission_tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -12723,6 +12737,13 @@ id = "audit-crates-antecedent-attribution-src-mechanism-change-rs"
 crate = "antecedent-attribution"
 cargo_target = "lib"
 path = "crates/antecedent-attribution/src/mechanism_change.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-attribution-src-mechanism-change-tests-rs"
+crate = "antecedent-attribution"
+cargo_target = "lib"
+path = "crates/antecedent-attribution/src/mechanism_change/tests.rs"
 calibration_simulation_assertions = [
     "mean_diff_null_split_type_i_smoke",
     "mean_diff_null_split_family_wise_type_i_rate",
@@ -14698,7 +14719,7 @@ gates = ["inventory", "named"]
 id = "audit-crates-antecedent-estimate-src-policy-value-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
-path = "crates/antecedent-estimate/src/policy_value.rs"
+path = "crates/antecedent-estimate/src/policy_value/tests.rs"
 calibration_simulation_assertions = [
     "crossfit_aipw_policy_intervals_cover_known_values",
     "held_out_aipw_and_constrained_multi_action_intervals_cover_known_values",
@@ -15546,7 +15567,7 @@ gates = ["inventory", "named"]
 id = "audit-crates-antecedent-identify-src-counterfactual-id-rs"
 crate = "antecedent-identify"
 cargo_target = "lib"
-path = "crates/antecedent-identify/src/counterfactual_id.rs"
+path = "crates/antecedent-identify/src/counterfactual_id/tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -15616,7 +15637,7 @@ gates = ["inventory", "named"]
 id = "audit-crates-antecedent-identify-src-id-rs"
 crate = "antecedent-identify"
 cargo_target = "lib"
-path = "crates/antecedent-identify/src/id.rs"
+path = "crates/antecedent-identify/src/id/tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -16086,7 +16107,7 @@ gates = ["inventory", "named"]
 id = "audit-crates-antecedent-io-core-src-calibration-rs"
 crate = "antecedent-io-core"
 cargo_target = "lib"
-path = "crates/antecedent-io-core/src/calibration.rs"
+path = "crates/antecedent-io-core/src/calibration/tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -16828,7 +16849,7 @@ gates = ["inventory", "named"]
 id = "audit-crates-antecedent-model-src-scc-compile-rs"
 crate = "antecedent-model"
 cargo_target = "lib"
-path = "crates/antecedent-model/src/scc_compile.rs"
+path = "crates/antecedent-model/src/scc_compile/tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -16895,10 +16916,10 @@ path = "crates/antecedent-prob/src/graph_samples.rs"
 gates = ["inventory", "named"]
 
 [[test]]
-id = "audit-crates-antecedent-prob-src-hmc-rs"
+id = "audit-crates-antecedent-prob-src-hmc-tests-rs"
 crate = "antecedent-prob"
 cargo_target = "lib"
-path = "crates/antecedent-prob/src/hmc.rs"
+path = "crates/antecedent-prob/src/hmc/tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -17335,7 +17356,7 @@ gates = ["inventory", "named"]
 id = "audit-crates-antecedent-stats-src-joint-law-rs"
 crate = "antecedent-stats"
 cargo_target = "lib"
-path = "crates/antecedent-stats/src/joint_law.rs"
+path = "crates/antecedent-stats/src/joint_law/tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -17371,7 +17392,7 @@ gates = ["inventory", "named"]
 id = "audit-crates-antecedent-stats-src-measurement-error-rs"
 crate = "antecedent-stats"
 cargo_target = "lib"
-path = "crates/antecedent-stats/src/measurement_error.rs"
+path = "crates/antecedent-stats/src/measurement_error/tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -17765,7 +17786,7 @@ gates = ["inventory", "named"]
 id = "external-cyclic-mechanism-resolution"
 crate = "antecedent-model"
 cargo_target = "lib"
-path = "crates/antecedent-model/src/external_mechanism.rs"
+path = "crates/antecedent-model/src/external_mechanism/tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -22893,3 +22914,10 @@ crate = "antecedent-io-core"
 cargo_target = "lib"
 path = "crates/antecedent-io-core/src/contract_section/verify.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "inventory-crates-antecedent-io-src-exact-transport-laws-rs"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/exact_transport_laws.rs"
+gates = ["inventory"]

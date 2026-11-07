@@ -108,17 +108,13 @@ fn rows_disjoint(a: &[antecedent_data::GlobalId], b: &[antecedent_data::GlobalId
     true
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "ranks the family by the screen's procedure (BH, BY, max-t or none) and writes one selection record onto every result; the procedures share the same result walk"
-)]
-pub(super) fn attach_candidate_selection(
-    results: &mut [StudyResult],
+fn candidate_selection(
+    results: &[StudyResult],
     screen: Option<&CandidateScreen>,
     bh: &[f64],
     by: &[f64],
     rank_stats: Option<&[(f64, f64)]>,
-) {
+) -> (CandidateSelection, bool) {
     let family_size = results.len();
     let (selection, recorded) = match screen {
         None => (
@@ -172,10 +168,10 @@ pub(super) fn attach_candidate_selection(
                                 value.is_finite() && se.is_finite() && *se >= 0.0
                             })
                             .max_by(|a, b| {
-                                let sa = a.1.1.abs().max(1e-12);
-                                let sb = b.1.1.abs().max(1e-12);
-                                (a.1.0.abs() / sa)
-                                    .partial_cmp(&(b.1.0.abs() / sb))
+                                let sa = a.1 .1.abs().max(1e-12);
+                                let sb = b.1 .1.abs().max(1e-12);
+                                (a.1 .0.abs() / sa)
+                                    .partial_cmp(&(b.1 .0.abs() / sb))
                                     .unwrap_or(std::cmp::Ordering::Equal)
                             })
                             .map(|(i, _)| i)
@@ -196,6 +192,17 @@ pub(super) fn attach_candidate_selection(
             )
         }
     };
+    (selection, recorded)
+}
+
+pub(super) fn attach_candidate_selection(
+    results: &mut [StudyResult],
+    screen: Option<&CandidateScreen>,
+    bh: &[f64],
+    by: &[f64],
+    rank_stats: Option<&[(f64, f64)]>,
+) {
+    let (selection, recorded) = candidate_selection(results, screen, bh, by, rank_stats);
     for result in results.iter_mut() {
         result.extras.candidate_selection = Some(selection.clone());
         if let Some(effect) = result.estimate.as_effect_mut() {

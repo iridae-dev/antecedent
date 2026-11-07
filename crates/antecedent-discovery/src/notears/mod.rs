@@ -166,39 +166,12 @@ impl Notears {
         self
     }
 
-    /// Run NOTEARS.
-    ///
-    /// # Errors
-    ///
-    /// Data, numerical non-convergence / non-finite values, or graph failures.
-    /// Fail-closed: never returns an empty soft failure DAG on solver error.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
-    )]
-    pub fn run(
+    fn prepare_design(
         &self,
         data: &TabularData,
         variables: &[VariableId],
-        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
-    ) -> Result<NotearsDiscoveryResult, DiscoveryError> {
-        self.constraints.validate()?;
-        self.constraints
-            .check_background_knowledge(KnowledgeScope::ScoreSearch, variables)
-            .map_err(DiscoveryError::Knowledge)?;
-        if variables.is_empty() {
-            return Err(DiscoveryError::Unsupported {
-                message: "NOTEARS requires at least one variable",
-            });
-        }
-        if !self.lambda.is_finite() || self.lambda < 0.0 {
-            return Err(DiscoveryError::unsupported("NOTEARS lambda must be finite and >= 0"));
-        }
-        if !self.threshold.is_finite() || self.threshold < 0.0 {
-            return Err(DiscoveryError::unsupported("NOTEARS threshold must be finite and >= 0"));
-        }
-
+    ) -> Result<(Vec<f64>, usize, RowAccounting), DiscoveryError> {
         let mut col_owned = collect_float_columns(data, variables)?;
         let policy = self.missing.unwrap_or(MissingPolicy::ErrorOnMissing);
         if !matches!(
@@ -293,42 +266,16 @@ impl Notears {
             (x, n)
         };
 
-        // Freeze diagonal + forbidden / tier-forbidden.
-        let mut frozen = vec![false; d * d];
-        for i in 0..d {
-            frozen[i * d + i] = true;
-        }
-        let index = crate::constraints::ConstraintIndex::compile(&self.constraints);
-        for i in 0..d {
-            for j in 0..d {
-                if i == j {
-                    continue;
-                }
-                if index.is_forbidden(
-                    &self.constraints,
-                    crate::constraints::contemp_link(variables[i], variables[j]),
-                ) {
-                    frozen[i * d + j] = true;
-                }
-            }
-        }
+        Ok((x, n, row_accounting))
+    }
 
-        let cfg = SolverConfig {
-            lambda: self.lambda,
-            max_iter: self.max_iter,
-            h_tol: self.h_tol,
-            rho_max: self.rho_max,
-            ..SolverConfig::default()
-        };
-        let mut solver_ws = NotearsWorkspace::default();
-        let soft_w = solve_notears(&x, n, d, &frozen, &cfg, &mut solver_ws, &|| {
-            ctx.cancellation.is_cancelled()
-        })
-        .map_err(|failure| match failure {
-            SolveFailure::Cancelled => DiscoveryError::Cancelled,
-            SolveFailure::Message(message) => DiscoveryError::stats_msg(message),
-        })?;
-
+    fn candidate_edges(
+        &self,
+        soft_w: &[f64],
+        variables: &[VariableId],
+        frozen: &[bool],
+    ) -> Vec<(usize, usize, f64)> {
+        let d = variables.len();
         // Threshold → candidate edges (parent i → child j when |W_ij| >= threshold).
         let max_parents = self.constraints.max_parents.unwrap_or(d.saturating_sub(1));
         let mut by_child: Vec<Vec<(usize, f64)>> = vec![Vec::new(); d];
@@ -373,6 +320,83 @@ impl Notears {
                 edge_coefs.push((si, ti, if w.abs() > 0.0 { w } else { 1.0 }));
             }
         }
+
+        edge_coefs
+    }
+
+    /// Run NOTEARS.
+    ///
+    /// # Errors
+    ///
+    /// Data, numerical non-convergence / non-finite values, or graph failures.
+    /// Fail-closed: never returns an empty soft failure DAG on solver error.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
+    pub fn run(
+        &self,
+        data: &TabularData,
+        variables: &[VariableId],
+        _workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<NotearsDiscoveryResult, DiscoveryError> {
+        self.constraints.validate()?;
+        self.constraints
+            .check_background_knowledge(KnowledgeScope::ScoreSearch, variables)
+            .map_err(DiscoveryError::Knowledge)?;
+        if variables.is_empty() {
+            return Err(DiscoveryError::Unsupported {
+                message: "NOTEARS requires at least one variable",
+            });
+        }
+        if !self.lambda.is_finite() || self.lambda < 0.0 {
+            return Err(DiscoveryError::unsupported("NOTEARS lambda must be finite and >= 0"));
+        }
+        if !self.threshold.is_finite() || self.threshold < 0.0 {
+            return Err(DiscoveryError::unsupported("NOTEARS threshold must be finite and >= 0"));
+        }
+
+        let (x, n, row_accounting) = self.prepare_design(data, variables, ctx)?;
+        let d = variables.len();
+
+        // Freeze diagonal + forbidden / tier-forbidden.
+        let mut frozen = vec![false; d * d];
+        for i in 0..d {
+            frozen[i * d + i] = true;
+        }
+        let index = crate::constraints::ConstraintIndex::compile(&self.constraints);
+        for i in 0..d {
+            for j in 0..d {
+                if i == j {
+                    continue;
+                }
+                if index.is_forbidden(
+                    &self.constraints,
+                    crate::constraints::contemp_link(variables[i], variables[j]),
+                ) {
+                    frozen[i * d + j] = true;
+                }
+            }
+        }
+
+        let cfg = SolverConfig {
+            lambda: self.lambda,
+            max_iter: self.max_iter,
+            h_tol: self.h_tol,
+            rho_max: self.rho_max,
+            ..SolverConfig::default()
+        };
+        let mut solver_ws = NotearsWorkspace::default();
+        let soft_w = solve_notears(&x, n, d, &frozen, &cfg, &mut solver_ws, &|| {
+            ctx.cancellation.is_cancelled()
+        })
+        .map_err(|failure| match failure {
+            SolveFailure::Cancelled => DiscoveryError::Cancelled,
+            SolveFailure::Message(message) => DiscoveryError::stats_msg(message),
+        })?;
+
+        let mut edge_coefs = self.candidate_edges(&soft_w, variables, &frozen);
 
         // Stronger edges are inserted first. A directed cycle refuses the whole
         // set before any edge is given to the DAG.
@@ -623,6 +647,22 @@ mod tests {
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
     };
+
+    #[test]
+    fn candidate_edges_keep_required_edges_after_parent_limit() {
+        let variables = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+        let mut algorithm = Notears::new().with_threshold(0.5);
+        algorithm.constraints.max_parents = Some(1);
+        algorithm.constraints.required = Arc::from([LaggedLink {
+            source: variables[0],
+            source_lag: Lag::CONTEMPORANEOUS,
+            target: variables[2],
+            target_lag: Lag::CONTEMPORANEOUS,
+        }]);
+        let weights = [0.0, 0.0, 0.0, 0.0, 0.0, 0.9, 0.0, 0.0, 0.0];
+        let edges = algorithm.candidate_edges(&weights, &variables, &[false; 9]);
+        assert_eq!(edges, vec![(1, 2, 0.9), (0, 2, 1.0)]);
+    }
 
     /// Linear Gaussian SEM: X0 → X1 → X2.
     fn linear_chain(n: usize) -> (TabularData, Vec<VariableId>) {

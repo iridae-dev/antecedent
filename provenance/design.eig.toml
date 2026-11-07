@@ -41,7 +41,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "DesignObjective::ReduceGraphEntropy and its scorer, the EntropyChannel of crates/antecedent-design/src/ranker.rs, as reached through DesignRanker::rank on an exact evaluation: the expected reduction in graph-posterior Shannon entropy for the symmetric categorical channel p(y | G) = r 1[y = c(G)] + (1 - r)/k, including feature labels taken from explicit features or from the graph keys, unnormalised posterior weights, repeated labels, one label only, and the declared reliability map per design kind and amount with its clamps. Not a likelihood-based expected information gain for any experiment (the channel is a declared heuristic), the Monte Carlo per-draw path, or the other ranking objectives."
+scope = "DesignObjective::ReduceGraphEntropy and its scorer, the EntropyChannel of crates/antecedent-design/src/ranker.rs, as reached through DesignRanker::rank on an exact evaluation: the expected reduction in graph-posterior Shannon entropy for the symmetric categorical channel p(y | G) = r 1[y = c(G)] + (1 - r)/k, including feature labels taken from explicit features or from the graph keys, unnormalised posterior weights, repeated labels, one label only, and the declared reliability map per design kind and amount with its clamps. Not a likelihood-based expected information gain for any experiment (the channel is a declared heuristic), the Monte Carlo per-draw path, or the other ranking objectives. Entropy and decision scoring definitions moved to dedicated ranker modules; every bound definition and the other bound artifacts were compared unchanged apart from visibility and formatting."
 assumptions = ["The channel and the reliability map are the repository's declared heuristic; this review checks that the score is the mutual information I(G; Y) of exactly that channel, not that the channel resembles a real experiment.", "Weights are non-negative and need not be normalised; the prior is the normalised weights and the feature label of a graph is its category.", "With fewer than two distinct labels no observation can discriminate and the score is zero."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference: it builds the joint law p(g, y) and evaluates sum p(g,y) ln(p(g,y)/(p(g)p(y))) at 60 digits, a different decomposition from the product's H(G) - H(G | Y), and computes the reliability of each design from the documented map independently. The retained dit-based fixture generator was not re-run and is a separate artifact."
 redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited 1956 paper is linked, not redistributed."
@@ -53,8 +53,20 @@ record_sha256 = "491705a1154cac99a95af1cc3a02504d0cdf4c0f9651d39f7f071f49eef32fa
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/ranker.rs"
-items = ["const MAX_RANK_DRAWS", "const RANK_STREAM", "fn assemble_ranking", "fn check_constraints", "fn critical_value", "fn default", "fn evaluation", "fn exact_expectation", "fn exact_gain", "fn filter_active_candidates", "fn likelihood", "fn n_looks", "fn new", "fn observation_reliability", "fn paired", "fn paired_difference", "fn posterior_entropy", "fn prepare_decision", "fn push", "fn rank", "fn run_mc_scoring_loop", "fn score", "fn uncertainty_ok", "fn unmapped_decision_candidate", "fn validate", "fn validate_config", "fn validate_rank_inputs", "fn with_config", "struct ActiveScoring", "struct DecisionRegistry", "struct DecisionScoring", "struct DesignConstraints", "struct DesignEvaluationContext", "struct DesignRankConfig", "struct DesignRanker", "struct EffectWidthContext", "struct EntropyChannel", "struct EnvironmentGramSpec", "struct InterventionDesignEffect", "struct MeasureColumnSpec", "struct ModelLoglikDraws", "struct RankDrawStats", "struct ScoringRun"]
-sha256 = "ab5971540dc7ca499637348754cb2178e197bd3597fd980308a1fb3d53e32d54"
+items = ["const MAX_RANK_DRAWS", "const RANK_STREAM", "fn assemble_ranking", "fn check_constraints", "fn critical_value", "fn default", "fn exact_expectation", "fn filter_active_candidates", "fn n_looks", "fn new", "fn observation_reliability", "fn paired", "fn paired_difference", "fn prepare_decision", "fn push", "fn rank", "fn run_mc_scoring_loop", "fn uncertainty_ok", "fn unmapped_decision_candidate", "fn validate", "fn validate_config", "fn validate_rank_inputs", "fn with_config", "struct ActiveScoring", "struct DecisionRegistry", "struct DesignConstraints", "struct DesignEvaluationContext", "struct DesignRankConfig", "struct DesignRanker", "struct EffectWidthContext", "struct EnvironmentGramSpec", "struct InterventionDesignEffect", "struct MeasureColumnSpec", "struct ModelLoglikDraws", "struct RankDrawStats", "struct ScoringRun"]
+sha256 = "3199145295cd0d9787fefb8b672d2cae616141bf910a929acac9589a42c355ab"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker/entropy.rs"
+items = ["fn exact_gain", "fn likelihood", "fn new", "fn posterior_entropy", "struct EntropyChannel"]
+sha256 = "188379a22d580fe1221fd2822cd99197971cb02ff645a81a1389e7bccd38c77f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/ranker/decision_scoring.rs"
+items = ["fn evaluation", "fn new", "fn score", "struct DecisionScoring"]
+sha256 = "d913dd6907113daf953c7a2688b7bd5203d1cf69ee6ec93890fd1a4319f11335"
 
 [[method_review.artifacts]]
 role = "assertion"

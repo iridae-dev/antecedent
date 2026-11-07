@@ -198,47 +198,20 @@ pub fn fit_ridge_with(
     })
 }
 
-/// Lasso via coordinate descent with an explicit intercept / standardization contract.
-///
-/// Predictors are never treated as an intercept column. When
-/// [`LassoOptions::fit_intercept`] is true, `X` and `y` are centered, the intercept is
-/// recovered after fitting, and it is never penalized. Optional standardization divides by a
-/// positive column scale and coefficients are back-transformed before return.
-///
-/// # Errors
-///
-/// Shape mismatch, non-finite λ, or a non-positive feature scale under standardization /
-/// centering (e.g. a constant predictor when `fit_intercept` and `standardize` are set).
-#[allow(
-    clippy::too_many_lines,
-    reason = "coordinate descent with standardization and path bookkeeping sharing one set of buffers"
-)]
-pub fn fit_lasso(
+struct LassoPredictors {
+    means: Vec<f64>,
+    scales: Vec<f64>,
+    xc: Vec<f64>,
+    col_ss: Vec<f64>,
+}
+
+fn prepare_lasso_predictors(
     x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
-    y: &[f64],
     options: &LassoOptions,
-) -> Result<LassoFit, StatsError> {
-    if y.len() != nrows {
-        return Err(StatsError::Shape { message: "y length != nrows" });
-    }
-    if x_colmajor.len() < nrows.saturating_mul(ncols) {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    }
-    if !(options.lambda.is_finite() && options.lambda >= 0.0) {
-        return Err(StatsError::Shape { message: "lasso lambda must be finite and ≥ 0" });
-    }
-    if !(options.l1_ratio.is_finite() && (0.0..=1.0).contains(&options.l1_ratio)) {
-        return Err(StatsError::Shape { message: "elastic-net l1_ratio must be in [0, 1]" });
-    }
-    if nrows == 0 {
-        return Err(StatsError::Shape { message: "lasso needs positive dimensions" });
-    }
-
+) -> Result<LassoPredictors, StatsError> {
     let n = nrows as f64;
-    let y_mean = if options.fit_intercept { y.iter().sum::<f64>() / n } else { 0.0 };
-
     let mut means = vec![0.0; ncols];
     let mut scales = vec![1.0; ncols];
     let mut xc = vec![0.0; nrows * ncols];
@@ -303,6 +276,53 @@ pub fn fit_lasso(
             col_ss[c] = sum_sq;
         }
     }
+
+    Ok(LassoPredictors { means, scales, xc, col_ss })
+}
+
+/// Lasso via coordinate descent with an explicit intercept / standardization contract.
+///
+/// Predictors are never treated as an intercept column. When
+/// [`LassoOptions::fit_intercept`] is true, `X` and `y` are centered, the intercept is
+/// recovered after fitting, and it is never penalized. Optional standardization divides by a
+/// positive column scale and coefficients are back-transformed before return.
+///
+/// # Errors
+///
+/// Shape mismatch, non-finite λ, or a non-positive feature scale under standardization /
+/// centering (e.g. a constant predictor when `fit_intercept` and `standardize` are set).
+#[allow(
+    clippy::too_many_lines,
+    reason = "coordinate descent with standardization and path bookkeeping sharing one set of buffers"
+)]
+pub fn fit_lasso(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+    options: &LassoOptions,
+) -> Result<LassoFit, StatsError> {
+    if y.len() != nrows {
+        return Err(StatsError::Shape { message: "y length != nrows" });
+    }
+    if x_colmajor.len() < nrows.saturating_mul(ncols) {
+        return Err(StatsError::Shape { message: "X buffer too short" });
+    }
+    if !(options.lambda.is_finite() && options.lambda >= 0.0) {
+        return Err(StatsError::Shape { message: "lasso lambda must be finite and ≥ 0" });
+    }
+    if !(options.l1_ratio.is_finite() && (0.0..=1.0).contains(&options.l1_ratio)) {
+        return Err(StatsError::Shape { message: "elastic-net l1_ratio must be in [0, 1]" });
+    }
+    if nrows == 0 {
+        return Err(StatsError::Shape { message: "lasso needs positive dimensions" });
+    }
+
+    let n = nrows as f64;
+    let y_mean = if options.fit_intercept { y.iter().sum::<f64>() / n } else { 0.0 };
+
+    let LassoPredictors { means, scales, xc, col_ss } =
+        prepare_lasso_predictors(x_colmajor, nrows, ncols, options)?;
 
     let mut beta_std = vec![0.0_f64; ncols];
     let mut residual: Vec<f64> = y.iter().map(|&yi| yi - y_mean).collect();

@@ -673,59 +673,8 @@ fn fit_temporal_inner(
     check_cancelled(ctx)?;
     let compiled = likelihood::CompiledPanel::new(data)?;
     let data = &compiled;
-    let p = likelihood::parameter_count(data);
-    let max_time = data.groups.iter().map(|group| group.outcome.len()).max().unwrap_or(0);
-    let rows = data.groups.iter().map(|group| group.outcome.len()).sum::<usize>();
-    let path_parameters = spec.varying.len() * (spec.smooth_knots.len() - 1);
-    let slots = match &options.inference {
-        PanelInference::Frequentist { draws } | PanelInference::FrequentistBootstrap { draws } => {
-            *draws
-        }
-        PanelInference::Bayesian { sampler, .. } => sampler
-            .chains
-            .checked_mul(sampler.draws)
-            .ok_or_else(|| invalid("temporal posterior count overflow"))?,
-    };
-    let parameter_bytes = likelihood::parameter_bytes(data)?;
-    let one_draw = max_time
-        .checked_mul(parameter_bytes)
-        .and_then(|n| {
-            n.checked_add(
-                parameter_bytes + data.groups.len() * 8 + std::mem::size_of::<TemporalPanelDraw>(),
-            )
-        })
-        .ok_or_else(|| invalid("temporal retained realization overflow"))?;
-    let retained = slots
-        .checked_add(1)
-        .and_then(|count| count.checked_mul(one_draw))
-        .and_then(|count| count.checked_add(4096))
-        .ok_or_else(|| invalid("temporal retained volume overflow"))?;
-    let scratch = rows
-        .checked_mul(128)
-        .and_then(|value| value.checked_add(data.workspace_bytes().ok()?))
-        .and_then(|value| value.checked_add(data.plan_bytes().ok()?))
-        .and_then(|count| count.checked_add((p + path_parameters + 1) * (slots + 256) * 32))
-        .ok_or_else(|| invalid("temporal scratch volume overflow"))?;
-    let retained =
-        u64::try_from(retained).map_err(|_| invalid("temporal retained volume overflow"))?;
-    super::check_memory(
-        ctx,
-        retained
-            .checked_add(
-                u64::try_from(scratch).map_err(|_| invalid("temporal scratch volume overflow"))?,
-            )
-            .ok_or_else(|| invalid("temporal fit peak overflow"))?,
-    )?;
-    let retention = Arc::new(
-        ctx.acquire_admission(0, retained)
-            .map_err(|error| PanelError::Resource(error.to_string()))?,
-    );
-    let _scratch = ctx
-        .acquire_admission(
-            0,
-            u64::try_from(scratch).map_err(|_| invalid("temporal scratch volume overflow"))?,
-        )
-        .map_err(|error| PanelError::Resource(error.to_string()))?;
+    let TemporalFitAdmission { p, path_parameters, slots, retained, retention, scratch: _scratch } =
+        admit_temporal_fit(data, spec, options, ctx)?;
     let selected = fit_candidates(data, spec, options, ctx)?;
     let point = realization(data, spec, &selected.choice, &selected.values, None)
         .ok_or_else(|| PanelError::Numerical("invalid selected temporal point".into()))?;
@@ -848,6 +797,77 @@ fn fit_temporal_inner(
         retention,
         retained_volume: retained,
     })
+}
+
+struct TemporalFitAdmission {
+    p: usize,
+    path_parameters: usize,
+    slots: usize,
+    retained: u64,
+    retention: Arc<antecedent_core::execution::AdmissionLease>,
+    scratch: antecedent_core::execution::AdmissionLease,
+}
+
+fn admit_temporal_fit(
+    data: &likelihood::CompiledPanel<'_>,
+    spec: &TemporalPanelSpec,
+    options: &PanelFitOptions,
+    ctx: &ExecutionContext,
+) -> Result<TemporalFitAdmission, PanelError> {
+    let p = likelihood::parameter_count(data);
+    let max_time = data.groups.iter().map(|group| group.outcome.len()).max().unwrap_or(0);
+    let rows = data.groups.iter().map(|group| group.outcome.len()).sum::<usize>();
+    let path_parameters = spec.varying.len() * (spec.smooth_knots.len() - 1);
+    let slots = match &options.inference {
+        PanelInference::Frequentist { draws } | PanelInference::FrequentistBootstrap { draws } => {
+            *draws
+        }
+        PanelInference::Bayesian { sampler, .. } => sampler
+            .chains
+            .checked_mul(sampler.draws)
+            .ok_or_else(|| invalid("temporal posterior count overflow"))?,
+    };
+    let parameter_bytes = likelihood::parameter_bytes(data)?;
+    let one_draw = max_time
+        .checked_mul(parameter_bytes)
+        .and_then(|n| {
+            n.checked_add(
+                parameter_bytes + data.groups.len() * 8 + std::mem::size_of::<TemporalPanelDraw>(),
+            )
+        })
+        .ok_or_else(|| invalid("temporal retained realization overflow"))?;
+    let retained = slots
+        .checked_add(1)
+        .and_then(|count| count.checked_mul(one_draw))
+        .and_then(|count| count.checked_add(4096))
+        .ok_or_else(|| invalid("temporal retained volume overflow"))?;
+    let scratch = rows
+        .checked_mul(128)
+        .and_then(|value| value.checked_add(data.workspace_bytes().ok()?))
+        .and_then(|value| value.checked_add(data.plan_bytes().ok()?))
+        .and_then(|count| count.checked_add((p + path_parameters + 1) * (slots + 256) * 32))
+        .ok_or_else(|| invalid("temporal scratch volume overflow"))?;
+    let retained =
+        u64::try_from(retained).map_err(|_| invalid("temporal retained volume overflow"))?;
+    super::check_memory(
+        ctx,
+        retained
+            .checked_add(
+                u64::try_from(scratch).map_err(|_| invalid("temporal scratch volume overflow"))?,
+            )
+            .ok_or_else(|| invalid("temporal fit peak overflow"))?,
+    )?;
+    let retention = Arc::new(
+        ctx.acquire_admission(0, retained)
+            .map_err(|error| PanelError::Resource(error.to_string()))?,
+    );
+    let scratch = ctx
+        .acquire_admission(
+            0,
+            u64::try_from(scratch).map_err(|_| invalid("temporal scratch volume overflow"))?,
+        )
+        .map_err(|error| PanelError::Resource(error.to_string()))?;
+    Ok(TemporalFitAdmission { p, path_parameters, slots, retained, retention, scratch })
 }
 
 impl TemporalPanelFit {

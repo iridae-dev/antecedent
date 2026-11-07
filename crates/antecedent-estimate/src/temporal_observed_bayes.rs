@@ -426,6 +426,36 @@ struct Evaluation {
     nodes: Vec<EvaluationNode>,
     outcome: usize,
 }
+fn retain_outcome_dependencies(
+    order: &mut Vec<usize>,
+    nodes: &[EvaluationNode],
+    outcome: usize,
+    ctx: &ExecutionContext,
+) -> Result<(), EstimationError> {
+    use antecedent_core::TemporalMaterializationError as T;
+    // Evaluate only dependencies of the requested cell. The indexer can
+    // include unrelated schema columns without an empirical model/mean.
+    let mut needed = vec![false; nodes.len()];
+    let mut pending = vec![outcome];
+    while let Some(i) = pending.pop() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(T::Cancelled.into());
+        }
+        if needed[i] {
+            continue;
+        }
+        needed[i] = true;
+        if nodes[i].overlay.is_some_and(|overlay| overlay.node.level.is_some()) {
+            continue;
+        }
+        if let Some((_, parents)) = &nodes[i].mechanism {
+            pending.extend(parents.iter().copied());
+        }
+    }
+    order.retain(|&i| needed[i]);
+    Ok(())
+}
+
 impl Evaluation {
     #[allow(
         clippy::cast_possible_truncation,
@@ -569,26 +599,7 @@ impl Evaluation {
         let outcome = *positions
             .get(&(outcome, offset))
             .ok_or_else(|| EstimationError::data_msg("outcome outside temporal unfolding"))?;
-        // Evaluate only dependencies of the requested cell. The indexer can
-        // include unrelated schema columns without an empirical model/mean.
-        let mut needed = vec![false; nodes.len()];
-        let mut pending = vec![outcome];
-        while let Some(i) = pending.pop() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(T::Cancelled.into());
-            }
-            if needed[i] {
-                continue;
-            }
-            needed[i] = true;
-            if nodes[i].overlay.is_some_and(|overlay| overlay.node.level.is_some()) {
-                continue;
-            }
-            if let Some((_, parents)) = &nodes[i].mechanism {
-                pending.extend(parents.iter().copied());
-            }
-        }
-        order.retain(|&i| needed[i]);
+        retain_outcome_dependencies(&mut order, &nodes, outcome, ctx)?;
         Ok(Self { overlay_lease: None, _evaluation_lease: evaluation_lease, order, nodes, outcome })
     }
     fn value(&self, models: &[Mechanism], means: &BTreeMap<VariableId, f64>) -> f64 {

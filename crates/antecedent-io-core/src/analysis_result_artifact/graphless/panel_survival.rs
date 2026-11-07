@@ -3,10 +3,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    AnalysisResultWire, GraphlessAssignmentSupport, GraphlessSupportKey, INTERVAL_BOUND_RELATIVE,
-    INTERVAL_BOUND_RELATIVE_LOOSE, IoError, REPLAY_ABSOLUTE, ReplayNonFinite, ReplayScale,
-    ReplayTolerance, SAMPLING_WEIGHTED_DID_UNCERTAINTY, graphless_admits, graphless_status_ok,
-    interval_bound_replay,
+    graphless_admits, graphless_status_ok, interval_bound_replay, AnalysisResultWire,
+    GraphlessAssignmentSupport, GraphlessSupportKey, IoError, ReplayNonFinite, ReplayScale,
+    ReplayTolerance, INTERVAL_BOUND_RELATIVE, INTERVAL_BOUND_RELATIVE_LOOSE, REPLAY_ABSOLUTE,
+    SAMPLING_WEIGHTED_DID_UNCERTAINTY,
 };
 
 /// Uncertainty label of the augmented panel's unsupported whole-cluster resample interval.
@@ -398,87 +398,12 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
     Ok(())
 }
 
-// allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
-#[allow(
-    clippy::too_many_lines,
-    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
-)]
-pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
-    result: &AnalysisResultWire,
-) -> Result<(), IoError> {
-    let Some(curve) = &result.survival else {
-        return Ok(());
-    };
-    let crate::CausalQueryWire::Survival(query) = &result.query else {
-        return Err(IoError::Convert(
-            "survival result section is attached to a different query".into(),
-        ));
-    };
-    let point_only = curve.uncertainty == "point_only_no_interval"
-        && curve.rmst_difference_interval.is_none()
-        && curve.difference_at_tau_interval.is_none()
-        && curve.bootstrap_replicates_requested.is_none()
-        && curve.bootstrap_replicates_ok.is_none();
-    let pointwise_bootstrap = curve.uncertainty
-        == "subject_stratified_percentile_bootstrap_pointwise_95"
-        && curve.bootstrap_replicates_requested.is_some_and(|n| (199..=100_000).contains(&n))
-        && curve.bootstrap_replicates_ok.is_some_and(|ok| {
-            let requested = curve.bootstrap_replicates_requested.unwrap_or(0);
-            ok >= 199 && ok >= requested.saturating_sub(requested / 10) && ok <= requested
-        })
-        && curve.difference_at_tau_interval.is_some_and(|limits| {
-            limits[0].is_finite()
-                && limits[1].is_finite()
-                && -1.0 <= limits[0]
-                && limits[0] <= limits[1]
-                && limits[1] <= 1.0
-        })
-        && if query.target_cause.is_some() {
-            curve.rmst_difference_interval.is_none()
-        } else {
-            curve.rmst_difference_interval.is_some_and(|limits| {
-                limits[0].is_finite()
-                    && limits[1].is_finite()
-                    && -curve.tau <= limits[0]
-                    && limits[0] <= limits[1]
-                    && limits[1] <= curve.tau
-            })
-        };
-    let band_valid = match (&curve.difference_band, &curve.band_unavailable_reason) {
-        (Some(band), None) => {
-            let requested = curve.bootstrap_replicates_requested.unwrap_or(0);
-            query.delayed_entry.is_none()
-                && query.censoring_columns.is_empty()
-                && pointwise_bootstrap
-                && requested >= 399
-                && band.replicates_ok >= 399
-                && band.replicates_ok >= requested.saturating_sub(requested / 10)
-                && band.replicates_ok <= requested
-                && band.times == curve.times
-                && band.difference.len() == curve.times.len()
-                && band.lower.len() == curve.times.len()
-                && band.upper.len() == curve.times.len()
-                && band.difference.iter().zip(&curve.treated).zip(&curve.control).all(
-                    |((&difference, &treated), &control)| {
-                        REPLAY_ABSOLUTE.close(difference, treated - control)
-                    },
-                )
-                && band.lower.iter().zip(&band.difference).zip(&band.upper).all(
-                    |((&lower, &difference), &upper)| {
-                        lower.is_finite()
-                            && difference.is_finite()
-                            && upper.is_finite()
-                            && -1.0 <= lower
-                            && lower <= difference
-                            && difference <= upper
-                            && upper <= 1.0
-                    },
-                )
-        }
-        (None, Some(reason)) => pointwise_bootstrap && !reason.trim().is_empty(),
-        (None, None) => true,
-        (Some(_), Some(_)) => false,
-    };
+fn survival_support(
+    curve: &crate::analysis_result_artifact::SurvivalWire,
+    query: &crate::query_wire::SurvivalQueryWire,
+    pointwise_bootstrap: bool,
+    band_valid: bool,
+) -> (bool, bool) {
     // The paired RMST + horizon survival scalar route is fixed by the
     // query's entry and censoring facets. Delayed entry, fixed-known-G IPCW,
     // and the combined route each have a distinct (design, method) supported
@@ -549,6 +474,100 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
                 )
             })
     });
+    (scalar_supported, band_supported)
+}
+
+fn survival_band_valid(
+    curve: &crate::analysis_result_artifact::SurvivalWire,
+    query: &crate::query_wire::SurvivalQueryWire,
+    pointwise_bootstrap: bool,
+) -> bool {
+    match (&curve.difference_band, &curve.band_unavailable_reason) {
+        (Some(band), None) => {
+            let requested = curve.bootstrap_replicates_requested.unwrap_or(0);
+            query.delayed_entry.is_none()
+                && query.censoring_columns.is_empty()
+                && pointwise_bootstrap
+                && requested >= 399
+                && band.replicates_ok >= 399
+                && band.replicates_ok >= requested.saturating_sub(requested / 10)
+                && band.replicates_ok <= requested
+                && band.times == curve.times
+                && band.difference.len() == curve.times.len()
+                && band.lower.len() == curve.times.len()
+                && band.upper.len() == curve.times.len()
+                && band.difference.iter().zip(&curve.treated).zip(&curve.control).all(
+                    |((&difference, &treated), &control)| {
+                        REPLAY_ABSOLUTE.close(difference, treated - control)
+                    },
+                )
+                && band.lower.iter().zip(&band.difference).zip(&band.upper).all(
+                    |((&lower, &difference), &upper)| {
+                        lower.is_finite()
+                            && difference.is_finite()
+                            && upper.is_finite()
+                            && -1.0 <= lower
+                            && lower <= difference
+                            && difference <= upper
+                            && upper <= 1.0
+                    },
+                )
+        }
+        (None, Some(reason)) => pointwise_bootstrap && !reason.trim().is_empty(),
+        (None, None) => true,
+        (Some(_), Some(_)) => false,
+    }
+}
+
+// allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
+#[allow(
+    clippy::too_many_lines,
+    reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+)]
+pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
+    result: &AnalysisResultWire,
+) -> Result<(), IoError> {
+    let Some(curve) = &result.survival else {
+        return Ok(());
+    };
+    let crate::CausalQueryWire::Survival(query) = &result.query else {
+        return Err(IoError::Convert(
+            "survival result section is attached to a different query".into(),
+        ));
+    };
+    let point_only = curve.uncertainty == "point_only_no_interval"
+        && curve.rmst_difference_interval.is_none()
+        && curve.difference_at_tau_interval.is_none()
+        && curve.bootstrap_replicates_requested.is_none()
+        && curve.bootstrap_replicates_ok.is_none();
+    let pointwise_bootstrap = curve.uncertainty
+        == "subject_stratified_percentile_bootstrap_pointwise_95"
+        && curve.bootstrap_replicates_requested.is_some_and(|n| (199..=100_000).contains(&n))
+        && curve.bootstrap_replicates_ok.is_some_and(|ok| {
+            let requested = curve.bootstrap_replicates_requested.unwrap_or(0);
+            ok >= 199 && ok >= requested.saturating_sub(requested / 10) && ok <= requested
+        })
+        && curve.difference_at_tau_interval.is_some_and(|limits| {
+            limits[0].is_finite()
+                && limits[1].is_finite()
+                && -1.0 <= limits[0]
+                && limits[0] <= limits[1]
+                && limits[1] <= 1.0
+        })
+        && if query.target_cause.is_some() {
+            curve.rmst_difference_interval.is_none()
+        } else {
+            curve.rmst_difference_interval.is_some_and(|limits| {
+                limits[0].is_finite()
+                    && limits[1].is_finite()
+                    && -curve.tau <= limits[0]
+                    && limits[0] <= limits[1]
+                    && limits[1] <= curve.tau
+            })
+        };
+    let band_valid = survival_band_valid(curve, query, pointwise_bootstrap);
+    let (scalar_supported, band_supported) =
+        survival_support(curve, query, pointwise_bootstrap, band_valid);
     #[allow(
         clippy::float_cmp,
         reason = "survival curve endpoints and tau must equal the frozen query/boundary values exactly"

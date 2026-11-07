@@ -484,6 +484,117 @@ fn probability_vector(values: &[f64]) -> bool {
         && (values.iter().sum::<f64>() - 1.0).abs() <= SUM_TOLERANCE
 }
 
+fn validate_assignment_and_enrolment(
+    declaration: &ProcedureDeclaration,
+    gaps: &mut Vec<ContractGap>,
+) -> usize {
+    let arms = declaration.arms;
+    if let Some(rule) = &declaration.assignment {
+        let valid = match rule {
+            AssignmentRule::Fixed { probabilities } => {
+                probabilities.len() == arms && probability_vector(probabilities)
+            }
+            AssignmentRule::EpsilonGreedy { epsilon, prior } => {
+                epsilon.is_finite() && (0.0..=1.0).contains(epsilon) && prior.is_valid()
+            }
+            AssignmentRule::ThompsonBeta { prior } => prior.is_valid(),
+            AssignmentRule::ThompsonBetaFloored { prior, min_probability } => {
+                prior.is_valid()
+                    && min_probability.is_finite()
+                    && *min_probability > 0.0
+                    && *min_probability <= 1.0 / arms as f64
+            }
+            AssignmentRule::UpperConfidenceBound { exploration } => {
+                exploration.is_finite() && *exploration > 0.0
+            }
+        };
+        if !valid {
+            gaps.push(ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+            ));
+        }
+    }
+    let mut looks = 0;
+    if let Some(schedule) = &declaration.enrolment {
+        looks = schedule.len();
+        let total: u64 = schedule.iter().map(|&n| u64::from(n)).sum();
+        if schedule.first().is_none_or(|&first| first == 0) || total == 0 {
+            gaps.push(ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED,
+            ));
+        }
+        if schedule.len() > MAX_PROCEDURE_LOOKS {
+            gaps.push(ContractGap::Capacity(CapacityError::DeclaredLooks {
+                limit: MAX_PROCEDURE_LOOKS as u64,
+                requested: schedule.len() as u64,
+            }));
+        }
+        if total > u64::from(MAX_PROCEDURE_UNITS) {
+            gaps.push(ContractGap::Capacity(CapacityError::DeclaredUnits {
+                limit: u64::from(MAX_PROCEDURE_UNITS),
+                requested: total,
+            }));
+        }
+    }
+    looks
+}
+
+fn validate_stopping_and_selection(
+    declaration: &ProcedureDeclaration,
+    single_context: bool,
+    looks: usize,
+    gaps: &mut Vec<ContractGap>,
+) {
+    let arms = declaration.arms;
+    if let Some(rule) = &declaration.stopping {
+        let valid = match rule {
+            StoppingRule::NoStopping => true,
+            StoppingRule::PosteriorProbabilityBest { threshold, prior } => {
+                single_context && *threshold > 0.5 && *threshold < 1.0 && prior.is_valid()
+            }
+            StoppingRule::PosteriorExpectedLoss { loss_threshold, prior } => {
+                single_context
+                    && loss_threshold.is_finite()
+                    && *loss_threshold > 0.0
+                    && prior.is_valid()
+            }
+            StoppingRule::WaldBoundaries { critical, .. } => {
+                single_context
+                    && arms == 2
+                    && critical.len() == looks
+                    && critical.iter().all(|c| c.is_finite())
+            }
+            StoppingRule::PosteriorFutility { margin, threshold, prior } => {
+                single_context
+                    && margin.is_finite()
+                    && (0.0..1.0).contains(margin)
+                    && threshold.is_finite()
+                    && *threshold > 0.0
+                    && *threshold < 0.5
+                    && prior.is_valid()
+            }
+            StoppingRule::ResourceCap { max_units } => *max_units > 0,
+        };
+        if !valid {
+            gaps.push(ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+            ));
+        }
+    }
+    if let Some(selection) = &declaration.selection {
+        let valid = match selection {
+            FinalSelection::NoSelection => true,
+            FinalSelection::HighestObservedMean => single_context,
+            FinalSelection::HighestPosteriorMean(prior) => single_context && prior.is_valid(),
+        };
+        if !valid {
+            gaps.push(ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+            ));
+        }
+    }
+}
+
 impl ProcedureSpec {
     /// Validate a declaration.
     ///
@@ -532,53 +643,7 @@ impl ProcedureSpec {
             ));
         }
         let single_context = contexts.len() == 1;
-        if let Some(rule) = &declaration.assignment {
-            let valid = match rule {
-                AssignmentRule::Fixed { probabilities } => {
-                    probabilities.len() == arms && probability_vector(probabilities)
-                }
-                AssignmentRule::EpsilonGreedy { epsilon, prior } => {
-                    epsilon.is_finite() && (0.0..=1.0).contains(epsilon) && prior.is_valid()
-                }
-                AssignmentRule::ThompsonBeta { prior } => prior.is_valid(),
-                AssignmentRule::ThompsonBetaFloored { prior, min_probability } => {
-                    prior.is_valid()
-                        && min_probability.is_finite()
-                        && *min_probability > 0.0
-                        && *min_probability <= 1.0 / arms as f64
-                }
-                AssignmentRule::UpperConfidenceBound { exploration } => {
-                    exploration.is_finite() && *exploration > 0.0
-                }
-            };
-            if !valid {
-                gaps.push(ContractGap::Invalid(
-                    antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
-                ));
-            }
-        }
-        let mut looks = 0;
-        if let Some(schedule) = &declaration.enrolment {
-            looks = schedule.len();
-            let total: u64 = schedule.iter().map(|&n| u64::from(n)).sum();
-            if schedule.first().is_none_or(|&first| first == 0) || total == 0 {
-                gaps.push(ContractGap::Invalid(
-                    antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED,
-                ));
-            }
-            if schedule.len() > MAX_PROCEDURE_LOOKS {
-                gaps.push(ContractGap::Capacity(CapacityError::DeclaredLooks {
-                    limit: MAX_PROCEDURE_LOOKS as u64,
-                    requested: schedule.len() as u64,
-                }));
-            }
-            if total > u64::from(MAX_PROCEDURE_UNITS) {
-                gaps.push(ContractGap::Capacity(CapacityError::DeclaredUnits {
-                    limit: u64::from(MAX_PROCEDURE_UNITS),
-                    requested: total,
-                }));
-            }
-        }
+        let looks = validate_assignment_and_enrolment(&declaration, &mut gaps);
         if let Some(observation) = &declaration.observation {
             let retention = |p: f64| p.is_finite() && p > 0.0 && p <= 1.0;
             if observation.lag_looks > MAX_OUTCOME_LAG
@@ -601,53 +666,7 @@ impl ProcedureSpec {
                 ));
             }
         }
-        if let Some(rule) = &declaration.stopping {
-            let valid = match rule {
-                StoppingRule::NoStopping => true,
-                StoppingRule::PosteriorProbabilityBest { threshold, prior } => {
-                    single_context && *threshold > 0.5 && *threshold < 1.0 && prior.is_valid()
-                }
-                StoppingRule::PosteriorExpectedLoss { loss_threshold, prior } => {
-                    single_context
-                        && loss_threshold.is_finite()
-                        && *loss_threshold > 0.0
-                        && prior.is_valid()
-                }
-                StoppingRule::WaldBoundaries { critical, .. } => {
-                    single_context
-                        && arms == 2
-                        && critical.len() == looks
-                        && critical.iter().all(|c| c.is_finite())
-                }
-                StoppingRule::PosteriorFutility { margin, threshold, prior } => {
-                    single_context
-                        && margin.is_finite()
-                        && (0.0..1.0).contains(margin)
-                        && threshold.is_finite()
-                        && *threshold > 0.0
-                        && *threshold < 0.5
-                        && prior.is_valid()
-                }
-                StoppingRule::ResourceCap { max_units } => *max_units > 0,
-            };
-            if !valid {
-                gaps.push(ContractGap::Invalid(
-                    antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
-                ));
-            }
-        }
-        if let Some(selection) = &declaration.selection {
-            let valid = match selection {
-                FinalSelection::NoSelection => true,
-                FinalSelection::HighestObservedMean => single_context,
-                FinalSelection::HighestPosteriorMean(prior) => single_context && prior.is_valid(),
-            };
-            if !valid {
-                gaps.push(ContractGap::Invalid(
-                    antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
-                ));
-            }
-        }
+        validate_stopping_and_selection(&declaration, single_context, looks, &mut gaps);
         if !gaps.is_empty() {
             return Err(ProcedureContractError { gaps });
         }

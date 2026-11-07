@@ -408,6 +408,34 @@ fn matrix_error(refusal: MatrixRefusal) -> CrossWorldExecutionError {
     )
 }
 
+fn check_enumeration_work(
+    method: ExogenousMethod,
+    compiled: &CompiledScm<'_>,
+    units: usize,
+    request: &FiniteExecutionRequest,
+) -> Result<(), CrossWorldExecutionError> {
+    if method == ExogenousMethod::JointEnumeration {
+        if units.saturating_mul(compiled.joint_states) > MAX_ABDUCTION_WORK {
+            return Err(invalid(
+                antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED,
+                "abduction_work",
+            ));
+        }
+        if compiled
+            .joint_states
+            .saturating_mul(request.scm.variables.len())
+            .saturating_mul(request.worlds.len())
+            > MAX_EVALUATION_WORK
+        {
+            return Err(invalid(
+                antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED,
+                "evaluation_work",
+            ));
+        }
+    }
+    Ok(())
+}
+
 impl FiniteScmExecutor {
     /// An executor with nothing retained that keeps at most [`MAX_RETAINED`] abductions.
     #[must_use]
@@ -596,25 +624,7 @@ impl FiniteScmExecutor {
         } else {
             ExogenousMethod::VariableElimination
         };
-        if method == ExogenousMethod::JointEnumeration {
-            if units.len().saturating_mul(compiled.joint_states) > MAX_ABDUCTION_WORK {
-                return Err(invalid(
-                    antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED,
-                    "abduction_work",
-                ));
-            }
-            if compiled
-                .joint_states
-                .saturating_mul(request.scm.variables.len())
-                .saturating_mul(request.worlds.len())
-                > MAX_EVALUATION_WORK
-            {
-                return Err(invalid(
-                    antecedent_core::reason_details::cross_world_execution::BOUNDS_EXCEEDED,
-                    "evaluation_work",
-                ));
-            }
-        }
+        check_enumeration_work(method, &compiled, units.len(), request)?;
         let involved = request.quantity.involved_worlds(&request.worlds);
         let conditioning = if units.iter().all(|u| u.observed.is_empty()) {
             ConditioningKind::NoEvidence

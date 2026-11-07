@@ -38,7 +38,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "FutureStudyProgram in crates/antecedent-design/src/evsi.rs with the expected_max_affine routine of preposterior.rs it calls: for a scalar state with a normal belief, n independent normal observations of known variance, and any number of terminal actions with utility alpha_a + beta_a * theta, the conjugate update (posterior mean and variance after a sample mean), the Bayes action after the update, the gross EVSI E[max_a E[U_a | ybar]] - max_a E[U_a], the preposterior and prior expected utilities, and the net value with a declared cost. Not the finite-enumeration route, the externally supplied decision-value route, the Monte Carlo route, the cost-to-utility map, source-overlap diagnostics or the ranking artifact."
+scope = "FutureStudyProgram in crates/antecedent-design/src/evsi.rs with the expected_max_affine routine of preposterior.rs it calls: for a scalar state with a normal belief, n independent normal observations of known variance, and any number of terminal actions with utility alpha_a + beta_a * theta, the conjugate update (posterior mean and variance after a sample mean), the Bayes action after the update, the gross EVSI E[max_a E[U_a | ybar]] - max_a E[U_a], the preposterior and prior expected utilities, and the net value with a declared cost. Not the finite-enumeration route, the externally supplied decision-value route, the Monte Carlo route, the cost-to-utility map, source-overlap diagnostics or the ranking artifact. Future-study definitions moved to evsi/future.rs; all named bound definitions and the other bound artifacts were compared unchanged apart from formatting."
 assumptions = ["The state prior is normal, the sample mean is normal given the state with variance noise_variance / n, and the terminal action set is the same before and after the study; utilities are exactly affine in the state.", "Gross EVSI is the preposterior expectation of the best posterior expected utility minus the best prior expected utility; it is non-negative for this model by Jensen's inequality.", "A declared study cost is already in utility units; an absent cost yields no net value."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference: it integrates the best posterior expected utility against the marginal normal density of the sample mean by adaptive quadrature at 60 digits, split at every pairwise break-even point, and does not use the preposterior-variance closed form or the linear-loss integral of the product. No upstream implementation was consulted."
 redistribution = "The reference script and its frozen output are repository-authored under MIT OR Apache-2.0; mpmath is used only to produce the frozen values and is not a product dependency. The cited books are referenced, not redistributed."
@@ -50,8 +50,14 @@ record_sha256 = "25c3baac081acbf486f01bda7f02f3d946ae1ffeb70b84a073e330dc34ede57
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/evsi.rs"
-items = ["enum FutureStudyError", "enum IntegrationMethod", "fn actions", "fn as_str", "fn bayes_expected_utility", "fn evaluate_future_study", "fn finite_nonnegative", "fn finite_positive", "fn gap_lines", "fn gross_evsi", "fn id", "fn mean", "fn net_of", "fn noise_variance", "fn preposterior_spread", "fn sample_size", "fn score", "fn study_cost", "fn try_new", "fn update", "fn updated_decision", "fn variance", "struct AffineStateUtility", "struct FutureStudyProgram", "struct FutureStudyValue", "struct NormalMeanFutureData", "struct NormalMeanKnownVarianceUpdate", "struct NormalPosterior", "struct NormalStateBelief", "struct PreposteriorScore", "struct StudyAction", "struct UpdatedDecision"]
-sha256 = "0f4926886e2e7e51df8ed9856441169d549d5737be470a38821ab84a3d37d86b"
+items = ["enum IntegrationMethod", "fn as_str"]
+sha256 = "afab8d51cf4ecfb57ebb08e088c7fc21c5ba6c8169cff7e871b45569d8212bc4"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/evsi/future.rs"
+items = ["enum FutureStudyError", "fn actions", "fn bayes_expected_utility", "fn evaluate_future_study", "fn finite_nonnegative", "fn finite_positive", "fn gap_lines", "fn gross_evsi", "fn id", "fn mean", "fn net_of", "fn noise_variance", "fn preposterior_spread", "fn sample_size", "fn score", "fn study_cost", "fn try_new", "fn update", "fn updated_decision", "fn variance", "struct AffineStateUtility", "struct FutureStudyProgram", "struct FutureStudyValue", "struct NormalMeanFutureData", "struct NormalMeanKnownVarianceUpdate", "struct NormalPosterior", "struct NormalStateBelief", "struct PreposteriorScore", "struct StudyAction", "struct UpdatedDecision"]
+sha256 = "759d1b9b0afda05c951239d1a6ea7664587fc3e6e3ac5f6860fd12163f4558e1"
 
 [[method_review.artifacts]]
 role = "implementation"

@@ -28,7 +28,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "replicate_variance_components, ErrorVariance::from_main_sample_replicates and from_external_replicates in crates/antecedent-stats/src/measurement_error.rs: the one-way random-effects mean squares of unequal groups, the effective replicate number n0 of Searle, the between-unit variance (MSB - MSW)/n0 reported raw, the intraclass correlation, the within-variance degrees of freedom, the per-unit influence of the within variance and its ratio-estimator variance, and the grand mean. Not a review of the estimator wrappers or of the downstream correction."
+scope = "replicate_variance_components, ErrorVariance::from_main_sample_replicates and from_external_replicates in crates/antecedent-stats/src/measurement_error.rs: the one-way random-effects mean squares of unequal groups, the effective replicate number n0 of Searle, the between-unit variance (MSB - MSW)/n0 reported raw, the intraclass correlation, the within-variance degrees of freedom, the per-unit influence of the within variance and its ratio-estimator variance, and the grand mean. Not a review of the estimator wrappers or of the downstream correction. Classification correction definitions moved to measurement_error/classification.rs and bound items were compared unchanged apart from formatting. Posterior and imputation definitions moved to measurement_error/imputation.rs and bound items were compared unchanged apart from formatting."
 assumptions = ["Each unit's replicates are independent draws around a unit mean with common within variance; the between variance is a method-of-moments estimate that can be negative.", "The variance of the within variance is the distribution-free linearization sum xi_j^2 / m^2 with xi_j = (SSW_j - (k_j - 1) MSW)/((N - m)/m), the normal-theory chi-square interval is not used."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote a separate reference of its own from the stated definitions; no upstream implementation or test source was consulted or copied."
 redistribution = "The reference script, its frozen output and the test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited primary sources are linked, not redistributed."
@@ -40,8 +40,20 @@ record_sha256 = "f3a50fd5d647c6758c978afbaf527424eb05c44557d2fce4f58064c7f5782ce
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/measurement_error.rs"
-items = ["const MAX_MEASUREMENT_COVARIATES", "const MAX_MEASUREMENT_ROWS", "enum MeasurementErrorError", "fn accumulate", "fn combine_imputations_linear", "fn finite_all", "fn from_external_replicates", "fn from_main_sample_replicates", "fn from_validation", "fn group_statistics", "fn implied_reliability", "fn known", "fn linear_functional", "fn matmul", "fn matvec", "fn posterior_means", "fn replicate_variance_components", "fn rubin_combine", "fn solve", "fn standard_error", "fn transpose", "fn youden", "struct CombinedImputations", "struct CorrectedLinear", "struct ErrorVariance", "struct LinearErrorData", "struct LinearMoments", "struct ValidationSummary", "struct VarianceComponents"]
-sha256 = "392c2b71a1f410d9d867e2628b51f3ea163af34fe86ca9f23dae2316ec2788a0"
+items = ["const MAX_MEASUREMENT_COVARIATES", "const MAX_MEASUREMENT_ROWS", "enum MeasurementErrorError", "fn accumulate", "fn finite_all", "fn from_external_replicates", "fn from_main_sample_replicates", "fn from_validation", "fn group_statistics", "fn implied_reliability", "fn known", "fn linear_functional", "fn matmul", "fn matvec", "fn replicate_variance_components", "fn solve", "fn standard_error", "fn transpose", "struct CorrectedLinear", "struct ErrorVariance", "struct LinearErrorData", "struct LinearMoments", "struct ValidationSummary", "struct VarianceComponents"]
+sha256 = "686d6567e24b5dc580c795666168468bd1c089555be6313830536a1637df821a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error/imputation.rs"
+items = ["fn combine_imputations_linear", "fn posterior_means", "fn rubin_combine", "struct CombinedImputations"]
+sha256 = "ccc256e58aa0f239cc22a2df6123b35c3f65c5809b27ad2d1284027cbbe2ead2"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error/classification.rs"
+items = ["fn youden"]
+sha256 = "7987b86d37b73a49fc5d106ad34cfe3eac629d1e5419b9354679496646794bd0"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -978,34 +978,7 @@ pub fn pag_posterior_mcmc(
         }
         counts.push(visits);
     }
-    // Pooled class frequencies, in a stable order.
-    let mut signatures: Vec<u128> = representative.keys().copied().collect();
-    signatures.sort_unstable();
-    let totals: Vec<f64> = counts.iter().map(|c| c.values().sum::<u64>() as f64).collect();
-    let pooled_total: f64 = totals.iter().sum();
-    if pooled_total == 0.0 {
-        return Err(DiscoveryError::unsupported("the PAG sampler recorded no draw"));
-    }
-    let pooled: Vec<f64> = signatures
-        .iter()
-        .map(|sig| {
-            counts.iter().map(|c| c.get(sig).copied().unwrap_or(0) as f64).sum::<f64>()
-                / pooled_total
-        })
-        .collect();
-    let agreement = counts
-        .iter()
-        .zip(&totals)
-        .map(|(chain, &total)| {
-            0.5 * signatures
-                .iter()
-                .zip(&pooled)
-                .map(|(sig, pooled)| {
-                    (chain.get(sig).copied().unwrap_or(0) as f64 / total.max(1.0) - pooled).abs()
-                })
-                .sum::<f64>()
-        })
-        .fold(0.0, f64::max);
+    let (signatures, pooled, agreement) = pooled_class_frequencies(&representative, &counts)?;
     let mut atoms = Vec::with_capacity(signatures.len());
     let mut circles = Vec::with_capacity(signatures.len());
     let mut incomplete = 0usize;
@@ -1035,6 +1008,45 @@ pub fn pag_posterior_mcmc(
         schedule.draws / schedule.thin
     );
     finish_posterior(p, pooled, atoms, circles, diagnostics, note, rejected, "pag_mcmc")
+}
+
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "posterior frequencies use floating-point visit counts"
+)]
+fn pooled_class_frequencies(
+    representative: &HashMap<u128, Mixed>,
+    counts: &[HashMap<u128, u64>],
+) -> Result<(Vec<u128>, Vec<f64>, f64), DiscoveryError> {
+    // Pooled class frequencies, in a stable order.
+    let mut signatures: Vec<u128> = representative.keys().copied().collect();
+    signatures.sort_unstable();
+    let totals: Vec<f64> = counts.iter().map(|c| c.values().sum::<u64>() as f64).collect();
+    let pooled_total: f64 = totals.iter().sum();
+    if pooled_total == 0.0 {
+        return Err(DiscoveryError::unsupported("the PAG sampler recorded no draw"));
+    }
+    let pooled: Vec<f64> = signatures
+        .iter()
+        .map(|sig| {
+            counts.iter().map(|c| c.get(sig).copied().unwrap_or(0) as f64).sum::<f64>()
+                / pooled_total
+        })
+        .collect();
+    let agreement = counts
+        .iter()
+        .zip(&totals)
+        .map(|(chain, &total)| {
+            0.5 * signatures
+                .iter()
+                .zip(&pooled)
+                .map(|(sig, pooled)| {
+                    (chain.get(sig).copied().unwrap_or(0) as f64 / total.max(1.0) - pooled).abs()
+                })
+                .sum::<f64>()
+        })
+        .fold(0.0, f64::max);
+    Ok((signatures, pooled, agreement))
 }
 
 /// Centered covariance of the columns and the row count.
@@ -1070,6 +1082,19 @@ mod tests {
     use antecedent_data::{TableView, TabularData};
 
     use super::*;
+
+    #[test]
+    fn pooled_class_frequencies_keep_sorted_classes_and_chain_agreement() {
+        let graph = Mixed { p: 2, links: vec![Link::None] };
+        let representatives = HashMap::from([(9, graph.clone()), (3, graph)]);
+        let counts = [HashMap::from([(3, 3), (9, 1)]), HashMap::from([(3, 1), (9, 3)])];
+        let (signatures, pooled, agreement) =
+            pooled_class_frequencies(&representatives, &counts).unwrap();
+        assert_eq!(signatures, vec![3, 9]);
+        assert_eq!(pooled, vec![0.5, 0.5]);
+        assert_eq!(agreement, 0.25);
+        assert!(pooled_class_frequencies(&representatives, &[HashMap::new()]).is_err());
+    }
 
     fn normal(rng: &mut CausalRng) -> f64 {
         let u1 = rng.next_f64().max(1e-12);

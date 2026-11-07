@@ -61,18 +61,31 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod declaration;
+mod posterior;
+
+use posterior::posterior_section;
+pub use posterior::{
+    CategoricalPosteriorDeclaration, CategoricalPosteriorWire, PosteriorContrastWire,
+    PosteriorMonotonicityWire,
+};
+
+pub use declaration::{
+    CATEGORICAL_DECLARED_ROWS_FORMAT, CategoricalRowsRequest, CategoricalSpecWire,
+    CategoricalTreatmentRequest, CovarianceKindWire, DeclaredRowsWire, LevelScaleWire,
+    MonotonicityDirectionWire,
+};
+
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::categorical_treatment::{
     CATEGORICAL_INFERENCE_CLAIM, CATEGORICAL_OMNIBUS_NULL, CategoricalRobustSummary,
     CategoricalSummary, CategoricalTreatmentFit, CategoricalTreatmentInput,
-    CategoricalTreatmentSpec, LevelCount, LevelScale, MonotonicityDirection,
-    fit_categorical_from_robust_summary, fit_categorical_from_summary, fit_categorical_treatment,
-    summarize_categorical_design, summarize_categorical_design_declared,
-    summarize_categorical_design_robust,
+    CategoricalTreatmentSpec, LevelCount, fit_categorical_from_robust_summary,
+    fit_categorical_from_summary, fit_categorical_treatment, summarize_categorical_design,
+    summarize_categorical_design_declared, summarize_categorical_design_robust,
 };
 use antecedent_estimate::categorical_treatment_posterior::{
-    CATEGORICAL_POSTERIOR_ESTIMAND, CATEGORICAL_POSTERIOR_LIKELIHOOD, CategoricalPosteriorPrior,
-    CategoricalTreatmentPosterior, ContrastPosterior, posterior_categorical_from_summary,
+    CategoricalPosteriorPrior, posterior_categorical_from_summary,
 };
 use antecedent_estimate::vector_treatment::{
     DesignSummary, NamedColumn, RobustDesignSummary, RowStructure, VectorCovariance,
@@ -84,9 +97,11 @@ use crate::artifact_budget::{
     BudgetDetails, BudgetRefusal, BudgetedTreatmentArtifact, admit_export, admit_regression,
 };
 use crate::artifact_codec::CanonicalSize;
+#[cfg(test)]
+use crate::vector_treatment_artifact::AdjustmentColumnRequest;
 use crate::vector_treatment_artifact::{
-    AdjustmentColumnRequest, CoefficientWire, VECTOR_TREATMENT_ADJUSTMENT_CAVEAT,
-    VECTOR_TREATMENT_MAX_ADJUSTMENT, WaldWire, bytes_to_reals, reals_to_bytes,
+    CoefficientWire, VECTOR_TREATMENT_ADJUSTMENT_CAVEAT, VECTOR_TREATMENT_MAX_ADJUSTMENT, WaldWire,
+    bytes_to_reals, reals_to_bytes,
 };
 use crate::width::lossless_u64;
 
@@ -135,252 +150,6 @@ crate::sectioned_artifact_error!(
 fn budget_refusal((code, detail, explanation): BudgetRefusal) -> CategoricalTreatmentArtifactError {
     CategoricalTreatmentArtifactError::refused(code, detail, explanation)
 }
-
-/// The declared design of the categorical regime on the wire.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CategoricalSpecWire {
-    /// Declared level set (the scale, when ordered).
-    pub declared_levels: Vec<String>,
-    /// Whether the levels are ordered.
-    pub scale: LevelScaleWire,
-    /// Reference level.
-    pub reference: String,
-    /// Fewest rows a declared level may have.
-    pub min_level_rows: u64,
-    /// Requested pairwise contrasts `(from, to)`.
-    pub pairwise: Vec<(String, String)>,
-    /// Declared monotonicity direction, when a monotonicity test is requested.
-    pub monotonicity: Option<MonotonicityDirectionWire>,
-    /// Covariance estimator.
-    pub covariance: CovarianceKindWire,
-}
-
-/// Level scale of a categorical treatment on the wire.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum LevelScaleWire {
-    /// Levels are ordered as declared.
-    Ordered,
-    /// Levels are unordered.
-    Unordered,
-}
-
-impl LevelScaleWire {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Ordered => "ordered",
-            Self::Unordered => "unordered",
-        }
-    }
-}
-
-impl From<LevelScale> for LevelScaleWire {
-    fn from(scale: LevelScale) -> Self {
-        match scale {
-            LevelScale::Ordered => Self::Ordered,
-            LevelScale::Unordered => Self::Unordered,
-        }
-    }
-}
-
-impl From<LevelScaleWire> for LevelScale {
-    fn from(scale: LevelScaleWire) -> Self {
-        match scale {
-            LevelScaleWire::Ordered => Self::Ordered,
-            LevelScaleWire::Unordered => Self::Unordered,
-        }
-    }
-}
-
-impl PartialEq<&str> for LevelScaleWire {
-    fn eq(&self, other: &&str) -> bool {
-        self.as_str() == *other
-    }
-}
-
-/// Direction of a declared monotonicity test on the wire.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum MonotonicityDirectionWire {
-    /// Effects do not decrease with the level order.
-    NonDecreasing,
-    /// Effects do not increase with the level order.
-    NonIncreasing,
-}
-
-impl MonotonicityDirectionWire {
-    /// Stable `snake_case` name.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::NonDecreasing => "non_decreasing",
-            Self::NonIncreasing => "non_increasing",
-        }
-    }
-}
-
-impl From<MonotonicityDirection> for MonotonicityDirectionWire {
-    fn from(direction: MonotonicityDirection) -> Self {
-        match direction {
-            MonotonicityDirection::NonDecreasing => Self::NonDecreasing,
-            MonotonicityDirection::NonIncreasing => Self::NonIncreasing,
-        }
-    }
-}
-
-impl From<MonotonicityDirectionWire> for MonotonicityDirection {
-    fn from(direction: MonotonicityDirectionWire) -> Self {
-        match direction {
-            MonotonicityDirectionWire::NonDecreasing => Self::NonDecreasing,
-            MonotonicityDirectionWire::NonIncreasing => Self::NonIncreasing,
-        }
-    }
-}
-
-impl PartialEq<&str> for MonotonicityDirectionWire {
-    fn eq(&self, other: &&str) -> bool {
-        self.as_str() == *other
-    }
-}
-
-/// Covariance estimator of a categorical treatment fit on the wire.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CovarianceKindWire {
-    /// Model-based covariance.
-    ModelBased,
-    /// Heteroskedasticity-consistent HC0.
-    Hc0,
-    /// HC1.
-    Hc1,
-    /// HC2.
-    Hc2,
-    /// HC3.
-    Hc3,
-    /// One-way cluster-robust; needs a `cluster` id per row.
-    ClusterRobust,
-    /// Newey-West (Bartlett) HAC; needs a `serial_lag` in the design.
-    NeweyWest,
-}
-
-impl CovarianceKindWire {
-    /// Stable `snake_case` name, the one [`VectorCovariance::as_str`] gives.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::ModelBased => "model_based",
-            Self::Hc0 => "hc0",
-            Self::Hc1 => "hc1",
-            Self::Hc2 => "hc2",
-            Self::Hc3 => "hc3",
-            Self::ClusterRobust => "cluster_robust",
-            Self::NeweyWest => "newey_west",
-        }
-    }
-}
-
-impl From<VectorCovariance> for CovarianceKindWire {
-    fn from(kind: VectorCovariance) -> Self {
-        match kind {
-            VectorCovariance::ModelBased => Self::ModelBased,
-            VectorCovariance::Hc0 => Self::Hc0,
-            VectorCovariance::Hc1 => Self::Hc1,
-            VectorCovariance::Hc2 => Self::Hc2,
-            VectorCovariance::Hc3 => Self::Hc3,
-            VectorCovariance::Cluster => Self::ClusterRobust,
-            VectorCovariance::NeweyWest => Self::NeweyWest,
-        }
-    }
-}
-
-impl From<CovarianceKindWire> for VectorCovariance {
-    fn from(kind: CovarianceKindWire) -> Self {
-        match kind {
-            CovarianceKindWire::ModelBased => Self::ModelBased,
-            CovarianceKindWire::Hc0 => Self::Hc0,
-            CovarianceKindWire::Hc1 => Self::Hc1,
-            CovarianceKindWire::Hc2 => Self::Hc2,
-            CovarianceKindWire::Hc3 => Self::Hc3,
-            CovarianceKindWire::ClusterRobust => Self::Cluster,
-            CovarianceKindWire::NeweyWest => Self::NeweyWest,
-        }
-    }
-}
-
-impl PartialEq<&str> for CovarianceKindWire {
-    fn eq(&self, other: &&str) -> bool {
-        self.as_str() == *other
-    }
-}
-
-/// What a producer declares: rows with level labels, the shared adjustment block and the design.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CategoricalTreatmentRequest {
-    /// Outcome, one value per row.
-    pub outcome: Vec<f64>,
-    /// Identity of the row snapshot.
-    pub row_snapshot: String,
-    /// Shared adjustment columns, in design order.
-    pub adjustment: Vec<AdjustmentColumnRequest>,
-    /// Level label of each row.
-    pub levels: Vec<String>,
-    /// The declared design.
-    pub spec: CategoricalSpecWire,
-}
-
-/// Declarations of a categorical request beside the plain [`CategoricalTreatmentRequest`]:
-/// sampling weights and a cluster id, each one entry per row, and the Newey-West lag.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct CategoricalRowsRequest {
-    /// Sampling weights (finite, non-negative, at least one positive). Rows of weight zero are
-    /// deleted; the rest are normalized to mean one. Need a robust covariance.
-    pub sampling_weights: Option<Vec<f64>>,
-    /// Cluster id of each row; read by, and required for, the `cluster_robust` covariance.
-    pub cluster: Option<Vec<u32>>,
-    /// Newey-West (Bartlett) lag for rows in time order at unit spacing; read by, and required
-    /// for, the `newey_west` covariance.
-    pub serial_lag: Option<u64>,
-}
-
-impl CategoricalRowsRequest {
-    /// Whether nothing is declared.
-    #[must_use]
-    pub fn is_plain(&self) -> bool {
-        self.sampling_weights.is_none() && self.cluster.is_none() && self.serial_lag.is_none()
-    }
-}
-
-/// What the declared rows did, stored beside the unchanged result.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DeclaredRowsWire {
-    /// Format marker of this section.
-    pub format: String,
-    /// Whether sampling weights were declared.
-    pub weights_declared: bool,
-    /// Rows used after zero-weight rows were deleted.
-    pub rows_used: u64,
-    /// Rows of weight zero that were deleted.
-    pub zero_weight_rows: u64,
-    /// Kish effective size of the weights of the rows used, when weights were declared.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub weight_effective_sample_size: Option<f64>,
-    /// Sum of the declared weights of the rows used before normalization.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub weight_sum: Option<f64>,
-    /// Clusters among the rows used.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub clusters: Option<u64>,
-    /// Newey-West lag.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub serial_lag: Option<u64>,
-}
-
-/// The format marker of [`DeclaredRowsWire`].
-pub const CATEGORICAL_DECLARED_ROWS_FORMAT: &str = "categorical_declared_rows_v1";
 
 /// Identity digests of one categorical fit. Each is BLAKE3 over a canonical byte encoding.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -608,131 +377,6 @@ impl CategoricalResultWire {
             covariance_kind: fit.covariance_kind.into(),
             calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
         })
-    }
-}
-
-/// The declared prior and credible level of the optional posterior section.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CategoricalPosteriorDeclaration {
-    /// Prior precision (relative to the error variance) of each level coefficient.
-    pub level_precision: f64,
-    /// Prior precision of the intercept and every adjustment coefficient.
-    pub nuisance_precision: f64,
-    /// Inverse-Gamma shape of the error variance.
-    pub variance_shape: f64,
-    /// Inverse-Gamma scale of the error variance.
-    pub variance_scale: f64,
-    /// Credible level in `(0, 1)` of every interval.
-    pub credible_level: f64,
-}
-
-/// Student-t posterior of one level or pairwise contrast, on the wire.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PosteriorContrastWire {
-    /// Baseline level.
-    pub from: String,
-    /// Compared level.
-    pub to: String,
-    /// Student-t location (the posterior mean).
-    pub location: f64,
-    /// Student-t scale.
-    pub scale: f64,
-    /// Student-t degrees of freedom.
-    pub degrees_of_freedom: f64,
-    /// Posterior mean.
-    pub mean: f64,
-    /// Posterior standard deviation; absent when the degrees of freedom are at most two.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub standard_deviation: Option<f64>,
-    /// Equal-tailed credible interval at the declared level; the consumer verifies it against
-    /// the replay, and an artifact without it is malformed.
-    pub interval: [f64; 2],
-    /// Posterior probability that the contrast is positive.
-    pub probability_positive: f64,
-}
-
-/// Posterior probability that every adjacent step moves in the declared direction, on the wire.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PosteriorMonotonicityWire {
-    /// Direction of the declared monotonicity.
-    pub direction: MonotonicityDirectionWire,
-    /// Per-step marginal posterior probability of lying in the declared direction.
-    pub step_probabilities: Vec<f64>,
-    /// Lower (Bonferroni) bound of the joint probability.
-    pub lower_bound: f64,
-    /// Upper (Frechet) bound of the joint probability.
-    pub upper_bound: f64,
-}
-
-/// The optional posterior section: a Bayesian counterpart of the stored fit under a declared
-/// prior, recomputed from the stored design on consumption. Its estimand is the superpopulation
-/// dummy coefficient contrast of the stated linear model; it is unsupported and its calibration is
-/// `not_measured`.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CategoricalPosteriorWire {
-    /// The declared prior and level.
-    pub declaration: CategoricalPosteriorDeclaration,
-    /// The likelihood the posterior is exact under.
-    pub likelihood: String,
-    /// What the contrasts are the contrasts of.
-    pub estimand: String,
-    /// Always `not_measured`.
-    pub calibration: String,
-    /// Always `false`: no support covers the posterior.
-    pub supported: bool,
-    /// Posterior Inverse-Gamma shape of the error variance.
-    pub variance_shape: f64,
-    /// Posterior Inverse-Gamma scale of the error variance.
-    pub variance_scale: f64,
-    /// Posterior mean of the dummy coefficients, non-reference levels in canonical order.
-    pub coefficient_means: Vec<f64>,
-    /// Per-level contrasts against the reference.
-    pub level_contrasts: Vec<PosteriorContrastWire>,
-    /// Requested pairwise contrasts, in request order.
-    pub pairwise: Vec<PosteriorContrastWire>,
-    /// Declared monotonicity statement, when requested.
-    pub monotonicity: Option<PosteriorMonotonicityWire>,
-}
-
-fn contrast_wire(c: &ContrastPosterior) -> PosteriorContrastWire {
-    PosteriorContrastWire {
-        from: c.from.clone(),
-        to: c.to.clone(),
-        location: c.posterior.location,
-        scale: c.posterior.scale,
-        degrees_of_freedom: c.posterior.degrees_of_freedom,
-        mean: c.mean,
-        standard_deviation: c.standard_deviation.is_finite().then_some(c.standard_deviation),
-        interval: c.interval,
-        probability_positive: c.probability_positive,
-    }
-}
-
-fn posterior_section(
-    declaration: &CategoricalPosteriorDeclaration,
-    posterior: &CategoricalTreatmentPosterior,
-) -> CategoricalPosteriorWire {
-    CategoricalPosteriorWire {
-        declaration: *declaration,
-        likelihood: CATEGORICAL_POSTERIOR_LIKELIHOOD.to_owned(),
-        estimand: CATEGORICAL_POSTERIOR_ESTIMAND.to_owned(),
-        calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
-        supported: false,
-        variance_shape: posterior.variance_shape_and_scale.0,
-        variance_scale: posterior.variance_shape_and_scale.1,
-        coefficient_means: posterior.coefficient_means.clone(),
-        level_contrasts: posterior.level_contrasts.iter().map(contrast_wire).collect(),
-        pairwise: posterior.pairwise.iter().map(contrast_wire).collect(),
-        monotonicity: posterior.monotonicity.as_ref().map(|m| PosteriorMonotonicityWire {
-            direction: m.direction.into(),
-            step_probabilities: m.step_probabilities.clone(),
-            lower_bound: m.lower_bound,
-            upper_bound: m.upper_bound,
-        }),
     }
 }
 

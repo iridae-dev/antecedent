@@ -34,6 +34,7 @@
 //! artifact that carries a version-2 field, and a version-2 artifact without a
 //! conditional question.
 
+use crate::exact_transport_laws::canonical_laws;
 use crate::{
     IoError, admg_from_wire, admg_to_wire, exact_law_wire::ExactLawWire,
     mz_transport_artifact::MzTransportPointWire, query_wire::ValueWire,
@@ -609,20 +610,6 @@ fn question_of(wire: &ScenarioQueryWire) -> ScenarioQuestion {
             conditioned_on: ids(conditioned),
         }),
     }
-}
-
-fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let wire = ExactLawWire::from_law(law);
-            crate::to_cbor(&(&wire.population, wire.regime, &wire.interventions))
-                .map(|key| (key, wire))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
 impl TransportScenarioArtifactWire {

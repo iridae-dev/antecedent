@@ -34,7 +34,7 @@ test_sources = [
  "conformance/validate/bayesian_checks/independent_ips.json",
  "IID / AR(1) chain ESS-vs-analytic-target unit tests (crates/antecedent-prob/src/mcmc_stats.rs::tests)",
  "shifted-mean and unequal-scale rhat failure unit tests (crates/antecedent-prob/src/mcmc_stats.rs::tests)",
- "publication-gate unit tests (crates/antecedent-prob/src/hmc.rs::tests::postwarmup_divergence_fails_publication_gate)",
+ "publication-gate unit tests (crates/antecedent-prob/src/hmc/tests.rs::postwarmup_divergence_fails_publication_gate)",
 ]
 
 [method_review]
@@ -46,7 +46,7 @@ redistribution = "Repository-authored reference harness and new deterministic in
 limitations = "Five bounded scalar chain scenarios plus existing analytic/domain tests. Full-pair truncation intentionally differs from ArviZ averaging; odd lengths retain the documented drop-last convention. Constant tail indicators fail closed. Sampling calibration remains deferred."
 sources = ["https://arxiv.org/html/1903.08008v5", "https://doi.org/10.1214/20-BA1221", "https://www2.stat.duke.edu/homeweb/scs/Courses/Stat376/Papers/GeyerStatSci1992.pdf", "https://doi.org/10.1214/ss/1177011137", "https://python.arviz.org/en/v0.20.0/api/generated/arviz.rhat.html", "https://python.arviz.org/en/v0.20.0/api/generated/arviz.ess.html"]
 findings_resolved = ["Positive-lag divisor N-1 failed the independent 19/48 calculation; repaired to N while retaining unbiased W.", "A tied upper-tail fixture exposed >=q95 rather than the CDF indicator <=q95; repaired, reducing the erroneous ESS from about 184 to the primary-reference value about 100.", "Final-pair omission note was stale: existing complete-pair regression already enforced 8/7. Preserved that behavior and documented the upstream convention difference.", "Replaced the mis-targeted shifted-chain 5% parity assertion with an explicit discrepancy and stronger absolute-1e-6 primary-reference checks; retained raw ArviZ outputs and compatible original comparisons."]
-record_sha256 = "35e8ace7e6a28687de075157f8c6b417e3b3e9172d645574e19ced3cdd9bae41"
+record_sha256 = "2104fdd4e72101996cbd06a99eddb9b0a2021936de6ac897088d5d3b2f6aa8b3"
 
 [[method_review.artifacts]]
 role = "implementation"

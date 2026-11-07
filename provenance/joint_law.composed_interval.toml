@@ -29,7 +29,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "The interval constructions at a composed coordinate in crates/antecedent-stats/src/joint_law.rs: normal_interval_candidate and marginal_interval_candidate (and the Marginal quantile they use), with their fixed not-measured calibration status. draw_interval_candidate is not reviewed here (it delegates to the shared quantile-rule routine). Not the coverage of any construction."
+scope = "The interval constructions at a composed coordinate in crates/antecedent-stats/src/joint_law.rs: normal_interval_candidate and marginal_interval_candidate (and the Marginal quantile they use), with their fixed not-measured calibration status. draw_interval_candidate is not reviewed here (it delegates to the shared quantile-rule routine). Not the coverage of any construction. Marginal and coupling definitions moved to joint_law/marginal.rs and bound items were compared unchanged apart from formatting. Interval and exceedance projection definitions moved to joint_law/projection.rs and bound items were compared unchanged apart from formatting."
 assumptions = ["The variance given to the normal construction comes from a supported route; the quantile construction reads the equal-tail interval of the mixture law.", "Every interval carries calibration status 'not_measured'; no coverage claim is reviewed or made."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference, which does not use the comonotone, countermonotone or Makarov forms of the product: it enumerates every integer contingency table with the marginal counts (all vertices of the transportation polytope) in exact rational arithmetic and evaluates the remaining quantities from their definitions. No upstream implementation was consulted."
 redistribution = "The reference script and its frozen output are repository-authored under MIT OR Apache-2.0; mpmath is used only to produce the frozen values and is not a product dependency. No cited paper is redistributed."
@@ -41,8 +41,20 @@ record_sha256 = "d826b579b05c3d910803b4214595ffc213663eb31de8b2a92d5e99c88f4fdbb
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/joint_law.rs"
-items = ["const CALIBRATION_STATUS", "const CANCEL_STRIDE", "const DRAW_EXCHANGEABLE_RANK_CONSTRUCTION", "const DRAW_INTERPOLATED_CONSTRUCTION", "const MASS_TOLERANCE", "const MAX_COMPONENTS", "const MAX_LATTICE_CHECKS", "const MAX_MARGINAL_ATOMS", "const MIXTURE_EQUAL_TAIL_CONSTRUCTION", "const NORMAL_APPROXIMATION_CONSTRUCTION", "const STRUCTURE_RELATIVE_SLACK", "enum DecisionVerdict", "enum JointLawError", "enum PairStructure", "enum ValueFunctional", "fn as_str", "fn atoms", "fn check_cancel", "fn check_level", "fn composed_exceedance_decision", "fn correlation_range_envelope", "fn coupled_expectation", "fn covariance_envelope", "fn difference_cdf_envelope", "fn draw_interval_candidate", "fn draw_spread", "fn exceedance_verdict", "fn frechet_expectation_envelope", "fn from_weighted", "fn functional_envelope", "fn linear_combination_moments", "fn linear_variance_envelope", "fn marginal_interval_candidate", "fn mass_at_most", "fn mass_below", "fn mean", "fn mixture_exceedance", "fn mixture_marginal", "fn mixture_moments", "fn monotone_couplings", "fn negated", "fn normal_interval_candidate", "fn ordered", "fn product_moment_envelope", "fn quantile", "fn require_finite", "fn structure", "fn sum_cdf_envelope", "fn value", "fn variance", "fn verify_structure", "struct CorrelationRangeEnvelope", "struct DrawSpread", "struct ExceedanceDecision", "struct IntervalCandidate", "struct LinearMoments", "struct Marginal", "struct MixtureMoments", "struct MomentSummary", "struct ValueBounds"]
-sha256 = "83777b3660905b3981ccde0fb4c59f528237fe7d1f8cad28faf75c703a4c26c7"
+items = ["const CALIBRATION_STATUS", "const CANCEL_STRIDE", "const MASS_TOLERANCE", "const MAX_COMPONENTS", "const MAX_LATTICE_CHECKS", "const MAX_MARGINAL_ATOMS", "const STRUCTURE_RELATIVE_SLACK", "enum JointLawError", "enum PairStructure", "enum ValueFunctional", "fn as_str", "fn check_cancel", "fn correlation_range_envelope", "fn draw_spread", "fn linear_combination_moments", "fn mixture_moments", "fn ordered", "fn require_finite", "fn structure", "fn value", "struct CorrelationRangeEnvelope", "struct DrawSpread", "struct LinearMoments", "struct MixtureMoments", "struct MomentSummary", "struct ValueBounds"]
+sha256 = "8db868a38fb9329ccc302687353e239bfb4da246125b07435c6261810f57ae3b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law/projection.rs"
+items = ["const DRAW_EXCHANGEABLE_RANK_CONSTRUCTION", "const DRAW_INTERPOLATED_CONSTRUCTION", "const MIXTURE_EQUAL_TAIL_CONSTRUCTION", "const NORMAL_APPROXIMATION_CONSTRUCTION", "enum DecisionVerdict", "fn as_str", "fn check_level", "fn composed_exceedance_decision", "fn draw_interval_candidate", "fn exceedance_verdict", "fn marginal_interval_candidate", "fn mixture_exceedance", "fn mixture_marginal", "fn normal_interval_candidate", "struct ExceedanceDecision", "struct IntervalCandidate"]
+sha256 = "ae420875070b8e9678a90f5051cc0f6323b5a815cfcfe82bceb570b384b91122"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law/marginal.rs"
+items = ["fn atoms", "fn coupled_expectation", "fn covariance_envelope", "fn difference_cdf_envelope", "fn frechet_expectation_envelope", "fn from_weighted", "fn functional_envelope", "fn linear_variance_envelope", "fn mass_at_most", "fn mass_below", "fn mean", "fn monotone_couplings", "fn negated", "fn product_moment_envelope", "fn quantile", "fn sum_cdf_envelope", "fn variance", "fn verify_structure", "struct Marginal"]
+sha256 = "5c4725ae3058244f3f1b5f6d926e2f16822504477964d1b770bd8a9d3ec3aaf5"
 
 [[method_review.artifacts]]
 role = "assertion"

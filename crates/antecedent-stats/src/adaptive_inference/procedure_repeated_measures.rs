@@ -59,21 +59,26 @@
     reason = "the correlation matrix and weight vectors are addressed by unit-measurement index"
 )]
 
+mod covariance;
+
+pub(super) use covariance::gls_unit_summary;
+use covariance::Covariance;
+
 use std::collections::VecDeque;
 
 use antecedent_core::CausalRng;
-use antecedent_kernels::{norm_cdf, standard_normal};
+use antecedent_kernels::norm_cdf;
 
-use super::AdaptiveInferenceError as Error;
 use super::capacity::{CapacityError, ResourceBudget, ResourceReceipt, SimulationShape};
 use super::procedure_contract::{
-    ContractGap, MAX_PROCEDURE_ARMS, MAX_PROCEDURE_UNITS, ProcedureContractError, StoppingRule,
+    ContractGap, ProcedureContractError, StoppingRule, MAX_PROCEDURE_ARMS, MAX_PROCEDURE_UNITS,
 };
 use super::procedure_simulation::MAX_SIMULATION_REPLICATIONS;
-use super::procedure_uncertainty::{DERIVED_NOT_MEASURED, UncertaintyParadigm};
+use super::procedure_uncertainty::{UncertaintyParadigm, DERIVED_NOT_MEASURED};
 use super::weighting::{
-    Estimand, OutcomeModelPrior, WeightScheme, adaptive_scores, weighted_estimate,
+    adaptive_scores, weighted_estimate, Estimand, OutcomeModelPrior, WeightScheme,
 };
+use super::AdaptiveInferenceError as Error;
 
 /// Most measurements per unit (or members per cluster).
 pub const MAX_MEASUREMENTS_PER_UNIT: u32 = 32;
@@ -263,159 +268,6 @@ pub struct RepeatedMeasuresDeclaration {
     pub stopping: Option<StoppingRule>,
 }
 
-// -- Covariance -----------------------------------------------------------------------------------
-
-#[derive(Clone, Debug, PartialEq)]
-enum Dependence {
-    CompoundSymmetric(f64),
-    Autoregressive(f64),
-    RandomEffect { between: f64, within: f64 },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct Covariance {
-    measurements: usize,
-    marginal_variance: f64,
-    dependence: Dependence,
-    /// Row-major `m x m` correlation matrix.
-    correlation: Vec<f64>,
-    /// Row-major lower Cholesky factor of the correlation matrix.
-    factor: Vec<f64>,
-}
-
-fn correlation_matrix(measurements: usize, entry: impl Fn(usize, usize) -> f64) -> Vec<f64> {
-    let mut matrix = vec![0.0; measurements * measurements];
-    for i in 0..measurements {
-        for j in 0..measurements {
-            matrix[i * measurements + j] = if i == j { 1.0 } else { entry(i, j) };
-        }
-    }
-    matrix
-}
-
-impl Covariance {
-    fn build(structure: &OutcomeStructure) -> Option<Self> {
-        match structure {
-            OutcomeStructure::RepeatedMeasures {
-                measurements,
-                variance,
-                correlation: Some(correlation),
-            } => {
-                let m = *measurements as usize;
-                let (dependence, matrix) = match *correlation {
-                    WithinUnitCorrelation::CompoundSymmetric { rho } => {
-                        (Dependence::CompoundSymmetric(rho), correlation_matrix(m, |_, _| rho))
-                    }
-                    WithinUnitCorrelation::Autoregressive { rho } => (
-                        Dependence::Autoregressive(rho),
-                        correlation_matrix(m, |i, j| rho.powi(i.abs_diff(j) as i32)),
-                    ),
-                };
-                let factor = crate::gram::cholesky_spd(&matrix, m)?;
-                Some(Self {
-                    measurements: m,
-                    marginal_variance: *variance,
-                    dependence,
-                    correlation: matrix,
-                    factor,
-                })
-            }
-            OutcomeStructure::Hierarchical {
-                members,
-                between_variance: Some(between),
-                within_variance: Some(within),
-            } => {
-                let m = *members as usize;
-                let total = between + within;
-                let icc = between / total;
-                let matrix = correlation_matrix(m, |_, _| icc);
-                let factor = crate::gram::cholesky_spd(&matrix, m)?;
-                Some(Self {
-                    measurements: m,
-                    marginal_variance: total,
-                    dependence: Dependence::RandomEffect { between: *between, within: *within },
-                    correlation: matrix,
-                    factor,
-                })
-            }
-            _ => None,
-        }
-    }
-
-    /// Weights that reduce a unit's measurements to its summary; sum to one.
-    fn weights(&self, summary: UnitSummary) -> Vec<f64> {
-        let m = self.measurements;
-        match (summary, &self.dependence) {
-            (UnitSummary::Gls, Dependence::Autoregressive(rho)) => {
-                let denominator = 2.0 + (m as f64 - 2.0) * (1.0 - rho);
-                (0..m)
-                    .map(|j| {
-                        if j == 0 || j + 1 == m {
-                            1.0 / denominator
-                        } else {
-                            (1.0 - rho) / denominator
-                        }
-                    })
-                    .collect()
-            }
-            _ => vec![1.0 / m as f64; m],
-        }
-    }
-
-    fn reduce(&self, values: &[f64], summary: UnitSummary) -> f64 {
-        self.weights(summary).iter().zip(values).map(|(w, v)| w * v).sum()
-    }
-
-    /// Variance of the unit summary: `marginal * w' R w`.
-    fn summary_variance(&self, summary: UnitSummary) -> f64 {
-        let w = self.weights(summary);
-        let m = self.measurements;
-        let mut quadratic = 0.0;
-        for i in 0..m {
-            for j in 0..m {
-                quadratic += w[i] * self.correlation[i * m + j] * w[j];
-            }
-        }
-        self.marginal_variance * quadratic
-    }
-
-    fn draw(&self, rng: &mut CausalRng, mean: f64) -> Vec<f64> {
-        let m = self.measurements;
-        if let Dependence::RandomEffect { between, within } = &self.dependence {
-            let effect = between.sqrt() * standard_normal(rng);
-            let sd = within.sqrt();
-            (0..m).map(|_| mean + effect + sd * standard_normal(rng)).collect()
-        } else {
-            let z: Vec<f64> = (0..m).map(|_| standard_normal(rng)).collect();
-            let sd = self.marginal_variance.sqrt();
-            (0..m)
-                .map(|i| {
-                    let correlated: f64 = (0..=i).map(|k| self.factor[i * m + k] * z[k]).sum();
-                    mean + sd * correlated
-                })
-                .collect()
-        }
-    }
-
-    fn is_independent(&self) -> bool {
-        match self.dependence {
-            Dependence::CompoundSymmetric(rho) | Dependence::Autoregressive(rho) => {
-                rho.to_bits() << 1 == 0
-            }
-            Dependence::RandomEffect { between, .. } => between.to_bits() << 1 == 0,
-        }
-    }
-}
-
-/// Weights of the generalized-least-squares unit summary under the declared dependence and its
-/// exact variance, `None` for an incomplete or inadmissible structure. The summary is the
-/// sufficient statistic for a common mean of a unit's measurements, which is what the posterior
-/// of [`super::repeated_measures_posterior`] conditions on.
-pub(super) fn gls_unit_summary(structure: &OutcomeStructure) -> Option<(Vec<f64>, f64)> {
-    let covariance = Covariance::build(structure)?;
-    Some((covariance.weights(UnitSummary::Gls), covariance.summary_variance(UnitSummary::Gls)))
-}
-
 // -- Validated spec -------------------------------------------------------------------------------
 
 /// A validated repeated-measures or clustered procedure.
@@ -439,6 +291,112 @@ fn prior_is_valid(prior: &OutcomeModelPrior) -> bool {
     prior.mean.is_finite() && prior.strength.is_finite() && prior.strength > 0.0
 }
 
+fn validate_allocation(declaration: &RepeatedMeasuresDeclaration, gaps: &mut Vec<ContractGap>) {
+    let arms = declaration.arms;
+    match &declaration.assignment {
+        None => gaps.push(ContractGap::AssignmentPolicyMissing),
+        Some(UnitAssignment::Fixed { probabilities }) => {
+            if probabilities.len() != arms || !probability_vector(probabilities) {
+                gaps.push(ContractGap::Invalid(
+                    antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                ));
+            }
+        }
+        Some(UnitAssignment::EpsilonGreedy { epsilon, prior }) => {
+            if !(epsilon.is_finite() && (0.0..=1.0).contains(epsilon) && prior_is_valid(prior)) {
+                gaps.push(ContractGap::Invalid(
+                    antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
+                ));
+            }
+        }
+    }
+    match &declaration.enrolment {
+        None => gaps.push(ContractGap::EnrolmentScheduleMissing),
+        Some(schedule) => {
+            let total: u64 = schedule.iter().map(|&n| u64::from(n)).sum();
+            if schedule.first().is_none_or(|&first| first == 0) || total == 0 {
+                gaps.push(ContractGap::Invalid(
+                    antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED,
+                ));
+            }
+            if schedule.len() > MAX_UNIT_BATCHES {
+                gaps.push(ContractGap::Capacity(CapacityError::DeclaredLooks {
+                    limit: MAX_UNIT_BATCHES as u64,
+                    requested: schedule.len() as u64,
+                }));
+            }
+            if total > u64::from(MAX_PROCEDURE_UNITS) {
+                gaps.push(ContractGap::Capacity(CapacityError::DeclaredUnits {
+                    limit: u64::from(MAX_PROCEDURE_UNITS),
+                    requested: total,
+                }));
+            }
+        }
+    }
+}
+
+fn validate_outcome_structure(structure: Option<&OutcomeStructure>, gaps: &mut Vec<ContractGap>) {
+    let count_valid = |n: u32| (2..=MAX_MEASUREMENTS_PER_UNIT).contains(&n);
+    match structure {
+        None => gaps.push(ContractGap::OutcomeStructureMissing),
+        Some(OutcomeStructure::RepeatedMeasures { measurements, variance, correlation }) => {
+            if !count_valid(*measurements) {
+                gaps.push(ContractGap::Invalid(
+                    antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID,
+                ));
+            }
+            if !(variance.is_finite() && *variance > 0.0) {
+                gaps.push(ContractGap::Invalid(
+                    antecedent_core::reason_details::adaptive_inference::VARIANCE_INVALID,
+                ));
+            }
+            match correlation {
+                None => gaps.push(ContractGap::WithinUnitCorrelationMissing),
+                Some(WithinUnitCorrelation::CompoundSymmetric { rho }) => {
+                    let m = f64::from(*measurements);
+                    if !(rho.is_finite() && *rho < 1.0 && *rho * (m - 1.0) > -1.0) {
+                        gaps.push(ContractGap::Invalid(
+                                antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID,
+                            ));
+                    }
+                }
+                Some(WithinUnitCorrelation::Autoregressive { rho }) => {
+                    if !(rho.is_finite() && rho.abs() < 1.0) {
+                        gaps.push(ContractGap::Invalid(
+                                antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID,
+                            ));
+                    }
+                }
+            }
+        }
+        Some(OutcomeStructure::Hierarchical { members, between_variance, within_variance }) => {
+            if !count_valid(*members) {
+                gaps.push(ContractGap::Invalid(
+                    antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID,
+                ));
+            }
+            match between_variance {
+                None => gaps.push(ContractGap::BetweenUnitVarianceMissing),
+                Some(v) if !(v.is_finite() && *v >= 0.0) => {
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::VARIANCE_INVALID,
+                    ));
+                }
+                Some(_) => {}
+            }
+            match within_variance {
+                None => gaps.push(ContractGap::WithinUnitVarianceMissing),
+                Some(v) if !(v.is_finite() && *v > 0.0) => {
+                    gaps.push(ContractGap::Invalid(
+                        antecedent_core::reason_details::adaptive_inference::VARIANCE_INVALID,
+                    ));
+                }
+                Some(_) => {}
+            }
+        }
+    }
+}
+
 impl RepeatedMeasuresSpec {
     /// Validate a declaration.
     ///
@@ -458,111 +416,13 @@ impl RepeatedMeasuresSpec {
                 antecedent_core::reason_details::adaptive_inference::ARMS_INVALID,
             ));
         }
-        match &declaration.assignment {
-            None => gaps.push(ContractGap::AssignmentPolicyMissing),
-            Some(UnitAssignment::Fixed { probabilities }) => {
-                if probabilities.len() != arms || !probability_vector(probabilities) {
-                    gaps.push(ContractGap::Invalid(
-                        antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
-                    ));
-                }
-            }
-            Some(UnitAssignment::EpsilonGreedy { epsilon, prior }) => {
-                if !(epsilon.is_finite() && (0.0..=1.0).contains(epsilon) && prior_is_valid(prior))
-                {
-                    gaps.push(ContractGap::Invalid(
-                        antecedent_core::reason_details::adaptive_inference::RULE_MISMATCH,
-                    ));
-                }
-            }
-        }
-        match &declaration.enrolment {
-            None => gaps.push(ContractGap::EnrolmentScheduleMissing),
-            Some(schedule) => {
-                let total: u64 = schedule.iter().map(|&n| u64::from(n)).sum();
-                if schedule.first().is_none_or(|&first| first == 0) || total == 0 {
-                    gaps.push(ContractGap::Invalid(
-                        antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED,
-                    ));
-                }
-                if schedule.len() > MAX_UNIT_BATCHES {
-                    gaps.push(ContractGap::Capacity(CapacityError::DeclaredLooks {
-                        limit: MAX_UNIT_BATCHES as u64,
-                        requested: schedule.len() as u64,
-                    }));
-                }
-                if total > u64::from(MAX_PROCEDURE_UNITS) {
-                    gaps.push(ContractGap::Capacity(CapacityError::DeclaredUnits {
-                        limit: u64::from(MAX_PROCEDURE_UNITS),
-                        requested: total,
-                    }));
-                }
-            }
-        }
+        validate_allocation(&declaration, &mut gaps);
         if declaration.lag_looks > MAX_UNIT_LAG {
             gaps.push(ContractGap::Invalid(
                 antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID,
             ));
         }
-        let count_valid = |n: u32| (2..=MAX_MEASUREMENTS_PER_UNIT).contains(&n);
-        match &declaration.structure {
-            None => gaps.push(ContractGap::OutcomeStructureMissing),
-            Some(OutcomeStructure::RepeatedMeasures { measurements, variance, correlation }) => {
-                if !count_valid(*measurements) {
-                    gaps.push(ContractGap::Invalid(
-                        antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID,
-                    ));
-                }
-                if !(variance.is_finite() && *variance > 0.0) {
-                    gaps.push(ContractGap::Invalid(
-                        antecedent_core::reason_details::adaptive_inference::VARIANCE_INVALID,
-                    ));
-                }
-                match correlation {
-                    None => gaps.push(ContractGap::WithinUnitCorrelationMissing),
-                    Some(WithinUnitCorrelation::CompoundSymmetric { rho }) => {
-                        let m = f64::from(*measurements);
-                        if !(rho.is_finite() && *rho < 1.0 && *rho * (m - 1.0) > -1.0) {
-                            gaps.push(ContractGap::Invalid(
-                                antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID,
-                            ));
-                        }
-                    }
-                    Some(WithinUnitCorrelation::Autoregressive { rho }) => {
-                        if !(rho.is_finite() && rho.abs() < 1.0) {
-                            gaps.push(ContractGap::Invalid(
-                                antecedent_core::reason_details::adaptive_inference::CORRELATION_INVALID,
-                            ));
-                        }
-                    }
-                }
-            }
-            Some(OutcomeStructure::Hierarchical { members, between_variance, within_variance }) => {
-                if !count_valid(*members) {
-                    gaps.push(ContractGap::Invalid(
-                        antecedent_core::reason_details::adaptive_inference::MEASUREMENTS_INVALID,
-                    ));
-                }
-                match between_variance {
-                    None => gaps.push(ContractGap::BetweenUnitVarianceMissing),
-                    Some(v) if !(v.is_finite() && *v >= 0.0) => {
-                        gaps.push(ContractGap::Invalid(
-                            antecedent_core::reason_details::adaptive_inference::VARIANCE_INVALID,
-                        ));
-                    }
-                    Some(_) => {}
-                }
-                match within_variance {
-                    None => gaps.push(ContractGap::WithinUnitVarianceMissing),
-                    Some(v) if !(v.is_finite() && *v > 0.0) => {
-                        gaps.push(ContractGap::Invalid(
-                            antecedent_core::reason_details::adaptive_inference::VARIANCE_INVALID,
-                        ));
-                    }
-                    Some(_) => {}
-                }
-            }
-        }
+        validate_outcome_structure(declaration.structure.as_ref(), &mut gaps);
         match &declaration.analysis {
             None => gaps.push(ContractGap::FinalAnalysisMissing),
             Some(analysis) => {

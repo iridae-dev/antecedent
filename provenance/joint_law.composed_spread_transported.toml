@@ -21,7 +21,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "wrapper"
-rationale = "Spread of a transported composition built from its three named pieces."
+rationale = "Spread of a transported composition built from its three named pieces. Marginal and coupling definitions moved to joint_law/marginal.rs and bound items were compared unchanged apart from formatting. Interval and exceedance projection definitions moved to joint_law/projection.rs and bound items were compared unchanged apart from formatting."
 no_independent_algorithm = "Delegates the variance arithmetic to the linear and aligned propagation records; owns the three-piece completeness requirement."
 covered_by = ["joint_law.transported_composition", "joint_law.linear_moment_propagation"]
 record_sha256 = "9ed4f8d44b88896cbd62dda2c19ff3938039670b2a5d1eadaccda75a84010e40"
@@ -29,8 +29,20 @@ record_sha256 = "9ed4f8d44b88896cbd62dda2c19ff3938039670b2a5d1eadaccda75a84010e4
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/joint_law.rs"
-items = ["enum ValueFunctional", "fn as_str", "fn atoms", "fn from", "fn mean", "fn value"]
-sha256 = "d8478442dc9f0b7ac2a0e03192226a576c5dc81c679bd25b606119caa0300e5f"
+items = ["enum ValueFunctional", "fn as_str", "fn from", "fn value"]
+sha256 = "c9db2f0b30fbaca7dab331145085ade9a5f7ee4796e2767b0cea17591c68b533"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law/projection.rs"
+items = ["fn as_str"]
+sha256 = "08b6beb983af0943bb8b12590c0744fac3aab2dfb007d2f1dcfc583b56780f56"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/joint_law/marginal.rs"
+items = ["fn atoms", "fn mean"]
+sha256 = "11f6b8a61ab80fd04efa0e8258b873f27ed00850dc8015bb26e4c31eb1485e0d"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

@@ -182,58 +182,7 @@ impl PathSpecificIdentifier {
             perf.candidates_examined.saturating_add(hops.children_reaching_outcome);
 
         if hops.selected.is_empty() {
-            // No selected path carries the treatment's change to the outcome, so the active and
-            // control arms agree on every path and the effect is zero whatever the data say.
-            derivation.push(
-                "path_specific.empty",
-                "no directed path matches the path filter, so the path-specific effect is \
-                 structurally zero",
-            );
-            let mut arena = CausalExprArena::new();
-            let outcome = arena.intern_var_set([q.outcome]);
-            let empty = arena.empty_var_set();
-            let empty_i = arena.empty_intervention_set();
-            let law = arena.intern_distribution(outcome, empty, empty_i, DomainRef::Observational);
-            let mean = arena.intern(ExprNode::Expectation {
-                function: OutcomeExprId::identity(q.outcome),
-                distribution: law,
-            });
-            let functional = arena.intern(ExprNode::Contrast {
-                left: mean,
-                right: mean,
-                op: ContrastOp::Difference,
-            });
-            arena.set_derivation(
-                functional,
-                DerivationMeta::rule(
-                    "path_specific.empty",
-                    Some(Arc::from("a contrast of identical arms: the selected path set is empty")),
-                ),
-            );
-            let estimand = IdentifiedEstimand::new(
-                Arc::from(EstimandMethod::PathSpecificNatural.as_str()),
-                Arc::from([]),
-                Arc::from([]),
-                Arc::clone(&q.path_nodes),
-                functional,
-                None,
-            );
-            let mut result = IdentificationResult::identified(
-                query,
-                vec![estimand],
-                arena,
-                derivation,
-                prepared.declared_assumptions().clone(),
-                perf,
-            );
-            result.diagnostics.push(antecedent_core::Diagnostic::new(
-                PATH_SPECIFIC_STRUCTURAL_ZERO_DIAGNOSTIC_CODE,
-                antecedent_core::DiagnosticKind::Scientific,
-                antecedent_core::DiagnosticSeverity::Info,
-                "no directed path from the treatment to the outcome matches the path filter, so \
-                 the path-specific effect is identified and equals zero",
-            ));
-            return Ok(result);
+            return Ok(structural_zero_result(prepared, q, query, derivation, perf));
         }
         derivation.push(
             "path_specific.paths",
@@ -338,6 +287,64 @@ impl PathSpecificIdentifier {
         }
         Ok(id_res)
     }
+}
+
+fn structural_zero_result(
+    prepared: &PreparedAdmg,
+    q: &PathSpecificEffectQuery,
+    query: CausalQuery,
+    mut derivation: DerivationTrace,
+    perf: IdentificationPerformanceRecord,
+) -> IdentificationResult {
+    // No selected path carries the treatment's change to the outcome, so the active and
+    // control arms agree on every path and the effect is zero whatever the data say.
+    derivation.push(
+        "path_specific.empty",
+        "no directed path matches the path filter, so the path-specific effect is \
+         structurally zero",
+    );
+    let mut arena = CausalExprArena::new();
+    let outcome = arena.intern_var_set([q.outcome]);
+    let empty = arena.empty_var_set();
+    let empty_i = arena.empty_intervention_set();
+    let law = arena.intern_distribution(outcome, empty, empty_i, DomainRef::Observational);
+    let mean = arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(q.outcome),
+        distribution: law,
+    });
+    let functional =
+        arena.intern(ExprNode::Contrast { left: mean, right: mean, op: ContrastOp::Difference });
+    arena.set_derivation(
+        functional,
+        DerivationMeta::rule(
+            "path_specific.empty",
+            Some(Arc::from("a contrast of identical arms: the selected path set is empty")),
+        ),
+    );
+    let estimand = IdentifiedEstimand::new(
+        Arc::from(EstimandMethod::PathSpecificNatural.as_str()),
+        Arc::from([]),
+        Arc::from([]),
+        Arc::clone(&q.path_nodes),
+        functional,
+        None,
+    );
+    let mut result = IdentificationResult::identified(
+        query,
+        vec![estimand],
+        arena,
+        derivation,
+        prepared.declared_assumptions().clone(),
+        perf,
+    );
+    result.diagnostics.push(antecedent_core::Diagnostic::new(
+        PATH_SPECIFIC_STRUCTURAL_ZERO_DIAGNOSTIC_CODE,
+        antecedent_core::DiagnosticKind::Scientific,
+        antecedent_core::DiagnosticSeverity::Info,
+        "no directed path from the treatment to the outcome matches the path filter, so \
+         the path-specific effect is identified and equals zero",
+    ));
+    result
 }
 
 /// Which directed paths from a treatment child to the outcome are selected.

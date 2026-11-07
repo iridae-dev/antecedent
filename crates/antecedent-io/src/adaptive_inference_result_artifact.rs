@@ -321,6 +321,70 @@ fn estimand_of(
     }
 }
 
+fn compute_group_sequential_result(
+    contract: &AdaptiveDesignContract,
+    data: &LookData,
+    look: usize,
+    control_arm: u32,
+    treatment_arm: u32,
+    paradigm: InferenceParadigm,
+    ctx: &ExecutionContext,
+) -> Result<AdaptiveResult, AdaptiveResultError> {
+    let declaration = contract.declaration();
+    let rule = declaration.stopping_rule.map(|r| r.spec);
+    let Some(StoppingSpec::AlphaSpending { spending, total_alpha, sidedness }) = rule else {
+        return Err(request_invalid("the contract's stopping rule is not alpha spending"));
+    };
+    if control_arm == treatment_arm
+        || control_arm as usize >= data.arms
+        || treatment_arm as usize >= data.arms
+    {
+        return Err(request_invalid("control and treatment must be two declared arms"));
+    }
+    let looks = declaration.interim_analyses.as_ref().expect("validated contract");
+    let plan = GroupSequentialPlan {
+        fractions: looks.iter().map(|l| l.information_fraction).collect(),
+        alpha: total_alpha,
+        spending: match spending {
+            SpendingKind::PocockType => SpendingFunction::PocockType,
+            _ => SpendingFunction::OBrienFlemingType,
+        },
+        sidedness: match sidedness {
+            BoundarySidedness::OneSidedUpper => Sidedness::OneSidedUpper,
+            _ => Sidedness::TwoSidedSymmetric,
+        },
+    };
+    let mut statistics = Vec::with_capacity(look + 1);
+    for performed in 0..=look {
+        let at = look_data(contract, performed)?;
+        let pick = |arm: u32| -> Vec<f64> {
+            at.units
+                .iter()
+                .zip(&at.assigned)
+                .filter(|(_, a)| **a == arm as usize)
+                .map(|(&u, _)| unit_outcome(contract, u))
+                .collect()
+        };
+        statistics.push(standardized_difference(&pick(control_arm), &pick(treatment_arm))?);
+    }
+    let outcome = group_sequential_decision(&plan, &statistics, ctx)?;
+    let mut values = vec![outcome.stopped_at.map_or(-1.0, |k| k as f64)];
+    let spent = outcome.spend_increments.iter();
+    for ((critical, statistic), spend) in
+        outcome.critical.iter().zip(&outcome.statistics).zip(spent)
+    {
+        values.extend([*critical, *statistic, *spend]);
+    }
+    Ok(AdaptiveResult {
+        paradigm,
+        method: "lan_demets_alpha_spending_group_sequential",
+        values,
+        unsupported_claim: Some(
+            antecedent_core::reason_details::adaptive_inference::NO_STAGEWISE_ADJUSTMENT_PROCEDURE,
+        ),
+    })
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "one arm per paradigm keeps each route's data preparation next to its estimator call"
@@ -473,58 +537,15 @@ pub fn compute_adaptive_result(
             })
         }
         AdaptiveResultSpec::GroupSequential { control_arm, treatment_arm, .. } => {
-            let rule = declaration.stopping_rule.map(|r| r.spec);
-            let Some(StoppingSpec::AlphaSpending { spending, total_alpha, sidedness }) = rule
-            else {
-                return Err(request_invalid("the contract's stopping rule is not alpha spending"));
-            };
-            if control_arm == treatment_arm
-                || *control_arm as usize >= data.arms
-                || *treatment_arm as usize >= data.arms
-            {
-                return Err(request_invalid("control and treatment must be two declared arms"));
-            }
-            let looks = declaration.interim_analyses.as_ref().expect("validated contract");
-            let plan = GroupSequentialPlan {
-                fractions: looks.iter().map(|l| l.information_fraction).collect(),
-                alpha: total_alpha,
-                spending: match spending {
-                    SpendingKind::PocockType => SpendingFunction::PocockType,
-                    _ => SpendingFunction::OBrienFlemingType,
-                },
-                sidedness: match sidedness {
-                    BoundarySidedness::OneSidedUpper => Sidedness::OneSidedUpper,
-                    _ => Sidedness::TwoSidedSymmetric,
-                },
-            };
-            let mut statistics = Vec::with_capacity(look + 1);
-            for performed in 0..=look {
-                let at = look_data(contract, performed)?;
-                let pick = |arm: u32| -> Vec<f64> {
-                    at.units
-                        .iter()
-                        .zip(&at.assigned)
-                        .filter(|(_, a)| **a == arm as usize)
-                        .map(|(&u, _)| unit_outcome(contract, u))
-                        .collect()
-                };
-                statistics
-                    .push(standardized_difference(&pick(*control_arm), &pick(*treatment_arm))?);
-            }
-            let outcome = group_sequential_decision(&plan, &statistics, ctx)?;
-            let mut values = vec![outcome.stopped_at.map_or(-1.0, |k| k as f64)];
-            let spent = outcome.spend_increments.iter();
-            for ((critical, statistic), spend) in
-                outcome.critical.iter().zip(&outcome.statistics).zip(spent)
-            {
-                values.extend([*critical, *statistic, *spend]);
-            }
-            Ok(AdaptiveResult {
+            compute_group_sequential_result(
+                contract,
+                &data,
+                look,
+                *control_arm,
+                *treatment_arm,
                 paradigm,
-                method: "lan_demets_alpha_spending_group_sequential",
-                values,
-                unsupported_claim: Some(antecedent_core::reason_details::adaptive_inference::NO_STAGEWISE_ADJUSTMENT_PROCEDURE),
-            })
+                ctx,
+            )
         }
     }
 }

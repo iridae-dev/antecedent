@@ -32,7 +32,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "typed_mechanism_transport::{fit_mechanism, refit_in_target, invariance_check} for a Gaussian-identity mechanism with a degree-1 polynomial mean: standardization of parents with the source sample, least-squares coefficients, the residual-scale parameter (log s) and its covariance blocks, the target refit on the source design, and the Wald comparison d'(S_source + S_target)^-1 d with its chi-square upper-tail p-value and rejection rule. Not the Fisher-scoring fits of the Bernoulli, Poisson, gamma, log-normal and heteroscedastic families (compared with an external numpy/scipy fit by conformance/transport/typed_mechanism_shift, a fixture this review did not re-read), the expression-mean Gauss-Newton, the Monte Carlo interventional means or the first-order contrast variance."
+scope = "typed_mechanism_transport::{fit_mechanism, refit_in_target, invariance_check} for a Gaussian-identity mechanism with a degree-1 polynomial mean: standardization of parents with the source sample, least-squares coefficients, the residual-scale parameter (log s) and its covariance blocks, the target refit on the source design, and the Wald comparison d'(S_source + S_target)^-1 d with its chi-square upper-tail p-value and rejection rule. Not the Fisher-scoring fits of the Bernoulli, Poisson, gamma, log-normal and heteroscedastic families (compared with an external numpy/scipy fit by conformance/transport/typed_mechanism_shift, a fixture this review did not re-read), the expression-mean Gauss-Newton, the Monte Carlo interventional means or the first-order contrast variance. Typed fitting definitions moved to typed_mechanism_transport/fitting.rs; all bound definitions were compared unchanged apart from formatting. Transported-model evaluation moved to typed_mechanism_transport/evaluation.rs; every bound definition and the other bound artifacts were compared unchanged."
 assumptions = ["The source and target samples are independent, so the covariance of the parameter difference is the sum of the fit covariances.", "A non-rejection is not evidence of invariance."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. No cited publication was retrieved in this review: the correspondence is between the product code and the standard definitions, verified numerically, not a page-level reading of any paper."
 redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses only the Python standard library and mpmath (a pure-Python library, installed offline in the local environment). The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
@@ -44,8 +44,20 @@ record_sha256 = "764f25d35b3b7a6042df11875c623a903ef8375a75e41eca77c7178cb2c8819
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/typed_mechanism_transport.rs"
-items = ["const DETAIL_DESIGN_NOT_SHARED", "const DETAIL_TARGET_SPEC_DIFFERS", "const MAX_EXPRESSION_PARAMETERS", "const MAX_POLYNOMIAL_DEGREE", "const MAX_TYPED_PARENTS", "enum Link", "enum MeanSpec", "enum ResponseFamily", "enum TypedFitError", "fn as_str", "fn check_support", "fn column", "fn context", "fn covariance", "fn eta", "fn eta_with", "fn fit_heteroscedastic", "fn fit_mean", "fn fit_mechanism", "fn fit_mechanism_polled", "fn invariance_check", "fn jacobian", "fn logistic", "fn matvec", "fn mean", "fn n_obs", "fn new", "fn objective", "fn parameters", "fn polynomial_features", "fn polynomial_width", "fn provenance", "fn refit_in_target", "fn refit_in_target_polled", "fn scale_dim", "fn scaling", "fn score_and_weight", "fn single", "fn softplus", "fn spec", "fn standardize", "fn target", "fn validate_spec", "fn variable", "struct FittedMechanism", "struct InvarianceCheck", "struct MeanProblem", "struct MechanismSpec"]
-sha256 = "4b9d31d5df8ab0023b52ff9002f2547c645911d71dcb95bd1eb0c1718699c809"
+items = ["const DETAIL_DESIGN_NOT_SHARED", "const DETAIL_TARGET_SPEC_DIFFERS", "const MAX_EXPRESSION_PARAMETERS", "const MAX_POLYNOMIAL_DEGREE", "const MAX_TYPED_PARENTS", "enum MeanSpec", "enum ResponseFamily", "enum TypedFitError", "fn as_str", "fn context", "fn covariance", "fn eta_with", "fn invariance_check", "fn logistic", "fn n_obs", "fn parameters", "fn polynomial_features", "fn polynomial_width", "fn provenance", "fn scale_dim", "fn scaling", "fn single", "fn softplus", "fn spec", "fn standardize", "fn variable", "struct FittedMechanism", "struct InvarianceCheck", "struct MechanismSpec"]
+sha256 = "575c559940667dce7aa9960adbb247442485578c306e717c2dcc268b6ff80418"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/typed_mechanism_transport/evaluation.rs"
+items = ["fn target"]
+sha256 = "36c369029506c740a82b7f7956141bcfdfefba0b18141910c74631629ba0a02e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/typed_mechanism_transport/fitting.rs"
+items = ["enum Link", "fn check_support", "fn column", "fn eta", "fn fit_heteroscedastic", "fn fit_mean", "fn fit_mechanism", "fn fit_mechanism_polled", "fn jacobian", "fn matvec", "fn mean", "fn new", "fn objective", "fn refit_in_target", "fn refit_in_target_polled", "fn score_and_weight", "fn validate_spec", "struct MeanProblem"]
+sha256 = "8b23c8ef0030c83279250de8f2f23cafe2a155b2a52a7fa3118e31774238e063"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -29,11 +29,11 @@ use antecedent_graph::{Admg, DSeparationWorkspace, Dag, DenseNodeId};
 use antecedent_kernels::{mean, shuffle};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 use antecedent_validate::target_native::{
-    RefutationTarget, TargetQuadrant, TargetRefuterKind, joint_mahalanobis, target_refuter_stream,
+    joint_mahalanobis, target_refuter_stream, RefutationTarget, TargetQuadrant, TargetRefuterKind,
 };
 use antecedent_validate::{
-    RefutationReport, cross_world_noise_range, mediation_range, mediation_sensitivity_fit,
-    natural_direct_range, residual_correlation, total_effect_slope,
+    cross_world_noise_range, mediation_range, mediation_sensitivity_fit, natural_direct_range,
+    residual_correlation, total_effect_slope, RefutationReport,
 };
 
 use super::execute::Study;
@@ -744,6 +744,68 @@ fn with_columns(
     Ok(data.with_replaced_floats(&replacements)?)
 }
 
+fn permutation_block_statistics(
+    input: &ExtraInput<'_>,
+    scm: &LinearScm,
+    anomaly: Option<&antecedent_attribution::AnomalyScores>,
+    change: Option<&antecedent_attribution::ChangeAttributionResult>,
+    block: usize,
+    slot: usize,
+    replicates: u32,
+) -> Result<Vec<f64>, CausalError> {
+    let mut statistic = Vec::new();
+    let n = scm.columns[0].len();
+    for replicate in 0..replicates {
+        if input.ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE });
+        }
+        let mut rng = target_refuter_stream(
+            TargetRefuterKind::PlaceboOutcome,
+            replicate + 1000 * u32::try_from(block).unwrap_or(0),
+            input.ctx,
+        );
+        let data = with_columns(input.data, scm.permuted(block, &permutation(n, &mut rng)))?;
+        let refit = input.prepared.estimate(&data, input.ctx)?;
+        if let Some(scores) = anomaly {
+            let Some(refit_scores) = refit.anomaly().and_then(|s| s.first()) else {
+                continue;
+            };
+            let width = scores.noise_components.len();
+            let refit_width = refit_scores.noise_components.len();
+            let Some(other) = refit_scores
+                .noise_components
+                .iter()
+                .position(|c| c.variable().raw() as usize == block)
+            else {
+                continue;
+            };
+            if scores.rows != refit_scores.rows {
+                continue;
+            }
+            let rows = scores.rows.len();
+            let before: Vec<f64> =
+                (0..rows).map(|r| scores.noise_contributions[r * width + slot]).collect();
+            let after: Vec<f64> = (0..rows)
+                .map(|r| refit_scores.noise_contributions[r * refit_width + other])
+                .collect();
+            if let Some(rho) = pearson(&before, &after) {
+                statistic.push(rho);
+            }
+        } else if let (Some(change), Some(refit_change)) = (change, refit.change_attribution()) {
+            let share = |c: &antecedent_attribution::ChangeAttributionResult| {
+                c.contributions
+                    .iter()
+                    .find(|x| x.component.variable().raw() as usize == block)
+                    .map(|x| x.contribution)
+            };
+            if let (Some(_), Some(after)) = (share(change), share(refit_change)) {
+                statistic.push(after);
+            }
+        }
+    }
+    Ok(statistic)
+}
+
 /// The noise-block permutation of an attribution.
 #[allow(
     clippy::too_many_lines,
@@ -769,7 +831,6 @@ fn noise_block_permutation(input: &ExtraInput<'_>) -> Result<Extras, CausalError
         ));
         return Ok((Vec::new(), notes));
     };
-    let n = scm.columns[0].len();
     // A third of the requested replicates per block, never fewer than the minimum; the
     // request is honoured and the report carries the executed count.
     let replicates = (input.replicates / 3).max(MIN_BLOCK_REPLICATES);
@@ -803,58 +864,8 @@ fn noise_block_permutation(input: &ExtraInput<'_>) -> Result<Extras, CausalError
         if block >= scm.columns.len() {
             continue;
         }
-        let mut statistic = Vec::new();
-        for replicate in 0..replicates {
-            if input.ctx.cancellation.is_cancelled() {
-                return Err(CausalError::Cancelled {
-                    stage: crate::analysis::stage::STAGE_VALIDATE,
-                });
-            }
-            let mut rng = target_refuter_stream(
-                TargetRefuterKind::PlaceboOutcome,
-                replicate + 1000 * u32::try_from(block).unwrap_or(0),
-                input.ctx,
-            );
-            let data = with_columns(input.data, scm.permuted(block, &permutation(n, &mut rng)))?;
-            let refit = input.prepared.estimate(&data, input.ctx)?;
-            if let Some(scores) = anomaly {
-                let Some(refit_scores) = refit.anomaly().and_then(|s| s.first()) else {
-                    continue;
-                };
-                let width = scores.noise_components.len();
-                let refit_width = refit_scores.noise_components.len();
-                let Some(other) = refit_scores
-                    .noise_components
-                    .iter()
-                    .position(|c| c.variable().raw() as usize == block)
-                else {
-                    continue;
-                };
-                if scores.rows != refit_scores.rows {
-                    continue;
-                }
-                let rows = scores.rows.len();
-                let before: Vec<f64> =
-                    (0..rows).map(|r| scores.noise_contributions[r * width + slot]).collect();
-                let after: Vec<f64> = (0..rows)
-                    .map(|r| refit_scores.noise_contributions[r * refit_width + other])
-                    .collect();
-                if let Some(rho) = pearson(&before, &after) {
-                    statistic.push(rho);
-                }
-            } else if let (Some(change), Some(refit_change)) = (change, refit.change_attribution())
-            {
-                let share = |c: &antecedent_attribution::ChangeAttributionResult| {
-                    c.contributions
-                        .iter()
-                        .find(|x| x.component.variable().raw() as usize == block)
-                        .map(|x| x.contribution)
-                };
-                if let (Some(_), Some(after)) = (share(change), share(refit_change)) {
-                    statistic.push(after);
-                }
-            }
-        }
+        let statistic =
+            permutation_block_statistics(input, &scm, anomaly, change, block, slot, replicates)?;
         if statistic.is_empty() {
             notes.push(not_applicable(
                 NAME,

@@ -30,7 +30,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "HedgeCertificate::verify and the hedge produced at ID line 5 in crates/antecedent-identify/src/hedge.rs and crates/antecedent-identify/src/id.rs, for unconditional interventional-distribution queries on ADMGs: whether the verifier accepts exactly the node-set pairs for which the Shpitser-Pearl definition of a hedge has an edge-subset realisation, and whether ID refuses exactly the queries for which a hedge exists. Not a review of the ID recursion's soundness on identified queries (record identify.id), of IDC, of larger-than-four-node graphs, or of the emitted certificate's rendering."
+scope = "HedgeCertificate::verify and the hedge produced at ID line 5 in crates/antecedent-identify/src/hedge.rs and crates/antecedent-identify/src/id.rs, for unconditional interventional-distribution queries on ADMGs: whether the verifier accepts exactly the node-set pairs for which the Shpitser-Pearl definition of a hedge has an edge-subset realisation, and whether ID refuses exactly the queries for which a hedge exists. Not a review of the ID recursion's soundness on identified queries (record identify.id), of IDC, of larger-than-four-node graphs, or of the emitted certificate's rendering. ID expression-building definitions moved to id/expression.rs and bound items were compared unchanged apart from internal visibility and formatting. ID recursive definitions moved to id/recursion.rs and bound items were compared unchanged apart from internal visibility and formatting."
 assumptions = ["ADMG whose bidirected edges stand for unmeasured common causes and whose nodes are measured.", "Definition of a hedge for P_x(y): R-rooted C-forests F' within F (each bidirected-connected, every node with at most one child, the childless nodes exactly R), F meets X, F' does not, and R is contained in An(Y) after cutting the arrows into X.", "Non-identification of P_x(y) is equivalent to the existence of such a hedge for the full X and some sub-outcome (the completeness direction is established by the reference comparison on small graphs, not re-derived)."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition; no upstream implementation or test source was consulted or copied. dowhy (black-box comparison only)"
 redistribution = "The references are repository-authored under MIT OR Apache-2.0 and run inside the crates' own tests; the primary sources are linked by DOI where one exists and are not redistributed."
@@ -48,8 +48,20 @@ sha256 = "966088b64ebedfc7d8a78ff05900e8f6c890d9e7f5a61fb17d2ad1bcac0834c9"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/id.rs"
-items = ["enum DistCtx", "enum Factor", "enum IdOutcome", "fn c_component_expression", "fn conditionals", "fn dist_marginal", "fn emit", "fn enter", "fn expectation_contrast", "fn get", "fn id_body", "fn id_lines_5_to_7", "fn id_recurse", "fn id_recurse_shared", "fn identify", "fn identify_ate", "fn identify_ate_impl", "fn identify_response", "fn identify_schedule_contrast", "fn identify_sets", "fn insert", "fn intern_nodes", "fn intervention_for_factor", "fn intervention_value", "fn leave", "fn len", "fn marginal_conditionals", "fn marginalize", "fn markov_product", "fn new", "fn not_identified_with_hedge", "fn observational_marginal", "fn prepare", "fn prepare_with_assumptions", "fn product_of", "fn q_component_product", "fn require_disjoint", "fn subproblem_hash", "fn sum_out_if_any", "fn admitted", "fn validate_distribution_query", "fn var", "fn with_causal_markov", "struct IdIdentifier", "struct IdMemo", "struct IdMeter", "struct IdQuery", "struct IdRun", "struct Law", "struct ScheduleContrast", "struct SubproblemKey", "type Assign"]
-sha256 = "d49434d8b357e34e88ab6c5a0c1a25911c0dc2dc1ca7acfdb5c57bf88f30552d"
+items = ["enum DistCtx", "enum Factor", "enum IdOutcome", "fn enter", "fn expectation_contrast", "fn get", "fn identify", "fn identify_ate", "fn identify_ate_impl", "fn identify_response", "fn identify_schedule_contrast", "fn identify_sets", "fn insert", "fn intervention_value", "fn leave", "fn len", "fn new", "fn not_identified_with_hedge", "fn prepare", "fn prepare_with_assumptions", "fn require_disjoint", "fn subproblem_hash", "fn admitted", "fn validate_distribution_query", "fn var", "fn with_causal_markov", "struct IdIdentifier", "struct IdMemo", "struct IdMeter", "struct IdQuery", "struct IdRun", "struct Law", "struct ScheduleContrast", "struct SubproblemKey", "type Assign"]
+sha256 = "e5fac21c5ac93c7cf68639837a398659b13e6ff7aa67a26b43d2e548708fd627"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/id/recursion.rs"
+items = ["fn id_body", "fn id_lines_5_to_7", "fn id_recurse", "fn id_recurse_shared", "fn marginal_conditionals"]
+sha256 = "4fcd9ab6713df50c603b87fe21dd6cdff1bfe1c9bf83af0cd3716ac25df4793b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-identify/src/id/expression.rs"
+items = ["fn c_component_expression", "fn conditionals", "fn dist_marginal", "fn emit", "fn intern_nodes", "fn intervention_for_factor", "fn marginalize", "fn markov_product", "fn observational_marginal", "fn product_of", "fn q_component_product", "fn sum_out_if_any"]
+sha256 = "4026f88ad1de8f67b02b3c91428805504ba9c64abbf058e2ef37c5ae25897b8e"
 
 [[method_review.artifacts]]
 role = "assertion"

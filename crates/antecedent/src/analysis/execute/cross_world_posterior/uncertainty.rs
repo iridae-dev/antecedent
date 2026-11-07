@@ -93,7 +93,7 @@ impl super::super::Study {
                 antecedent_core::StreamDomain::Resample,
                 SHARED_REPLICATE_STREAM.wrapping_add(0x100 + u64::from(replicate)),
             );
-            let picked = resample_rows(n, block, &mut rng);
+            let picked = super::super::gcm_bootstrap::resample_rows(n, block, &mut rng);
             let resampled = resampled_series(series, &tabular, &ids, &columns, &picked);
             let Some(resampled) = resampled else {
                 failed += 1;
@@ -350,7 +350,7 @@ impl super::super::Study {
                 antecedent_core::StreamDomain::Resample,
                 SHARED_REPLICATE_STREAM.wrapping_add(u64::from(replicate)),
             );
-            let picked = resample_rows(n, block, &mut rng);
+            let picked = super::super::gcm_bootstrap::resample_rows(n, block, &mut rng);
             let replacements: Vec<(VariableId, Arc<[f64]>)> = ids
                 .iter()
                 .zip(&columns)
@@ -391,19 +391,6 @@ impl super::super::Study {
             ),
         })
     }
-}
-
-/// Resample `n` rows with replacement, in circular blocks of `block` consecutive rows.
-fn resample_rows(n: usize, block: usize, rng: &mut antecedent_core::CausalRng) -> Vec<usize> {
-    let block = block.clamp(1, n.max(1));
-    let blocks = n.div_ceil(block);
-    let mut rows = Vec::with_capacity(blocks * block);
-    for _ in 0..blocks {
-        let start = antecedent_kernels::unbiased_index(rng, n);
-        rows.extend((0..block).map(|offset| (start + offset) % n));
-    }
-    rows.truncate(n);
-    rows
 }
 
 /// The pooled posterior of a mixture: draw `d` is the posterior-weighted sum of draw `d` of every

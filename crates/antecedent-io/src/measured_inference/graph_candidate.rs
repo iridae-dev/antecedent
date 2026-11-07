@@ -323,18 +323,7 @@ fn execute(rec: &Reconstructed, ctx: &ExecutionContext) -> Result<Execution, IoE
     let mut receipt = CanonicalWriter::new("antecedent.graph_candidate.execution.v1");
     receipt.bytes(program.as_bytes()).bytes(&contract).word(u64::from(parts.imputations));
     for index in 0..parts.imputations {
-        let completed = rec.imputer.impute(index, &scoped).map_err(|error| {
-            if scoped.cancellation.is_cancelled() { cancelled() } else { execution_refused(error) }
-        })?;
-        let replacements: Vec<_> = rec
-            .variables
-            .iter()
-            .zip(completed.columns())
-            .map(|(&id, column)| (id, Arc::clone(column)))
-            .collect();
-        let data = complete_float_columns(&rec.table, &replacements).map_err(execution_refused)?;
-        let completed_digest =
-            data.storage().content_digest_with_context(&scoped).map_err(admission)?;
+        let (data, completed_digest) = complete_table(rec, index, &scoped)?;
         let graphs = graph_imputation_exact_dags(
             &data,
             &rec.variables,
@@ -422,32 +411,8 @@ fn execute(rec: &Reconstructed, ctx: &ExecutionContext) -> Result<Execution, IoE
             if values.len() < 2 || values.iter().any(|value| !value.is_finite()) {
                 return Err(execution_refused("missing or nonfinite effect draws"));
             }
-            let mut child = CanonicalWriter::new("antecedent.graph_candidate.child_execution.v1");
-            child.word(mask).bytes(&completed_digest).word(values.len() as u64);
-            for value in values {
-                child.word(value.to_bits());
-            }
-            child.word(fit.assumptions.entries.len() as u64);
-            for record in &fit.assumptions.entries {
-                record.assumption.encode(&mut child);
-                record.scope.encode(&mut child);
-                child.text(record.status.as_str());
-                match &record.source {
-                    AssumptionSource::UserDeclared => {
-                        child.word(0);
-                    }
-                    AssumptionSource::AlgorithmDefault { algorithm } => {
-                        child.word(1).text(algorithm);
-                    }
-                    AssumptionSource::Artifact => {
-                        child.word(2);
-                    }
-                    AssumptionSource::Derived { from } => {
-                        child.word(3).text(from);
-                    }
-                }
-            }
-            kept.push((mask, weight, child.finish()));
+            let digest = child_receipt(mask, &completed_digest, values, &fit.assumptions);
+            kept.push((mask, weight, digest));
             total += weight;
             value_count += values.len() as u64;
             flags.push(GraphIdentFlag::Identified);
@@ -508,6 +473,59 @@ fn execute(rec: &Reconstructed, ctx: &ExecutionContext) -> Result<Execution, IoE
         unidentified_by_table,
         lease,
     })
+}
+
+fn complete_table(
+    rec: &Reconstructed,
+    index: u32,
+    ctx: &ExecutionContext,
+) -> Result<(TabularData, [u8; 32]), IoError> {
+    let completed = rec.imputer.impute(index, ctx).map_err(|error| {
+        if ctx.cancellation.is_cancelled() { cancelled() } else { execution_refused(error) }
+    })?;
+    let replacements: Vec<_> = rec
+        .variables
+        .iter()
+        .zip(completed.columns())
+        .map(|(&id, column)| (id, Arc::clone(column)))
+        .collect();
+    let data = complete_float_columns(&rec.table, &replacements).map_err(execution_refused)?;
+    let completed_digest = data.storage().content_digest_with_context(ctx).map_err(admission)?;
+    Ok((data, completed_digest))
+}
+
+fn child_receipt(
+    mask: u64,
+    completed_digest: &[u8; 32],
+    values: &[f64],
+    assumptions: &AssumptionSet,
+) -> [u8; 32] {
+    let mut child = CanonicalWriter::new("antecedent.graph_candidate.child_execution.v1");
+    child.word(mask).bytes(completed_digest).word(values.len() as u64);
+    for value in values {
+        child.word(value.to_bits());
+    }
+    child.word(assumptions.entries.len() as u64);
+    for record in &assumptions.entries {
+        record.assumption.encode(&mut child);
+        record.scope.encode(&mut child);
+        child.text(record.status.as_str());
+        match &record.source {
+            AssumptionSource::UserDeclared => {
+                child.word(0);
+            }
+            AssumptionSource::AlgorithmDefault { algorithm } => {
+                child.word(1).text(algorithm);
+            }
+            AssumptionSource::Artifact => {
+                child.word(2);
+            }
+            AssumptionSource::Derived { from } => {
+                child.word(3).text(from);
+            }
+        }
+    }
+    child.finish()
 }
 
 fn push_effect(effects: &mut Vec<GraphEffectDraws>, mask: u64, values: &[f64]) {

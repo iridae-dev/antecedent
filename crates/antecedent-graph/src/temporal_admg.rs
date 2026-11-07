@@ -348,43 +348,16 @@ impl TemporalAdmg {
         self.unroll_window_over_within(periods, variable_count, &mut budget, &ctx)
     }
 
-    /// Quote and admit a finite temporal graph before any unroll allocation.
-    /// The returned handle and its clones share the retained admission.
-    /// # Errors
-    /// Invalid dimensions, logical/byte limits, cancellation or graph construction.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "The bounded graph quote and admission remain coupled to their allocation."
-    )]
-    pub fn unroll_window_over_within(
+    fn count_window_boundary_pairs(
         &self,
         periods: u32,
-        variable_count: u32,
+        boundary: u64,
         budget: &mut antecedent_core::TemporalBudget,
         ctx: &antecedent_core::ExecutionContext,
-    ) -> Result<UnrolledTemporalAdmg, GraphError> {
+    ) -> Result<u64, GraphError> {
         use antecedent_core::TemporalMaterializationError as T;
         let limit = |dimension| GraphError::TemporalMaterialization(T::Limit { dimension });
         let limits = budget.limits();
-        if ctx.cancellation.is_cancelled() {
-            return Err(T::Cancelled.into());
-        }
-        if periods == 0 || variable_count == 0 {
-            return Err(GraphError::InvalidEndpoints {
-                message: "TemporalAdmg unrolling needs at least one period and one variable",
-            });
-        }
-        let nodes = u64::from(periods)
-            .checked_mul(u64::from(variable_count))
-            .ok_or_else(|| limit("graph nodes"))?;
-        if nodes > u64::from(u32::MAX) || nodes > limits.max_graph_nodes {
-            return Err(limit("graph nodes"));
-        }
-        let template_nodes = u64::try_from(self.nodes().len()).map_err(|_| limit("work"))?;
-        budget.charge_work(template_nodes.checked_mul(4).ok_or_else(|| limit("work"))?)?;
-        // Only edges with positive delay can originate before the window.
-        // Count those boundary candidates separately; treating every replicated
-        // edge as truncated would overcharge ordinary long windows quadratically.
         let lag = |index: usize| -> Result<i64, GraphError> {
             match self.nodes().get(index) {
                 Some(NodeRef::Lagged { lag, .. }) => Ok(i64::from(lag.raw())),
@@ -393,56 +366,6 @@ impl TemporalAdmg {
                 }),
             }
         };
-        let mut directed_templates = 0u64;
-        let mut bidirected_templates = 0u64;
-        let mut boundary = 0u64;
-        let mut count_edge = |from: usize, to: usize| -> Result<(), GraphError> {
-            if ctx.cancellation.is_cancelled() {
-                return Err(T::Cancelled.into());
-            }
-            let delay = lag(from)? - lag(to)?;
-            let truncated = if delay > 0 {
-                u64::try_from(delay).unwrap_or(u64::MAX).min(u64::from(periods))
-            } else {
-                0
-            };
-            boundary = boundary.checked_add(truncated).ok_or_else(|| limit("graph edges"))?;
-            Ok(())
-        };
-        for (from, children) in self.directed.child_adj().iter().enumerate() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(T::Cancelled.into());
-            }
-            for child in children {
-                directed_templates =
-                    directed_templates.checked_add(1).ok_or_else(|| limit("graph edges"))?;
-                budget.charge_work(2)?;
-                count_edge(from, child.as_usize())?;
-            }
-        }
-        for (from, partners) in self.bidirected.iter().enumerate() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(T::Cancelled.into());
-            }
-            for partner in partners {
-                if ctx.cancellation.is_cancelled() {
-                    return Err(T::Cancelled.into());
-                }
-                if partner.as_usize() < from {
-                    continue;
-                }
-                bidirected_templates =
-                    bidirected_templates.checked_add(1).ok_or_else(|| limit("graph edges"))?;
-                budget.charge_work(4)?;
-                count_edge(from, partner.as_usize())?;
-            }
-        }
-        let directed = directed_templates
-            .checked_mul(u64::from(periods))
-            .ok_or_else(|| limit("graph edges"))?;
-        let bidirected = bidirected_templates
-            .checked_mul(u64::from(periods))
-            .ok_or_else(|| limit("graph edges"))?;
         // Count the actual pre-window source/period groups before quoting
         // cliques. This temporary map is separately admitted; independent
         // sources do not induce quadratic phantom edge charges.
@@ -505,6 +428,118 @@ impl TemporalAdmg {
         }
         drop(groups);
         drop(group_lease);
+        Ok(pairs)
+    }
+
+    fn count_window_template_edges(
+        &self,
+        periods: u32,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<(u64, u64, u64), GraphError> {
+        use antecedent_core::TemporalMaterializationError as T;
+        let limit = |dimension| GraphError::TemporalMaterialization(T::Limit { dimension });
+        // Only edges with positive delay can originate before the window.
+        // Count those boundary candidates separately; treating every replicated
+        // edge as truncated would overcharge ordinary long windows quadratically.
+        let lag = |index: usize| -> Result<i64, GraphError> {
+            match self.nodes().get(index) {
+                Some(NodeRef::Lagged { lag, .. }) => Ok(i64::from(lag.raw())),
+                _ => Err(GraphError::InvalidEndpoints {
+                    message: "TemporalAdmg unrolling requires lagged nodes",
+                }),
+            }
+        };
+        let mut directed_templates = 0u64;
+        let mut bidirected_templates = 0u64;
+        let mut boundary = 0u64;
+        let mut count_edge = |from: usize, to: usize| -> Result<(), GraphError> {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            let delay = lag(from)? - lag(to)?;
+            let truncated = if delay > 0 {
+                u64::try_from(delay).unwrap_or(u64::MAX).min(u64::from(periods))
+            } else {
+                0
+            };
+            boundary = boundary.checked_add(truncated).ok_or_else(|| limit("graph edges"))?;
+            Ok(())
+        };
+        for (from, children) in self.directed.child_adj().iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            for child in children {
+                directed_templates =
+                    directed_templates.checked_add(1).ok_or_else(|| limit("graph edges"))?;
+                budget.charge_work(2)?;
+                count_edge(from, child.as_usize())?;
+            }
+        }
+        for (from, partners) in self.bidirected.iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            for partner in partners {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(T::Cancelled.into());
+                }
+                if partner.as_usize() < from {
+                    continue;
+                }
+                bidirected_templates =
+                    bidirected_templates.checked_add(1).ok_or_else(|| limit("graph edges"))?;
+                budget.charge_work(4)?;
+                count_edge(from, partner.as_usize())?;
+            }
+        }
+        let directed = directed_templates
+            .checked_mul(u64::from(periods))
+            .ok_or_else(|| limit("graph edges"))?;
+        let bidirected = bidirected_templates
+            .checked_mul(u64::from(periods))
+            .ok_or_else(|| limit("graph edges"))?;
+        Ok((directed, bidirected, boundary))
+    }
+
+    /// Quote and admit a finite temporal graph before any unroll allocation.
+    /// The returned handle and its clones share the retained admission.
+    /// # Errors
+    /// Invalid dimensions, logical/byte limits, cancellation or graph construction.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "The bounded graph quote and admission remain coupled to their allocation."
+    )]
+    pub fn unroll_window_over_within(
+        &self,
+        periods: u32,
+        variable_count: u32,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<UnrolledTemporalAdmg, GraphError> {
+        use antecedent_core::TemporalMaterializationError as T;
+        let limit = |dimension| GraphError::TemporalMaterialization(T::Limit { dimension });
+        let limits = budget.limits();
+        if ctx.cancellation.is_cancelled() {
+            return Err(T::Cancelled.into());
+        }
+        if periods == 0 || variable_count == 0 {
+            return Err(GraphError::InvalidEndpoints {
+                message: "TemporalAdmg unrolling needs at least one period and one variable",
+            });
+        }
+        let nodes = u64::from(periods)
+            .checked_mul(u64::from(variable_count))
+            .ok_or_else(|| limit("graph nodes"))?;
+        if nodes > u64::from(u32::MAX) || nodes > limits.max_graph_nodes {
+            return Err(limit("graph nodes"));
+        }
+        let template_nodes = u64::try_from(self.nodes().len()).map_err(|_| limit("work"))?;
+        budget.charge_work(template_nodes.checked_mul(4).ok_or_else(|| limit("work"))?)?;
+        let (directed, bidirected, boundary) =
+            self.count_window_template_edges(periods, budget, ctx)?;
+        let pairs = self.count_window_boundary_pairs(periods, boundary, budget, ctx)?;
         let edges = directed
             .checked_add(bidirected)
             .and_then(|n| n.checked_add(pairs))

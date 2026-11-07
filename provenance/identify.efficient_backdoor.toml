@@ -26,7 +26,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "EfficientBackdoorIdentifier::identify in crates/antecedent-identify/src/efficient.rs for a single-treatment, single-outcome AverageEffect query on a known, fully observed DAG: the optimal-set construction O = pa(cn) minus forb with cn the non-treatment descendants of the treatment that are ancestors of the outcome and forb = de(cn) plus the treatment, its validation against the back-door criterion, and the reported status. Not a review of the minimum-cardinality fallback beyond one forbidden-member example, of graphs with unmeasured nodes, of estimators, or of finite-sample variance."
+scope = "EfficientBackdoorIdentifier::identify in crates/antecedent-identify/src/efficient.rs for a single-treatment, single-outcome AverageEffect query on a known, fully observed DAG: the optimal-set construction O = pa(cn) minus forb with cn the non-treatment descendants of the treatment that are ancestors of the outcome and forb = de(cn) plus the treatment, its validation against the back-door criterion, and the reported status. Not a review of the minimum-cardinality fallback beyond one forbidden-member example, of graphs with unmeasured nodes, of estimators, or of finite-sample variance. The fallback ranking was extracted unchanged: parent membership, ordered keys, earliest tie, invariant error and selected set were compared with the previously bound source."
 assumptions = ["Known DAG with complete directed edges, all nodes measured.", "Linear structural equations with independent noise, for the variance statement: the asymptotic variance of the adjusted regression coefficient of the treatment is the residual variance of the outcome given treatment and set divided by the residual variance of the treatment given the set.", "The optimality statement concerns a treatment with a directed path to the outcome; when there is none the effect is zero and any valid set recovers it."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source and wrote a separate reference of its own from the definition and from population covariance algebra; no upstream implementation or test source was consulted or copied. dowhy (black-box comparison only)"
 redistribution = "The reference is repository-authored under MIT OR Apache-2.0 and runs inside the crate's own tests; the primary sources are linked by DOI and are not redistributed."
@@ -38,8 +38,8 @@ record_sha256 = "92bfe9849f63ec5c2f16f13b13d9f7ce121297a3254a3c2558dd4cd1e4df944
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/efficient.rs"
-items = ["fn compare", "fn finish", "fn identify", "fn identify_ate", "fn new", "fn optimal_adjustment_set", "fn prepare", "fn prepare_with_assumptions", "struct EfficientBackdoorIdentifier", "struct EfficientChoice", "struct SetRank"]
-sha256 = "1838383be1c3136ecc7ecb1d41fc4f18fed9c0820fbe55c131173022614dbbe2"
+items = ["fn choose_efficient_set", "fn compare", "fn finish", "fn identify", "fn identify_ate", "fn new", "fn optimal_adjustment_set", "fn prepare", "fn prepare_with_assumptions", "struct EfficientBackdoorIdentifier", "struct EfficientChoice", "struct SetRank"]
+sha256 = "2d8b386db31171c92ea3ab91a8d03613a66ce8d830cc0140900800c50df00316"
 
 [[method_review.artifacts]]
 role = "assertion"

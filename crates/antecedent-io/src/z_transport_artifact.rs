@@ -10,6 +10,7 @@
 //! artifacts carried no evidence digest, so their laws, request, program and result were bound
 //! by no digest, and are refused as well.
 
+use crate::exact_transport_laws::canonical_laws;
 use crate::{
     IoError, admg_from_wire, admg_to_wire,
     exact_law_wire::ExactLawWire,
@@ -172,22 +173,6 @@ fn premises_digest(
         IdentityDomain::TransportCertificate,
         &("z_transport_point_v3", graph, selections, query, proof, expression, variable_names),
     )
-}
-
-/// Sort laws into a canonical order so the same evidence supplied in another
-/// order produces the same artifact.
-fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let wire = ExactLawWire::from_law(law);
-            let key = crate::to_cbor(&(&wire.population, wire.regime, &wire.interventions));
-            key.map(|key| (key, wire))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
 impl ZTransportArtifactWire {

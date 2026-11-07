@@ -38,7 +38,7 @@ truth = "Standard-library least-squares gain, bisection fixed points of the fitt
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "ResolvedFeedbackSystem in crates/antecedent-model/src/external_mechanism.rs: the equilibrium log-likelihood of known-regime rows split into the Gaussian data term on the free coordinates (marginal disturbance covariance of the free block, Cholesky whitening, log determinant) and log |det(I - J_FF)| per strongly connected block, with the Jacobian from the declared analytic gradient or declared forward/central finite difference (row_terms, log_abs_determinant, ResolvedEquation::evaluate), the analytic scores of both terms (data_term_score, determinant_term_score through the inverse of I - J), the declared-bound contraction bound over the blocks of the free system (contraction_bound), and the equilibrium solve of x = f(x) + u under clamps (solve). Not the optimizer of external_cyclic_fit.rs, the ODE system or the resolution and digest checks."
+scope = "ResolvedFeedbackSystem in crates/antecedent-model/src/external_mechanism.rs: the equilibrium log-likelihood of known-regime rows split into the Gaussian data term on the free coordinates (marginal disturbance covariance of the free block, Cholesky whitening, log determinant) and log |det(I - J_FF)| per strongly connected block, with the Jacobian from the declared analytic gradient or declared forward/central finite difference (row_terms, log_abs_determinant, ResolvedEquation::evaluate), the analytic scores of both terms (data_term_score, determinant_term_score through the inverse of I - J), the declared-bound contraction bound over the blocks of the free system (contraction_bound), and the equilibrium solve of x = f(x) + u under clamps (solve). The ODE implementation moved to external_mechanism/ode.rs; all previously bound definitions, including same-named methods on both files, were compared unchanged. The inline tests were also moved to external_mechanism/tests.rs after comparing previously bound same-named definitions unchanged. The likelihood and score definitions were subsequently moved to external_mechanism/likelihood.rs and all bound definitions were compared unchanged. Specification and registry definitions were moved to external_mechanism/registry.rs and previously bound definitions were compared unchanged except for module visibility. Not a substantive review of the optimizer of external_cyclic_fit.rs, the ODE system or the resolution and digest checks."
 assumptions = ["The disturbance is zero-mean Gaussian with the stated covariance and a clamped variable's equation is replaced, so the free coordinates keep the marginal covariance of their sub-block.", "Declared global derivative bounds are true; with every free block's bound below one the equilibrium is unique and the likelihood is a density.", "Rows are known-regime observations at an equilibrium of the (intervened) system."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and compared results with definitions evaluated in 50-digit arithmetic by a reference written for this review; no upstream implementation or test source was consulted or copied. The record cites no publication (the equilibrium change of variables is the one recorded with cyclic.general_systems, whose own review is separate); the correspondence checked here is between the code and the stated definitions of the Gaussian data term and the Jacobian determinant of the equilibrium map."
 redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
@@ -50,14 +50,38 @@ record_sha256 = "d6d8a6a36804f8ac525075f39e000d49216baa0e3fa8471a2de4e1dec9dbd3d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/external_mechanism.rs"
-items = ["const MAX_EXTERNAL_ARITY", "const MAX_EXTERNAL_DEPENDENCIES", "const MAX_TEXT", "enum DerivativeDeclaration", "enum DifferenceScheme", "enum ExternalFitParameter", "enum ExternalRefusalKind", "enum MechanismTrust", "enum ResolvedKind", "enum SystemEquation", "fn block_bound_matrix", "fn blocks", "fn bounds", "fn check_row", "fn contraction_bound", "fn data_term_score", "fn declaration", "fn determinant_term_score", "fn digest_ok", "fn equation", "fn evaluate", "fn evidence", "fn evidence_of", "fn external_value", "fn for_content", "fn from", "fn id", "fn identity", "fn input_gradient", "fn input_gradient_parameter_derivative", "fn invalid", "fn is_empty", "fn len", "fn likelihood_terms", "fn log_abs_determinant", "fn name", "fn new", "fn order", "fn parameter_gradient", "fn parameter_values", "fn reads", "fn reads_of", "fn register", "fn residual", "fn resolve", "fn row_terms", "fn solve", "fn sparse_jacobian", "fn system", "fn text_ok", "fn total", "fn trust", "fn trust_of", "fn validate", "fn value", "struct ExternalDependency", "struct ExternalFeedbackSystem", "struct ExternalMechanismEvidence", "struct ExternalMechanismRefusal", "struct ExternalMechanismSpec", "struct LikelihoodTerms", "struct MechanismRegistry", "struct ResolvedEquation", "struct ResolvedFeedbackSystem", "struct RowTerms", "trait ExternalMechanismImplementation", "type Implementations"]
-sha256 = "f5843aa8574adf4a2a564b4a06708172495873b4acd98d61471ae92acac4d668"
+items = ["enum ExternalFitParameter", "enum ResolvedKind", "enum SystemEquation", "fn block_bound_matrix", "fn blocks", "fn bounds", "fn contraction_bound", "fn equation", "fn evaluate", "fn evidence", "fn evidence_of", "fn external_value", "fn id", "fn invalid", "fn order", "fn parameter_values", "fn reads", "fn reads_of", "fn residual", "fn resolve", "fn solve", "fn sparse_jacobian", "fn system", "fn total", "fn trust", "fn trust_of", "fn validate", "fn value", "struct ExternalFeedbackSystem", "struct ExternalMechanismEvidence", "struct LikelihoodTerms", "struct ResolvedEquation", "struct ResolvedFeedbackSystem", "type Implementations"]
+sha256 = "ebaa8b8ab1e19faec670a8d48d326c87f2d0a2df477fa1d2849fc95f1ab99141"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/external_mechanism/ode.rs"
+items = ["fn resolve", "fn validate"]
+sha256 = "af747e4a4e807e4d28fd1118fdfe8505ba409c840a9e24b822d77062c73e5d25"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/external_mechanism/likelihood.rs"
+items = ["fn check_row", "fn data_term_score", "fn determinant_term_score", "fn likelihood_terms", "fn log_abs_determinant", "fn row_terms", "struct RowTerms"]
+sha256 = "5500914aa20276292c16bf2675ee68c9f256116f4b714f4abf1956d39d8b719b"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-model/src/external_mechanism/registry.rs"
+items = ["const MAX_EXTERNAL_ARITY", "const MAX_EXTERNAL_DEPENDENCIES", "const MAX_TEXT", "enum DerivativeDeclaration", "enum DifferenceScheme", "enum ExternalRefusalKind", "enum MechanismTrust", "fn declaration", "fn digest_ok", "fn for_content", "fn from", "fn identity", "fn input_gradient", "fn input_gradient_parameter_derivative", "fn is_empty", "fn len", "fn name", "fn new", "fn parameter_gradient", "fn register", "fn resolve", "fn text_ok", "fn validate", "struct ExternalDependency", "struct ExternalMechanismRefusal", "struct ExternalMechanismSpec", "struct MechanismRegistry", "trait ExternalMechanismImplementation"]
+sha256 = "f67e5470d9b319ead52732e35328fe8b40422a7d529b36ffbcc77e954bdc8096"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/external_mechanism_reference.rs"
 items = ["fn a_declared_finite_difference_gives_the_same_likelihood", "fn close", "fn content", "fn floats", "fn likelihood_terms_and_scores_match_the_fifty_digit_reference", "fn reference", "fn registry", "fn rows", "fn sine_impl", "fn spec", "fn system", "fn tanh_impl", "fn targets", "fn the_contraction_bound_is_the_largest_block_row_sum_of_the_declared_bounds", "fn the_forward_scheme_is_first_order_and_the_central_scheme_second_order", "fn the_solve_matches_the_fifty_digit_equilibrium_and_certifies_uniqueness", "fn theta", "fn value", "struct Sine", "struct Tanh"]
 sha256 = "0e8d1349fafee5794c4c2577ee44d0f4bdb0449504d2843f096a74fe72050b7b"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-model/src/external_mechanism/tests.rs"
+items = ["fn input_gradient", "fn new", "fn parameter_gradient", "fn system", "fn value"]
+sha256 = "4cf312c625e346affde66bfe80af3bb28a14e1210eecbe88d5875549c17d00dc"
 
 [[method_review.artifacts]]
 role = "reference"

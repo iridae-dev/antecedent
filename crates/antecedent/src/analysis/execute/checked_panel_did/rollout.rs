@@ -16,10 +16,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
-    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior_as, scalar_quantity,
+    effect_quantity, finish_design_posterior_as, scalar_quantity, DesignFinish, DesignPosterior,
 };
 use super::super::rollout_finish::{
-    RolloutReport, finish_rollout, named, rollout_payload, split_report,
+    finish_rollout, named, rollout_payload, split_report, RolloutReport,
 };
 use super::{
     Arc, CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EstimatorId,
@@ -31,12 +31,12 @@ use antecedent_core::{
     PanelObservationProcess, RolloutDidEstimator,
 };
 use antecedent_data::{MissingPolicy, PanelLayout, PreparationMode};
-use antecedent_estimate::EstimationError;
 use antecedent_estimate::heterogeneity_robust_did::{
-    RolloutDidFit, RolloutDidSpec, RolloutPanel, RolloutResampling, estimate_rollout_did,
-    posterior_rollout_did,
+    estimate_rollout_did, posterior_rollout_did, RolloutDidFit, RolloutDidSpec, RolloutPanel,
+    RolloutResampling,
 };
 use antecedent_estimate::rollout_resampling::UnitWeighting;
+use antecedent_estimate::EstimationError;
 
 /// The unit weighting of a declared resampling scheme.
 pub(super) const fn weighting(scheme: DidResamplingScheme) -> UnitWeighting {
@@ -75,7 +75,11 @@ fn rollout_draw_sd(draws: &[f64]) -> f64 {
         return f64::NAN;
     }
     let sd = antecedent_stats::sample_std(draws);
-    if sd.is_finite() { sd } else { f64::NAN }
+    if sd.is_finite() {
+        sd
+    } else {
+        f64::NAN
+    }
 }
 
 impl super::CheckedPanelDidOperation {
@@ -290,35 +294,11 @@ impl super::CheckedPanelDidOperation {
         }
     }
 
-    /// The payload and notes of a fitted rollout.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "a linear assembly of the rollout effects, diagnostics and notes from one fit"
-    )]
-    fn report(&self, fit: &RolloutDidFit, rows: usize) -> RolloutReport {
-        let robust = self.query.robust.clone().unwrap_or_default();
-        let two_period = self.query.design == DidSamplingDesign::CovariateAdjustedTwoPeriod;
-        let mut method = format!(
-            "{}.{}.{}.{}",
-            robust.estimator.as_str(),
-            robust.comparison.as_str(),
-            if robust.covariates.is_empty() { "unadjusted" } else { robust.nuisance.as_str() },
-            robust.aggregation.as_str()
-        );
-        if robust.estimator != RolloutDidEstimator::Imputation {
-            method.push_str(&format!(".base_{}", robust.base_period.as_str()));
-        }
-        if robust.anticipation > 0 {
-            method.push_str(&format!(".anticipation_{}", robust.anticipation));
-        }
-        let mut effects =
-            Vec::with_capacity(1 + fit.aggregated.len() + fit.group_time.len() + fit.leads.len());
-        effects.push(fit.overall.clone());
-        if robust.aggregation != DidAggregation::Simple {
-            effects.extend(fit.aggregated.iter().cloned());
-        }
-        effects.extend(fit.group_time.iter().cloned());
-        effects.extend(fit.leads.iter().cloned());
+    fn report_diagnostics(
+        fit: &RolloutDidFit,
+        rows: usize,
+        robust: &antecedent_core::HeterogeneityRobustDid,
+    ) -> Vec<(String, f64)> {
         let mut diagnostics = named(&[
             ("units", fit.units as f64),
             ("treated_units", fit.treated_units as f64),
@@ -374,6 +354,14 @@ impl super::CheckedPanelDidOperation {
                 fit.unimputed_treated_observations as f64,
             ));
         }
+        diagnostics
+    }
+
+    fn report_notes(
+        fit: &RolloutDidFit,
+        robust: &antecedent_core::HeterogeneityRobustDid,
+        two_period: bool,
+    ) -> Vec<Diagnostic> {
         let mut notes = vec![Diagnostic::new(
             "identification.quasi.rollout.assumptions",
             DiagnosticKind::Scientific,
@@ -462,6 +450,36 @@ impl super::CheckedPanelDidOperation {
                 ),
             ));
         }
+        notes
+    }
+
+    /// The payload and notes of a fitted rollout.
+    fn report(&self, fit: &RolloutDidFit, rows: usize) -> RolloutReport {
+        let robust = self.query.robust.clone().unwrap_or_default();
+        let two_period = self.query.design == DidSamplingDesign::CovariateAdjustedTwoPeriod;
+        let mut method = format!(
+            "{}.{}.{}.{}",
+            robust.estimator.as_str(),
+            robust.comparison.as_str(),
+            if robust.covariates.is_empty() { "unadjusted" } else { robust.nuisance.as_str() },
+            robust.aggregation.as_str()
+        );
+        if robust.estimator != RolloutDidEstimator::Imputation {
+            method.push_str(&format!(".base_{}", robust.base_period.as_str()));
+        }
+        if robust.anticipation > 0 {
+            method.push_str(&format!(".anticipation_{}", robust.anticipation));
+        }
+        let mut effects =
+            Vec::with_capacity(1 + fit.aggregated.len() + fit.group_time.len() + fit.leads.len());
+        effects.push(fit.overall.clone());
+        if robust.aggregation != DidAggregation::Simple {
+            effects.extend(fit.aggregated.iter().cloned());
+        }
+        effects.extend(fit.group_time.iter().cloned());
+        effects.extend(fit.leads.iter().cloned());
+        let diagnostics = Self::report_diagnostics(fit, rows, &robust);
+        let notes = Self::report_notes(fit, &robust, two_period);
         let (uncertainty, replicates, critical_value) = match &fit.resampling {
             Some(record) => (
                 match record.weighting {

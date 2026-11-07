@@ -1350,31 +1350,8 @@ pub fn estimate_dose_grid_bias_aware_declared(
     // Per grid dose: its influence column, the copy handed to the coordinates, and (at most) its
     // column of the band's per-unit residual matrix; plus the smoother's three row vectors.
     let _lease = crate::util::admit_array::<f64>(ctx, n, 3 * points.len() + 3)?;
-    let mut columns: Vec<(Vec<f64>, f64)> = Vec::with_capacity(points.len());
-    for &at in &points {
-        if ctx.cancellation.is_cancelled() {
-            return Err(antecedent_stats::StatsError::Cancelled.into());
-        }
-        let (weights, residuals) = smoother_at(
-            request.dose,
-            request.outcome,
-            at,
-            request.bandwidth,
-            derivative,
-            rows.sampling_weights,
-        )
-        .ok_or_else(|| {
-            refuse(
-                antecedent_core::reason_code!("positivity_violated"),
-                antecedent_core::reason_details::dose_grid::INSUFFICIENT_LOCAL_WEIGHT,
-                &format!("the local quadratic is singular at dose {at}"),
-            )
-        })?;
-        let influence: Vec<f64> = weights.iter().zip(&residuals).map(|(l, e)| l * e).collect();
-        let worst: f64 =
-            weights.iter().zip(request.dose).map(|(l, d)| l.abs() * (d - at).abs().powi(3)).sum();
-        columns.push((influence, curvature_bound / 6.0 * worst));
-    }
+    let columns =
+        bias_aware_influence_columns(request, &rows, &points, derivative, curvature_bound, ctx)?;
     // Coordinates: every grid dose, or the one contrast `to - from`.
     let (estimates, standard_errors, influences, bias): BiasAwareColumns = if contrast {
         let point = row
@@ -1471,6 +1448,42 @@ pub fn estimate_dose_grid_bias_aware_declared(
     })
 }
 
+fn bias_aware_influence_columns(
+    request: &DoseGridRequest<'_>,
+    rows: &RowDeclaration<'_>,
+    points: &[f64],
+    derivative: bool,
+    curvature_bound: f64,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Vec<(Vec<f64>, f64)>, EstimationError> {
+    let mut columns: Vec<(Vec<f64>, f64)> = Vec::with_capacity(points.len());
+    for &at in points {
+        if ctx.cancellation.is_cancelled() {
+            return Err(antecedent_stats::StatsError::Cancelled.into());
+        }
+        let (weights, residuals) = smoother_at(
+            request.dose,
+            request.outcome,
+            at,
+            request.bandwidth,
+            derivative,
+            rows.sampling_weights,
+        )
+        .ok_or_else(|| {
+            refuse(
+                antecedent_core::reason_code!("positivity_violated"),
+                antecedent_core::reason_details::dose_grid::INSUFFICIENT_LOCAL_WEIGHT,
+                &format!("the local quadratic is singular at dose {at}"),
+            )
+        })?;
+        let influence: Vec<f64> = weights.iter().zip(&residuals).map(|(l, e)| l * e).collect();
+        let worst: f64 =
+            weights.iter().zip(request.dose).map(|(l, d)| l.abs() * (d - at).abs().powi(3)).sum();
+        columns.push((influence, curvature_bound / 6.0 * worst));
+    }
+    Ok(columns)
+}
+
 #[cfg(test)]
 mod bias_aware_tests {
     use super::*;
@@ -1493,6 +1506,22 @@ mod bias_aware_tests {
             claims: ClaimSet { pointwise_level: true, derivative: true, simultaneous_band: false },
             design: DoseDesign::RandomizedDose,
         }
+    }
+
+    #[test]
+    fn influence_columns_refuse_cancelled_before_smoothing() {
+        let dose = [0.0, 1.0];
+        let outcome = [0.0, 1.0];
+        let grid = [0.5];
+        let request = request(&dose, &outcome, &grid, DoseFunctional::Level);
+        let rows =
+            RowDeclaration { sampling_weights: None, dependence: RowDependence::Independent };
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            bias_aware_influence_columns(&request, &rows, &grid, false, 0.0, &ctx),
+            Err(EstimationError::Stats(antecedent_stats::StatsError::Cancelled))
+        ));
     }
 
     #[test]

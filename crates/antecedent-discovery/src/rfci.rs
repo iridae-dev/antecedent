@@ -229,51 +229,19 @@ impl Rfci {
 
         load_sepsets_into_state(&sepsets, &dense_of, &mut state)?;
 
-        // --- Phase 3: Zhang R1–R3 / R8–R10 + RFCI discriminating paths ---
-        let zhang: [&dyn FciOrientationRule; 6] =
-            [&LpcmciR1, &LpcmciR2, &LpcmciR3, &LpcmciR8, &ZhangR9, &ZhangR10];
-        let mut orient_conflicts = 0u32;
-        let mut rounds = 0u32;
-        while rounds < 10_000 {
-            rounds += 1;
-            let d = run_fci_orientation_to_fixed_point(&mut pag, &zhang, &mut state)?;
-            orient_conflicts = orient_conflicts.max(d.conflicts);
-            let mut disc_changed = false;
-            let tests_before = ci.tests;
-            let disc = rfci_discriminating_paths(
-                &mut ci,
-                &mut RfciGraph {
-                    adj: &mut adj,
-                    sepsets: &mut sepsets,
-                    pag: &mut pag,
-                    state: &mut state,
-                    dense_of: &dense_of,
-                },
-                &mut combo_scratch,
-            )?;
-            ci_tests += ci.tests - tests_before;
-            if disc.edges_changed > 0 {
-                disc_changed = true;
-                orient_conflicts = orient_conflicts.max(disc.conflicts);
-                // New edges removed ⇒ re-check Lemma 3.1 triples.
-                let tests_before = ci.tests;
-                rfci_unshielded_triples(
-                    &mut ci,
-                    &mut RfciGraph {
-                        adj: &mut adj,
-                        sepsets: &mut sepsets,
-                        pag: &mut pag,
-                        state: &mut state,
-                        dense_of: &dense_of,
-                    },
-                )?;
-                ci_tests += ci.tests - tests_before;
-                load_sepsets_into_state(&sepsets, &dense_of, &mut state)?;
-            }
-            if d.edges_changed == 0 && !disc_changed {
-                break;
-            }
-        }
+        let tests_before = ci.tests;
+        let orient_conflicts = orient_rfci(
+            &mut ci,
+            &mut RfciGraph {
+                adj: &mut adj,
+                sepsets: &mut sepsets,
+                pag: &mut pag,
+                state: &mut state,
+                dense_of: &dense_of,
+            },
+            &mut combo_scratch,
+        )?;
+        ci_tests += ci.tests - tests_before;
 
         let mut diagnostics = Vec::new();
         diagnostics.extend(crate::static_skeleton::parent_limit_diagnostic(
@@ -348,6 +316,37 @@ struct RfciGraph<'a> {
     pag: &'a mut Pag,
     state: &'a mut OrientationState,
     dense_of: &'a dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
+}
+
+fn orient_rfci(
+    ci: &mut StaticCiRun<'_>,
+    graph: &mut RfciGraph<'_>,
+    combo_scratch: &mut Vec<VariableId>,
+) -> Result<u32, DiscoveryError> {
+    // --- Phase 3: Zhang R1–R3 / R8–R10 + RFCI discriminating paths ---
+    let zhang: [&dyn FciOrientationRule; 6] =
+        [&LpcmciR1, &LpcmciR2, &LpcmciR3, &LpcmciR8, &ZhangR9, &ZhangR10];
+    let mut orient_conflicts = 0u32;
+    let mut rounds = 0u32;
+    while rounds < 10_000 {
+        rounds += 1;
+        let d = run_fci_orientation_to_fixed_point(graph.pag, &zhang, graph.state)?;
+        orient_conflicts = orient_conflicts.max(d.conflicts);
+        let mut disc_changed = false;
+        let disc = rfci_discriminating_paths(ci, graph, combo_scratch)?;
+        if disc.edges_changed > 0 {
+            disc_changed = true;
+            orient_conflicts = orient_conflicts.max(disc.conflicts);
+            // New edges removed ⇒ re-check Lemma 3.1 triples.
+            rfci_unshielded_triples(ci, graph)?;
+            load_sepsets_into_state(graph.sepsets, graph.dense_of, graph.state)?;
+        }
+        if d.edges_changed == 0 && !disc_changed {
+            break;
+        }
+    }
+
+    Ok(orient_conflicts)
 }
 
 /// Work queue of unshielded triples `(lo, middle, hi)`, each queued at most once.

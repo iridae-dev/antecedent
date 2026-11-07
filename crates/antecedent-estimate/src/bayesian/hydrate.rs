@@ -531,51 +531,7 @@ pub fn hydrate_prior(
                     Ok(prior)
                 }
                 HydrateMapping::NamedParameters { pairs } => {
-                    if pairs.is_empty() {
-                        return Err(EstimationError::stats_msg(
-                            "hydrate_prior: NamedParameters requires at least one pair",
-                        ));
-                    }
-                    let mut used_sources = std::collections::HashSet::new();
-                    let mut used_targets = std::collections::HashSet::new();
-                    if pairs.iter().any(|(source, target)| {
-                        source.trim().is_empty()
-                            || target.trim().is_empty()
-                            || !used_sources.insert(source)
-                            || !used_targets.insert(target)
-                    }) {
-                        return Err(EstimationError::stats_msg(
-                            "hydrate_prior: NamedParameters requires distinct nonblank source and target names",
-                        ));
-                    }
-                    let target_name_set: std::collections::HashSet<&str> =
-                        target_coef_names.iter().map(AsRef::as_ref).collect();
-                    if target_name_set.len() != n_target {
-                        return Err(EstimationError::stats_msg(
-                            "hydrate_prior: target coefficient names must be unique",
-                        ));
-                    }
-                    for (source, _) in pairs {
-                        let count = quantities
-                            .iter()
-                            .filter(|quantity| match quantity {
-                                PosteriorQuantityKind::Coefficient { name: Some(name), .. }
-                                | PosteriorQuantityKind::Effect { name }
-                                | PosteriorQuantityKind::Scalar { name } => {
-                                    name.as_ref() == source.as_str()
-                                }
-                                PosteriorQuantityKind::ResidualVariance => {
-                                    source == "residual_variance"
-                                }
-                                PosteriorQuantityKind::Coefficient { name: None, .. } => false,
-                            })
-                            .count();
-                        if count != 1 {
-                            return Err(EstimationError::stats_msg(format!(
-                                "hydrate_prior: source quantity `{source}` must be uniquely named"
-                            )));
-                        }
-                    }
+                    validate_named_mapping(pairs, target_coef_names, quantities)?;
                     let mut means: Vec<f64> = base_coef.mean.to_vec();
                     let mut vars: Vec<f64> = base_coef.variance.to_vec();
                     let name_index: std::collections::HashMap<&str, usize> = target_coef_names
@@ -650,6 +606,55 @@ pub fn hydrate_prior(
             }
         },
     )
+}
+
+fn validate_named_mapping(
+    pairs: &[(String, String)],
+    target_coef_names: &[Arc<str>],
+    quantities: &[PosteriorQuantityKind],
+) -> Result<(), EstimationError> {
+    if pairs.is_empty() {
+        return Err(EstimationError::stats_msg(
+            "hydrate_prior: NamedParameters requires at least one pair",
+        ));
+    }
+    let mut used_sources = std::collections::HashSet::new();
+    let mut used_targets = std::collections::HashSet::new();
+    if pairs.iter().any(|(source, target)| {
+        source.trim().is_empty()
+            || target.trim().is_empty()
+            || !used_sources.insert(source)
+            || !used_targets.insert(target)
+    }) {
+        return Err(EstimationError::stats_msg(
+            "hydrate_prior: NamedParameters requires distinct nonblank source and target names",
+        ));
+    }
+    let target_name_set: std::collections::HashSet<&str> =
+        target_coef_names.iter().map(AsRef::as_ref).collect();
+    if target_name_set.len() != target_coef_names.len() {
+        return Err(EstimationError::stats_msg(
+            "hydrate_prior: target coefficient names must be unique",
+        ));
+    }
+    for (source, _) in pairs {
+        let count = quantities
+            .iter()
+            .filter(|quantity| match quantity {
+                PosteriorQuantityKind::Coefficient { name: Some(name), .. }
+                | PosteriorQuantityKind::Effect { name }
+                | PosteriorQuantityKind::Scalar { name } => name.as_ref() == source.as_str(),
+                PosteriorQuantityKind::ResidualVariance => source == "residual_variance",
+                PosteriorQuantityKind::Coefficient { name: None, .. } => false,
+            })
+            .count();
+        if count != 1 {
+            return Err(EstimationError::stats_msg(format!(
+                "hydrate_prior: source quantity `{source}` must be uniquely named"
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Return a target-ordered covariance only for a complete named coefficient

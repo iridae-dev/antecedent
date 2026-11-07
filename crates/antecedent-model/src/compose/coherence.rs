@@ -15,9 +15,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::descriptor::{
     ComposedModelSpec, Containment, ContextCoordinate, CrossCovarianceBlock, Domain,
-    MAX_COMPOSED_LATENTS, MAX_COMPOSED_MECHANISMS, MAX_FINITE_STATES, MAX_LEVELS_PER_VARIABLE,
-    MAX_PARENTS_PER_MECHANISM, MechanismDescriptor, MechanismFamily, MechanismForm,
-    MechanismOrigin, MechanismUncertainty, ParameterId, ParameterTerm, PosteriorDependence,
+    MechanismDescriptor, MechanismFamily, MechanismForm, MechanismOrigin, MechanismUncertainty,
+    ParameterId, ParameterTerm, PosteriorDependence, MAX_COMPOSED_LATENTS, MAX_COMPOSED_MECHANISMS,
+    MAX_FINITE_STATES, MAX_LEVELS_PER_VARIABLE, MAX_PARENTS_PER_MECHANISM,
 };
 
 /// Tolerance for symmetry and marginal-consistency comparisons of covariances.
@@ -334,10 +334,6 @@ pub fn parameter_layout(spec: &ComposedModelSpec) -> Vec<ParameterId> {
     out
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "a flat sequence of independent structural checks, each pushing its own coherence findings"
-)]
 fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
     use CoherenceKind::Shape;
     if spec.mechanisms.is_empty() {
@@ -370,138 +366,147 @@ fn check_shape(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
             "name the target population and regime",
         ));
     }
-    for d in &spec.mechanisms {
-        let v = d.variable.as_str();
-        if blank(v) {
-            out.push(CoherenceFinding::new(
+    for mechanism in &spec.mechanisms {
+        check_mechanism_shape(mechanism, out);
+    }
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one mechanism's independent shape findings remain in declaration order"
+)]
+fn check_mechanism_shape(d: &MechanismDescriptor, out: &mut Vec<CoherenceFinding>) {
+    use CoherenceKind::Shape;
+    let v = d.variable.as_str();
+    if blank(v) {
+        out.push(CoherenceFinding::new(
+            Shape,
+            antecedent_core::reason_details::mechanism_composition::SHAPE_BLANK_IDENTITY,
+            "variable",
+            "give every mechanism a stable variable identity",
+        ));
+        return;
+    }
+    if blank(&d.output_units)
+        || blank(&d.output_transform)
+        || blank(&d.context.population)
+        || blank(&d.context.regime)
+    {
+        out.push(CoherenceFinding::new(
+            Shape,
+            antecedent_core::reason_details::mechanism_composition::SHAPE_BLANK_COORDINATE,
+            v,
+            "declare units, transform, population and regime for the mechanism",
+        ));
+    }
+    if let Err(why) = d.output_support.validate() {
+        out.push(
+            CoherenceFinding::new(
                 Shape,
-                antecedent_core::reason_details::mechanism_composition::SHAPE_BLANK_IDENTITY,
-                "variable",
-                "give every mechanism a stable variable identity",
-            ));
-            continue;
-        }
-        if blank(&d.output_units)
-            || blank(&d.output_transform)
-            || blank(&d.context.population)
-            || blank(&d.context.regime)
-        {
+                antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_DOMAIN,
+                v,
+                "declare a well formed output support",
+            )
+            .comparing("a valid domain", why),
+        );
+    }
+    if d.parents.len() > MAX_PARENTS_PER_MECHANISM {
+        out.push(CoherenceFinding::new(
+            Shape,
+            antecedent_core::reason_details::mechanism_composition::SHAPE_TOO_MANY_PARENTS,
+            v,
+            "reduce the parent set below the declared bound",
+        ));
+    }
+    for p in &d.parents {
+        if blank(&p.variable) || blank(&p.units) || blank(&p.transform) {
             out.push(CoherenceFinding::new(
                 Shape,
                 antecedent_core::reason_details::mechanism_composition::SHAPE_BLANK_COORDINATE,
-                v,
-                "declare units, transform, population and regime for the mechanism",
+                format!("{v}<-{}", p.variable),
+                "declare the parent's variable, units and transform",
             ));
         }
-        if let Err(why) = d.output_support.validate() {
+        if let Err(why) = p.domain.validate() {
             out.push(
                 CoherenceFinding::new(
                     Shape,
                     antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_DOMAIN,
-                    v,
-                    "declare a well formed output support",
+                    format!("{v}<-{}", p.variable),
+                    "declare a well formed input domain",
                 )
                 .comparing("a valid domain", why),
             );
         }
-        if d.parents.len() > MAX_PARENTS_PER_MECHANISM {
-            out.push(CoherenceFinding::new(
-                Shape,
-                antecedent_core::reason_details::mechanism_composition::SHAPE_TOO_MANY_PARENTS,
-                v,
-                "reduce the parent set below the declared bound",
-            ));
-        }
-        for p in &d.parents {
-            if blank(&p.variable) || blank(&p.units) || blank(&p.transform) {
+    }
+    if d.parents.windows(2).any(|w| w[0].variable == w[1].variable) {
+        out.push(CoherenceFinding::new(
+            Shape,
+            antecedent_core::reason_details::mechanism_composition::SHAPE_DUPLICATE_PARENT,
+            v,
+            "list each parent once",
+        ));
+    }
+    if d.latents.len() > MAX_COMPOSED_LATENTS
+        || d.latents.windows(2).any(|w| w[0].latent == w[1].latent)
+        || d.latents.iter().any(|l| blank(&l.latent))
+    {
+        out.push(CoherenceFinding::new(
+            Shape,
+            antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_LATENTS,
+            v,
+            "name each latent once with a non-blank identity",
+        ));
+    }
+    match &d.form {
+        MechanismForm::LinearGaussian { intercept, sigma, coefficients } => {
+            if !intercept.is_finite()
+                || !sigma.is_finite()
+                || !coefficients.iter().all(|(_, c)| c.is_finite())
+            {
                 out.push(CoherenceFinding::new(
                     Shape,
-                    antecedent_core::reason_details::mechanism_composition::SHAPE_BLANK_COORDINATE,
-                    format!("{v}<-{}", p.variable),
-                    "declare the parent's variable, units and transform",
+                    antecedent_core::reason_details::mechanism_composition::SHAPE_NON_FINITE_PARAMETER,
+                    v,
+                    "refit or correct the mechanism: every parameter must be finite",
                 ));
             }
-            if let Err(why) = p.domain.validate() {
+            if *sigma < 0.0 {
+                out.push(CoherenceFinding::new(
+                    Shape,
+                    antecedent_core::reason_details::mechanism_composition::SHAPE_NEGATIVE_SCALE,
+                    v,
+                    "a residual standard deviation cannot be negative",
+                ));
+            }
+            let parents: Vec<&str> = d.parents.iter().map(|p| p.variable.as_str()).collect();
+            let keys: Vec<&str> = coefficients.iter().map(|(k, _)| k.as_str()).collect();
+            if parents != keys {
                 out.push(
                     CoherenceFinding::new(
                         Shape,
-                        antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_DOMAIN,
-                        format!("{v}<-{}", p.variable),
-                        "declare a well formed input domain",
+                        antecedent_core::reason_details::mechanism_composition::SHAPE_COEFFICIENT_PARENT_MISMATCH,
+                        v,
+                        "give exactly one coefficient per declared parent",
                     )
-                    .comparing("a valid domain", why),
+                    .comparing(
+                        list(parents.iter().map(|s| (*s).to_owned())),
+                        list(keys.iter().map(|s| (*s).to_owned())),
+                    ),
                 );
             }
-        }
-        if d.parents.windows(2).any(|w| w[0].variable == w[1].variable) {
-            out.push(CoherenceFinding::new(
-                Shape,
-                antecedent_core::reason_details::mechanism_composition::SHAPE_DUPLICATE_PARENT,
-                v,
-                "list each parent once",
-            ));
-        }
-        if d.latents.len() > MAX_COMPOSED_LATENTS
-            || d.latents.windows(2).any(|w| w[0].latent == w[1].latent)
-            || d.latents.iter().any(|l| blank(&l.latent))
-        {
-            out.push(CoherenceFinding::new(
-                Shape,
-                antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_LATENTS,
-                v,
-                "name each latent once with a non-blank identity",
-            ));
-        }
-        match &d.form {
-            MechanismForm::LinearGaussian { intercept, sigma, coefficients } => {
-                if !intercept.is_finite()
-                    || !sigma.is_finite()
-                    || !coefficients.iter().all(|(_, c)| c.is_finite())
-                {
-                    out.push(CoherenceFinding::new(
-                        Shape,
-                        antecedent_core::reason_details::mechanism_composition::SHAPE_NON_FINITE_PARAMETER,
-                        v,
-                        "refit or correct the mechanism: every parameter must be finite",
-                    ));
-                }
-                if *sigma < 0.0 {
-                    out.push(CoherenceFinding::new(
-                        Shape,
-                        antecedent_core::reason_details::mechanism_composition::SHAPE_NEGATIVE_SCALE,
-                        v,
-                        "a residual standard deviation cannot be negative",
-                    ));
-                }
-                let parents: Vec<&str> = d.parents.iter().map(|p| p.variable.as_str()).collect();
-                let keys: Vec<&str> = coefficients.iter().map(|(k, _)| k.as_str()).collect();
-                if parents != keys {
-                    out.push(
-                        CoherenceFinding::new(
-                            Shape,
-                            antecedent_core::reason_details::mechanism_composition::SHAPE_COEFFICIENT_PARENT_MISMATCH,
-                            v,
-                            "give exactly one coefficient per declared parent",
-                        )
-                        .comparing(
-                            list(parents.iter().map(|s| (*s).to_owned())),
-                            list(keys.iter().map(|s| (*s).to_owned())),
-                        ),
-                    );
-                }
-                let numeric = |domain: &Domain| !matches!(domain, Domain::Levels(_));
-                if !numeric(&d.output_support) || !d.parents.iter().all(|p| numeric(&p.domain)) {
-                    out.push(CoherenceFinding::new(
-                        Shape,
-                        antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_DOMAIN,
-                        v,
-                        "a linear-Gaussian mechanism ranges over numeric domains",
-                    ));
-                }
+            let numeric = |domain: &Domain| !matches!(domain, Domain::Levels(_));
+            if !numeric(&d.output_support) || !d.parents.iter().all(|p| numeric(&p.domain)) {
+                out.push(CoherenceFinding::new(
+                    Shape,
+                    antecedent_core::reason_details::mechanism_composition::SHAPE_INVALID_DOMAIN,
+                    v,
+                    "a linear-Gaussian mechanism ranges over numeric domains",
+                ));
             }
-            MechanismForm::Tabular { levels, rows } => {
-                check_table_shape(d, levels, rows, out);
-            }
+        }
+        MechanismForm::Tabular { levels, rows } => {
+            check_table_shape(d, levels, rows, out);
         }
     }
 }

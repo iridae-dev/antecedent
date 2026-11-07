@@ -34,15 +34,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_contract::ExternalRefusal;
 use antecedent_contract::bridge::{
     BridgeMapping, BridgedClaim, MappingKind, MeasurementDirection, SourceMappingDependence,
     TrialEffectPair,
 };
+use antecedent_contract::ExternalRefusal;
 use antecedent_core::measurement_model::{MeasurementParameters, ParameterEvidence};
 use antecedent_core::reason_code;
 use antecedent_io_core::calibration::{
-    CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+    calibration_slot, CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire,
 };
 use antecedent_io_core::contract_section::{CalibrationSlotWire, CalibrationStatus};
 use antecedent_stats::{normal_ppf, student_t_ppf};
@@ -165,26 +165,12 @@ fn bridge_interval_trial_moments(trials: &[TrialEffectPair]) -> (f64, f64, f64, 
     (mean_x, sxx, sxy, syy, k)
 }
 
-/// Construct the interval of `bridged` from the source claim's standard error, without
-/// resolving a coverage record. A measurement scores this; a caller publishes through
-/// [`bridged_claim_interval`].
-///
-/// # Errors
-/// `required_option_missing` with `scientific_bridge.interval_source_uncertainty_required`
-/// when the source standard error is absent; `route_not_supported` with
-/// `scientific_bridge.interval_scope_outside_measured` for a level outside
-/// `[0.5, 0.9999]`, a negative or non-finite standard error, a Youden index or declared
-/// rate standard error outside the measured range, or a degenerate trial-level fit.
-#[allow(
-    clippy::too_many_lines,
-    clippy::result_large_err,
-    reason = "one construction per mapping kind; the refusal is the shared external refusal type"
-)]
-pub fn construct_bridged_claim_interval(
+#[allow(clippy::result_large_err, reason = "the refusal is the shared external refusal type")]
+fn validate_bridge_interval_input(
     bridged: &BridgedClaim,
     source_standard_error: Option<f64>,
     level: f64,
-) -> Result<ConstructedBridgeInterval, ExternalRefusal> {
+) -> Result<f64, ExternalRefusal> {
     if let (BridgeMapping::Identity | BridgeMapping::Affine { .. }, Some(uncertainty)) =
         (&bridged.contract.mapping, &bridged.contract.mapping_uncertainty)
     {
@@ -225,6 +211,69 @@ pub fn construct_bridged_claim_interval(
             "level {level} is not strictly inside (0, 1)"
         )));
     }
+    Ok(se)
+}
+
+fn bridge_interval_basis(
+    bridged: &BridgedClaim,
+    construction: &str,
+    direction: &str,
+    row_count: u64,
+    level: f64,
+    measurement_outside_range: bool,
+) -> CalibrationBasisWire {
+    let mapping = bridged.mapping;
+    CalibrationBasisWire {
+        key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
+            query: BRIDGE_INTERVAL_QUERY.to_owned(),
+            graph_class: "NotApplicable".to_owned(),
+            structure: "fixed".to_owned(),
+            modality: "claim_value".to_owned(),
+            inference: "Frequentist".to_owned(),
+            estimator: format!(
+                "scientific_bridge_{}{}",
+                bridge_interval_mapping_label(mapping),
+                if measurement_outside_range { "+rates_outside_measured_range" } else { "" }
+            ),
+            interval_method: construction.to_owned(),
+            se_kind: "declared_source_standard_error".to_owned(),
+            dependence: "source_independent_of_mapping_evidence".to_owned(),
+            posterior: String::new(),
+            functional: format!("bridge={};direction={direction}", bridged.kind().as_str()),
+            level,
+            identification: "point".to_owned(),
+        },
+        scope: CalibrationScopeWire {
+            row_count,
+            replicates_ok: None,
+            posterior_draws: None,
+            unidentified_mass: 0.0,
+        },
+    }
+}
+
+/// Construct the interval of `bridged` from the source claim's standard error, without
+/// resolving a coverage record. A measurement scores this; a caller publishes through
+/// [`bridged_claim_interval`].
+///
+/// # Errors
+/// `required_option_missing` with `scientific_bridge.interval_source_uncertainty_required`
+/// when the source standard error is absent; `route_not_supported` with
+/// `scientific_bridge.interval_scope_outside_measured` for a level outside
+/// `[0.5, 0.9999]`, a negative or non-finite standard error, a Youden index or declared
+/// rate standard error outside the measured range, or a degenerate trial-level fit.
+#[allow(
+    clippy::too_many_lines,
+    clippy::result_large_err,
+    reason = "one construction per mapping kind; the refusal is the shared external refusal type"
+)]
+pub fn construct_bridged_claim_interval(
+    bridged: &BridgedClaim,
+    source_standard_error: Option<f64>,
+    level: f64,
+) -> Result<ConstructedBridgeInterval, ExternalRefusal> {
+    let se = validate_bridge_interval_input(bridged, source_standard_error, level)?;
     // Any level strictly inside (0, 1) is computed; its calibration status comes from the
     // coverage record that matches it, `not_measured` when none does.
     let support = bridged.contract.check_support()?;
@@ -347,34 +396,14 @@ pub fn construct_bridged_claim_interval(
         };
     let (lo, hi) = if lower <= upper { (lower, upper) } else { (upper, lower) };
     let mapping = bridged.mapping;
-    let basis = CalibrationBasisWire {
-        key: CalibrationKeyWire {
-            validation: "not_applicable".into(),
-            query: BRIDGE_INTERVAL_QUERY.to_owned(),
-            graph_class: "NotApplicable".to_owned(),
-            structure: "fixed".to_owned(),
-            modality: "claim_value".to_owned(),
-            inference: "Frequentist".to_owned(),
-            estimator: format!(
-                "scientific_bridge_{}{}",
-                bridge_interval_mapping_label(mapping),
-                if measurement_outside_range { "+rates_outside_measured_range" } else { "" }
-            ),
-            interval_method: construction.to_owned(),
-            se_kind: "declared_source_standard_error".to_owned(),
-            dependence: "source_independent_of_mapping_evidence".to_owned(),
-            posterior: String::new(),
-            functional: format!("bridge={};direction={direction}", bridged.kind().as_str()),
-            level,
-            identification: "point".to_owned(),
-        },
-        scope: CalibrationScopeWire {
-            row_count,
-            replicates_ok: None,
-            posterior_draws: None,
-            unidentified_mass: 0.0,
-        },
-    };
+    let basis = bridge_interval_basis(
+        bridged,
+        construction,
+        direction,
+        row_count,
+        level,
+        measurement_outside_range,
+    );
     Ok(ConstructedBridgeInterval {
         interval: BridgedClaimInterval {
             lower: lo,

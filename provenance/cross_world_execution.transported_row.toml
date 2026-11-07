@@ -29,7 +29,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "unsupported_variant"
-rationale = "The closed transported row of the cross-world capability matrix: every transported request outside the static additive linear theorem route is refused with the closed row's code, detail, remedy and named unmet prerequisites, before any work."
+rationale = "The closed transported row of the cross-world capability matrix: every transported request outside the static additive linear theorem route is refused with the closed row's code, detail, remedy and named unmet prerequisites, before any work. Scoped 2026-11-07 source re-review compared enumeration admission to the previously bound executor: the same saturating abduction and evaluation work bounds are checked in the same order only for joint enumeration, before matrix decisions or retained-state mutation; variable elimination is unchanged. The exact enumeration-boundary engineering test passed; no independent reference or calibration artifact was regenerated."
 no_independent_algorithm = "matrix.rs decide() and the executor's static check only look rows up and build a refusal; there is no estimator, no abduction in a target population and no numerical step. The one opened transported cell is the theorem-scoped static additive route covered by counterfactual.transported_additive."
 covered_by = ["counterfactual.transported_additive"]
 record_sha256 = "704ee066af295db9a273bb2fa90d47530c112a3619f5c5041daa25a76e4229b5"
@@ -43,8 +43,8 @@ sha256 = "d241180d613901c7c0a3f2cb78ae1193d899555d606a6782e5e6e28c35d48dbb"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/finite_executor.rs"
-items = ["const INFERENCE_LABEL", "const MAX_RETAINED", "const SPREAD_LABEL", "enum ExogenousInference", "enum ExogenousMethod", "enum NoiseCoupling", "fn abduction_identity", "fn check_pairing", "fn classify", "fn counters", "fn default", "fn digest", "fn draws_digest", "fn execute", "fn execute_eliminated", "fn matrix_error", "fn max_retained", "fn name", "fn new", "fn noise_spread", "fn receipts", "fn retained", "fn retained_len", "fn static_checks", "fn unit_spread", "fn with_max_retained", "struct EliminationReceipt", "struct ExecutionReceipt", "struct FiniteExecutionRequest", "struct FiniteExecutionResult", "struct FiniteScmExecutor", "struct NoiseSpread", "struct RetainedAbduction", "struct UnitAnswer", "struct UnitSpread"]
-sha256 = "4d941f96b7d463d5f352ddd1b6368c299393c4af5d8eeaba2aaf0e93e5585206"
+items = ["const INFERENCE_LABEL", "const MAX_RETAINED", "const SPREAD_LABEL", "enum ExogenousInference", "enum ExogenousMethod", "enum NoiseCoupling", "fn abduction_identity", "fn check_pairing", "fn check_enumeration_work", "fn classify", "fn counters", "fn default", "fn digest", "fn draws_digest", "fn execute", "fn execute_eliminated", "fn matrix_error", "fn max_retained", "fn name", "fn new", "fn noise_spread", "fn receipts", "fn retained", "fn retained_len", "fn static_checks", "fn unit_spread", "fn with_max_retained", "struct EliminationReceipt", "struct ExecutionReceipt", "struct FiniteExecutionRequest", "struct FiniteExecutionResult", "struct FiniteScmExecutor", "struct NoiseSpread", "struct RetainedAbduction", "struct UnitAnswer", "struct UnitSpread"]
+sha256 = "e7921431aa3c78c8860d807fee0c7cabad88b76e38d99eef9af7989a1f756c6a"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

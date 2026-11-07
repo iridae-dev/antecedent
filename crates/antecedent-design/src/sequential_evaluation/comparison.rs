@@ -18,7 +18,7 @@ use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
 use super::belief::{branches, predict};
 use super::gformula::{EvaluationLimits, PolicyEvaluation, commit_tail, walk};
-use super::model::{ActionRole, Compiled, dot};
+use super::model::{ActionRole, Compiled, CompiledAction, dot};
 use super::policy::{ContingentPolicy, HistoryKey, PolicySpec};
 use super::{
     FiniteSequentialModel, SEQUENTIAL_EVALUATION_INFERENCE, SequentialRequest, SequentialResult,
@@ -394,16 +394,10 @@ fn commit_utility(compiled: &Compiled, action: usize, state: usize) -> f64 {
     spec.immediate[state] - spec.utility_cost + commit_tail(compiled, action, &unit, 0, &[])
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "validate the request, score through the ranker, then enumerate and compare"
-)]
-fn value_of_collecting(
-    compiled: &Compiled,
+fn admit_voi_request<'a>(
+    compiled: &'a Compiled,
     request: &VoiRequest,
-    limits: EvaluationLimits,
-    ctx: &ExecutionContext,
-) -> SequentialResult<VoiCheck> {
+) -> SequentialResult<&'a CompiledAction> {
     let pure_information = |action: usize| {
         compiled.actions.get(action).filter(|spec| {
             spec.role == ActionRole::Continue
@@ -441,6 +435,20 @@ fn value_of_collecting(
             "name declared commit actions",
         ));
     }
+    Ok(collect)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the request, score through the ranker, then enumerate and compare"
+)]
+fn value_of_collecting(
+    compiled: &Compiled,
+    request: &VoiRequest,
+    limits: EvaluationLimits,
+    ctx: &ExecutionContext,
+) -> SequentialResult<VoiCheck> {
+    let collect = admit_voi_request(compiled, request)?;
     let states = compiled.states;
     let believed = predict(compiled, &compiled.initial, request.collect_action);
     let table: Vec<Vec<f64>> = request

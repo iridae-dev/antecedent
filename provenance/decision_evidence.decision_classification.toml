@@ -27,14 +27,16 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "contract"
-rationale = "Classification of a two-action decision by the side of a threshold on which an interval and an assumption range lie, with a stage-digest chain; no paper algorithm. The only statistical component is the existing Normal-Normal EVSI program."
+rationale = "Classification of a two-action decision by the side of a threshold on which an interval and an assumption range lie, with a stage-digest chain; no paper algorithm. The only statistical component is the existing Normal-Normal EVSI program. Scoped re-review compared all named definitions across the source split; only the relative module path to DesignDetails changed. Joint-experiment compilation was also compared across its split paths; all named definitions are unchanged. Scoped 2026-11-07 re-review compared covariance validation before and after extraction: shape, finite values, LDL tolerance, symmetry and pairwise bounds are unchanged, as is refusal ordering. Six focused unit tests passed, including an indefinite matrix satisfying pairwise bounds; no independent reference was generated."
 no_independent_algorithm = "Interval-versus-threshold comparison, vertex enumeration of a declared box and digest chaining."
 covered_by = ["decision.contract"]
 inline_tests = true
 record_sha256 = "6bbe02c9fb7abebb1973231068c2d1f61f60721b097d6e91003af8d75797d02a"
 artifacts = [
- { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/derive.rs", items = ["module"], sha256 = "6ae79b59d9ebd9d35e7c1a5fa2ba3d438d45d7beb8ff21db38f18c57e3ba366a" },
- { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/mod.rs", items = ["module"], sha256 = "5259aabfa9a98ca56610eb0d1f983f7e7b64d716d7db55cfb490a89574eedf52" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/derive.rs", items = ["module"], sha256 = "bfdb9d650c56546e597c1732f52558949e07c8a941747ecc4396f501c18f2d57" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/derive/decision.rs", items = ["module"], sha256 = "8c0f95450e180e40e4fe916f5b04f280095e0fd948fe56686d51f990007ef57b" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/mod.rs", items = ["module"], sha256 = "1fd174ce9282099eb8eb25f50e0d1decfb185b8ee76269fe19591776792df811" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/compile.rs", items = ["module"], sha256 = "0b35e977e979e574b79c346e95192cb260e6a518211a814422b662b42faa190a" },
  { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/plan.rs", items = ["module"], sha256 = "8b41edabdc83fbfc5772fa72c50239d7d1ba9a2bc3070eb028b8208b6b209b8f" },
  { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/reuse.rs", items = ["module"], sha256 = "8d1dfede9a0f805f41616142afc2bf9d70d62e9bbd7f65f9c0267719584196ea" },
 ]

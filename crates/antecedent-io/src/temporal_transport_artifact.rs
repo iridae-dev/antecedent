@@ -18,6 +18,7 @@
 //! consumer detects a swapped catalog or law snapshot even when the replayed
 //! point happens not to change.
 
+use crate::exact_transport_laws::canonical_laws;
 use crate::{
     IoError, admg_from_wire, admg_to_wire, exact_law_wire::ExactLawWire,
     mz_transport_artifact::MzTransportPointWire, query_wire::ValueWire,
@@ -405,20 +406,6 @@ fn check_provider(
         return Err(mismatch("supplied exact laws carry no fitted tables"));
     }
     Ok(())
-}
-
-fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let wire = ExactLawWire::from_law(law);
-            crate::to_cbor(&(&wire.population, wire.regime, &wire.interventions))
-                .map(|key| (key, wire))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
 fn slots_wire(slots: &TemporalSlots) -> TemporalSlotsWire {

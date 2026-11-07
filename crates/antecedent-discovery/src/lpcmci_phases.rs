@@ -928,23 +928,13 @@ pub(crate) fn run_lpcmci_panel(
     run_lpcmci_on_frame(engine, &frame, variables, workspace, ctx, fdr, n_preliminary)
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
-)]
-fn run_lpcmci_on_frame(
+fn admit_lpcmci_frame(
     engine: &PcmciEngine,
     frame: &LaggedFrame,
-    variables: &[VariableId],
-    workspace: &mut DiscoveryWorkspace,
-    ctx: &ExecutionContext,
     fdr: Option<FdrAdjustment>,
-    n_preliminary: u32,
-) -> Result<PagDiscoveryResult, DiscoveryError> {
+) -> Result<(), DiscoveryError> {
     engine.constraints.validate_temporal_ci_options()?;
-    let max_lag = engine.constraints.temporal.max_lag.raw();
     let alpha = engine.constraints.alpha;
-    let max_cond = engine.constraints.max_cond_size;
     crate::ci::ensure_ci_decisions_meaningful(
         &*engine.ci,
         engine.constraints.significance,
@@ -959,6 +949,26 @@ fn run_lpcmci_on_frame(
              non-ancestral CI families together",
         ));
     }
+    Ok(())
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
+fn run_lpcmci_on_frame(
+    engine: &PcmciEngine,
+    frame: &LaggedFrame,
+    variables: &[VariableId],
+    workspace: &mut DiscoveryWorkspace,
+    ctx: &ExecutionContext,
+    fdr: Option<FdrAdjustment>,
+    n_preliminary: u32,
+) -> Result<PagDiscoveryResult, DiscoveryError> {
+    admit_lpcmci_frame(engine, frame, fdr)?;
+    let max_lag = engine.constraints.temporal.max_lag.raw();
+    let alpha = engine.constraints.alpha;
+    let max_cond = engine.constraints.max_cond_size;
     workspace.prepared_ci = None;
     workspace.keep_cache.clear();
 

@@ -30,7 +30,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "unsupported_variant"
-rationale = "The closed readings of the finite cross-world executor: a sampled exogenous posterior and interval or posterior readings are refused (the spread and declared-set envelope readings are computed exactly) with registered codes before any abduction, prediction or sampling work."
+rationale = "The closed readings of the finite cross-world executor: a sampled exogenous posterior and interval or posterior readings are refused (the spread and declared-set envelope readings are computed exactly) with registered codes before any abduction, prediction or sampling work. Scoped 2026-11-07 source re-review compared enumeration admission to the previously bound executor: the same saturating abduction and evaluation work bounds are checked in the same order only for joint enumeration, before matrix decisions or retained-state mutation; variable elimination is unchanged. The exact enumeration-boundary engineering test passed; no independent reference or calibration artifact was regenerated."
 no_independent_algorithm = "finite_executor.rs static_checks refuses PosteriorSampling and the joint-law propagation rule refuses Interval and Posterior readings; the module takes no draw (shared_draws stays zero) and computes no interval or posterior. The spread reading is the exact posterior variance over the enumerated exogenous noise and the envelope reading is the range of the point value over a declared parameter set, both checked against definition-level Fraction enumeration in cross_world_execution.finite_markovian_scm's sibling test finite_scm_readings_reference.rs; an envelope without a declared set is refused. The exact enumeration or elimination that produces the open point value is covered by cross_world_execution.finite_markovian_scm."
 covered_by = ["cross_world_execution.finite_markovian_scm"]
 record_sha256 = "78a5f63910ced17b42eaa531f10fbb41402bdb56a822101fb918bb8ffaf16578"
@@ -38,8 +38,8 @@ record_sha256 = "78a5f63910ced17b42eaa531f10fbb41402bdb56a822101fb918bb8ffaf1657
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/finite_executor.rs"
-items = ["const INFERENCE_LABEL", "const MAX_RETAINED", "const SPREAD_LABEL", "enum ExogenousInference", "enum ExogenousMethod", "enum NoiseCoupling", "fn abduction_identity", "fn check_pairing", "fn classify", "fn counters", "fn default", "fn digest", "fn draws_digest", "fn execute", "fn execute_eliminated", "fn matrix_error", "fn max_retained", "fn name", "fn new", "fn noise_spread", "fn receipts", "fn retained", "fn retained_len", "fn static_checks", "fn unit_spread", "fn with_max_retained", "struct EliminationReceipt", "struct ExecutionReceipt", "struct FiniteExecutionRequest", "struct FiniteExecutionResult", "struct FiniteScmExecutor", "struct NoiseSpread", "struct RetainedAbduction", "struct UnitAnswer", "struct UnitSpread"]
-sha256 = "4d941f96b7d463d5f352ddd1b6368c299393c4af5d8eeaba2aaf0e93e5585206"
+items = ["const INFERENCE_LABEL", "const MAX_RETAINED", "const SPREAD_LABEL", "enum ExogenousInference", "enum ExogenousMethod", "enum NoiseCoupling", "fn abduction_identity", "fn check_pairing", "fn check_enumeration_work", "fn classify", "fn counters", "fn default", "fn digest", "fn draws_digest", "fn execute", "fn execute_eliminated", "fn matrix_error", "fn max_retained", "fn name", "fn new", "fn noise_spread", "fn receipts", "fn retained", "fn retained_len", "fn static_checks", "fn unit_spread", "fn with_max_retained", "struct EliminationReceipt", "struct ExecutionReceipt", "struct FiniteExecutionRequest", "struct FiniteExecutionResult", "struct FiniteScmExecutor", "struct NoiseSpread", "struct RetainedAbduction", "struct UnitAnswer", "struct UnitSpread"]
+sha256 = "e7921431aa3c78c8860d807fee0c7cabad88b76e38d99eef9af7989a1f756c6a"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

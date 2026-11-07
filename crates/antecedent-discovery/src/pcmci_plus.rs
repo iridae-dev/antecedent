@@ -120,6 +120,37 @@ impl PcmciPlus {
         self.run_on_frame(&frame, variables, workspace, ctx)
     }
 
+    fn admit_frame(
+        &self,
+        frame: &LaggedFrame,
+        variables: &[VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<(), DiscoveryError> {
+        self.engine.constraints.validate_temporal_ci_options()?;
+        self.engine
+            .constraints
+            .check_background_knowledge(KnowledgeScope::Lagged, variables)
+            .map_err(DiscoveryError::Knowledge)?;
+        let alpha = self.engine.constraints.alpha;
+        crate::ci::ensure_ci_decisions_meaningful(
+            &*self.engine.ci,
+            self.engine.constraints.significance,
+            frame.n_effective(),
+            alpha,
+            self.fdr.is_some(),
+        )?;
+        crate::ci::ensure_ci_fits_frame(&*self.engine.ci, frame)?;
+        if let Some(hard) = ctx.memory_limit_bytes() {
+            if frame.values_bytes() > hard {
+                return Err(DiscoveryError::Unsupported {
+                    message: "lagged frames exceed ExecutionContext memory hard limit",
+                });
+            }
+        }
+
+        Ok(())
+    }
+
     /// Run PCMCI+ on a pre-built (optionally row-filtered) lagged frame.
     ///
     /// # Errors
@@ -136,28 +167,9 @@ impl PcmciPlus {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CpdagDiscoveryResult, DiscoveryError> {
-        self.engine.constraints.validate_temporal_ci_options()?;
-        self.engine
-            .constraints
-            .check_background_knowledge(KnowledgeScope::Lagged, variables)
-            .map_err(DiscoveryError::Knowledge)?;
+        self.admit_frame(frame, variables, ctx)?;
         let alpha = self.engine.constraints.alpha;
-        crate::ci::ensure_ci_decisions_meaningful(
-            &*self.engine.ci,
-            self.engine.constraints.significance,
-            frame.n_effective(),
-            alpha,
-            self.fdr.is_some(),
-        )?;
-        crate::ci::ensure_ci_fits_frame(&*self.engine.ci, frame)?;
         let max_lag = self.engine.constraints.temporal.max_lag.raw();
-        if let Some(hard) = ctx.memory_limit_bytes() {
-            if frame.values_bytes() > hard {
-                return Err(DiscoveryError::Unsupported {
-                    message: "lagged frames exceed ExecutionContext memory hard limit",
-                });
-            }
-        }
 
         let threads = ctx.parallelism.max_threads.get().max(1);
         let compiled = self.engine.constraints.compile(variables)?;
@@ -424,23 +436,11 @@ pub(crate) fn contemp_mci_phase(
     )
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    reason = "keep the declared family and adaptive MCI search together; legacy wrappers preserve their protocol"
-)]
-fn contemp_mci_phase_inner(
-    engine: &PcmciEngine,
+fn initial_mci_adjacency(
     search_space: LaggedSearch<'_>,
     lagged_parents: &[(VariableId, Vec<(VariableId, Lag)>)],
-    workspace: &mut DiscoveryWorkspace,
-    ctx: &ExecutionContext,
-    search: Option<&dyn Fn(LaggedLink) -> bool>,
-    complete_family: bool,
-) -> Result<(Vec<ScoredLink>, PcSepsets, u64, u64), DiscoveryError> {
-    let LaggedSearch { frame, variables, compiled } = search_space;
-    let alpha = engine.constraints.alpha;
-    let max_cond = engine.constraints.max_cond_size;
+) -> AdjMap {
+    let LaggedSearch { variables, compiled, .. } = search_space;
     let mut adj: AdjMap = HashMap::new();
     for &t in variables {
         let mut parents = parents_of_target(lagged_parents, t).to_vec();
@@ -460,6 +460,28 @@ fn contemp_mci_phase_inner(
         }
         adj.insert(t, parents);
     }
+
+    adj
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "keep the declared family and adaptive MCI search together; legacy wrappers preserve their protocol"
+)]
+fn contemp_mci_phase_inner(
+    engine: &PcmciEngine,
+    search_space: LaggedSearch<'_>,
+    lagged_parents: &[(VariableId, Vec<(VariableId, Lag)>)],
+    workspace: &mut DiscoveryWorkspace,
+    ctx: &ExecutionContext,
+    search: Option<&dyn Fn(LaggedLink) -> bool>,
+    complete_family: bool,
+) -> Result<(Vec<ScoredLink>, PcSepsets, u64, u64), DiscoveryError> {
+    let LaggedSearch { frame, variables, compiled } = search_space;
+    let alpha = engine.constraints.alpha;
+    let max_cond = engine.constraints.max_cond_size;
+    let mut adj = initial_mci_adjacency(search_space, lagged_parents);
 
     let mut scores: ScoreMap = HashMap::new();
     let mut sepsets: PcSepsets = HashMap::new();
@@ -594,6 +616,16 @@ fn contemp_mci_phase_inner(
         return Ok((scored, sepsets, ci_tests, truncated));
     }
 
+    let scored = scored_surviving_mci_links(variables, &adj, &scores, search);
+    Ok((scored, sepsets, ci_tests, truncated))
+}
+
+fn scored_surviving_mci_links(
+    variables: &[VariableId],
+    adj: &AdjMap,
+    scores: &ScoreMap,
+    search: Option<&dyn Fn(LaggedLink) -> bool>,
+) -> Vec<ScoredLink> {
     // Legacy protocol: emit surviving adjacencies (conservative p = max over tests).
     // Fixed (non-search) links are omitted unless they have scores from a prior test.
     // Targets in declared variable order: the order of the scored links fixes the order edges
@@ -619,7 +651,7 @@ fn contemp_mci_phase_inner(
             scored.push(ScoredLink { link, statistic: stat, p_value: p, adjusted_p_value: None });
         }
     }
-    Ok((scored, sepsets, ci_tests, truncated))
+    scored
 }
 
 fn declared_mci_family(

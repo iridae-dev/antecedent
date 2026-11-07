@@ -36,7 +36,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "wrapper"
-rationale = "Identification repair: apply hypothetical evidence from candidate studies and ask the identifier's own theorem whether the contract then identifies."
+rationale = "Identification repair: apply hypothetical evidence from candidate studies and ask the identifier's own theorem whether the contract then identifies. Inline tests moved to identification_repair/tests.rs; previously bound same-named definitions were compared unchanged. Sensitivity repair definitions moved to identification_repair/sensitivity.rs; all bound definitions were compared unchanged apart from formatting. Hedge repair definitions moved to identification_repair/hedge.rs; all bound definitions were compared unchanged apart from formatting."
 no_independent_algorithm = "A finite search over declared candidates that delegates the identification decision to the existing identifiers."
 covered_by = ["identify.backdoor", "identify.frontdoor", "identify.id", "identify.iv"]
 record_sha256 = "51dd26813fa335ff2c48e04f05ff6d4c8a7982738c3058d5e25754cc267399af"
@@ -44,8 +44,26 @@ record_sha256 = "51dd26813fa335ff2c48e04f05ff6d4c8a7982738c3058d5e25754cc267399a
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/identification_repair.rs"
-items = ["const MAX_CANDIDATES", "const MEDIATOR_SEARCH_SUBSETS", "fn as_str", "fn assumption", "fn base_law", "fn candidates", "fn checker", "fn contract", "fn cut_outgoing", "fn dag", "fn dag_children", "fn derive", "fn experiment", "fn invalid", "fn joint_law", "fn max_mediator_set_size", "fn name", "fn outcome", "fn population", "fn provenance", "fn reaches_avoiding", "fn treatment", "fn try_new", "fn unresolved_obligations", "fn verify_frontdoor", "fn verify_instrument", "struct Build", "struct Failure"]
-sha256 = "83da90378d0549881366b18588f3e964e43948100a5e4d579d70c3273a0e7f9b"
+items = ["const MAX_CANDIDATES", "const MEDIATOR_SEARCH_SUBSETS", "fn assumption", "fn base_law", "fn candidates", "fn checker", "fn contract", "fn cut_outgoing", "fn dag", "fn dag_children", "fn derive", "fn experiment", "fn invalid", "fn joint_law", "fn max_mediator_set_size", "fn name", "fn outcome", "fn population", "fn provenance", "fn reaches_avoiding", "fn treatment", "fn try_new", "fn unresolved_obligations", "fn verify_frontdoor", "fn verify_instrument", "struct Build", "struct Failure"]
+sha256 = "83207882f08ae9c95623559546e861c41b03acc6ede470e4b89f63f6ad1994fc"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/identification_repair/hedge.rs"
+items = ["fn base_law", "fn outcome", "fn population", "fn treatment", "fn try_new", "fn unresolved_obligations"]
+sha256 = "0e98f9f6b668155a66509841d96db5e30bb0f6bb86dbc00fa5ac45b5e91293e9"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/identification_repair/sensitivity.rs"
+items = ["fn as_str", "fn base_law", "fn dag", "fn outcome", "fn population", "fn treatment", "fn try_new", "fn unresolved_obligations"]
+sha256 = "8459ca09204cef0add617a55b9709f3ffb2cab5b4721f63a20bc3c4cff27075c"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-design/src/identification_repair/tests.rs"
+items = ["fn dag"]
+sha256 = "3b6a50822ae404bfabdd009a797e6f4e61e64e54c21a736368017876e66c29bc"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

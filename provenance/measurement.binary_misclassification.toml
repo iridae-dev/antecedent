@@ -30,7 +30,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "BinaryErrorRates, corrected_prevalence, corrected_risk_difference_nondifferential and corrected_risk_difference_differential in crates/antecedent-stats/src/measurement_error.rs: the Rogan-Gladen inversion pi = (p* + Sp - 1)/(Se + Sp - 1), the delta-method variance split into the sampling part Var(p*)/J^2 and the rate part ((1 - pi)^2 Var(Sp) + pi^2 Var(Se))/J^2, the shared-rate risk difference (p1* - p0*)/J with variance RD^2 (Var(Se) + Var(Sp))/J^2 that keeps the arm covariance, the per-arm independent-rate difference, the binomial rate variances of from_validation_counts, the Youden-index refusal and the outside-the-unit-interval flag. Not the classical continuous-error route (the Carroll et al. attenuation and regression calibration sections of this record belong to measurement.classical_continuous_error), exposure misclassification (closed), or the estimator layer that supports a correction."
+scope = "BinaryErrorRates, corrected_prevalence, corrected_risk_difference_nondifferential and corrected_risk_difference_differential in crates/antecedent-stats/src/measurement_error.rs: the Rogan-Gladen inversion pi = (p* + Sp - 1)/(Se + Sp - 1), the delta-method variance split into the sampling part Var(p*)/J^2 and the rate part ((1 - pi)^2 Var(Sp) + pi^2 Var(Se))/J^2, the shared-rate risk difference (p1* - p0*)/J with variance RD^2 (Var(Se) + Var(Sp))/J^2 that keeps the arm covariance, the per-arm independent-rate difference, the binomial rate variances of from_validation_counts, the Youden-index refusal and the outside-the-unit-interval flag. Not the classical continuous-error route (the Carroll et al. attenuation and regression calibration sections of this record belong to measurement.classical_continuous_error), exposure misclassification (closed), or the estimator layer that supports a correction. Classification correction definitions moved to measurement_error/classification.rs and bound items were compared unchanged apart from formatting."
 assumptions = ["Outcome misclassification with known or independently estimated sensitivity and specificity; the observed proportion is binomial and the rate estimates are independent of it.", "Rogan and Gladen give the variance for known rates; the variance with estimated rates is a first-order delta method derived in the repository, with partial derivatives d pi/d p* = 1/J, d pi/d Sp = (1 - pi)/J and d pi/d Se = -pi/J.", "Corrected proportions are reported unclipped and flagged when they leave [0, 1]."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated definitions, derivatives derived by hand, in exact rational arithmetic and at 60 digits (mpmath); no upstream implementation was consulted. The cited sources were not retrieved."
 redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited sources are linked, not redistributed."
@@ -42,8 +42,14 @@ record_sha256 = "267051e1bd2f12b5d390311158a144e03a14cdedebeb5a5d2487ff2296d7915
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/measurement_error.rs"
-items = ["enum MeasurementErrorError", "fn category_outcome_means", "fn check_count", "fn column_counts", "fn congruence", "fn corrected_categories", "fn corrected_prevalence", "fn corrected_risk_difference_differential", "fn corrected_risk_difference_nondifferential", "fn from_validation_counts", "fn levels", "fn matrix", "fn matvec", "fn new", "fn one_norm", "fn require_youden", "fn youden", "struct BinaryErrorRates", "struct ConfusionMatrix", "struct CorrectedCategorical", "struct CorrectedProportion", "struct CorrectedRiskDifference", "struct ObservedClassSummary", "struct TwoByTwoCounts"]
-sha256 = "67b1373719e9bef37427f1a0f38b01e6f3d1dd951c4e45671091fbe73b5c971f"
+items = ["enum MeasurementErrorError", "fn matvec"]
+sha256 = "ef1c3ef5c606e4adc0a5c92addedf455130e81d259fc3f00d7098fcc19394328"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/measurement_error/classification.rs"
+items = ["fn category_outcome_means", "fn check_count", "fn column_counts", "fn congruence", "fn corrected_categories", "fn corrected_prevalence", "fn corrected_risk_difference_differential", "fn corrected_risk_difference_nondifferential", "fn from_validation_counts", "fn levels", "fn matrix", "fn new", "fn one_norm", "fn require_youden", "fn youden", "struct BinaryErrorRates", "struct ConfusionMatrix", "struct CorrectedCategorical", "struct CorrectedProportion", "struct CorrectedRiskDifference", "struct ObservedClassSummary", "struct TwoByTwoCounts"]
+sha256 = "7200b43014cdac3eb8f07fbd62881eb9269506143dbdca2ffe05dc5cc3814135"
 
 [[method_review.artifacts]]
 role = "assertion"
