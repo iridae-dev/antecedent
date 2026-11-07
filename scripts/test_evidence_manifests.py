@@ -55,6 +55,15 @@ class ManifestTests(unittest.TestCase):
         self.assertTrue(result["current"])
         self.assertEqual(result["reasons"], [])
 
+    def test_nix_build_claim_is_not_silently_accepted(self):
+        for receipt in (None, {}, {"sandbox_verified": True, "binary_sha256": "a" * 64}):
+            with self.subTest(receipt=receipt):
+                manifest = self.manifest()
+                manifest["nix_build"] = receipt
+                result = self.check(manifest)
+                self.assertFalse(result["current"])
+                self.assertIn("manifest_owed:Nix build provenance is not yet supported", result["reasons"])
+
     def test_body_edit_detected_even_with_preserved_timestamp_and_size(self):
         manifest = self.manifest()
         path = self.root / "src/a.rs"

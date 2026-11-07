@@ -219,7 +219,8 @@ def built_executable(stdout: str) -> str | None:
     return found
 
 
-def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=subprocess.run) -> dict[str, set[int]] | None:
+def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=subprocess.run,
+                *, llvm_tools: dict[str, str] | None = None) -> dict[str, set[int]] | None:
     """Run one Rust assertion's instrumented binary; its line coverage, or `None` on failure."""
     libtest = info["selector"].split("::", 2)[2]
     with tempfile.TemporaryDirectory(prefix="antecedent-capture-") as tmp:
@@ -234,12 +235,13 @@ def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=su
         if done.returncode != 0 or not PASSED_ONE.search((done.stdout or "") + (done.stderr or "")):
             print(f"FAIL: {info['selector']}: not captured\n{((done.stdout or '') + (done.stderr or ''))[-400:]}")
             return None
-        merged = run([llvm_tool("llvm-profdata"), "merge", "-sparse", str(raw), "-o", str(data)], text=True, capture_output=True)
+        tool = (lambda name: llvm_tools[name]) if llvm_tools is not None else llvm_tool
+        merged = run([tool("llvm-profdata"), "merge", "-sparse", str(raw), "-o", str(data)], text=True, capture_output=True)
         if merged.returncode != 0:
             print(f"FAIL: {info['selector']}: profile merge failed\n{merged.stderr[-400:]}")
             return None
         export = run(
-            [llvm_tool("llvm-cov"), "export", f"-instr-profile={data}", binary],
+            [tool("llvm-cov"), "export", f"-instr-profile={data}", binary],
             text=True,
             capture_output=True,
         )
@@ -250,11 +252,13 @@ def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=su
         return line_coverage(data)
 
 
-def earn_rust(root: Path, items: list[dict], run=subprocess.run) -> int:
+def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str = "cargo") -> int:
     """Earn the given Rust rows: build each test target once with coverage instrumentation
     (through the compiler inventory driver when `rustc-dev` is installed), run each assertion
     exactly, and publish its manifest. The ledger is written after every target, so an
     interrupted run keeps what it finished. Returns the number of failures."""
+    if backend != "cargo":
+        raise RuntimeError("Nix evidence earning is disabled until receipt and policy verification are integrated")
     from evidence_earning import require_compile_environment
     require_compile_environment(root)
     groups: dict[tuple[str, tuple[str, ...]], list[tuple[dict, dict]]] = {}
@@ -392,6 +396,9 @@ def run_batch(root: Path, batch: list[dict]) -> tuple[int, set[str]]:
 
 
 def cmd_run(root: Path, args: argparse.Namespace) -> int:
+    if getattr(args, "rust_build_backend", "cargo") != "cargo":
+        print("FAIL: Nix evidence earning is disabled until receipt and policy verification are integrated")
+        return 1
     from evidence_earning import require_compile_environment
     require_compile_environment(root)
     rows = all_scientific_rows(root)
@@ -457,6 +464,8 @@ def main() -> int:
     )
     run = sub.add_parser("run")
     run.add_argument("--all", action="store_true", help="rerun and re-record every assertion (manual)")
+    run.add_argument("--rust-build-backend", choices=("cargo", "nix"), default="cargo",
+                     help="Rust build backend; nix remains disabled until evidence receipts and policy are verified")
     run.add_argument(
         "--only",
         action="append",

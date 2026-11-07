@@ -35,6 +35,33 @@ class CompileTimeEnvironmentTest(unittest.TestCase):
             self.assertIn(f"environment override {name}", issues)
         self.assertNotIn("/secret/wrapper", str(issues))
 
+    def test_zstd_cannot_select_ambient_pkg_config(self):
+        env = self.env | {"ZSTD_SYS_USE_PKG_CONFIG": "1"}
+        self.assertIn(
+            "environment override ZSTD_SYS_USE_PKG_CONFIG",
+            noncanonical_compile_environment(self.root, env),
+        )
+
+    def test_libc_build_overrides_are_refused(self):
+        names = ("LIBC_CI", "LIBC_BUILD_VERBOSE", "RUST_LIBC_UNSTABLE_FREEBSD_VERSION")
+        issues = noncanonical_compile_environment(self.root, self.env | dict.fromkeys(names, "1"))
+        for name in names:
+            self.assertIn(f"environment override {name}", issues)
+
+    def test_target_prefixed_native_overrides_are_rejected_without_values(self):
+        env = self.env | {
+            "HOST_CC": "private compiler", "TARGET_CFLAGS": "private flags",
+            "HOST_ARFLAGS": "private ar flags", "CRATE_CC_NO_DEFAULTS": "1",
+            "NVCC": "private nvcc", "CXXSTDLIB": "private library",
+            "HOST_UNRELATED": "allowed", "TARGET_UNRELATED": "allowed",
+        }
+        issues = noncanonical_compile_environment(self.root, env)
+        for name in ("HOST_CC", "TARGET_CFLAGS", "HOST_ARFLAGS", "CRATE_CC_NO_DEFAULTS", "NVCC", "CXXSTDLIB"):
+            self.assertIn(f"environment override {name}", issues)
+        self.assertNotIn("environment override HOST_UNRELATED", issues)
+        self.assertNotIn("environment override TARGET_UNRELATED", issues)
+        self.assertNotIn("private", str(issues))
+
     def test_parent_and_cargo_home_configs_are_rejected(self):
         parent_config = self.root.parent / ".cargo" / "config.toml"
         home_config = self.home / ".cargo" / "config"

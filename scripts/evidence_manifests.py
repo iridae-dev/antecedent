@@ -116,6 +116,12 @@ def validate(manifest: dict, binding: dict) -> None:
     if (not isinstance(manifest, dict) or type(manifest.get("schema")) is not int
             or manifest["schema"] != SCHEMA):
         raise InvalidManifest("unsupported manifest schema")
+    # A Nix store path or caller-provided receipt does not establish that the
+    # binary was built under the required policy or that those bytes ran. Until
+    # earning and portable validation bind both facts, never silently ignore a
+    # manifest that purports to carry Nix build provenance.
+    if "nix_build" in manifest:
+        raise InvalidManifest("Nix build provenance is not yet supported")
     if manifest.get("normalization") != NORMALIZATION:
         raise InvalidManifest("unsupported normalization")
     if manifest.get("record") != binding:

@@ -12,6 +12,12 @@ let
   targetArgs = if targetKind == "lib" then [ "--lib" ] else [ "--test" targetName ];
   featureArgs = if features == [] then [] else [ "--features" (builtins.concatStringsSep "," features) ];
   cargoArgs = [ "test" "--locked" "--offline" "--no-run" "--message-format=json" "-p" crate ] ++ targetArgs ++ featureArgs;
+  graphArgs = [ "test" "--unit-graph" "--locked" "--offline" "--no-run" "-p" crate ] ++ targetArgs ++ featureArgs;
+  # Metadata resolves from the workspace root rather than from `-p crate`.
+  # Qualify features so an unrelated default member is not selected instead.
+  metadataFeatureArgs = if features == [] then [] else
+    [ "--features" (builtins.concatStringsSep "," (map (feature: "${crate}/${feature}") features)) ];
+  metadataArgs = [ "metadata" "--format-version=1" "--locked" "--offline" ] ++ metadataFeatureArgs;
 in
 assert targetKind == "lib" || targetKind == "test";
 assert targetKind != "test" || targetName != "";
@@ -20,11 +26,15 @@ pkgs.stdenv.mkDerivation {
   pname = "antecedent-evidence-target";
   version = "0";
   inherit src;
-  nativeBuildInputs = [ rust pkgs.python3 ];
+  # Cargo from nixpkgs uses store-provided curl/OpenSSL rather than the host
+  # LibreSSL used by the upstream Cargo binary. The compiler remains pinned to
+  # the separately verified official 1.85.1 toolchain.
+  nativeBuildInputs = [ rust pkgs.cargo pkgs.python3 ];
   dontConfigure = true;
   dontStrip = true;
   buildPhase = ''
     export HOME="$TMPDIR/home" CARGO_HOME="$TMPDIR/cargo" CARGO_TARGET_DIR="$TMPDIR/target"
+    export RUSTC=${rust}/bin/rustc
     export RUSTFLAGS="-C instrument-coverage --remap-path-prefix=$PWD=${src}" CARGO_PROFILE_TEST_OPT_LEVEL=2 CARGO_PROFILE_TEST_DEBUG=line-tables-only
     mkdir -p "$HOME" "$CARGO_HOME"
     cat > "$CARGO_HOME/config.toml" <<'EOF'
@@ -35,7 +45,11 @@ pkgs.stdenv.mkDerivation {
     [net]
     offline = true
     EOF
-    cargo ${pkgs.lib.escapeShellArgs cargoArgs} > "$TMPDIR/cargo-messages.jsonl" || {
+    # Cargo's unit graph is unstable metadata: enable its flag only in this
+    # subprocess. The test build itself never sees RUSTC_BOOTSTRAP.
+    ${pkgs.cargo}/bin/cargo ${pkgs.lib.escapeShellArgs metadataArgs} > "$TMPDIR/cargo-metadata.json"
+    RUSTC_BOOTSTRAP=1 ${pkgs.cargo}/bin/cargo -Z unstable-options ${pkgs.lib.escapeShellArgs graphArgs} > "$TMPDIR/cargo-unit-graph.json"
+    ${pkgs.cargo}/bin/cargo ${pkgs.lib.escapeShellArgs cargoArgs} > "$TMPDIR/cargo-messages.jsonl" || {
       cat "$TMPDIR/cargo-messages.jsonl" >&2
       exit 1
     }
@@ -58,6 +72,26 @@ pkgs.stdenv.mkDerivation {
     ln -s ${rust}/lib/rustlib/aarch64-apple-darwin/bin/llvm-profdata "$out/bin/llvm-profdata"
     ln -s ${rust}/lib/rustlib/aarch64-apple-darwin/bin/llvm-cov "$out/bin/llvm-cov"
     printf '%s\n' ${pkgs.lib.escapeShellArg (toString src)} > "$out/source-root"
-    rustc -vV > "$out/rustc-version"
+    # Cargo emits absolute unpack/target paths in metadata. Preserve the raw
+    # graph structure while mapping temporary paths to stable identities so a
+    # local rebuild has the same output and downstream validation can compare
+    # package IDs without depending on Nix's build-directory suffix.
+    python3 - "$PWD" ${pkgs.lib.escapeShellArg (toString src)} "$TMPDIR" "$out" <<'PY'
+    import json, pathlib, sys
+    workdir, source, temporary, out = sys.argv[1:]
+    def remap(value):
+        if isinstance(value, str):
+            return value.replace(workdir, source).replace(temporary, "/__nix_build_tmp__")
+        if isinstance(value, list):
+            return [remap(item) for item in value]
+        if isinstance(value, dict):
+            return {key: remap(item) for key, item in value.items()}
+        return value
+    for name in ("cargo-metadata.json", "cargo-unit-graph.json"):
+        data = json.loads((pathlib.Path(temporary) / name).read_text(encoding="utf-8"))
+        (pathlib.Path(out) / name).write_text(json.dumps(remap(data), sort_keys=True) + "\n", encoding="utf-8")
+    PY
+    ${rust}/bin/rustc -vV > "$out/rustc-version"
+    ${pkgs.cargo}/bin/cargo --version > "$out/cargo-version"
   '';
 }

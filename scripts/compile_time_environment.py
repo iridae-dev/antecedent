@@ -21,16 +21,23 @@ _CHECKED_BUILD_VARIABLES = frozenset({
 })
 _EXACT_OVERRIDES = frozenset({
     "AR", "AS", "CC", "CXX", "CPP", "CFLAGS", "CXXFLAGS", "CPPFLAGS",
-    "LDFLAGS", "RANLIB", "LIBRARY_PATH", "CPATH", "C_INCLUDE_PATH",
+    "LDFLAGS", "RANLIB", "ARFLAGS", "RANLIBFLAGS", "NVCC", "CXXSTDLIB",
+    "CRATE_CC_NO_DEFAULTS", "LIBRARY_PATH", "CPATH", "C_INCLUDE_PATH",
     "CPLUS_INCLUDE_PATH", "OBJC_INCLUDE_PATH", "SDKROOT", "DEVELOPER_DIR",
     "MACOSX_DEPLOYMENT_TARGET", "IPHONEOS_DEPLOYMENT_TARGET", "CROSS_COMPILE",
     "VIRTUAL_ENV", "CONDA_PREFIX", "PYENV_VERSION", "LLVM_CONFIG_PATH",
+    "ZSTD_SYS_USE_PKG_CONFIG", "LIBC_CI", "LIBC_BUILD_VERBOSE",
 })
 _OVERRIDE_PREFIXES = (
     "CARGO_", "RUSTC_", "RUSTUP_", "PYO3_", "PYTHON", "PKG_CONFIG",
     "BINDGEN_", "CMAKE_", "DYLD_", "LD_", "CC_", "CXX_", "AR_",
-    "CFLAGS_", "CXXFLAGS_", "CPPFLAGS_", "LDFLAGS_", "BLAKE3_",
+    "CFLAGS_", "CXXFLAGS_", "CPPFLAGS_", "LDFLAGS_", "ARFLAGS_",
+    "RANLIB_", "RANLIBFLAGS_", "NVCC_", "CXXSTDLIB_", "BLAKE3_", "RUST_LIBC_UNSTABLE_",
 )
+_CC_TARGETED_VARIABLES = frozenset({
+    "CC", "CXX", "AR", "RANLIB", "CFLAGS", "CXXFLAGS", "ARFLAGS",
+    "RANLIBFLAGS", "NVCC", "CXXSTDLIB",
+})
 
 
 def noncanonical_compile_environment(root: Path, environ: Mapping[str, str]) -> list[str]:
@@ -38,12 +45,16 @@ def noncanonical_compile_environment(root: Path, environ: Mapping[str, str]) -> 
 
     This must be called before Cargo metadata and before a build. BUILD_ENV is
     validated separately, so its allowlisted names are not accepted unchecked.
+    This checks the caller's environment; a Nix builder's separately constructed
+    environment must be verified independently rather than assumed equivalent.
     """
     issues = [
         f"environment override {name}"
         for name in sorted(environ)
         if name not in _CHECKED_BUILD_VARIABLES
-        and (name in _EXACT_OVERRIDES or name.startswith(_OVERRIDE_PREFIXES))
+        and (name in _EXACT_OVERRIDES or name.startswith(_OVERRIDE_PREFIXES)
+             or any(name == f"{kind}_{var}" for kind in ("HOST", "TARGET")
+                    for var in _CC_TARGETED_VARIABLES))
     ]
     root = root.resolve()
     home = Path(environ.get("CARGO_HOME") or Path(environ.get("HOME", "~")).expanduser() / ".cargo")
