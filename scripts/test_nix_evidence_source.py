@@ -21,7 +21,7 @@ class SnapshotTest(unittest.TestCase):
         self.git("config", "user.email", "fixture@example.test")
         self.git("config", "commit.gpgsign", "false")
         (self.root / "sub").mkdir()
-        (self.root / "sub" / "source.rs").write_text("fn main() {}\n")
+        (self.root / "sub" / "source.rs").write_text("fn main() {}\n", encoding="utf-8")
         self.git("add", "sub/source.rs")
         self.git("commit", "-qm", "fixture")
         self.destination = Path(self.tmp.name) / "snapshot"
@@ -35,7 +35,7 @@ class SnapshotTest(unittest.TestCase):
         self.assertEqual((self.destination / "sub/source.rs").read_bytes(), (self.root / "sub/source.rs").read_bytes())
 
     def test_dirty_or_untracked_source_refuses_without_creating_snapshot(self):
-        (self.root / "untracked").write_text("x")
+        (self.root / "untracked").write_text("x", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "checkout"):
             materialize_committed_source(self.root, self.destination)
         self.assertFalse(self.destination.exists())
@@ -43,23 +43,23 @@ class SnapshotTest(unittest.TestCase):
     def test_only_exact_run_output_bytes_can_be_allowed(self):
         ledger = self.root / "parity/scientific_records.toml"
         ledger.parent.mkdir()
-        ledger.write_text("run output")
+        ledger.write_text("run output", encoding="utf-8")
         allowed = {"parity/scientific_records.toml": hashlib.sha256(ledger.read_bytes()).hexdigest()}
         result = materialize_committed_source(self.root, self.destination, allowed_outputs=allowed)
         verify_committed_snapshot(self.root, self.destination, result["commit"], allowed_outputs=allowed)
-        ledger.write_text("other edit")
+        ledger.write_text("other edit", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "checkout"):
             verify_committed_snapshot(self.root, self.destination, result["commit"], allowed_outputs=allowed)
 
     def test_allowlist_cannot_whitelist_arbitrary_source_edits(self):
         path = self.root / "sub/source.rs"
-        path.write_text("changed")
+        path.write_text("changed", encoding="utf-8")
         allowed = {"sub/source.rs": hashlib.sha256(path.read_bytes()).hexdigest()}
         with self.assertRaisesRegex(ValueError, "checkout"):
             materialize_committed_source(self.root, self.destination, allowed_outputs=allowed)
 
     def test_export_substitution_and_omission_cannot_silently_change_snapshot(self):
-        (self.root / ".gitattributes").write_text("sub/source.rs export-ignore\n")
+        (self.root / ".gitattributes").write_text("sub/source.rs export-ignore\n", encoding="utf-8")
         self.git("add", ".gitattributes")
         self.git("commit", "-qm", "ignore from archive")
         with self.assertRaisesRegex(ValueError, "membership"):
@@ -77,7 +77,7 @@ class SnapshotTest(unittest.TestCase):
         commit = materialize_committed_source(self.root, self.destination)["commit"]
         verify_committed_snapshot(self.root, self.destination, commit)
         path = self.destination / "sub/source.rs"
-        path.write_text("changed")
+        path.write_text("changed", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "differs"):
             verify_committed_snapshot(self.root, self.destination, commit)
         path.write_bytes((self.root / "sub/source.rs").read_bytes())
@@ -85,7 +85,7 @@ class SnapshotTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "membership"):
             verify_committed_snapshot(self.root, self.destination, commit)
         (self.destination / "unexpected").rmdir()
-        (self.root / "sub/source.rs").write_text("changed")
+        (self.root / "sub/source.rs").write_text("changed", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "checkout"):
             verify_committed_snapshot(self.root, self.destination, commit)
 
@@ -121,7 +121,7 @@ class SnapshotTest(unittest.TestCase):
 
         def mutating(command, **kwargs):
             if "add-path" in command:
-                (self.destination / "sub/source.rs").write_text("changed")
+                (self.destination / "sub/source.rs").write_text("changed", encoding="utf-8")
                 return SimpleNamespace(stdout=store)
             return SimpleNamespace(stdout="sha256-" + "A" * 43 + "=")
 
@@ -145,7 +145,7 @@ class SnapshotTest(unittest.TestCase):
         checkout_file = self.root / "sub/source.rs"
         coverage = {str(snapshot_file): {3, 7}, "/external/dependency.rs": {2}}
         self.assertEqual(map_coverage_sources(coverage, self.destination, self.root), {str(checkout_file.resolve()): {3, 7}})
-        checkout_file.write_text("changed")
+        checkout_file.write_text("changed", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "differs"):
             map_coverage_sources(coverage, self.destination, self.root)
 
@@ -157,7 +157,7 @@ class SnapshotTest(unittest.TestCase):
                          {str(target.resolve()): {2, 4}})
         with self.assertRaisesRegex(ValueError, "invalid"):
             map_coverage_sources({"/antecedent-source/../outside.rs": {1}}, self.destination, self.root)
-        target.write_text("modified")
+        target.write_text("modified", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "differs"):
             map_coverage_sources(coverage, self.destination, self.root)
 

@@ -23,11 +23,11 @@ class ArtifactIdentityTests(unittest.TestCase):
         self.source.mkdir()
         (self.output / 'bin').mkdir(parents=True)
         (self.output / 'bin/test').write_bytes(b'fixture binary')
-        (self.output / 'source-root').write_text(str(self.source) + '\n')
+        (self.output / 'source-root').write_text(str(self.source) + '\n', encoding="utf-8")
         for name in ('nix/evidence-target.nix', 'nix/evidence-toolchain.nix', 'flake.lock'):
             file = self.root / name
             file.parent.mkdir(parents=True, exist_ok=True)
-            file.write_text(name)
+            file.write_text(name, encoding="utf-8")
         self.nar = 'sha256-' + 'A' * 43 + '='
         self.source_nar = 'sha256-' + 'B' * 43 + '='
         self.derivation = {'outputs': {'out': {'path': str(self.output)}}, 'inputSrcs': [str(self.source)]}
@@ -85,10 +85,10 @@ class ArtifactIdentityTests(unittest.TestCase):
         with self.assertRaisesRegex(identity.ArtifactIdentityError, 'identity changed'):
             identity.recheck_artifact(self.root, recorded, store=self.store)
         (self.output / 'bin/test').write_bytes(b'fixture binary')
-        (self.root / 'flake.lock').write_text('changed')
+        (self.root / 'flake.lock').write_text('changed', encoding="utf-8")
         with self.assertRaisesRegex(identity.ArtifactIdentityError, 'identity changed'):
             identity.recheck_artifact(self.root, recorded, store=self.store)
-        (self.output / 'source-root').write_text('wrong')
+        (self.output / 'source-root').write_text('wrong', encoding="utf-8")
         with self.assertRaises(identity.ArtifactIdentityError):
             self.inspect()
 

@@ -21,7 +21,7 @@ class CompileTimeEnvironmentTest(unittest.TestCase):
     def test_canonical_environment_and_tracked_project_config_are_allowed(self):
         config = self.root / ".cargo" / "config.toml"
         config.parent.mkdir()
-        config.write_text('[resolver]\nincompatible-rust-versions = "fallback"\n')
+        config.write_text('[resolver]\nincompatible-rust-versions = "fallback"\n', encoding="utf-8")
         env = self.env | {"RUSTFLAGS": "-D warnings", "CARGO_PROFILE_TEST_OPT_LEVEL": "2"}
         self.assertEqual(noncanonical_compile_environment(self.root, env), [])
 
@@ -67,7 +67,7 @@ class CompileTimeEnvironmentTest(unittest.TestCase):
         home_config = self.home / ".cargo" / "config"
         for path in (parent_config, home_config):
             path.parent.mkdir(parents=True)
-            path.write_text('')
+            path.write_text('', encoding="utf-8")
         issues = noncanonical_compile_environment(self.root, self.env)
         self.assertIn(f"ambient Cargo config {parent_config.resolve()}", issues)
         self.assertIn(f"ambient Cargo config {home_config}", issues)

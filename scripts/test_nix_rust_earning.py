@@ -45,7 +45,7 @@ class NixRustEarning(unittest.TestCase):
                     return ref
 
             def ledger(*args, **kwargs):
-                (root / "parity/scientific_records.toml").write_text("own ledger")
+                (root / "parity/scientific_records.toml").write_text("own ledger", encoding="utf-8")
                 return len(args[1])
 
             def capture(_, target_rows, built, run, **kwargs):

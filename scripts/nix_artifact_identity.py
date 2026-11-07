@@ -99,7 +99,7 @@ def inspect_artifact(root: Path, output: str, source: str, crate: str,
         raise ArtifactIdentityError('invalid source NAR hash')
     binary = Path(output) / 'bin/test'
     recorded_source = Path(output) / 'source-root'
-    if recorded_source.is_symlink() or not recorded_source.is_file() or recorded_source.read_text().strip() != source:
+    if recorded_source.is_symlink() or not recorded_source.is_file() or recorded_source.read_text(encoding="utf-8").strip() != source:
         raise ArtifactIdentityError('artifact source-root does not match')
     if any(_file_hash(p) != recipe_hashes[str(p.relative_to(root))] for p in (recipe, lock, toolchain)):
         raise ArtifactIdentityError('Nix recipe changed during inspection')

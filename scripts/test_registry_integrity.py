@@ -20,7 +20,7 @@ class RegistryIntegrityTests(unittest.TestCase):
         (self.directory / 'src').mkdir()
         (self.directory / 'src/lib.rs').write_bytes(b'contents')
         self.archive = root / 'sample-1.0.0.crate'
-        with tarfile.open(self.archive, 'w:gz') as tar:
+        with tarfile.open(self.archive, 'w:gz', encoding="utf-8") as tar:
             data = b'contents'
             info = tarfile.TarInfo('sample-1.0.0/src/lib.rs')
             info.size = len(data)
@@ -31,11 +31,11 @@ class RegistryIntegrityTests(unittest.TestCase):
         verify_package(self.directory, self.archive, self.checksum)
 
     def test_exact_package_and_cargo_metadata(self):
-        (self.directory / '.cargo-ok').write_text('{"v":1}')
+        (self.directory / '.cargo-ok').write_text('{"v":1}', encoding="utf-8")
         (self.directory / '.cargo-checksum.json').write_text(json.dumps({
             'package': self.checksum,
             'files': {'src/lib.rs': hashlib.sha256(b'contents').hexdigest()},
-        }))
+        }), encoding="utf-8")
         self.verify()
 
     def test_tampered_archive_is_rejected(self):
@@ -52,7 +52,7 @@ class RegistryIntegrityTests(unittest.TestCase):
         with self.assertRaisesRegex(RegistryIntegrityError, 'membership mismatch'):
             self.verify()
         f.write_bytes(b'contents')
-        (self.directory / 'extra').write_text('x')
+        (self.directory / 'extra').write_text('x', encoding="utf-8")
         with self.assertRaisesRegex(RegistryIntegrityError, 'membership mismatch'):
             self.verify()
 
@@ -64,7 +64,7 @@ class RegistryIntegrityTests(unittest.TestCase):
             self.verify()
 
     def test_unsafe_archive_member_is_rejected(self):
-        with tarfile.open(self.archive, 'w:gz') as tar:
+        with tarfile.open(self.archive, 'w:gz', encoding="utf-8") as tar:
             info = tarfile.TarInfo('sample-1.0.0/../escape')
             info.size = 1
             tar.addfile(info, io.BytesIO(b'x'))
@@ -82,8 +82,7 @@ class RegistryIntegrityTests(unittest.TestCase):
         self.archive.rename(cache / self.archive.name)
         (root / 'Cargo.lock').write_text(
             '[[package]]\nname="sample"\nversion="1.0.0"\n'
-            'source="registry+test"\nchecksum="' + self.checksum + '"\n'
-        )
+            'source="registry+test"\nchecksum="' + self.checksum + '"\n', encoding="utf-8")
         metadata = {'packages': [{'name': 'sample', 'version': '1.0.0',
                     'source': 'registry+test', 'manifest_path': str(src / 'Cargo.toml')}]}
         verify_registry(root, metadata)

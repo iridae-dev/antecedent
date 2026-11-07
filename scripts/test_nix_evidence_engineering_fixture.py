@@ -13,9 +13,9 @@ class EngineeringFixtureTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "project"
             fixture._prepare_fixture(root)
-            self.assertEqual((root / "crates" / fixture.CRATE / "src/lib.rs").read_text(), fixture.SOURCE)
-            self.assertIn('default-members = ["crates/default_fixture"]', (root / "Cargo.toml").read_text())
-            self.assertIn("guarded = []", (root / "crates" / fixture.CRATE / "Cargo.toml").read_text())
+            self.assertEqual((root / "crates" / fixture.CRATE / "src/lib.rs").read_text(encoding="utf-8"), fixture.SOURCE)
+            self.assertIn('default-members = ["crates/default_fixture"]', (root / "Cargo.toml").read_text(encoding="utf-8"))
+            self.assertIn("guarded = []", (root / "crates" / fixture.CRATE / "Cargo.toml").read_text(encoding="utf-8"))
             self.assertTrue((root / ".git").is_dir())
 
     def test_runner_verifies_identity_and_never_attests_evidence(self):
@@ -70,13 +70,12 @@ class EngineeringFixtureTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             (output / "rustc-version").write_text(
-                "release: 1.85.1\ncommit-hash: 4eb161250e340c8f48f66e2b929ef4a5bed7c181\n"
-            )
-            (output / "cargo-version").write_text("cargo 1.97.0 (fixture)\n")
+                "release: 1.85.1\ncommit-hash: 4eb161250e340c8f48f66e2b929ef4a5bed7c181\n", encoding="utf-8")
+            (output / "cargo-version").write_text("cargo 1.97.0 (fixture)\n", encoding="utf-8")
             versions = fixture._tool_versions(output)
             self.assertEqual(versions["rustc"], "1.85.1")
             self.assertEqual(versions["cargo"], "cargo 1.97.0 (fixture)")
-            (output / "rustc-version").write_text("release: 1.85.1\ncommit-hash: changed\n")
+            (output / "rustc-version").write_text("release: 1.85.1\ncommit-hash: changed\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "compiler"):
                 fixture._tool_versions(output)
 
@@ -87,10 +86,10 @@ class EngineeringFixtureTest(unittest.TestCase):
                         "workspace_default_members": ["other"],
                         "resolve": {"nodes": [{"id": "selected", "features": ["guarded"]}]}}
             path = output / "cargo-metadata.json"
-            path.write_text(json.dumps(metadata))
+            path.write_text(json.dumps(metadata), encoding="utf-8")
             fixture._check_metadata_features(output)
             metadata["resolve"]["nodes"][0]["features"] = []
-            path.write_text(json.dumps(metadata))
+            path.write_text(json.dumps(metadata), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "did not activate"):
                 fixture._check_metadata_features(output)
 

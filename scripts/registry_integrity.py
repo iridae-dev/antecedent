@@ -44,7 +44,7 @@ def verify_package(directory: Path, archive: Path, checksum: str) -> None:
         raise RegistryIntegrityError(f'archive checksum mismatch: {archive.name}')
     expected_files: dict[str, str] = {}
     expected_dirs: set[str] = set()
-    with tarfile.open(fileobj=io.BytesIO(archive_data), mode='r:gz') as tar:
+    with tarfile.open(fileobj=io.BytesIO(archive_data), mode='r:gz', encoding="utf-8") as tar:
         for member in tar:
             name = member.name.rstrip('/') if member.isdir() else member.name
             rel = _safe_member(name, directory.name)
@@ -89,13 +89,13 @@ def verify_package(directory: Path, archive: Path, checksum: str) -> None:
     # Cargo creates these metadata files on unpack; they are not crate inputs.
     if '.cargo-ok' in files and '.cargo-ok' not in expected_files:
         try:
-            if json.loads((directory / '.cargo-ok').read_text()) != {'v': 1}:
+            if json.loads((directory / '.cargo-ok').read_text(encoding="utf-8")) != {'v': 1}:
                 raise RegistryIntegrityError('unexpected Cargo unpack marker')
         except (ValueError, OSError) as error:
             raise RegistryIntegrityError('invalid Cargo unpack marker') from error
         files.remove('.cargo-ok')
     if '.cargo-checksum.json' in files and '.cargo-checksum.json' not in expected_files:
-        data = json.loads((directory / '.cargo-checksum.json').read_text())
+        data = json.loads((directory / '.cargo-checksum.json').read_text(encoding="utf-8"))
         if data.get('package') != checksum or data.get('files') != expected_files:
             raise RegistryIntegrityError('invalid Cargo checksum metadata')
         files.remove('.cargo-checksum.json')

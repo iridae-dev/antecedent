@@ -53,7 +53,7 @@ def inspect_python_runtime(root: Path, output: str, source: str, wheel_output: s
         out = Path(output)
         for name, expected in (('source-root', source), ('wheel-output', wheel_output)):
             path = out / name
-            if path.is_symlink() or not path.is_file() or path.read_text().strip() != expected:
+            if path.is_symlink() or not path.is_file() or path.read_text(encoding="utf-8").strip() != expected:
                 raise ArtifactIdentityError('Python runtime source or wheel identity differs')
         interpreter = out / 'bin/python3.13'
         if not interpreter.is_symlink() or interpreter.resolve() != Path(wheel['python']['executable']).resolve():

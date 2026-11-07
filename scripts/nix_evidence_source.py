@@ -171,7 +171,7 @@ def materialize_committed_source(root: Path, destination: Path, *, allowed_outpu
             subprocess.run(["git", "archive", "--format=tar", head], cwd=root,
                            stdout=archive, stderr=subprocess.PIPE, check=True)
             archive.seek(0)
-            with tarfile.open(fileobj=archive, mode="r:") as tar:
+            with tarfile.open(fileobj=archive, mode="r:", encoding="utf-8") as tar:
                 _extract_archive(tar, destination, expected, algorithm, found)
         if found != set(expected):
             raise ValueError("archive membership differs from committed tree")

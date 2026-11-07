@@ -239,7 +239,7 @@ def main() -> int:
     features = feature_args[1].split(',') if feature_args else []
     version = subprocess.check_output(['rustc', '-vV'], cwd=REPO_ROOT, text=True)
     rustc_info = dict(line.split(': ', 1) for line in version.splitlines() if ': ' in line)
-    pin = tomllib.loads((REPO_ROOT / 'tools/evidence-analyzer/pin.toml').read_text())
+    pin = tomllib.loads((REPO_ROOT / 'tools/evidence-analyzer/pin.toml').read_text(encoding="utf-8"))
     cargo_version = subprocess.check_output(['cargo', '-V'], cwd=REPO_ROOT, text=True).strip()
     if (rustc_info.get('host') != args.target_triple or rustc_info.get('release') != pin['release']
             or rustc_info.get('commit-hash') != pin['commit']
@@ -270,8 +270,8 @@ def main() -> int:
         for name in ('Cargo.toml', 'rust-toolchain.toml', '.cargo/config', '.cargo/config.toml')
     }
     if args.builder_metadata:
-        builder_metadata = json.loads(args.builder_metadata.read_text())
-        builder_graph = json.loads(args.builder_unit_graph.read_text())
+        builder_metadata = json.loads(args.builder_metadata.read_text(encoding="utf-8"))
+        builder_graph = json.loads(args.builder_unit_graph.read_text(encoding="utf-8"))
         result['builder_compiler_units'] = compiler_units(builder_metadata, builder_graph)
         result['unit_graph_comparison'] = compare_compiler_units(result['compiler_units'], result['builder_compiler_units'])
     print(json.dumps(result, indent=2))

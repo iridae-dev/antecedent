@@ -30,20 +30,20 @@ class PythonWheelIdentityTests(unittest.TestCase):
         (self.output / 'bin/python3.13').symlink_to(self.python)
         self.wheel = self.output / 'wheels/antecedent-3.0.0-py3-none-any.whl'
         self.write_wheel()
-        (self.output / 'source-root').write_text(str(self.source))
-        (self.output / 'python-config.json').write_text(json.dumps({'executable': str(self.python), 'implementation': 'cpython', 'version': '3.13.14'}))
-        (self.output / 'rustc-version').write_text('release: 1.85.1\ncommit-hash: abc\n')
-        (self.output / 'cargo-version').write_text('cargo 1.97.0 (fixture)\n')
-        (self.output / 'maturin-version').write_text('maturin 1.14.1\n')
+        (self.output / 'source-root').write_text(str(self.source), encoding="utf-8")
+        (self.output / 'python-config.json').write_text(json.dumps({'executable': str(self.python), 'implementation': 'cpython', 'version': '3.13.14'}), encoding="utf-8")
+        (self.output / 'rustc-version').write_text('release: 1.85.1\ncommit-hash: abc\n', encoding="utf-8")
+        (self.output / 'cargo-version').write_text('cargo 1.97.0 (fixture)\n', encoding="utf-8")
+        (self.output / 'maturin-version').write_text('maturin 1.14.1\n', encoding="utf-8")
         for name in ('cargo-metadata.json', 'cargo-unit-graph.json'):
-            (self.output / name).write_text('{}')
+            (self.output / name).write_text('{}', encoding="utf-8")
         for name in ('nix/evidence-python-wheel.nix', 'nix/evidence-toolchain.nix', 'flake.lock'):
             file = self.root / name
             file.parent.mkdir(parents=True, exist_ok=True)
-            file.write_text(name)
+            file.write_text(name, encoding="utf-8")
         pin = self.root / 'tools/evidence-analyzer/pin.toml'
         pin.parent.mkdir(parents=True)
-        pin.write_text('release="1.85.1"\ncommit="abc"\n')
+        pin.write_text('release="1.85.1"\ncommit="abc"\n', encoding="utf-8")
         self.drv = str(self.store / ('c' * 32 + '-target.drv'))
         self.nar = 'sha256-' + 'A' * 43 + '='
         self.source_nar = 'sha256-' + 'B' * 43 + '='
@@ -93,7 +93,7 @@ class PythonWheelIdentityTests(unittest.TestCase):
         self.metadata['deriver'] = 'forged'
         with self.assertRaises(identity.ArtifactIdentityError): self.inspect()
         self.metadata['deriver'] = self.drv
-        (self.output / 'python-config.json').write_text(json.dumps({'executable': '/usr/bin/python3', 'implementation': 'cpython', 'version': '3.13.14'}))
+        (self.output / 'python-config.json').write_text(json.dumps({'executable': '/usr/bin/python3', 'implementation': 'cpython', 'version': '3.13.14'}), encoding="utf-8")
         with self.assertRaises(identity.ArtifactIdentityError): self.inspect()
 
 

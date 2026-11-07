@@ -15,14 +15,14 @@ class BuildOnlyTest(unittest.TestCase):
             root = Path(directory)
             pin = root / "tools/evidence-analyzer/pin.toml"
             pin.parent.mkdir(parents=True)
-            pin.write_text('release = "1.85.1"\ncommit = "abc"\n')
+            pin.write_text('release = "1.85.1"\ncommit = "abc"\n', encoding="utf-8")
             out = root / "out"
             out.mkdir()
-            (out / "cargo-version").write_text("cargo 1.97.0 (test)\n")
+            (out / "cargo-version").write_text("cargo 1.97.0 (test)\n", encoding="utf-8")
             version = out / "rustc-version"
-            version.write_text("release: 1.85.1\ncommit-hash: abc\nhost: aarch64-apple-darwin\n")
+            version.write_text("release: 1.85.1\ncommit-hash: abc\nhost: aarch64-apple-darwin\n", encoding="utf-8")
             self.assertEqual(build._versions(root, out)["host"], "aarch64-apple-darwin")
-            version.write_text("release: 1.85.1\ncommit-hash: abc\nhost: x86_64-unknown-linux-gnu\n")
+            version.write_text("release: 1.85.1\ncommit-hash: abc\nhost: x86_64-unknown-linux-gnu\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "compiler"):
                 build._versions(root, out)
 
@@ -34,8 +34,7 @@ class BuildOnlyTest(unittest.TestCase):
             (package / "Cargo.toml").write_text(
                 '[package]\nname = "toy"\nversion = "0.1.0"\n'
                 '[features]\na = []\nb = []\n'
-                '[package.metadata.scientific-test-features]\nsuite = ["b", "a"]\n'
-            )
+                '[package.metadata.scientific-test-features]\nsuite = ["b", "a"]\n', encoding="utf-8")
             self.assertEqual(build._target_features(root, "toy", "test", "suite"), ["a", "b"])
             with self.assertRaises(ValueError):
                 build._target_features(root, "../bad", "test", "suite")
@@ -64,8 +63,8 @@ class BuildOnlyTest(unittest.TestCase):
             unit = {"pkg_id": package["id"], "target": {"name": "toy", "kind": ["lib"],
                     "src_path": str(root / "src/lib.rs")}, "dependencies": [], "features": ["f"],
                     "mode": "test", "platform": None, "profile": {}}
-            (root / "cargo-metadata.json").write_text(json.dumps({"packages": [package]}))
-            (root / "cargo-unit-graph.json").write_text(json.dumps({"version": 1, "roots": [0], "units": [unit]}))
+            (root / "cargo-metadata.json").write_text(json.dumps({"packages": [package]}), encoding="utf-8")
+            (root / "cargo-unit-graph.json").write_text(json.dumps({"version": 1, "roots": [0], "units": [unit]}), encoding="utf-8")
             self.assertEqual(len(build._compiler_graph(root, "toy", "lib", "", ["f"])["units"]), 1)
             with self.assertRaisesRegex(ValueError, "does not match"):
                 build._compiler_graph(root, "other", "lib", "", [])

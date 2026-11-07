@@ -66,7 +66,7 @@ def inspect_output(output: Path, source: str, source_nar: str) -> dict:
     actual_source_nar = _run(["nix", "--extra-experimental-features", "nix-command", "hash", "path", source], cwd=ROOT)
     if actual_source_nar != source_nar:
         raise ValueError("Python fixture imported source changed")
-    if (output / "source-root").read_text().strip() != source:
+    if (output / "source-root").read_text(encoding="utf-8").strip() != source:
         raise ValueError("Python fixture source does not match the imported snapshot")
     pin = tomllib.loads((ROOT / "tools/evidence-analyzer/pin.toml").read_text(encoding="utf-8"))
     rust = (output / "rustc-version").read_text(encoding="utf-8")

@@ -18,7 +18,7 @@ class PolicyTests(unittest.TestCase):
         source = Path(__file__).resolve().parent.parent
         for name in ("Cargo.lock", policy.REGISTRY, "nix/compile-time-audit.md", "nix/compile-time-suite01-review.md"):
             (self.root / name).write_bytes((source / name).read_bytes())
-        self.registry = json.loads((self.root / policy.REGISTRY).read_text())
+        self.registry = json.loads((self.root / policy.REGISTRY).read_text(encoding="utf-8"))
         row = next(x for x in self.registry["units"] if x["mode"] == "run-custom-build" and x["source_projection"] == "complete-source")
         self.unit = {k: row[k] for k in ("name", "version", "mode", "target_kind", "target_path", "features", "platform")}
         self.unit["dependencies"] = []
@@ -43,12 +43,12 @@ class PolicyTests(unittest.TestCase):
         selected_name = self.unit["name"]
         unrelated = next(x for x in self.registry["units"] if x["name"] != selected_name)
         unrelated["review_note"] = "unrelated review update"
-        (self.root / policy.REGISTRY).write_text(json.dumps(self.registry))
+        (self.root / policy.REGISTRY).write_text(json.dumps(self.registry), encoding="utf-8")
         policy.recheck_selection(self.root, result)
         selected = next(x for x in self.registry["units"] if x["name"] == selected_name
                         and x["mode"] == self.unit["mode"] and x["features"] == self.unit["features"])
         selected["review_note"] = "selected review update"
-        (self.root / policy.REGISTRY).write_text(json.dumps(self.registry))
+        (self.root / policy.REGISTRY).write_text(json.dumps(self.registry), encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "audit changed"):
             policy.recheck_selection(self.root, result)
 
@@ -63,7 +63,7 @@ class PolicyTests(unittest.TestCase):
             policy.validate_build(self.root, self.built)
 
     def test_changed_lock_and_bad_dependency_index_refuse(self):
-        (self.root / "Cargo.lock").write_text("version = 4\n")
+        (self.root / "Cargo.lock").write_text("version = 4\n", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "stale"):
             policy.validate_build(self.root, self.built)
         source = Path(__file__).resolve().parent.parent / "Cargo.lock"

@@ -72,7 +72,7 @@ def main() -> int:
             if len(paths) != 1 or not paths[0].startswith("/nix/store/"):
                 print("Sandbox probe returned an unexpected output path.")
                 return 1
-            report = json.loads(Path(paths[0]).read_text())
+            report = json.loads(Path(paths[0]).read_text(encoding="utf-8"))
             print(json.dumps(report, indent=2, sort_keys=True))
             print("These probes do not establish a complete or reproducible build boundary.")
             return 0

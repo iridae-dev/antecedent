@@ -11,7 +11,7 @@ class InventoryTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        (self.root / 'Cargo.toml').write_text('[package]\nname="root"\nversion="1.0.0"\n')
+        (self.root / 'Cargo.toml').write_text('[package]\nname="root"\nversion="1.0.0"\n', encoding="utf-8")
         (self.root / 'Cargo.lock').write_text('''version = 4
 [[package]]
 name = "root"
@@ -21,10 +21,10 @@ name = "macro"
 version = "0.1.0"
 source = "registry+https://example.test/index"
 checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-''')
+''', encoding="utf-8")
         self.source = self.root / 'macro'
         self.source.mkdir()
-        (self.source / 'lib.rs').write_text('let _ = std::env::var("TMPDIR");\n')
+        (self.source / 'lib.rs').write_text('let _ = std::env::var("TMPDIR");\n', encoding="utf-8")
         self.metadata = {'packages': [
             {'name': 'root', 'version': '1.0.0', 'source': None,
              'manifest_path': str(self.root / 'Cargo.toml'), 'targets': [{'kind': ['lib']}]},

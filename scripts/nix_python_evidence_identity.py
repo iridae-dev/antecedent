@@ -75,30 +75,30 @@ def inspect_python_wheel(root: Path, output: str, source: str, *, store: Path = 
         if not re.fullmatch(sri, output_nar) or not re.fullmatch(sri, source_nar):
             raise ArtifactIdentityError('invalid Python Nix NAR hash')
         out = Path(output)
-        if (out / 'source-root').is_symlink() or (out / 'source-root').read_text().strip() != source:
+        if (out / 'source-root').is_symlink() or (out / 'source-root').read_text(encoding="utf-8").strip() != source:
             raise ArtifactIdentityError('Python source root differs')
         wheels = list((out / 'wheels').glob('*.whl'))
         if len(wheels) != 1:
             raise ArtifactIdentityError('expected exactly one Python wheel')
         wheel_sha = _file_hash(wheels[0])
         extension_name, extension_sha = _wheel_contents(wheels[0], Path(source))
-        config = json.loads((out / 'python-config.json').read_text())
+        config = json.loads((out / 'python-config.json').read_text(encoding="utf-8"))
         python = Path(config['executable'])
         if (config.get('implementation') != 'cpython' or not config.get('version', '').startswith('3.13.')
                 or not str(python).startswith(str(store) + '/')
                 or (out / 'bin/python3.13').resolve() != python.resolve()):
             raise ArtifactIdentityError('Python interpreter identity is not pinned to the output')
-        versions = (out / 'rustc-version').read_text()
+        versions = (out / 'rustc-version').read_text(encoding="utf-8")
         fields = dict(line.split(': ', 1) for line in versions.splitlines() if ': ' in line)
-        pin = tomllib.loads((root / 'tools/evidence-analyzer/pin.toml').read_text())
+        pin = tomllib.loads((root / 'tools/evidence-analyzer/pin.toml').read_text(encoding="utf-8"))
         if fields.get('release') != pin['release'] or fields.get('commit-hash') != pin['commit']:
             raise ArtifactIdentityError('Python wheel compiler differs from evidence pin')
-        cargo = (out / 'cargo-version').read_text().strip()
-        maturin = (out / 'maturin-version').read_text().strip()
+        cargo = (out / 'cargo-version').read_text(encoding="utf-8").strip()
+        maturin = (out / 'maturin-version').read_text(encoding="utf-8").strip()
         if not re.fullmatch(r'cargo \d+\.\d+\.\d+(?: \([^\n]*\))?', cargo) or not re.fullmatch(r'maturin \d+\.\d+\.\d+[^\n]*', maturin):
             raise ArtifactIdentityError('missing or invalid Python wheel build tools')
-        cargo_metadata = json.loads((out / 'cargo-metadata.json').read_text())
-        cargo_graph = json.loads((out / 'cargo-unit-graph.json').read_text())
+        cargo_metadata = json.loads((out / 'cargo-metadata.json').read_text(encoding="utf-8"))
+        cargo_graph = json.loads((out / 'cargo-unit-graph.json').read_text(encoding="utf-8"))
         graph = compiler_units(cargo_metadata, cargo_graph)
         if len(graph['roots']) != 1:
             raise ArtifactIdentityError('Python wheel unit graph has multiple roots')
