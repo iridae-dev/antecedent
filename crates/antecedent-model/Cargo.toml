@@ -13,6 +13,9 @@ categories.workspace = true
 description = "Structural causal models, mechanisms, and interventional sampling for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
 
+[package.metadata.scientific-test-features]
+mechanism_selection = ["ml-forest", "ml-gbdt"]
+
 [lints]
 workspace = true
 

@@ -13,6 +13,13 @@ import scientific_records as sr
 
 
 class PipelineTest(unittest.TestCase):
+    def setUp(self):
+        # These disposable builds test the earning pipeline independently of
+        # ambient host settings; the preflight has its own refusal tests.
+        ambient = patch('evidence_earning.noncanonical_compile_environment', return_value=[])
+        ambient.start()
+        self.addCleanup(ambient.stop)
+
     def test_compile_time_data_requires_a_boundary_and_invalidates_the_pass(self):
         with tempfile.TemporaryDirectory(prefix='antecedent-compile-input-') as tmp:
             root = Path(tmp)

@@ -14,6 +14,10 @@ keywords.workspace = true
 categories.workspace = true
 autotests = false
 
+[package.metadata.scientific-test-features]
+suite_01 = ["calibration-internal"]
+suite_06 = ["calibration-internal"]
+
 [lints]
 workspace = true
 

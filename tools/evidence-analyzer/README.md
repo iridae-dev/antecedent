@@ -52,6 +52,38 @@ These are review findings, **not completed declarations**. In particular, the
 `cc` and PyO3 helpers need their own transitive read assessment, as do the
 remaining macro/build packages (including CUDA/HIP and zstd tooling).
 
+The metadata graph is a conservative inventory, not the exact set executed on a
+particular build: it includes target-specific and optional packages. On the
+reviewed macOS host, the offline default-feature workspace tree contains 58
+versioned compile-time packages, while the full metadata inventory above has 130.
+Neither count substitutes for the graph of the actual test target and its enabled
+features. Scientific Rust earning builds each selected test target separately;
+Python earning uses its existing native extension. Those build configurations
+and their dependencies must be bound to the input assessment before narrowing
+the conservative inventory.
+
+Two packages illustrate why the graph and invocation sites matter:
+
+* `const-random-macro` 0.1.16 derives macro output from `CONST_RANDOM_SEED` when
+  set at macro compilation, and otherwise reads operating-system randomness.
+  It appears in the full metadata graph but not the reviewed host default graph.
+  An assessment must prove it inactive for the actual build or control and bind
+  its seed; an empty input list cannot represent an entropy read.
+* `paste` 1.0.15 can evaluate an `env!(...)` string supplied inside macro input.
+  The environment names are therefore selected at its caller sites, including
+  callers in dependencies, rather than fixed by `paste` itself. A review needs
+  to cover those sites and expansions under the actual build graph.
+
+To finish this review, first derive and test the host, target, feature and
+build/dev dependency graph for each earning command; then assess every active
+package's transitive helper calls and caller-selected inputs. Record package
+source identity, compiler and native tool/SDK identities, interpreter inputs,
+environment and any remaining data reads in a checkable boundary. Refuse an
+unknown graph, uncontrolled entropy, or unrepresentable input rather than
+claiming an empty boundary. Build scripts such as `num-traits`, `ahash` and
+`flatbuffers` call helper crates that probe the compiler, so searching only
+their own `build.rs` for environment and process APIs is insufficient.
+
 The current manifest format only records repository-relative file inputs.
 `Fingerprinter.declared` bounds paths to the repository; an external path is
 treated as a missing declaration, not hashed. `Cargo.lock` is hashed and the
@@ -68,6 +100,20 @@ must also be distinguished from user overrides: declaring a generated variable
 as a host environment input currently only refuses a pre-existing host value;
 it does not record the value Cargo passes to a build script. Do not waive these
 reads without establishing which locked build configuration determines them.
+
+`python3 scripts/registry_integrity.py` is an optional diagnostic: after a
+conservative ambient-environment check, it compares offline resolved registry
+archives to `Cargo.lock` and extracted package files and membership to those
+archives. It executes no scientific or calibration tests. It is not yet
+enforced by earning and does not establish native tool, SDK, interpreter or
+other compile-time input boundaries; a successful diagnostic is not an
+authorization to declare those boundaries complete.
+
+Earning does reject known ambient Cargo configuration and build overrides
+before creating a snapshot, and checks them again before publishing. Scientific
+run entry points also check before discovering rows or Cargo metadata. This
+fail-closed preflight does not assess arbitrary macro reads or establish that
+the installed native toolchain and SDK are immutable.
 
 What a manifest covers is described in
 [Earning and checking the records](../../docs/guides/scientific-verification.md#earning-and-checking-the-records).

@@ -15,6 +15,10 @@ import calibration_status as calibration
 class EarningTests(Fixture):
     def setUp(self):
         super().setUp()
+        # Fixture tests exercise snapshot behavior, not the host's Cargo config.
+        ambient = patch('evidence_earning.noncanonical_compile_environment', return_value=[])
+        ambient.start()
+        self.addCleanup(ambient.stop)
         self.write('tools/evidence-analyzer/pin.toml', 'release="1.85.1"\ncommit="abc"\nanalyzer="diagnostic"\n')
 
     def snapshot(self, kind='scientific', key='top::t::check_top', measurement=None, record_binding=None):

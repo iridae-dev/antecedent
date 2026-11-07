@@ -131,6 +131,32 @@ def cargo_target_feature_args(
     return ["--features", ",".join(required)]
 
 
+def scientific_target_feature_args(manifest: Path, args: list[str]) -> list[str]:
+    """Stable, manifest-declared scientific-build features for a Cargo target.
+
+    Unlike Cargo `required-features`, these do not change ordinary test discovery.
+    The evidence fingerprint and earning build must use the same selection.
+    """
+    cargo = load_toml(manifest)
+    table = cargo.get("package", {}).get("metadata", {}).get("scientific-test-features", {})
+    if not isinstance(table, dict):
+        raise ValueError(f"{manifest}: scientific-test-features must be a table")
+    target_name = "lib" if "--lib" in args else None
+    if "--test" in args:
+        index = args.index("--test")
+        if index + 1 < len(args):
+            target_name = args[index + 1]
+    selected = table.get(target_name, [])
+    if not isinstance(selected, list) or not all(isinstance(f, str) and f for f in selected):
+        raise ValueError(f"{manifest}: invalid scientific features for target {target_name!r}")
+    available = cargo.get("features", {})
+    if any(f not in available for f in selected):
+        raise ValueError(f"{manifest}: scientific target names an unknown feature")
+    required = cargo_target_feature_args(manifest, args)
+    features = set(selected) | (set(required[1].split(",")) if required else set())
+    return ["--features", ",".join(sorted(features))] if features else []
+
+
 def workspace_package_version(root: Path | None = None) -> str:
     """``[workspace.package] version`` from the repo ``Cargo.toml``."""
     cargo = load_toml((root or REPO_ROOT) / "Cargo.toml")

@@ -63,7 +63,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from _repo import cargo_target_feature_args, test_target
+from _repo import cargo_target_feature_args, scientific_target_feature_args, test_target
 
 SKIP_DIRS = {"__pycache__", "target", ".venv", "node_modules", ".git", ".pytest_cache"}
 TEXT_SUFFIXES = {".py", ".pyi", ".rs", ".toml", ".json", ".txt", ".csv", ".cfg", ".ini", ".md", ".yaml", ".yml", ".lock"}
@@ -830,9 +830,11 @@ class Fingerprinter:
         features: str | None = None,
         platform: bool = True,
         environ: dict[str, str] | None = None,
+        scientific_build: bool = False,
     ):
         self.root = root
         self.platform = platform
+        self.scientific_build = scientific_build
         self.environ = os.environ if environ is None else environ
         self.graph = workspace_graph(metadata if metadata is not None else load_metadata(root), root)
         self.features = features if features is not None else self.environ.get("ANTECEDENT_SCIENTIFIC_FEATURES", "")
@@ -1097,9 +1099,8 @@ class Fingerprinter:
             crate = info["crate"]
             parts["test"], test_scan = self.rust_test_side(row, crate)
             env |= test_scan.env
-            parts["features"] = " ".join(
-                cargo_target_feature_args(self.root / "crates" / crate / "Cargo.toml", info["target"])
-            )
+            feature_args = scientific_target_feature_args if self.scientific_build else cargo_target_feature_args
+            parts["features"] = " ".join(feature_args(self.root / "crates" / crate / "Cargo.toml", info["target"]))
             members = closure(self.graph, crate)
             parts["crates"] = {c: self.crate_digest(c) for c in members}
             for c in members:

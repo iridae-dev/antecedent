@@ -34,7 +34,7 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
-from _repo import REPO_ROOT, cargo_target_feature_args, load_toml
+from _repo import REPO_ROOT, scientific_target_feature_args, load_toml
 from evidence_fingerprint import Fingerprinter, UnresolvedInput, locate
 
 RECORDS = "parity/scientific_records.toml"
@@ -203,7 +203,7 @@ def capture_env(root: Path) -> dict[str, str]:
 
 def build_command(root: Path, crate: str, target: tuple[str, ...]) -> list[str]:
     """`cargo test --no-run` for one crate target, reporting its test executable as JSON."""
-    features = cargo_target_feature_args(root / "crates" / crate / "Cargo.toml", list(target))
+    features = scientific_target_feature_args(root / "crates" / crate / "Cargo.toml", list(target))
     return ["cargo", "test", "--no-run", "--message-format=json", "-p", crate, *target, *features]
 
 
@@ -255,6 +255,8 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run) -> int:
     (through the compiler inventory driver when `rustc-dev` is installed), run each assertion
     exactly, and publish its manifest. The ledger is written after every target, so an
     interrupted run keeps what it finished. Returns the number of failures."""
+    from evidence_earning import require_compile_environment
+    require_compile_environment(root)
     groups: dict[tuple[str, tuple[str, ...]], list[tuple[dict, dict]]] = {}
     for row in items:
         info = locate(root, row)
@@ -264,7 +266,7 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run) -> int:
         return 0
     from evidence_earning import Snapshot, binding, build_analyzer, compile_time_code, project_snapshot
 
-    fp = Fingerprinter(root)
+    fp = Fingerprinter(root, scientific_build=True)
     env = capture_env(root)
     # Only this run's compilations describe the code being earned: an inventory from
     # an earlier compilation cannot say a body is still eligible. A crate Cargo does
@@ -280,6 +282,14 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run) -> int:
         env.update(RUSTC_WORKSPACE_WRAPPER=str(driver), ANTECEDENT_ANALYZER_OUTPUT=str(inventory_dir))
     recorded, failed = 0, 0
     for (crate, target), todo in sorted(groups.items()):
+        from test_evidence import rust_test_features
+        args = scientific_target_feature_args(root / "crates" / crate / "Cargo.toml", list(target))
+        configured = set(args[1].split(",")) if args else set()
+        required = set().union(*(rust_test_features(root / row["evidence_test"], row["evidence_assertion"])
+                                 for row, _ in todo))
+        if not required <= configured:
+            raise RuntimeError(f"scientific target {crate} {' '.join(target)} is missing declared features: "
+                               + ", ".join(sorted(required - configured)))
         snapshots = {
             info["selector"]: Snapshot(root, row, binding("scientific", info["selector"], None), fp)
             for row, info in todo
@@ -382,6 +392,8 @@ def run_batch(root: Path, batch: list[dict]) -> tuple[int, set[str]]:
 
 
 def cmd_run(root: Path, args: argparse.Namespace) -> int:
+    from evidence_earning import require_compile_environment
+    require_compile_environment(root)
     rows = all_scientific_rows(root)
     owed, current = classify(root, rows)
     only = list(getattr(args, "only", None) or [])
@@ -414,7 +426,7 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
         print(f"scientific records: batch python ({len(python)})", flush=True)
         from evidence_earning import Snapshot, binding
 
-        fp = Fingerprinter(root)
+        fp = Fingerprinter(root, scientific_build=True)
         snapshots = {i["selector"]: Snapshot(root, i, binding("scientific", i["selector"], None), fp) for i in python}
         withdraw_records(root, python)
         code, passed = run_batch(root, python)

@@ -90,6 +90,23 @@ class FingerprintTests(Fixture):
     def test_unchanged_inputs_are_stable(self):
         self.assertEqual(self.fps(), self.fps())
 
+    def test_scientific_target_feature_mapping_is_fingerprinted(self):
+        self.write("crates/top/Cargo.toml", '[package]\nname = "top"\nversion = "1.0.0"\n'
+                   '[features]\na = []\nb = []\n'
+                   '[package.metadata.scientific-test-features]\nt = ["a"]\n')
+        before_fp = sr.Fingerprinter(self.root, self.metadata, "", scientific_build=True).fingerprint(self.row("top"))
+        before = sr.Fingerprinter(self.root, self.metadata, "", scientific_build=True).parts(self.row("top"))["features"]
+        calibration_before = sr.Fingerprinter(self.root, self.metadata, "").parts(self.row("top"))["features"]
+        self.write("crates/top/Cargo.toml", '[package]\nname = "top"\nversion = "1.0.0"\n'
+                   '[features]\na = []\nb = []\n'
+                   '[package.metadata.scientific-test-features]\nt = ["a", "b"]\n')
+        after_fp = sr.Fingerprinter(self.root, self.metadata, "", scientific_build=True).fingerprint(self.row("top"))
+        after = sr.Fingerprinter(self.root, self.metadata, "", scientific_build=True).parts(self.row("top"))["features"]
+        calibration_after = sr.Fingerprinter(self.root, self.metadata, "").parts(self.row("top"))["features"]
+        self.assertNotEqual(before, after)
+        self.assertNotEqual(before_fp, after_fp)
+        self.assertEqual(calibration_before, calibration_after)
+
     def test_comment_and_blank_edits_do_not_invalidate(self):
         before = self.fps()
         self.write("crates/leaf/src/lib.rs", "// note\n\npub fn leaf() -> u8 { 1 } // trailing\n")
@@ -256,6 +273,15 @@ class ExecutionCaptureTests(Fixture):
         seen = []
         self.run_capture(["crates/top/src/lib.rs"], seen=seen)
         self.assertEqual(seen[0][:3], ["/bin/top-test", "--exact", "check_top"])
+
+    def test_scientific_build_uses_stable_target_feature_union(self):
+        self.write("crates/top/Cargo.toml", '[package]\nname = "top"\nversion = "1.0.0"\n'
+                   '[features]\na = []\nb = []\n'
+                   '[package.metadata.scientific-test-features]\nt = ["b", "a"]\n')
+        build = sr.build_command(self.root, "top", ("--test", "t"))
+        self.assertEqual(build[build.index("--features") + 1], "a,b")
+        from _repo import cargo_target_feature_args
+        self.assertEqual(cargo_target_feature_args(self.root / "crates/top/Cargo.toml", ["--test", "t"]), [])
 
     def test_the_built_executable_is_read_from_cargo_json(self):
         import json

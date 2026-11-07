@@ -15,6 +15,7 @@ import subprocess
 import tempfile
 
 from _repo import load_toml
+from compile_time_environment import noncanonical_compile_environment
 from evidence_fingerprint import Fingerprinter, closure, locate, INPUT_DECLARATIONS
 from evidence_manifests import (ANALYZER, BUILD_ENV, NORMALIZATION, SCHEMA, STORE, Checker,
                                 canonical, digest, manifest_id, noncanonical_environment)
@@ -49,6 +50,18 @@ def declarations(row: dict) -> dict:
 
 
 _COMPILE_TIME: dict[Path, dict[str, set[str]] | None] = {}
+
+
+def require_compile_environment(root: Path) -> None:
+    """Reject known ambient overrides before discovering or executing a build."""
+    issues = noncanonical_compile_environment(root, os.environ)
+    # BUILD_ENV has its own canonical-value policy (including allowed lint-only
+    # flags). Report names only, since environment values can contain secrets.
+    issues += ['environment override ' + issue.split('=', 1)[0]
+               for issue in noncanonical_environment(os.environ, [])]
+    if issues:
+        raise RuntimeError('unassessed compile-time environment; unset overrides or remove '
+                           'ambient Cargo config before earning: ' + ', '.join(issues))
 
 
 def compile_time_code(root: Path) -> dict[str, set[str]] | None:
@@ -103,7 +116,8 @@ class Snapshot:
 
     def __init__(self, root: Path, row: dict, record: dict, fp: Fingerprinter | None = None):
         self.root = root
-        fp = fp or Fingerprinter(root, platform=False)
+        require_compile_environment(root)
+        fp = fp or Fingerprinter(root, platform=False, scientific_build=record.get('kind') == 'scientific')
         with fp.tracking() as used:
             parts = fp.parts(row)
         if record.get('fingerprint') is None:
@@ -122,7 +136,8 @@ class Snapshot:
         identity = dict(line.split(': ', 1) for line in version.splitlines() if ': ' in line)
         if identity.get('release') != checker.pin['release'] or identity.get('commit-hash') != checker.pin['commit']:
             raise RuntimeError('the compiler does not match tools/evidence-analyzer/pin.toml')
-        files = {root / rel for rel in (INPUT_DECLARATIONS, '.cargo/config.toml', '.cargo/config')} | used.files
+        files = {root / rel for rel in (INPUT_DECLARATIONS, '.cargo/config.toml', '.cargo/config',
+                                         'scripts/compile_time_environment.py')} | used.files
         for rel in row.get('fixtures', []):
             for path in (root / rel, root / f'{rel}.json'):
                 if not path.is_dir():
@@ -228,6 +243,7 @@ class Snapshot:
                              analyzer=ANALYZER, inputs=inputs, fallbacks=[], declarations=declarations(row))
 
     def unchanged(self) -> bool:
+        require_compile_environment(self.root)
         checker = Checker(self.root)
         from evidence_projection import matches
         for i in self.manifest['inputs']:
