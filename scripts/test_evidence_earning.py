@@ -142,6 +142,14 @@ class EarningTests(Fixture):
             with self.assertRaisesRegex(RuntimeError, 'undeclared compile-time input boundary'):
                 self.snapshot()
 
+    def test_nix_environment_claim_does_not_waive_unassessed_inputs(self):
+        import evidence_earning
+        graph = {'leaf': set(), 'mid': set(), 'top': {'reader'}}
+        with patch.dict(evidence_earning._COMPILE_TIME, {self.root: graph}), \
+             patch.dict('os.environ', {'IN_NIX_SHELL': 'pure', 'NIX_BUILD_TOP': '/tmp/fake'}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, 'undeclared compile-time input boundary'):
+                self.snapshot()
+
     def test_declared_compile_time_data_and_missing_inputs_are_guarded(self):
         import evidence_earning
         self.write('parity/fingerprint_inputs.toml', '''[[input]]
