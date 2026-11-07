@@ -30,6 +30,8 @@ pkgs.stdenv.mkDerivation {
   # LibreSSL used by the upstream Cargo binary. The compiler remains pinned to
   # the separately verified official 1.85.1 toolchain.
   nativeBuildInputs = [ rust pkgs.cargo pkgs.python3 ];
+  # librustc_driver links zlib; only the inventory driver uses it.
+  buildInputs = [ pkgs.zlib ];
   dontConfigure = true;
   dontStrip = true;
   buildPhase = ''
@@ -68,7 +70,7 @@ pkgs.stdenv.mkDerivation {
     # Inventory only this fresh workspace compilation; the analyzer is pinned
     # to the same rustc and never wraps external dependency compilations.
     mkdir -m 700 "$TMPDIR/compiler-inventory"
-    RUSTC_BOOTSTRAP=1 ${rust}/bin/rustc "$PWD/tools/evidence-analyzer/driver.rs" --edition=2021 -C rpath=yes -o "$TMPDIR/evidence-driver"
+    RUSTC_BOOTSTRAP=1 ${rust}/bin/rustc "$PWD/tools/evidence-analyzer/driver.rs" --edition=2021 -C link-arg=-Wl,-rpath,${rust}/lib/rustlib/aarch64-apple-darwin/lib -C link-arg=-Wl,-rpath,${rust}/lib -o "$TMPDIR/evidence-driver"
     export RUSTC_WORKSPACE_WRAPPER="$TMPDIR/evidence-driver" ANTECEDENT_ANALYZER_OUTPUT="$TMPDIR/compiler-inventory"
     ${pkgs.cargo}/bin/cargo ${pkgs.lib.escapeShellArgs cargoArgs} > "$TMPDIR/cargo-messages.jsonl" || {
       cat "$TMPDIR/cargo-messages.jsonl" >&2
