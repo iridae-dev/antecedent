@@ -1,6 +1,6 @@
 # Install Antecedent
 
-Install a package for ordinary use, or build a source checkout for development. Python needs 3.11 or later; Rust needs 1.85 or later.
+Install a package for ordinary use, or build a source checkout for development. Python needs 3.11 or later; Rust needs 1.97 or later.
 
 ## Python package
 
@@ -43,7 +43,7 @@ python -c "import antecedent; print(antecedent.__version__, antecedent.__file__)
 python examples/python/notebook_to_system.py
 ```
 
-Rust 1.85 is selected by `rust-toolchain.toml`; install it through rustup if needed. Use `--release` for representative estimation performance. Python wheels enable the tree and neural learner backends. See [development](../development.md) for contributors' checks and supported build combinations.
+Rust 1.97 is selected by `rust-toolchain.toml`; install it through rustup if needed. Use `--release` for representative estimation performance. Python wheels enable the tree and neural learner backends. See [development](../development.md) for contributors' checks and supported build combinations.
 
 ## Check the installation
 

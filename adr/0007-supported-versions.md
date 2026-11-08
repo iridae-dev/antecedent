@@ -5,7 +5,7 @@
 
 ## Decision
 
-- Rust **1.85**, edition **2024** (pinned in `rust-toolchain.toml`).
+- Rust **1.97**, edition **2024** (pinned in `rust-toolchain.toml`).
 - First public Python release targets CPython **3.11 through 3.14**.
 
 ## Consequences

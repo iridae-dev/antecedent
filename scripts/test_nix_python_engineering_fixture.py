@@ -30,7 +30,7 @@ class PythonFixtureTest(unittest.TestCase):
             source = "/nix/store/" + "1" * 32 + "-source"
             good_hash = "sha256-" + "A" * 43 + "="
             (output / "source-root").write_text(source + "\n", encoding="utf-8")
-            (output / "rustc-version").write_text('release: 1.85.1\ncommit-hash: 4eb161250e340c8f48f66e2b929ef4a5bed7c181\n', encoding="utf-8")
+            (output / "rustc-version").write_text('release: 1.97.1\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\n', encoding="utf-8")
             (output / "cargo-version").write_text("cargo 1.97.0 (fixture)\n", encoding="utf-8")
             (output / "python-config.json").write_text(json.dumps({"executable": str(python_bin), "implementation": "cpython", "version": "3.13.14"}), encoding="utf-8")
             (output / "lib/nix_python_boundary.so").write_bytes(b"fixture extension")

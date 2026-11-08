@@ -9,7 +9,7 @@ current, so CI only checks that records are up to date.
 
 ## What is pinned and checked
 
-- `flake.lock` pins nixpkgs; `evidence-toolchain.nix` pins Rust 1.85.1, its LLVM
+- `flake.lock` pins nixpkgs; `evidence-toolchain.nix` pins Rust 1.97.1, its LLVM
   tools and `rustc-dev` (for the compiler-inventory driver) by SHA-256 for
   `aarch64-darwin`. Cargo comes from the locked nixpkgs. Crates come from
   `importCargoLock`, checksum-verified against `Cargo.lock`; this production

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import json
 import os
 import subprocess
 import sys
@@ -26,7 +27,13 @@ from _repo import load_toml
 
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "parity" / "public_api"
-FORMAT_VERSION = 37  # rustdoc JSON format of the pinned 1.85 toolchain
+FORMAT_VERSION = 57  # rustdoc JSON format of the pinned toolchain
+
+# Compiler-internal marker traits the toolchain implements for every eligible type;
+# they describe the toolchain, not this crate's API.
+COMPILER_MARKER_TRAITS = frozenset({
+    "TrivialClone", "core::clone::TrivialClone", "UnsafeUnpin", "core::marker::UnsafeUnpin",
+})
 
 HEADER = (
     "# Public API snapshot (rustdoc JSON, default features). Regenerate with\n"
@@ -155,7 +162,7 @@ class Lister:
         return fallback
 
     def rpath(self, p: dict[str, Any]) -> str:
-        name = self.path_name(p["id"], p["name"])
+        name = self.path_name(p["id"], p["path"])
         return name + self.rargs(p.get("args"))
 
     def rargs(self, args) -> str:
@@ -324,9 +331,11 @@ class Lister:
     def attrs(self, item) -> str:
         pre = ""
         for a in item.get("attrs", []):
-            if "doc(hidden)" in a:
+            # Attributes are strings or objects such as {"other": "#[doc(hidden)]"}.
+            text = a if isinstance(a, str) else json.dumps(a)
+            if "doc(hidden)" in text:
                 pre += "#[doc(hidden)] "
-            if "non_exhaustive" in a:
+            if "non_exhaustive" in text:
                 pre += "#[non_exhaustive] "
         return pre
 
@@ -469,6 +478,8 @@ class Lister:
             else:
                 own_local = False
             trait = im.get("trait")
+            if trait is not None and trait["path"] in COMPILER_MARKER_TRAITS:
+                continue
             if trait is not None:
                 tid = str(trait["id"])
                 local_trait = tid in self.canon

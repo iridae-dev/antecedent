@@ -13728,7 +13728,7 @@ pub field antecedent_estimate::CounterfactualTransportPoint::cells_read: u64
 pub field antecedent_estimate::CounterfactualTransportPoint::conditioning_mass: core::option::Option<f64>
 pub field antecedent_estimate::CounterfactualTransportPoint::conditioning_mass_checked: bool
 pub field antecedent_estimate::CounterfactualTransportPoint::denominator: f64
-pub field antecedent_estimate::CounterfactualTransportPoint::evidence: RetainedSlice<antecedent_estimate::CounterfactualTransportEvidence>
+pub field antecedent_estimate::CounterfactualTransportPoint::evidence: antecedent_estimate::counterfactual_transport::RetainedSlice<antecedent_estimate::CounterfactualTransportEvidence>
 pub field antecedent_estimate::CounterfactualTransportPoint::numerator: f64
 pub field antecedent_estimate::CounterfactualTransportPoint::probability: f64
 pub field antecedent_estimate::CrossfitCacheStats::bundle_fits: usize
@@ -14153,7 +14153,7 @@ pub field antecedent_estimate::ObservationalExposureEstimate::horvitz_thompson: 
 pub field antecedent_estimate::ObservationalExposureEstimate::interval_unavailable_reason: core::option::Option<&'static str>
 pub field antecedent_estimate::ObservationalExposureEstimate::maximum_exposure_probability: f64
 pub field antecedent_estimate::ObservationalExposureEstimate::minimum_exposure_probability: f64
-pub field antecedent_estimate::ObservationalExposureEstimate::pointwise_interval: core::option::Option<ObservationalExposureInterval>
+pub field antecedent_estimate::ObservationalExposureEstimate::pointwise_interval: core::option::Option<antecedent_estimate::interference_observational::ObservationalExposureInterval>
 pub field antecedent_estimate::ObservationalExposureEstimate::propensity_provenance: antecedent_core::query::interference::ExposurePropensityProvenance
 pub field antecedent_estimate::ObservationalExposureEstimate::to_exposed_clusters: usize
 pub field antecedent_estimate::ObservationalExposureEstimate::to_exposed_units: usize
@@ -14487,7 +14487,7 @@ pub field antecedent_estimate::SaturationInterferenceEstimate::estimate: anteced
 pub field antecedent_estimate::SaturationInterferenceEstimate::from_exposed_clusters: usize
 pub field antecedent_estimate::SaturationInterferenceEstimate::from_exposed_units: usize
 pub field antecedent_estimate::SaturationInterferenceEstimate::interval_unavailable_reason: core::option::Option<&'static str>
-pub field antecedent_estimate::SaturationInterferenceEstimate::pointwise_interval: core::option::Option<SaturationClusterInterval>
+pub field antecedent_estimate::SaturationInterferenceEstimate::pointwise_interval: core::option::Option<antecedent_estimate::interference_saturation::SaturationClusterInterval>
 pub field antecedent_estimate::SaturationInterferenceEstimate::to_exposed_clusters: usize
 pub field antecedent_estimate::SaturationInterferenceEstimate::to_exposed_units: usize
 pub field antecedent_estimate::ScenarioBand::effects: core::option::Option<alloc::sync::Arc<[f64]>>
@@ -15217,7 +15217,7 @@ pub field antecedent_estimate::counterfactual_transport_sampled::SampledClaimLab
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels::statistical_inference: &'static str
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledClaimLabels::structural_identification: &'static str
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::cells_read: u64
-pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::datasets: crate::counterfactual_transport::RetainedSlice<alloc::vec::Vec<antecedent_estimate::counterfactual_transport_sampled::SampledTableKey>>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::datasets: antecedent_estimate::counterfactual_transport::RetainedSlice<alloc::vec::Vec<antecedent_estimate::counterfactual_transport_sampled::SampledTableKey>>
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::derivation_identity: alloc::string::String
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::envelope: core::option::Option<antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope>
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::evidence_identity: alloc::string::String
@@ -15226,7 +15226,7 @@ pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterf
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::point: core::option::Option<antecedent_estimate::counterfactual_transport_sampled::SampledPointEstimate>
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::point_withheld_reason: core::option::Option<&'static str>
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::repairs: antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
-pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::tables: crate::counterfactual_transport::RetainedSlice<antecedent_estimate::counterfactual_transport_sampled::SampledTableReport>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::tables: antecedent_estimate::counterfactual_transport::RetainedSlice<antecedent_estimate::counterfactual_transport_sampled::SampledTableReport>
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate::unseen_rule: antecedent_estimate::counterfactual_transport_sampled::UnseenCellRule
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledInference::interval: antecedent_estimate::counterfactual_transport_sampled::SampledIntervalOutcome
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledInference::method: &'static str
@@ -18129,14 +18129,14 @@ pub fn <antecedent_estimate::AipwAte>::const fn with_other_levels(self, other_le
 pub fn <antecedent_estimate::AipwAte>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
 pub fn <antecedent_estimate::AipwAte>::const fn with_se_kind(self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self
 pub fn <antecedent_estimate::AipwAte>::fn attach_bootstrap(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::AipwWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, point: antecedent_estimate::EffectEstimate) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
-pub fn <antecedent_estimate::AipwAte>::fn estimate_streamed(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery, fold_seed: u64, batch_rows: usize, ceiling_bytes: u64) -> core::result::Result<StreamedAipwEstimate, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::AipwAte>::fn estimate_streamed(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery, fold_seed: u64, batch_rows: usize, ceiling_bytes: u64) -> core::result::Result<antecedent_estimate::streamed_aipw::StreamedAipwEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn fit(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::AipwWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn fit_checked(&self, checked: &antecedent_estimate::CheckedAipwPreparation, workspace: &mut antecedent_estimate::AipwWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn fit_checked_point(&self, checked: &antecedent_estimate::CheckedAipwPreparation, workspace: &mut antecedent_estimate::AipwWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn fit_with_factories(&self, problem: &antecedent_estimate::PreparedPropensityProblem, ctx: &antecedent_core::execution::context::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet, outcome: &dyn antecedent_learn::learner::LearnerFactory, treatment: &dyn antecedent_learn::learner::LearnerFactory) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn has_second_units(&self) -> bool
 pub fn <antecedent_estimate::AipwAte>::fn new() -> Self
-pub fn <antecedent_estimate::AipwAte>::fn population_linear_atc_interval(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::AipwWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet, level: f64) -> core::result::Result<crate::population_atc::PopulationAtcInterval, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::AipwAte>::fn population_linear_atc_interval(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::AipwWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet, level: f64) -> core::result::Result<antecedent_estimate::population_atc::PopulationAtcInterval, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn population_linear_interval(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::AipwWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet, level: f64) -> core::result::Result<antecedent_estimate::population_aipw::PopulationAipwInterval, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn prepare(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery) -> core::result::Result<antecedent_estimate::PreparedPropensityProblem, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::AipwAte>::fn prepare_checked(&self, data: &antecedent_data::dataset::TabularData, identification: &antecedent_identify::result::IdentificationResult, estimand_index: usize) -> core::result::Result<antecedent_estimate::CheckedAipwPreparation, antecedent_estimate::EstimationError>
@@ -18518,7 +18518,7 @@ pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_se_kind(self, s
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn ate_on_row_indices(&self, problem: &antecedent_estimate::PreparedEstimationProblem, workspace: &mut antecedent_estimate::EstimationWorkspace, row_src: &[usize]) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn ate_on_row_indices_into(&self, problem: &antecedent_estimate::PreparedEstimationProblem, workspace: &mut antecedent_estimate::EstimationWorkspace, row_src: &[usize], x_boot: &mut [f64], y_boot: &mut [f64]) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn attach_bootstrap(&self, problem: &antecedent_estimate::PreparedEstimationProblem, workspace: &mut antecedent_estimate::EstimationWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, point: antecedent_estimate::EffectEstimate) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
-pub fn <antecedent_estimate::LinearAdjustmentAte>::fn estimate_streamed(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery, batch_rows: usize, ceiling_bytes: u64) -> core::result::Result<StreamedAdjustmentEstimate, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::LinearAdjustmentAte>::fn estimate_streamed(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery, batch_rows: usize, ceiling_bytes: u64) -> core::result::Result<antecedent_estimate::streamed_adjustment::StreamedAdjustmentEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn fit(&self, problem: &antecedent_estimate::PreparedEstimationProblem, workspace: &mut antecedent_estimate::EstimationWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn fit_checked(&self, checked: &antecedent_estimate::CheckedLinearAdjustmentAte, workspace: &mut antecedent_estimate::EstimationWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn fit_point(&self, problem: &antecedent_estimate::PreparedEstimationProblem, workspace: &mut antecedent_estimate::EstimationWorkspace, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
@@ -18660,7 +18660,7 @@ pub fn <antecedent_estimate::PropensityWeighting>::const fn with_glm_options(sel
 pub fn <antecedent_estimate::PropensityWeighting>::const fn with_other_levels(self, other_levels: antecedent_estimate::OtherLevels) -> Self
 pub fn <antecedent_estimate::PropensityWeighting>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
 pub fn <antecedent_estimate::PropensityWeighting>::fn attach_bootstrap(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::PropensityEstimationWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, point: antecedent_estimate::EffectEstimate) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
-pub fn <antecedent_estimate::PropensityWeighting>::fn estimate_streamed(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery, batch_rows: usize, ceiling_bytes: u64) -> core::result::Result<StreamedPropensityEstimate, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::PropensityWeighting>::fn estimate_streamed(&self, data: &antecedent_data::dataset::TabularData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::average::AverageEffectQuery, batch_rows: usize, ceiling_bytes: u64) -> core::result::Result<antecedent_estimate::streamed_propensity::StreamedPropensityEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PropensityWeighting>::fn fit(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::PropensityEstimationWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PropensityWeighting>::fn new() -> Self
 pub fn <antecedent_estimate::PropensityWeighting>::fn population_linear_score_interval(&self, problem: &antecedent_estimate::PreparedPropensityProblem, workspace: &mut antecedent_estimate::PropensityEstimationWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet, level: f64) -> core::result::Result<antecedent_estimate::BalancedWeightingInterval, antecedent_estimate::EstimationError>
@@ -21319,7 +21319,7 @@ pub struct antecedent_estimate::white_innovation_posterior::InnovationWhitenessR
 pub struct antecedent_estimate::white_innovation_posterior::WhiteInnovationDeclaration
 pub struct antecedent_estimate::white_innovation_posterior::WhiteInnovationPosterior
 pub trait antecedent_estimate::DirectedAncestry
-pub trait antecedent_estimate::Estimator<D, Q = antecedent_core::query::average::AverageEffectQuery>: sealed::Sealed
+pub trait antecedent_estimate::Estimator<D, Q = antecedent_core::query::average::AverageEffectQuery>: antecedent_estimate::estimator::sealed::Sealed
 pub trait antecedent_estimate::PosteriorFunctionalEvaluator
 pub trait antecedent_estimate::temporal_dependent_interval::TemporalEstimator
 pub trait fn fn antecedent_estimate::DirectedAncestry::descendants_of(&self, nodes: &[antecedent_graph::types::DenseNodeId], out: &mut antecedent_graph::workspace::BitSet, ws: &mut antecedent_graph::workspace::GraphWorkspace)

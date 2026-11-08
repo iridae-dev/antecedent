@@ -11256,7 +11256,7 @@ pub variant antecedent_io::cyclic_family_artifact::CyclicUncertainty::None
 pub variant antecedent_io::cyclic_family_artifact::CyclicUncertainty::Posterior
 pub variant antecedent_io::cyclic_family_artifact::CyclicUncertainty::Sampling
 pub variant antecedent_io::cyclic_family_artifact::CyclicWorldOutcomeAnswer::EquilibriumDraws { outcomes: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome> }
-pub variant antecedent_io::cyclic_family_artifact::CyclicWorldOutcomeAnswer::GaussianLaw { mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>, residual_inf: core::option::Option<f64>, block_diagnostics: core::option::Option<alloc::vec::Vec<CyclicBlockDiagnosticAnswer>> }
+pub variant antecedent_io::cyclic_family_artifact::CyclicWorldOutcomeAnswer::GaussianLaw { mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>, residual_inf: core::option::Option<f64>, block_diagnostics: core::option::Option<alloc::vec::Vec<antecedent_io::cyclic_family_artifact::worlds::answers::CyclicBlockDiagnosticAnswer>> }
 pub variant antecedent_io::cyclic_family_artifact::CyclicWorldOutcomeAnswer::NoSolution { cause: alloc::string::String, next_attempt: alloc::string::String }
 pub variant antecedent_io::cyclic_family_artifact::CyclicWorldOutcomeAnswer::Trajectory { trajectory: antecedent_model::continuous_cyclic::OdeTrajectory }
 pub variant antecedent_io::cyclic_family_artifact::CyclicWorldOutcomeAnswer::Withheld
@@ -11534,7 +11534,7 @@ pub variant antecedent_io::stream_artifact::StreamArtifactError::BudgetRefused
 pub variant antecedent_io::stream_artifact::StreamArtifactError::Cancelled
 pub variant antecedent_io::stream_artifact::StreamArtifactError::ChecksumMismatch { section: &'static str }
 pub variant antecedent_io::stream_artifact::StreamArtifactError::Decompress
-pub variant antecedent_io::stream_artifact::StreamArtifactError::Io { kind: std::io::error::ErrorKind }
+pub variant antecedent_io::stream_artifact::StreamArtifactError::Io { kind: core::io::error::ErrorKind }
 pub variant antecedent_io::stream_artifact::StreamArtifactError::LiveDevicePointer
 pub variant antecedent_io::stream_artifact::StreamArtifactError::Malformed(&'static str)
 pub variant antecedent_io::stream_artifact::StreamArtifactError::NewerFormat { version: u16 }

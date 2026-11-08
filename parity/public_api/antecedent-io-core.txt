@@ -15083,9 +15083,9 @@ pub fn <antecedent_io_core::IoError>::fn cbor_decode(error: impl core::fmt::Disp
 pub fn <antecedent_io_core::IoError>::fn cbor_encode(error: impl core::fmt::Display) -> Self
 pub fn <antecedent_io_core::IoError>::fn io(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_io_core::IoError>::fn reason_code(&self) -> core::option::Option<&'static str>
-pub fn <antecedent_io_core::IoFailure>::const fn kind(&self) -> std::io::error::ErrorKind
+pub fn <antecedent_io_core::IoFailure>::const fn kind(&self) -> core::io::error::ErrorKind
 pub fn <antecedent_io_core::IoFailure>::fn message(&self) -> &str
-pub fn <antecedent_io_core::IoFailure>::fn new(kind: std::io::error::ErrorKind, message: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_io_core::IoFailure>::fn new(kind: core::io::error::ErrorKind, message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_io_core::JointLawPropagationArtifactError>::fn to_refusals(&self) -> alloc::vec::Vec<antecedent_contract::external_refusal::ExternalRefusal>
 pub fn <antecedent_io_core::JointLawPropagationArtifactWire>::fn consume(&self, expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::ConsumedJointLawPropagation, antecedent_io_core::JointLawPropagationArtifactError>
 pub fn <antecedent_io_core::JointLawPropagationArtifactWire>::fn consume_within(&self, expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext, limits: &antecedent_io_core::joint_law_propagation_artifact::JointLawPropagationLimits) -> core::result::Result<antecedent_io_core::ConsumedJointLawPropagation, antecedent_io_core::JointLawPropagationArtifactError>
@@ -16997,7 +16997,7 @@ pub struct antecedent_io_core::transported_counterfactual_artifact::TransportedC
 pub struct antecedent_io_core::transported_counterfactual_artifact::UnitContrastWire
 pub struct antecedent_io_core::wire::GraphCpdagWire
 pub trait antecedent_io_core::artifact_codec::ArtifactFamilyError: core::marker::Sized + core::convert::From<antecedent_io_core::IoError>
-pub trait antecedent_io_core::artifact_codec::VersionWord: core::marker::Copy + core::cmp::Eq + serde_core::de::DeserializeOwned + private::Sealed
+pub trait antecedent_io_core::artifact_codec::VersionWord: core::marker::Copy + core::cmp::Eq + serde_core::de::DeserializeOwned + antecedent_io_core::artifact_codec::private::Sealed
 pub trait antecedent_io_core::capacity_account::WeightedRowSource
 pub trait antecedent_io_core::container::LogicalSource
 pub trait fn fn antecedent_io_core::artifact_codec::ArtifactFamilyError::from_check(check: antecedent_io_core::ArtifactCheckError) -> Self
@@ -18528,8 +18528,8 @@ pub variant antecedent_io_core::capacity_account::CapacityError::ReservationOuts
 pub variant antecedent_io_core::capacity_account::CapacityError::Retention { retention: antecedent_core::execution_facts::OutputRetention, operation: antecedent_io_core::capacity_account::AccountedOperation }
 pub variant antecedent_io_core::capacity_account::CapacityError::Spill(antecedent_io_core::capacity_account::SpillFault)
 pub variant antecedent_io_core::capacity_account::CapacityError::SpillAllocation { bytes: u64 }
-pub variant antecedent_io_core::capacity_account::CapacityError::SpillIo { context: &'static str, kind: std::io::error::ErrorKind }
-pub variant antecedent_io_core::capacity_account::CapacityError::SpillRollback { cause: &'static str, leftover: usize, kind: std::io::error::ErrorKind }
+pub variant antecedent_io_core::capacity_account::CapacityError::SpillIo { context: &'static str, kind: core::io::error::ErrorKind }
+pub variant antecedent_io_core::capacity_account::CapacityError::SpillRollback { cause: &'static str, leftover: usize, kind: core::io::error::ErrorKind }
 pub variant antecedent_io_core::capacity_account::CapacityError::SummaryExceedsBudget { needed: u64, budget: u64 }
 pub variant antecedent_io_core::capacity_account::CapacityError::UnknownEntry { id: u64 }
 pub variant antecedent_io_core::capacity_account::CapacityError::WritePastReservation { got: usize, requested: usize }

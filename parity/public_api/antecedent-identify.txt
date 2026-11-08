@@ -5983,7 +5983,7 @@ pub struct antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan ha
 pub struct antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
 pub struct antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes
 pub struct antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes has private fields
-pub trait antecedent_identify::Identifier<G>: sealed::Sealed
+pub trait antecedent_identify::Identifier<G>: antecedent_identify::identifier::sealed::Sealed
 pub trait antecedent_identify::WitnessMeter
 pub trait fn fn antecedent_identify::Identifier::identify(&self, prepared: &<Self as antecedent_identify::Identifier>::Prepared, query: &antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub trait fn fn antecedent_identify::Identifier::prepare(&self, graph: &G, assumptions: &antecedent_core::assumption::AssumptionSet) -> core::result::Result<<Self as antecedent_identify::Identifier>::Prepared, antecedent_identify::IdentificationError>

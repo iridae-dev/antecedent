@@ -12,7 +12,7 @@ Python **3.11+**:
 python -m pip install --upgrade antecedent
 ```
 
-Rust **1.85+**:
+Rust **1.97+**:
 
 ```bash
 cargo add antecedent

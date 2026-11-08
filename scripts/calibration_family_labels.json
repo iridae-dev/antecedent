@@ -189,11 +189,11 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs",
-      "sha256": "979aa05d83a35c9b838a1c27492954be15cd9d755f832d23be2adefcd289b398",
+      "sha256": "d6cdd8d1d783f007388029f02811d65124bcaec9f97272325b4cbf71bb4230fe",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 214,
+          "line": 213,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test: design.test, dgp: design.dgp, interval: INTERVAL_METHOD },\n        design.level,"
         }
@@ -266,11 +266,11 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/joint_bayesian_transport_calibration.rs",
-      "sha256": "3e11e299af0fd80e49d983f4e7aa3c3b51eebe4578da1f6307f45c7314d18ca6",
+      "sha256": "600a10dae4ef259bd6a41c05dafdf2b52c6b74af006075990d1e4aff143dc368",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 51,
+          "line": 55,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test,\n            dgp: \"known_gaussian_invariant_effect_fixed_target\",\n            interval: \"posterior_quantile\",\n        },\n        0.95,"
         }
@@ -292,11 +292,11 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/learned_joint_calibration.rs",
-      "sha256": "385855bd6eefd12ac6145d4ea83a50a3a6dc16992aa20d3af04bf761aaf8dfdb",
+      "sha256": "a79a09d34dcdfa63743764ea75b543c06b7c6c14b0ea59123a393327e1a509fb",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 55,
+          "line": 59,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test,\n            dgp: \"known_quadratic_gaussian_invariant_effect_fixed_target\",\n            interval: \"posterior_quantile\",\n        },\n        0.95,"
         }
@@ -450,7 +450,7 @@
     },
     {
       "path": "crates/antecedent-io/tests/nested_markov_bayesian_calibration.rs",
-      "sha256": "2f586608a2ed186a2fbf33673d16e054949d60ad7796c7abff10062f16763555",
+      "sha256": "dd040bebc1fc4fef7a5bf967d14f94ce54feb5a0f858b553bb43e9d5f6a4a972",
       "labelled_calls": [
         {
           "line": 294,
@@ -570,7 +570,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_backlog.rs",
-      "sha256": "9751760ebd2ca1dc1ff24d6bb4d8dc069fdb6cc8bc8fccf5085e77e8d46d1254",
+      "sha256": "fdca1880767579b9ba440fc10ced5cbbaa43c49d80379774bb29b6c8982a94f3",
       "labelled_calls": [
         {
           "line": 221,
@@ -800,7 +800,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_response.rs",
-      "sha256": "7eaa64930b98d603eeab684b8dd0e8df0236bd3cc7d337a61917f38c8adc97d2",
+      "sha256": "7b6eca68b19f154c609c72d4c1d2165340657ff6887ffa94c1aacc4f40901274",
       "labelled_calls": [
         {
           "line": 724,
@@ -942,7 +942,7 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration.rs",
-      "sha256": "1d8247112cc0bdaac080782be3620afa6d084a8a84e310ac8e2044395e569be5",
+      "sha256": "799896893379943887e05ea266d36c76d0422dfc4fb4e58d6207bdda7632dc8b",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources."
@@ -1110,16 +1110,16 @@
     },
     {
       "path": "crates/antecedent/tests/joint_law_composed_interval_calibration.rs",
-      "sha256": "23295b4233b46a2f09c827d7d36f47406df51d013f4d62192df85740468a10ed",
+      "sha256": "829dca1a04ada55ac335d4ff91396b5116f00b8a4d982d9aa63d98ba2177e7c4",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 180,
+          "line": 176,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: NORMAL_APPROXIMATION_CONSTRUCTION },\n        LEVEL,"
         },
         {
-          "line": 338,
+          "line": 334,
           "call": "CoverageTally::new(",
           "argument": "\"a_violated_declared_independence_under_covers\", LEVEL"
         }
@@ -1190,7 +1190,7 @@
     },
     {
       "path": "crates/antecedent/tests/missing_outcome_calibration.rs",
-      "sha256": "904536174a0fb61c2f0101f74032d4b685ee3ab725c9ab2fce2fddf1193a33be",
+      "sha256": "2f63a258a93d7f7d82011ae7c9cc817c757bdb672cbc03f2d91df0f9b056cd2d",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1203,7 +1203,7 @@
     },
     {
       "path": "crates/antecedent/tests/mixture_interval_calibration.rs",
-      "sha256": "7ca5e8399a0a540510290ecd5b72d6f9354d97fd51c5804b98d898efd77d0bfc",
+      "sha256": "ff24cdbe7d0eb066d87a6529cc6effc145aa0611ca204e19ce88ad48ed48dffd",
       "labelled_calls": [
         {
           "line": 984,
@@ -1471,7 +1471,7 @@
     },
     {
       "path": "crates/antecedent/tests/practitioner_scale_calibration.rs",
-      "sha256": "290fc5cc21eea756eb461f5db8952397a9f9c6bf829b1980923f7a29ab1e44ab",
+      "sha256": "3c3d5f0494a0a99d9f487341cf82615790054bceb9778057bb7989192bdcef67",
       "labelled_calls": [
         {
           "line": 721,
@@ -1540,11 +1540,11 @@
     },
     {
       "path": "crates/antecedent/tests/predictive_score_interval_calibration.rs",
-      "sha256": "55f280e8a2ec603312a1d868bd531cb2d7627ef613ee50579d4e39e1c5eea3da",
+      "sha256": "088f59aa671a9efb8fa409d6e39bc6e530f4a48d80494279a23ae36c4b311445",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 291,
+          "line": 290,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: interval_method(design) },\n        LEVEL,"
         }
@@ -1566,7 +1566,7 @@
     },
     {
       "path": "crates/antecedent/tests/randomized_interval_calibration.rs",
-      "sha256": "512a576c3828175e6453e7deb1f88d557eff52bfdee7ce35c26843588d19e7ab",
+      "sha256": "364eb9bd7eda890fad1a952608da3f659aab5c9cf3c56a01b838b5d8bda2fd42",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1749,7 +1749,7 @@
     },
     {
       "path": "crates/antecedent/tests/static_calibration.rs",
-      "sha256": "e373d82813d9b9dd1e4078f690ade60f449a3e2f179b3f08a8372e9676fcd46b",
+      "sha256": "f14428b2464f8a17537c14b369bd14b96538440d73cf1f90df181c4a2c8ecf65",
       "labelled_calls": [
         {
           "line": 250,
@@ -2149,7 +2149,7 @@
     },
     {
       "path": "crates/antecedent/tests/weighted_interval_calibration.rs",
-      "sha256": "2731df5951edb0e03914875133d9f773a5241f112599b7f27c6108952cff0a82",
+      "sha256": "c9a9f37769a2803a7d55bcfb944401176ad918fa5b6ef66facb92cfbcffb14a9",
       "labelled_calls": [
         {
           "line": 617,

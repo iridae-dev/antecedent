@@ -11531,7 +11531,7 @@ pub field antecedent::ZTransportSensitivityArtifactWire::provider_snapshots: all
 pub field antecedent::ZTransportSensitivityArtifactWire::source_regime: u32
 pub field antecedent::ZTransportSensitivityArtifactWire::tipping_fraction: core::option::Option<f64>
 pub field antecedent::ZTransportSensitivityArtifactWire::version: u32
-pub field antecedent::analysis::CachedTemporalIdentification::by_horizon: alloc::sync::Arc<[CachedTemporalHorizonIdentification]>
+pub field antecedent::analysis::CachedTemporalIdentification::by_horizon: alloc::sync::Arc<[antecedent::analysis::prepared::cached::CachedTemporalHorizonIdentification]>
 pub field antecedent::analysis::CallbackExecution::declaration_identity: alloc::string::String
 pub field antecedent::analysis::CallbackExecution::evidence_state_digest: core::option::Option<alloc::string::String>
 pub field antecedent::analysis::CallbackExecution::invocations: u64
@@ -14822,7 +14822,7 @@ pub fn <antecedent::analysis::BoundTransportedDecision>::fn causal_identificatio
 pub fn <antecedent::analysis::BoundTransportedDecision>::fn causal_target(&self) -> &str
 pub fn <antecedent::analysis::BoundTransportedDecision>::fn identity(&self) -> &str
 pub fn <antecedent::analysis::BoundTransportedDecision>::fn inspect(&self) -> antecedent::analysis::TransportedDecisionInspection
-pub fn <antecedent::analysis::CachedTemporalIdentification>::fn get(&self, horizon: u32) -> core::option::Option<&CachedTemporalHorizonIdentification>
+pub fn <antecedent::analysis::CachedTemporalIdentification>::fn get(&self, horizon: u32) -> core::option::Option<&antecedent::analysis::prepared::cached::CachedTemporalHorizonIdentification>
 pub fn <antecedent::analysis::CallbackSession>::const fn invocations(&self) -> u64
 pub fn <antecedent::analysis::CallbackSession>::const fn ledger(&self) -> &antecedent_contract::evidence_ledger::ledger::EvidenceLedger
 pub fn <antecedent::analysis::CallbackSession>::const fn state_probes(&self) -> u64
@@ -16116,7 +16116,7 @@ pub fn <antecedent::planner::lowered::DecisionProgram>::const fn carrier(&self) 
 pub fn <antecedent::planner::lowered::DecisionProgram>::const fn chance_threshold(&self) -> f64
 pub fn <antecedent::planner::lowered::DecisionProgram>::const fn constraints(&self) -> usize
 pub fn <antecedent::planner::lowered::DecisionProgram>::const fn information_value(&self) -> core::option::Option<&antecedent::planner::lowered::EvsiProgram>
-pub fn <antecedent::planner::lowered::DecisionProgram>::const fn utility(&self) -> &UtilityForm
+pub fn <antecedent::planner::lowered::DecisionProgram>::const fn utility(&self) -> &antecedent::planner::lowered::decision::UtilityForm
 pub fn <antecedent::planner::lowered::DecisionProgram>::fn contract_identity(&self) -> core::option::Option<&str>
 pub fn <antecedent::planner::lowered::DecisionProgram>::fn scenario_source_identity(&self) -> core::option::Option<&str>
 pub fn <antecedent::planner::lowered::DecisionProgram>::fn utility_unit(&self) -> core::option::Option<&str>
@@ -16132,11 +16132,11 @@ pub fn <antecedent::planner::lowered::EvidenceDecisionProgram>::fn sources(&self
 pub fn <antecedent::planner::lowered::EvidenceRole>::const fn as_str(self) -> &'static str
 pub fn <antecedent::planner::lowered::EvidenceSourceRef>::const fn digest(&self) -> core::option::Option<[u8; 32]>
 pub fn <antecedent::planner::lowered::EvidenceSourceRef>::const fn role(&self) -> antecedent::planner::lowered::EvidenceRole
-pub fn <antecedent::planner::lowered::EvsiProgram>::const fn cost_map(&self) -> core::option::Option<&CostMapping>
+pub fn <antecedent::planner::lowered::EvsiProgram>::const fn cost_map(&self) -> core::option::Option<&antecedent::planner::lowered::decision::CostMapping>
 pub fn <antecedent::planner::lowered::EvsiProgram>::const fn max_candidates(&self) -> u64
 pub fn <antecedent::planner::lowered::EvsiProgram>::const fn mc_error_tolerance(&self) -> f64
-pub fn <antecedent::planner::lowered::EvsiProgram>::const fn monte_carlo(&self) -> MonteCarloTasks
-pub fn <antecedent::planner::lowered::EvsiProgram>::const fn rank(&self) -> RankSchedule
+pub fn <antecedent::planner::lowered::EvsiProgram>::const fn monte_carlo(&self) -> antecedent::planner::lowered::decision::MonteCarloTasks
+pub fn <antecedent::planner::lowered::EvsiProgram>::const fn rank(&self) -> antecedent::planner::lowered::decision::RankSchedule
 pub fn <antecedent::planner::lowered::EvsiProgram>::const fn require_net_value(&self) -> bool
 pub fn <antecedent::planner::lowered::EvsiProgram>::const fn rng_seed(&self) -> u64
 pub fn <antecedent::planner::lowered::EvsiProgram>::const fn tie_tolerance(&self) -> f64
@@ -17436,7 +17436,7 @@ pub struct antecedent::PreparedScientificBridgeDistribution has private fields
 pub struct antecedent::PreparedSmoothedDose
 pub struct antecedent::PreparedSmoothedDose has private fields
 pub struct antecedent::PreparedStudy has private fields
-pub struct antecedent::PreparedStudy<S = SampledPreparedState>
+pub struct antecedent::PreparedStudy<S = antecedent::analysis::prepared::SampledPreparedState>
 pub struct antecedent::PreparedTemporalTransport
 pub struct antecedent::PreparedTemporalTransport has private fields
 pub struct antecedent::PreparedTransportScenarios
@@ -18258,7 +18258,7 @@ pub struct antecedent::strategy_table::Site
 pub struct antecedent::strategy_table::StaticEstimateInput<'a>
 pub struct antecedent::strategy_table::TemporalAccept
 pub struct antecedent::strategy_table::UnknownStrategy
-pub trait antecedent::IntoAccepted: sealed::Sealed
+pub trait antecedent::IntoAccepted: antecedent::accepted::sealed::Sealed
 pub trait antecedent::IntoGraphInput
 pub trait antecedent::StageResultSink: core::marker::Send + core::marker::Sync
 pub trait antecedent::analysis::ProviderCallback
@@ -23484,14 +23484,14 @@ pub variant antecedent::analysis::ProcedureReportRequest::FixedSample { truth: a
 pub variant antecedent::analysis::ProcedureReportRequest::GroupSequential { truth: alloc::vec::Vec<f64>, level: f64, observed: core::option::Option<antecedent_stats::adaptive_inference::group_sequential::StagewiseLook> }
 pub variant antecedent::analysis::ProcedureReportRequest::WholeProcedureInversion { observed: antecedent_stats::adaptive_inference::procedure_uncertainty::ObservedTerminal, grid: antecedent_stats::adaptive_inference::procedure_uncertainty::InversionGrid, alpha: f64 }
 pub variant antecedent::analysis::RetainedOperation::AdmgGraphPosteriorResponse(antecedent::CheckedAdmgGraphPosteriorResponseInfo)
-pub variant antecedent::analysis::RetainedOperation::AdmgResponseCurve(&'a [super::CheckedFunctionalEffectResponseMember])
+pub variant antecedent::analysis::RetainedOperation::AdmgResponseCurve(&'a [antecedent::analysis::prepared::operations::CheckedFunctionalEffectResponseMember])
 pub variant antecedent::analysis::RetainedOperation::Association
 pub variant antecedent::analysis::RetainedOperation::Attribution(antecedent::analysis::CheckedAttributionInfo)
 pub variant antecedent::analysis::RetainedOperation::BayesianBasisAte(antecedent::analysis::CheckedBayesianBasisAteInfo)
 pub variant antecedent::analysis::RetainedOperation::BayesianBasisCate(&'a antecedent_core::query::mediation::ConditionalEffectQuery)
 pub variant antecedent::analysis::RetainedOperation::BayesianClassConditional(antecedent::analysis::CheckedBayesianClassConditionalInfo)
-pub variant antecedent::analysis::RetainedOperation::BayesianConditional(CheckedBayesianConditionalInfo)
-pub variant antecedent::analysis::RetainedOperation::BayesianGcomp { operation: &'a super::CheckedBayesianGcompOperation, validation: antecedent::RefuteSuite }
+pub variant antecedent::analysis::RetainedOperation::BayesianConditional(antecedent::analysis::execute::checked_bayesian_dag_conditional::CheckedBayesianConditionalInfo)
+pub variant antecedent::analysis::RetainedOperation::BayesianGcomp { operation: &'a antecedent::analysis::prepared::operations::CheckedBayesianGcompOperation, validation: antecedent::RefuteSuite }
 pub variant antecedent::analysis::RetainedOperation::BayesianGraphPosteriorAte(antecedent::analysis::CheckedBayesianGraphPosteriorAteInfo)
 pub variant antecedent::analysis::RetainedOperation::BayesianRobustAte(antecedent::analysis::CheckedBayesianRobustAteInfo)
 pub variant antecedent::analysis::RetainedOperation::BayesianSpecialist(antecedent::CheckedBayesianSpecialistInfo)

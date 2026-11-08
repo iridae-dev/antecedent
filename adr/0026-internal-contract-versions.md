@@ -7,7 +7,7 @@
 ## Decision
 
 Internal contracts below are versioned separately from the package release and
-from the platform floor. ADR 0007 remains the platform contract: Rust 1.85,
+from the platform floor. ADR 0007 remains the platform contract: Rust 1.97,
 edition 2024, and CPython 3.11 through 3.14. This decision does not change it.
 
 ### Identity domains
@@ -175,7 +175,7 @@ Extends ADR 0002, ADR 0018, ADR 0019, and ADR 0021.
 - A change to a derive-key, the uncertainty vocabularies, `cyclic.solution.v1`,
   thread ownership, the public data view, the `f64` missingness rule, or
   `STABLE_FORMAT` requires a superseding ADR.
-- Rust 1.85, edition 2024, and CPython 3.11–3.14 stay as ADR 0007 decided
+- Rust 1.97, edition 2024, and CPython 3.11–3.14 stay as ADR 0007 decided
   them. CI and wheel builds keep those floors.
 - Existing accepted ADRs stay the record of the decisions they made. This
   ADR names the internal versions those decisions now pin.

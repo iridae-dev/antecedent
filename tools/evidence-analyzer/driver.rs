@@ -10,10 +10,9 @@ extern crate rustc_interface;
 extern crate rustc_middle;
 extern crate rustc_hir;
 
-use rustc_driver::{Callbacks, Compilation, RunCompiler};
+use rustc_driver::{Callbacks, Compilation, run_compiler};
 use rustc_interface::interface;
 use rustc_middle::ty::TyCtxt;
-use rustc_middle::dep_graph::DepNodeExt;
 
 fn emit(line: String) {
     use std::io::Write;
@@ -36,23 +35,23 @@ impl Callbacks for Inventory {
         let hex = |text: &str| -> String { text.as_bytes().iter().map(|b| format!("{b:02x}")).collect() };
         for id in tcx.hir_crate_items(()).definitions() {
             if diagnostic {
-                let span = tcx.hir().span_with_body(tcx.local_def_id_to_hir_id(id));
+                let span = tcx.hir_span_with_body(tcx.local_def_id_to_hir_id(id));
                 let source = tcx.sess.source_map().span_to_snippet(span).unwrap_or_default();
                 emit(format!("item\t{}\t{}\t{}", tcx.def_path_str(id.to_def_id()), span.from_expansion(), hex(&source)));
             }
             if matches!(tcx.def_kind(id), rustc_hir::def::DefKind::Fn | rustc_hir::def::DefKind::AssocFn)
                 && !tcx.is_const_fn(id.to_def_id())
             {
-                if let Some(body) = tcx.hir().maybe_body_owned_by(id) {
+                if let Some(body) = tcx.hir_maybe_body_owned_by(id) {
                     let span = body.value.span;
                     // Async/opaque-return bodies can determine a public hidden
                     // type and affect compilation without executing. Keep them.
-                    let item_span = tcx.hir().span_with_body(tcx.local_def_id_to_hir_id(id));
+                    let item_span = tcx.hir_span_with_body(tcx.local_def_id_to_hir_id(id));
                     let header = tcx.sess.source_map().span_to_snippet(item_span.with_hi(span.lo())).unwrap_or_default();
                     if header.contains("impl") || header.contains("async") { continue; }
                     if !span.from_expansion() {
                         let file = tcx.sess.source_map().lookup_source_file(span.lo());
-                        let path = file.name.prefer_local().to_string();
+                        let path = file.name.prefer_local_unconditionally().to_string();
                         let path = std::fs::canonicalize(&path).map(|p| p.to_string_lossy().into_owned()).unwrap_or(path);
                         let text = tcx.sess.source_map().span_to_snippet(span).unwrap_or_default();
                         emit(format!("body\t{}\t{}\t{}\t{}\t{}", tcx.def_path_str(id.to_def_id()),
@@ -69,7 +68,7 @@ impl Callbacks for Inventory {
         // lock can itself invoke compiler queries. Unmapped nodes remain
         // explicit; dropping them would manufacture a completeness claim.
         let edges = std::cell::RefCell::new(Vec::new());
-        tcx.dep_graph.with_query(|graph| {
+        tcx.dep_graph.with_retained_dep_graph(|graph| {
             edges.borrow_mut().extend(graph.edges().into_iter().map(|(a, b)| (*a, *b)));
         });
         for (source, target) in edges.into_inner() {
@@ -85,5 +84,5 @@ impl Callbacks for Inventory {
 fn main() {
     let mut args: Vec<String> = std::env::args().collect();
     if args.get(1).is_some_and(|a| std::path::Path::new(a).file_stem().is_some_and(|s| s == "rustc")) { args.remove(1); }
-    RunCompiler::new(&args, &mut Inventory).run();
+    run_compiler(&args, &mut Inventory);
 }

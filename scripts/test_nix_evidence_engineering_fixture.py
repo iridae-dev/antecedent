@@ -71,12 +71,12 @@ class EngineeringFixtureTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             (output / "rustc-version").write_text(
-                "release: 1.85.1\ncommit-hash: 4eb161250e340c8f48f66e2b929ef4a5bed7c181\n", encoding="utf-8")
+                "release: 1.97.1\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\n", encoding="utf-8")
             (output / "cargo-version").write_text("cargo 1.97.0 (fixture)\n", encoding="utf-8")
             versions = fixture._tool_versions(output)
-            self.assertEqual(versions["rustc"], "1.85.1")
+            self.assertEqual(versions["rustc"], "1.97.1")
             self.assertEqual(versions["cargo"], "cargo 1.97.0 (fixture)")
-            (output / "rustc-version").write_text("release: 1.85.1\ncommit-hash: changed\n", encoding="utf-8")
+            (output / "rustc-version").write_text("release: 1.97.1\ncommit-hash: changed\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "compiler"):
                 fixture._tool_versions(output)
 

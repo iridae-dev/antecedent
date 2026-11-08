@@ -54,7 +54,7 @@ default-members = [
 [workspace.package]
 version = "3.0.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.97"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/iridae-dev/antecedent"
 homepage = "https://github.com/iridae-dev/antecedent"
@@ -131,6 +131,9 @@ semicolon_if_nothing_returned = "allow"
 cast_precision_loss = "allow"
 many_single_char_names = "allow"
 similar_names = "allow"
+# Matrix code indexes several rows and columns by the same loop variable
+# (symmetric fills, pivoting, paired updates); an iterator rewrite obscures it.
+needless_range_loop = "allow"
 
 # Numerical kernels stay optimized in `cargo test` debug builds. Library crates
 # that change in the 1.x working loop stay at opt-level 0 so incremental

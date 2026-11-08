@@ -623,7 +623,7 @@ New `unsafe` needs justification in review. Dependency and license policy: ADR 0
 Workspace and Python package versions follow `[workspace.package].version` in `Cargo.toml`.
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
-MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
+MSRV: Rust 1.97, edition 2024. Python: CPython 3.11–3.14.
 
 Keep `[workspace.package].version` in `Cargo.toml` and `version` in
 `python/pyproject.toml` in sync:

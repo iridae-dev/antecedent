@@ -10775,7 +10775,7 @@ pub field antecedent_core::OutcomeMisclassification::false_negative: u64
 pub field antecedent_core::OutcomeMisclassification::false_positive: u64
 pub field antecedent_core::OutcomeMisclassification::true_negative: u64
 pub field antecedent_core::OutcomeMisclassification::true_positive: u64
-pub field antecedent_core::PanelDidQuery::augmented: core::option::Option<AugmentedPanelNuisance>
+pub field antecedent_core::PanelDidQuery::augmented: core::option::Option<antecedent_core::query::did::AugmentedPanelNuisance>
 pub field antecedent_core::PanelDidQuery::clusters: alloc::sync::Arc<[alloc::sync::Arc<str>]>
 pub field antecedent_core::PanelDidQuery::cohorts: alloc::sync::Arc<[i64]>
 pub field antecedent_core::PanelDidQuery::design: antecedent_core::DidSamplingDesign

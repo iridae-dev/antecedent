@@ -3996,7 +3996,7 @@ pub struct antecedent_validate::target_native::TargetRefutationRun
 pub struct antecedent_validate::target_native::TargetRefuterRefusal
 pub trait antecedent_validate::CustomEffectValidator: core::marker::Send + core::marker::Sync
 pub trait antecedent_validate::TargetRefit
-pub trait antecedent_validate::Validator<A>: sealed::Sealed
+pub trait antecedent_validate::Validator<A>: antecedent_validate::validator::sealed::Sealed
 pub trait antecedent_validate::common::EffectRefit: core::fmt::Debug
 pub trait fn fn antecedent_validate::CustomEffectValidator::name(&self) -> &str
 pub trait fn fn antecedent_validate::CustomEffectValidator::validate(&self, problem: &antecedent_validate::RefutationProblem<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
