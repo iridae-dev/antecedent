@@ -33,6 +33,7 @@ class NixCaptureTest(unittest.TestCase):
         capture = {"/nix/store/source/crates/toy/src/lib.rs": {1}}
         mapped = {"/tmp/nix-capture-fixture/crates/toy/src/lib.rs": {1}}
         with patch.object(scientific_records, "locate", return_value=self.info), \
+             patch.object(scientific_records, "exact_test_name", return_value="toy"), \
              patch.object(scientific_records, "capture_env", return_value={}), \
              patch.object(scientific_records, "capture_one", return_value=capture) as execute, \
              patch.object(nix_capture, "build_committed_target", return_value=self.built), \
@@ -55,6 +56,7 @@ class NixCaptureTest(unittest.TestCase):
     def test_capture_rechecks_on_exception_and_never_publishes(self):
         with (
             patch.object(scientific_records, "locate", return_value=self.info),
+            patch.object(scientific_records, "exact_test_name", return_value="toy"),
             patch.object(scientific_records, "capture_env", return_value={}),
             patch.object(scientific_records, "capture_one", side_effect=RuntimeError("fixture failure")),
             patch.object(scientific_records, "record_passes") as record,
@@ -74,6 +76,7 @@ class NixCaptureTest(unittest.TestCase):
         built = {**self.built, "evidence_authorized": True}
         with (
             patch.object(scientific_records, "locate", return_value=self.info),
+            patch.object(scientific_records, "exact_test_name", return_value="toy"),
             patch.object(scientific_records, "capture_one") as execute,
             patch.object(nix_capture, "build_committed_target", return_value=built),
             self.assertRaisesRegex(ValueError, "authorize"),
@@ -85,11 +88,13 @@ class NixCaptureTest(unittest.TestCase):
         python = {"lang": "python", "crate": None, "target": [], "selector": "test_a.py::test_a"}
         other = {"lang": "rust", "crate": "other", "target": ["--lib"], "selector": "other::lib::toy"}
         with patch.object(scientific_records, "locate", return_value=python), \
+             patch.object(scientific_records, "exact_test_name", return_value="toy"), \
              patch.object(nix_capture, "build_committed_target") as build:
             with self.assertRaisesRegex(ValueError, "Python"):
                 nix_capture.diagnose_target(self.root, [self.row])
             build.assert_not_called()
         with patch.object(scientific_records, "locate", side_effect=[self.info, other]), \
+             patch.object(scientific_records, "exact_test_name", return_value="toy"), \
              patch.object(nix_capture, "build_committed_target") as build:
             with self.assertRaisesRegex(ValueError, "one Cargo target"):
                 nix_capture.diagnose_target(self.root, [self.row, self.row])

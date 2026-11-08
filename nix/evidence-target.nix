@@ -44,6 +44,11 @@ pkgs.stdenv.mkDerivation {
   pname = "antecedent-evidence-targets";
   version = "0";
   inherit src;
+  # Compile in place from the read-only store copy of the committed source:
+  # `CARGO_MANIFEST_DIR` (and every path a test resolves from it at run time) is
+  # then the store source, which exists on the host and is the same for every
+  # build of one commit. A scratch copy would bake a sandbox-only path into tests.
+  dontUnpack = true;
   nativeBuildInputs = common.nativeBuildInputs;
   buildInputs = common.buildInputs;
   dontConfigure = true;
@@ -51,6 +56,7 @@ pkgs.stdenv.mkDerivation {
   passAsFile = [ "targetsJson" ];
   inherit targetsJson;
   buildPhase = ''
+    cd ${src}
     ${common.environment vendor}
     # Start from the compiled third-party units; Cargo recompiles workspace crates
     # and anything whose fingerprint differs.

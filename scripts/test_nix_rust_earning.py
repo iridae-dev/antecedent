@@ -57,6 +57,7 @@ class NixRustEarning(unittest.TestCase):
                 return {"coverage": {row["name"] + "::lib::test": {} for row in target_rows}, "failures": []}
 
             with patch.object(scientific, "locate", side_effect=locate), \
+                 patch.object(scientific, "exact_test_name", return_value="test"), \
                  patch.object(scientific, "Fingerprinter"), \
                  patch.object(scientific, "withdraw_records", side_effect=ledger), \
                  patch.object(scientific, "record_passes", side_effect=ledger) as record, \
@@ -79,6 +80,7 @@ class NixRustEarning(unittest.TestCase):
         info = {"lang": "rust", "crate": "a", "target": ["--lib"], "selector": "a::lib::test"}
         with (
             patch.object(scientific, "locate", return_value=info),
+            patch.object(scientific, "exact_test_name", return_value="test"),
             patch.object(scientific, "Fingerprinter"),
             patch.object(scientific, "withdraw_records") as withdraw,
             patch.object(evidence_earning, "require_compile_environment"),

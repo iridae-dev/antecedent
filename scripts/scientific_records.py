@@ -219,10 +219,36 @@ def built_executable(stdout: str) -> str | None:
     return found
 
 
+class SelectorError(ValueError):
+    """A scientific row does not name exactly one test: an infrastructure error, not a failure."""
+
+
+def exact_test_name(root: Path, row: dict, info: dict) -> str:
+    """The libtest name of a Rust row, including inline modules around its test function.
+
+    The selector carries the file's module path; a test inside `mod tests { ... }` (or any
+    inline module) is named through those modules too. Resolved from source before any
+    build, so a row that names no unique test stops the run immediately."""
+    import test_evidence as te
+
+    base = info["selector"].split("::", 2)[2]
+    prefix, _, function = base.rpartition("::")
+    masked = te.source_masked(root / row["evidence_test"])
+    found = [m.start() for m in re.finditer(rf"\bfn\s+{re.escape(function)}\s*[<(]", masked.skeleton)]
+    if len(found) != 1:
+        raise SelectorError(f"{info['selector']}: {len(found)} functions named {function} in {row['evidence_test']}")
+    inner = [block.name for block in sorted(te.module_items(masked), key=lambda block: block.body[0])
+             if block.body[0] < found[0] < block.body[1]]
+    return "::".join([part for part in (prefix, *inner) if part] + [function])
+
+
 def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=subprocess.run,
                 *, llvm_tools: dict[str, str] | None = None) -> dict[str, set[int]] | None:
-    """Run one Rust assertion's instrumented binary; its line coverage, or `None` on failure."""
-    libtest = info["selector"].split("::", 2)[2]
+    """Run one Rust assertion's instrumented binary; its line coverage, or `None` on failure.
+
+    Running no test at all is an infrastructure error and raises: a wrong name or a missing
+    test must stop the run, not be recorded as one more failure."""
+    libtest = info.get("libtest") or info["selector"].split("::", 2)[2]
     with tempfile.TemporaryDirectory(prefix="antecedent-capture-") as tmp:
         raw, data = Path(tmp) / "run.profraw", Path(tmp) / "run.profdata"
         done = run(
@@ -232,7 +258,10 @@ def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=su
             text=True,
             capture_output=True,
         )
-        if done.returncode != 0 or not PASSED_ONE.search((done.stdout or "") + (done.stderr or "")):
+        output = (done.stdout or "") + (done.stderr or "")
+        if re.search(r"^running 0 tests$", output, re.M):
+            raise SelectorError(f"{info['selector']}: the test binary has no test named {libtest}")
+        if done.returncode != 0 or not PASSED_ONE.search(output):
             print(f"FAIL: {info['selector']}: not captured\n{((done.stdout or '') + (done.stderr or ''))[-400:]}")
             return None
         tool = (lambda name: llvm_tools[name]) if llvm_tools is not None else llvm_tool
@@ -361,13 +390,28 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
     allowed: dict[str, str] = {}
     _clean_head(root, allowed)  # Run outputs may be allowed only after starting clean.
     groups: dict[tuple[str, tuple[str, ...]], list[tuple[dict, dict]]] = {}
+    unresolved = []
     for row in items:
         info = locate(root, row)
         if info["lang"] != "rust":
             raise ValueError("Nix Rust earning requires Rust assertions")
+        try:
+            info["libtest"] = exact_test_name(root, row, info)
+        except SelectorError as error:
+            unresolved.append(str(error))
         groups.setdefault((info["crate"], tuple(info["target"])), []).append((row, info))
+    if unresolved:
+        # Before any build: a row that names no unique test cannot be earned.
+        raise SelectorError("scientific rows name no unique test:\n  " + "\n  ".join(unresolved))
     if not groups:
         return 0
+    # Before the full build: a disposable crate built through the same recipe must run
+    # on the host, find its test by its exact name and read a committed file through
+    # CARGO_MANIFEST_DIR. A boundary defect then stops the run in seconds, not after
+    # every target has been compiled.
+    from nix_evidence_engineering_fixture import run_fixture
+    print("scientific records: boundary preflight", flush=True)
+    run_fixture()
     fp = Fingerprinter(root, scientific_build=True)
     failed = recorded = 0
 
@@ -454,7 +498,16 @@ def cmd_status(root: Path, args: argparse.Namespace) -> int:
     print(f"scientific records: {len(current)} current, {len(owed)} owed of {len(rows)}")
     for item in owed:
         print(f"  owed: {item['selector']} ({', '.join(item['manifest_reasons'][:3])})")
-    return int(args.check and bool(owed))
+    # Every row must name exactly one test, so a run never builds for a name it cannot find.
+    unresolved = []
+    for row in rows:
+        try:
+            exact_test_name(root, row, locate(root, row))
+        except SelectorError as error:
+            unresolved.append(str(error))
+    for problem in unresolved:
+        print(f"FAIL: {problem}")
+    return int(bool(unresolved) or (args.check and bool(owed)))
 
 
 def matches_only(item: dict, patterns: list[str]) -> bool:

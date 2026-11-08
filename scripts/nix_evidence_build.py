@@ -143,6 +143,14 @@ def _compiler_graph(output: Path, crate: str, target_kind: str,
     return normalized
 
 
+def _require_in_place(directory: Path, source: str) -> None:
+    """Tests resolve fixtures from CARGO_MANIFEST_DIR at run time: the build must have
+    compiled the store source in place, a path that exists on the host."""
+    metadata = json.loads((directory / "cargo-metadata.json").read_text(encoding="utf-8"))
+    if metadata.get("workspace_root") != source:
+        raise ValueError("Nix evidence build did not compile the store source in place")
+
+
 def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
                             deps_targets: list[tuple[str, str, str]] | None = None,
                             check_reproducible: bool = False,
@@ -182,6 +190,7 @@ def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
             if artifact["source_nar_hash"] != source["nar_hash"] or artifact["sandbox_verified"] is not False:
                 raise ValueError("Nix artifact source or sandbox status is inconsistent")
             graph = _compiler_graph(Path(output), crate, kind, name, features)
+            _require_in_place(Path(output) / target_dir(crate, kind, name), source["store_path"])
             recheck_artifact(root, artifact)
             built[(crate, kind, name)] = {"source": source, "artifact": artifact, "tools": tools,
                                           "compiler_graph": graph, "sandbox_verified": False,

@@ -397,3 +397,32 @@ class OnlyAndCurrencyGates(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExactTestNameTests(unittest.TestCase):
+    def test_inline_modules_are_part_of_the_name_and_a_missing_test_stops(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "crates/c/src/analysis/execute.rs"
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                "pub fn run() {}\n#[cfg(test)]\nmod tests {\n    mod only {\n"
+                "        #[test]\n        fn pinned_truth() {}\n    }\n}\n#[test]\nfn top_level() {}\n",
+                encoding="utf-8",
+            )
+            row = {"evidence_test": "crates/c/src/analysis/execute.rs"}
+            info = {"selector": "c::lib::analysis::execute::pinned_truth"}
+            self.assertEqual(sr.exact_test_name(root, row, info), "analysis::execute::tests::only::pinned_truth")
+            info = {"selector": "c::lib::analysis::execute::top_level"}
+            self.assertEqual(sr.exact_test_name(root, row, info), "analysis::execute::top_level")
+            with self.assertRaises(sr.SelectorError):
+                sr.exact_test_name(root, row, {"selector": "c::lib::analysis::execute::absent"})
+
+    def test_a_run_that_matches_no_test_is_an_error_not_a_failure(self):
+        from types import SimpleNamespace
+
+        def run(*_args, **_kwargs):
+            return SimpleNamespace(returncode=0, stdout="\nrunning 0 tests\n\ntest result: ok. 0 passed\n", stderr="")
+        info = {"selector": "c::lib::m::t", "crate": "c", "libtest": "m::t"}
+        with self.assertRaises(sr.SelectorError):
+            sr.capture_one(Path("/tmp"), "/bin/test", info, {}, run)

@@ -27,13 +27,23 @@ from scientific_records import line_coverage
 
 ROOT = Path(__file__).resolve().parent.parent
 CRATE = "nix_boundary_fixture"
-ASSERTION = "engineering_fixture"
+# The assertion sits in an inline test module and reads a committed file through
+# CARGO_MANIFEST_DIR when it runs on the host: a binary built in the sandbox must
+# keep both its exact test name and a fixture path that exists outside the sandbox.
+ASSERTION = "tests::engineering_fixture"
 FEATURES = ["guarded"]
 SOURCE = """#[cfg(not(feature = "guarded"))]
 compile_error!("the selected target feature must be enabled");
 pub fn value() -> u32 { 4 }
-#[test]
-fn engineering_fixture() { assert_eq!(value(), 4); }
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn engineering_fixture() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/data/value.txt");
+        let expected = std::fs::read_to_string(path).unwrap();
+        assert_eq!(super::value().to_string(), expected.trim());
+    }
+}
 """
 
 
@@ -55,6 +65,8 @@ def _prepare_fixture(root: Path) -> None:
     (selected / "src").mkdir(parents=True)
     (default / "src").mkdir(parents=True)
     (selected / "src/lib.rs").write_text(SOURCE, encoding="utf-8")
+    (selected / "data").mkdir()
+    (selected / "data/value.txt").write_text("4\n", encoding="utf-8")
     (default / "src/lib.rs").write_text("pub fn unrelated_default() {}\n", encoding="utf-8")
     analyzer = root / "tools/evidence-analyzer"
     analyzer.mkdir(parents=True)

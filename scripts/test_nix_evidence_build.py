@@ -113,6 +113,7 @@ class BuildOnlyTest(unittest.TestCase):
              patch.object(build, "inspect_artifact", return_value=artifact), \
              patch.object(build, "_versions", return_value={"rustc": "1.85.1"}), \
              patch.object(build, "_compiler_graph", return_value={"roots": [0], "units": [{}]}), \
+             patch.object(build, "_require_in_place"), \
              patch.object(build, "recheck_artifact") as recheck:
             result = build.build_committed_target(Path("/repo"), "toy", "lib")
         self.assertFalse(result["evidence_authorized"])
@@ -139,6 +140,7 @@ class BuildOnlyTest(unittest.TestCase):
              patch.object(build, "inspect_artifact", side_effect=artifact), \
              patch.object(build, "_versions", return_value={"rustc": "1.85.1"}), \
              patch.object(build, "_compiler_graph", return_value={"roots": [0], "units": [{}]}), \
+             patch.object(build, "_require_in_place"), \
              patch.object(build, "recheck_artifact"):
             result = build.build_committed_targets(Path("/repo"), [("b", "test", "t"), ("a", "lib", ""), ("a", "lib", "")],
                                                    deps_targets=[("c", "lib", "")])

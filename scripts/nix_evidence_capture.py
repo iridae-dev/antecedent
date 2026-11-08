@@ -27,12 +27,15 @@ def diagnose_target(root: Path, rows: list[dict], run=subprocess.run) -> dict:
     diagnostic only: Nix evidence earning remains disabled until its portable
     receipt, policy and runtime requirements have been implemented and audited.
     """
-    from scientific_records import locate
+    from scientific_records import exact_test_name, locate
 
     if not rows:
         raise ValueError("at least one Rust assertion is required")
     root = root.resolve()
-    infos = [locate(root, row) for row in rows]
+    infos = [{**locate(root, row)} for row in rows]
+    for row, info in zip(rows, infos, strict=True):
+        if info["lang"] == "rust":
+            info["libtest"] = exact_test_name(root, row, info)
     if any(info["lang"] != "rust" for info in infos):
         raise ValueError("Nix Rust diagnostics do not accept Python assertions")
     crate = infos[0]["crate"]
@@ -58,12 +61,15 @@ def capture_built_target(root: Path, rows: list[dict], built: dict, run=subproce
     The caller is responsible for creating snapshots before execution and for
     validating the build's audited policy before publishing any records.
     """
-    from scientific_records import capture_env, capture_one, locate
+    from scientific_records import capture_env, capture_one, exact_test_name, locate
 
     if not rows:
         raise ValueError("at least one Rust assertion is required")
     root = root.resolve()
-    infos = [locate(root, row) for row in rows]
+    infos = [{**locate(root, row)} for row in rows]
+    for row, info in zip(rows, infos, strict=True):
+        if info["lang"] == "rust":
+            info["libtest"] = exact_test_name(root, row, info)
     if any(info["lang"] != "rust" for info in infos):
         raise ValueError("Nix Rust capture does not accept Python assertions")
     crate, target = infos[0]["crate"], tuple(infos[0]["target"])
