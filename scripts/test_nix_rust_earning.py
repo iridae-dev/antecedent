@@ -14,7 +14,7 @@ import scientific_records as scientific
 
 
 class NixRustEarning(unittest.TestCase):
-    def test_incremental_targets_track_only_own_exact_outputs(self):
+    def test_one_build_serves_every_target_and_each_tracks_its_own_outputs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             (root / "parity/evidence_manifests").mkdir(parents=True)
@@ -26,9 +26,12 @@ class NixRustEarning(unittest.TestCase):
                 name = row["name"]
                 return {"lang": "rust", "crate": name, "target": ["--lib"], "selector": name + "::lib::test"}
 
-            def build(_, crate, kind, name, *, allowed_outputs):
-                seen.append(dict(allowed_outputs))
-                return {"source": {"commit": "head", "store_path": "/nix/store/source"}, "artifact": {"output": "/nix/store/" + crate}}
+            def build(_, targets, *, allowed_outputs):
+                seen.append((sorted(targets), dict(allowed_outputs)))
+                return {(crate, kind, name): {
+                    "source": {"commit": "head", "store_path": "/nix/store/source"},
+                    "artifact": {"output": "/nix/store/shared", "binary": f"targets/{crate}/lib/lib/bin/test"}}
+                    for crate, kind, name in targets}
 
             class Snapshot:
                 def __init__(self, _, row, binding, fp, *, nix_build, allowed_outputs):
@@ -58,15 +61,15 @@ class NixRustEarning(unittest.TestCase):
                  patch.object(evidence_earning, "Snapshot", Snapshot), \
                  patch.object(evidence_earning, "project_snapshot"), \
                  patch.object(evidence_earning, "require_compile_environment"), \
-                 patch.object(nix_evidence_build, "build_committed_target", side_effect=build), \
+                 patch.object(nix_evidence_build, "build_committed_targets", side_effect=build), \
                  patch.object(nix_evidence_capture, "capture_built_target", side_effect=capture), \
                  patch.object(nix_evidence_policy, "validate_build"), \
                  patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")):
                 self.assertEqual(scientific.earn_rust(root, rows, backend="nix"), 0)
-            self.assertEqual(seen[0], {})
-            self.assertIn("parity/scientific_records.toml", seen[1])
-            self.assertIn("parity/evidence_manifests/" + hashlib.sha256(b"a").hexdigest() + ".json", seen[1])
-            self.assertEqual(marks, ["/nix/store/a/bin/test", "/nix/store/b/bin/test"])
+            # One derivation, built from a clean checkout before any record is written.
+            self.assertEqual(seen, [([("a", "lib", ""), ("b", "lib", "")], {})])
+            self.assertEqual(marks, ["/nix/store/shared/targets/a/lib/lib/bin/test",
+                                     "/nix/store/shared/targets/b/lib/lib/bin/test"])
             self.assertEqual(record.call_args.kwargs["source_state"], ("head", False))
 
     def test_policy_failure_precedes_withdrawal_and_capture(self):
@@ -76,7 +79,7 @@ class NixRustEarning(unittest.TestCase):
             patch.object(scientific, "Fingerprinter"),
             patch.object(scientific, "withdraw_records") as withdraw,
             patch.object(evidence_earning, "require_compile_environment"),
-            patch.object(nix_evidence_build, "build_committed_target", return_value={}),
+            patch.object(nix_evidence_build, "build_committed_targets", return_value={("a", "lib", ""): {}}),
             patch.object(nix_evidence_capture, "capture_built_target") as capture,
             patch.object(nix_evidence_policy, "validate_build", side_effect=RuntimeError("unreviewed")),
             patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")),

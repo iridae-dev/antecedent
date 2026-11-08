@@ -22,6 +22,7 @@ class EngineeringFixtureTest(unittest.TestCase):
         source = {"store_path": "/nix/store/source", "nar_hash": "nar", "commit": "abc"}
         artifact = {"schema": 1, "source": source["store_path"], "source_nar_hash": "nar",
                     "sandbox_verified": False, "binary_sha256": "binary", "output": "/nix/store/output",
+                    "binary": f"targets/{fixture.CRATE}/lib/lib/bin/test",
                     "output_nar_hash": "out-nar", "derivation": "drv", "recipe_sha256": {"flake.lock": "hash"},
                     "crate": fixture.CRATE, "target_kind": "lib", "target_name": "", "features": fixture.FEATURES}
         with patch.object(fixture, "_prepare_fixture") as prepare, \
@@ -46,7 +47,7 @@ class EngineeringFixtureTest(unittest.TestCase):
         self.assertEqual(binding_verify.call_count, 2)
         self.assertEqual(recheck.call_count, 2)
         execute.assert_called_once()
-        self.assertEqual(execute.call_args.args[0], Path('/nix/store/output/bin/test'))
+        self.assertEqual(execute.call_args.args[0], Path(f'/nix/store/output/targets/{fixture.CRATE}/lib/lib/bin/test'))
 
     def test_mismatched_source_or_claimed_sandbox_refuses_execution(self):
         source = {"store_path": "/nix/store/source", "nar_hash": "nar", "commit": "abc"}
@@ -85,7 +86,8 @@ class EngineeringFixtureTest(unittest.TestCase):
             metadata = {"packages": [{"name": fixture.CRATE, "id": "selected"}],
                         "workspace_default_members": ["other"],
                         "resolve": {"nodes": [{"id": "selected", "features": ["guarded"]}]}}
-            path = output / "cargo-metadata.json"
+            path = output / "targets" / fixture.CRATE / "lib/lib/cargo-metadata.json"
+            path.parent.mkdir(parents=True)
             path.write_text(json.dumps(metadata), encoding="utf-8")
             fixture._check_metadata_features(output)
             metadata["resolve"]["nodes"][0]["features"] = []

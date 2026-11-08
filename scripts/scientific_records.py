@@ -345,9 +345,10 @@ def _remember_nix_output(root: Path, allowed: dict[str, str], relative: str) -> 
 
 
 def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run) -> int:
-    """Build, capture and record Rust evidence using an audited Nix target."""
+    """Build every owed target in one audited Nix derivation, then capture and record each."""
     from evidence_earning import Snapshot, binding, project_snapshot, require_compile_environment
-    from nix_evidence_build import build_committed_target
+    from nix_artifact_identity import target_binary
+    from nix_evidence_build import build_committed_targets
     from nix_evidence_capture import capture_built_target
     from nix_evidence_policy import validate_build
     from nix_evidence_source import _clean_head
@@ -366,15 +367,20 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run) -> int:
         return 0
     fp = Fingerprinter(root, scientific_build=True)
     failed = recorded = 0
-    for (crate, target), todo in sorted(groups.items()):
+
+    def cargo_target(crate: str, target: tuple[str, ...]) -> tuple[str, str, str]:
         if target == ("--lib",):
-            kind, name = "lib", ""
-        elif len(target) == 2 and target[0] == "--test":
-            kind, name = "test", target[1]
-        else:
-            raise ValueError("unsupported Cargo target")
+            return crate, "lib", ""
+        if len(target) == 2 and target[0] == "--test":
+            return crate, "test", target[1]
+        raise ValueError("unsupported Cargo target")
+
+    _clean_head(root, allowed)
+    print(f"scientific records: building {len(groups)} target(s) in one Nix derivation", flush=True)
+    builds = build_committed_targets(root, [cargo_target(c, t) for c, t in groups], allowed_outputs=allowed)
+    for (crate, target), todo in sorted(groups.items()):
         _clean_head(root, allowed)
-        built = build_committed_target(root, crate, kind, name, allowed_outputs=allowed)
+        built = builds[cargo_target(crate, target)]
         # Audit and builder policy must be checked before withdrawing or running.
         validate_build(root, built)
         snapshots = {
@@ -397,7 +403,7 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run) -> int:
                 continue
             _clean_head(root, allowed)
             try:
-                snapshots[selector].mark_nix_executed(str(Path(built["artifact"]["output"]) / "bin/test"))
+                snapshots[selector].mark_nix_executed(str(target_binary(built["artifact"])))
                 project_snapshot(snapshots[selector], Path(built["artifact"]["output"]) / "compiler-inventory",
                                  result["coverage"][selector], source_root=Path(built["source"]["store_path"]))
                 ref = snapshots[selector].publish()

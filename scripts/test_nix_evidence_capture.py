@@ -14,7 +14,7 @@ class NixCaptureTest(unittest.TestCase):
     info = {"lang": "rust", "selector": "toy::lib::toy", "crate": "toy", "target": ["--lib"]}
     source = {"commit": "abc", "store_path": "/nix/store/source", "nar_hash": "nar"}
     artifact = {"source": "/nix/store/source", "source_nar_hash": "nar", "output": "/nix/store/output",
-                "crate": "toy", "target_kind": "lib", "target_name": ""}
+                "crate": "toy", "target_kind": "lib", "target_name": "", "binary": "targets/toy/lib/lib/bin/test"}
     built = {"source": source, "artifact": artifact, "sandbox_verified": False, "evidence_authorized": False}
 
     def test_cli_routes_owed_rust_rows_to_the_selected_backend(self):
@@ -42,7 +42,7 @@ class NixCaptureTest(unittest.TestCase):
              patch.object(nix_capture, "recheck_artifact") as recheck, \
              patch.object(nix_capture, "map_coverage_sources", return_value=mapped) as remap:
             result = nix_capture.diagnose_target(self.root, [self.row])
-        self.assertEqual(execute.call_args.args[1], "/nix/store/output/bin/test")
+        self.assertEqual(execute.call_args.args[1], "/nix/store/output/targets/toy/lib/lib/bin/test")
         self.assertEqual(execute.call_args.kwargs["llvm_tools"], {
             "llvm-profdata": "/nix/store/output/bin/llvm-profdata", "llvm-cov": "/nix/store/output/bin/llvm-cov"})
         self.assertEqual(result["coverage"][self.info["selector"]], mapped)

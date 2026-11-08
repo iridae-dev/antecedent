@@ -39,6 +39,15 @@ def _nix(*args: str) -> str:
         raise ArtifactIdentityError("Nix identity query failed") from error
 
 
+_SOURCE_NARS: dict[str, str] = {}
+
+
+def _source_nar(source: str) -> str:
+    if source not in _SOURCE_NARS:
+        _SOURCE_NARS[source] = _nix('nix', '--extra-experimental-features', 'nix-command', 'hash', 'path', source)
+    return _SOURCE_NARS[source]
+
+
 def _file_hash(path: Path) -> str:
     if path.is_symlink() or not path.is_file():
         raise ArtifactIdentityError(f"missing or linked artifact file: {path}")
@@ -49,9 +58,49 @@ def _file_hash(path: Path) -> str:
     return digest.hexdigest()
 
 
+def target_dir(crate: str, target_kind: str, target_name: str) -> str:
+    """The output-relative directory of one target in a shared evidence build."""
+    return f"targets/{crate}/{target_kind}/{target_name or 'lib'}"
+
+
+def target_binary(artifact: dict) -> Path:
+    """The executable a recorded artifact identity names."""
+    return Path(artifact['output']) / artifact['binary']
+
+
+def canonical_targets(build_targets: list[dict]) -> list[dict]:
+    """The sorted, validated target list a shared evidence derivation is built from."""
+    out = []
+    for item in build_targets:
+        crate, kind, name, features = item['crate'], item['kind'], item['name'], item['features']
+        if not isinstance(crate, str) or not _NAME.fullmatch(crate) or kind not in ('lib', 'test'):
+            raise ArtifactIdentityError('invalid Cargo target')
+        if (kind == 'lib' and name) or (kind == 'test' and (not isinstance(name, str) or not _NAME.fullmatch(name))):
+            raise ArtifactIdentityError('invalid Cargo target name')
+        if not isinstance(features, list) or any(not isinstance(f, str) or not _FEATURE.fullmatch(f) for f in features):
+            raise ArtifactIdentityError('invalid Cargo features')
+        out.append({'crate': crate, 'kind': kind, 'name': name, 'features': sorted(set(features))})
+    out.sort(key=lambda t: (t['crate'], t['kind'], t['name']))
+    if not out or len({(t['crate'], t['kind'], t['name']) for t in out}) != len(out):
+        raise ArtifactIdentityError('empty or duplicate evidence build targets')
+    return out
+
+
+def targets_json(build_targets: list[dict]) -> str:
+    return json.dumps(canonical_targets(build_targets), separators=(',', ':'), sort_keys=True)
+
+
+# Within one process, a derivation evaluated from unchanged recipe bytes and arguments,
+# and an output whose content hash was verified, are not evaluated or hashed again.
+# Store paths are immutable; rechecks still compare store metadata and executable bytes.
+_DERIVATIONS: dict[tuple, str] = {}
+_VERIFIED_OUTPUTS: set[tuple[str, str]] = set()
+
+
 def inspect_artifact(root: Path, output: str, source: str, crate: str,
                      target_kind: str, target_name: str, features: list[str],
-                     *, store: Path = Path('/nix/store')) -> dict:
+                     *, build_targets: list[dict] | None = None,
+                     store: Path = Path('/nix/store')) -> dict:
     """Bind requested inputs to an existing store result and its executable.
 
     The derivation is evaluated independently from the tracked recipe and the
@@ -71,13 +120,19 @@ def inspect_artifact(root: Path, output: str, source: str, crate: str,
     if not isinstance(features, list) or any(not isinstance(f, str) or not _FEATURE.fullmatch(f) for f in features):
         raise ArtifactIdentityError('invalid Cargo features')
     features = sorted(set(features))
+    build_targets = canonical_targets(build_targets if build_targets is not None else [
+        {'crate': crate, 'kind': target_kind, 'name': target_name, 'features': features}])
+    if {'crate': crate, 'kind': target_kind, 'name': target_name, 'features': features} not in build_targets:
+        raise ArtifactIdentityError('the target is not one the evidence build compiled')
     recipe, lock, toolchain = (root / 'nix/evidence-target.nix', root / 'flake.lock', root / 'nix/evidence-toolchain.nix')
     recipe_hashes = {str(p.relative_to(root)): _file_hash(p) for p in (recipe, lock, toolchain)}
     expr = f'builtins.storePath {json.dumps(source)}'
-    drv = _nix('nix-instantiate', '--extra-experimental-features', 'nix-command flakes', str(recipe),
-               '--arg', 'src', expr, '--argstr', 'crate', crate, '--argstr', 'targetKind', target_kind,
-               '--argstr', 'targetName', target_name, '--argstr', 'featuresJson',
-               json.dumps(features, separators=(',', ':')))
+    arguments = targets_json(build_targets)
+    key = (tuple(sorted(recipe_hashes.items())), source, arguments)
+    if key not in _DERIVATIONS:
+        _DERIVATIONS[key] = _nix('nix-instantiate', '--extra-experimental-features', 'nix-command flakes',
+                                 str(recipe), '--arg', 'src', expr, '--argstr', 'targetsJson', arguments)
+    drv = _DERIVATIONS[key]
     _store_path(drv, store, derivation=True)
     try:
         derivations = json.loads(_nix('nix', '--extra-experimental-features', 'nix-command', 'derivation', 'show', drv))
@@ -92,21 +147,25 @@ def inspect_artifact(root: Path, output: str, source: str, crate: str,
         raise ArtifactIdentityError('invalid Nix derivation or output metadata') from error
     if not isinstance(output_nar, str) or not _SRI.fullmatch(output_nar):
         raise ArtifactIdentityError('invalid Nix output NAR hash')
-    if _nix('nix', '--extra-experimental-features', 'nix-command', 'hash', 'path', output) != output_nar:
-        raise ArtifactIdentityError('Nix output content differs from store metadata')
-    source_nar = _nix('nix', '--extra-experimental-features', 'nix-command', 'hash', 'path', source)
+    if (output, output_nar) not in _VERIFIED_OUTPUTS:
+        if _nix('nix', '--extra-experimental-features', 'nix-command', 'hash', 'path', output) != output_nar:
+            raise ArtifactIdentityError('Nix output content differs from store metadata')
+        _VERIFIED_OUTPUTS.add((output, output_nar))
+    source_nar = _source_nar(source)
     if not _SRI.fullmatch(source_nar):
         raise ArtifactIdentityError('invalid source NAR hash')
-    binary = Path(output) / 'bin/test'
+    relative = target_dir(crate, target_kind, target_name) + '/bin/test'
+    binary = Path(output) / relative
     recorded_source = Path(output) / 'source-root'
     if recorded_source.is_symlink() or not recorded_source.is_file() or recorded_source.read_text(encoding="utf-8").strip() != source:
         raise ArtifactIdentityError('artifact source-root does not match')
     if any(_file_hash(p) != recipe_hashes[str(p.relative_to(root))] for p in (recipe, lock, toolchain)):
         raise ArtifactIdentityError('Nix recipe changed during inspection')
     return {
-        'schema': 1, 'derivation': drv, 'output': output, 'output_nar_hash': output_nar,
+        'schema': 2, 'derivation': drv, 'output': output, 'output_nar_hash': output_nar,
         'source': source, 'source_nar_hash': source_nar,
         'crate': crate, 'target_kind': target_kind, 'target_name': target_name, 'features': features,
+        'build_targets': build_targets, 'binary': relative,
         'binary_sha256': _file_hash(binary), 'recipe_sha256': recipe_hashes,
         'sandbox_verified': False,
     }
@@ -116,7 +175,8 @@ def recheck_artifact(root: Path, identity: dict, *, store: Path = Path('/nix/sto
     """Refuse a change to the recorded inputs, metadata, or executable bytes."""
     try:
         current = inspect_artifact(root, identity['output'], identity['source'], identity['crate'],
-                                   identity['target_kind'], identity['target_name'], identity['features'], store=store)
+                                   identity['target_kind'], identity['target_name'], identity['features'],
+                                   build_targets=identity['build_targets'], store=store)
     except (KeyError, TypeError) as error:
         raise ArtifactIdentityError('invalid recorded artifact identity') from error
     if current != identity:

@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from nix_artifact_identity import recheck_artifact
+from nix_artifact_identity import recheck_artifact, target_binary
 from nix_evidence_build import build_committed_target
 from nix_evidence_source import (
     import_committed_snapshot,
@@ -97,7 +97,7 @@ def capture_built_target(root: Path, rows: list[dict], built: dict, run=subproce
             verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
             recheck_artifact(root, artifact)
             try:
-                coverage = capture_one(root, str(output / "bin/test"), info, env, run, llvm_tools=tools)
+                coverage = capture_one(root, str(target_binary(artifact)), info, env, run, llvm_tools=tools)
             finally:
                 # Recheck even on a test or coverage failure; no result is
                 # returned if the source or artifact changed while it ran.

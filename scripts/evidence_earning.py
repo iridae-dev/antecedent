@@ -328,7 +328,8 @@ class Snapshot:
 
     def mark_nix_executed(self, binary: str) -> None:
         """Bind a successful exact capture to the verified Nix-built executable."""
-        if self.nix_build is None or binary != str(Path(self.nix_build['artifact']['output']) / 'bin/test'):
+        from nix_artifact_identity import target_binary
+        if self.nix_build is None or binary != str(target_binary(self.nix_build['artifact'])):
             raise RuntimeError('captured binary does not match the Nix evidence build')
         if not self.unchanged():
             raise RuntimeError('Nix evidence inputs changed during execution')

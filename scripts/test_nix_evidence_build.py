@@ -8,6 +8,8 @@ from unittest.mock import patch
 
 import nix_evidence_build as build
 
+TOY = [{"crate": "toy", "kind": "lib", "name": "", "features": []}]
+
 
 class BuildOnlyTest(unittest.TestCase):
     def test_toolchain_requires_pinned_compiler_and_reviewed_host(self):
@@ -45,17 +47,18 @@ class BuildOnlyTest(unittest.TestCase):
             commands.append(argv)
             return SimpleNamespace(stdout="/nix/store/output\n", stderr="")
         with patch.object(build.subprocess, "run", side_effect=fake_run):
-            self.assertEqual(build._build(Path("/repo"), "/nix/store/source", "toy", "lib", "", []), "/nix/store/output")
+            self.assertEqual(build._build(Path("/repo"), "/nix/store/source", TOY), "/nix/store/output")
         self.assertEqual(len(commands), 2)
         self.assertIn("--offline", commands[0])
         self.assertIn("--rebuild", commands[1])
         self.assertIn("--option", commands[1])
         self.assertNotIn("run", commands[1])
+        self.assertEqual(json.loads(commands[0][commands[0].index("targetsJson") + 1]), TOY)
         with (
             patch.object(build.subprocess, "run", return_value=SimpleNamespace(stdout="/nix/store/output", stderr="warning: ignoring untrusted setting")),
             self.assertRaisesRegex(ValueError, "untrusted"),
         ):
-            build._build(Path("/repo"), "/nix/store/source", "toy", "lib", "", [])
+            build._build(Path("/repo"), "/nix/store/source", TOY)
 
     def test_compiler_graph_must_match_the_selected_target(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -65,9 +68,15 @@ class BuildOnlyTest(unittest.TestCase):
             unit = {"pkg_id": package["id"], "target": {"name": "toy", "kind": ["lib"],
                     "src_path": str(root / "src/lib.rs")}, "dependencies": [], "features": ["f"],
                     "mode": "test", "platform": None, "profile": {}}
-            (root / "cargo-metadata.json").write_text(json.dumps({"packages": [package]}), encoding="utf-8")
-            (root / "cargo-unit-graph.json").write_text(json.dumps({"version": 1, "roots": [0], "units": [unit]}), encoding="utf-8")
+            target = root / "targets/toy/lib/lib"
+            target.mkdir(parents=True)
+            (target / "cargo-metadata.json").write_text(json.dumps({"packages": [package]}), encoding="utf-8")
+            (target / "cargo-unit-graph.json").write_text(json.dumps({"version": 1, "roots": [0], "units": [unit]}), encoding="utf-8")
             self.assertEqual(len(build._compiler_graph(root, "toy", "lib", "", ["f"])["units"]), 1)
+            other = root / "targets/other/lib/lib"
+            other.mkdir(parents=True)
+            for name in ("cargo-metadata.json", "cargo-unit-graph.json"):
+                (other / name).write_bytes((target / name).read_bytes())
             with self.assertRaisesRegex(ValueError, "does not match"):
                 build._compiler_graph(root, "other", "lib", "", [])
 
@@ -88,6 +97,26 @@ class BuildOnlyTest(unittest.TestCase):
         self.assertFalse(result["sandbox_verified"])
         self.assertEqual(verify.call_count, 2)
         recheck.assert_called_once()
+
+    def test_several_targets_share_one_derivation_and_keep_their_own_records(self):
+        source = {"commit": "abc", "store_path": "/nix/store/source", "nar_hash": "nar"}
+
+        def artifact(root, output, source_path, crate, kind, name, features, build_targets):
+            self.assertEqual(len(build_targets), 2)
+            return {"source_nar_hash": "nar", "sandbox_verified": False, "crate": crate}
+        with patch.object(build, "_target_features", return_value=[]), \
+             patch.object(build, "materialize_committed_source", return_value={"commit": "abc"}), \
+             patch.object(build, "import_committed_snapshot", return_value=source), \
+             patch.object(build, "verify_committed_snapshot"), \
+             patch.object(build, "_build", return_value="/nix/store/output") as derivation, \
+             patch.object(build, "inspect_artifact", side_effect=artifact), \
+             patch.object(build, "_versions", return_value={"rustc": "1.85.1"}), \
+             patch.object(build, "_compiler_graph", return_value={"roots": [0], "units": [{}]}), \
+             patch.object(build, "recheck_artifact"):
+            result = build.build_committed_targets(Path("/repo"), [("b", "test", "t"), ("a", "lib", ""), ("a", "lib", "")])
+        derivation.assert_called_once()
+        self.assertEqual(sorted(result), [("a", "lib", ""), ("b", "test", "t")])
+        self.assertEqual(result[("b", "test", "t")]["artifact"]["crate"], "b")
 
 
 if __name__ == "__main__":

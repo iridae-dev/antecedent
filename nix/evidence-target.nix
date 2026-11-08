@@ -1,29 +1,45 @@
-# Prototype target build. Its caller must supply an independently verified,
-# immutable snapshot of the intended commit; this expression does not attest
-# that source identity or that the Nix daemon actually used a sandbox.
-{ src, crate, targetKind, targetName ? "", featuresJson ? "[]" }:
+# Evidence build of a list of Cargo test targets from one committed snapshot. Its
+# caller must supply an independently verified, immutable snapshot of the intended
+# commit; this expression does not attest that source identity or that the Nix
+# daemon actually used a sandbox.
+#
+# Each target runs its own `cargo test --no-run` invocation, exactly as it would
+# alone, in sequence over one shared target directory: Cargo reuses every unit whose
+# fingerprint matches, so dependencies compile once per distinct feature set. A
+# single invocation over several targets would unify their features and is never used.
+{ src, targetsJson }:
 let
   lock = builtins.fromJSON (builtins.readFile ../flake.lock);
   nixpkgsSource = builtins.fetchTree lock.nodes.nixpkgs.locked;
   pkgs = import nixpkgsSource { system = "aarch64-darwin"; };
+  lib = pkgs.lib;
   rust = import ./evidence-toolchain.nix { inherit pkgs; };
-  features = builtins.fromJSON featuresJson;
+  targets = builtins.fromJSON targetsJson;
   vendor = pkgs.rustPlatform.importCargoLock { lockFile = src + "/Cargo.lock"; };
-  targetArgs = if targetKind == "lib" then [ "--lib" ] else [ "--test" targetName ];
-  featureArgs = if features == [] then [] else [ "--features" (builtins.concatStringsSep "," features) ];
-  cargoArgs = [ "test" "--locked" "--offline" "--no-run" "--message-format=json" "-p" crate ] ++ targetArgs ++ featureArgs;
-  graphArgs = [ "test" "--unit-graph" "--locked" "--offline" "--no-run" "-p" crate ] ++ targetArgs ++ featureArgs;
+  valid = t: (t.kind == "lib" && t.name == "") || (t.kind == "test" && t.name != "");
+  dir = t: "targets/${t.crate}/${t.kind}/${if t.kind == "lib" then "lib" else t.name}";
+  targetArgs = t: if t.kind == "lib" then [ "--lib" ] else [ "--test" t.name ];
+  featureArgs = t: if t.features == [] then [] else [ "--features" (builtins.concatStringsSep "," t.features) ];
   # Metadata resolves from the workspace root rather than from `-p crate`.
   # Qualify features so an unrelated default member is not selected instead.
-  metadataFeatureArgs = if features == [] then [] else
-    [ "--features" (builtins.concatStringsSep "," (map (feature: "${crate}/${feature}") features)) ];
-  metadataArgs = [ "metadata" "--format-version=1" "--locked" "--offline" ] ++ metadataFeatureArgs;
+  metadataFeatureArgs = t: if t.features == [] then [] else
+    [ "--features" (builtins.concatStringsSep "," (map (feature: "${t.crate}/${feature}") t.features)) ];
+  step = t: ''
+    mkdir -p "$TMPDIR/${dir t}"
+    ${pkgs.cargo}/bin/cargo ${lib.escapeShellArgs ([ "metadata" "--format-version=1" "--locked" "--offline" ] ++ metadataFeatureArgs t)} > "$TMPDIR/${dir t}/cargo-metadata.json"
+    # Cargo's unit graph is unstable metadata: enable its flag only in this
+    # subprocess. The test build itself never sees RUSTC_BOOTSTRAP.
+    RUSTC_BOOTSTRAP=1 ${pkgs.cargo}/bin/cargo -Z unstable-options ${lib.escapeShellArgs ([ "test" "--unit-graph" "--locked" "--offline" "--no-run" "-p" t.crate ] ++ targetArgs t ++ featureArgs t)} > "$TMPDIR/${dir t}/cargo-unit-graph.json"
+    ${pkgs.cargo}/bin/cargo ${lib.escapeShellArgs ([ "test" "--locked" "--offline" "--no-run" "--message-format=json" "-p" t.crate ] ++ targetArgs t ++ featureArgs t)} > "$TMPDIR/${dir t}/cargo-messages.jsonl" || {
+      cat "$TMPDIR/${dir t}/cargo-messages.jsonl" >&2
+      exit 1
+    }
+  '';
 in
-assert targetKind == "lib" || targetKind == "test";
-assert targetKind != "test" || targetName != "";
-assert builtins.isList features && builtins.all builtins.isString features;
+assert builtins.isList targets && targets != [];
+assert builtins.all (t: valid t && builtins.isList t.features && builtins.all builtins.isString t.features) targets;
 pkgs.stdenv.mkDerivation {
-  pname = "antecedent-evidence-target";
+  pname = "antecedent-evidence-targets";
   version = "0";
   inherit src;
   # Cargo from nixpkgs uses store-provided curl/OpenSSL rather than the host
@@ -34,6 +50,8 @@ pkgs.stdenv.mkDerivation {
   buildInputs = [ pkgs.zlib ];
   dontConfigure = true;
   dontStrip = true;
+  passAsFile = [ "targetsJson" ];
+  inherit targetsJson;
   buildPhase = ''
     # Build scripts may reuse probe files in OUT_DIR. Never use an ambient or
     # shared scratch tree: Nix's per-build TMPDIR must belong to this builder.
@@ -63,45 +81,23 @@ pkgs.stdenv.mkDerivation {
     [net]
     offline = true
     EOF
-    # Cargo's unit graph is unstable metadata: enable its flag only in this
-    # subprocess. The test build itself never sees RUSTC_BOOTSTRAP.
-    ${pkgs.cargo}/bin/cargo ${pkgs.lib.escapeShellArgs metadataArgs} > "$TMPDIR/cargo-metadata.json"
-    RUSTC_BOOTSTRAP=1 ${pkgs.cargo}/bin/cargo -Z unstable-options ${pkgs.lib.escapeShellArgs graphArgs} > "$TMPDIR/cargo-unit-graph.json"
     # Inventory only this fresh workspace compilation; the analyzer is pinned
-    # to the same rustc and never wraps external dependency compilations.
+    # to the same rustc and never wraps external dependency compilations. Every
+    # target sees the same wrapper, so Cargo's fingerprints agree across them.
     mkdir -m 700 "$TMPDIR/compiler-inventory"
     RUSTC_BOOTSTRAP=1 ${rust}/bin/rustc "$PWD/tools/evidence-analyzer/driver.rs" --edition=2021 -C link-arg=-Wl,-rpath,${rust}/lib/rustlib/aarch64-apple-darwin/lib -C link-arg=-Wl,-rpath,${rust}/lib -o "$TMPDIR/evidence-driver"
     export RUSTC_WORKSPACE_WRAPPER="$TMPDIR/evidence-driver" ANTECEDENT_ANALYZER_OUTPUT="$TMPDIR/compiler-inventory"
-    ${pkgs.cargo}/bin/cargo ${pkgs.lib.escapeShellArgs cargoArgs} > "$TMPDIR/cargo-messages.jsonl" || {
-      cat "$TMPDIR/cargo-messages.jsonl" >&2
-      exit 1
-    }
+    ${lib.concatMapStrings step targets}
   '';
   installPhase = ''
     mkdir -p "$out/bin"
-    python3 - "$TMPDIR/cargo-messages.jsonl" "$out/bin/test" <<'PY'
-    import json, shutil, sys
-    executables = []
-    for line in open(sys.argv[1], encoding="utf-8"):
-        message = json.loads(line)
-        if (message.get("reason") == "compiler-artifact"
-                and message.get("profile", {}).get("test") is True
-                and message.get("executable")):
-            executables.append(message["executable"])
-    if len(executables) != 1:
-        raise SystemExit(f"expected one test executable, found {len(executables)}")
-    shutil.copy2(executables[0], sys.argv[2])
-    PY
-    ln -s ${rust}/lib/rustlib/aarch64-apple-darwin/bin/llvm-profdata "$out/bin/llvm-profdata"
-    ln -s ${rust}/lib/rustlib/aarch64-apple-darwin/bin/llvm-cov "$out/bin/llvm-cov"
-    printf '%s\n' ${pkgs.lib.escapeShellArg (toString src)} > "$out/source-root"
     # Cargo emits absolute unpack/target paths in metadata. Preserve the raw
     # graph structure while mapping temporary paths to stable identities so a
     # local rebuild has the same output and downstream validation can compare
     # package IDs without depending on Nix's build-directory suffix.
-    python3 - "$PWD" ${pkgs.lib.escapeShellArg (toString src)} "$TMPDIR" "$out" <<'PY'
-    import json, pathlib, sys
-    workdir, source, temporary, out = sys.argv[1:]
+    python3 - "$PWD" ${lib.escapeShellArg (toString src)} "$TMPDIR" "$out" "$targetsJsonPath" <<'PY'
+    import json, pathlib, shutil, sys
+    workdir, source, temporary, out, targets_path = sys.argv[1:]
     def remap(value):
         if isinstance(value, str):
             return value.replace(workdir, source).replace(temporary, "/__nix_build_tmp__")
@@ -110,9 +106,23 @@ pkgs.stdenv.mkDerivation {
         if isinstance(value, dict):
             return {key: remap(item) for key, item in value.items()}
         return value
-    for name in ("cargo-metadata.json", "cargo-unit-graph.json"):
-        data = json.loads((pathlib.Path(temporary) / name).read_text(encoding="utf-8"))
-        (pathlib.Path(out) / name).write_text(json.dumps(remap(data), sort_keys=True) + "\n", encoding="utf-8")
+    for target in json.loads(pathlib.Path(targets_path).read_text(encoding="utf-8")):
+        rel = f"targets/{target['crate']}/{target['kind']}/{target['name'] or 'lib'}"
+        built, dest = pathlib.Path(temporary) / rel, pathlib.Path(out) / rel
+        (dest / "bin").mkdir(parents=True)
+        executables = []
+        for line in open(built / "cargo-messages.jsonl", encoding="utf-8"):
+            message = json.loads(line)
+            if (message.get("reason") == "compiler-artifact"
+                    and message.get("profile", {}).get("test") is True
+                    and message.get("executable")):
+                executables.append(message["executable"])
+        if len(executables) != 1:
+            raise SystemExit(f"{rel}: expected one test executable, found {len(executables)}")
+        shutil.copy2(executables[0], dest / "bin/test")
+        for name in ("cargo-metadata.json", "cargo-unit-graph.json"):
+            data = json.loads((built / name).read_text(encoding="utf-8"))
+            (dest / name).write_text(json.dumps(remap(data), sort_keys=True) + "\n", encoding="utf-8")
     records = set()
     for inventory in (pathlib.Path(temporary) / "compiler-inventory").glob("*.tsv"):
         for line in inventory.read_text(encoding="utf-8").splitlines():
@@ -132,6 +142,9 @@ pkgs.stdenv.mkDerivation {
     inventory_dir.mkdir()
     (inventory_dir / "bodies.tsv").write_text("\n".join(sorted(records)) + "\n", encoding="utf-8")
     PY
+    ln -s ${rust}/lib/rustlib/aarch64-apple-darwin/bin/llvm-profdata "$out/bin/llvm-profdata"
+    ln -s ${rust}/lib/rustlib/aarch64-apple-darwin/bin/llvm-cov "$out/bin/llvm-cov"
+    printf '%s\n' ${lib.escapeShellArg (toString src)} > "$out/source-root"
     ${rust}/bin/rustc -vV > "$out/rustc-version"
     ${pkgs.cargo}/bin/cargo --version > "$out/cargo-version"
   '';

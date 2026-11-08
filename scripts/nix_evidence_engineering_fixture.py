@@ -14,7 +14,7 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-from nix_artifact_identity import inspect_artifact
+from nix_artifact_identity import inspect_artifact, target_dir, targets_json
 from nix_evidence_build import _compiler_graph
 from nix_evidence_source import (
     import_committed_snapshot,
@@ -96,8 +96,8 @@ def _build(source: str) -> str:
         "--option", "substitute", "false", "--option", "builders", "",
         "build", "--file", str(recipe), "--no-link", "--print-out-paths",
         "--arg", "src", "builtins.storePath " + json.dumps(source),
-        "--argstr", "crate", CRATE, "--argstr", "targetKind", "lib",
-        "--argstr", "targetName", "", "--argstr", "featuresJson", json.dumps(FEATURES),
+        "--argstr", "targetsJson",
+        targets_json([{"crate": CRATE, "kind": "lib", "name": "", "features": FEATURES}]),
     ]
     output = _run(command, cwd=ROOT)
     rebuild = command.copy()
@@ -108,7 +108,7 @@ def _build(source: str) -> str:
 
 
 def _execute_and_measure(binary: Path, source: Path, checkout: Path, scratch: Path) -> None:
-    output = binary.parent.parent
+    output = Path(*binary.parts[:4])  # /nix/store/<output>: shared llvm tools
     raw, profile = scratch / "fixture.profraw", scratch / "fixture.profdata"
     env = {**os.environ, "LLVM_PROFILE_FILE": str(raw)}
     result = _run([str(binary), "--exact", ASSERTION, "--test-threads", "1"],
@@ -138,7 +138,8 @@ def _tool_versions(output: Path) -> dict[str, str]:
 
 
 def _check_metadata_features(output: Path) -> None:
-    metadata = json.loads((output / "cargo-metadata.json").read_text(encoding="utf-8"))
+    directory = output / target_dir(CRATE, "lib", "")
+    metadata = json.loads((directory / "cargo-metadata.json").read_text(encoding="utf-8"))
     matches = [p for p in metadata["packages"] if p["name"] == CRATE]
     if len(matches) != 1:
         raise ValueError("fixture metadata does not identify the selected package")

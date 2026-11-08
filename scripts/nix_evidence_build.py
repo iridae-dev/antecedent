@@ -1,8 +1,9 @@
-"""Build a committed Rust target with the experimental Nix recipe.
+"""Build committed Rust test targets with the Nix evidence recipe.
 
-This build-only diagnostic cannot execute a target or publish evidence. Nix
-daemon policy, host runtime, and portable manifest binding remain unverified;
-callers must not interpret the result as authorization to earn a record.
+One derivation builds every requested target, each with its own Cargo invocation
+over a shared target directory. This build-only step cannot execute a target or
+publish evidence. Nix daemon policy, host runtime, and portable manifest binding
+are verified by the caller; the result is never authorization to earn a record.
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import scientific_target_feature_args
-from nix_artifact_identity import inspect_artifact, recheck_artifact
+from nix_artifact_identity import inspect_artifact, recheck_artifact, target_dir, targets_json
 from nix_compile_time_inventory import compiler_units
 from nix_evidence_source import (
     import_committed_snapshot,
@@ -39,15 +40,13 @@ def _target_features(root: Path, crate: str, target_kind: str, target_name: str)
     return features
 
 
-def _build(root: Path, source: str, crate: str, target_kind: str,
-           target_name: str, features: list[str]) -> str:
+def _build(root: Path, source: str, build_targets: list[dict]) -> str:
     command = [
         "nix", "--extra-experimental-features", "nix-command flakes", "--offline",
         "--option", "substitute", "false", "--option", "builders", "",
         "build", "--file", str(root / "nix/evidence-target.nix"),
         "--no-link", "--print-out-paths", "--arg", "src", "builtins.storePath " + json.dumps(source),
-        "--argstr", "crate", crate, "--argstr", "targetKind", target_kind,
-        "--argstr", "targetName", target_name, "--argstr", "featuresJson", json.dumps(features),
+        "--argstr", "targetsJson", targets_json(build_targets),
     ]
 
     def build(argv: list[str]) -> str:
@@ -81,8 +80,9 @@ def _versions(root: Path, output: Path) -> dict[str, str]:
 
 def _compiler_graph(output: Path, crate: str, target_kind: str,
                     target_name: str, features: list[str]) -> dict:
-    metadata = json.loads((output / "cargo-metadata.json").read_text(encoding="utf-8"))
-    graph = json.loads((output / "cargo-unit-graph.json").read_text(encoding="utf-8"))
+    directory = output / target_dir(crate, target_kind, target_name)
+    metadata = json.loads((directory / "cargo-metadata.json").read_text(encoding="utf-8"))
+    graph = json.loads((directory / "cargo-unit-graph.json").read_text(encoding="utf-8"))
     normalized = compiler_units(metadata, graph)
     if len(normalized["roots"]) != 1:
         raise ValueError("Nix Cargo graph must have exactly one selected root")
@@ -95,23 +95,44 @@ def _compiler_graph(output: Path, crate: str, target_kind: str,
     return normalized
 
 
-def build_committed_target(root: Path, crate: str, target_kind: str, target_name: str = "", *,
-                           allowed_outputs: dict[str, str] | None = None) -> dict:
-    """Build but never run a target from clean HEAD; the result is not attestation."""
+def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
+                            allowed_outputs: dict[str, str] | None = None) -> dict[tuple[str, str, str], dict]:
+    """Build but never run targets from clean HEAD in one derivation; never attestation.
+
+    `targets` are (crate, kind, name) with kind "lib" (name "") or "test". The result
+    maps each target to its own build record: shared source and tools, its own
+    artifact identity, executable and compile-time unit graph."""
     root = root.resolve()
-    features = _target_features(root, crate, target_kind, target_name)
+    wanted = sorted(set(targets))
+    if not wanted:
+        raise ValueError("no Rust targets to build")
+    build_targets = [{"crate": crate, "kind": kind, "name": name,
+                      "features": _target_features(root, crate, kind, name)} for crate, kind, name in wanted]
     with tempfile.TemporaryDirectory(prefix="antecedent-nix-source-") as tmp:
         snapshot = Path(tmp) / "snapshot"
         commit = materialize_committed_source(root, snapshot, allowed_outputs=allowed_outputs)["commit"]
         source = import_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
         verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
-        output = _build(root, source["store_path"], crate, target_kind, target_name, features)
-        artifact = inspect_artifact(root, output, source["store_path"], crate, target_kind, target_name, features)
-        if artifact["source_nar_hash"] != source["nar_hash"] or artifact["sandbox_verified"] is not False:
-            raise ValueError("Nix artifact source or sandbox status is inconsistent")
+        output = _build(root, source["store_path"], build_targets)
         tools = _versions(root, Path(output))
-        graph = _compiler_graph(Path(output), crate, target_kind, target_name, features)
-        recheck_artifact(root, artifact)
+        built = {}
+        for target in build_targets:
+            crate, kind, name, features = target["crate"], target["kind"], target["name"], target["features"]
+            artifact = inspect_artifact(root, output, source["store_path"], crate, kind, name, features,
+                                        build_targets=build_targets)
+            if artifact["source_nar_hash"] != source["nar_hash"] or artifact["sandbox_verified"] is not False:
+                raise ValueError("Nix artifact source or sandbox status is inconsistent")
+            graph = _compiler_graph(Path(output), crate, kind, name, features)
+            recheck_artifact(root, artifact)
+            built[(crate, kind, name)] = {"source": source, "artifact": artifact, "tools": tools,
+                                          "compiler_graph": graph, "sandbox_verified": False,
+                                          "evidence_authorized": False}
         verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
-    return {"source": source, "artifact": artifact, "tools": tools, "compiler_graph": graph,
-            "sandbox_verified": False, "evidence_authorized": False}
+    return built
+
+
+def build_committed_target(root: Path, crate: str, target_kind: str, target_name: str = "", *,
+                           allowed_outputs: dict[str, str] | None = None) -> dict:
+    """Build but never run one target from clean HEAD; the result is not attestation."""
+    return build_committed_targets(root, [(crate, target_kind, target_name)],
+                                   allowed_outputs=allowed_outputs)[(crate, target_kind, target_name)]

@@ -10,7 +10,7 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
-from nix_artifact_identity import recheck_artifact
+from nix_artifact_identity import recheck_artifact, target_binary
 from nix_evidence_source import verify_committed_snapshot
 
 
@@ -78,7 +78,7 @@ def exercise_fixture(recipe_root: Path, checkout: Path, snapshot: Path, build: d
     try:
         # The production runner must itself guarantee which bytes it executes;
         # this fixture callback is supplied the independently rechecked path.
-        run_fixture(Path(receipt["artifact"]["output"]) / "bin/test")
+        run_fixture(target_binary(receipt["artifact"]))
     finally:
         check()
     return receipt

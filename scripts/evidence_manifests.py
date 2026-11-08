@@ -177,6 +177,14 @@ def validate_nix_receipt(receipt: object, binding: dict, inputs: list[dict]) -> 
         expected = "lib" if artifact["target_kind"] == "lib" else artifact["target_name"]
         if artifact["crate"] != crate or target != expected or artifact["target_kind"] not in ("lib", "test"):
             raise ValueError("target mismatch")
+        # One shared derivation builds every owed target; each artifact names its own executable.
+        name = artifact["target_name"] if artifact["target_kind"] == "test" else "lib"
+        if (artifact.get("schema") != 2
+                or artifact["binary"] != f"targets/{crate}/{artifact['target_kind']}/{name}/bin/test"
+                or not any(isinstance(t, dict) and (t.get("crate"), t.get("kind"), t.get("name"))
+                           == (crate, artifact["target_kind"], artifact["target_name"])
+                           for t in artifact["build_targets"])):
+            raise ValueError("target outside its evidence build")
         if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", source["commit"]):
             raise ValueError("invalid source commit")
         if artifact["source"] != source["store_path"] or artifact["source_nar_hash"] != source["nar_hash"]:

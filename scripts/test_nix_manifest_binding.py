@@ -13,6 +13,7 @@ class DraftReceiptTests(unittest.TestCase):
             'source': {'commit': 'a' * 40, 'store_path': '/nix/store/source', 'nar_hash': 'source-nar'},
             'artifact': {'schema': 1, 'source': '/nix/store/source', 'source_nar_hash': 'source-nar',
                          'derivation': '/nix/store/test.drv', 'output': '/nix/store/output',
+                         'binary': 'targets/toy/test/fixture/bin/test',
                          'output_nar_hash': 'output-nar', 'binary_sha256': 'b' * 64,
                          'crate': 'toy', 'target_kind': 'test', 'target_name': 'fixture',
                          'features': ['feature'], 'recipe_sha256': {'flake.lock': 'c' * 64},
@@ -53,7 +54,7 @@ class DraftReceiptTests(unittest.TestCase):
              patch.object(binding, 'recheck_artifact', side_effect=lambda *a: calls.append('artifact')):
             draft = binding.exercise_fixture(self.root, self.root, self.snapshot, self.build, self.assumptions,
                                              lambda binary: calls.append(str(binary)))
-        self.assertEqual(calls, ['source', 'artifact', '/nix/store/output/bin/test', 'source', 'artifact'])
+        self.assertEqual(calls, ['source', 'artifact', '/nix/store/output/targets/toy/test/fixture/bin/test', 'source', 'artifact'])
         self.assertIs(draft['publication_authorized'], False)
 
     def test_changed_artifact_after_fixture_is_refused(self):

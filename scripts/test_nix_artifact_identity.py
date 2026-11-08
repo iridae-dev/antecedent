@@ -21,8 +21,9 @@ class ArtifactIdentityTests(unittest.TestCase):
         self.output = self.store / ('b' * 32 + '-output')
         self.drv = str(self.store / ('c' * 32 + '-target.drv'))
         self.source.mkdir()
-        (self.output / 'bin').mkdir(parents=True)
-        (self.output / 'bin/test').write_bytes(b'fixture binary')
+        self.binary = self.output / 'targets/fixture/test/basic/bin/test'
+        self.binary.parent.mkdir(parents=True)
+        self.binary.write_bytes(b'fixture binary')
         (self.output / 'source-root').write_text(str(self.source) + '\n', encoding="utf-8")
         for name in ('nix/evidence-target.nix', 'nix/evidence-toolchain.nix', 'flake.lock'):
             file = self.root / name
@@ -58,13 +59,23 @@ class ArtifactIdentityTests(unittest.TestCase):
     def test_recipe_is_instantiated_with_exact_normalized_arguments(self):
         result = self.inspect()
         command = self.calls[0]
-        self.assertEqual(command[command.index('crate') + 1], 'fixture')
-        self.assertEqual(command[command.index('targetKind') + 1], 'test')
-        self.assertEqual(command[command.index('targetName') + 1], 'basic')
-        self.assertEqual(command[command.index('featuresJson') + 1], '["a","z"]')
+        self.assertEqual(json.loads(command[command.index('targetsJson') + 1]),
+                         [{'crate': 'fixture', 'features': ['a', 'z'], 'kind': 'test', 'name': 'basic'}])
         self.assertIn(str(self.source), command[command.index('src') + 1])
         self.assertFalse(result['sandbox_verified'])
         self.assertEqual(result['features'], ['a', 'z'])
+        self.assertEqual(result['binary'], 'targets/fixture/test/basic/bin/test')
+
+    def test_a_shared_build_names_each_target_and_refuses_one_it_did_not_compile(self):
+        both = [{'crate': 'other', 'kind': 'lib', 'name': '', 'features': []},
+                {'crate': 'fixture', 'kind': 'test', 'name': 'basic', 'features': ['a', 'z']}]
+        result = self.inspect(build_targets=both)
+        command = self.calls[0]
+        self.assertEqual([t['crate'] for t in json.loads(command[command.index('targetsJson') + 1])],
+                         ['fixture', 'other'])
+        self.assertEqual(identity.target_binary(result), self.binary)
+        with self.assertRaisesRegex(identity.ArtifactIdentityError, 'did not compile|not one'):
+            self.inspect(build_targets=both[:1])
 
     def test_wrong_source_or_deriver_or_output_hash_is_refused(self):
         self.derivation['inputSrcs'] = []
@@ -81,10 +92,10 @@ class ArtifactIdentityTests(unittest.TestCase):
 
     def test_binary_recipe_and_source_root_mutations_are_detected(self):
         recorded = self.inspect()
-        (self.output / 'bin/test').write_bytes(b'changed binary')
+        self.binary.write_bytes(b'changed binary')
         with self.assertRaisesRegex(identity.ArtifactIdentityError, 'identity changed'):
             identity.recheck_artifact(self.root, recorded, store=self.store)
-        (self.output / 'bin/test').write_bytes(b'fixture binary')
+        self.binary.write_bytes(b'fixture binary')
         (self.root / 'flake.lock').write_text('changed', encoding="utf-8")
         with self.assertRaisesRegex(identity.ArtifactIdentityError, 'identity changed'):
             identity.recheck_artifact(self.root, recorded, store=self.store)
@@ -97,7 +108,7 @@ class ArtifactIdentityTests(unittest.TestCase):
             self.inspect(crate='--bad')
         with self.assertRaises(identity.ArtifactIdentityError):
             self.inspect(features=['--bad'])
-        binary = self.output / 'bin/test'
+        binary = self.binary
         binary.unlink()
         binary.symlink_to(self.root / 'flake.lock')
         with self.assertRaises(identity.ArtifactIdentityError):
