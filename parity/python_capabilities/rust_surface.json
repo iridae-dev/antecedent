@@ -389,7 +389,7 @@
       "kind": "method"
     },
     "<antecedent::BoundDecisionContract>::bind": {
-      "declaration": "pub fn <antecedent::BoundDecisionContract>::fn bind(causal: &antecedent::CausalContract, decision: antecedent_design::decision_contract::AdmissibleDecisionContract) -> core::result::Result<Self, antecedent::DecisionFacadeRefusal>",
+      "declaration": "pub fn <antecedent::BoundDecisionContract>::fn bind(causal: &antecedent::CausalContract, decision: antecedent_design::decision_contract::admissibility::AdmissibleDecisionContract) -> core::result::Result<Self, antecedent::DecisionFacadeRefusal>",
       "kind": "method"
     },
     "<antecedent::BoundDecisionContract>::causal_identification": {
@@ -405,7 +405,7 @@
       "kind": "method"
     },
     "<antecedent::BoundDecisionContract>::decision": {
-      "declaration": "pub fn <antecedent::BoundDecisionContract>::fn decision(&self) -> &antecedent_design::decision_contract::AdmissibleDecisionContract",
+      "declaration": "pub fn <antecedent::BoundDecisionContract>::fn decision(&self) -> &antecedent_design::decision_contract::admissibility::AdmissibleDecisionContract",
       "kind": "method"
     },
     "<antecedent::BoundDecisionContract>::evaluate_claims": {
@@ -957,7 +957,7 @@
       "kind": "method"
     },
     "<antecedent::CounterfactualTransportResult>::data": {
-      "declaration": "pub fn <antecedent::CounterfactualTransportResult>::const fn data(&self) -> &antecedent_expr::exact::ExactTransportData",
+      "declaration": "pub fn <antecedent::CounterfactualTransportResult>::const fn data(&self) -> &antecedent_expr::exact::transport::ExactTransportData",
       "kind": "method"
     },
     "<antecedent::CounterfactualTransportResult>::denominator": {
@@ -1789,7 +1789,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedAdmgConditionalTransport>::refresh": {
-      "declaration": "pub fn <antecedent::PreparedAdmgConditionalTransport>::fn refresh(&self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::PreparedAdmgConditionalTransport>::fn refresh(&self, data: antecedent_expr::exact::transport::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::PreparedAdmgConditionalTransport>::requests": {
@@ -1889,7 +1889,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedCounterfactualTransport>::data": {
-      "declaration": "pub fn <antecedent::PreparedCounterfactualTransport>::fn data(&self) -> core::option::Option<&antecedent_expr::exact::ExactTransportData>",
+      "declaration": "pub fn <antecedent::PreparedCounterfactualTransport>::fn data(&self) -> core::option::Option<&antecedent_expr::exact::transport::ExactTransportData>",
       "kind": "method"
     },
     "<antecedent::PreparedCounterfactualTransport>::derivation": {
@@ -1901,7 +1901,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedCounterfactualTransport>::evaluate": {
-      "declaration": "pub fn <antecedent::PreparedCounterfactualTransport>::fn evaluate(&self, evidence: &antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CounterfactualTransportResult, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::PreparedCounterfactualTransport>::fn evaluate(&self, evidence: &antecedent_expr::exact::transport::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CounterfactualTransportResult, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::PreparedCounterfactualTransport>::problem": {
@@ -1913,7 +1913,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedCounterfactualTransport>::refresh": {
-      "declaration": "pub fn <antecedent::PreparedCounterfactualTransport>::fn refresh(&self, evidence: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::PreparedCounterfactualTransport>::fn refresh(&self, evidence: antecedent_expr::exact::transport::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::PreparedCpdagCompletionScenarios>::estimate": {
@@ -2193,7 +2193,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedMixedSource>::data": {
-      "declaration": "pub fn <antecedent::PreparedMixedSource>::const fn data(&self) -> &antecedent_expr::exact::ExactTransportData",
+      "declaration": "pub fn <antecedent::PreparedMixedSource>::const fn data(&self) -> &antecedent_expr::exact::transport::ExactTransportData",
       "kind": "method"
     },
     "<antecedent::PreparedMixedSource>::estimate": {
@@ -2209,7 +2209,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedMixedSource>::refresh": {
-      "declaration": "pub fn <antecedent::PreparedMixedSource>::fn refresh(&self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::PreparedMixedSource>::fn refresh(&self, data: antecedent_expr::exact::transport::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::PreparedMixedSource>::requests": {
@@ -2217,7 +2217,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedMzTransport>::data": {
-      "declaration": "pub fn <antecedent::PreparedMzTransport>::const fn data(&self) -> &antecedent_expr::exact::ExactTransportData",
+      "declaration": "pub fn <antecedent::PreparedMzTransport>::const fn data(&self) -> &antecedent_expr::exact::transport::ExactTransportData",
       "kind": "method"
     },
     "<antecedent::PreparedMzTransport>::estimate": {
@@ -2233,7 +2233,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedMzTransport>::refresh": {
-      "declaration": "pub fn <antecedent::PreparedMzTransport>::fn refresh(&self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::PreparedMzTransport>::fn refresh(&self, data: antecedent_expr::exact::transport::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::PreparedMzTransport>::requests": {
@@ -2405,7 +2405,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::bind_snapshot": {
-      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn bind_snapshot(&self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn bind_snapshot(&self, data: antecedent_expr::exact::transport::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::consume": {
@@ -2449,23 +2449,23 @@
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::mechanism_sensitivity": {
-      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn mechanism_sensitivity(&self, spec: &antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivitySpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivityResult, antecedent_validate::mechanism_sensitivity::FixedGraphSensitivityError>",
+      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn mechanism_sensitivity(&self, spec: &antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivitySpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivityResult, antecedent_validate::mechanism_sensitivity::fixed::FixedGraphSensitivityError>",
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::mechanism_sensitivity_at_treatment_level": {
-      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn mechanism_sensitivity_at_treatment_level(&self, spec: &antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivitySpec, treatment_level: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivityResult, antecedent_validate::mechanism_sensitivity::FixedGraphSensitivityError>",
+      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn mechanism_sensitivity_at_treatment_level(&self, spec: &antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivitySpec, treatment_level: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivityResult, antecedent_validate::mechanism_sensitivity::fixed::FixedGraphSensitivityError>",
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::mechanism_sensitivity_conditional_mechanism": {
-      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn mechanism_sensitivity_conditional_mechanism(&self, spec: &antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivitySpec, mechanism: antecedent_core::ids::VariableId, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::mechanism_sensitivity::FixedGraphConditionalMechanismSensitivityResult, antecedent_validate::mechanism_sensitivity::FixedGraphSensitivityError>",
+      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn mechanism_sensitivity_conditional_mechanism(&self, spec: &antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivitySpec, mechanism: antecedent_core::ids::VariableId, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::mechanism_sensitivity::FixedGraphConditionalMechanismSensitivityResult, antecedent_validate::mechanism_sensitivity::fixed::FixedGraphSensitivityError>",
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::mechanism_sensitivity_root_mechanism": {
-      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn mechanism_sensitivity_root_mechanism(&self, spec: &antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivitySpec, mechanism: antecedent_core::ids::VariableId, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::mechanism_sensitivity::FixedGraphRootMechanismSensitivityResult, antecedent_validate::mechanism_sensitivity::FixedGraphSensitivityError>",
+      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn mechanism_sensitivity_root_mechanism(&self, spec: &antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivitySpec, mechanism: antecedent_core::ids::VariableId, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::mechanism_sensitivity::FixedGraphRootMechanismSensitivityResult, antecedent_validate::mechanism_sensitivity::fixed::FixedGraphSensitivityError>",
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::preview_snapshot": {
-      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn preview_snapshot(&self, data: &antecedent_expr::exact::ExactTransportData) -> core::result::Result<bool, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn preview_snapshot(&self, data: &antecedent_expr::exact::transport::ExactTransportData) -> core::result::Result<bool, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::preview_transform": {
@@ -2481,11 +2481,11 @@
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::refresh": {
-      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn refresh(&mut self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ExactStudyResult, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn refresh(&mut self, data: antecedent_expr::exact::transport::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ExactStudyResult, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::replace_snapshot": {
-      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn replace_snapshot(&mut self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn replace_snapshot(&mut self, data: antecedent_expr::exact::transport::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::ExactPreparedState>>::requote_execution": {
@@ -2741,7 +2741,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>>::rebind": {
-      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>>::fn rebind(&self, request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::cyclic_system_artifact::CyclicArtifactError>",
+      "declaration": "pub fn <antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>>::fn rebind(&self, request: &antecedent_io::cyclic_family_artifact::request::CyclicFamilyRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::cyclic_system_artifact::CyclicArtifactError>",
       "kind": "method"
     },
     "<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicPreparedState>>::contract": {
@@ -2893,7 +2893,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedStudy>::candidate_templates": {
-      "declaration": "pub fn <antecedent::PreparedStudy>::fn candidate_templates(&self, sensitivity: core::option::Option<&antecedent_design::identification_repair::SensitivityFinding>) -> core::result::Result<antecedent_design::candidate_generation::CandidateGeneration, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>",
+      "declaration": "pub fn <antecedent::PreparedStudy>::fn candidate_templates(&self, sensitivity: core::option::Option<&antecedent_design::identification_repair::sensitivity::SensitivityFinding>) -> core::result::Result<antecedent_design::candidate_generation::CandidateGeneration, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>",
       "kind": "method"
     },
     "<antecedent::PreparedStudy>::capability": {
@@ -3237,7 +3237,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedTemporalTransport>::refresh": {
-      "declaration": "pub fn <antecedent::PreparedTemporalTransport>::fn refresh(&self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::PreparedTemporalTransport>::fn refresh(&self, data: antecedent_expr::exact::transport::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::PreparedTransportScenarios>::aggregate_interval": {
@@ -3257,7 +3257,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedTransportScenarios>::refresh": {
-      "declaration": "pub fn <antecedent::PreparedTransportScenarios>::fn refresh(&self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::PreparedTransportScenarios>::fn refresh(&self, data: antecedent_expr::exact::transport::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::PreparedTransportScenarios>::refresh_empirical": {
@@ -3265,7 +3265,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedZTransport>::data": {
-      "declaration": "pub fn <antecedent::PreparedZTransport>::fn data(&self) -> &antecedent_expr::exact::ExactTransportData",
+      "declaration": "pub fn <antecedent::PreparedZTransport>::fn data(&self) -> &antecedent_expr::exact::transport::ExactTransportData",
       "kind": "method"
     },
     "<antecedent::PreparedZTransport>::estimate": {
@@ -3301,7 +3301,7 @@
       "kind": "method"
     },
     "<antecedent::PreparedZTransport>::refresh": {
-      "declaration": "pub fn <antecedent::PreparedZTransport>::fn refresh(&self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::PreparedZTransport>::fn refresh(&self, data: antecedent_expr::exact::transport::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::PreparedZTransport>::sensitivity_artifact": {
@@ -3797,7 +3797,7 @@
       "kind": "method"
     },
     "<antecedent::StatisticalStudyResult>::bayesian_estimate": {
-      "declaration": "pub fn <antecedent::StatisticalStudyResult>::const fn bayesian_estimate(&self) -> core::option::Option<&antecedent_estimate::statistical_transport::BayesianStatisticalTransportEstimate>",
+      "declaration": "pub fn <antecedent::StatisticalStudyResult>::const fn bayesian_estimate(&self) -> core::option::Option<&antecedent_estimate::statistical_transport::bayesian::BayesianStatisticalTransportEstimate>",
       "kind": "method"
     },
     "<antecedent::StatisticalStudyResult>::contrast": {
@@ -3841,7 +3841,7 @@
       "kind": "method"
     },
     "<antecedent::Study>::candidate_templates": {
-      "declaration": "pub fn <antecedent::Study>::fn candidate_templates(&self, sensitivity: core::option::Option<&antecedent_design::identification_repair::SensitivityFinding>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::candidate_generation::CandidateGeneration, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>",
+      "declaration": "pub fn <antecedent::Study>::fn candidate_templates(&self, sensitivity: core::option::Option<&antecedent_design::identification_repair::sensitivity::SensitivityFinding>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::candidate_generation::CandidateGeneration, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>",
       "kind": "method"
     },
     "<antecedent::Study>::capability": {
@@ -3945,7 +3945,7 @@
       "kind": "method"
     },
     "<antecedent::Study>::prepare_cyclic_family": {
-      "declaration": "pub fn <antecedent::Study>::fn prepare_cyclic_family(request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>",
+      "declaration": "pub fn <antecedent::Study>::fn prepare_cyclic_family(request: &antecedent_io::cyclic_family_artifact::request::CyclicFamilyRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>",
       "kind": "method"
     },
     "<antecedent::Study>::prepare_deferred": {
@@ -3953,7 +3953,7 @@
       "kind": "method"
     },
     "<antecedent::Study>::prepare_experimental_recovery": {
-      "declaration": "pub fn <antecedent::Study>::fn prepare_experimental_recovery(request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>",
+      "declaration": "pub fn <antecedent::Study>::fn prepare_experimental_recovery(request: &antecedent_io::cyclic_family_artifact::request::CyclicFamilyRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>",
       "kind": "method"
     },
     "<antecedent::Study>::prepare_joint_panel": {
@@ -3981,7 +3981,7 @@
       "kind": "method"
     },
     "<antecedent::Study>::prepare_recovered_linear": {
-      "declaration": "pub fn <antecedent::Study>::fn prepare_recovered_linear(request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>",
+      "declaration": "pub fn <antecedent::Study>::fn prepare_recovered_linear(request: &antecedent_io::cyclic_family_artifact::request::CyclicFamilyRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>",
       "kind": "method"
     },
     "<antecedent::Study>::run": {
@@ -4017,7 +4017,7 @@
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::admg_conditional_transport": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn admg_conditional_transport(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::conditional::BoundConditionalTransportFunctional, search: antecedent_core::search::SearchLimits, data: antecedent_expr::exact::ExactTransportData, requests: alloc::vec::Vec<antecedent_expr::provider::Assignment>, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedAdmgConditionalTransport, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn admg_conditional_transport(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::conditional::BoundConditionalTransportFunctional, search: antecedent_core::search::SearchLimits, data: antecedent_expr::exact::transport::ExactTransportData, requests: alloc::vec::Vec<antecedent_expr::provider::Assignment>, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedAdmgConditionalTransport, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::average_effect": {
@@ -4061,7 +4061,7 @@
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::conditional_transport_scenarios": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn conditional_transport_scenarios(set: &antecedent_identify::sid::scenarios::TransportScenarioSet, query: antecedent_identify::sid::conditional::ConditionalTransportQuery, search: antecedent::EvidenceSearch, data: antecedent_expr::exact::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedTransportScenarios, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn conditional_transport_scenarios(set: &antecedent_identify::sid::scenarios::TransportScenarioSet, query: antecedent_identify::sid::conditional::ConditionalTransportQuery, search: antecedent::EvidenceSearch, data: antecedent_expr::exact::transport::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedTransportScenarios, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::continuous_cell": {
@@ -4097,7 +4097,7 @@
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::exact_transport": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn exact_transport(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::BoundTransportFunctional, data: antecedent_expr::exact::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::ExactPreparedState>, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn exact_transport(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::BoundTransportFunctional, data: antecedent_expr::exact::transport::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::ExactPreparedState>, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::graph": {
@@ -4109,7 +4109,7 @@
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::history_indexed_target_law": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn history_indexed_target_law(data: &antecedent_expr::exact::ExactTransportData, population: &str, coordinates: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_core::scientific_target::model::HistoryIndexedTargetLaw, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn history_indexed_target_law(data: &antecedent_expr::exact::transport::ExactTransportData, population: &str, coordinates: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_core::scientific_target::model::HistoryIndexedTargetLaw, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::identifier": {
@@ -4173,15 +4173,15 @@
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::mixed_source": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn mixed_source(graph: antecedent_graph::admg::Admg, functional: antecedent_identify::sid::mixed_source::search::BoundMixedSourceFunctional, search: antecedent_core::search::SearchLimits, data: antecedent_expr::exact::ExactTransportData, requests: alloc::vec::Vec<antecedent_expr::provider::Assignment>, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedMixedSource, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn mixed_source(graph: antecedent_graph::admg::Admg, functional: antecedent_identify::sid::mixed_source::search::BoundMixedSourceFunctional, search: antecedent_core::search::SearchLimits, data: antecedent_expr::exact::transport::ExactTransportData, requests: alloc::vec::Vec<antecedent_expr::provider::Assignment>, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedMixedSource, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::mz_transport": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn mz_transport(graph: antecedent_graph::admg::Admg, functional: antecedent_identify::sid::mz_transport::BoundMzTransportFunctional, search: antecedent_core::search::SearchLimits, data: antecedent_expr::exact::ExactTransportData, requests: alloc::vec::Vec<antecedent_expr::provider::Assignment>, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedMzTransport, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn mz_transport(graph: antecedent_graph::admg::Admg, functional: antecedent_identify::sid::mz_transport::BoundMzTransportFunctional, search: antecedent_core::search::SearchLimits, data: antecedent_expr::exact::transport::ExactTransportData, requests: alloc::vec::Vec<antecedent_expr::provider::Assignment>, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedMzTransport, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::mz_transport_empirical": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn mz_transport_empirical(graph: antecedent_graph::admg::Admg, functional: antecedent_identify::sid::mz_transport::BoundMzTransportFunctional, search: antecedent_core::search::SearchLimits, data: antecedent_expr::exact::ExactTransportData, requests: alloc::vec::Vec<antecedent_expr::provider::Assignment>, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedMzTransport, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn mz_transport_empirical(graph: antecedent_graph::admg::Admg, functional: antecedent_identify::sid::mz_transport::BoundMzTransportFunctional, search: antecedent_core::search::SearchLimits, data: antecedent_expr::exact::transport::ExactTransportData, requests: alloc::vec::Vec<antecedent_expr::provider::Assignment>, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedMzTransport, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::observation_delayed_entry": {
@@ -4201,7 +4201,7 @@
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::participants": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn participants(self, binding: antecedent_io_core::identity::ParticipantBindingWire) -> Self",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn participants(self, binding: antecedent_io_core::identity::snapshot::ParticipantBindingWire) -> Self",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::population_registry": {
@@ -4273,11 +4273,11 @@
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::temporal_transport_sequence": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn temporal_transport_sequence(spec: &antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec, endpoints: antecedent::SequenceEndpoints<'_>, search: antecedent::EvidenceSearch, data: antecedent_expr::exact::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedTemporalTransport, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn temporal_transport_sequence(spec: &antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec, endpoints: antecedent::SequenceEndpoints<'_>, search: antecedent::EvidenceSearch, data: antecedent_expr::exact::transport::ExactTransportData, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedTemporalTransport, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::temporal_transport_sequence_for_target": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn temporal_transport_sequence_for_target(spec: &antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec, endpoints: antecedent::SequenceEndpoints<'_>, search: antecedent::EvidenceSearch, data: antecedent_expr::exact::ExactTransportData, target: &antecedent_core::scientific_target::identity::ScientificTarget, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedTemporalTransport, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn temporal_transport_sequence_for_target(spec: &antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec, endpoints: antecedent::SequenceEndpoints<'_>, search: antecedent::EvidenceSearch, data: antecedent_expr::exact::transport::ExactTransportData, target: &antecedent_core::scientific_target::identity::ScientificTarget, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedTemporalTransport, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::tiered_background": {
@@ -4289,7 +4289,7 @@
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::transport_scenarios": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn transport_scenarios(set: &antecedent_identify::sid::scenarios::TransportScenarioSet, query: antecedent_identify::sid::ClassicalTransportQuery, search: antecedent::EvidenceSearch, data: antecedent_expr::exact::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedTransportScenarios, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn transport_scenarios(set: &antecedent_identify::sid::scenarios::TransportScenarioSet, query: antecedent_identify::sid::ClassicalTransportQuery, search: antecedent::EvidenceSearch, data: antecedent_expr::exact::transport::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedTransportScenarios, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::transport_scenarios_empirical": {
@@ -4301,11 +4301,11 @@
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::z_transport": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn z_transport(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: antecedent_expr::exact::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedZTransport, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn z_transport(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: antecedent_expr::exact::transport::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedZTransport, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::StudyBuilder>::z_transport_empirical": {
-      "declaration": "pub fn <antecedent::StudyBuilder>::fn z_transport_empirical(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: antecedent_expr::exact::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedZTransport, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn <antecedent::StudyBuilder>::fn z_transport_empirical(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: antecedent_expr::exact::transport::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedZTransport, antecedent_io_core::error::IoError>",
       "kind": "method"
     },
     "<antecedent::StudyResult>::analysis_result_wire": {
@@ -5257,7 +5257,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::FamilyTable>::draft": {
-      "declaration": "pub fn <antecedent::analysis::FamilyTable>::fn draft(&self, reading: antecedent_contract::propagation_chain::ChainReading, output: &str, stages: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::ChainStageWire>) -> antecedent_io_core::propagation_chain_record::PropagationChainRecordWire",
+      "declaration": "pub fn <antecedent::analysis::FamilyTable>::fn draft(&self, reading: antecedent_contract::propagation_chain::ChainReading, output: &str, stages: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::wire::ChainStageWire>) -> antecedent_io_core::propagation_chain_record::wire::PropagationChainRecordWire",
       "kind": "method"
     },
     "<antecedent::analysis::FlagshipWorkflow>::authority": {
@@ -5505,7 +5505,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::PropagationChain>::answer": {
-      "declaration": "pub fn <antecedent::analysis::PropagationChain>::fn answer(&self) -> core::option::Option<&antecedent_io_core::propagation_chain_record::ChainStageResultWire>",
+      "declaration": "pub fn <antecedent::analysis::PropagationChain>::fn answer(&self) -> core::option::Option<&antecedent_io_core::propagation_chain_record::wire::ChainStageResultWire>",
       "kind": "method"
     },
     "<antecedent::analysis::PropagationChain>::declaration_identity": {
@@ -5517,7 +5517,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::PropagationChain>::draft": {
-      "declaration": "pub fn <antecedent::analysis::PropagationChain>::fn draft(construction: antecedent_contract::propagation_chain::TableConstruction, reading: antecedent_contract::propagation_chain::ChainReading, output: &str, sources: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::ChainSourceWire>, stages: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::ChainStageWire>) -> antecedent_io_core::propagation_chain_record::PropagationChainRecordWire",
+      "declaration": "pub fn <antecedent::analysis::PropagationChain>::fn draft(construction: antecedent_contract::propagation_chain::TableConstruction, reading: antecedent_contract::propagation_chain::ChainReading, output: &str, sources: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::wire::ChainSourceWire>, stages: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::wire::ChainStageWire>) -> antecedent_io_core::propagation_chain_record::wire::PropagationChainRecordWire",
       "kind": "method"
     },
     "<antecedent::analysis::PropagationChain>::export": {
@@ -5549,7 +5549,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::PropagationChain>::record": {
-      "declaration": "pub fn <antecedent::analysis::PropagationChain>::const fn record(&self) -> &antecedent_io_core::propagation_chain_record::PropagationChainRecordWire",
+      "declaration": "pub fn <antecedent::analysis::PropagationChain>::const fn record(&self) -> &antecedent_io_core::propagation_chain_record::wire::PropagationChainRecordWire",
       "kind": "method"
     },
     "<antecedent::analysis::PropagationChain>::require_current_value": {
@@ -5557,7 +5557,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::PropagationChain>::results": {
-      "declaration": "pub fn <antecedent::analysis::PropagationChain>::fn results(&self) -> &[antecedent_io_core::propagation_chain_record::ChainStageResultWire]",
+      "declaration": "pub fn <antecedent::analysis::PropagationChain>::fn results(&self) -> &[antecedent_io_core::propagation_chain_record::wire::ChainStageResultWire]",
       "kind": "method"
     },
     "<antecedent::analysis::PropagationChain>::reweight": {
@@ -5565,11 +5565,11 @@
       "kind": "method"
     },
     "<antecedent::analysis::PropagationChain>::seal": {
-      "declaration": "pub fn <antecedent::analysis::PropagationChain>::fn seal(draft: antecedent_io_core::propagation_chain_record::PropagationChainRecordWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_contract::propagation_chain::ChainRefusal>",
+      "declaration": "pub fn <antecedent::analysis::PropagationChain>::fn seal(draft: antecedent_io_core::propagation_chain_record::wire::PropagationChainRecordWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_contract::propagation_chain::ChainRefusal>",
       "kind": "method"
     },
     "<antecedent::analysis::PropagationChain>::stage": {
-      "declaration": "pub fn <antecedent::analysis::PropagationChain>::fn stage(&self, id: &str) -> core::option::Option<&antecedent_io_core::propagation_chain_record::ChainStageResultWire>",
+      "declaration": "pub fn <antecedent::analysis::PropagationChain>::fn stage(&self, id: &str) -> core::option::Option<&antecedent_io_core::propagation_chain_record::wire::ChainStageResultWire>",
       "kind": "method"
     },
     "<antecedent::analysis::PropagationChain>::withdraw": {
@@ -5593,7 +5593,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::PropagationClaim>::decision_verdict": {
-      "declaration": "pub fn <antecedent::analysis::PropagationClaim>::fn decision_verdict(&self) -> core::option::Option<antecedent_stats::joint_law::DecisionVerdict>",
+      "declaration": "pub fn <antecedent::analysis::PropagationClaim>::fn decision_verdict(&self) -> core::option::Option<antecedent_stats::joint_law::projection::DecisionVerdict>",
       "kind": "method"
     },
     "<antecedent::analysis::PropagationClaim>::export": {
@@ -5957,15 +5957,15 @@
       "kind": "method"
     },
     "<antecedent::analysis::categorical_treatment::CategoricalTreatment>::evaluate": {
-      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn evaluate(request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>",
+      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn evaluate(request: &antecedent_io::categorical_treatment_artifact::declaration::CategoricalTreatmentRequest) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>",
       "kind": "method"
     },
     "<antecedent::analysis::categorical_treatment::CategoricalTreatment>::evaluate_declared": {
-      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn evaluate_declared(request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest, rows: &antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>",
+      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn evaluate_declared(request: &antecedent_io::categorical_treatment_artifact::declaration::CategoricalTreatmentRequest, rows: &antecedent_io::categorical_treatment_artifact::declaration::CategoricalRowsRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>",
       "kind": "method"
     },
     "<antecedent::analysis::categorical_treatment::CategoricalTreatment>::evaluate_with": {
-      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn evaluate_with(request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>",
+      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn evaluate_with(request: &antecedent_io::categorical_treatment_artifact::declaration::CategoricalTreatmentRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>",
       "kind": "method"
     },
     "<antecedent::analysis::categorical_treatment::CategoricalTreatment>::export": {
@@ -5985,7 +5985,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::categorical_treatment::CategoricalTreatment>::posterior": {
-      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn posterior(&self) -> core::option::Option<&antecedent_io::categorical_treatment_artifact::CategoricalPosteriorWire>",
+      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn posterior(&self) -> core::option::Option<&antecedent_io::categorical_treatment_artifact::posterior::CategoricalPosteriorWire>",
       "kind": "method"
     },
     "<antecedent::analysis::categorical_treatment::CategoricalTreatment>::report": {
@@ -5993,19 +5993,19 @@
       "kind": "method"
     },
     "<antecedent::analysis::categorical_treatment::CategoricalTreatment>::verify_data": {
-      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn verify_data(&self, request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest) -> core::result::Result<(), antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>",
+      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn verify_data(&self, request: &antecedent_io::categorical_treatment_artifact::declaration::CategoricalTreatmentRequest) -> core::result::Result<(), antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>",
       "kind": "method"
     },
     "<antecedent::analysis::categorical_treatment::CategoricalTreatment>::verify_data_declared": {
-      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn verify_data_declared(&self, request: &antecedent_io::categorical_treatment_artifact::CategoricalTreatmentRequest, rows: &antecedent_io::categorical_treatment_artifact::CategoricalRowsRequest) -> core::result::Result<(), antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>",
+      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn verify_data_declared(&self, request: &antecedent_io::categorical_treatment_artifact::declaration::CategoricalTreatmentRequest, rows: &antecedent_io::categorical_treatment_artifact::declaration::CategoricalRowsRequest) -> core::result::Result<(), antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>",
       "kind": "method"
     },
     "<antecedent::analysis::categorical_treatment::CategoricalTreatment>::with_posterior": {
-      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn with_posterior(self, declaration: &antecedent_io::categorical_treatment_artifact::CategoricalPosteriorDeclaration) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>",
+      "declaration": "pub fn <antecedent::analysis::categorical_treatment::CategoricalTreatment>::fn with_posterior(self, declaration: &antecedent_io::categorical_treatment_artifact::posterior::CategoricalPosteriorDeclaration) -> core::result::Result<Self, antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError>",
       "kind": "method"
     },
     "<antecedent::analysis::cohort_decision::FittedEffectModel>::decision_source": {
-      "declaration": "pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn decision_source(&self, cohort: &antecedent_io_core::cohort_decision::CohortBinding, outcome_units: &str, options: &antecedent_io_core::cohort_decision::CohortOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::cohort_decision::CohortDecisionSource, antecedent_io_core::cohort_decision::CohortRefusal>",
+      "declaration": "pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn decision_source(&self, cohort: &antecedent_io_core::cohort_decision::cohort_binding::CohortBinding, outcome_units: &str, options: &antecedent_io_core::cohort_decision::CohortOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::cohort_decision::CohortDecisionSource, antecedent_io_core::cohort_decision::CohortRefusal>",
       "kind": "method"
     },
     "<antecedent::analysis::cohort_decision::FittedEffectModel>::features": {
@@ -6029,7 +6029,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::cohort_decision::FittedEffectModel>::retained": {
-      "declaration": "pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn retained(&self) -> &antecedent_io_core::cohort_decision::RetainedEffectModel",
+      "declaration": "pub fn <antecedent::analysis::cohort_decision::FittedEffectModel>::fn retained(&self) -> &antecedent_io_core::cohort_decision::retained_model::RetainedEffectModel",
       "kind": "method"
     },
     "<antecedent::analysis::compiled_linear::CompiledLinearProgram>::identification": {
@@ -6053,7 +6053,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::composition::BundleBuilder>::add_artifact": {
-      "declaration": "pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_artifact(&mut self, node_id: core::option::Option<&str>, kind: antecedent_design::composition_bundle::NodeKind, bytes: &[u8]) -> core::result::Result<alloc::string::String, antecedent_design::composition_bundle::BundleError>",
+      "declaration": "pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_artifact(&mut self, node_id: core::option::Option<&str>, kind: antecedent_design::composition_bundle::vocabulary::NodeKind, bytes: &[u8]) -> core::result::Result<alloc::string::String, antecedent_design::composition_bundle::BundleError>",
       "kind": "method"
     },
     "<antecedent::analysis::composition::BundleBuilder>::add_detected_artifact": {
@@ -6061,7 +6061,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::composition::BundleBuilder>::add_reference": {
-      "declaration": "pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_reference(&mut self, node_id: &str, kind: antecedent_design::composition_bundle::NodeKind, identity: &str, requires: antecedent_design::composition_bundle::ProviderOrData) -> core::result::Result<(), antecedent_design::composition_bundle::BundleError>",
+      "declaration": "pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_reference(&mut self, node_id: &str, kind: antecedent_design::composition_bundle::vocabulary::NodeKind, identity: &str, requires: antecedent_design::composition_bundle::vocabulary::ProviderOrData) -> core::result::Result<(), antecedent_design::composition_bundle::BundleError>",
       "kind": "method"
     },
     "<antecedent::analysis::composition::BundleBuilder>::build": {
@@ -6081,7 +6081,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::composition::BundleBuilder>::limits": {
-      "declaration": "pub fn <antecedent::analysis::composition::BundleBuilder>::fn limits(&self) -> &antecedent_design::composition_bundle::BundleLimits",
+      "declaration": "pub fn <antecedent::analysis::composition::BundleBuilder>::fn limits(&self) -> &antecedent_design::composition_bundle::vocabulary::BundleLimits",
       "kind": "method"
     },
     "<antecedent::analysis::composition::BundleBuilder>::new": {
@@ -6093,7 +6093,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::composition::BundleBuilder>::relate": {
-      "declaration": "pub fn <antecedent::analysis::composition::BundleBuilder>::fn relate(&mut self, left: &str, right: &str, relationship: antecedent_design::composition_bundle::EvidenceRelationship) -> core::result::Result<alloc::string::String, antecedent_design::composition_bundle::BundleError>",
+      "declaration": "pub fn <antecedent::analysis::composition::BundleBuilder>::fn relate(&mut self, left: &str, right: &str, relationship: antecedent_design::composition_bundle::vocabulary::EvidenceRelationship) -> core::result::Result<alloc::string::String, antecedent_design::composition_bundle::BundleError>",
       "kind": "method"
     },
     "<antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking>::consume": {
@@ -6277,7 +6277,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::cyclic::ExecutedCyclicFamily>::request": {
-      "declaration": "pub fn <antecedent::analysis::cyclic::ExecutedCyclicFamily>::fn request(&self) -> &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest",
+      "declaration": "pub fn <antecedent::analysis::cyclic::ExecutedCyclicFamily>::fn request(&self) -> &antecedent_io::cyclic_family_artifact::request::CyclicFamilyRequest",
       "kind": "method"
     },
     "<antecedent::analysis::cyclic::ExecutedCyclicSystem>::contract_metadata": {
@@ -6337,7 +6337,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::cyclic_evidence::ConsumedCyclicFamily>::request": {
-      "declaration": "pub fn <antecedent::analysis::cyclic_evidence::ConsumedCyclicFamily>::fn request(&self) -> &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest",
+      "declaration": "pub fn <antecedent::analysis::cyclic_evidence::ConsumedCyclicFamily>::fn request(&self) -> &antecedent_io::cyclic_family_artifact::request::CyclicFamilyRequest",
       "kind": "method"
     },
     "<antecedent::analysis::cyclic_evidence::ConsumedCyclicSystem>::artifact": {
@@ -7069,7 +7069,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::joint_panel::JointPanelContinuousSearch>::with_objective": {
-      "declaration": "pub fn <antecedent::analysis::joint_panel::JointPanelContinuousSearch>::fn with_objective(&self, contract: antecedent_design::decision_contract::ProgramSearchContract) -> core::result::Result<Self, antecedent::analysis::joint_panel::JointPanelError>",
+      "declaration": "pub fn <antecedent::analysis::joint_panel::JointPanelContinuousSearch>::fn with_objective(&self, contract: antecedent_design::decision_contract::search::ProgramSearchContract) -> core::result::Result<Self, antecedent::analysis::joint_panel::JointPanelError>",
       "kind": "method"
     },
     "<antecedent::analysis::joint_panel::JointPanelExplanationAttempt>::compiled_response": {
@@ -7261,7 +7261,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::joint_panel::JointPanelSearch>::with_objective": {
-      "declaration": "pub fn <antecedent::analysis::joint_panel::JointPanelSearch>::fn with_objective(&self, contract: antecedent_design::decision_contract::ProgramSearchContract) -> core::result::Result<Self, antecedent::analysis::joint_panel::JointPanelError>",
+      "declaration": "pub fn <antecedent::analysis::joint_panel::JointPanelSearch>::fn with_objective(&self, contract: antecedent_design::decision_contract::search::ProgramSearchContract) -> core::result::Result<Self, antecedent::analysis::joint_panel::JointPanelError>",
       "kind": "method"
     },
     "<antecedent::analysis::joint_panel::JointPanelWorld>::horizon": {
@@ -7893,7 +7893,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::observation_query::ObservationClaim>::query": {
-      "declaration": "pub fn <antecedent::analysis::observation_query::ObservationClaim>::const fn query(&self) -> &antecedent_io_core::observation_query_artifact::ObservationQueryWire",
+      "declaration": "pub fn <antecedent::analysis::observation_query::ObservationClaim>::const fn query(&self) -> &antecedent_io_core::observation_query_artifact::wire::ObservationQueryWire",
       "kind": "method"
     },
     "<antecedent::analysis::observation_query::ObservationClaim>::required_factor": {
@@ -7905,7 +7905,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::observation_query::ObservationClaim>::result": {
-      "declaration": "pub fn <antecedent::analysis::observation_query::ObservationClaim>::const fn result(&self) -> &antecedent_io_core::observation_query_artifact::ObservationResultWire",
+      "declaration": "pub fn <antecedent::analysis::observation_query::ObservationClaim>::const fn result(&self) -> &antecedent_io_core::observation_query_artifact::wire::ObservationResultWire",
       "kind": "method"
     },
     "<antecedent::analysis::observation_query::ObservationClaim>::threshold_rows": {
@@ -7989,7 +7989,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::propagation_chain::PropagationChainPlan>::with_change": {
-      "declaration": "pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn with_change(&self, change: antecedent_io_core::propagation_chain_record::ChainChangeWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_contract::propagation_chain::ChainRefusal>",
+      "declaration": "pub fn <antecedent::analysis::propagation_chain::PropagationChainPlan>::fn with_change(&self, change: antecedent_io_core::propagation_chain_record::wire::ChainChangeWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_contract::propagation_chain::ChainRefusal>",
       "kind": "method"
     },
     "<antecedent::analysis::proposal_arrival::ArrivalArtifact>::consume": {
@@ -9193,7 +9193,7 @@
       "kind": "method"
     },
     "<antecedent::analysis::transported_cohort::TransportedCohort>::cohort": {
-      "declaration": "pub fn <antecedent::analysis::transported_cohort::TransportedCohort>::const fn cohort(&self) -> &antecedent_io_core::cohort_decision::CohortBinding",
+      "declaration": "pub fn <antecedent::analysis::transported_cohort::TransportedCohort>::const fn cohort(&self) -> &antecedent_io_core::cohort_decision::cohort_binding::CohortBinding",
       "kind": "method"
     },
     "<antecedent::analysis::transported_cohort::TransportedCohort>::composition_node": {
@@ -10113,7 +10113,7 @@
       "kind": "method"
     },
     "<antecedent::planner::lowered::ChainProgram>::draft": {
-      "declaration": "pub fn <antecedent::planner::lowered::ChainProgram>::fn draft(&self) -> &antecedent_io_core::propagation_chain_record::PropagationChainRecordWire",
+      "declaration": "pub fn <antecedent::planner::lowered::ChainProgram>::fn draft(&self) -> &antecedent_io_core::propagation_chain_record::wire::PropagationChainRecordWire",
       "kind": "method"
     },
     "<antecedent::planner::lowered::ChainProgram>::plan": {
@@ -13247,7 +13247,7 @@
       "kind": "function"
     },
     "antecedent::analysis::api::compose_checked_study_claims": {
-      "declaration": "pub fn antecedent::analysis::api::compose_checked_study_claims(target: &antecedent_core::scientific_target::identity::ScientificTarget, parents: &[antecedent::PreparedClaimParent<'_>], operation: antecedent_contract::claim::ClaimOperation, limits: &antecedent_contract::claim::CheckedWorldPointLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CheckedStudyClaim, antecedent_contract::claim::CheckedWorldPointError>",
+      "declaration": "pub fn antecedent::analysis::api::compose_checked_study_claims(target: &antecedent_core::scientific_target::identity::ScientificTarget, parents: &[antecedent::PreparedClaimParent<'_>], operation: antecedent_contract::claim::ClaimOperation, limits: &antecedent_contract::claim::world_point::CheckedWorldPointLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CheckedStudyClaim, antecedent_contract::claim::world_point::CheckedWorldPointError>",
       "kind": "function"
     },
     "antecedent::analysis::api::consume_admg_conditional_obstruction_artifact": {
@@ -13403,7 +13403,7 @@
       "kind": "function"
     },
     "antecedent::analysis::api::prepare_counterfactual_transport": {
-      "declaration": "pub fn antecedent::analysis::api::prepare_counterfactual_transport(problem: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportProblem, query: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, evidence: core::option::Option<antecedent_expr::exact::ExactTransportData>, options: &antecedent::CounterfactualTransportOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CounterfactualTransportPreparation, antecedent_io_core::error::IoError>",
+      "declaration": "pub fn antecedent::analysis::api::prepare_counterfactual_transport(problem: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportProblem, query: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, evidence: core::option::Option<antecedent_expr::exact::transport::ExactTransportData>, options: &antecedent::CounterfactualTransportOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CounterfactualTransportPreparation, antecedent_io_core::error::IoError>",
       "kind": "function"
     },
     "antecedent::analysis::api::retained_source_from_artifact": {
@@ -13625,7 +13625,7 @@
       "kind": "function"
     },
     "antecedent::analysis::composition::consume_with_limits": {
-      "declaration": "pub fn antecedent::analysis::composition::consume_with_limits(bytes: &[u8], limits: &antecedent_design::composition_bundle::BundleLimits, expected_identity: &str, supplied: &antecedent_design::composition_bundle::SuppliedSources) -> core::result::Result<antecedent_design::composition_bundle::ConsumedBundle, antecedent_design::composition_bundle::BundleError>",
+      "declaration": "pub fn antecedent::analysis::composition::consume_with_limits(bytes: &[u8], limits: &antecedent_design::composition_bundle::vocabulary::BundleLimits, expected_identity: &str, supplied: &antecedent_design::composition_bundle::SuppliedSources) -> core::result::Result<antecedent_design::composition_bundle::ConsumedBundle, antecedent_design::composition_bundle::BundleError>",
       "kind": "function"
     },
     "antecedent::analysis::composition::export_bundle": {
@@ -13745,11 +13745,11 @@
       "kind": "function"
     },
     "antecedent::analysis::consume_joint_law_propagation_artifact": {
-      "declaration": "pub fn antecedent::analysis::consume_joint_law_propagation_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::joint_law_propagation_artifact::ConsumedJointLawPropagation, antecedent::analysis::JointLawPropagationRefusal>",
+      "declaration": "pub fn antecedent::analysis::consume_joint_law_propagation_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::joint_law_propagation_artifact::wire::ConsumedJointLawPropagation, antecedent::analysis::JointLawPropagationRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::consume_propagation_chain": {
-      "declaration": "pub fn antecedent::analysis::consume_propagation_chain(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::propagation_chain_record::ConsumedPropagationChain, antecedent_contract::propagation_chain::ChainRefusal>",
+      "declaration": "pub fn antecedent::analysis::consume_propagation_chain(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::propagation_chain_record::wire::ConsumedPropagationChain, antecedent_contract::propagation_chain::ChainRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::consume_smoothed_dose_posterior_artifact": {
@@ -13949,23 +13949,23 @@
       "kind": "function"
     },
     "antecedent::analysis::decision_claims::envelope_identified_utilities": {
-      "declaration": "pub fn antecedent::analysis::decision_claims::envelope_identified_utilities(contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, envelope: &antecedent_estimate::transport_scenarios::StructuralEnvelope, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, support: &antecedent_design::decision_robustness::AtomSupport) -> core::result::Result<alloc::vec::Vec<antecedent_design::decision_adapters::IdentifiedUtility>, antecedent::analysis::decision_claims::ClaimError>",
+      "declaration": "pub fn antecedent::analysis::decision_claims::envelope_identified_utilities(contract: &antecedent_design::decision_contract::admissibility::AdmissibleDecisionContract, envelope: &antecedent_estimate::transport_scenarios::StructuralEnvelope, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, support: &antecedent_design::decision_robustness::AtomSupport) -> core::result::Result<alloc::vec::Vec<antecedent_design::decision_adapters::IdentifiedUtility>, antecedent::analysis::decision_claims::ClaimError>",
       "kind": "function"
     },
     "antecedent::analysis::decision_claims::evaluate_cpdag_decision": {
-      "declaration": "pub fn antecedent::analysis::decision_claims::evaluate_cpdag_decision(contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, causal_identification: &str, report: &antecedent_estimate::cpdag_scenarios::CpdagScenarioReport, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, policy: antecedent_design::decision_contract::StructuralPolicy, expected: core::option::Option<&antecedent::analysis::decision_claims::ClaimSource>) -> core::result::Result<antecedent::analysis::decision_claims::ScenarioDecision, antecedent::DecisionFacadeRefusal>",
+      "declaration": "pub fn antecedent::analysis::decision_claims::evaluate_cpdag_decision(contract: &antecedent_design::decision_contract::admissibility::AdmissibleDecisionContract, causal_identification: &str, report: &antecedent_estimate::cpdag_scenarios::CpdagScenarioReport, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, policy: antecedent_design::decision_contract::StructuralPolicy, expected: core::option::Option<&antecedent::analysis::decision_claims::ClaimSource>) -> core::result::Result<antecedent::analysis::decision_claims::ScenarioDecision, antecedent::DecisionFacadeRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::decision_claims::evaluate_scenario_decision": {
-      "declaration": "pub fn antecedent::analysis::decision_claims::evaluate_scenario_decision(contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, causal_identification: &str, report: &antecedent_estimate::transport_scenarios::ScenarioSetReport, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, policy: antecedent_design::decision_contract::StructuralPolicy, expected: core::option::Option<&antecedent::analysis::decision_claims::ClaimSource>) -> core::result::Result<antecedent::analysis::decision_claims::ScenarioDecision, antecedent::DecisionFacadeRefusal>",
+      "declaration": "pub fn antecedent::analysis::decision_claims::evaluate_scenario_decision(contract: &antecedent_design::decision_contract::admissibility::AdmissibleDecisionContract, causal_identification: &str, report: &antecedent_estimate::transport_scenarios::ScenarioSetReport, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, policy: antecedent_design::decision_contract::StructuralPolicy, expected: core::option::Option<&antecedent::analysis::decision_claims::ClaimSource>) -> core::result::Result<antecedent::analysis::decision_claims::ScenarioDecision, antecedent::DecisionFacadeRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::decision_claims::interval_identified_utilities": {
-      "declaration": "pub fn antecedent::analysis::decision_claims::interval_identified_utilities(contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, intervals: &[(antecedent_contract::quantity::ScientificQuantity, antecedent_stats::identified_set::IdentifiedSetInterval)], reading: antecedent::analysis::decision_claims::IntervalReading, support: &antecedent_design::decision_robustness::AtomSupport) -> core::result::Result<alloc::vec::Vec<antecedent_design::decision_adapters::IdentifiedUtility>, antecedent::analysis::decision_claims::ClaimError>",
+      "declaration": "pub fn antecedent::analysis::decision_claims::interval_identified_utilities(contract: &antecedent_design::decision_contract::admissibility::AdmissibleDecisionContract, intervals: &[(antecedent_contract::quantity::ScientificQuantity, antecedent_stats::identified_set::IdentifiedSetInterval)], reading: antecedent::analysis::decision_claims::IntervalReading, support: &antecedent_design::decision_robustness::AtomSupport) -> core::result::Result<alloc::vec::Vec<antecedent_design::decision_adapters::IdentifiedUtility>, antecedent::analysis::decision_claims::ClaimError>",
       "kind": "function"
     },
     "antecedent::analysis::decision_claims::report_identified_utilities": {
-      "declaration": "pub fn antecedent::analysis::decision_claims::report_identified_utilities(contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, report: &antecedent_estimate::transport_scenarios::ScenarioSetReport, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, support: &antecedent_design::decision_robustness::AtomSupport) -> core::result::Result<alloc::vec::Vec<antecedent_design::decision_adapters::IdentifiedUtility>, antecedent::analysis::decision_claims::ClaimError>",
+      "declaration": "pub fn antecedent::analysis::decision_claims::report_identified_utilities(contract: &antecedent_design::decision_contract::admissibility::AdmissibleDecisionContract, report: &antecedent_estimate::transport_scenarios::ScenarioSetReport, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, support: &antecedent_design::decision_robustness::AtomSupport) -> core::result::Result<alloc::vec::Vec<antecedent_design::decision_adapters::IdentifiedUtility>, antecedent::analysis::decision_claims::ClaimError>",
       "kind": "function"
     },
     "antecedent::analysis::decision_claims::scenario_claims": {
@@ -13973,7 +13973,7 @@
       "kind": "function"
     },
     "antecedent::analysis::decision_claims::weighted_identified_utilities": {
-      "declaration": "pub fn antecedent::analysis::decision_claims::weighted_identified_utilities(contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, weighted: &antecedent_estimate::transport_scenarios::WeightedScenarioReport, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, support: &antecedent_design::decision_robustness::AtomSupport) -> core::result::Result<alloc::vec::Vec<antecedent_design::decision_adapters::IdentifiedUtility>, antecedent::analysis::decision_claims::ClaimError>",
+      "declaration": "pub fn antecedent::analysis::decision_claims::weighted_identified_utilities(contract: &antecedent_design::decision_contract::admissibility::AdmissibleDecisionContract, weighted: &antecedent_estimate::transport_scenarios::WeightedScenarioReport, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, support: &antecedent_design::decision_robustness::AtomSupport) -> core::result::Result<alloc::vec::Vec<antecedent_design::decision_adapters::IdentifiedUtility>, antecedent::analysis::decision_claims::ClaimError>",
       "kind": "function"
     },
     "antecedent::analysis::decision_reliability::PreparedDecisionReliability": {
@@ -14703,7 +14703,7 @@
       "source": "crates/antecedent/src/analysis/joint_law_propagation.rs"
     },
     "antecedent::analysis::joint_law_propagation::propagate": {
-      "declaration": "pub fn antecedent::analysis::joint_law_propagation::propagate(declared: &antecedent_contract::joint_law_rule::PropagationRequest, numbers: antecedent_io_core::joint_law_propagation_artifact::PropagationRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::PropagationClaim, antecedent::analysis::JointLawPropagationRefusal>",
+      "declaration": "pub fn antecedent::analysis::joint_law_propagation::propagate(declared: &antecedent_contract::joint_law_rule::PropagationRequest, numbers: antecedent_io_core::joint_law_propagation_artifact::wire::PropagationRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::PropagationClaim, antecedent::analysis::JointLawPropagationRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::joint_law_propagation::propagate_aligned_functional": {
@@ -14727,7 +14727,7 @@
       "kind": "function"
     },
     "antecedent::analysis::joint_law_propagation::propagate_dependence_envelope": {
-      "declaration": "pub fn antecedent::analysis::joint_law_propagation::propagate_dependence_envelope(operation: antecedent_contract::joint_law_rule::PropagationOperation, query: antecedent_io_core::joint_law_propagation_artifact::EnvelopeQueryWire, x: &antecedent::analysis::PropagationDraws, y: &antecedent::analysis::PropagationDraws, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::PropagationClaim, antecedent::analysis::JointLawPropagationRefusal>",
+      "declaration": "pub fn antecedent::analysis::joint_law_propagation::propagate_dependence_envelope(operation: antecedent_contract::joint_law_rule::PropagationOperation, query: antecedent_io_core::joint_law_propagation_artifact::wire::EnvelopeQueryWire, x: &antecedent::analysis::PropagationDraws, y: &antecedent::analysis::PropagationDraws, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::PropagationClaim, antecedent::analysis::JointLawPropagationRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::joint_law_propagation::propagate_linear_moments": {
@@ -15635,11 +15635,11 @@
       "kind": "function"
     },
     "antecedent::analysis::observation_query::retain_counts": {
-      "declaration": "pub fn antecedent::analysis::observation_query::retain_counts(variable: &str, rows: alloc::vec::Vec<(alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, alloc::vec::Vec<(alloc::string::String, u64)>)>) -> antecedent_io_core::observation_query_artifact::RetainedMechanismWire",
+      "declaration": "pub fn antecedent::analysis::observation_query::retain_counts(variable: &str, rows: alloc::vec::Vec<(alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, alloc::vec::Vec<(alloc::string::String, u64)>)>) -> antecedent_io_core::observation_query_artifact::wire::RetainedMechanismWire",
       "kind": "function"
     },
     "antecedent::analysis::observation_query::retain_regression": {
-      "declaration": "pub fn antecedent::analysis::observation_query::retain_regression(variable: &str, parents: &[(&str, &[f64])], y: &[f64]) -> core::result::Result<antecedent_io_core::observation_query_artifact::RetainedMechanismWire, antecedent::analysis::observation_query::ObservationQueryRefusal>",
+      "declaration": "pub fn antecedent::analysis::observation_query::retain_regression(variable: &str, parents: &[(&str, &[f64])], y: &[f64]) -> core::result::Result<antecedent_io_core::observation_query_artifact::wire::RetainedMechanismWire, antecedent::analysis::observation_query::ObservationQueryRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::observational_policy::ActionValueWire": {
@@ -15781,7 +15781,7 @@
       "kind": "type"
     },
     "antecedent::analysis::propagation_chain::compile_propagation_chain": {
-      "declaration": "pub fn antecedent::analysis::propagation_chain::compile_propagation_chain(draft: antecedent_io_core::propagation_chain_record::PropagationChainRecordWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::propagation_chain::PropagationChainPlan, antecedent_contract::propagation_chain::ChainRefusal>",
+      "declaration": "pub fn antecedent::analysis::propagation_chain::compile_propagation_chain(draft: antecedent_io_core::propagation_chain_record::wire::PropagationChainRecordWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::propagation_chain::PropagationChainPlan, antecedent_contract::propagation_chain::ChainRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::propagation_chain::consume_propagation_chain": {
@@ -16664,27 +16664,9 @@
       "declaration": "pub fn antecedent::analysis::staleness::staleness_report_json(report: &antecedent_validate::staleness::report::StalenessReport) -> serde_json::value::Value",
       "kind": "function"
     },
-    "antecedent::analysis::structure_route::accept_discovered": {
-      "availability": "source-visible; reconcile conditional feature in executing build",
-      "declaration": "pub fn accept_discovered(",
-      "kind": "function",
-      "source": "crates/antecedent/src/analysis/structure_route.rs"
-    },
-    "antecedent::analysis::structure_route::accept_discovered_posterior": {
-      "availability": "source-visible; reconcile conditional feature in executing build",
-      "declaration": "pub fn accept_discovered_posterior(",
-      "kind": "function",
-      "source": "crates/antecedent/src/analysis/structure_route.rs"
-    },
     "antecedent::analysis::structure_route::attribution_quantities": {
       "declaration": "pub fn antecedent::analysis::structure_route::attribution_quantities(outcome: &antecedent::AttributionOutcome) -> core::option::Option<alloc::vec::Vec<(alloc::string::String, f64)>>",
       "kind": "function"
-    },
-    "antecedent::analysis::structure_route::panel_of_units": {
-      "availability": "source-visible; reconcile conditional feature in executing build",
-      "declaration": "pub fn panel_of_units(units: Vec<TimeSeriesData>) -> Result<PanelData, CausalError> {",
-      "kind": "function",
-      "source": "crates/antecedent/src/analysis/structure_route.rs"
     },
     "antecedent::analysis::target_validation::PreparedTargetData": {
       "declaration": "pub enum antecedent::analysis::target_validation::PreparedTargetData<'a>",
@@ -16883,11 +16865,11 @@
       "kind": "type"
     },
     "antecedent::analysis::transported_cohort::transport_cohort_effect_from_result": {
-      "declaration": "pub fn antecedent::analysis::transported_cohort::transport_cohort_effect_from_result(artifact: &[u8], expected_claim: core::option::Option<&str>, source_population: &str, cohort: &antecedent_io_core::cohort_decision::CohortBinding, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_cohort::TransportedCohort, antecedent_learn::transported_effect::TransportRefusal>",
+      "declaration": "pub fn antecedent::analysis::transported_cohort::transport_cohort_effect_from_result(artifact: &[u8], expected_claim: core::option::Option<&str>, source_population: &str, cohort: &antecedent_io_core::cohort_decision::cohort_binding::CohortBinding, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_cohort::TransportedCohort, antecedent_learn::transported_effect::TransportRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::transported_cohort::verify_cohort_transport": {
-      "declaration": "pub fn antecedent::analysis::transported_cohort::verify_cohort_transport(artifact: &[u8], expected_claim: core::option::Option<&str>, source_population: &str, cohort: &antecedent_io_core::cohort_decision::CohortBinding, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, expected_identity: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_cohort::TransportedCohort, antecedent_learn::transported_effect::TransportRefusal>",
+      "declaration": "pub fn antecedent::analysis::transported_cohort::verify_cohort_transport(artifact: &[u8], expected_claim: core::option::Option<&str>, source_population: &str, cohort: &antecedent_io_core::cohort_decision::cohort_binding::CohortBinding, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, expected_identity: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_cohort::TransportedCohort, antecedent_learn::transported_effect::TransportRefusal>",
       "kind": "function"
     },
     "antecedent::analysis::transported_constructors::TransportedConstruction": {
@@ -34411,6 +34393,16 @@
       "kind": "reexport",
       "target": "antecedent_estimate::estimate_saturation_interference"
     },
+    "export:antecedent::estimate::estimate_smoothed_dose_with_factories": {
+      "declaration": "pub use antecedent::estimate::estimate_smoothed_dose_with_factories = antecedent_estimate::estimate_smoothed_dose_with_factories",
+      "kind": "reexport",
+      "target": "antecedent_estimate::estimate_smoothed_dose_with_factories"
+    },
+    "export:antecedent::estimate::estimate_trial_aipw_with_factories": {
+      "declaration": "pub use antecedent::estimate::estimate_trial_aipw_with_factories = antecedent_estimate::estimate_trial_aipw_with_factories",
+      "kind": "reexport",
+      "target": "antecedent_estimate::estimate_trial_aipw_with_factories"
+    },
     "export:antecedent::estimate::experimental_fit::ExperimentalFitError": {
       "declaration": "pub use antecedent::estimate::experimental_fit::ExperimentalFitError = antecedent_estimate::experimental_fit::ExperimentalFitError",
       "kind": "reexport",
@@ -34426,6 +34418,61 @@
       "kind": "reexport",
       "target": "antecedent_estimate::external_cyclic_fit::fit_external_feedback"
     },
+    "export:antecedent::estimate::external_learner::AipwCrossFitError": {
+      "declaration": "pub use antecedent::estimate::external_learner::AipwCrossFitError = antecedent_learn::aipw_crossfit::AipwCrossFitError",
+      "kind": "reexport",
+      "target": "antecedent_learn::aipw_crossfit::AipwCrossFitError"
+    },
+    "export:antecedent::estimate::external_learner::DesignView": {
+      "declaration": "pub use antecedent::estimate::external_learner::DesignView = antecedent_learn::DesignView",
+      "kind": "reexport",
+      "target": "antecedent_learn::DesignView"
+    },
+    "export:antecedent::estimate::external_learner::FittedPredictor": {
+      "declaration": "pub use antecedent::estimate::external_learner::FittedPredictor = antecedent_learn::FittedPredictor",
+      "kind": "reexport",
+      "target": "antecedent_learn::FittedPredictor"
+    },
+    "export:antecedent::estimate::external_learner::IsolatedFactory": {
+      "declaration": "pub use antecedent::estimate::external_learner::IsolatedFactory = antecedent_learn::IsolatedFactory",
+      "kind": "reexport",
+      "target": "antecedent_learn::IsolatedFactory"
+    },
+    "export:antecedent::estimate::external_learner::LearnError": {
+      "declaration": "pub use antecedent::estimate::external_learner::LearnError = antecedent_learn::LearnError",
+      "kind": "reexport",
+      "target": "antecedent_learn::LearnError"
+    },
+    "export:antecedent::estimate::external_learner::LearnerCapabilities": {
+      "declaration": "pub use antecedent::estimate::external_learner::LearnerCapabilities = antecedent_learn::LearnerCapabilities",
+      "kind": "reexport",
+      "target": "antecedent_learn::LearnerCapabilities"
+    },
+    "export:antecedent::estimate::external_learner::LearnerFactory": {
+      "declaration": "pub use antecedent::estimate::external_learner::LearnerFactory = antecedent_learn::LearnerFactory",
+      "kind": "reexport",
+      "target": "antecedent_learn::LearnerFactory"
+    },
+    "export:antecedent::estimate::external_learner::LearnerProvenance": {
+      "declaration": "pub use antecedent::estimate::external_learner::LearnerProvenance = antecedent_learn::LearnerProvenance",
+      "kind": "reexport",
+      "target": "antecedent_learn::LearnerProvenance"
+    },
+    "export:antecedent::estimate::external_learner::PredictionTask": {
+      "declaration": "pub use antecedent::estimate::external_learner::PredictionTask = antecedent_learn::PredictionTask",
+      "kind": "reexport",
+      "target": "antecedent_learn::PredictionTask"
+    },
+    "export:antecedent::estimate::external_learner::TargetView": {
+      "declaration": "pub use antecedent::estimate::external_learner::TargetView = antecedent_learn::TargetView",
+      "kind": "reexport",
+      "target": "antecedent_learn::TargetView"
+    },
+    "export:antecedent::estimate::external_learner::cross_fit_aipw_with_factories": {
+      "declaration": "pub use antecedent::estimate::external_learner::cross_fit_aipw_with_factories = antecedent_learn::aipw_crossfit::cross_fit_aipw_with_factories",
+      "kind": "reexport",
+      "target": "antecedent_learn::aipw_crossfit::cross_fit_aipw_with_factories"
+    },
     "export:antecedent::estimate::factorial_bernoulli::estimate_factorial_2x2": {
       "declaration": "pub use antecedent::estimate::factorial_bernoulli::estimate_factorial_2x2 = antecedent_estimate::factorial_bernoulli::estimate_factorial_2x2",
       "kind": "reexport",
@@ -34435,6 +34482,11 @@
       "declaration": "pub use antecedent::estimate::fit_counts::count_resolved_fits = antecedent_learn::fit_counts::count_resolved_fits",
       "kind": "reexport",
       "target": "antecedent_learn::fit_counts::count_resolved_fits"
+    },
+    "export:antecedent::estimate::fit_factorized_joint_cells_with_factories": {
+      "declaration": "pub use antecedent::estimate::fit_factorized_joint_cells_with_factories = antecedent_estimate::fit_factorized_joint_cells_with_factories",
+      "kind": "reexport",
+      "target": "antecedent_estimate::fit_factorized_joint_cells_with_factories"
     },
     "export:antecedent::estimate::joint_bayesian_transport::DataIdentity": {
       "declaration": "pub use antecedent::estimate::joint_bayesian_transport::DataIdentity = antecedent_estimate::joint_bayesian_transport::DataIdentity",
@@ -37635,6 +37687,11 @@
       "declaration": "pub use antecedent::io::array_fit_artifact::inspect_array_fit_header = antecedent_io::array_fit_artifact::inspect_array_fit_header",
       "kind": "reexport",
       "target": "antecedent_io::array_fit_artifact::inspect_array_fit_header"
+    },
+    "export:antecedent::io::assumptions_to_wire": {
+      "declaration": "pub use antecedent::io::assumptions_to_wire = antecedent_io::assumptions_to_wire",
+      "kind": "reexport",
+      "target": "antecedent_io::assumptions_to_wire"
     },
     "export:antecedent::io::bayesian_prior_recalc_artifact::BOUND_PRIOR_MAGIC": {
       "declaration": "pub use antecedent::io::bayesian_prior_recalc_artifact::BOUND_PRIOR_MAGIC = antecedent_io::bayesian_prior_recalc_artifact::BOUND_PRIOR_MAGIC",

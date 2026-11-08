@@ -5063,7 +5063,7 @@ assertion_contract = "A fresh Python process loads bytes with an explicit expect
 
 [[capability]]
 id = "accept_discovered"
-rust = ["antecedent::accept_discovered", "antecedent::analysis::structure_route::accept_discovered", "export:antecedent::graph::PagReview"]
+rust = ["antecedent::accept_discovered", "export:antecedent::graph::PagReview"]
 rust_types = ["antecedent::StructureProvenance", "antecedent::AcceptedGraph", "antecedent::DiscoveredStructure", "antecedent::error::PendingEdge", "antecedent::DiscoveryPayload", "antecedent::ReviewKind", "antecedent::IntoAccepted:", "antecedent::CompiledExecution", "antecedent::GraphRef"]
 status = "plumbing"
 owner = "Python API integration: antecedent"
@@ -5084,7 +5084,7 @@ assertion_contract = "A PAG discovery left unaccepted refuses with a structured 
 
 [[capability]]
 id = "analysis.api.panel_of_units"
-rust = ["antecedent::analysis::api::panel_of_units", "antecedent::analysis::structure_route::panel_of_units"]
+rust = ["antecedent::analysis::api::panel_of_units"]
 status = "plumbing"
 owner = "Python API integration: antecedent::analysis::api"
 behavior = "antecedent::analysis::api::panel_of_units: panel assembly behind the discover_* bindings: Python passes a panel as row-concatenated columns with unit_lengths, and the compiled discovery route builds the panel from those units"
@@ -6289,7 +6289,7 @@ assertion_contract = "A bow graph is refused with EffectNotIdentified, reason ef
 
 [[capability]]
 id = "estimate.identify_static_query"
-rust = ["antecedent::estimate::identify_static_query", "export:antecedent::prelude::AverageEffectQuery", "export:antecedent::prelude::DenseNodeId", "export:antecedent::prelude::VariableId", "export:antecedent::prelude::Intervention"]
+rust = ["export:antecedent::prelude::AverageEffectQuery", "export:antecedent::prelude::DenseNodeId", "export:antecedent::prelude::VariableId", "export:antecedent::prelude::Intervention"]
 rust_types = ["antecedent::IdentifierId"]
 status = "plumbing"
 owner = "Python API integration: antecedent::estimate"
@@ -6297,7 +6297,6 @@ behavior = "antecedent::estimate::identify_static_query: public fn capability; t
 python = "antecedent.analyze"
 composed_caller = "analyze/prepare InterventionalDistribution -> DistributionGraph::identify -> identify_static_query -> identify_static_query_with_rd -> identify_static_query_in_context (require_identified)"
 required_dimensions = ["success", "refusal"]
-legacy_internal = ["antecedent::estimate::identify_static_query"]
 [[capability.evidence]]
 test = "python/tests/test_checked_distribution_linear_lifecycle.py::test_distribution_program_refresh_and_independent_replay"
 assertion_scopes = ["test_distribution_program_refresh_and_independent_replay"]
@@ -6311,14 +6310,12 @@ assertion_contract = "A front-door identifier over a graph with a direct treatme
 
 [[capability]]
 id = "estimate.identify_static_query_with_rd"
-rust = ["antecedent::estimate::identify_static_query_with_rd"]
 status = "plumbing"
 owner = "Python API integration: antecedent::estimate"
 behavior = "antecedent::estimate::identify_static_query_with_rd: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.analyze"
 composed_caller = "analyze/prepare InterventionalDistribution -> DistributionGraph::identify -> identify_static_query -> identify_static_query_with_rd -> identify_static_query_in_context; bayesian.robust_ate -> identify_static_query_with_rd"
 required_dimensions = ["success", "refusal"]
-legacy_internal = ["antecedent::estimate::identify_static_query_with_rd"]
 [[capability.evidence]]
 test = "python/tests/test_checked_distribution_linear_lifecycle.py::test_distribution_program_refresh_and_independent_replay"
 assertion_scopes = ["test_distribution_program_refresh_and_independent_replay"]
@@ -7024,14 +7021,13 @@ assertion_contract = "For propensity.weighting, glm.adjustment and aipw the fixe
 
 [[capability]]
 id = "strategy_table.identify_admg_query"
-rust = ["antecedent::strategy_table::identify_admg_query", "export:antecedent::strategy_table::DEFAULT_ADMG_IDENTIFIER_ID", "export:antecedent::strategy_table::DEFAULT_CONDITIONAL_IDENTIFIER_ID"]
+rust = ["export:antecedent::strategy_table::DEFAULT_ADMG_IDENTIFIER_ID", "export:antecedent::strategy_table::DEFAULT_CONDITIONAL_IDENTIFIER_ID"]
 status = "plumbing"
 owner = "Python API integration: antecedent::strategy_table"
 behavior = "antecedent::strategy_table::identify_admg_query: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.analyze"
 composed_caller = "analyze/prepare -> prepare_identification (Admg) -> strategy_table::identify_admg_query"
 required_dimensions = ["success", "refusal"]
-legacy_internal = ["antecedent::strategy_table::identify_admg_query"]
 [[capability.evidence]]
 test = "python/tests/test_pag_admg_numeric_pins.py::test_admg_frontdoor_functional_effect_numeric_pin"
 assertion_scopes = ["test_admg_frontdoor_functional_effect_numeric_pin", "_assert_common_cell_contract", "_expand_contingency"]
@@ -7045,7 +7041,7 @@ assertion_contract = "An ADMG with a latent common cause of treatment and outcom
 
 [[capability]]
 id = "strategy_table.identify_cpdag"
-rust = ["antecedent::strategy_table::identify_cpdag", "export:antecedent::identify::GraphIdentificationCase"]
+rust = ["export:antecedent::identify::GraphIdentificationCase"]
 rust_types = ["antecedent::Identification"]
 status = "plumbing"
 owner = "Python API integration: antecedent::strategy_table"
@@ -7053,7 +7049,6 @@ behavior = "antecedent::strategy_table::identify_cpdag: public fn capability; tr
 python = "antecedent.identify"
 composed_caller = "identify -> _identify_structure -> identify_study -> identify_source_cpdag -> strategy_table::identify_cpdag; ConditionalEffect: analyze -> checked_conditional -> identify_cpdag"
 required_dimensions = ["success", "refusal"]
-legacy_internal = ["antecedent::strategy_table::identify_cpdag"]
 [[capability.evidence]]
 test = "python/tests/test_identify_structure_contract.py::test_class_identification_keeps_the_pinned_completion_mass_for_effect_and_response"
 assertion_scopes = ["test_class_identification_keeps_the_pinned_completion_mass_for_effect_and_response"]
@@ -7072,7 +7067,6 @@ assertion_contract = "ConditionalEffect over the CPDAG envelope identifies throu
 
 [[capability]]
 id = "strategy_table.identify_cpdag_response"
-rust = ["antecedent::strategy_table::identify_cpdag_response"]
 rust_types = ["antecedent::CheckedStaticClassResponseInfo"]
 status = "plumbing"
 owner = "Python API integration: antecedent::strategy_table"
@@ -7080,7 +7074,6 @@ behavior = "antecedent::strategy_table::identify_cpdag_response: public fn capab
 python = "antecedent.identify"
 composed_caller = "identify -> _identify_structure -> identify_study -> identify_source_cpdag -> strategy_table::identify_cpdag_response"
 required_dimensions = ["success", "refusal"]
-legacy_internal = ["antecedent::strategy_table::identify_cpdag_response"]
 [[capability.evidence]]
 test = "python/tests/test_identify_structure_contract.py::test_class_identification_keeps_the_pinned_completion_mass_for_effect_and_response"
 assertion_scopes = ["test_class_identification_keeps_the_pinned_completion_mass_for_effect_and_response"]
@@ -7099,14 +7092,13 @@ assertion_contract = "A CPDAG InterventionResponse with no intervention is refus
 
 [[capability]]
 id = "strategy_table.identify_pag_response"
-rust = ["antecedent::strategy_table::identify_pag_response", "export:antecedent::graph::Pag", "export:antecedent::strategy_table::DEFAULT_PAG_IDENTIFIER_ID", "export:antecedent::identify::GeneralizedAdjustmentIdentifier"]
+rust = ["export:antecedent::graph::Pag", "export:antecedent::strategy_table::DEFAULT_PAG_IDENTIFIER_ID", "export:antecedent::identify::GeneralizedAdjustmentIdentifier"]
 status = "plumbing"
 owner = "Python API integration: antecedent::strategy_table"
 behavior = "antecedent::strategy_table::identify_pag_response: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.identify"
 composed_caller = "identify -> _identify_structure -> identify_study -> identify_source_pag -> strategy_table::identify_pag_response; analyze (visible MAG response) -> identify_pag_response_in_context"
 required_dimensions = ["success", "refusal"]
-legacy_internal = ["antecedent::strategy_table::identify_pag_response"]
 [[capability.evidence]]
 test = "python/tests/test_identify_structure_contract.py::test_class_identification_keeps_the_pinned_completion_mass_for_effect_and_response"
 assertion_scopes = ["test_class_identification_keeps_the_pinned_completion_mass_for_effect_and_response"]
@@ -7125,14 +7117,12 @@ assertion_contract = "A visible MAG (R -> T -> Y) identifies InterventionRespons
 
 [[capability]]
 id = "strategy_table.identify_temporal_cpdag"
-rust = ["antecedent::strategy_table::identify_temporal_cpdag"]
 status = "plumbing"
 owner = "Python API integration: antecedent::strategy_table"
 behavior = "antecedent::strategy_table::identify_temporal_cpdag: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.identify"
 composed_caller = "identify -> _identify_structure -> identify_study -> identify_source_temporal_cpdag -> strategy_table::identify_temporal_cpdag"
 required_dimensions = ["success", "inspection"]
-legacy_internal = ["antecedent::strategy_table::identify_temporal_cpdag"]
 [[capability.evidence]]
 test = "python/tests/test_temporal_class_bayesian_envelope.py::test_temporal_class_identify_exposes_completion_keys"
 assertion_scopes = ["test_temporal_class_identify_exposes_completion_keys"]
@@ -7151,14 +7141,12 @@ assertion_contract = "A two-step sequential InterventionResponse over a Temporal
 
 [[capability]]
 id = "strategy_table.identify_temporal_cpdag_configured"
-rust = ["antecedent::strategy_table::identify_temporal_cpdag_configured"]
 status = "plumbing"
 owner = "Python API integration: antecedent::strategy_table"
 behavior = "antecedent::strategy_table::identify_temporal_cpdag_configured: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.analyze"
 composed_caller = "analyze/prepare -> checked_temporal_class_effect/identification_cache::temporal_class -> strategy_table::identify_temporal_cpdag_configured"
 required_dimensions = ["success", "inspection"]
-legacy_internal = ["antecedent::strategy_table::identify_temporal_cpdag_configured"]
 [[capability.evidence]]
 test = "python/tests/test_temporal_class_envelope_numeric_pins.py::test_temporal_class_pulse_pin"
 assertion_scopes = ["test_temporal_class_pulse_pin"]
@@ -7172,14 +7160,13 @@ assertion_contract = "A single-step SustainedEffect over the same TemporalCpdag 
 
 [[capability]]
 id = "strategy_table.identify_temporal_pag"
-rust = ["antecedent::strategy_table::identify_temporal_pag", "export:antecedent::graph::TemporalPag"]
+rust = ["export:antecedent::graph::TemporalPag"]
 status = "plumbing"
 owner = "Python API integration: antecedent::strategy_table"
 behavior = "antecedent::strategy_table::identify_temporal_pag: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.identify"
 composed_caller = "identify -> _identify_structure -> identify_study -> identify_source_temporal_pag -> strategy_table::identify_temporal_pag"
 required_dimensions = ["success", "refusal"]
-legacy_internal = ["antecedent::strategy_table::identify_temporal_pag"]
 [[capability.evidence]]
 test = "python/tests/test_temporal_class_envelope_numeric_pins.py::test_temporal_class_pulse_pin"
 assertion_scopes = ["test_temporal_class_pulse_pin"]
@@ -7193,14 +7180,12 @@ assertion_contract = "A mixed TemporalPag retains at least two completions with 
 
 [[capability]]
 id = "strategy_table.identify_temporal_pag_configured"
-rust = ["antecedent::strategy_table::identify_temporal_pag_configured"]
 status = "plumbing"
 owner = "Python API integration: antecedent::strategy_table"
 behavior = "antecedent::strategy_table::identify_temporal_pag_configured: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.analyze"
 composed_caller = "analyze/prepare -> execute::temporal_path / checked_temporal_class_effect -> strategy_table::identify_temporal_pag_configured"
 required_dimensions = ["success", "refusal"]
-legacy_internal = ["antecedent::strategy_table::identify_temporal_pag_configured"]
 [[capability.evidence]]
 test = "python/tests/test_temporal_class_envelope_numeric_pins.py::test_temporal_class_single_step_sustained_matches_pulse"
 assertion_scopes = ["test_temporal_class_single_step_sustained_matches_pulse"]
@@ -9041,7 +9026,7 @@ assertion_contract = "Cells absent from the registry table refuse with missing_p
 
 [[capability]]
 id = "accept_discovered_posterior"
-rust = ["antecedent::accept_discovered_posterior", "antecedent::analysis::structure_route::accept_discovered_posterior", "export:antecedent::discovery::ExactDagMarginals", "export:antecedent::discovery::GraphPosteriorEngine", "export:antecedent::discovery::ExactDagPosterior", "export:antecedent::discovery::EXACT_ENUM_MAX_NODES", "export:antecedent::discovery::GraphPosterior"]
+rust = ["antecedent::accept_discovered_posterior", "export:antecedent::discovery::ExactDagMarginals", "export:antecedent::discovery::GraphPosteriorEngine", "export:antecedent::discovery::ExactDagPosterior", "export:antecedent::discovery::EXACT_ENUM_MAX_NODES", "export:antecedent::discovery::GraphPosterior"]
 rust_types = ["antecedent::AcceptedPosterior"]
 status = "plumbing"
 owner = "Python API integration: antecedent"
@@ -9973,14 +9958,12 @@ assertion_contract = "A retained refresh spills to a directory registry (stats e
 
 [[capability]]
 id = "strategy_table.identify_cpdag_in_context"
-rust = ["antecedent::strategy_table::identify_cpdag_in_context"]
 status = "plumbing"
 owner = "Python API integration: antecedent::strategy_table"
 behavior = "antecedent::strategy_table::identify_cpdag_in_context: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.analyze"
 composed_caller = "analyze/prepare -> prepare_identification -> strategy_table::identify_cpdag_in_context"
 required_dimensions = ["success", "inspection", "lifecycle"]
-legacy_internal = ["antecedent::strategy_table::identify_cpdag_in_context"]
 [[capability.evidence]]
 test = "python/tests/test_cpdag_ate_numeric_pins.py::test_cpdag_ate_envelope_numeric_pin"
 assertion_scopes = ["test_cpdag_ate_envelope_numeric_pin", "_assert_common_cell_contract", "_expand_contingency"]
@@ -9999,14 +9982,13 @@ assertion_contract = "The recorded completion effects 0.4 and 0.52 are recompute
 
 [[capability]]
 id = "strategy_table.identify_static_query_in_context"
-rust = ["antecedent::strategy_table::identify_static_query_in_context", "export:antecedent::strategy_table::DEFAULT_IDENTIFIER_ID"]
+rust = ["export:antecedent::strategy_table::DEFAULT_IDENTIFIER_ID"]
 status = "plumbing"
 owner = "Python API integration: antecedent::strategy_table"
 behavior = "antecedent::strategy_table::identify_static_query_in_context: public fn capability; trace its actual consuming workflow and invariant"
 python = "antecedent.analyze"
 composed_caller = "analyze/prepare -> prepare_identification -> strategy_table::identify_static_query_in_context"
 required_dimensions = ["success", "refusal"]
-legacy_internal = ["antecedent::strategy_table::identify_static_query_in_context"]
 [[capability.evidence]]
 test = "python/tests/test_prepared_analysis.py::test_prepared_reestimate_matches_fresh_analyze"
 assertion_scopes = ["test_prepared_reestimate_matches_fresh_analyze"]
@@ -15895,8 +15877,8 @@ behavior = "InferenceDiagnostics of discovery posteriors surface as GraphPosteri
 python = "antecedent.discovery.GraphPosterior"
 required_dimensions = ["success"]
 [[capability.evidence]]
-test = "python/tests/test_graph_posterior_acceptance.py::test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics"
-assertion_scopes = ["test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics", "assert_published_gate_diagnostics"]
+test = "python/tests/test_graph_posterior_acceptance.py::test_a_nine_variable_posterior_is_returned_where_the_eight_variable_word_ended"
+assertion_scopes = ["test_a_nine_variable_posterior_is_returned_where_the_eight_variable_word_ended", "assert_surfaced_gate_diagnostics"]
 dimensions = ["success", "inspection", "refusal"]
 assertion_contract = "Structure and order MCMC posteriors at 10 and 12 variables publish converged=True with finite per-cell split R-hat below 1.2, edge ESS above 10 and edge MCSE at most 0.05, agree with the exact marginals within an MCSE band, and a schedule far shorter than published is refused by the diagnostics gate."
 
@@ -17956,3 +17938,82 @@ test = "python/tests/test_response_gam_derivative_truth.py::test_a_single_treatm
 assertion_scopes = ["test_a_single_treatment_direction_scales_the_analytic_slope"]
 dimensions = ["success"]
 assertion_contract = "On one treatment with y = 1 + a^2 + noise the derivative along -2 at 0.3 equals -1.2 within 0.05."
+
+[[capability]]
+id = "internal.data_retention"
+rust = ["antecedent::data::arrow_c::load_columns", "antecedent::data::buffer_with_retention", "antecedent::data::with_retention"]
+status = "plumbing"
+owner = "Python API integration: antecedent::data"
+behavior = "Arrow C-stream column import and lease-bound retention inside the data ingest, snapshot and refresh bindings; Python reaches them through every data ingest and prepare entry."
+python = "antecedent.data.table"
+composed_caller = "antecedent.data.table / analyze -> ingest -> arrow_c::load_columns -> with_retention / buffer_with_retention"
+required_dimensions = ["success"]
+legacy_internal = ["antecedent::data::arrow_c::load_columns", "antecedent::data::buffer_with_retention", "antecedent::data::with_retention"]
+[[capability.evidence]]
+test = "python/tests/test_arrow_retained_ownership.py::test_an_explicit_borrow_snapshot_reports_its_borrowed_bytes"
+assertion_scopes = ["test_an_explicit_borrow_snapshot_reports_its_borrowed_bytes"]
+dimensions = ["success"]
+assertion_contract = "An Arrow table taken with borrow=True reports exactly the array bytes as borrowed, and the owned snapshot reports zero borrowed and the same bytes copied."
+[[capability.evidence]]
+test = "python/tests/test_arrow_retained_ownership.py::test_mutating_the_source_array_does_not_change_a_retained_arrow_study"
+assertion_scopes = ["test_mutating_the_source_array_does_not_change_a_retained_arrow_study"]
+dimensions = ["success"]
+assertion_contract = "A retained Arrow study keeps its ingested values: mutating the source array afterwards leaves the re-estimated ATE exactly unchanged."
+
+[[capability]]
+id = "internal.execution_admission"
+rust = ["antecedent::execution::artifact_io_admission_error", "antecedent::execution::is_admission_refusal", "antecedent::execution::observe", "antecedent::execution::retain", "antecedent::execution::retain_bounded", "antecedent::execution::retain_product", "antecedent::execution::run_admitted", "antecedent::execution::run_admitted_recording_refusal"]
+status = "plumbing"
+owner = "Python API integration: antecedent::execution"
+behavior = "Execution observer, admitted work and retained-memory admission inside the bindings; Python reaches them through every entry that runs under an Execution and retains a result."
+python = "antecedent.analyze"
+composed_caller = "antecedent.analyze(execution=Execution(...)) -> execution::observe / run_admitted -> retain / retain_bounded"
+required_dimensions = ["success", "refusal"]
+legacy_internal = ["antecedent::execution::artifact_io_admission_error", "antecedent::execution::is_admission_refusal", "antecedent::execution::observe", "antecedent::execution::retain", "antecedent::execution::retain_bounded", "antecedent::execution::retain_product", "antecedent::execution::run_admitted", "antecedent::execution::run_admitted_recording_refusal"]
+[[capability.evidence]]
+test = "python/tests/test_arrow_interactive_smoke.py::test_arrow_interactive_cancel_and_progress"
+assertion_scopes = ["test_arrow_interactive_cancel_and_progress"]
+dimensions = ["success"]
+assertion_contract = "Cancelling from the progress callback during the bootstrap returns a finite partial ATE flagged cancelled with fewer successful replicates than requested."
+[[capability.evidence]]
+test = "python/tests/test_arrow_retained_ownership.py::test_the_owned_copy_of_arrow_data_is_funded_before_it_is_made"
+assertion_scopes = ["test_the_owned_copy_of_arrow_data_is_funded_before_it_is_made"]
+dimensions = ["refusal"]
+assertion_contract = "A memory limit below the bytes the owned copy retains refuses analyze and prepare with CausalResourceError before the copy is made."
+
+[[capability]]
+id = "internal.identity_rendering"
+rust = ["antecedent::identity::blake3_hex", "antecedent::identity::digest_bytes", "antecedent::identity::digest_claim_wire", "antecedent::identity::digest_labels", "antecedent::identity::parse_digest", "antecedent::identity::to_hex"]
+status = "plumbing"
+owner = "Python API integration: antecedent::identity"
+behavior = "Identity digest rendering and parsing inside the bindings; Python reads and passes identities as text through each result's identity accessors."
+python = "antecedent.analyze"
+composed_caller = "artifact / receipt / design bindings -> identity::digest_bytes / blake3_hex / to_hex; design and state entries -> parse_digest"
+required_dimensions = ["success"]
+legacy_internal = ["antecedent::identity::blake3_hex", "antecedent::identity::digest_bytes", "antecedent::identity::digest_claim_wire", "antecedent::identity::digest_labels", "antecedent::identity::parse_digest", "antecedent::identity::to_hex"]
+[[capability.evidence]]
+test = "python/tests/test_adaptive_procedure.py::test_the_identity_changes_with_an_element_of_unchanged_shape"
+assertion_scopes = ["test_the_identity_changes_with_an_element_of_unchanged_shape"]
+dimensions = ["success"]
+assertion_contract = "A declared procedure's identity is stable for an identical declaration and changes when one element of unchanged shape changes."
+
+[[capability]]
+id = "internal.refusal_constructors"
+rust = ["antecedent::refusal::column_attribution_unsupported", "antecedent::refusal::ensure_not_cancelled", "antecedent::refusal::evaluation_failure", "antecedent::refusal::flexible_learner_dependence", "antecedent::refusal::joint_interval_unsupported", "antecedent::refusal::joint_learner_interval_unsupported", "antecedent::refusal::sampling_weights_invalid", "antecedent::refusal::sampling_weights_unsupported_route"]
+status = "plumbing"
+owner = "Python API integration: antecedent::refusal"
+behavior = "Typed refusals raised by the bindings (sampling weights, cancellation, learner dependence, interval support); Python sees each as the raising entry's typed refusal."
+python = "antecedent.analyze"
+composed_caller = "prepare_request / estimator_config / transport bindings -> refusal::sampling_weights_invalid / sampling_weights_unsupported_route / flexible_learner_dependence"
+required_dimensions = ["refusal"]
+legacy_internal = ["antecedent::refusal::column_attribution_unsupported", "antecedent::refusal::ensure_not_cancelled", "antecedent::refusal::evaluation_failure", "antecedent::refusal::flexible_learner_dependence", "antecedent::refusal::joint_interval_unsupported", "antecedent::refusal::joint_learner_interval_unsupported", "antecedent::refusal::sampling_weights_invalid", "antecedent::refusal::sampling_weights_unsupported_route"]
+[[capability.evidence]]
+test = "python/tests/test_sampling_weights.py::test_invalid_weights_are_refused_naming_the_first_offender"
+assertion_scopes = ["test_invalid_weights_are_refused_naming_the_first_offender"]
+dimensions = ["refusal"]
+assertion_contract = "Negative, NaN and all-zero sampling weights are refused with CausalValueError naming the first offending source row."
+[[capability.evidence]]
+test = "python/tests/test_sampling_weights.py::test_an_estimator_that_reads_no_weights_refuses_them"
+assertion_scopes = ["test_an_estimator_that_reads_no_weights_refuses_them"]
+dimensions = ["refusal"]
+assertion_contract = "Weights given to an estimator that does not read them are refused as unsupported, and ridge fits refuse weights as non-ordinary least squares."

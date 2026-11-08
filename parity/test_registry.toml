@@ -23173,3 +23173,171 @@ crate = "python"
 cargo_target = "lib"
 path = "python/src/predictive_assessment_api.rs"
 gates = ["inventory"]
+
+[[test]]
+id = "wide-structure-posterior-acceptance"
+crate = "antecedent-discovery"
+cargo_target = "wide_structure_posterior_acceptance"
+path = "crates/antecedent-discovery/tests/wide_structure_posterior_acceptance.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "adaptive-participant-correlation-reference"
+crate = "antecedent-stats"
+cargo_target = "adaptive_participant_correlation_reference"
+path = "crates/antecedent-stats/tests/adaptive_participant_correlation_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-temporal-mediation-validation-targets"
+crate = "antecedent"
+cargo_target = "bayesian_temporal_mediation_validation_targets"
+path = "crates/antecedent/tests/bayesian_temporal_mediation_validation_targets.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-graph-posterior-product-routes"
+crate = "antecedent"
+cargo_target = "temporal_graph_posterior_product_routes"
+path = "crates/antecedent/tests/temporal_graph_posterior_product_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "scripts-test-compile-time-environment"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_compile_time_environment.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-compile-time-preflight"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_compile_time_preflight.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-evidence-feature-resolution"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_evidence_feature_resolution.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-artifact-identity"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_artifact_identity.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-compile-time-inventory"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_compile_time_inventory.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-evidence-adapter"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_evidence_adapter.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-evidence-build"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_evidence_build.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-evidence-capture"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_evidence_capture.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-evidence-engineering-fixture"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_evidence_engineering_fixture.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-evidence-policy"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_evidence_policy.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-evidence-source"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_evidence_source.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-manifest-binding"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_manifest_binding.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-python-engineering-fixture"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_python_engineering_fixture.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-python-evidence-build"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_python_evidence_build.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-python-evidence-identity"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_python_evidence_identity.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-python-runtime-build"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_python_runtime_build.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-python-runtime-identity"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_python_runtime_identity.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-rust-earning"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_rust_earning.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-probe-nix-sandbox"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_probe_nix_sandbox.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-registry-integrity"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_registry_integrity.py"
+gates = ["inventory"]
