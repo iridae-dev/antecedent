@@ -13,7 +13,7 @@ in
   inherit rust dir targetArgs featureArgs;
   # Cargo from nixpkgs uses store-provided curl/OpenSSL rather than the host
   # LibreSSL used by the upstream Cargo binary. The compiler remains pinned to
-  # the separately verified official 1.85.1 toolchain.
+  # the separately verified official toolchain pinned in evidence-toolchain.nix.
   nativeBuildInputs = [ rust pkgs.cargo pkgs.python3 ];
   # librustc_driver links zlib; only the inventory driver uses it.
   buildInputs = [ pkgs.zlib ];

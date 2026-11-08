@@ -19,7 +19,7 @@ in
 assert pkgs.stdenv.hostPlatform.system == "aarch64-darwin";
 pkgs.stdenv.mkDerivation {
   pname = "antecedent-evidence-rust";
-  version = "1.85.1";
+  version = "1.97.1";
   src = rust;
   nativeBuildInputs = [ pkgs.xz ];
   dontConfigure = true;
