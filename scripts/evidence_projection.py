@@ -8,6 +8,7 @@ items, attributes, macros or unsafe constructs invalidates the projection.
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import re
@@ -80,31 +81,47 @@ def has_opaque_attributes(source: str, *, scoped_derives: bool = False,
     inside its data item are inputs to that item alone, so unrelated function
     bodies stay projectable. Their positions are preserved by the layout guard.
     """
+    opaque, derived = _attribute_scopes(source, scoped_derives)
+    if opaque:
+        return True
+    if not derived:
+        return False
+    # A custom derive is an input to its own data item only.
+    return candidate_start is None or any(lo <= candidate_start < hi for lo, hi in derived)
+
+
+@functools.lru_cache(maxsize=512)
+def _attribute_scopes(source: str, scoped_derives: bool) -> tuple[bool, tuple[tuple[int, int], ...]]:
+    """(any attribute opaque to every body, custom-derive item spans), once per file.
+
+    Equivalent to scanning the attributes for each candidate: whether an attribute
+    is opaque never depends on the candidate, and a custom derive makes a body
+    opaque exactly when the body lies inside the derive's item."""
     skeleton = lex(source).skeleton
     attributes = _attributes(skeleton)
     if attributes is None:
-        return True
+        return True, ()
     derived: list[tuple[int, int]] = []
     for start, end, attribute in attributes:
         if any(lo <= start < hi for lo, hi in derived):
             continue  # a helper or further attribute inside a scoped derive input
         name = re.match(r'[A-Za-z_][A-Za-z_0-9]*', attribute)
         if name is None:
-            return True
+            return True, ()
         tail = attribute[name.end():].lstrip()
         if tail and not tail.startswith(('(', '=')):
-            return True
+            return True, ()
         if name[0] == 'derive':
             arguments = set(re.findall(r'[A-Za-z_][A-Za-z_0-9]*', attribute)) - {'derive'}
             if ':' not in attribute and arguments <= STANDARD_DERIVES:
                 continue
             item_end = _data_item_end(skeleton, end) if scoped_derives else None
-            if item_end is None or candidate_start is None or start <= candidate_start < item_end:
-                return True
+            if item_end is None:
+                return True, ()
             derived.append((start, item_end))
         elif name[0] not in BUILTIN_ATTRIBUTES:
-            return True
-    return False
+            return True, ()
+    return False, tuple(derived)
 
 
 def fingerprint(value: object) -> str:

@@ -6,8 +6,10 @@ The caller must have explicit authorization before executing selected tests.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from nix_artifact_identity import recheck_artifact, target_binary
@@ -53,6 +55,33 @@ def diagnose_target(root: Path, rows: list[dict], run=subprocess.run) -> dict:
     return capture_built_target(root, rows, built, run)
 
 
+# Concurrent test processes per target: half the cores, leaving room for tests that
+# use threads internally and for the earning process itself.
+CAPTURE_WORKERS = max(1, (os.cpu_count() or 2) // 2)
+
+# The verified committed snapshot of each commit, materialized and imported once per
+# process: every target of one run is checked against the same commit.
+_SNAPSHOTS: dict[tuple[str, str], tuple[tempfile.TemporaryDirectory, Path, str]] = {}
+
+
+def _verified_snapshot(root: Path, source: dict, allowed_outputs: dict[str, str] | None) -> tuple[Path, str]:
+    key = (str(root), source["commit"])
+    if key not in _SNAPSHOTS:
+        directory = tempfile.TemporaryDirectory(prefix="antecedent-nix-capture-")
+        snapshot = Path(directory.name) / "snapshot"
+        commit = materialize_committed_source(root, snapshot, allowed_outputs=allowed_outputs)["commit"]
+        if commit != source["commit"]:
+            directory.cleanup()
+            raise ValueError("checkout changed after the Nix build")
+        imported = import_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
+        if imported != source:
+            directory.cleanup()
+            raise ValueError("verified source import differs from the Nix build")
+        _SNAPSHOTS[key] = (directory, snapshot, commit)
+    _, snapshot, commit = _SNAPSHOTS[key]
+    return snapshot, commit
+
+
 def capture_built_target(root: Path, rows: list[dict], built: dict, run=subprocess.run,
                          *, continue_on_failure: bool = False,
                          allowed_outputs: dict[str, str] | None = None) -> dict:
@@ -90,30 +119,28 @@ def capture_built_target(root: Path, rows: list[dict], built: dict, run=subproce
     tools = {name: str(output / "bin" / name) for name in ("llvm-profdata", "llvm-cov")}
     results: dict[str, dict[str, set[int]]] = {}
     failures: list[str] = []
-    with tempfile.TemporaryDirectory(prefix="antecedent-nix-capture-") as directory:
-        snapshot = Path(directory) / "snapshot"
-        commit = materialize_committed_source(root, snapshot, allowed_outputs=allowed_outputs)["commit"]
-        if commit != source["commit"]:
-            raise ValueError("checkout changed after the Nix build")
-        imported = import_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
-        if imported != source:
-            raise ValueError("verified source import differs from the Nix build")
-        env = capture_env(root)
-        for info in infos:
-            verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
-            recheck_artifact(root, artifact)
-            try:
-                coverage = capture_one(root, str(target_binary(artifact)), info, env, run, llvm_tools=tools)
-            finally:
-                # Recheck even on a test or coverage failure; no result is
-                # returned if the source or artifact changed while it ran.
-                recheck_artifact(root, artifact)
-                verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
-            if coverage is None:
-                if continue_on_failure:
-                    failures.append(info["selector"])
-                    continue
-                raise RuntimeError(f"diagnostic assertion did not pass: {info['selector']}")
-            results[info["selector"]] = map_coverage_sources(coverage, Path(source["store_path"]), root)
+    snapshot, commit = _verified_snapshot(root, source, allowed_outputs)
+    env = capture_env(root)
+    binary = str(target_binary(artifact))
+    verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
+    recheck_artifact(root, artifact)
+    try:
+        # Rows of one target are independent single-threaded test processes: run them
+        # concurrently. The source and artifact are checked before and after the batch.
+        with ThreadPoolExecutor(max_workers=min(len(infos), CAPTURE_WORKERS)) as pool:
+            captured = list(pool.map(lambda info: capture_one(root, binary, info, env, run, llvm_tools=tools),
+                                     infos))
+    finally:
+        # Recheck even on a test or coverage failure; no result is returned if
+        # the source or artifact changed while the batch ran.
+        recheck_artifact(root, artifact)
+        verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
+    for info, coverage in zip(infos, captured, strict=True):
+        if coverage is None:
+            if continue_on_failure:
+                failures.append(info["selector"])
+                continue
+            raise RuntimeError(f"diagnostic assertion did not pass: {info['selector']}")
+        results[info["selector"]] = map_coverage_sources(coverage, Path(source["store_path"]), root)
     return {"coverage": results, "failures": failures, "build": built, "sandbox_verified": False,
             "evidence_authorized": False}

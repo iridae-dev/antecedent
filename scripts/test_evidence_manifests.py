@@ -165,6 +165,7 @@ class ManifestTests(unittest.TestCase):
     def test_deduplicates_shared_inputs_across_records_without_subprocess(self):
         manifest = self.manifest()
         ref = self.store(manifest)
+        em._FILE_DIGESTS.clear()  # count this report's reads, not earlier checkers'
         with patch("subprocess.run", side_effect=AssertionError("compiler invoked")), \
              patch("subprocess.check_output", side_effect=AssertionError("compiler invoked")):
             report = em.Checker(self.root, {}).report([(self.binding, ref)] * 1000)

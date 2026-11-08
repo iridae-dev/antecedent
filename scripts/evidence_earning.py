@@ -182,9 +182,8 @@ class Snapshot:
                     or tools['rustc_commit'] != checker.pin['commit']):
                 raise RuntimeError('Nix build compiler or evidence kind is invalid')
             from nix_artifact_identity import recheck_artifact
-            from nix_evidence_policy import validate_build
             from nix_evidence_source import _clean_head
-            self.nix_policy = validate_build(root, nix_build)
+            self.nix_policy = _validated_build(root, nix_build)
             recheck_artifact(root, nix_build['artifact'])
             if _clean_head(root, self.allowed_outputs)[0] != nix_build['source']['commit']:
                 raise RuntimeError('Nix source commit does not match the checkout')
@@ -340,18 +339,16 @@ class Snapshot:
         require_compile_environment(self.root)
         if self.nix_build is not None:
             from nix_artifact_identity import recheck_artifact
-            from nix_evidence_policy import validate_build
             from nix_evidence_source import _clean_head
             if _clean_head(self.root, self.allowed_outputs)[0] != self.nix_build['source']['commit']:
                 return False
             recheck_artifact(self.root, self.nix_build['artifact'])
-            if validate_build(self.root, self.nix_build) != self.nix_policy:
+            if _validated_build(self.root, self.nix_build) != self.nix_policy:
                 return False
         checker = Checker(self.root)
-        from evidence_projection import matches
         for i in self.manifest['inputs']:
             if i['kind'] == 'guarded_file':
-                if not matches((self.root / i['path']).read_text(encoding="utf-8"), i['projection']):
+                if not _guard_matches(self.root / i['path'], i):
                     return False
             elif checker.input_digest(i['kind'], i.get('path', i.get('name'))) != i['digest']:
                 return False
@@ -426,12 +423,56 @@ def build_analyzer(root: Path, output: Path) -> Path | None:
     return driver
 
 
+# Per-process caches for earning many rows of one build. Each key carries everything
+# its value depends on, so a cached value is the value that would be recomputed.
+_INVENTORIES: dict[tuple, dict] = {}
+_PROJECTIONS: dict[tuple, tuple] = {}
+_GUARDS: dict[tuple, bool] = {}
+_POLICIES: dict[tuple, dict] = {}
+
+
+def _validated_build(root: Path, nix_build: dict) -> dict:
+    """`validate_build`, once per unchanged daemon configuration, audit and unit graph."""
+    from evidence_manifests import _stat_signature
+    from nix_evidence_policy import NIX_OVERRIDES, SYSTEM_CONFIG, validate_build
+    key = (str(root), _stat_signature(SYSTEM_CONFIG), tuple(sorted(NIX_OVERRIDES.intersection(os.environ))),
+           _stat_signature(root / 'nix/compile-time-reviewed.json'), _stat_signature(root / 'Cargo.lock'),
+           digest(canonical(nix_build['compiler_graph'])))
+    if key not in _POLICIES:
+        _POLICIES[key] = validate_build(root, nix_build)
+    return _POLICIES[key]
+
+
+def _guard_matches(path: Path, entry: dict) -> bool:
+    """Whether a guarded file still matches its projection, once per file state and projection."""
+    from evidence_manifests import _stat_signature
+    from evidence_projection import matches
+    signature = _stat_signature(path)
+    key = (signature, entry['digest'])
+    if signature is None or key not in _GUARDS:
+        result = matches(path.read_text(encoding="utf-8"), entry['projection'])
+        if signature is None:
+            return result
+        _GUARDS[key] = result
+    return _GUARDS[key]
+
+
 def inventory_bodies(directory: Path, *, source_root: Path | None = None,
                      checkout_root: Path | None = None) -> dict[Path, dict[str, tuple[int, int]]]:
     """Compiler-reported function body spans whose reported text still matches the file."""
+    from evidence_manifests import _stat_signature
+    files = sorted(directory.glob('*.tsv'))
+    key = (str(directory), str(source_root), str(checkout_root), tuple(_stat_signature(f) for f in files))
+    if key not in _INVENTORIES:
+        _INVENTORIES[key] = _inventory_bodies(files, source_root=source_root, checkout_root=checkout_root)
+    return _INVENTORIES[key]
+
+
+def _inventory_bodies(files: list[Path], *, source_root: Path | None,
+                      checkout_root: Path | None) -> dict[Path, dict[str, tuple[int, int]]]:
     by_file: dict[Path, dict[str, tuple[int, int]]] = {}
     contents: dict[Path, bytes | None] = {}
-    for path in sorted(directory.glob('*.tsv')):
+    for path in files:
         for line in path.read_text(encoding="utf-8").splitlines():
             if not line.startswith('body\t'):
                 continue
@@ -465,7 +506,9 @@ def project_snapshot(snapshot: Snapshot, directory: Path, coverage: dict[str, se
     unresolved attributes and source read as data keep complete source.
     """
     from evidence_projection import ProjectionChanged, fingerprint, from_compiler_coverage
-    if not snapshot.unchanged():
+    # A Nix capture was checked unchanged when it was marked executed, with nothing run
+    # since; publication checks again after projecting.
+    if not snapshot.nix_executed and not snapshot.unchanged():
         raise RuntimeError('source changed during instrumented execution')
     if snapshot.opaque:
         snapshot.manifest['fallbacks'] = [
@@ -486,15 +529,24 @@ def project_snapshot(snapshot: Snapshot, directory: Path, coverage: dict[str, se
         if source_root is None and str(path) not in coverage:
             continue
         source = path.read_text(encoding="utf-8")
-        raw = source.encode()
-        spans = {name: (len(raw[:lo].decode()), len(raw[:hi].decode())) for name, (lo, hi) in by_file[path].items()}
-        try:
-            projection, _ = from_compiler_coverage(source, spans, coverage.get(str(path), set()),
-                                                    opaque=False, coverage_complete=source_root is not None,
-                                                    # Derives read only their item under the
-                                                    # audited Nix compile-time policy.
-                                                    scoped_derives=source_root is not None)
-        except ProjectionChanged:
+        lines = frozenset(coverage.get(str(path), set()))
+        key = (str(path), digest(source.encode()), tuple(sorted(by_file[path].items())), lines,
+               source_root is not None)
+        if key not in _PROJECTIONS:
+            raw = source.encode()
+            spans = {name: (len(raw[:lo].decode()), len(raw[:hi].decode()))
+                     for name, (lo, hi) in by_file[path].items()}
+            try:
+                projection, _ = from_compiler_coverage(source, spans, lines,
+                                                        opaque=False, coverage_complete=source_root is not None,
+                                                        # Derives read only their item under the
+                                                        # audited Nix compile-time policy.
+                                                        scoped_derives=source_root is not None)
+                _PROJECTIONS[key] = (projection, fingerprint(projection))
+            except ProjectionChanged:
+                _PROJECTIONS[key] = (None, None)
+        projection, projected = _PROJECTIONS[key]
+        if projection is None:
             continue
         if projection['layouts']:
-            entry.update(kind='guarded_file', projection=projection, digest=fingerprint(projection))
+            entry.update(kind='guarded_file', projection=projection, digest=projected)

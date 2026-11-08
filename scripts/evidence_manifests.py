@@ -223,6 +223,23 @@ def tracked_files(root: Path) -> list[str] | None:
     return sorted(p for p in set(listed.split("\0")) if p and (root / p).is_file())
 
 
+# File digests keyed by (path, device, inode, size, mtime_ns, ctime_ns), shared by every
+# Checker in the process: earning checks the same inputs several times per row, and a
+# file whose stat signature is unchanged is not read again.
+_FILE_DIGESTS: dict[tuple, str] = {}
+# Input paths already found free of symlinks in this process. A symlink appearing later
+# is a change to the tree, which the clean-checkout check refuses.
+_LINK_FREE: set[tuple[Path, str]] = set()
+
+
+def _stat_signature(path: Path) -> tuple | None:
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (str(path), st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+
+
 class Checker:
     """One read and digest per input, shared by every evidence kind."""
 
@@ -251,6 +268,8 @@ class Checker:
 
     def path(self, rel: str) -> Path:
         path = self.root / relative_path(rel)
+        if (self.root, rel) in _LINK_FREE:
+            return path
         # Symlinks are rejected, including in parents: a tree guard must not
         # silently omit a linked directory or depend on external host content.
         current = self.root
@@ -258,6 +277,7 @@ class Checker:
             current = current / part
             if current.is_symlink():
                 raise InvalidManifest(f"symlink input is unsupported: {rel}")
+        _LINK_FREE.add((self.root, rel))
         return path
 
     def tracked(self) -> list[str] | None:
@@ -298,10 +318,16 @@ class Checker:
         elif kind == "build_env":
             value = digest(canonical(effective_build_env(self.environ)[key]))
         elif kind == "file":
-            data = self.path(key).read_bytes()
-            value = digest(data)
-            self.bytes_hashed += len(data)
-            self.files_hashed += 1
+            path = self.path(key)
+            signature = _stat_signature(path)
+            value = _FILE_DIGESTS.get(signature) if signature is not None else None
+            if value is None:
+                data = path.read_bytes()
+                value = digest(data)
+                self.bytes_hashed += len(data)
+                self.files_hashed += 1
+                if signature is not None:
+                    _FILE_DIGESTS[signature] = value
         elif kind == "evidence_file":
             from evidence_fingerprint import DERIVED_STATUS_FIELDS, file_digest
             path = self.path(key)
