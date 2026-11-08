@@ -17,11 +17,16 @@ current, so CI only checks that records are up to date.
 - `nix_evidence_source.py` copies the committed tree, imports it into the store
   and compares NAR hashes; the checkout must stay clean except for this run's
   own content-verified ledger and manifests.
-- `evidence-target.nix` builds with a private scratch tree, the pinned `rustc`,
+- `evidence-target.nix` builds every owed target in one derivation. Each target
+  runs its own `cargo test --no-run`, exactly as it would alone, in sequence over
+  one shared target directory, so dependencies compile once per feature set; a
+  single Cargo invocation over several targets would unify their features and is
+  never used. Each target keeps its own executable, metadata and unit graph under
+  `targets/<crate>/<kind>/<name>`.
+- The build uses a private scratch tree, the pinned `rustc`,
   a stable `--remap-path-prefix` (so `file!()` and panic locations do not depend
   on the store hash), coverage instrumentation, and the analyzer driver as
-  workspace wrapper to inventory ordinary function bodies. It also emits Cargo
-  metadata and the unit graph of the build itself.
+  workspace wrapper to inventory ordinary function bodies (one shared inventory).
 - `nix_evidence_policy.validate_build` requires the daemon's `sandbox = true`
   and `sandbox-fallback = false` with only the reviewed sandbox paths, then checks
   every build-script and procedural-macro unit (and their dependencies) in the
