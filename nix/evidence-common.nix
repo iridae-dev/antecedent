@@ -35,7 +35,10 @@ in
     # The source-path remap is applied to workspace crates only, by the workspace
     # wrapper: a flag naming the per-build directory would make every
     # third-party unit's fingerprint differ between derivations.
+    # Incremental compilation partitions code generation non-reproducibly (it
+    # reorders coverage records); evidence builds are never incremental.
     export RUSTFLAGS="-C instrument-coverage" CARGO_PROFILE_TEST_OPT_LEVEL=2 CARGO_PROFILE_TEST_DEBUG=line-tables-only
+    export CARGO_INCREMENTAL=0
     mkdir -m 700 "$HOME" "$CARGO_HOME"
     mkdir -p -m 700 "$CARGO_TARGET_DIR"
     # The private parents protect scratch; outputs must remain readable after

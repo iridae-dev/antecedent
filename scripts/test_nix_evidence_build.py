@@ -51,7 +51,8 @@ class BuildOnlyTest(unittest.TestCase):
              patch.object(build, "_reproducibility_key", return_value="key"), \
              patch.object(build, "_reproduced", return_value=set()), \
              patch.object(build, "_record_reproduced", side_effect=lambda root, key: recorded.append(key)):
-            self.assertEqual(build._build(Path("/repo"), "/nix/store/source", TOY, "/nix/store/deps"), "/nix/store/output")
+            self.assertEqual(build._build(Path("/repo"), "/nix/store/source", TOY, "/nix/store/deps",
+                                          check_reproducible=True), "/nix/store/output")
         # A new recipe or lock rebuilds the evidence derivation once and records it.
         self.assertEqual(len(commands), 2)
         self.assertIn("--offline", commands[0])
@@ -64,8 +65,14 @@ class BuildOnlyTest(unittest.TestCase):
         with patch.object(build.subprocess, "run", side_effect=fake_run), \
              patch.object(build, "_reproducibility_key", return_value="key"), \
              patch.object(build, "_reproduced", return_value={"key"}):
-            build._build(Path("/repo"), "/nix/store/source", TOY, "/nix/store/deps")
+            build._build(Path("/repo"), "/nix/store/source", TOY, "/nix/store/deps", check_reproducible=True)
         # Already reproduced for this recipe and lock: one build, no rebuild.
+        self.assertEqual(len(commands), 1)
+        commands.clear()
+        with patch.object(build.subprocess, "run", side_effect=fake_run), \
+             patch.object(build, "_reproduced", return_value=set()):
+            build._build(Path("/repo"), "/nix/store/source", TOY, "/nix/store/deps")
+        # Not requested: one build.
         self.assertEqual(len(commands), 1)
         with (
             patch.object(build.subprocess, "run", return_value=SimpleNamespace(stdout="/nix/store/output", stderr="warning: ignoring untrusted setting")),

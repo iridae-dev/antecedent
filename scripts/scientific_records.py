@@ -252,13 +252,14 @@ def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=su
         return line_coverage(data)
 
 
-def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str = "cargo") -> int:
+def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str = "cargo",
+              check_reproducible: bool = False) -> int:
     """Earn the given Rust rows: build each test target once with coverage instrumentation
     (through the compiler inventory driver when `rustc-dev` is installed), run each assertion
     exactly, and publish its manifest. The ledger is written after every target, so an
     interrupted run keeps what it finished. Returns the number of failures."""
     if backend == "nix":
-        return earn_rust_nix(root, items, run)
+        return earn_rust_nix(root, items, run, check_reproducible=check_reproducible)
     if backend != "cargo":
         raise ValueError("unknown Rust evidence build backend")
     from evidence_earning import require_compile_environment
@@ -345,7 +346,8 @@ def _remember_nix_output(root: Path, allowed: dict[str, str], relative: str) -> 
 
 
 def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
-                  scientific_targets: list[tuple[str, str, str]] | None = None) -> int:
+                  scientific_targets: list[tuple[str, str, str]] | None = None,
+                  check_reproducible: bool = False) -> int:
     """Build every owed target in one audited Nix derivation, then capture and record each."""
     from evidence_earning import Snapshot, binding, project_snapshot, require_compile_environment
     from nix_artifact_identity import target_binary
@@ -383,7 +385,8 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
         located = (locate(root, row) for row in all_scientific_rows(root))
         scientific_targets = sorted({cargo_target(i["crate"], tuple(i["target"])) for i in located})
     builds = build_committed_targets(root, [cargo_target(c, t) for c, t in groups],
-                                     deps_targets=scientific_targets, allowed_outputs=allowed)
+                                     deps_targets=scientific_targets, check_reproducible=check_reproducible,
+                                     allowed_outputs=allowed)
     for (crate, target), todo in sorted(groups.items()):
         _clean_head(root, allowed)
         built = builds[cargo_target(crate, target)]
@@ -486,7 +489,8 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
         return 0
     # Each target is recorded as soon as it finishes, so an interrupted or partly failing
     # run keeps every pass it earned. Scientific assertions are Rust tests (evidence_audit).
-    failed = earn_rust(root, run_items, backend=getattr(args, "rust_build_backend", "nix"))
+    failed = earn_rust(root, run_items, backend=getattr(args, "rust_build_backend", "nix"),
+                       check_reproducible=bool(getattr(args, "check_reproducible", False)))
     recorded, status = len(run_items) - failed, int(bool(failed))
     print(f"scientific records: recorded {recorded} pass(es); {len(run_items) - recorded} not recorded")
     return status
@@ -505,6 +509,9 @@ def main() -> int:
                      help="Rust build backend: nix (default) builds each target from committed HEAD under the "
                           "audited sandbox policy and projects unexecuted bodies; cargo builds on the host "
                           "and keeps complete source")
+    run.add_argument("--check-reproducible", action="store_true",
+                     help="also rebuild the Nix evidence derivation and require identical output, once per "
+                          "recipe and lock")
     run.add_argument(
         "--only",
         action="append",

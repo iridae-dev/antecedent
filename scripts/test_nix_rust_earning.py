@@ -26,7 +26,8 @@ class NixRustEarning(unittest.TestCase):
                 name = row["name"]
                 return {"lang": "rust", "crate": name, "target": ["--lib"], "selector": name + "::lib::test"}
 
-            def build(_, targets, *, deps_targets, allowed_outputs):
+            def build(_, targets, *, deps_targets, check_reproducible, allowed_outputs):
+                self.assertFalse(check_reproducible)
                 self.assertEqual(deps_targets, [("a", "lib", ""), ("b", "lib", "")])
                 seen.append((sorted(targets), dict(allowed_outputs)))
                 return {(crate, kind, name): {

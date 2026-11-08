@@ -49,6 +49,8 @@ def _target_features(root: Path, crate: str, target_kind: str, target_name: str)
 
 
 # Recipe and lock combinations whose builds a `--rebuild` reproduced, on this machine.
+# The check is requested explicitly (`scientific_records.py run --check-reproducible`);
+# evidence validity never depends on it, since a manifest binds the executed binary.
 # Reproducibility is a property of the recipe: once checked for given recipe bytes
 # and lock, rebuilding every run proves nothing new. The record is local state.
 REPRODUCED = "target/nix-evidence/reproduced.json"
@@ -76,7 +78,7 @@ def _record_reproduced(root: Path, key: str) -> None:
 
 
 def _build(root: Path, source: str, build_targets: list[dict], deps_source: str | None = None,
-           deps_targets: list[dict] | None = None) -> str:
+           deps_targets: list[dict] | None = None, *, check_reproducible: bool = False) -> str:
     deps_source = deps_source or source
     deps_arguments = ["--arg", "depsSrc", "builtins.storePath " + json.dumps(deps_source),
                       "--argstr", "depsTargetsJson", targets_json(deps_targets or build_targets)]
@@ -96,8 +98,8 @@ def _build(root: Path, source: str, build_targets: list[dict], deps_source: str 
         return result.stdout.strip()
 
     output = build(command)
-    key = _reproducibility_key(root)
-    if key not in _reproduced(root):
+    key = _reproducibility_key(root) if check_reproducible else None
+    if key is not None and key not in _reproduced(root):
         # A new recipe or lock: check that the evidence build reproduces bit for bit.
         # The dependency output is a Cargo target directory, whose timestamps and
         # run state differ between builds; the evidence depends only on the
@@ -143,6 +145,7 @@ def _compiler_graph(output: Path, crate: str, target_kind: str,
 
 def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
                             deps_targets: list[tuple[str, str, str]] | None = None,
+                            check_reproducible: bool = False,
                             allowed_outputs: dict[str, str] | None = None) -> dict[tuple[str, str, str], dict]:
     """Build but never run targets from clean HEAD in one derivation; never attestation.
 
@@ -167,7 +170,8 @@ def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
         verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
         write_deps_source(snapshot, Path(tmp) / "deps")
         deps_source = import_deps_source(Path(tmp) / "deps")
-        output = _build(root, source["store_path"], build_targets, deps_source, all_targets)
+        output = _build(root, source["store_path"], build_targets, deps_source, all_targets,
+                        check_reproducible=check_reproducible)
         tools = _versions(root, Path(output))
         built = {}
         for target in build_targets:
