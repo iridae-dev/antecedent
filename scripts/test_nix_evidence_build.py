@@ -52,15 +52,13 @@ class BuildOnlyTest(unittest.TestCase):
              patch.object(build, "_reproduced", return_value=set()), \
              patch.object(build, "_record_reproduced", side_effect=lambda root, key: recorded.append(key)):
             self.assertEqual(build._build(Path("/repo"), "/nix/store/source", TOY, "/nix/store/deps"), "/nix/store/output")
-        # A new recipe or lock rebuilds both derivations once and records it.
-        self.assertEqual(len(commands), 5)
+        # A new recipe or lock rebuilds the evidence derivation once and records it.
+        self.assertEqual(len(commands), 2)
         self.assertIn("--offline", commands[0])
         self.assertEqual(json.loads(commands[0][commands[0].index("targetsJson") + 1]), TOY)
         self.assertIn("/nix/store/deps", commands[0][commands[0].index("depsSrc") + 1])
-        self.assertTrue(commands[1][commands[1].index("--file") + 1].endswith("evidence-deps.nix"))
-        self.assertIn("--rebuild", commands[2])
-        self.assertIn("--rebuild", commands[4])
-        self.assertNotIn("run", commands[4])
+        self.assertIn("--rebuild", commands[1])
+        self.assertNotIn("run", commands[1])
         self.assertEqual(recorded, ["key"])
         commands.clear()
         with patch.object(build.subprocess, "run", side_effect=fake_run), \

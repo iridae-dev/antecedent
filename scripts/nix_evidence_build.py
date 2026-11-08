@@ -98,15 +98,14 @@ def _build(root: Path, source: str, build_targets: list[dict], deps_source: str 
     output = build(command)
     key = _reproducibility_key(root)
     if key not in _reproduced(root):
-        # A new recipe or lock: check that both derivations rebuild bit for bit.
-        deps = [*base, "--file", str(root / "nix/evidence-deps.nix"), "--no-link", "--print-out-paths",
-                *deps_arguments]
-        for argv in (deps, command):
-            first = build(argv)
-            rebuild = argv.copy()
-            rebuild.insert(rebuild.index("build") + 1, "--rebuild")
-            if build(rebuild) != first:
-                raise ValueError("Nix rebuild returned a different output")
+        # A new recipe or lock: check that the evidence build reproduces bit for bit.
+        # The dependency output is a Cargo target directory, whose timestamps and
+        # run state differ between builds; the evidence depends only on the
+        # executables and metadata this output holds.
+        rebuild = command.copy()
+        rebuild.insert(rebuild.index("build") + 1, "--rebuild")
+        if build(rebuild) != output:
+            raise ValueError("Nix rebuild returned a different output")
         _record_reproduced(root, key)
     return output
 
