@@ -17,8 +17,8 @@ comparing hand-written rows against source. This module is pure: no argv, no car
 import tomllib
 from pathlib import Path
 
-from _repo import REPO_ROOT
 import _repo
+from _repo import REPO_ROOT
 
 GENERATED = "parity/generated/route_behaviour.toml"
 REASON_DETAILS = "parity/reason_details.toml"

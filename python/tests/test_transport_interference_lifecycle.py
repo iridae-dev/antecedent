@@ -35,8 +35,8 @@ from antecedent.prepared import PreparedAnalysis
 from antecedent.transport import advanced as transport
 from antecedent.transport.advanced import TransportQuery
 
-from _repo_text import REPO_ROOT, read_text
 from _loaded_results import assert_answer_kept, assert_refutation_replay_withheld
+from _repo_text import REPO_ROOT, read_text
 
 ROOT = REPO_ROOT
 TRANSPORT_PIN = json.loads(

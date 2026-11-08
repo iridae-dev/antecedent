@@ -25,7 +25,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from _repo import REPO_ROOT as ROOT, load_toml
+from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 from check_acceptance_manifest import evidence_problems
 
 REGISTRY = "parity/gcm_conformance.toml"

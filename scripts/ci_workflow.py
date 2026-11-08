@@ -32,7 +32,6 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from _repo import load_toml
 
 # Relative to the working directory: every gate runs from the repo root, and a

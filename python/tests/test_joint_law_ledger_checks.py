@@ -38,9 +38,7 @@ def moments(first, second):
 
 
 def declared_independent(inputs, ledger=None):
-    return jl.check_propagation(
-        "sum", inputs, dependence="declared_independent", ledger=ledger
-    )
+    return jl.check_propagation("sum", inputs, dependence="declared_independent", ledger=ledger)
 
 
 def test_a_declared_independence_is_decided_from_the_rows_not_the_spellings():
@@ -119,9 +117,7 @@ def test_rows_pair_only_under_one_alignment_identity():
 
     # Two columns of one artifact share one identity and pair.
     assert jl.check_rows_pairable([lx, ly]) is None
-    plan = jl.check_propagation(
-        "nonlinear_functional", [lx, ly], dependence="aligned_joint_law"
-    )
+    plan = jl.check_propagation("nonlinear_functional", [lx, ly], dependence="aligned_joint_law")
     assert plan.route == "aligned_joint_law"
     assert plan.alignment_id == lx.alignment_id == ly.alignment_id
 

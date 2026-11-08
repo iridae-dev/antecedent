@@ -20,7 +20,7 @@ from antecedent import measurement_models as mm
 from antecedent.errors import CausalTypeError, CausalValueError
 
 from _refusal import assert_registered_refusal
-from test_interface_contract import SOURCE_A, SOURCE_B, refusal_of
+from test_interface_contract import SOURCE_A, refusal_of
 from test_mechanism_composition import declaration
 from test_scientific_bridge import clinic_model, prevalence, surrogate_contract
 
@@ -66,9 +66,7 @@ def test_mechanisms_connect_through_the_one_check_and_a_mismatch_is_refused():
     assert connection.evidence == (SOURCE_A,)
 
     # A parent stated in other units is another quantity: refused, never admitted.
-    other_units = ic.mechanism_contract(
-        declaration("Y", ["X"], units="kg"), origin="fitted"
-    )
+    other_units = ic.mechanism_contract(declaration("Y", ["X"], units="kg"), origin="fitted")
     mismatch = refusal_of(lambda: ic.check_connection(upstream, OUTPUT, other_units, "X"))
     assert mismatch.detail.startswith("interface_contract.")
 
@@ -87,9 +85,7 @@ def test_disjoint_parent_evidence_is_decided_by_the_ledger_rows():
         el.SourceDeclaration("left", "observation_set", observations=el.rows("s", range(0, 50)))
     )
     right = ledger.add_source(
-        el.SourceDeclaration(
-            "right", "observation_set", observations=el.rows("s", range(25, 75))
-        )
+        el.SourceDeclaration("right", "observation_set", observations=el.rows("s", range(25, 75)))
     )
 
     def parent(variable, source):
@@ -98,7 +94,10 @@ def test_disjoint_parent_evidence_is_decided_by_the_ledger_rows():
     pooled = ic.mechanism_contract(
         declaration("Y", ["X", "M"]), origin="fitted", disjoint_parent_evidence=True
     )
-    wires = [("mechanism:X", OUTPUT, "mechanism:Y", "X"), ("mechanism:M", OUTPUT, "mechanism:Y", "M")]
+    wires = [
+        ("mechanism:X", OUTPUT, "mechanism:Y", "X"),
+        ("mechanism:M", OUTPUT, "mechanism:Y", "M"),
+    ]
     error = refusal_of(
         lambda: ic.check_composition_with_ledger(
             [parent("X", left), parent("M", right), pooled], wires, ledger

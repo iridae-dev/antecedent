@@ -1,7 +1,5 @@
 """Focused checks for features inherited from included Rust test modules."""
-import sys
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from _repo import REPO_ROOT, ensure_scripts_on_path

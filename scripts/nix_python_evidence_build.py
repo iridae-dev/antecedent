@@ -6,11 +6,15 @@ and the executable/test binding are not attested by this helper.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
 import tempfile
+from pathlib import Path
 
-from nix_evidence_source import import_committed_snapshot, materialize_committed_source, verify_committed_snapshot
+from nix_evidence_source import (
+    import_committed_snapshot,
+    materialize_committed_source,
+    verify_committed_snapshot,
+)
 from nix_python_evidence_identity import inspect_python_wheel
 
 

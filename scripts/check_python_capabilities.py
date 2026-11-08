@@ -467,7 +467,7 @@ def capability_universe() -> list[dict]:
         record = records[unit.ident]
         cited: set[str] = set()
 
-        def walk(value):
+        def walk(value, cited=cited):
             if isinstance(value, dict):
                 for item in value.values():
                     walk(item)

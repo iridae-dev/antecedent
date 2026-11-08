@@ -19,7 +19,8 @@ the committed file differs from a fresh derivation.
 import sys
 from pathlib import Path
 
-from _repo import REPO_ROOT as root, load_toml
+from _repo import REPO_ROOT as root
+from _repo import load_toml
 from capability_source import scan_refusal_details
 from route_behaviour import GENERATED, REASON_DETAILS, derive, load_details, render
 

@@ -1,8 +1,8 @@
 """Nix Rust earning orchestration with disposable, mocked test captures."""
 import hashlib
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import evidence_earning
@@ -71,16 +71,18 @@ class NixRustEarning(unittest.TestCase):
 
     def test_policy_failure_precedes_withdrawal_and_capture(self):
         info = {"lang": "rust", "crate": "a", "target": ["--lib"], "selector": "a::lib::test"}
-        with patch.object(scientific, "locate", return_value=info), \
-             patch.object(scientific, "Fingerprinter"), \
-             patch.object(scientific, "withdraw_records") as withdraw, \
-             patch.object(evidence_earning, "require_compile_environment"), \
-             patch.object(nix_evidence_build, "build_committed_target", return_value={}), \
-             patch.object(nix_evidence_capture, "capture_built_target") as capture, \
-             patch.object(nix_evidence_policy, "validate_build", side_effect=RuntimeError("unreviewed")), \
-             patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")):
-            with self.assertRaisesRegex(RuntimeError, "unreviewed"):
-                scientific.earn_rust(Path("/tmp"), [{}], backend="nix")
+        with (
+            patch.object(scientific, "locate", return_value=info),
+            patch.object(scientific, "Fingerprinter"),
+            patch.object(scientific, "withdraw_records") as withdraw,
+            patch.object(evidence_earning, "require_compile_environment"),
+            patch.object(nix_evidence_build, "build_committed_target", return_value={}),
+            patch.object(nix_evidence_capture, "capture_built_target") as capture,
+            patch.object(nix_evidence_policy, "validate_build", side_effect=RuntimeError("unreviewed")),
+            patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")),
+            self.assertRaisesRegex(RuntimeError, "unreviewed"),
+        ):
+            scientific.earn_rust(Path("/tmp"), [{}], backend="nix")
         withdraw.assert_not_called()
         capture.assert_not_called()
 

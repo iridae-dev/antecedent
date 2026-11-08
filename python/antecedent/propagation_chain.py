@@ -47,13 +47,13 @@ from typing import Any
 import numpy as np
 
 from . import _native
-from ._float_bits import float_bits as _bits
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
     artifact_from_receipt,
     container_bytes,
 )
+from ._float_bits import float_bits as _bits
 from ._refusal import StructuredRefusal, raise_refusal
 from ._validate import finite_float_protocol as _real
 from .errors import CausalTypeError, CausalValueError

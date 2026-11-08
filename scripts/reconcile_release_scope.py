@@ -39,8 +39,8 @@ import tomllib
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from _repo import REPO_ROOT as ROOT
 import _repo
+from _repo import REPO_ROOT as ROOT
 
 SCOPE = "parity/release_scope/scope.toml"
 EVIDENCE = "parity/release_scope/evidence.toml"

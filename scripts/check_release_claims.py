@@ -44,8 +44,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from _repo import REPO_ROOT as REPO
 import _repo
+from _repo import REPO_ROOT as REPO
 
 ROOT = Path(os.environ.get("RELEASE_CLAIMS_ROOT", REPO))
 RECORDS = "parity/capability_records.toml"

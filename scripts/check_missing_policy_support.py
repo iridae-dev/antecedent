@@ -23,7 +23,8 @@ from __future__ import annotations
 import re
 import sys
 
-from _repo import REPO_ROOT as ROOT, load_toml
+from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 
 REGISTRY = ROOT / "parity/missing_policy_support.toml"
 POLICY_SOURCE = ROOT / "crates/antecedent-data/src/sample_policy.rs"

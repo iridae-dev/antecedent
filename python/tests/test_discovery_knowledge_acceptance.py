@@ -27,7 +27,6 @@ from antecedent.discovery import (
 from antecedent.errors import CausalUnsupportedError
 from antecedent.outcomes import require_success
 
-
 N = 2000
 NAMES = [f"x{i}" for i in range(10)]
 ALPHA = {"alpha": 0.001, "fdr": False}

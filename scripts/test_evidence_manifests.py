@@ -1,15 +1,12 @@
 """Engineering tests for the fail-closed manifest currency checker."""
 from __future__ import annotations
 
-import argparse
-import contextlib
-import io
 import json
 import os
 import subprocess
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import evidence_manifests as em

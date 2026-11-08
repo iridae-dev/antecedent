@@ -1,6 +1,7 @@
 """Engineering mutation matrix for compiler-selected source body projections."""
 import unittest
-from evidence_projection import capture, matches, ProjectionChanged, from_compiler_coverage
+
+from evidence_projection import ProjectionChanged, capture, from_compiler_coverage, matches
 
 
 class GuardedSourceTests(unittest.TestCase):

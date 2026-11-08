@@ -25,13 +25,13 @@ from antecedent.errors import CausalUnsupportedError
 from antecedent.outcomes import require_success
 from antecedent.prepared import PreparedAnalysis
 
-from _repo_text import REPO_ROOT, read_text
 from _loaded_results import (
     assert_answer_kept,
     assert_loaded_outcome,
     assert_refutation_replay_withheld,
     carries_refutation_replay,
 )
+from _repo_text import REPO_ROOT, read_text
 
 ROOT = REPO_ROOT
 PIN = json.loads(

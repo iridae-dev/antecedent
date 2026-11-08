@@ -5,7 +5,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from _repo import REPO_ROOT as root, strict_git_head
+from _repo import REPO_ROOT as root
+from _repo import strict_git_head
 
 verifier = root / "scripts/verify_release.sh"
 # Synthetic versions: the check compares wheel names to the version it is given.

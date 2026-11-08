@@ -26,7 +26,6 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from . import _native
-from ._float_bits import finite_float_bits as _bits
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -34,6 +33,7 @@ from ._artifact_protocol import (
     artifact_export,
     container_bytes,
 )
+from ._float_bits import finite_float_bits as _bits
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
 from .adaptive_inference import StoppingRule

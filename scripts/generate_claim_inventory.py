@@ -20,7 +20,8 @@ import sys
 from collections import defaultdict
 from itertools import product
 
-from _repo import REPO_ROOT as ROOT, load_toml as load_toml_file
+from _repo import REPO_ROOT as ROOT
+from _repo import load_toml as load_toml_file
 
 CLAIM_FILES = ("README.md", "docs/capabilities.md", "docs/comparison.md")
 CATALOG_FILE = "docs/capabilities.md"

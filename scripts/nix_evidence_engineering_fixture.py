@@ -7,17 +7,21 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
 import tempfile
 import tomllib
+from pathlib import Path
 
 from nix_artifact_identity import inspect_artifact
 from nix_evidence_build import _compiler_graph
-from nix_evidence_source import (import_committed_snapshot, map_coverage_sources,
-                                 materialize_committed_source, verify_committed_snapshot)
+from nix_evidence_source import (
+    import_committed_snapshot,
+    map_coverage_sources,
+    materialize_committed_source,
+    verify_committed_snapshot,
+)
 from nix_manifest_binding import exercise_fixture
 from scientific_records import line_coverage
 

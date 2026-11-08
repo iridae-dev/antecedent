@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 from nix_evidence_source import _clean_head
 from nix_python_evidence_build import build_committed_python_wheel

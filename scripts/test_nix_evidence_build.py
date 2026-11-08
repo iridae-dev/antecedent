@@ -1,9 +1,9 @@
 """Build-only diagnostic tests; no scientific target is run or recorded."""
 import json
-from pathlib import Path
-from types import SimpleNamespace
 import tempfile
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import nix_evidence_build as build
@@ -51,9 +51,11 @@ class BuildOnlyTest(unittest.TestCase):
         self.assertIn("--rebuild", commands[1])
         self.assertIn("--option", commands[1])
         self.assertNotIn("run", commands[1])
-        with patch.object(build.subprocess, "run", return_value=SimpleNamespace(stdout="/nix/store/output", stderr="warning: ignoring untrusted setting")):
-            with self.assertRaisesRegex(ValueError, "untrusted"):
-                build._build(Path("/repo"), "/nix/store/source", "toy", "lib", "", [])
+        with (
+            patch.object(build.subprocess, "run", return_value=SimpleNamespace(stdout="/nix/store/output", stderr="warning: ignoring untrusted setting")),
+            self.assertRaisesRegex(ValueError, "untrusted"),
+        ):
+            build._build(Path("/repo"), "/nix/store/source", "toy", "lib", "", [])
 
     def test_compiler_graph_must_match_the_selected_target(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -10,10 +10,10 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path, PurePosixPath
 import subprocess
 import tarfile
 import tomllib
+from pathlib import Path, PurePosixPath
 
 
 class RegistryIntegrityError(ValueError):
@@ -63,7 +63,7 @@ def verify_package(directory: Path, archive: Path, checksum: str) -> None:
                 if f is None:
                     raise RegistryIntegrityError(f'unreadable archive entry: {rel}')
                 h = hashlib.sha256()
-                for chunk in iter(lambda: f.read(1024 * 1024), b''):
+                for chunk in iter(lambda f=f: f.read(1024 * 1024), b''):
                     h.update(chunk)
                 expected_files[rel] = h.hexdigest()
             else:

@@ -1,9 +1,9 @@
 """Unit checks for the fixed, non-evidence Nix/PyO3 engineering fixture."""
 import json
-from pathlib import Path
 import re
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import nix_python_engineering_fixture as fixture
@@ -37,21 +37,23 @@ class PythonFixtureTest(unittest.TestCase):
             (output / "cargo-metadata.json").write_text("{}", encoding="utf-8")
             (output / "cargo-unit-graph.json").write_text("{}", encoding="utf-8")
             graph = {"roots": [0], "units": [{"name": fixture.MODULE, "target_kind": ["cdylib"], "mode": "build"}]}
-            with patch.object(fixture, "STORE_ITEM", re.compile(r".*")), \
-                 patch.object(fixture, "compiler_units", return_value=graph), \
-                 patch.object(fixture, "_run", return_value=good_hash):
+            with (
+                patch.object(fixture, "STORE_ITEM", re.compile(r".*")),
+                patch.object(fixture, "compiler_units", return_value=graph),
+                patch.object(fixture, "_run", return_value=good_hash),
+                patch.object(fixture.Path, "resolve", return_value=Path("/nix/store/fake/python")),
+            ):
                 # Test the Nix-path check using a synthetic store-shaped path.
-                with patch.object(fixture.Path, "resolve", return_value=Path("/nix/store/fake/python")):
-                    data = json.loads((output / "python-config.json").read_text(encoding="utf-8"))
-                    data["executable"] = "/nix/store/fake/python"
-                    (output / "python-config.json").write_text(json.dumps(data), encoding="utf-8")
-                    identity = fixture.inspect_output(output, source, good_hash)
-                    self.assertEqual(identity["python"]["version"], "3.13.14")
-                    self.assertEqual(identity["compiler_units"], 1)
-                    data["version"] = "3.12.0"
-                    (output / "python-config.json").write_text(json.dumps(data), encoding="utf-8")
-                    with self.assertRaisesRegex(ValueError, "pinned Python"):
-                        fixture.inspect_output(output, source, good_hash)
+                data = json.loads((output / "python-config.json").read_text(encoding="utf-8"))
+                data["executable"] = "/nix/store/fake/python"
+                (output / "python-config.json").write_text(json.dumps(data), encoding="utf-8")
+                identity = fixture.inspect_output(output, source, good_hash)
+                self.assertEqual(identity["python"]["version"], "3.13.14")
+                self.assertEqual(identity["compiler_units"], 1)
+                data["version"] = "3.12.0"
+                (output / "python-config.json").write_text(json.dumps(data), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "pinned Python"):
+                    fixture.inspect_output(output, source, good_hash)
 
     def test_runner_never_attests_or_publishes_evidence(self):
         source = {"store_path": "/nix/store/source", "nar_hash": "nar", "commit": "abc"}

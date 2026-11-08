@@ -178,7 +178,7 @@ def matches(source: str, projection: dict, skeleton: str | None = None) -> bool:
         raise ProjectionChanged("malformed source projection")
     skeleton = lex(source).skeleton if skeleton is None else skeleton
     cursor = 0
-    for prefix, expected_layout in zip(segments, layouts):
+    for prefix, expected_layout in zip(segments, layouts, strict=False):
         if not source.startswith(prefix, cursor):
             return False
         cursor += len(prefix)

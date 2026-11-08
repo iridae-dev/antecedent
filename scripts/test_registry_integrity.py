@@ -2,10 +2,10 @@
 import hashlib
 import io
 import json
-from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from pathlib import Path
 
 from registry_integrity import RegistryIntegrityError, verify_package, verify_registry
 

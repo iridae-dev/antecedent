@@ -1,15 +1,14 @@
 """Production manifest integration using disposable engineering workspaces."""
-from pathlib import Path
-from unittest.mock import patch
 import subprocess
 import unittest
+from unittest.mock import patch
 
-from test_scientific_records import Fixture
-from evidence_earning import Snapshot, binding, probe_binding, measurement_binding
-from evidence_manifests import Checker
-from evidence_fingerprint import Fingerprinter
-import scientific_records as scientific
 import calibration_status as calibration
+import scientific_records as scientific
+from evidence_earning import Snapshot, binding, measurement_binding, probe_binding
+from evidence_fingerprint import Fingerprinter
+from evidence_manifests import Checker
+from test_scientific_records import Fixture
 
 
 class EarningTests(Fixture):
@@ -78,9 +77,11 @@ class EarningTests(Fixture):
 
     def test_compiler_mismatch_cannot_earn(self):
         fp = Fingerprinter(self.root,self.metadata,'',environ={})
-        with patch('subprocess.check_output', return_value='release: 9\ncommit-hash: wrong\n'):
-            with self.assertRaises(RuntimeError):
-                Snapshot(self.root,self.row('top'),binding('scientific','t','f'),fp)
+        with (
+            patch('subprocess.check_output', return_value='release: 9\ncommit-hash: wrong\n'),
+            self.assertRaises(RuntimeError),
+        ):
+            Snapshot(self.root,self.row('top'),binding('scientific','t','f'),fp)
 
     def test_earning_refuses_a_noncanonical_build_environment(self):
         for env in ({'RUSTFLAGS': '--cfg changed_scientific_path'}, {'CARGO_PROFILE_TEST_OPT_LEVEL': '0'},
@@ -106,12 +107,14 @@ class EarningTests(Fixture):
         self.assertFalse(any('crates/other' in p for p in paths(shared)))
 
     def test_compile_time_code_anywhere_in_the_graph_keeps_complete_source(self):
-        from evidence_earning import project_snapshot
         import evidence_earning
+        from evidence_earning import project_snapshot
         coverage = {str((self.root / 'crates/leaf/src/lib.rs').resolve()): {1}}
-        with patch.dict(evidence_earning._COMPILE_TIME, {self.root: None}):
-            with self.assertRaisesRegex(RuntimeError, 'Cargo metadata'):
-                self.snapshot()
+        with (
+            patch.dict(evidence_earning._COMPILE_TIME, {self.root: None}),
+            self.assertRaisesRegex(RuntimeError, 'Cargo metadata'),
+        ):
+            self.snapshot()
         for graph in ({'leaf': {'a_derive'}, 'mid': set(), 'top': set()},
                       {'leaf': set(), 'mid': set(), 'top': {'build_script_dep'}}):
             required = sorted(set().union(*graph.values()))
@@ -138,17 +141,21 @@ class EarningTests(Fixture):
     def test_unassessed_compile_time_reads_refuse_earning(self):
         import evidence_earning
         graph = {'leaf': set(), 'mid': set(), 'top': {'reader'}}
-        with patch.dict(evidence_earning._COMPILE_TIME, {self.root: graph}):
-            with self.assertRaisesRegex(RuntimeError, 'undeclared compile-time input boundary'):
-                self.snapshot()
+        with (
+            patch.dict(evidence_earning._COMPILE_TIME, {self.root: graph}),
+            self.assertRaisesRegex(RuntimeError, 'undeclared compile-time input boundary'),
+        ):
+            self.snapshot()
 
     def test_nix_environment_claim_does_not_waive_unassessed_inputs(self):
         import evidence_earning
         graph = {'leaf': set(), 'mid': set(), 'top': {'reader'}}
-        with patch.dict(evidence_earning._COMPILE_TIME, {self.root: graph}), \
-             patch.dict('os.environ', {'IN_NIX_SHELL': 'pure', 'NIX_BUILD_TOP': '/tmp/fake'}, clear=True):
-            with self.assertRaisesRegex(RuntimeError, 'undeclared compile-time input boundary'):
-                self.snapshot()
+        with (
+            patch.dict(evidence_earning._COMPILE_TIME, {self.root: graph}),
+            patch.dict('os.environ', {'IN_NIX_SHELL': 'pure', 'NIX_BUILD_TOP': '/tmp/fake'}, clear=True),
+            self.assertRaisesRegex(RuntimeError, 'undeclared compile-time input boundary'),
+        ):
+            self.snapshot()
 
     def test_reviewed_registry_assesses_the_host_compile_time_graph(self):
         import evidence_earning
@@ -234,4 +241,5 @@ why="reader macro reads the consumer inputs"
         self.assertFalse(Checker(self.root).check(snapshot.manifest['record'],ref)['current'])
 
 
-if __name__ == '__main__': unittest.main()
+if __name__ == '__main__':
+    unittest.main()

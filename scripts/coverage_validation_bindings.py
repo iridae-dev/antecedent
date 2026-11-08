@@ -6,8 +6,8 @@ import subprocess
 from functools import cache, lru_cache
 from pathlib import Path
 
-from _repo import REPO_ROOT
 import _repo
+from _repo import REPO_ROOT
 
 PATH = Path("parity/coverage_validation_bindings.toml")
 BRIDGE = "crates/antecedent/src/support/bridge.rs"

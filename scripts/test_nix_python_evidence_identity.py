@@ -1,10 +1,10 @@
 """Unit checks for Python wheel identity; no evidence or project tests run."""
 import json
-from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
 import zipfile
+from pathlib import Path
+from unittest.mock import patch
 
 import nix_python_evidence_identity as identity
 
@@ -65,10 +65,14 @@ class PythonWheelIdentityTests(unittest.TestCase):
                 archive.writestr(extra, b'unexpected')
 
     def nix(self, *args):
-        if args[0] == 'nix-instantiate': return self.drv
-        if 'derivation' in args: return json.dumps({self.drv: self.derivation})
-        if 'path-info' in args: return json.dumps({str(self.output): self.metadata})
-        if 'hash' in args: return self.nar if args[-1] == str(self.output) else self.source_nar
+        if args[0] == 'nix-instantiate':
+            return self.drv
+        if 'derivation' in args:
+            return json.dumps({self.drv: self.derivation})
+        if 'path-info' in args:
+            return json.dumps({str(self.output): self.metadata})
+        if 'hash' in args:
+            return self.nar if args[-1] == str(self.output) else self.source_nar
         raise AssertionError(args)
 
     def inspect(self):
@@ -91,10 +95,13 @@ class PythonWheelIdentityTests(unittest.TestCase):
 
     def test_wrong_deriver_or_interpreter_is_rejected(self):
         self.metadata['deriver'] = 'forged'
-        with self.assertRaises(identity.ArtifactIdentityError): self.inspect()
+        with self.assertRaises(identity.ArtifactIdentityError):
+            self.inspect()
         self.metadata['deriver'] = self.drv
         (self.output / 'python-config.json').write_text(json.dumps({'executable': '/usr/bin/python3', 'implementation': 'cpython', 'version': '3.13.14'}), encoding="utf-8")
-        with self.assertRaises(identity.ArtifactIdentityError): self.inspect()
+        with self.assertRaises(identity.ArtifactIdentityError):
+            self.inspect()
 
 
-if __name__ == '__main__': unittest.main()
+if __name__ == '__main__':
+    unittest.main()

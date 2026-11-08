@@ -655,7 +655,9 @@ def test_gaussian_outcome_law_roundtrip_preserves_standing() -> None:
     sealed = require_success(source.seal_per_action(request))
     assert len(sealed) == len(actions)
     for artifact in sealed.values():
-        replay = require_success(iq.consume(bytes(artifact.export()), expected_identity=artifact.identity))
+        replay = require_success(
+            iq.consume(bytes(artifact.export()), expected_identity=artifact.identity)
+        )
         assert replay.origin == artifact.origin
         assert replay.identity == artifact.identity
     refused = refusal_of(lambda: require_success(source.evaluate(request, interval_region=True)))

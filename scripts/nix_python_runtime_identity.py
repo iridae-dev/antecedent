@@ -1,11 +1,11 @@
 """Inspect a locked Nix Python runtime without issuing an evidence record."""
 from __future__ import annotations
 
-from email.parser import Parser
 import json
-from pathlib import Path
 import re
 import tomllib
+from email.parser import Parser
+from pathlib import Path
 from urllib.parse import unquote
 
 from nix_artifact_identity import ArtifactIdentityError, _file_hash, _nix, _store_path

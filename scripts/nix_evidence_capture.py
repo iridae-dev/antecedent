@@ -6,14 +6,18 @@ The caller must have explicit authorization before executing selected tests.
 """
 from __future__ import annotations
 
-from pathlib import Path
 import subprocess
 import tempfile
+from pathlib import Path
 
 from nix_artifact_identity import recheck_artifact
 from nix_evidence_build import build_committed_target
-from nix_evidence_source import (import_committed_snapshot, map_coverage_sources,
-                                 materialize_committed_source, verify_committed_snapshot)
+from nix_evidence_source import (
+    import_committed_snapshot,
+    map_coverage_sources,
+    materialize_committed_source,
+    verify_committed_snapshot,
+)
 
 
 def diagnose_target(root: Path, rows: list[dict], run=subprocess.run) -> dict:
@@ -23,7 +27,7 @@ def diagnose_target(root: Path, rows: list[dict], run=subprocess.run) -> dict:
     diagnostic only: Nix evidence earning remains disabled until its portable
     receipt, policy and runtime requirements have been implemented and audited.
     """
-    from scientific_records import capture_env, capture_one, locate
+    from scientific_records import locate
 
     if not rows:
         raise ValueError("at least one Rust assertion is required")

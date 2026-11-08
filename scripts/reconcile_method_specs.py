@@ -36,10 +36,10 @@ from _repo import REPO_ROOT as ROOT
 from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
+import _repo  # noqa: E402
 import generate_counterparts as counterparts  # noqa: E402
 import provenance_links  # noqa: E402
 from method_evidence import UNLISTED, Evidence  # noqa: E402
-import _repo
 
 SPECS = "parity/method_specs/specs.toml"
 CHILDREN = "parity/method_children/children.toml"

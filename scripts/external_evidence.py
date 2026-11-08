@@ -27,9 +27,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import _repo
 from _repo import REPO_ROOT as ROOT
 from evidence_kinds import EXTERNAL_KINDS
-import _repo
 
 SUPPORTED = ROOT / "parity/support_cells.toml"
 ROUTES = ROOT / "parity/supported_routes.toml"

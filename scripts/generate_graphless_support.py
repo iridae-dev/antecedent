@@ -6,7 +6,8 @@ import argparse
 import json
 import re
 
-from _repo import REPO_ROOT as ROOT, load_toml
+from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 
 SOURCE = ROOT / "parity/support_graphless.toml"
 RUST = ROOT / "crates/antecedent-io-core/src/support_graphless_data.rs"

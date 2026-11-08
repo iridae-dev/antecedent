@@ -75,9 +75,7 @@ def test_another_decision_has_another_identity_and_the_consumer_refuses_the_swap
     assert caught.value.reason_code == "decision_contract_unsatisfied"
     assert caught.value.detail == reason_details.transported_decision_artifact.IDENTITY_EXPECTED
     # A different carried value is a different decision, and it re-evaluates to its own numbers.
-    moved = require_success(
-        tr.consume_transported_decision(bytes(decided(prepared, 0.5).export()))
-    )
+    moved = require_success(tr.consume_transported_decision(bytes(decided(prepared, 0.5).export())))
     assert moved.decision.outcome("treat").expected_utility == pytest.approx(0.5, abs=TOL)
     assert moved.verdict.selected == "treat"
 

@@ -14,7 +14,6 @@ import pytest
 from antecedent import _reason_details as reason_details
 from antecedent import selective_discovery as sd
 
-
 N = 3000
 MASKED = 300
 NAMES = [f"v{i}" for i in range(10)]

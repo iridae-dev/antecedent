@@ -1,6 +1,6 @@
 """Draft Nix receipt checks; no project assertions or evidence are run."""
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import nix_manifest_binding as binding
@@ -57,18 +57,22 @@ class DraftReceiptTests(unittest.TestCase):
         self.assertIs(draft['publication_authorized'], False)
 
     def test_changed_artifact_after_fixture_is_refused(self):
-        with patch.object(binding, 'verify_committed_snapshot'), \
-             patch.object(binding, 'recheck_artifact', side_effect=[None, ValueError('changed artifact')]):
-            with self.assertRaisesRegex(ValueError, 'changed artifact'):
-                binding.exercise_fixture(self.root, self.root, self.snapshot, self.build, self.assumptions, lambda binary: None)
+        with (
+            patch.object(binding, 'verify_committed_snapshot'),
+            patch.object(binding, 'recheck_artifact', side_effect=[None, ValueError('changed artifact')]),
+            self.assertRaisesRegex(ValueError, 'changed artifact'),
+        ):
+            binding.exercise_fixture(self.root, self.root, self.snapshot, self.build, self.assumptions, lambda binary: None)
 
     def test_fixture_failure_still_rechecks_source_and_artifact(self):
         def fail(binary):
             raise RuntimeError('fixture failure')
-        with patch.object(binding, 'verify_committed_snapshot') as source, \
-             patch.object(binding, 'recheck_artifact') as artifact:
-            with self.assertRaisesRegex(RuntimeError, 'fixture failure'):
-                binding.exercise_fixture(self.root, self.root, self.snapshot, self.build, self.assumptions, fail)
+        with (
+            patch.object(binding, 'verify_committed_snapshot') as source,
+            patch.object(binding, 'recheck_artifact') as artifact,
+            self.assertRaisesRegex(RuntimeError, 'fixture failure'),
+        ):
+            binding.exercise_fixture(self.root, self.root, self.snapshot, self.build, self.assumptions, fail)
         self.assertEqual(source.call_count, 2)
         self.assertEqual(artifact.call_count, 2)
 

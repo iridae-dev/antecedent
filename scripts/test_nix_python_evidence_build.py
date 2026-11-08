@@ -1,8 +1,8 @@
 """Build-only Python evidence checks; no project tests or evidence run."""
-from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import nix_python_evidence_build as build
@@ -28,15 +28,18 @@ class PythonWheelBuildTests(unittest.TestCase):
         source = {'store_path': '/nix/store/source', 'nar_hash': 'nar'}
         artifact = {'source_nar_hash': 'nar', 'sandbox_verified': False,
                     'runtime_requirements_verified': False, 'evidence_authorized': False}
-        with tempfile.TemporaryDirectory() as tmp, \
-             patch.object(build.tempfile, 'TemporaryDirectory', return_value=tempfile.TemporaryDirectory(dir=tmp)), \
-             patch.object(build, 'materialize_committed_source', return_value={'commit': 'abc'}), \
-             patch.object(build, 'import_committed_snapshot', return_value=source), \
-             patch.object(build, 'verify_committed_snapshot'), \
-             patch.object(build, '_build', return_value='/nix/store/output'), \
-             patch.object(build, 'inspect_python_wheel', side_effect=[artifact, artifact | {'wheel_sha256': 'changed'}]):
-            with self.assertRaisesRegex(ValueError, 'changed while inspecting'):
-                build.build_committed_python_wheel(root)
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch.object(build.tempfile, 'TemporaryDirectory', return_value=tempfile.TemporaryDirectory(dir=tmp)),
+            patch.object(build, 'materialize_committed_source', return_value={'commit': 'abc'}),
+            patch.object(build, 'import_committed_snapshot', return_value=source),
+            patch.object(build, 'verify_committed_snapshot'),
+            patch.object(build, '_build', return_value='/nix/store/output'),
+            patch.object(build, 'inspect_python_wheel', side_effect=[artifact, artifact | {'wheel_sha256': 'changed'}]),
+            self.assertRaisesRegex(ValueError, 'changed while inspecting'),
+        ):
+            build.build_committed_python_wheel(root)
 
 
-if __name__ == '__main__': unittest.main()
+if __name__ == '__main__':
+    unittest.main()

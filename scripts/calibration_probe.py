@@ -53,8 +53,9 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from _repo import REPO_ROOT as ROOT, load_toml
 import _repo
+from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 
 ATTESTATIONS = ROOT / "parity" / "calibration_probe_attestations.toml"
 PROBE_LOG_DIR = ROOT / "target" / "calibration-probe"
@@ -609,9 +610,9 @@ def main(argv: list[str] | None = None) -> int:
 
     decision_json = decision.canonical_json(family.current_config(ROOT))
     sha = head_sha()
-    from evidence_earning import Snapshot, probe_binding, measurement_digest
-    from evidence_fingerprint import coverage_row
     import calibration_status as status
+    from evidence_earning import Snapshot, measurement_digest, probe_binding
+    from evidence_fingerprint import coverage_row
     fp = status.tree_fingerprinter()
     fingerprints = status.identity_fingerprints(records, fp)
     snapshots = {}

@@ -79,7 +79,8 @@ import sys
 from pathlib import Path
 
 import route_behaviour
-from _repo import REPO_ROOT as root, load_toml
+from _repo import REPO_ROOT as root
+from _repo import load_toml
 from capability_source import (
     Symbol,
     assertion_problems,

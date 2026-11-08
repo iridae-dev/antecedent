@@ -20,8 +20,8 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from _repo import REPO_ROOT
 import _repo
+from _repo import REPO_ROOT
 
 CACHE = "provenance/citation_metadata.json"
 

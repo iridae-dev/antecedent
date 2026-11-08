@@ -1,7 +1,7 @@
 """Build-only Python runtime checks; no evidence or project tests run."""
-from pathlib import Path
 import subprocess
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import nix_python_runtime_build as build
@@ -26,12 +26,15 @@ class PythonRuntimeBuildTests(unittest.TestCase):
         source = {'commit': 'abc', 'store_path': '/nix/store/source', 'nar_hash': 'nar'}
         wheel = {'output': '/nix/store/wheel'}
         runtime = {'source_nar_hash': 'nar', 'sandbox_verified': False, 'evidence_authorized': False}
-        with patch.object(build, 'build_committed_python_wheel', return_value={'source': source, 'artifact': wheel}), \
-             patch.object(build, '_clean_head', return_value=('abc', 'sha1')), \
-             patch.object(build, '_build', return_value='/nix/store/runtime'), \
-             patch.object(build, 'inspect_python_runtime', side_effect=[runtime, runtime | {'output_nar_hash': 'changed'}]):
-            with self.assertRaisesRegex(ValueError, 'changed while inspecting'):
-                build.build_committed_python_runtime(Path('/project'))
+        with (
+            patch.object(build, 'build_committed_python_wheel', return_value={'source': source, 'artifact': wheel}),
+            patch.object(build, '_clean_head', return_value=('abc', 'sha1')),
+            patch.object(build, '_build', return_value='/nix/store/runtime'),
+            patch.object(build, 'inspect_python_runtime', side_effect=[runtime, runtime | {'output_nar_hash': 'changed'}]),
+            self.assertRaisesRegex(ValueError, 'changed while inspecting'),
+        ):
+            build.build_committed_python_runtime(Path('/project'))
 
 
-if __name__ == '__main__': unittest.main()
+if __name__ == '__main__':
+    unittest.main()

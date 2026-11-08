@@ -41,7 +41,7 @@ import shutil
 import sys
 import tempfile
 import tomllib
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from _repo import REPO_ROOT as REPO

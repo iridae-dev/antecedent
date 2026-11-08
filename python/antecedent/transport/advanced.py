@@ -13,11 +13,6 @@ from ._admg_conditional import (
     consume_admg_conditional_transport_artifact,
     identify_admg_conditional_transport,
 )
-from ._augmented_grid import (
-    AugmentedResponseGrid,
-    SelectionOverlap,
-    estimate_augmented_response_grid,
-)
 from ._advanced_producers import (
     NestedFisherCandidate,
     NestedMarkovPosteriorCandidate,
@@ -26,6 +21,11 @@ from ._advanced_producers import (
     binary_nested_markov_fisher_interval,
     joint_bayesian_transport,
     sampled_observation_recovery,
+)
+from ._augmented_grid import (
+    AugmentedResponseGrid,
+    SelectionOverlap,
+    estimate_augmented_response_grid,
 )
 from ._counterfactual import (
     CounterfactualEvent,
@@ -126,6 +126,11 @@ from ._impl import (
     replay_z_transport_proposal,
     restore_lowered_program,
 )
+from ._joint_interval_artifact import (
+    JointSensitivityIntervalArtifact,
+    consume_joint_sensitivity_interval,
+    export_joint_sensitivity_interval,
+)
 from ._joint_sensitivity import (
     JointDeviation,
     consume_joint_mechanism_sensitivity_artifact,
@@ -133,11 +138,6 @@ from ._joint_sensitivity import (
     joint_mechanism_sensitivity,
 )
 from ._joint_sensitivity_uncertainty import joint_mechanism_sensitivity_interval
-from ._joint_interval_artifact import (
-    JointSensitivityIntervalArtifact,
-    export_joint_sensitivity_interval,
-    consume_joint_sensitivity_interval,
-)
 from ._learned_continuous import (
     EstimatorMenu,
     EstimatorMenuEntry,

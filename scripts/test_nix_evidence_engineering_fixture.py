@@ -1,8 +1,8 @@
 """Checks for the fixed, non-evidence Nix engineering fixture runner."""
-import tempfile
 import json
-from pathlib import Path
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import nix_evidence_engineering_fixture as fixture

@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import sys
 
-from _repo import REPO_ROOT as ROOT, load_toml
+from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 from route_behaviour import load_stage_routes
 
 LEDGER = ROOT / "parity/evidence_ledger.toml"

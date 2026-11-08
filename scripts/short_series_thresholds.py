@@ -38,7 +38,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from _repo import REPO_ROOT as ROOT, load_toml
+from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 
 REGISTRY = ROOT / "parity" / "short_series_thresholds.toml"
 DOC = ROOT / "docs" / "short-series-thresholds.md"

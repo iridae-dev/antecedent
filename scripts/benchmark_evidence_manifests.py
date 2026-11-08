@@ -6,15 +6,14 @@ uses the whole copied corpus to stress shared input hashing and classification.
 The timed checker starts with empty in-memory caches; OS caches are not evicted.
 """
 import json
-from pathlib import Path
 import platform
 import shutil
 import tempfile
-import time
+from pathlib import Path
 
-from evidence_fingerprint import SKIP_DIRS
-from evidence_manifests import ANALYZER, Checker, STORE, canonical, inventory, manifest_id
 from evidence_earning import binding
+from evidence_fingerprint import SKIP_DIRS
+from evidence_manifests import ANALYZER, STORE, Checker, canonical, inventory, manifest_id
 
 
 def main():
@@ -28,7 +27,8 @@ def main():
         for parent in (root/'crates',):
             for crate in parent.iterdir():
                 for sub in ('src','tests'):
-                    if (crate/sub).is_dir(): trees.append((crate/sub).relative_to(root).as_posix())
+                    if (crate/sub).is_dir():
+                        trees.append((crate/sub).relative_to(root).as_posix())
         trees += ['python/antecedent','conformance','docs','scripts']
         for rel in trees:
             shutil.copytree(root/rel,target/rel,ignore=shutil.ignore_patterns(*SKIP_DIRS,'*.pyc'))
@@ -41,8 +41,10 @@ def main():
                 compiler={k:prepare.pin[k] for k in ('release','commit')},
                 analyzer=ANALYZER,inputs=inputs,fallbacks=[])
             ref=manifest_id(manifest)
-            path=target/STORE/f'{ref}.json';path.parent.mkdir(parents=True,exist_ok=True)
-            path.write_bytes(canonical(manifest));records.append((record,ref))
+            path=target/STORE/f'{ref}.json'
+            path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes(canonical(manifest))
+            records.append((record,ref))
         checker=Checker(target)
         report=checker.report(records)
         elapsed=report['timings']['total_seconds']
@@ -52,4 +54,5 @@ def main():
             target_seconds=5,within_target=elapsed<=5),indent=2))
         return int(elapsed>5 or report['counts']['current']!=count)
 
-if __name__=='__main__': raise SystemExit(main())
+if __name__=='__main__':
+    raise SystemExit(main())

@@ -99,9 +99,11 @@ class SandboxPolicyTests(unittest.TestCase):
                 policy._verify_sandbox()
 
     def test_caller_nix_config_override_refuses(self):
-        with patch.dict(policy.os.environ, {"NIX_CONFIG": "sandbox = false"}, clear=True):
-            with self.assertRaisesRegex(ValueError, "NIX_CONFIG"):
-                policy._verify_sandbox()
+        with (
+            patch.dict(policy.os.environ, {"NIX_CONFIG": "sandbox = false"}, clear=True),
+            self.assertRaisesRegex(ValueError, "NIX_CONFIG"),
+        ):
+            policy._verify_sandbox()
 
 
 if __name__ == "__main__":

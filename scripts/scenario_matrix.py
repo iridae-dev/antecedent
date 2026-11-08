@@ -17,13 +17,12 @@ other than design_inference or uncertainty are findings, and the cell stays a ga
 
 from __future__ import annotations
 
-import _repo
-
 import re
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
+import _repo
 from _repo import REPO_ROOT
 from test_evidence import static_python_test, static_rust_test
 

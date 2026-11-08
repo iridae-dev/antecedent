@@ -10,8 +10,8 @@ The replacement never contains a newline, so line numbers are preserved.
 import ast
 import re
 
-from _repo import REPO_ROOT
 import _repo
+from _repo import REPO_ROOT
 
 _IDS: set[str] | None = None
 

@@ -13,7 +13,8 @@ import argparse
 import tomllib
 from pathlib import Path
 
-from _repo import REPO_ROOT as ROOT, load_toml
+from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 
 IDENTITY = ROOT / "parity" / "identity.toml"
 MATRIX = ROOT / "parity" / "producer_consumer.toml"

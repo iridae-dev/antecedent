@@ -4354,7 +4354,6 @@ def uplift_by_score(
     propensity: NDArray[np.float64],
     bin_count: int,
 ) -> list[tuple[int, float, float, int]]: ...
-
 def difference_in_differences(
     outcome: NDArray[np.float64], treated: list[bool], post: list[bool]
 ) -> float: ...

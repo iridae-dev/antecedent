@@ -16,8 +16,8 @@ from antecedent.identify import binary_iv_bounds
 from antecedent.outcomes import require_success
 from antecedent.quasi import IvBounds
 
-from _repo_text import REPO_ROOT, load_json
 from _loaded_results import assert_answer_kept
+from _repo_text import REPO_ROOT, load_json
 
 TABLE1 = load_json(
     REPO_ROOT / "conformance" / "response" / "binary_iv_balke_pearl_table1" / "expected.json"

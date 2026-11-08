@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+
 import _repo
 
 DEFAULT_ROOT = Path(__file__).resolve().parent.parent

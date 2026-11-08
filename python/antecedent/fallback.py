@@ -177,7 +177,9 @@ def _no_form(part: Literal["associational", "evidence_plan"], query: Any) -> Fal
     )
 
 
-def _not_measured(part: Literal["associational", "evidence_plan"], what: str) -> FallbackUnavailable:
+def _not_measured(
+    part: Literal["associational", "evidence_plan"], what: str
+) -> FallbackUnavailable:
     return FallbackUnavailable(
         part,
         "invalid_argument",

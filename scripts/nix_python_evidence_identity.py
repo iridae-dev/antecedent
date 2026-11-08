@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path, PurePosixPath
 import re
 import tomllib
 import zipfile
+from pathlib import Path, PurePosixPath
 
 from nix_artifact_identity import ArtifactIdentityError, _file_hash, _nix, _store_path
 from nix_compile_time_inventory import compiler_units

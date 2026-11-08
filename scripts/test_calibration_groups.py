@@ -134,9 +134,11 @@ class OwedSelectionTest(unittest.TestCase):
         self.assertIn("no gate group 'nobody: x' for route:cap/typo", text)
 
     def test_owed_is_exclusive_with_all_and_missing_only(self):
-        with patch.object(sys, "argv", ["calibration_groups.py", "plan", "--owed", "--all"]):
-            with self.assertRaises(SystemExit):
-                groups.main()
+        with (
+            patch.object(sys, "argv", ["calibration_groups.py", "plan", "--owed", "--all"]),
+            self.assertRaises(SystemExit),
+        ):
+            groups.main()
 
 
 class WorkspaceSuiteOwnershipTest(unittest.TestCase):

@@ -29,14 +29,13 @@ confirmed by reading the wrappers. Run directly or via scripts/gate_public_api.s
 
 from __future__ import annotations
 
-import _repo
-
 import ast
 import re
 import sys
 from collections import Counter
 from pathlib import Path
 
+import _repo
 from _repo import REPO_ROOT as ROOT
 
 SNAPSHOT = ROOT / "parity/public_api/antecedent.txt"

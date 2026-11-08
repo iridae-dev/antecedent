@@ -13,7 +13,9 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.graph import Admg
-from antecedent.transport._advanced_producers import _nested_posterior_candidate as binary_nested_markov
+from antecedent.transport._advanced_producers import (
+    _nested_posterior_candidate as binary_nested_markov,
+)
 from antecedent.transport.advanced import (
     NestedMarkovPosteriorCandidate,
     NestedMarkovPrior,

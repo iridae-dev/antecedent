@@ -10,10 +10,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import tomllib
+from pathlib import Path
 
 POLICY = "nix-darwin-private-tmp-audit-v1"
 REGISTRY = "nix/compile-time-reviewed.json"

@@ -17,14 +17,15 @@ prints each record's status and reasons, the input-to-record index and timings.
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import time
+from collections import defaultdict
+from pathlib import Path, PurePosixPath
+
 import _repo
 
 ROOT = Path(__file__).resolve().parents[1]

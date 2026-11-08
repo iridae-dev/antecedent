@@ -31,7 +31,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from _repo import REPO_ROOT as ROOT, load_toml
+from _repo import REPO_ROOT as ROOT
+from _repo import load_toml
 
 OUTPUT = "parity/acceptance_inventory.toml"
 CONFORMANCE_SUITE = "crates/antecedent/tests/family_contract_conformance.rs"

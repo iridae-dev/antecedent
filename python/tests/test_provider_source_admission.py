@@ -126,7 +126,9 @@ def test_each_missing_or_altered_declaration_refuses_with_its_own_detail():
 def test_a_receipt_for_the_exact_provider_object_admits_it_as_verified():
     receipt = declaration().verify(gaussian_probes())
     verified = th.admit_provider_source(
-        source(trust="exact_request_verified", requirement="exact_request_verified", receipt=receipt)
+        source(
+            trust="exact_request_verified", requirement="exact_request_verified", receipt=receipt
+        )
     )
     assert verified.trust == "verified_extension"
     assert verified.native_target_data is False
@@ -135,9 +137,7 @@ def test_a_receipt_for_the_exact_provider_object_admits_it_as_verified():
     # A receipt issued for another provider object does not cover this one.
     other = declaration(provider=identity("2.0")).verify(gaussian_probes())
     mismatched = refusal_of(
-        lambda: th.admit_provider_source(
-            source(trust="exact_request_verified", receipt=other)
-        )
+        lambda: th.admit_provider_source(source(trust="exact_request_verified", receipt=other))
     )
     assert mismatched.detail == reason_details.provider_transport.RECEIPT_DOES_NOT_COVER
 

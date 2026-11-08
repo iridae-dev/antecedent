@@ -1,12 +1,12 @@
 """Opt-in compiler integration: disposable engineering fixtures, no product gates."""
-from contextlib import redirect_stdout
 import io
 import json
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from pathlib import Path
 from unittest.mock import patch
 
 import scientific_records as sr
@@ -121,4 +121,5 @@ why="reader macro reads its consumer's input.txt"
             self.assertEqual(len(sr.classify(root, [row])[0]), 1)
 
 
-if __name__ == '__main__': unittest.main()
+if __name__ == '__main__':
+    unittest.main()

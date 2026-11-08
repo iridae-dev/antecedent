@@ -86,7 +86,10 @@ def test_the_selective_answer_is_bit_identical_to_the_one_shot_call():
         selective = session.evaluate(histories(), **arguments())
         one_shot = temporal_fixed_population(histories(), **arguments())
         assert selective.units == one_shot.units
-        assert (selective.mean_plus, selective.mean_minus) == (one_shot.mean_plus, one_shot.mean_minus)
+        assert (selective.mean_plus, selective.mean_minus) == (
+            one_shot.mean_plus,
+            one_shot.mean_minus,
+        )
         assert selective.contrast == one_shot.contrast
         assert selective.receipt == one_shot.receipt
         assert selective.identity == one_shot.identity

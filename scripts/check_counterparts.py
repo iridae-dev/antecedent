@@ -24,7 +24,8 @@ import sys
 from collections import Counter
 
 import generate_counterparts as gen
-from _repo import REPO_ROOT as ROOT, load_toml_binary
+from _repo import REPO_ROOT as ROOT
+from _repo import load_toml_binary
 from method_evidence import Evidence
 
 INVENTORY = ROOT / "parity/counterparts.toml"

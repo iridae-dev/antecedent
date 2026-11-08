@@ -435,7 +435,7 @@ class TransportedDecision(ScientificResult):
             ),
             DecisionRefusal,
         )
-        return _DecisionExport(bytes(data), self.decision_identity)
+        return artifact_from_receipt(self, _DecisionExport(bytes(data), self.decision_identity))
 
     @property
     def verdict(self) -> Any:
@@ -619,6 +619,8 @@ def consume_transported_decision(
         raise CausalTypeError("artifact must be bytes")
     payload, handle, refusal = _native.transported_decision_consume(bytes(data), expected_identity)
     raise_refusal(refusal, DecisionRefusal)
+    if payload is None:
+        raise CausalTypeError("transported decision artifact carried no payload")
     wire = json.loads(payload)
     return ConsumedTransportedDecision(
         decision=_supported_from_wire(wire["decision"]),

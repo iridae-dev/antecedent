@@ -5,6 +5,7 @@ import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _repo
 from provenance_links import (  # noqa: E402  # noqa: E402
     ALIAS,
     FAMILY,
@@ -12,7 +13,6 @@ from provenance_links import (  # noqa: E402  # noqa: E402
     method_review_problems,
     non_algorithm_review_problems,
 )
-import _repo
 
 root = Path(".")
 records = sorted((root / "provenance").glob("*.toml"))

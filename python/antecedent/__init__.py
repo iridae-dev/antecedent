@@ -535,8 +535,10 @@ if _TYPE_CHECKING:
     from . import effect_constancy_review as effect_constancy_review
     from . import evidence_ledger as evidence_ledger
     from . import execution_attempt as execution_attempt
+    from . import external_learners as external_learners
     from . import external_mechanisms as external_mechanisms
     from . import fallback as fallback
+    from . import forecasting as forecasting
     from . import functional_source as functional_source
     from . import graph_falsification as graph_falsification
     from . import interface_contract as interface_contract
@@ -559,8 +561,6 @@ if _TYPE_CHECKING:
     from . import multi_level_treatment as multi_level_treatment
     from . import nonlinear_mediation as nonlinear_mediation
     from . import nuisance_scores as nuisance_scores
-    from . import external_learners as external_learners
-    from . import forecasting as forecasting
     from . import observation_query as observation_query
     from . import observational_policy as observational_policy
     from . import observational_survival as observational_survival

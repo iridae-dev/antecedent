@@ -74,6 +74,7 @@ from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
 
+import _repo  # noqa: E402
 import provenance_links  # noqa: E402
 import route_behaviour  # noqa: E402
 import test_evidence  # noqa: E402
@@ -91,7 +92,6 @@ from transport_replay_contract import (  # noqa: E402
     shared_evidence_problems,
     source_replay_problems,
 )
-import _repo
 
 CELLS = "parity/support_cells.toml"
 GRAPHLESS = "parity/support_graphless.toml"
@@ -123,7 +123,7 @@ class Unit:
     def supported(self) -> bool:
         return not self.problems
 
-    def require_current(self, ledger: "Ledger | None", test: str, name: str) -> None:
+    def require_current(self, ledger: Ledger | None, test: str, name: str) -> None:
         """Not supported while the cited check has no current passing record."""
         selector = ledger.owed(test, name) if ledger is not None else None
         if selector is not None and selector not in self.owed:

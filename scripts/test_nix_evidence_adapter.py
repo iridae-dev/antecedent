@@ -1,8 +1,8 @@
 """Engineering tests for preparatory Nix evidence build diagnostics."""
-import unittest
-from unittest.mock import patch
 import json
 import subprocess
+import unittest
+from unittest.mock import patch
 
 from nix_evidence_adapter import client_policy_diagnostics, main
 

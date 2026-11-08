@@ -28,8 +28,8 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-from _repo import WORKSPACE_TEST_FEATURES, cargo_target_feature_args, load_toml
 import route_behaviour
+from _repo import WORKSPACE_TEST_FEATURES, cargo_target_feature_args, load_toml
 from test_evidence import (
     python_test_markers,
     registered_calibration_simulations,

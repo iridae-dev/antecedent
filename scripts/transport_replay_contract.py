@@ -1,6 +1,7 @@
 """Strict evidence for stateless measured factories with retained native source replay."""
 
 import ast
+
 from _repo import load_toml
 
 CONTRACTS = {

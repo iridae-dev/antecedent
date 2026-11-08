@@ -9,16 +9,19 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
 import tomllib
+from pathlib import Path
 
 from nix_compile_time_inventory import compiler_units
-from nix_evidence_source import (import_committed_snapshot, materialize_committed_source,
-                                 verify_committed_snapshot)
+from nix_evidence_source import (
+    import_committed_snapshot,
+    materialize_committed_source,
+    verify_committed_snapshot,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 MODULE = "nix_python_boundary"

@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from nix_artifact_identity import recheck_artifact
 from nix_evidence_source import verify_committed_snapshot

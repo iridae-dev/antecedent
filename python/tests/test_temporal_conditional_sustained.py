@@ -23,5 +23,7 @@ def test_a_conditional_sustained_effect_equals_the_counted_stratified_contrast()
     assert abs(result.ate - _counted_conditional(series)) < 1e-12
     assert abs(result.ate - _counted_unadjusted(series)) > 1e-3
     assert result.evidence_status == "supported"
-    pulse = _run(antecedent.TemporalConditionalPulse("x", "y", "w", treatment_lag=1, horizon_steps=1))
+    pulse = _run(
+        antecedent.TemporalConditionalPulse("x", "y", "w", treatment_lag=1, horizon_steps=1)
+    )
     assert abs(result.ate - pulse.ate) < 1e-12

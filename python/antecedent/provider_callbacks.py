@@ -61,7 +61,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 from . import _native
-from ._float_bits import float_bits as _bits
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -69,6 +68,7 @@ from ._artifact_protocol import (
     artifact_from_receipt,
     container_bytes,
 )
+from ._float_bits import float_bits as _bits
 from ._freeze import thaw
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult

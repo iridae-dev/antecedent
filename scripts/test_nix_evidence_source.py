@@ -1,13 +1,17 @@
 """Disposable engineering checks for Nix source and coverage helpers."""
-from pathlib import Path
 import hashlib
 import subprocess
 import tempfile
-from types import SimpleNamespace
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 
-from nix_evidence_source import (import_committed_snapshot, map_coverage_sources,
-                                 materialize_committed_source, verify_committed_snapshot)
+from nix_evidence_source import (
+    import_committed_snapshot,
+    map_coverage_sources,
+    materialize_committed_source,
+    verify_committed_snapshot,
+)
 
 
 class SnapshotTest(unittest.TestCase):

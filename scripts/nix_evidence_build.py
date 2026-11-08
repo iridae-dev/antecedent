@@ -7,17 +7,20 @@ callers must not interpret the result as authorization to earn a record.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import re
 import subprocess
 import tempfile
 import tomllib
+from pathlib import Path
 
 from _repo import scientific_target_feature_args
 from nix_artifact_identity import inspect_artifact, recheck_artifact
 from nix_compile_time_inventory import compiler_units
-from nix_evidence_source import (import_committed_snapshot, materialize_committed_source,
-                                 verify_committed_snapshot)
+from nix_evidence_source import (
+    import_committed_snapshot,
+    materialize_committed_source,
+    verify_committed_snapshot,
+)
 
 _NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*\Z")
 _FEATURE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./+-]*\Z")

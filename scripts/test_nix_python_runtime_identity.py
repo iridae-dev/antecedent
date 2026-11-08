@@ -1,8 +1,8 @@
 """Python runtime identity unit checks; no scientific tests or evidence."""
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import nix_python_runtime_identity as identity
@@ -59,10 +59,14 @@ class PythonRuntimeIdentityTests(unittest.TestCase):
             self.addCleanup(replacement.stop)
 
     def nix(self, *args):
-        if args[0] == 'nix-instantiate': return self.drv
-        if 'derivation' in args: return json.dumps({self.drv: self.derivation})
-        if 'path-info' in args: return json.dumps({str(self.output): self.metadata})
-        if 'hash' in args: return self.nar
+        if args[0] == 'nix-instantiate':
+            return self.drv
+        if 'derivation' in args:
+            return json.dumps({self.drv: self.derivation})
+        if 'path-info' in args:
+            return json.dumps({str(self.output): self.metadata})
+        if 'hash' in args:
+            return self.nar
         raise AssertionError(args)
 
     def inspect(self):
@@ -76,17 +80,22 @@ class PythonRuntimeIdentityTests(unittest.TestCase):
 
     def test_changed_locked_wheel_or_missing_distribution_is_rejected(self):
         self.package_file.write_text(json.dumps([self.row | {'sha': 'b' * 64}]), encoding="utf-8")
-        with self.assertRaisesRegex(identity.ArtifactIdentityError, 'differs from lock'): self.inspect()
+        with self.assertRaisesRegex(identity.ArtifactIdentityError, 'differs from lock'):
+            self.inspect()
         self.package_file.write_text(json.dumps([self.row]), encoding="utf-8")
         (self.output / 'site/example-1.2.3.dist-info/METADATA').write_text('Name: example\nVersion: 9.0\n', encoding="utf-8")
-        with self.assertRaisesRegex(identity.ArtifactIdentityError, 'distributions differ'): self.inspect()
+        with self.assertRaisesRegex(identity.ArtifactIdentityError, 'distributions differ'):
+            self.inspect()
 
     def test_changed_native_or_source_bytes_is_rejected(self):
         (self.output / 'site/antecedent/_native.cpython-313-darwin.so').write_bytes(b'changed')
-        with self.assertRaisesRegex(identity.ArtifactIdentityError, 'extension differs'): self.inspect()
+        with self.assertRaisesRegex(identity.ArtifactIdentityError, 'extension differs'):
+            self.inspect()
         (self.output / 'site/antecedent/_native.cpython-313-darwin.so').write_bytes(b'extension')
         (self.output / 'site/antecedent/__init__.py').write_bytes(b'changed')
-        with self.assertRaisesRegex(identity.ArtifactIdentityError, 'source differs'): self.inspect()
+        with self.assertRaisesRegex(identity.ArtifactIdentityError, 'source differs'):
+            self.inspect()
 
 
-if __name__ == '__main__': unittest.main()
+if __name__ == '__main__':
+    unittest.main()

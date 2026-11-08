@@ -362,7 +362,8 @@ class Outcome(Generic[T]):
         """
         if self.refusal is not None:
             return self
-        return capture_outcome(self.value.replay)  # type: ignore[attr-defined]
+        # A loaded analysis result: its value is a result with `replay`.
+        return capture_outcome(cast(Any, self.value).replay)
 
     @property
     def uncertainty(self) -> SlotModel:

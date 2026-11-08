@@ -25,9 +25,9 @@ from _repo import REPO_ROOT as ROOT
 from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
+import _repo  # noqa: E402
 import gate_recipe_obligations as gate  # noqa: E402
 import generate_route_obligations as gen  # noqa: E402
-import _repo
 
 
 def citations(row: dict) -> list[tuple[str, str]]:

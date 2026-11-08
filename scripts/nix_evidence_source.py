@@ -7,12 +7,12 @@ from __future__ import annotations
 
 import hashlib
 import os
-from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
 import tarfile
 import tempfile
+from pathlib import Path, PurePosixPath
 
 
 def _git(root: Path, *args: str) -> bytes:
@@ -232,9 +232,11 @@ def map_coverage_sources(coverage: dict[str, set[int]], source: Path, checkout: 
         path = reported.resolve()
         try:
             relative = path.relative_to(source)
-        except ValueError:
+        except ValueError as error:
             if virtual_relative is not None:
-                raise ValueError(f"virtual coverage source escapes the verified snapshot: {filename}")
+                raise ValueError(
+                    f"virtual coverage source escapes the verified snapshot: {filename}"
+                ) from error
             continue
         if not relative.parts or ".." in relative.parts:
             raise ValueError("invalid coverage source path")

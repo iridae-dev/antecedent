@@ -47,9 +47,7 @@ def test_interval_is_released_only_under_a_covering_record() -> None:
 
     point = (mean(treated) + 0.3 * 0.8) - mean(control)
     variance = (
-        var(treated) / len(treated)
-        + var(control) / len(control)
-        + (0.3 * 0.7 / 40.0) * 0.8**2
+        var(treated) / len(treated) + var(control) / len(control) + (0.3 * 0.7 / 40.0) * 0.8**2
     )
     half = 1.959964 * variance**0.5
 

@@ -1,7 +1,7 @@
 """Tests for offline target graph reporting; these do not run evidence tests."""
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
 import nix_compile_time_inventory as audit
 

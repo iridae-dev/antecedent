@@ -28,7 +28,8 @@ import re
 import sys
 from pathlib import Path
 
-from _repo import REPO_ROOT as ROOT, load_toml_binary
+from _repo import REPO_ROOT as ROOT
+from _repo import load_toml_binary
 from method_evidence import UNLISTED, Evidence
 
 CHILDREN = ROOT / "parity/method_children/children.toml"
