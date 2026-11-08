@@ -334,12 +334,11 @@ fn tile_levels(
     let request = tile_request(&failed, &grid, &outcomes, degree, Reduction::Full);
     let mut out = vec![0.0; draws * z_points.len()];
     stream_tile(&request, |value| {
-        if let StreamedValue::Full { draw, grid_id, value, .. } = value {
-            if let (Ok(k), Ok(g)) = (usize::try_from(draw), usize::try_from(grid_id)) {
-                if let Some(slot) = out.get_mut(k * z_points.len() + g) {
-                    *slot = value;
-                }
-            }
+        if let StreamedValue::Full { draw, grid_id, value, .. } = value
+            && let (Ok(k), Ok(g)) = (usize::try_from(draw), usize::try_from(grid_id))
+            && let Some(slot) = out.get_mut(k * z_points.len() + g)
+        {
+            *slot = value;
         }
     })?;
     Ok(out)
@@ -358,13 +357,11 @@ fn tile_covariance(
     let size = z_points.len();
     let mut out = vec![0.0; size * size];
     stream_tile(&request, |value| {
-        if let StreamedValue::DrawCovariance { left_grid_id, right_grid_id, value, .. } = value {
-            if let (Ok(i), Ok(j)) = (usize::try_from(left_grid_id), usize::try_from(right_grid_id))
-            {
-                if let Some(slot) = out.get_mut(i * size + j) {
-                    *slot = value;
-                }
-            }
+        if let StreamedValue::DrawCovariance { left_grid_id, right_grid_id, value, .. } = value
+            && let (Ok(i), Ok(j)) = (usize::try_from(left_grid_id), usize::try_from(right_grid_id))
+            && let Some(slot) = out.get_mut(i * size + j)
+        {
+            *slot = value;
         }
     })?;
     Ok(out)

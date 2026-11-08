@@ -22,9 +22,9 @@
 )]
 
 use antecedent_stats::adaptive_inference::{
-    simulate_participant_history, AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan,
-    CorrelationPrior, DecisionRules, FutilityRule, HistoricalPrior, ParticipantDeclaration,
-    ParticipantHistory, ParticipantSpec,
+    AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, CorrelationPrior, DecisionRules,
+    FutilityRule, HistoricalPrior, ParticipantDeclaration, ParticipantHistory, ParticipantSpec,
+    simulate_participant_history,
 };
 
 const RESPONSES: usize = 3;

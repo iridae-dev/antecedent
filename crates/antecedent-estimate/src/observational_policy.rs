@@ -388,13 +388,13 @@ impl ObservationalPolicyValue {
                 "the declared treatment support must be at least two distinct finite values",
             ));
         }
-        if let Some(reference) = self.reference {
-            if self.index_of(reference).is_none() {
-                return Err(invalid(
-                    antecedent_core::reason_details::policy_value::REFERENCE_OUTSIDE_SUPPORT,
-                    "the reference action is not a level of the declared treatment support",
-                ));
-            }
+        if let Some(reference) = self.reference
+            && self.index_of(reference).is_none()
+        {
+            return Err(invalid(
+                antecedent_core::reason_details::policy_value::REFERENCE_OUTSIDE_SUPPORT,
+                "the reference action is not a level of the declared treatment support",
+            ));
         }
         if !self.min_propensity.is_finite() || !(0.0..0.5).contains(&self.min_propensity) {
             return Err(invalid(

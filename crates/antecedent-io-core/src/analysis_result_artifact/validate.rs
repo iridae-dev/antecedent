@@ -133,14 +133,12 @@ pub(super) fn validate_result(
         if let Some(interval) = &inference.interval {
             if let crate::AssignmentDesignWire::ObservedExposure { provenance, .. } =
                 &query.assignment
-            {
-                if provenance != "known"
+                && (provenance != "known"
                     || inference.from_exposed_clusters < 8
                     || inference.to_exposed_clusters < 8
-                    || interval.degrees_of_freedom < 29.0
-                {
-                    return Err(IoError::Convert("observational exposure interval requires known probabilities and independent-cluster support".into()));
-                }
+                    || interval.degrees_of_freedom < 29.0)
+            {
+                return Err(IoError::Convert("observational exposure interval requires known probabilities and independent-cluster support".into()));
             }
             if !interval.lower.is_finite()
                 || !interval.upper.is_finite()
@@ -335,14 +333,13 @@ pub(super) fn validate_result(
             "identification.query does not match the enclosing query".into(),
         ));
     }
-    if let crate::CausalQueryWire::TemporalEffect { horizon_steps, .. } = &result.query {
-        if !result.temporal_identification.is_empty()
-            && !result.temporal_identification.iter().any(|item| item.horizon == *horizon_steps)
-        {
-            return Err(IoError::Convert(
-                "temporal certificate horizon does not match the enclosing query".into(),
-            ));
-        }
+    if let crate::CausalQueryWire::TemporalEffect { horizon_steps, .. } = &result.query
+        && !result.temporal_identification.is_empty()
+        && !result.temporal_identification.iter().any(|item| item.horizon == *horizon_steps)
+    {
+        return Err(IoError::Convert(
+            "temporal certificate horizon does not match the enclosing query".into(),
+        ));
     }
     if result.estimate.is_some_and(|estimate| !estimate.is_finite()) {
         return Err(IoError::Convert(
@@ -830,12 +827,12 @@ fn validate_mediation_grid(
                 "unidentified mediation horizon cannot claim a point effect".into(),
             ));
         }
-        if let Some([lower, upper]) = slice.identified_set {
-            if !lower.is_finite() || !upper.is_finite() || lower > upper {
-                return Err(IoError::Convert(
-                    "mediation grid identified set must be finite and ordered".into(),
-                ));
-            }
+        if let Some([lower, upper]) = slice.identified_set
+            && (!lower.is_finite() || !upper.is_finite() || lower > upper)
+        {
+            return Err(IoError::Convert(
+                "mediation grid identified set must be finite and ordered".into(),
+            ));
         }
         validate_mediation_uncertainty(&slice.uncertainty)?;
     }
@@ -891,22 +888,21 @@ pub(super) fn validate_unit_effects(unit_effects: &UnitEffectsWire) -> Result<()
         return Err(IoError::Convert("unit effects must be a non-empty finite vector".into()));
     }
     let n = unit_effects.effects.len();
-    if let Some(intervals) = &unit_effects.intervals {
-        if intervals.lower.len() != n
+    if let Some(intervals) = &unit_effects.intervals
+        && (intervals.lower.len() != n
             || intervals.upper.len() != n
             || intervals.lower.iter().any(|v| !v.is_finite())
             || intervals.upper.iter().any(|v| !v.is_finite())
             || intervals.lower.iter().zip(&intervals.upper).any(|(lo, hi)| lo > hi)
             || !(0.0..=1.0).contains(&intervals.level)
             || !intervals.level.is_finite()
-            || intervals.method.trim().is_empty()
-        {
-            return Err(IoError::Convert(
-                "unit effect intervals must match effects length with finite ordered bounds, \
+            || intervals.method.trim().is_empty())
+    {
+        return Err(IoError::Convert(
+            "unit effect intervals must match effects length with finite ordered bounds, \
                  level in [0, 1], and a non-blank method"
-                    .into(),
-            ));
-        }
+                .into(),
+        ));
     }
     if unit_effects.extrapolative.as_ref().is_some_and(|flags| flags.len() != n) {
         return Err(IoError::Convert(
@@ -923,12 +919,12 @@ fn validate_cate_and_learner_metrics(result: &AnalysisResultWire) -> Result<(), 
             "cate standard errors and leaf dispersion require cate point predictions".into(),
         ));
     }
-    if let (Some(cate), Some(dispersion)) = (&result.cate, &result.cate_leaf_dispersion) {
-        if dispersion.len() != cate.len() || dispersion.iter().any(|v| !v.is_finite() || *v < 0.0) {
-            return Err(IoError::Convert(
-                "cate leaf dispersion must match cate length and be finite nonnegative".into(),
-            ));
-        }
+    if let (Some(cate), Some(dispersion)) = (&result.cate, &result.cate_leaf_dispersion)
+        && (dispersion.len() != cate.len() || dispersion.iter().any(|v| !v.is_finite() || *v < 0.0))
+    {
+        return Err(IoError::Convert(
+            "cate leaf dispersion must match cate length and be finite nonnegative".into(),
+        ));
     }
     match (&result.cate, &result.cate_se) {
         (None, _) => {}
@@ -938,13 +934,12 @@ fn validate_cate_and_learner_metrics(result: &AnalysisResultWire) -> Result<(), 
                     "cate predictions must be a non-empty finite vector".into(),
                 ));
             }
-            if let Some(se) = cate_se {
-                if se.len() != cate.len() || se.iter().any(|v| !v.is_finite() || *v < 0.0) {
-                    return Err(IoError::Convert(
-                        "cate standard errors must match cate length and be finite nonnegative"
-                            .into(),
-                    ));
-                }
+            if let Some(se) = cate_se
+                && (se.len() != cate.len() || se.iter().any(|v| !v.is_finite() || *v < 0.0))
+            {
+                return Err(IoError::Convert(
+                    "cate standard errors must match cate length and be finite nonnegative".into(),
+                ));
             }
         }
     }
@@ -1073,10 +1068,10 @@ fn validate_family_inference(result: &AnalysisResultWire) -> Result<(), IoError>
             && level > 0.0
             && level < 1.0
     };
-    if let Some(interval) = result.simultaneous_interval {
-        if !check_interval(interval) || result.joint_covariance.is_none() {
-            return Err(invalid("simultaneous interval requires valid covariance and bounds"));
-        }
+    if let Some(interval) = result.simultaneous_interval
+        && (!check_interval(interval) || result.joint_covariance.is_none())
+    {
+        return Err(invalid("simultaneous interval requires valid covariance and bounds"));
     }
     if let Some((bh, by)) = result.adjusted_p_values {
         // Degenerate native Wald statistics are recorded as NaN, never as discoveries.
@@ -1087,18 +1082,17 @@ fn validate_family_inference(result: &AnalysisResultWire) -> Result<(), IoError>
             return Err(invalid("adjusted p-value is outside [0, 1]"));
         }
     }
-    if let Some((value, standard_error)) = result.family_contrast {
-        if !value.is_finite() || !standard_error.is_finite() || standard_error < 0.0 {
-            return Err(invalid("contrast requires a finite value and nonnegative standard error"));
-        }
+    if let Some((value, standard_error)) = result.family_contrast
+        && (!value.is_finite() || !standard_error.is_finite() || standard_error < 0.0)
+    {
+        return Err(invalid("contrast requires a finite value and nonnegative standard error"));
     }
-    if let Some(interval) = result.family_contrast_interval {
-        if !check_interval(interval)
+    if let Some(interval) = result.family_contrast_interval
+        && (!check_interval(interval)
             || result.family_contrast.is_none()
-            || result.joint_covariance.is_none()
-        {
-            return Err(invalid("contrast interval requires its contrast and covariance"));
-        }
+            || result.joint_covariance.is_none())
+    {
+        return Err(invalid("contrast interval requires its contrast and covariance"));
     }
     Ok(())
 }

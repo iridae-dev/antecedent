@@ -1010,11 +1010,15 @@ mod tests {
     fn container_0_5_is_compatible_and_unknown_or_semver_is_refused() {
         let feature = FeatureVersion { name: Arc::from("family_payload"), version: 1 };
         assert_eq!(STABLE_FORMAT, FormatVersion { major: 0, minor: 5 });
-        let got =
-            read_feature(STABLE_FORMAT, feature.name.as_ref(), feature.version, &[feature.clone()]);
+        let got = read_feature(
+            STABLE_FORMAT,
+            feature.name.as_ref(),
+            feature.version,
+            std::slice::from_ref(&feature),
+        );
         assert_eq!(got, Ok(FeatureRead::Compatible { feature: feature.clone() }));
         assert_eq!(
-            read_feature(STABLE_FORMAT, "family_payload", 2, &[feature.clone()]),
+            read_feature(STABLE_FORMAT, "family_payload", 2, std::slice::from_ref(&feature)),
             Err(FeatureRefusal::UnknownFeature { name: "family_payload".to_owned(), version: 2 }),
         );
         let package = SemanticVersion { major: feature.version, minor: 1, patch: 4 };

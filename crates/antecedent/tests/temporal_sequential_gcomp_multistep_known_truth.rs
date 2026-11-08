@@ -141,13 +141,12 @@ fn bayesian() -> InferenceMode {
 /// Posterior mean for a Bayesian result, else the point estimate, else the identified envelope.
 fn ends(result: &antecedent::StudyResult, inference: &InferenceMode) -> (f64, f64) {
     assert!(!result.logical_plan.plan_id.is_empty(), "the result names its logical plan");
-    if matches!(inference, InferenceMode::Bayesian(_)) {
-        if let Some(posterior) = &result.posterior {
-            if let Some(column) = posterior.effect_column() {
-                let mean = posterior.summaries.mean[column];
-                return (mean, mean);
-            }
-        }
+    if matches!(inference, InferenceMode::Bayesian(_))
+        && let Some(posterior) = &result.posterior
+        && let Some(column) = posterior.effect_column()
+    {
+        let mean = posterior.summaries.mean[column];
+        return (mean, mean);
     }
     let ate = result.estimate().as_effect().unwrap().ate;
     if ate.is_finite() {

@@ -119,15 +119,15 @@ impl InterferenceSpec {
     /// identity survives every later replacement.
     pub(crate) fn bound_to(&self, units: &TabularData) -> Result<Self, CausalError> {
         let declared = self.network.units().unit_key();
-        if let (Some(declared), Some(supplied)) = (declared, units.unit_key()) {
-            if declared != supplied {
-                return Err(CausalError::Compile {
-                    message: "the replacement unit table belongs to other units than the \
+        if let (Some(declared), Some(supplied)) = (declared, units.unit_key())
+            && declared != supplied
+        {
+            return Err(CausalError::Compile {
+                message: "the replacement unit table belongs to other units than the \
                               declared network (other labels, or the same labels on other \
                               rows); the edges and the assignment describe the declared units"
-                        .into(),
-                });
-            }
+                    .into(),
+            });
         }
         if self.network.units().storage().content_digest() == units.storage().content_digest() {
             return Ok(self.clone());
@@ -1369,12 +1369,11 @@ impl StudyBuilder {
         if let Some(error) = self.discovery_query_error.take() {
             return Err(CausalError::from(error));
         }
-        if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
-            if let Some(policy) =
+        if let InferenceMode::Bayesian(cfg) = &self.settings.inference
+            && let Some(policy) =
                 cfg.external_compose.as_ref().and_then(|external| external.conflict_policy)
-            {
-                policy.validate().map_err(CausalError::from)?;
-            }
+        {
+            policy.validate().map_err(CausalError::from)?;
         }
         self.apply_bootstrap_interval()?;
         if let (Some(CausalQuery::SyntheticControl(query)), InferenceMode::Frequentist) =
@@ -1405,10 +1404,10 @@ impl StudyBuilder {
             mechanisms,
             inspect_only,
         )?;
-        if let Some(provenance) = posterior_provenance {
-            if study.graph_posterior.is_some() {
-                Arc::make_mut(&mut study.config).posterior_provenance = Some(provenance);
-            }
+        if let Some(provenance) = posterior_provenance
+            && study.graph_posterior.is_some()
+        {
+            Arc::make_mut(&mut study.config).posterior_provenance = Some(provenance);
         }
         Arc::make_mut(&mut study.config).data_diagnostics = self.data_diagnostics;
         Ok(study)

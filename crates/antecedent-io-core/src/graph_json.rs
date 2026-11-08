@@ -39,13 +39,13 @@ pub(crate) fn check_optional_names(
     names: Option<&[String]>,
     node_count: u32,
 ) -> Result<(), IoError> {
-    if let Some(names) = names {
-        if names.len() != node_count as usize {
-            return Err(IoError::Convert(format!(
-                "variable_names length {} must equal node_count {node_count}",
-                names.len()
-            )));
-        }
+    if let Some(names) = names
+        && names.len() != node_count as usize
+    {
+        return Err(IoError::Convert(format!(
+            "variable_names length {} must equal node_count {node_count}",
+            names.len()
+        )));
     }
     Ok(())
 }

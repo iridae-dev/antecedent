@@ -339,11 +339,11 @@ impl NuisanceStore {
             }
         };
         wait()?;
-        if let Some(existing) = slot.as_ref() {
-            if let Ok(value) = Arc::clone(existing).downcast::<T>() {
-                self.value_reuses.fetch_add(1, Ordering::AcqRel);
-                return Ok((value, true));
-            }
+        if let Some(existing) = slot.as_ref()
+            && let Ok(value) = Arc::clone(existing).downcast::<T>()
+        {
+            self.value_reuses.fetch_add(1, Ordering::AcqRel);
+            return Ok((value, true));
         }
         let value = Arc::new(compute()?);
         wait()?;
@@ -648,17 +648,17 @@ fn note_use(
         let Some(scope) = slot.as_mut() else {
             return;
         };
-        if let Some((id, scopes)) = propensity {
-            if !scope.used.propensity.iter().any(|used| used.id == id) {
-                scopes.fetch_add(1, Ordering::AcqRel);
-                scope.used.propensity.push(UsedEntry { id, scopes: Arc::clone(scopes) });
-            }
+        if let Some((id, scopes)) = propensity
+            && !scope.used.propensity.iter().any(|used| used.id == id)
+        {
+            scopes.fetch_add(1, Ordering::AcqRel);
+            scope.used.propensity.push(UsedEntry { id, scopes: Arc::clone(scopes) });
         }
-        if let Some((id, scopes)) = outcome {
-            if !scope.used.outcome.iter().any(|used| used.id == id) {
-                scopes.fetch_add(1, Ordering::AcqRel);
-                scope.used.outcome.push(UsedEntry { id, scopes: Arc::clone(scopes) });
-            }
+        if let Some((id, scopes)) = outcome
+            && !scope.used.outcome.iter().any(|used| used.id == id)
+        {
+            scopes.fetch_add(1, Ordering::AcqRel);
+            scope.used.outcome.push(UsedEntry { id, scopes: Arc::clone(scopes) });
         }
     });
 }

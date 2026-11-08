@@ -154,6 +154,10 @@ impl DbnIdentifyDemotion {
     }
 }
 
+#[allow(
+    clippy::large_enum_variant,
+    reason = "short-lived outcome of one atom identification; boxing the large variant would add an allocation per atom"
+)]
 enum DbnAtomOutcome {
     InvalidGraph,
     IdentifyFailed,

@@ -395,19 +395,18 @@ impl BootstrapRefute {
         if problem.effect_refit.is_some() && problem.temporal.is_some() {
             return self.refute_composed(problem, ctx);
         }
-        if let Some(temporal) = problem.temporal.filter(|t| t.panel.is_none()) {
-            if let Some(time) = temporal.time_index {
-                return self.refute_temporal_series(problem, &temporal, time, workspace, ctx);
-            }
+        if let Some(temporal) = problem.temporal.filter(|t| t.panel.is_none())
+            && let Some(time) = temporal.time_index
+        {
+            return self.refute_temporal_series(problem, &temporal, time, workspace, ctx);
         }
-        if let Some(refit) = problem.effect_refit {
-            if !refit.static_bootstrap_uses_witness_columns()
-                || !matches!(problem.query.target_population, TargetPopulation::AllObserved)
-            {
-                return Err(ValidationError::NotApplicable {
-                    message: "static refitter does not declare an all-observed witness-column bootstrap",
-                });
-            }
+        if let Some(refit) = problem.effect_refit
+            && (!refit.static_bootstrap_uses_witness_columns()
+                || !matches!(problem.query.target_population, TargetPopulation::AllObserved))
+        {
+            return Err(ValidationError::NotApplicable {
+                message: "static refitter does not declare an all-observed witness-column bootstrap",
+            });
         }
         // A static custom refitter rebuilds a whole table for each serial draw.
         // Fund its row maps, validity masks and gathered columns before creating them.

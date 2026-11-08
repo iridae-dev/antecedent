@@ -30,6 +30,7 @@ macro_rules! sealed_executions {
         /// the complete operation retained by preparation; `FreshRun` is the operation
         /// of a run that holds no prepared handle.
         #[derive(Clone, Debug)]
+        #[allow(clippy::large_enum_variant, reason = "one value per prepared click; boxing payloads would add an allocation per preparation")]
         pub(crate) enum PreparedExecution {
             $($variant($payload),)+
         }

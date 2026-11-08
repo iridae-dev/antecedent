@@ -111,10 +111,10 @@ pub fn evidence_controllable(case: &Case) -> Vec<&'static str> {
             continue;
         }
         for (name, _) in &spec.regime {
-            if let Some(known) = case.graph.observed.iter().find(|n| **n == name.as_str()) {
-                if !out.contains(known) {
-                    out.push(*known);
-                }
+            if let Some(known) = case.graph.observed.iter().find(|n| **n == name.as_str())
+                && !out.contains(known)
+            {
+                out.push(*known);
             }
         }
     }

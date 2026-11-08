@@ -293,7 +293,7 @@ impl RowMask {
                 *d &= *s;
             }
         }
-        if len % 8 != 0 {
+        if !len.is_multiple_of(8) {
             bytes[used - 1] &= (1u8 << (len % 8)) - 1;
         }
         Self::from_bytes(bytes, len)
@@ -332,7 +332,7 @@ impl RowMask {
         let mut bytes = vec![0u8; n.div_ceil(8)];
         let mut offset = 0usize;
         for part in parts {
-            if offset % 8 == 0 {
+            if offset.is_multiple_of(8) {
                 let used = part.len.div_ceil(8);
                 let start = offset / 8;
                 for (byte, dst) in bytes[start..start + used].iter_mut().enumerate() {

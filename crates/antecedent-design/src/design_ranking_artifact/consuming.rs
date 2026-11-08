@@ -112,13 +112,13 @@ fn check_costs(wire: &DesignRankingArtifactWire) -> Result<()> {
         {
             return Err(DesignRankingArtifactError::InvalidWire("study cost"));
         }
-        if let Some(map) = &wire.cost_map {
-            if candidate.cost_unit != map.cost_unit {
-                return Err(DesignRankingArtifactError::CostUnitsMismatch(format!(
-                    "candidate {} cost unit {} differs from map cost unit {}",
-                    candidate.semantic_id, candidate.cost_unit, map.cost_unit
-                )));
-            }
+        if let Some(map) = &wire.cost_map
+            && candidate.cost_unit != map.cost_unit
+        {
+            return Err(DesignRankingArtifactError::CostUnitsMismatch(format!(
+                "candidate {} cost unit {} differs from map cost unit {}",
+                candidate.semantic_id, candidate.cost_unit, map.cost_unit
+            )));
         }
     }
     Ok(())
@@ -506,10 +506,10 @@ pub fn consume_wire_with_limits(
     if digest != wire.digest {
         return Err(DesignRankingArtifactError::DigestMismatch);
     }
-    if let Some(expected) = &expectation.artifact_identity {
-        if *expected != digest {
-            return Err(DesignRankingArtifactError::ExpectedIdentityMismatch);
-        }
+    if let Some(expected) = &expectation.artifact_identity
+        && *expected != digest
+    {
+        return Err(DesignRankingArtifactError::ExpectedIdentityMismatch);
     }
     if wire.calibration != DESIGN_RANKING_CALIBRATION {
         return Err(DesignRankingArtifactError::InvalidWire("calibration label"));

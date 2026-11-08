@@ -37,6 +37,10 @@ pub struct ScientificTargetWire {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "wire enum serialized by serde; boxing would change its construction API"
+)]
 enum FormWire {
     Linear {
         worlds: Vec<WorldWire>,
@@ -116,6 +120,10 @@ enum TimeWire {
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "wire enum serialized by serde; boxing would change its construction API"
+)]
 enum ActionWire {
     Simultaneous { interventions: Vec<InterventionWire> },
     Scheduled { intervention: InterventionWire, policy: TemporalPolicyWire },

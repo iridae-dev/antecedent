@@ -536,6 +536,10 @@ fn proper_backdoor_mag(mag: &Pag, t: DenseNodeId, y: DenseNodeId) -> Option<Admg
     Some(cut)
 }
 
+#[allow(
+    clippy::large_enum_variant,
+    reason = "returned once per adjustment search and matched immediately"
+)]
 enum MagAdjustment {
     Found { z_vars: Arc<[VariableId]>, examined: u64, budget_exhausted: bool },
     Failed(IdentificationResult),

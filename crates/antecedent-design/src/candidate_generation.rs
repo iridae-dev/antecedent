@@ -27,6 +27,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 use antecedent_contract::{EvidenceObligation, EvidenceObligationKind};
@@ -139,17 +140,17 @@ impl CandidateTemplate {
         &self,
         declarations: StudyDeclarations,
     ) -> Result<DurableStudyCandidate, StudyCandidateError> {
-        if let Some(minimum) = self.minimum_sample_size {
-            if declarations.sample_size < minimum {
-                return Err(refusal(
-                    antecedent_core::reason_details::study_candidate::SAMPLE_BELOW_OBLIGATION,
-                    format!(
-                        "template `{}` addresses an obligation that needs at least {minimum} \
+        if let Some(minimum) = self.minimum_sample_size
+            && declarations.sample_size < minimum
+        {
+            return Err(refusal(
+                antecedent_core::reason_details::study_candidate::SAMPLE_BELOW_OBLIGATION,
+                format!(
+                    "template `{}` addresses an obligation that needs at least {minimum} \
                          additional rows; the declared sample size is {}",
-                        self.suggested_label, declarations.sample_size
-                    ),
-                ));
-            }
+                    self.suggested_label, declarations.sample_size
+                ),
+            ));
         }
         let candidate = DurableStudyCandidate {
             label: declarations.label.unwrap_or_else(|| Arc::clone(&self.suggested_label)),
@@ -337,10 +338,10 @@ fn label_of(
 ) -> String {
     let mut label = format!("{} in {population}", kind.as_str());
     if !interventions.is_empty() {
-        label.push_str(&format!(" setting [{}]", id_list(interventions)));
+        let _ = write!(label, " setting [{}]", id_list(interventions));
     }
     if !measured.is_empty() {
-        label.push_str(&format!(" measuring [{}]", id_list(measured)));
+        let _ = write!(label, " measuring [{}]", id_list(measured));
     }
     label
 }
@@ -410,14 +411,13 @@ pub fn verified_unlocks(
         let id = candidate.semantic_id();
         let alone =
             report.outcomes.iter().find(|o| o.candidates.len() == 1 && o.candidates[0] == id);
-        if let Some(outcome) = alone {
-            if outcome.classification == RepairClassification::VerifiedSufficient {
-                verified.push(index);
-                variables
-                    .extend(candidate.measured.iter().copied().filter(|v| !base_law.contains(v)));
-                variables.extend(candidate.interventions.iter().copied());
-                continue;
-            }
+        if let Some(outcome) = alone
+            && outcome.classification == RepairClassification::VerifiedSufficient
+        {
+            verified.push(index);
+            variables.extend(candidate.measured.iter().copied().filter(|v| !base_law.contains(v)));
+            variables.extend(candidate.interventions.iter().copied());
+            continue;
         }
         let mut reasons = alone.map(|o| o.reasons.clone()).unwrap_or_default();
         let classification = alone.map_or(RepairClassification::Unevaluated, |o| o.classification);

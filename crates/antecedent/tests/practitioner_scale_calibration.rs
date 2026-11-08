@@ -107,9 +107,9 @@ fn practitioner_study(n: usize, seed: u64, noise: Noise) -> PractitionerStudy {
     let mut normal = gaussian(seed);
     let mut uniform = uniform_from_state(seed ^ 0x5DEE_CE66_D1CE_4E5B);
     let treatment_slope =
-        |j: usize| 0.3 * if j % 2 == 0 { 1.0 } else { -1.0 } / (1.0 + (j / 5) as f64);
+        |j: usize| 0.3 * if j.is_multiple_of(2) { 1.0 } else { -1.0 } / (1.0 + (j / 5) as f64);
     let outcome_slope =
-        |j: usize| 0.5 * if j % 3 == 0 { 1.0 } else { -0.5 } / (1.0 + (j % 4) as f64);
+        |j: usize| 0.5 * if j.is_multiple_of(3) { 1.0 } else { -0.5 } / (1.0 + (j % 4) as f64);
     let clustered = matches!(noise, Noise::Clustered);
     let shifts: Vec<(f64, f64)> = if clustered {
         (0..CLUSTERS).map(|_| (0.4 * normal(), 0.3 * normal())).collect()

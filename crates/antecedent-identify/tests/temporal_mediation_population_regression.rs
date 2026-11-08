@@ -293,7 +293,7 @@ fn run(
                         continue;
                     };
                     tally.adjustment_refusals += 1;
-                    if stride_check > 0 && tally.adjustment_refusals % stride_check == 0 {
+                    if stride_check > 0 && tally.adjustment_refusals.is_multiple_of(stride_check) {
                         let dag = &temporal.unfolded.dag;
                         let n = dag.node_count();
                         let parents: Vec<Vec<usize>> = (0..n)

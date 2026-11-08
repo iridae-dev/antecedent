@@ -53,7 +53,7 @@ impl PendingGraphReview {
         from: TemporalNodeKey,
         to: TemporalNodeKey,
     ) -> Result<Self, CausalError> {
-        let pending = self.review.pending_edges.iter().any(|e| *e == (from, to));
+        let pending = self.review.pending_edges.contains(&(from, to));
         if pending {
             return Ok(self.accept_edge(from, to));
         }
@@ -174,7 +174,7 @@ fn edge_in_graph(graph: &TemporalDag, from: TemporalNodeKey, to: TemporalNodeKey
         }
     }
     match (from_id, to_id) {
-        (Some(f), Some(t)) => graph.children(f).iter().any(|c| *c == t),
+        (Some(f), Some(t)) => graph.children(f).contains(&t),
         _ => false,
     }
 }

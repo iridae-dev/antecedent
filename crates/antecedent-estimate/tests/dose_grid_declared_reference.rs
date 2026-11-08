@@ -269,14 +269,14 @@ fn bias_aware_bounds_intervals_and_band_follow_the_declared_dependence() {
                 let half = (fit.intervals[j].upper - fit.intervals[j].lower) / 2.0;
                 close(half, f(p, &format!("{key}_half")), 1e-7, name);
             }
-            if key == "level" && c.grid.len() == 2 {
-                if let (Some(critical), Some(want)) =
+            if key == "level"
+                && c.grid.len() == 2
+                && let (Some(critical), Some(want)) =
                     (fit.band_critical_value, case["band_critical"].as_f64())
-                {
-                    // A multiplier critical value is a Monte Carlo rank: a few standard errors of
-                    // the 0.95 rank at 40,000 replicates.
-                    assert!((critical - want).abs() < 0.06, "{name}: {critical} vs {want}");
-                }
+            {
+                // A multiplier critical value is a Monte Carlo rank: a few standard errors of
+                // the 0.95 rank at 40,000 replicates.
+                assert!((critical - want).abs() < 0.06, "{name}: {critical} vs {want}");
             }
         }
         if let Some(contrast) = case["contrast"].as_object() {

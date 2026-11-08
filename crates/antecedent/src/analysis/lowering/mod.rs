@@ -340,14 +340,13 @@ pub(crate) fn retain_identification(
     if cx.ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
     }
-    if let Some(retained) = cx.plan.lowered().and_then(LoweredProgram::retained_identification) {
-        if retained.key.is_some()
-            && retained.key == retention_key(cx.study)
-            && retained.product.as_ref().map(CompiledIdentificationProduct::identity)
-                == product.as_ref().map(CompiledIdentificationProduct::identity)
-        {
-            return Ok(IdentificationLayer::Retained(Arc::new(retained.clone())));
-        }
+    if let Some(retained) = cx.plan.lowered().and_then(LoweredProgram::retained_identification)
+        && retained.key.is_some()
+        && retained.key == retention_key(cx.study)
+        && retained.product.as_ref().map(CompiledIdentificationProduct::identity)
+            == product.as_ref().map(CompiledIdentificationProduct::identity)
+    {
+        return Ok(IdentificationLayer::Retained(Arc::new(retained.clone())));
     }
     let caches = cx.study.identify_caches(cx.plan, cx.ctx)?;
     Ok(IdentificationLayer::Retained(Arc::new(RetainedIdentification::new(

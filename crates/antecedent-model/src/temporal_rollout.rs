@@ -26,8 +26,8 @@ use crate::batch::{MechanismWorkspace, ParentBatch, ValueBatch, ValueBatchMut};
 use crate::compile::CompiledCausalModel;
 use crate::error::ModelError;
 use crate::overlay::InterventionOverlay;
-use crate::program::{refusal_history_not_yet_observed, NodeProgram};
-use crate::sample::{evaluate_node, NodeEvaluation, NodeNoise};
+use crate::program::{NodeProgram, refusal_history_not_yet_observed};
+use crate::sample::{NodeEvaluation, NodeNoise, evaluate_node};
 
 /// What a rollout runs: the schedule, its length, the population and the history it keeps.
 #[derive(Clone, Copy, Debug)]
@@ -295,10 +295,10 @@ pub fn rollout_temporal_with_history_availability(
     {
         return Err(shape_error("initial history availability does not match its batches"));
     }
-    if let TemporalNoise::Retained { steps, .. } = &noise {
-        if steps.len() != plan.n_steps || steps.iter().any(|s| s.len() != block) {
-            return Err(shape_error("retained noise does not match the steps, rows and model"));
-        }
+    if let TemporalNoise::Retained { steps, .. } = &noise
+        && (steps.len() != plan.n_steps || steps.iter().any(|s| s.len() != block))
+    {
+        return Err(shape_error("retained noise does not match the steps, rows and model"));
     }
 
     if ctx.cancellation.is_cancelled() {

@@ -287,10 +287,11 @@ fn take_chunk_pairs(
 
 /// Move CDI structs out of an `__arrow_c_array__` exporter or a `(schema, array)` capsule pair.
 fn take_arrow_c_array(obj: &Bound<'_, PyAny>) -> PyResult<(FfiArrowArray, FfiArrowSchema)> {
-    if let Ok(tuple) = obj.cast::<pyo3::types::PyTuple>() {
-        if tuple.len() == 2 && tuple.get_item(0)?.is_instance_of::<PyCapsule>() {
-            return move_array_capsules(tuple);
-        }
+    if let Ok(tuple) = obj.cast::<pyo3::types::PyTuple>()
+        && tuple.len() == 2
+        && tuple.get_item(0)?.is_instance_of::<PyCapsule>()
+    {
+        return move_array_capsules(tuple);
     }
     if obj.hasattr("__arrow_c_array__")? {
         let export = obj.call_method0("__arrow_c_array__")?;

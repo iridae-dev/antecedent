@@ -272,18 +272,16 @@ pub fn identify_meta_transport(
         let proof = engine.solved_derivation(root_step, sources)?;
         return Ok(ClassicalTransportResult::Identified(Box::new(proof)));
     }
-    if let Some(state) = engine.obstruction.clone() {
-        if let Some(mut witness) = engine.negative_witness(&state)? {
-            witness.sources = sources;
-            // Only a witness that is not a common s-hedge is inconclusive; a
-            // budget, cancellation or graph failure while checking it is an error.
-            match verify_s_hedge(&diagram, &query, &witness, ctx) {
-                Ok(()) => return Ok(ClassicalTransportResult::ProvenNonTransportable(witness)),
-                Err(IdentificationError::InvalidDerivation {
-                    code: "transport.invalid_s_hedge",
-                }) => {}
-                Err(error) => return Err(error),
-            }
+    if let Some(state) = engine.obstruction.clone()
+        && let Some(mut witness) = engine.negative_witness(&state)?
+    {
+        witness.sources = sources;
+        // Only a witness that is not a common s-hedge is inconclusive; a
+        // budget, cancellation or graph failure while checking it is an error.
+        match verify_s_hedge(&diagram, &query, &witness, ctx) {
+            Ok(()) => return Ok(ClassicalTransportResult::ProvenNonTransportable(witness)),
+            Err(IdentificationError::InvalidDerivation { code: "transport.invalid_s_hedge" }) => {}
+            Err(error) => return Err(error),
         }
     }
     if ctx.cancellation.is_cancelled() {

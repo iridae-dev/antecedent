@@ -559,12 +559,12 @@ impl super::Study {
         // only (identifier, graph, query) — rd is never consulted on this path —
         // all frozen there, so reuse is exact and observable via the
         // `exec.identify.cached` diagnostic below.
-        if let Some(operation) = checked_operation {
-            if operation.query != *query || !operation.inference.is_bayesian() {
-                return Err(CausalError::Compile {
-                    message: "prepared Bayesian g-computation binding changed after prepare".into(),
-                });
-            }
+        if let Some(operation) = checked_operation
+            && (operation.query != *query || !operation.inference.is_bayesian())
+        {
+            return Err(CausalError::Compile {
+                message: "prepared Bayesian g-computation binding changed after prepare".into(),
+            });
         }
         let (identification, estimand, identify_cached) = if let Some(operation) = checked_operation
         {
@@ -979,8 +979,6 @@ impl super::Study {
         )?;
         Ok((refutations, predictive_checks))
     }
-
-
 }
 
 /// Declared outcome model behind a static `bayesian.gcomp` / conditional

@@ -578,13 +578,12 @@ impl PreparedStudy<JointPanelState> {
                 }
             }
         };
-        if ctx.cache_policy.enabled {
-            if let Some((key, fit)) = cache.as_ref() {
-                if *key == dependency {
-                    source::observe_reuse();
-                    return Ok(fit.clone());
-                }
-            }
+        if ctx.cache_policy.enabled
+            && let Some((key, fit)) = cache.as_ref()
+            && *key == dependency
+        {
+            source::observe_reuse();
+            return Ok(fit.clone());
         }
         *cache = None;
         source::check_cancelled(ctx)?;

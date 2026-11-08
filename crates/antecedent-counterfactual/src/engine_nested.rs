@@ -109,10 +109,10 @@ pub fn nested_counterfactual_with_exo(
 
     let mut inner_targets = vec![false; n_nodes];
     for iv in inner {
-        if let Some(v) = iv.primary_variable() {
-            if let Some(d) = engine.model.dense_of(v) {
-                inner_targets[d.as_usize()] = true;
-            }
+        if let Some(v) = iv.primary_variable()
+            && let Some(d) = engine.model.dense_of(v)
+        {
+            inner_targets[d.as_usize()] = true;
         }
     }
     let mut is_frozen = vec![false; n_nodes];

@@ -459,14 +459,14 @@ fn validate_data(
             "fewer rows than classes times regression dimension plus one",
         ));
     }
-    if let Some(labels) = &config.initial_labels {
-        if labels.len() != n || labels.iter().any(|&l| l >= config.classes) {
-            return Err(refuse(
-                invalid,
-                antecedent_core::reason_details::latent_class::INVALID_CONFIG,
-                "initial labels must give one label below the class count per row",
-            ));
-        }
+    if let Some(labels) = &config.initial_labels
+        && (labels.len() != n || labels.iter().any(|&l| l >= config.classes))
+    {
+        return Err(refuse(
+            invalid,
+            antecedent_core::reason_details::latent_class::INVALID_CONFIG,
+            "initial labels must give one label below the class count per row",
+        ));
     }
     let mut z = Vec::with_capacity(n * d);
     for i in 0..n {

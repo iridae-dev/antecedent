@@ -238,14 +238,14 @@ impl PreparedRefit<'_> {
         kind: TargetRefuterKind,
         ctx: &ExecutionContext,
     ) -> Result<TargetRefutationReport, TargetRefitError> {
-        if let Some(response) = self.result.response() {
-            if matches!(
+        if let Some(response) = self.result.response()
+            && matches!(
                 response.estimand,
                 ResponseFunctional::DirectionalDerivative { .. }
                     | ResponseFunctional::Jacobian { .. }
-            ) {
-                return self.vector_derivative_check(kind, ctx);
-            }
+            )
+        {
+            return self.vector_derivative_check(kind, ctx);
         }
         let (nodes, reported, step) = self.response_curve(ctx)?;
         let mut coordinates = Vec::with_capacity(reported.len());

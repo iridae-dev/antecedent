@@ -1222,6 +1222,6 @@ mod tests {
         assert_eq!(receipt.explored, ["identification", "history_step_1"]);
         assert_eq!(receipt.unevaluated, ["history_step_2"]);
         // A stop is never a verdict: nothing is claimed identified or refuted.
-        assert!(inside_step_2.outcome.status() == "stopped");
+        assert_eq!(inside_step_2.outcome.status(), "stopped");
     }
 }

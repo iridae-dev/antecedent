@@ -18,14 +18,14 @@ use std::sync::Arc;
 use antecedent_core::{CausalQuery, ExecutionContext, VariableId};
 use antecedent_data::column::OwnedColumn;
 use antecedent_data::{
-    complete_float_columns, ImputationModel, ImputationSpec, MissingDeclaration, RowAccounting,
-    TableView, TabularData,
+    ImputationModel, ImputationSpec, MissingDeclaration, RowAccounting, TableView, TabularData,
+    complete_float_columns,
 };
+use antecedent_estimate::EstimationError;
 use antecedent_estimate::bayesian::CausalPosterior;
 use antecedent_estimate::multiple_imputation::{
     self, ImputationColumn, ImputationFit, Imputer, MultipleImputationFailure, PooledEstimate,
 };
-use antecedent_estimate::EstimationError;
 use antecedent_prob::PosteriorDraws;
 
 use super::builder::DataInput;
@@ -436,10 +436,8 @@ where
             )));
         }
         let fit = fit_of(&result, bayesian)?;
-        if bayesian {
-            if let Some(posterior) = &result.posterior {
-                posteriors.push(posterior.clone());
-            }
+        if bayesian && let Some(posterior) = &result.posterior {
+            posteriors.push(posterior.clone());
         }
         if base.is_none() {
             check_analysed_variables(&result, data, &ids)?;

@@ -93,15 +93,15 @@ impl CategoryDomain {
         }
         let n = u32::try_from(self.levels.len())
             .map_err(|_| DataError::overflow("category level count"))?;
-        if let Some(r) = self.reference {
-            if r.raw() >= n {
-                return Err(DataError::invalid_value("reference code", "is out of range"));
-            }
+        if let Some(r) = self.reference
+            && r.raw() >= n
+        {
+            return Err(DataError::invalid_value("reference code", "is out of range"));
         }
-        if let UnknownCategoryPolicy::MapToOther { other } = self.unknown_policy {
-            if other.raw() >= n {
-                return Err(DataError::invalid_value("Other code", "is out of range"));
-            }
+        if let UnknownCategoryPolicy::MapToOther { other } = self.unknown_policy
+            && other.raw() >= n
+        {
+            return Err(DataError::invalid_value("Other code", "is out of range"));
         }
         Ok(())
     }
@@ -456,7 +456,7 @@ pub fn compile_contrast_matrix(
 fn orthonormal_polynomial_basis(k: usize) -> Result<Vec<f64>, DataError> {
     const ORTHOGONALITY_TOL: f64 = 1e-10;
     let kf = k as f64;
-    let mean = (kf + 1.0) / 2.0;
+    let mean = f64::midpoint(kf, 1.0);
     let mut basis = crate::column::checked_f64_buffer(k, k, "polynomial contrast basis")?;
     let x: Vec<f64> = (0..k).map(|r| (r + 1) as f64 - mean).collect();
     let inv_sqrt_k = 1.0 / kf.sqrt();
@@ -758,7 +758,7 @@ mod tests {
                 }
             }
             // Column 0 is the linear contrast: proportional to the centred scores.
-            let mean = (k as f64 + 1.0) / 2.0;
+            let mean = f64::midpoint(k as f64, 1.0);
             let ss: f64 = (1..=k).map(|r| (r as f64 - mean).powi(2)).sum::<f64>().sqrt();
             for r in 0..k {
                 let want = ((r + 1) as f64 - mean) / ss;

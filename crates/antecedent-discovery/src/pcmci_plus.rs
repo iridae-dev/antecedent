@@ -140,12 +140,12 @@ impl PcmciPlus {
             self.fdr.is_some(),
         )?;
         crate::ci::ensure_ci_fits_frame(&*self.engine.ci, frame)?;
-        if let Some(hard) = ctx.memory_limit_bytes() {
-            if frame.values_bytes() > hard {
-                return Err(DiscoveryError::Unsupported {
-                    message: "lagged frames exceed ExecutionContext memory hard limit",
-                });
-            }
+        if let Some(hard) = ctx.memory_limit_bytes()
+            && frame.values_bytes() > hard
+        {
+            return Err(DiscoveryError::Unsupported {
+                message: "lagged frames exceed ExecutionContext memory hard limit",
+            });
         }
 
         Ok(())
@@ -884,20 +884,22 @@ fn majority_sep_counts(
         if n == b {
             continue;
         }
-        if let Some((v, l)) = node_var_lag(graph, n) {
-            if l.is_contemporaneous() && !cand.contains(&(v, l)) {
-                cand.push((v, l));
-            }
+        if let Some((v, l)) = node_var_lag(graph, n)
+            && l.is_contemporaneous()
+            && !cand.contains(&(v, l))
+        {
+            cand.push((v, l));
         }
     }
     for n in graph.undirected_neighbors(b) {
         if n == a {
             continue;
         }
-        if let Some((v, l)) = node_var_lag(graph, n) {
-            if l.is_contemporaneous() && !cand.contains(&(v, l)) {
-                cand.push((v, l));
-            }
+        if let Some((v, l)) = node_var_lag(graph, n)
+            && l.is_contemporaneous()
+            && !cand.contains(&(v, l))
+        {
+            cand.push((v, l));
         }
     }
     if lc.is_contemporaneous() && !cand.contains(&(vc, lc)) {

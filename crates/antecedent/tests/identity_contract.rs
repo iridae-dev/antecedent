@@ -5485,8 +5485,8 @@ fn missing_row_padding_does_not_upgrade_calibration() {
     let run = |pad: usize| {
         let mut tp = t.clone();
         let mut yp = y.clone();
-        tp.extend(std::iter::repeat(f64::NAN).take(pad));
-        yp.extend(std::iter::repeat(f64::NAN).take(pad));
+        tp.extend(std::iter::repeat_n(f64::NAN, pad));
+        yp.extend(std::iter::repeat_n(f64::NAN, pad));
         let data =
             TabularData::from_f64_columns([("t", tp.as_slice()), ("y", yp.as_slice())]).unwrap();
         let mut dag = Dag::with_variables(2);
@@ -5560,9 +5560,9 @@ fn matching_missing_row_padding_does_not_upgrade_calibration() {
         let mut tp = t.clone();
         let mut yp = y.clone();
         let mut zp = z.clone();
-        tp.extend(std::iter::repeat(f64::NAN).take(pad));
-        yp.extend(std::iter::repeat(f64::NAN).take(pad));
-        zp.extend(std::iter::repeat(f64::NAN).take(pad));
+        tp.extend(std::iter::repeat_n(f64::NAN, pad));
+        yp.extend(std::iter::repeat_n(f64::NAN, pad));
+        zp.extend(std::iter::repeat_n(f64::NAN, pad));
         let data = TabularData::from_f64_columns([
             ("t", tp.as_slice()),
             ("y", yp.as_slice()),
@@ -6511,15 +6511,21 @@ fn retarget_report_matches_identity_deltas() {
         prepared.encode_contracted_result(&estimated, "before-retarget", &ctx).unwrap();
     let before = replay_analysis_result(&before_bytes).unwrap().contract.unwrap();
     let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
-    assert!(preview.layer(SemanticLayer::Identification).is_some_and(|layer| {
-        layer.effects.iter().any(|effect| *effect == TransformEffect::Preserves)
-    }));
-    assert!(preview.layer(SemanticLayer::Data).is_some_and(|layer| {
-        layer.effects.iter().any(|effect| *effect == TransformEffect::Preserves)
-    }));
-    assert!(preview.layer(SemanticLayer::Inference).is_some_and(|layer| {
-        layer.effects.iter().any(|effect| *effect == TransformEffect::Preserves)
-    }));
+    assert!(
+        preview
+            .layer(SemanticLayer::Identification)
+            .is_some_and(|layer| { layer.effects.contains(&TransformEffect::Preserves) })
+    );
+    assert!(
+        preview
+            .layer(SemanticLayer::Data)
+            .is_some_and(|layer| { layer.effects.contains(&TransformEffect::Preserves) })
+    );
+    assert!(
+        preview
+            .layer(SemanticLayer::Inference)
+            .is_some_and(|layer| { layer.effects.contains(&TransformEffect::Preserves) })
+    );
     let mut weights = vec![1.0; data.row_count()];
     weights[0] = 2.0;
     let retargeted =

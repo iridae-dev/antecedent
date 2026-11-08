@@ -398,12 +398,11 @@ pub enum IntervalEstimand {
 }
 
 fn validate_interval_design(config: &DependentIntervalConfig, units: usize) -> Result<(), IoError> {
-    if let Err(error) = antecedent_estimate::temporal_dependent_interval::validate_config(config) {
-        if let Some((code, message)) = error.coded_refusal() {
-            if message.detail() == Some(TEMPORAL_INTERVAL_TOO_MANY_REPLICATES) {
-                return Err(IoError::Refused { code, message: message.as_str().to_owned() });
-            }
-        }
+    if let Err(error) = antecedent_estimate::temporal_dependent_interval::validate_config(config)
+        && let Some((code, message)) = error.coded_refusal()
+        && message.detail() == Some(TEMPORAL_INTERVAL_TOO_MANY_REPLICATES)
+    {
+        return Err(IoError::Refused { code, message: message.as_str().to_owned() });
     }
     let bad = |message: &str| IoError::Refused {
         code: reason_code!("invalid_argument"),

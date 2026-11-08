@@ -154,10 +154,10 @@ impl DesignRequest {
         if !self.columns.are_distinct_roles(&roles) {
             return Err(RecalcRunError::Request(RecalcRequestCode::InvalidDesignRoles));
         }
-        if let DesignModel::Rd { cutoff, bandwidth, .. } = self.model {
-            if !cutoff.is_finite() || !bandwidth.is_finite() || bandwidth <= 0. {
-                return Err(RecalcRunError::Request(RecalcRequestCode::InvalidRdWindow));
-            }
+        if let DesignModel::Rd { cutoff, bandwidth, .. } = self.model
+            && (!cutoff.is_finite() || !bandwidth.is_finite() || bandwidth <= 0.)
+        {
+            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidRdWindow));
         }
         Ok(())
     }

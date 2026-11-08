@@ -4,6 +4,8 @@
 //! quantity. These types deliberately make no identification or calibration
 //! claim; a producer must bind them to a separately checked causal contract.
 
+use std::fmt::Write as _;
+
 /// The causal role of a variable in a quantity.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum QuantityRole {
@@ -96,12 +98,12 @@ impl ScientificQuantity {
             self.functional_id.as_str(),
             self.transform_id.as_str(),
         ] {
-            result.push_str(&format!("{}:{field}", field.len()));
+            let _ = write!(result, "{}:{field}", field.len());
         }
-        result.push_str(&format!("{}:", self.conditioning.len()));
+        let _ = write!(result, "{}:", self.conditioning.len());
         for condition in &self.conditioning {
             for field in [&condition.variable_id, &condition.value_id] {
-                result.push_str(&format!("{}:{field}", field.len()));
+                let _ = write!(result, "{}:{field}", field.len());
             }
         }
         result

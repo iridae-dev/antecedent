@@ -101,13 +101,13 @@ pub fn rubin_pool(
             "an imputation's variance is negative or not finite",
         ));
     }
-    if let Some(df) = df_complete {
-        if !(df.is_finite() && df > 0.0) {
-            return Err(MultipleImputationError::invalid(
-                "multiple_imputation.pool_df",
-                format!("complete-data degrees of freedom must be positive, got {df}"),
-            ));
-        }
+    if let Some(df) = df_complete
+        && !(df.is_finite() && df > 0.0)
+    {
+        return Err(MultipleImputationError::invalid(
+            "multiple_imputation.pool_df",
+            format!("complete-data degrees of freedom must be positive, got {df}"),
+        ));
     }
     let m_f = count(m);
     let point = points.iter().sum::<f64>() / m_f;

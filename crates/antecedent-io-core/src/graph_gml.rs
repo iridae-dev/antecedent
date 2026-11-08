@@ -77,17 +77,14 @@ fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoEr
     let doc = parse_gml_document(gml)?;
     let edges: Vec<(u32, u32)> = doc.edges.iter().map(|e| (e.from, e.to)).collect();
     // Prefer numeric contiguous labels when all nodes are numeric 0..n-1.
-    match graph_dot::remap_numeric_dense(&doc.names, &edges)? {
+    if let Some(wire) = graph_dot::remap_numeric_dense(&doc.names, &edges)? {
         // Dense id == numeric label in this case, so the label carries no
         // information beyond the dense index; fall back to index strings.
-        Some(wire) => {
-            let names = (0..wire.node_count).map(|i| i.to_string()).collect();
-            Ok((wire, names))
-        }
-        None => {
-            let node_count = u32::try_from(doc.names.len()).map_err(|_| IoError::TooLarge)?;
-            Ok((DagWire { node_count, edges }, doc.names))
-        }
+        let names = (0..wire.node_count).map(|i| i.to_string()).collect();
+        Ok((wire, names))
+    } else {
+        let node_count = u32::try_from(doc.names.len()).map_err(|_| IoError::TooLarge)?;
+        Ok((DagWire { node_count, edges }, doc.names))
     }
 }
 

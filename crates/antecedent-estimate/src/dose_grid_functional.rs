@@ -919,21 +919,21 @@ fn prepare_rows(
             "rows must be aligned, finite and at least three",
         ));
     }
-    if let Some(weights) = declared.sampling_weights {
-        if weights.len() != n {
-            return Err(declaration_refusal(
-                antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
-                &format!("{} sampling weights were declared for {n} rows", weights.len()),
-            ));
-        }
+    if let Some(weights) = declared.sampling_weights
+        && weights.len() != n
+    {
+        return Err(declaration_refusal(
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
+            &format!("{} sampling weights were declared for {n} rows", weights.len()),
+        ));
     }
-    if let RowDependence::Clustered(groups) = declared.dependence {
-        if groups.len() != n {
-            return Err(declaration_refusal(
-                antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
-                &format!("{} cluster ids were declared for {n} rows", groups.len()),
-            ));
-        }
+    if let RowDependence::Clustered(groups) = declared.dependence
+        && groups.len() != n
+    {
+        return Err(declaration_refusal(
+            antecedent_core::reason_details::dose_grid::INVALID_REQUEST,
+            &format!("{} cluster ids were declared for {n} rows", groups.len()),
+        ));
     }
     let mut keep = vec![true; n];
     let (weights, record) = match declared.sampling_weights {

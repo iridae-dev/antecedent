@@ -271,10 +271,10 @@ impl ClassAteAtoms {
             self.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
-        if self.atom_ifs.len() == n_contributing {
-            if let Some(inf) = mixed_static_influence(&self.atom_ifs, &self.atom_weights) {
-                estimate.scores.influence = Some(inf);
-            }
+        if self.atom_ifs.len() == n_contributing
+            && let Some(inf) = mixed_static_influence(&self.atom_ifs, &self.atom_weights)
+        {
+            estimate.scores.influence = Some(inf);
         }
         if let Some(levels) = self.treatment_levels {
             estimate = estimate.with_treatment_levels(levels);
@@ -651,12 +651,10 @@ impl super::Study {
                 self.fit_admg_response_level(run, level_query, &level_id, &level_est, &mut fits)?;
             if let ResponseFunctional::InterventionResponse { interventions, .. } =
                 &level_query.functional
+                && let Some(Intervention::Set { value, .. }) = interventions.first()
+                && let Some(level) = value.as_f64()
             {
-                if let Some(Intervention::Set { value, .. }) = interventions.first() {
-                    if let Some(level) = value.as_f64() {
-                        fits.grid.push(level);
-                    }
-                }
+                fits.grid.push(level);
             }
             fits.means.push(mean);
             if fits.extras_posterior.is_none() {
@@ -664,12 +662,11 @@ impl super::Study {
                 fits.n_draws =
                     posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX));
             }
-            if run.curve {
-                if let Some(ResponseUncertainty::Scalar { lower, upper, .. }) =
+            if run.curve
+                && let Some(ResponseUncertainty::Scalar { lower, upper, .. }) =
                     posterior.as_ref().and_then(credible_scalar_uncertainty)
-                {
-                    fits.curve_bounds.push((lower, upper));
-                }
+            {
+                fits.curve_bounds.push((lower, upper));
             }
             if fits.support.is_none() {
                 fits.support = Some(level_support);

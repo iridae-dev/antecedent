@@ -191,10 +191,10 @@ pub(super) fn temporal_mixed_member(
     if bytes > budget.limits().max_bytes {
         return Err(CausalError::Resource { message: "attribution byte limit".into() });
     }
-    let lease = Arc::new(
-        ctx.acquire_admission(0, bytes)
-            .map_err(|error| crate::error::resource_admission_error(error, "temporal attribution"))?,
-    );
+    let lease =
+        Arc::new(ctx.acquire_admission(0, bytes).map_err(|error| {
+            crate::error::resource_admission_error(error, "temporal attribution")
+        })?);
     let (unfolding, admg) =
         LagAlignedScm::unfold_mixed(series, history, window.admg(), lease, ctx)?;
     Ok((

@@ -327,10 +327,8 @@ fn mix_graph_posterior_frequentist_atoms(
     };
     let mut estimate =
         EffectEstimate::new(mixed.ate, se, assumptions, OverlapPolicy::ExplicitOverride);
-    if joint {
-        if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
-            estimate.scores.influence = Some(inf);
-        }
+    if joint && let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
+        estimate.scores.influence = Some(inf);
     }
     identification.status = resolve_posterior_status(
         identification.status,

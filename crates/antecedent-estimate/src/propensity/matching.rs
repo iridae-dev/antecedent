@@ -495,15 +495,15 @@ fn quote_exact_matching(
         };
     let limit_bytes =
         ctx.memory_limit_bytes().unwrap_or(u64::MAX).min(ctx.admission.available().bytes());
-    if let Some(limit_work) = work_limit {
-        if estimate.work() > limit_work {
-            return Err(StatsError::WorkLimit {
-                message: "exact matching index build and scan",
-                required_work: estimate.work(),
-                limit_work,
-            }
-            .into());
+    if let Some(limit_work) = work_limit
+        && estimate.work() > limit_work
+    {
+        return Err(StatsError::WorkLimit {
+            message: "exact matching index build and scan",
+            required_work: estimate.work(),
+            limit_work,
         }
+        .into());
     }
     let word = size_of::<f64>() as u64;
     let slots = widen(n_queries)?.checked_mul(widen(matches)?).ok_or_else(overflow)?;
@@ -1357,15 +1357,15 @@ fn matched_point_effect(
 }
 
 fn check_label_lengths(rows: usize, se: &SeSpec<'_>) -> Result<(), EstimationError> {
-    if let Some(ids) = se.cluster_ids {
-        if ids.len() != rows {
-            return Err(EstimationError::data_msg("matching cluster_ids length != treatment rows"));
-        }
+    if let Some(ids) = se.cluster_ids
+        && ids.len() != rows
+    {
+        return Err(EstimationError::data_msg("matching cluster_ids length != treatment rows"));
     }
-    if let Some(times) = se.panel_times {
-        if times.len() != rows {
-            return Err(EstimationError::data_msg("matching panel_times length != treatment rows"));
-        }
+    if let Some(times) = se.panel_times
+        && times.len() != rows
+    {
+        return Err(EstimationError::data_msg("matching panel_times length != treatment rows"));
     }
     if let Some(dims) = se.multiway_ids {
         for (i, d) in dims.iter().enumerate() {

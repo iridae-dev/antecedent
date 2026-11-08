@@ -137,14 +137,13 @@ fn structure_change_impl(
     validate_shared_layout(baseline_model, comparison_model)?;
 
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
-    if let Some(refit) = refit {
-        if refit.baseline().len() != baseline_data.row_count()
-            || refit.comparison().len() != comparison_data.row_count()
-        {
-            return Err(AttributionError::invalid_input(
-                "attribution refit weights must match resolved population sizes",
-            ));
-        }
+    if let Some(refit) = refit
+        && (refit.baseline().len() != baseline_data.row_count()
+            || refit.comparison().len() != comparison_data.row_count())
+    {
+        return Err(AttributionError::invalid_input(
+            "attribution refit weights must match resolved population sizes",
+        ));
     }
     let outcome_dense = resolve_outcome_dense(baseline_model, query.outcome)?;
     // Outcome must resolve in both layouts (already same VariableIds).

@@ -1547,7 +1547,7 @@ mod tests {
             );
             let (mean, _, _, sd) =
                 crate::bayesian::summarize_linear_response_draws(expected.to_vec(), 0.95).unwrap();
-            assert_eq!(mean, (expected[0] + expected[1]) / 2.0);
+            assert_eq!(mean, f64::midpoint(expected[0], expected[1]));
             assert!((sd - (expected[1] - expected[0]) / 2.0_f64.sqrt()).abs() < 1e-12);
         }
     }
@@ -1596,7 +1596,7 @@ mod tests {
             &antecedent_core::ExecutionContext::for_tests(0),
         )
         .unwrap();
-        let per_row = (link.mean_from_eta(3.0_f64) + link.mean_from_eta(7.0_f64)) / 2.0_f64;
+        let per_row = f64::midpoint(link.mean_from_eta(3.0_f64), link.mean_from_eta(7.0_f64));
         assert_eq!(bits(linked[0][0]), bits(per_row));
         assert_ne!(bits(per_row), bits(link.mean_from_eta(5.0_f64)));
 

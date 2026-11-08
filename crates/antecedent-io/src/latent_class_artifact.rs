@@ -879,10 +879,10 @@ impl LatentClassArtifact {
         };
         // A caller-supplied expectation the stored identity already contradicts is refused
         // before any re-estimation work.
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &meta.identity) {
-                return Err(LatentClassArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &meta.identity)
+        {
+            return Err(LatentClassArtifactError::IdentityMismatch { field });
         }
         let result = fit_of(&request, ctx)?;
         let rebuilt = build_meta(&request, &result)?;
@@ -900,10 +900,10 @@ impl LatentClassArtifact {
         if to_cbor(&meta)? != to_cbor(&stored_form)? {
             return Err(LatentClassArtifactError::ResultMismatch("record"));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &rebuilt.identity) {
-                return Err(LatentClassArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &rebuilt.identity)
+        {
+            return Err(LatentClassArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta: rebuilt, request, result, hard_assignment })
     }

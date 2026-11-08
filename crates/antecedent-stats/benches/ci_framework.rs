@@ -55,7 +55,7 @@ fn keep_mask(n: usize, drop_frac: f64, seed: u64) -> Vec<bool> {
     let mut dropped = 0usize;
     let mut i = 0usize;
     while dropped < drop_n && i < n {
-        if rng.next_u64() % 5 == 0 {
+        if rng.next_u64().is_multiple_of(5) {
             keep[i] = false;
             dropped += 1;
         }

@@ -269,20 +269,15 @@ impl PreparedSection<'_> {
 }
 
 /// Section compression policy for [`section_descriptor`] / [`pack_section`].
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub enum CompressPolicy {
     /// Never compress.
     Never,
     /// Compress when large enough and ratio improves.
+    #[default]
     Auto,
     /// Always attempt zstd (still store uncompressed if encode fails).
     Always,
-}
-
-impl Default for CompressPolicy {
-    fn default() -> Self {
-        Self::Auto
-    }
 }
 
 impl EncodedArtifact {

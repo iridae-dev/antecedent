@@ -226,14 +226,14 @@ impl Gpdc {
         };
         let factorizations = count_factorizations(queries, z_flat, cache_slots);
         let work = per_factor.work().checked_mul(factorizations).ok_or_else(overflow)?;
-        if let Some(limit_work) = self.work_limit {
-            if work > limit_work {
-                return Err(StatsError::WorkLimit {
-                    message: "GPDC exact kernel factorization",
-                    required_work: work,
-                    limit_work,
-                });
-            }
+        if let Some(limit_work) = self.work_limit
+            && work > limit_work
+        {
+            return Err(StatsError::WorkLimit {
+                message: "GPDC exact kernel factorization",
+                required_work: work,
+                limit_work,
+            });
         }
         Ok(Some(GpdcExactQuote {
             rows,

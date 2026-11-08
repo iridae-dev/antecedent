@@ -811,7 +811,7 @@ mod tests {
     fn failure_fraction_above_the_limit_refuses_and_at_the_limit_runs() {
         let ctx = ExecutionContext::for_tests(43);
         let even_fails = |id: u64, rng: &mut CausalRng| {
-            if id % 2 == 0 { Ok(None) } else { Ok(Some(rng.next_f64())) }
+            if id.is_multiple_of(2) { Ok(None) } else { Ok(Some(rng.next_f64())) }
         };
         let mut strict = rule(10, 40);
         strict.max_failure_fraction = 0.25;

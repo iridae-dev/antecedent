@@ -431,13 +431,13 @@ impl PlanValuation {
         let (basis, cost_map, utility_unit, value_identity) = match inputs.value {
             None => (PlanValueBasis::None, None, None, None),
             Some(value) => {
-                if let Some(map) = &value.cost_map {
-                    if map.cost_unit.as_str() != cost_unit.as_ref() {
-                        return Err(EvidencePlanError::units(format!(
-                            "the cost map converts `{}` but the declared studies cost `{cost_unit}`",
-                            map.cost_unit
-                        )));
-                    }
+                if let Some(map) = &value.cost_map
+                    && map.cost_unit.as_str() != cost_unit.as_ref()
+                {
+                    return Err(EvidencePlanError::units(format!(
+                        "the cost map converts `{}` but the declared studies cost `{cost_unit}`",
+                        map.cost_unit
+                    )));
                 }
                 (
                     value.basis,
@@ -505,12 +505,12 @@ impl EvidencePlan {
                         "the report names study `{unknown}` that was not declared"
                     )));
                 }
-                if let Some(label) = &outcome.cost_unit_label {
-                    if label.as_ref() != cost_unit.as_ref() {
-                        return Err(EvidencePlanError::units(format!(
-                            "an option costs `{label}` but the plan compares `{cost_unit}`"
-                        )));
-                    }
+                if let Some(label) = &outcome.cost_unit_label
+                    && label.as_ref() != cost_unit.as_ref()
+                {
+                    return Err(EvidencePlanError::units(format!(
+                        "an option costs `{label}` but the plan compares `{cost_unit}`"
+                    )));
                 }
                 let row = inputs.value.filter(|_| singleton).and_then(|value| {
                     value.rows.iter().find(|r| r.semantic_id == *outcome.candidates[0])
@@ -703,10 +703,10 @@ fn mark_close_calls(options: &mut [PlanOption], basis: PlanValueBasis) {
         if options[i].gate != options[i + 1].gate {
             continue;
         }
-        if let (Some((a, ea)), Some((b, eb))) = (scored[i], scored[i + 1]) {
-            if (a - b).abs() <= (ea + eb).max(1e-12) {
-                options[i].rank_uncertain = true;
-            }
+        if let (Some((a, ea)), Some((b, eb))) = (scored[i], scored[i + 1])
+            && (a - b).abs() <= (ea + eb).max(1e-12)
+        {
+            options[i].rank_uncertain = true;
         }
     }
 }

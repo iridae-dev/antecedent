@@ -791,10 +791,10 @@ pub fn ancestral_subgraph(
             }
         }
         for &other in admg.bidirected_neighbors(id) {
-            if let (Some(a), Some(b)) = (map[id.as_usize()], map[other.as_usize()]) {
-                if id.raw() < other.raw() {
-                    out.insert_bidirected(a, b)?;
-                }
+            if let (Some(a), Some(b)) = (map[id.as_usize()], map[other.as_usize()])
+                && id.raw() < other.raw()
+            {
+                out.insert_bidirected(a, b)?;
             }
         }
     }

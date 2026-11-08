@@ -417,7 +417,7 @@ mod tests {
     #[test]
     fn at_zero_correlation_the_curve_is_the_product_of_coefficients() {
         let (t, m, y, x) = data();
-        let s = mediation_sensitivity_fit(&t, &m, &y, &[x.clone()]).unwrap();
+        let s = mediation_sensitivity_fit(&t, &m, &y, std::slice::from_ref(&x)).unwrap();
         // Product of coefficients from the two structural regressions.
         let n = y.len();
         let mut design = vec![1.0; n];
@@ -443,8 +443,8 @@ mod tests {
     fn the_direct_effect_at_zero_is_the_outcome_regression_coefficient_and_vanishes_at_break_even()
     {
         let (t, m, y, x) = data();
-        let s = mediation_sensitivity_fit(&t, &m, &y, &[x.clone()]).unwrap();
-        let total = total_effect_slope(&t, &y, &[x.clone()]).unwrap();
+        let s = mediation_sensitivity_fit(&t, &m, &y, std::slice::from_ref(&x)).unwrap();
+        let total = total_effect_slope(&t, &y, std::slice::from_ref(&x)).unwrap();
         let n = y.len();
         let mut design = vec![1.0; n];
         design.extend_from_slice(&t);

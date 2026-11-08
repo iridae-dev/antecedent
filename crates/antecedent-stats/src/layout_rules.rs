@@ -541,11 +541,10 @@ mod tests {
             if !in_selection {
                 continue;
             }
-            if let Some((key, value)) = line.split_once('=') {
-                if let Some(block) = recorded.last_mut() {
-                    block
-                        .insert(key.trim().to_string(), value.trim().trim_matches('"').to_string());
-                }
+            if let Some((key, value)) = line.split_once('=')
+                && let Some(block) = recorded.last_mut()
+            {
+                block.insert(key.trim().to_string(), value.trim().trim_matches('"').to_string());
             }
         }
         assert_eq!(recorded.len(), MEASURED.len());

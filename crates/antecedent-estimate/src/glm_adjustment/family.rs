@@ -136,10 +136,11 @@ pub(crate) fn resolve_nb_alpha(
     if !matches!(family, GlmFamily::NegativeBinomial) {
         return 0.0;
     }
-    if let Some(a) = fitted {
-        if a.is_finite() && a > 0.0 {
-            return a;
-        }
+    if let Some(a) = fitted
+        && a.is_finite()
+        && a > 0.0
+    {
+        return a;
     }
     moment_nb_alpha(x_colmajor, nrows, ncols, coefficients, y)
 }

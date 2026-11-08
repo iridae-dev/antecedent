@@ -521,7 +521,7 @@ impl RandomizedEffectQuery {
             if !matches!(self.design, RandomizationDesign::Bernoulli)
                 || self.fixed_cuped.is_some()
                 || self.received_treatment.is_some()
-                || self.ancova_covariates.iter().any(|id| *id == self.outcome)
+                || self.ancova_covariates.contains(&self.outcome)
                 || unique.len() != self.ancova_covariates.len()
                 || self.realized_assignment.len() <= self.ancova_covariates.len() + 2
                 || self.assignment_probabilities.first().is_none_or(|first| {
@@ -614,14 +614,12 @@ impl RandomizedEffectQuery {
                     let probability = self.assignment_probabilities[i];
                     if let Some((prior_assignment, prior_probability)) =
                         clusters.insert(&self.assignment_units[i], (assignment, probability))
+                        && (prior_assignment != assignment
+                            || !probabilities_agree(prior_probability, probability))
                     {
-                        if prior_assignment != assignment
-                            || !probabilities_agree(prior_probability, probability)
-                        {
-                            return Err(QueryError::RandomizedEffectRefused(
-                                RandomizedEffectFault::ClusterConstancy,
-                            ));
-                        }
+                        return Err(QueryError::RandomizedEffectRefused(
+                            RandomizedEffectFault::ClusterConstancy,
+                        ));
                     }
                 }
                 let total = clusters.len();

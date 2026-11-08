@@ -299,14 +299,14 @@ impl PyInverseQueryArtifact {
                             .ok()
                             .and_then(|law| law.source_claim.clone())
                     });
-                if let Some(claim) = claim {
-                    if !source_claims.iter().any(
+                if let Some(claim) = claim
+                    && !source_claims.iter().any(
                         |held: &crate::program_claims_api::PyNativeResponseClaim| {
                             std::sync::Arc::ptr_eq(&held.authority, &claim.authority)
                         },
-                    ) {
-                        source_claims.push(claim);
-                    }
+                    )
+                {
+                    source_claims.push(claim);
                 }
                 Ok(())
             };
@@ -325,10 +325,10 @@ impl PyInverseQueryArtifact {
             {
                 let (_, _, kind, payload): (String, Option<f64>, String, Option<Bound<'_, PyAny>>) =
                     atom.extract()?;
-                if kind == "evaluated" {
-                    if let Some(payload) = payload {
-                        retain(&payload)?;
-                    }
+                if kind == "evaluated"
+                    && let Some(payload) = payload
+                {
+                    retain(&payload)?;
                 }
             }
             let evidence = ForwardEvidence {

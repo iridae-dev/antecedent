@@ -183,7 +183,7 @@ pub fn multi_arm_scores(
         }
         let p = row[arm];
         minimum = minimum.min(p);
-        means.iter_mut().for_each(|value| *value = 0.0);
+        means.fill(0.0);
         means[arm] = y / p;
         for j in 1..k {
             scores.push(means[j] - means[0]);

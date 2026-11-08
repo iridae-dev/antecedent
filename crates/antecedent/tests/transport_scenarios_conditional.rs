@@ -604,7 +604,10 @@ fn a_conditional_artifact_is_version_two_replays_and_fails_on_mutation() {
         replayed.scenarios.iter().map(|s| s.status).collect::<Vec<_>>(),
         report.scenarios.iter().map(|s| s.status).collect::<Vec<_>>()
     );
-    assert!((p_one(&replayed, "chain") - p_one(&report, "chain")).abs() == 0.0);
+    assert_eq!(
+        (p_one(&replayed, "chain") - p_one(&report, "chain")).abs().to_bits(),
+        0.0_f64.to_bits()
+    );
     let original = TransportScenarioArtifactWire::decode(&bytes).unwrap();
     assert_eq!(original.version, TRANSPORT_SCENARIO_CONDITIONAL_ARTIFACT_VERSION);
     assert_eq!(

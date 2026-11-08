@@ -528,21 +528,22 @@ fn randomization_unbiasedness(
 ) -> Result<RefutationReport, CausalError> {
     let units = input.assignment.len();
     let design = &input.query.assignment;
-    if let AssignmentDesign::Bernoulli { probabilities } = design {
-        if probabilities.len() != 1 && probabilities.len() != units {
-            return Ok(RefutationReport::new(
-                "interference.randomization_unbiasedness",
-                0.0,
-                0.0,
-                0.0,
-                false,
-                false,
-                Some(std::sync::Arc::from(
-                    "the declared Bernoulli probabilities are neither one value nor one per unit",
-                )),
-                0,
-            ));
-        }
+    if let AssignmentDesign::Bernoulli { probabilities } = design
+        && probabilities.len() != 1
+        && probabilities.len() != units
+    {
+        return Ok(RefutationReport::new(
+            "interference.randomization_unbiasedness",
+            0.0,
+            0.0,
+            0.0,
+            false,
+            false,
+            Some(std::sync::Arc::from(
+                "the declared Bernoulli probabilities are neither one value nor one per unit",
+            )),
+            0,
+        ));
     }
     // The request is honoured; a mean test needs two draws, so a smaller request is raised to it.
     let redraws = if input.replicates == 0 { DEFAULT_REDRAWS } else { input.replicates.max(2) };

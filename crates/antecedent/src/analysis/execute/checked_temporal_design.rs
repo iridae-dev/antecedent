@@ -13,17 +13,19 @@
 //! Every route is unsupported and its calibration is `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt::Write as _;
+
 use super::bayesian_quasi_common::{
     assemble_posterior, effect_quantity, model_assumption, require_built_in_model, scalar_quantity,
 };
 use super::{
-    finish_identified_execute_with_context, Arc, CausalError, CausalExprArena, CausalQuery,
-    DerivationMeta, DerivationTrace, Diagnostic, DiagnosticKind, DiagnosticSeverity, DomainRef,
-    EffectEstimate, EstimatorId, ExecutionContext, ExprNode, GraphClass,
-    IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceDiagnostics,
-    InferenceMode, OutcomeExprId, OverlapPolicy, PhysicalExecutionPlan, RandomizedTrialOperation,
-    RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData,
+    Arc, CausalError, CausalExprArena, CausalQuery, DerivationMeta, DerivationTrace, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate, EstimatorId, ExecutionContext,
+    ExprNode, GraphClass, IdentificationPerformanceRecord, IdentificationResult,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId,
+    InferenceDiagnostics, InferenceMode, OutcomeExprId, OverlapPolicy, PhysicalExecutionPlan,
+    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult,
+    TableView, TabularData, finish_identified_execute_with_context,
 };
 use antecedent_core::DeclaredSamplingDesign;
 use antecedent_core::{
@@ -34,20 +36,20 @@ use antecedent_core::{
 use antecedent_data::{MissingDeclaration, MissingPolicy};
 use antecedent_estimate::sampling_weights::{SamplingWeightRecord, SamplingWeights};
 use antecedent_estimate::temporal_design::contrasts::{
-    factorial_scores, interference_scores, multi_arm_scores, two_arm_scores, DesignScores,
+    DesignScores, factorial_scores, interference_scores, multi_arm_scores, two_arm_scores,
 };
-use antecedent_estimate::temporal_design::dose::{fit_dose, DosePairs, DoseTarget};
+use antecedent_estimate::temporal_design::dose::{DosePairs, DoseTarget, fit_dose};
 use antecedent_estimate::temporal_design::misclassification::{
-    correct_posterior, correct_sampling, ValidationCounts,
+    ValidationCounts, correct_posterior, correct_sampling,
 };
-use antecedent_estimate::temporal_design::quantile::{fit_quantile, QUANTILE_COORDINATES};
+use antecedent_estimate::temporal_design::quantile::{QUANTILE_COORDINATES, fit_quantile};
 use antecedent_estimate::temporal_design::serial::{
-    serial_sampling_summary, serial_sup_t_band, SERIAL_METHOD,
+    SERIAL_METHOD, serial_sampling_summary, serial_sup_t_band,
 };
 use antecedent_estimate::temporal_design::{
-    bayesian_bootstrap, dense_labels, holm_adjusted, lagged_pairs, sampling_summary, sup_t_band,
-    ClusterScores, LaggedPairs, PanelRows, PosteriorSummary, SamplingSummary,
-    DEFAULT_BAND_REPLICATES,
+    ClusterScores, DEFAULT_BAND_REPLICATES, LaggedPairs, PanelRows, PosteriorSummary,
+    SamplingSummary, bayesian_bootstrap, dense_labels, holm_adjusted, lagged_pairs,
+    sampling_summary, sup_t_band,
 };
 
 use crate::analysis::missing_data::{self, MissingRoute};
@@ -358,7 +360,7 @@ impl CheckedTemporalDesignOperation {
             _ => {
                 return Err(CausalError::Compile {
                     message: "the quantile fit reported no uncertainty".into(),
-                })
+                });
             }
         };
         Ok(FitOutput {
@@ -623,9 +625,10 @@ impl CheckedTemporalDesignOperation {
                 if serial {
                     summary.method = "newey_west_ratio_normal_over_periods_with_validation_delta";
                 }
-                functional.push_str(&format!(
+                let _ = write!(
+                    functional,
                     "; outcome misclassification corrected (Youden index {youden})"
-                ));
+                );
                 return Ok((
                     FitOutput {
                         coordinates: scores.coordinates,
@@ -1093,19 +1096,20 @@ fn check_declarations(
     bayesian: bool,
 ) -> Result<(), CausalError> {
     let arm = arm_mean_design(query);
-    if let Some(declaration) = &study.declared.missing {
-        if declaration.policy != MissingPolicy::ErrorOnMissing && !arm {
-            return Err(CausalError::Estimate(
-                antecedent_estimate::missing_policy::policy_not_applicable(
-                    declaration.policy,
-                    MissingRoute::TemporalDesign.label(),
-                    "only the arm designs with the mean functional have a per-pair estimator \
+    if let Some(declaration) = &study.declared.missing
+        && declaration.policy != MissingPolicy::ErrorOnMissing
+        && !arm
+    {
+        return Err(CausalError::Estimate(
+            antecedent_estimate::missing_policy::policy_not_applicable(
+                declaration.policy,
+                MissingRoute::TemporalDesign.label(),
+                "only the arm designs with the mean functional have a per-pair estimator \
                      that can drop pairs; the quantile, dose, observational and survival \
                      designs refit their models on complete columns",
-                    &MissingRoute::TemporalDesign.supported()[..1],
-                ),
-            ));
-        }
+                &MissingRoute::TemporalDesign.supported()[..1],
+            ),
+        ));
     }
     if study.declared.sampling_design == Some(DeclaredSamplingDesign::DependentTimeSeries) {
         if !arm {

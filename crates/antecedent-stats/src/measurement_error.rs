@@ -562,10 +562,10 @@ impl LinearMoments {
                 "reliability floor must lie in [0, 1)",
             ));
         }
-        if let Some(influence) = &error.influence {
-            if influence.len() != n || !finite_all(influence) {
-                return Err(MeasurementErrorError::Shape("influence differs in length"));
-            }
+        if let Some(influence) = &error.influence
+            && (influence.len() != n || !finite_all(influence))
+        {
+            return Err(MeasurementErrorError::Shape("influence differs in length"));
         }
         let n_f = n as f64;
         let inverse_k = |i: usize| -> f64 {

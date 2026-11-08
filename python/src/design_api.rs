@@ -547,8 +547,6 @@ macro_rules! over_decisions {
     };
 }
 
-pub(crate) use over_decisions;
-
 pub(crate) fn ranker_for(
     max_cost: Option<f64>,
     max_sample_budget: Option<u64>,

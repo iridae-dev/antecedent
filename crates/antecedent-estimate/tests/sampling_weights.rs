@@ -729,14 +729,14 @@ fn balanced_weighting_oracle(study: &Study, mass: &[f64]) -> (f64, Vec<f64>) {
         };
         let (mut lo, mut hi) = (-32.0, 32.0);
         for _ in 0..90 {
-            let mid = (lo + hi) / 2.0;
+            let mid = f64::midpoint(lo, hi);
             if tilted(mid).0 < target {
                 lo = mid;
             } else {
                 hi = mid;
             }
         }
-        let (_, values, sum) = tilted((lo + hi) / 2.0);
+        let (_, values, sum) = tilted(f64::midpoint(lo, hi));
         for (&i, w) in rows.iter().zip(values) {
             weights[i] = w * total / sum;
         }

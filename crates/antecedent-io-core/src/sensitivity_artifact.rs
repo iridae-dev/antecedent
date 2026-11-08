@@ -610,15 +610,14 @@ fn validate_uncertainty(parts: &SensitivityParts) -> Result<(), IoError> {
     {
         return Err(wrong_contract("the surface range must be declared an assumption range"));
     }
-    if let Some(bound) = &u.identified_bound {
-        if !known.contains(bound.quantity.as_str())
+    if let Some(bound) = &u.identified_bound
+        && (!known.contains(bound.quantity.as_str())
             || !bound.lower.is_finite()
             || !bound.upper.is_finite()
             || bound.lower > bound.upper
-            || is_blank(&bound.source)
-        {
-            return Err(invalid_surface("identified bound is malformed"));
-        }
+            || is_blank(&bound.source))
+    {
+        return Err(invalid_surface("identified bound is malformed"));
     }
     match &u.sampling {
         SamplingStatus::Withheld { reason_code, detail } => {
@@ -643,12 +642,12 @@ fn validate_uncertainty(parts: &SensitivityParts) -> Result<(), IoError> {
             {
                 return Err(invalid_surface("sampling interval is malformed"));
             }
-            if let Some(method) = &interval.composed {
-                if !SUPPORTED_SAMPLING_COMPOSITIONS.contains(&method.as_str()) {
-                    return Err(composition_not_supported(&format!(
-                        "composing a sampling interval with an assumption range by `{method}` is not supported"
-                    )));
-                }
+            if let Some(method) = &interval.composed
+                && !SUPPORTED_SAMPLING_COMPOSITIONS.contains(&method.as_str())
+            {
+                return Err(composition_not_supported(&format!(
+                    "composing a sampling interval with an assumption range by `{method}` is not supported"
+                )));
             }
         }
     }
@@ -1422,12 +1421,12 @@ impl SensitivityArtifact {
         if meta.outcome != artifact.outcome {
             return Err(wrong_contract("stored decision outcome does not replay from the surface"));
         }
-        if let Some(retained) = expected {
-            if let Some(field) = identity_diff(retained, &artifact.identity) {
-                return Err(wrong_contract(&format!(
-                    "{field} differs from the consumer's retained identity"
-                )));
-            }
+        if let Some(retained) = expected
+            && let Some(field) = identity_diff(retained, &artifact.identity)
+        {
+            return Err(wrong_contract(&format!(
+                "{field} differs from the consumer's retained identity"
+            )));
         }
         Ok(artifact)
     }

@@ -180,7 +180,7 @@ fn scored_cluster_reference_for_protocol(
     }
     let fit = fit?;
     let df = fit.uncertainty.analytic.reference_df?;
-    let critical = antecedent_stats::student_t_ppf((1.0 + REPORTED_LEVEL) / 2.0, df);
+    let critical = antecedent_stats::student_t_ppf(f64::midpoint(1.0, REPORTED_LEVEL), df);
     let se = fit.se_analytic();
     (df.is_finite()
         && df > 0.0
@@ -588,7 +588,7 @@ fn measure_against(
             "not_applicable",
         );
         tally.record(Some(interval), truth);
-        centres.push((interval.0 + interval.1) / 2.0);
+        centres.push(f64::midpoint(interval.0, interval.1));
         se_squared_sum += ((interval.1 - interval.0) / (2.0 * Z95)).powi(2);
     }
     if centres.len() > 1 {
@@ -766,13 +766,13 @@ fn the_scored_intervals_are_ordered_and_centred_near_the_population_effect() {
         // At these seeds every centre is within 0.08 of the population effect and every
         // interval holds it. Ignoring the weights speaks for the over-sampled high-z units and
         // lands near 1.2, outside this band.
-        let centre = (lo + hi) / 2.0;
+        let centre = f64::midpoint(lo, hi);
         assert!((centre - TRUTH).abs() < 0.12, "centre {centre}");
         assert!(lo < TRUTH && TRUTH < hi, "interval [{lo}, {hi}] misses the population effect");
     }
     let ((lo, hi), rows) = panel(40, 91_005).expect("a weighted panel fit");
     assert!(rows > 320 && rows % 2 == 0);
-    assert!(lo < hi && ((lo + hi) / 2.0 - TRUTH).abs() < 0.15);
+    assert!(lo < hi && (f64::midpoint(lo, hi) - TRUTH).abs() < 0.15);
     assert!(lo < TRUTH && TRUTH < hi, "panel interval [{lo}, {hi}] misses the population effect");
 }
 

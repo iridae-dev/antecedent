@@ -68,7 +68,7 @@ pub fn quantile_sorted(sorted: &[f64], p: f64, rule: QuantileRule) -> f64 {
 pub fn equal_tail_interval_sorted(sorted: &[f64], level: f64, rule: QuantileRule) -> (f64, f64) {
     (
         quantile_sorted(sorted, (1.0 - level) / 2.0, rule),
-        quantile_sorted(sorted, (1.0 + level) / 2.0, rule),
+        quantile_sorted(sorted, f64::midpoint(1.0, level), rule),
     )
 }
 

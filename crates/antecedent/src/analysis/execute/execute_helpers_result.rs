@@ -303,23 +303,23 @@ pub(super) fn envelope_mass_diagnostic(
     code: impl Into<Arc<str>>,
     posterior: &CausalPosterior,
 ) -> Diagnostic {
+    use std::fmt::Write as _;
+
     let mut message = format!("unidentified_mass={}", posterior.unidentified_mass);
     if posterior.unevaluable_mass > 0.0 {
         // Distinct from unidentified_mass: this mass was identified but its
         // estimation failed, which is a refusal, not a negative proof.
-        message.push_str(&format!(", unevaluable_mass={}", posterior.unevaluable_mass));
+        let _ = write!(message, ", unevaluable_mass={}", posterior.unevaluable_mass);
     }
     if posterior.subsampled_out_mass > 0.0 {
-        message.push_str(&format!(", subsampled_out_mass={}", posterior.subsampled_out_mass));
+        let _ = write!(message, ", subsampled_out_mass={}", posterior.subsampled_out_mass);
     }
     let mut fields = mass_fields(None, posterior.unidentified_mass);
-    if posterior.unevaluable_mass > 0.0 {
-        if let Ok(mass) = antecedent_core::diagnostic::RouteMass::new(posterior.unevaluable_mass) {
-            if let Some(bits) = mass.bits() {
+    if posterior.unevaluable_mass > 0.0
+        && let Ok(mass) = antecedent_core::diagnostic::RouteMass::new(posterior.unevaluable_mass)
+            && let Some(bits) = mass.bits() {
                 fields.push((Arc::from("unevaluable_mass_bits"), Arc::from(bits.to_string())));
             }
-        }
-    }
     Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
         .with_fields(fields)
 }

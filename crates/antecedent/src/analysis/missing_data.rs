@@ -293,20 +293,20 @@ pub(crate) fn validate_declaration(
     if let Some(spec) = imputation {
         multiple_imputation::check_spec(&spec)
             .map_err(|error| CausalError::Estimate(error.into()))?;
-        if let Some(estimator) = context.estimator {
-            if !row.imputes_with(estimator.as_str()) {
-                return Err(CausalError::Estimate(policy_not_applicable_next(
-                    declaration.policy,
-                    label,
-                    &format!(
-                        "multiple imputation pools the estimators {:?} on this route cell, and `{}` was chosen",
-                        row.imputation_estimators,
-                        estimator.as_str()
-                    ),
-                    &row.supported,
-                    MissingPolicy::CompleteCase,
-                )));
-            }
+        if let Some(estimator) = context.estimator
+            && !row.imputes_with(estimator.as_str())
+        {
+            return Err(CausalError::Estimate(policy_not_applicable_next(
+                declaration.policy,
+                label,
+                &format!(
+                    "multiple imputation pools the estimators {:?} on this route cell, and `{}` was chosen",
+                    row.imputation_estimators,
+                    estimator.as_str()
+                ),
+                &row.supported,
+                MissingPolicy::CompleteCase,
+            )));
         }
         if context.graph_posterior {
             graph_posterior_pooling(context, query, label)?;

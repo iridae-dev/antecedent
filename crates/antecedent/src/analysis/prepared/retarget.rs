@@ -603,10 +603,10 @@ impl PreparedStudy {
         result.certificate = Some(self.retarget_certificate(cache));
         if antecedent_estimate::changes_target(weights) {
             let binding = self.row_weights_binding(weights, depends_on)?;
-            if let Some(certificate) = &mut result.certificate {
-                if let Some(target) = certificate.query.target_population_mut() {
-                    *target = binding.population();
-                }
+            if let Some(certificate) = &mut result.certificate
+                && let Some(target) = certificate.query.target_population_mut()
+            {
+                *target = binding.population();
             }
             result.extras.row_weights = Some(binding);
         }

@@ -499,12 +499,11 @@ pub fn replay_instrumented_selection(
     if d.version != 1 {
         return Err(invalid("unsupported structural selection artifact version"));
     }
-    if let Some(expected) = expected {
-        if antecedent_io::convert::to_cbor(expected).map_err(super::codec)?
+    if let Some(expected) = expected
+        && antecedent_io::convert::to_cbor(expected).map_err(super::codec)?
             != antecedent_io::convert::to_cbor(&d.request).map_err(super::codec)?
-        {
-            return Err(invalid("current structural selection data/moments/domain changed"));
-        }
+    {
+        return Err(invalid("current structural selection data/moments/domain changed"));
     }
     let mut execution = ctx.clone();
     execution.rng = antecedent_core::execution::RngFactory::from_seed(d.seed);

@@ -2,6 +2,7 @@
 
 use antecedent_expr::{CausalExprArena, ExprId};
 use serde::{Deserialize, Serialize};
+use std::fmt::Write as _;
 
 /// A level in the counterfactual functional: a literal level (IEEE bits) or a
 /// summation symbol bound by an enclosing [`CounterfactualFunctional::Sum`].
@@ -78,11 +79,11 @@ pub enum CounterfactualFunctional {
 fn render_term(term: &CfTerm, out: &mut String) {
     out.push_str("P[do(");
     for (v, x) in &term.intervention {
-        out.push_str(&format!("v{v}={},", x.render()));
+        let _ = write!(out, "v{v}={},", x.render());
     }
     out.push_str(")](");
     for (v, x) in &term.event {
-        out.push_str(&format!("v{v}={},", x.render()));
+        let _ = write!(out, "v{v}={},", x.render());
     }
     out.push_str(") := ");
     out.push_str(&term.arena.pretty(term.expression));
@@ -96,7 +97,7 @@ impl CounterfactualFunctional {
             Self::Sum { symbols, factors } => {
                 out.push_str("sum[");
                 for s in symbols {
-                    out.push_str(&format!("s{}:v{},", s.id, s.variable));
+                    let _ = write!(out, "s{}:v{},", s.id, s.variable);
                 }
                 out.push_str("](");
                 for f in factors {
@@ -111,7 +112,7 @@ impl CounterfactualFunctional {
                 render_term(interventional, out);
                 out.push_str(" - P(");
                 for (v, x) in observed {
-                    out.push_str(&format!("v{v}={},", x.render()));
+                    let _ = write!(out, "v{v}={},", x.render());
                 }
                 out.push_str("))");
             }

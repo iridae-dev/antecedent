@@ -1220,12 +1220,12 @@ fn validate_metadata(meta: &MeasurementModelMetadata) -> Result<(), IoError> {
             "the stored result is not the recomputation of its inputs under the model",
         ));
     }
-    if let Some(se) = record.standard_error {
-        if !near(se * se, values.variance) {
-            return Err(refused(
-                "the stored standard error is not the recomputation of its inputs under the model",
-            ));
-        }
+    if let Some(se) = record.standard_error
+        && !near(se * se, values.variance)
+    {
+        return Err(refused(
+            "the stored standard error is not the recomputation of its inputs under the model",
+        ));
     }
     Ok(())
 }

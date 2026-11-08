@@ -217,35 +217,32 @@ pub(in crate::analysis_result_artifact) fn validate_association(
         return fail("an association reports at least one quantity, its rows and its assumptions");
     }
     validate_terms(section)?;
-    if let Some(resampling) = &section.resampling {
-        if resampling.replicates_ok > resampling.replicates_requested
+    if let Some(resampling) = &section.resampling
+        && (resampling.replicates_ok > resampling.replicates_requested
             || !(0.0..1.0).contains(&resampling.spread_level)
             || !matches!(resampling.method.as_str(), "bootstrap" | "block_bootstrap")
-            || !matches!(resampling.unit.as_str(), "row" | "calendar_block")
-        {
-            return fail("the resampling record is inconsistent");
-        }
+            || !matches!(resampling.unit.as_str(), "row" | "calendar_block"))
+    {
+        return fail("the resampling record is inconsistent");
     }
-    if let Some(posterior) = &section.posterior {
-        if !(0.0..1.0).contains(&posterior.level)
+    if let Some(posterior) = &section.posterior
+        && (!(0.0..1.0).contains(&posterior.level)
             || !matches!(
                 posterior.method.as_str(),
                 "conjugate_normal_inverse_gamma" | "bayesian_bootstrap"
-            )
-        {
-            return fail("the posterior record is inconsistent");
-        }
+            ))
+    {
+        return fail("the posterior record is inconsistent");
     }
-    if let Some(prediction) = &section.prediction {
-        if prediction.folds < 2
+    if let Some(prediction) = &section.prediction
+        && (prediction.folds < 2
             || prediction.cases == 0
             || prediction.calibration != "not_measured"
             || !prediction.mean_score.is_finite()
             || !prediction.baseline_score.is_finite()
-            || !prediction.mean_crps.is_none_or(f64::is_finite)
-        {
-            return fail("the held-out scores are not finite or claim a calibration");
-        }
+            || !prediction.mean_crps.is_none_or(f64::is_finite))
+    {
+        return fail("the held-out scores are not finite or claim a calibration");
     }
     let expected = if section.posterior.is_some() {
         ASSOCIATION_POSTERIOR_UNCERTAINTY

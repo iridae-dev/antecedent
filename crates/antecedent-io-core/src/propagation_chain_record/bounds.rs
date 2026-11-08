@@ -43,20 +43,20 @@ pub(super) fn check_bounds(
         for factor in &stage.own_factors {
             text_ok(&factor.id, limits)?;
         }
-        if let ChainOpWire::Preposterior { noise, .. } = &stage.op {
-            if noise.len() > MAX_CHAIN_ROWS {
-                return Err(Error::LimitsExceeded("rows"));
-            }
+        if let ChainOpWire::Preposterior { noise, .. } = &stage.op
+            && noise.len() > MAX_CHAIN_ROWS
+        {
+            return Err(Error::LimitsExceeded("rows"));
         }
-        if let ChainOpWire::Reweight { weights } = &stage.op {
-            if weights.len() > MAX_CHAIN_NODES {
-                return Err(Error::LimitsExceeded("weights"));
-            }
+        if let ChainOpWire::Reweight { weights } = &stage.op
+            && weights.len() > MAX_CHAIN_NODES
+        {
+            return Err(Error::LimitsExceeded("weights"));
         }
-        if let ChainOpWire::Expression { terms } = &stage.op {
-            if terms.len() > MAX_EXPRESSION_TERMS {
-                return Err(Error::LimitsExceeded("expression terms"));
-            }
+        if let ChainOpWire::Expression { terms } = &stage.op
+            && terms.len() > MAX_EXPRESSION_TERMS
+        {
+            return Err(Error::LimitsExceeded("expression terms"));
         }
     }
     for change in &record.changes {

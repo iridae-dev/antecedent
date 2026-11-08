@@ -191,6 +191,10 @@ impl ProgramIdentityScope {
 
 /// What the scientific problem asks for.
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "public enum built once per problem; boxing a variant would change its public API"
+)]
 pub enum ProblemTarget {
     /// World-indexed target: worlds, a contrast, a dose-time surface, or mediation.
     Target(ScientificTarget),
@@ -447,6 +451,10 @@ pub(crate) struct RetainedIdentification {
 /// Identification retained with the program for an execution that identifies on a window or
 /// probe derived from its query and structure, so that it is identified once.
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "retained once per program; boxing a variant would add indirection to every proof access"
+)]
 pub(crate) enum RetainedExecutionProof {
     /// One proof per component (total, direct, indirect) on the unrolled ADMG window;
     /// `None` where a component the query did not request is not identified.

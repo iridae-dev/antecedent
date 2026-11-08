@@ -30,9 +30,10 @@ use crate::io::decode_causal_posterior_bytes;
     clippy::large_enum_variant,
     reason = "the Bayesian configuration is declared once per study and moved by value; boxing would change every public pattern match"
 )]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub enum InferenceMode {
     /// Classical point-estimate path (default).
+    #[default]
     Frequentist,
     /// Bayesian g-computation / posterior path.
     Bayesian(BayesianConfig),
@@ -49,12 +50,6 @@ impl InferenceMode {
     #[must_use]
     pub(crate) const fn is_frequentist(&self) -> bool {
         matches!(self, Self::Frequentist)
-    }
-}
-
-impl Default for InferenceMode {
-    fn default() -> Self {
-        Self::Frequentist
     }
 }
 

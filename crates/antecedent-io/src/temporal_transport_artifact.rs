@@ -523,10 +523,9 @@ impl TemporalSequenceArtifactWire {
         }
         if let (Some(producer), Some(consumer)) =
             (self.search_memory_bytes, ctx.memory_limit_bytes())
+            && producer > consumer
         {
-            if producer > consumer {
-                return Err(exceeded("search memory"));
-            }
+            return Err(exceeded("search memory"));
         }
         if self.operation_limit > limits.evaluation.operations
             || self.depth_limit > limits.evaluation.depth

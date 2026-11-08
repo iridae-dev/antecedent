@@ -349,10 +349,10 @@ fn validate_payload(payload: &CausalPayloadWire, variable_count: usize) -> Resul
             {
                 return Err(IoError::Convert("static result has invalid numerical values".into()));
             }
-            if let antecedent_core::CausalQuery::Counterfactual(query) = &id.query {
-                if !wire.contrasts.is_empty() {
-                    validate_static_contrasts(wire, &query.outcomes, variable_count)?;
-                }
+            if let antecedent_core::CausalQuery::Counterfactual(query) = &id.query
+                && !wire.contrasts.is_empty()
+            {
+                validate_static_contrasts(wire, &query.outcomes, variable_count)?;
             }
         }
         CausalPayloadWire::Query(wire) => {
@@ -865,13 +865,12 @@ fn validate_value_for_estimand(
 fn support_dimension(estimand: &crate::ResponseFunctionalWire, temporal: bool) -> usize {
     if temporal {
         if let crate::ResponseFunctionalWire::InterventionResponse { interventions, .. } = estimand
+            && interventions.iter().any(|i| matches!(i, crate::InterventionWire::Sequence { .. }))
         {
-            if interventions.iter().any(|i| matches!(i, crate::InterventionWire::Sequence { .. })) {
-                // Overlay schedules have no single treatment-level coordinate.
-                // The sequence executor reports a horizon region and retains
-                // the overlay coordinates in its support diagnostics.
-                return 1;
-            }
+            // Overlay schedules have no single treatment-level coordinate.
+            // The sequence executor reports a horizon region and retains
+            // the overlay coordinates in its support diagnostics.
+            return 1;
         }
         // Other temporal support uses treatment/evaluation level × horizon.
         return 2;
@@ -1029,10 +1028,7 @@ fn validate_support(
             crate::SupportStatusWire::Supported
         } else if supported > 0 {
             crate::SupportStatusWire::Extrapolative
-        } else if cells
-            .iter()
-            .any(|status| *status == crate::SupportStatusWire::OutsideEmpiricalSupport)
-        {
+        } else if cells.contains(&crate::SupportStatusWire::OutsideEmpiricalSupport) {
             crate::SupportStatusWire::OutsideEmpiricalSupport
         } else {
             crate::SupportStatusWire::Extrapolative
@@ -1145,12 +1141,12 @@ fn validate_transport_estimate(estimate: &TransportEffectEstimateWire) -> Result
 fn validate_probability_method(
     method: crate::ExposureProbabilityMethodWire,
 ) -> Result<(), IoError> {
-    if let crate::ExposureProbabilityMethodWire::MonteCarlo { draws, .. } = method {
-        if draws == 0 {
-            return Err(IoError::Convert(
-                "interference Monte Carlo probability method requires positive draws".into(),
-            ));
-        }
+    if let crate::ExposureProbabilityMethodWire::MonteCarlo { draws, .. } = method
+        && draws == 0
+    {
+        return Err(IoError::Convert(
+            "interference Monte Carlo probability method requires positive draws".into(),
+        ));
     }
     Ok(())
 }

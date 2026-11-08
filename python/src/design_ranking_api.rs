@@ -114,10 +114,10 @@ fn evaluate_design_ranking(
     check_size(request_json)?;
     let mut request: DesignRankingRequestWire =
         serde_json::from_str(request_json).map_err(|e| invalid_declaration(&e))?;
-    if let Some(prior) = checked_prior {
-        if let Err(refusal) = prior.bind(&mut request) {
-            return Ok((None, None, Some(refusal)));
-        }
+    if let Some(prior) = checked_prior
+        && let Err(refusal) = prior.bind(&mut request)
+    {
+        return Ok((None, None, Some(refusal)));
     }
     let artifact_id = artifact_id.to_owned();
     detach_catch(py, move || {
@@ -350,10 +350,10 @@ fn compile_design_ranking_for_study(
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<ConsumePayload> {
     let mut request = parse_request(request_json)?;
-    if let Some(prior) = checked_prior {
-        if let Err(refusal) = prior.bind(&mut request) {
-            return Ok((None, Some(refusal)));
-        }
+    if let Some(prior) = checked_prior
+        && let Err(refusal) = prior.bind(&mut request)
+    {
+        return Ok((None, Some(refusal)));
     }
     let (treatment, outcome) = (treatment.to_owned(), outcome.to_owned());
     detach_catch(py, move || {
@@ -436,10 +436,10 @@ fn evaluate_design_ranking_for_study(
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<StudyEvaluatePayload> {
     let mut request = parse_request(request_json)?;
-    if let Some(prior) = checked_prior {
-        if let Err(refusal) = prior.bind(&mut request) {
-            return Ok((None, None, None, Some(refusal)));
-        }
+    if let Some(prior) = checked_prior
+        && let Err(refusal) = prior.bind(&mut request)
+    {
+        return Ok((None, None, None, Some(refusal)));
     }
     let artifact_id = artifact_id.to_owned();
     let (treatment, outcome) = (treatment.to_owned(), outcome.to_owned());

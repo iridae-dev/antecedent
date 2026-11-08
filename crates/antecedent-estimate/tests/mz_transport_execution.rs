@@ -398,7 +398,7 @@ fn a_recorded_margin_of_a_shared_joint_is_projected_within_every_replicate() {
         mz_transport_bootstrap_law_draws(&functional, &data, 25, &ExecutionContext::for_tests(4))
             .unwrap()
             .unwrap();
-    assert!(draws.iter().flatten().count() == 25);
+    assert_eq!(draws.iter().flatten().count(), 25);
     for drawn in draws.iter().flatten() {
         let law =
             |regime: u32| drawn.laws().iter().find(|law| law.regime().raw() == regime).unwrap();

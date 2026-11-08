@@ -80,7 +80,7 @@ impl BoxTreeIndex {
         if dim == 0 {
             return Err(StatsError::Shape { message: "matching dim must be > 0" });
         }
-        if features_rowmajor.len() % dim != 0 {
+        if !features_rowmajor.len().is_multiple_of(dim) {
             return Err(StatsError::Shape { message: "features length != n_donors * dim" });
         }
         if features_rowmajor.iter().any(|v| !v.is_finite()) {
@@ -380,10 +380,10 @@ impl Nearest {
         let entry = Entry { distance, position };
         if self.heap.len() < self.k {
             self.heap.push(entry);
-        } else if let Some(mut worst) = self.heap.peek_mut() {
-            if entry < *worst {
-                *worst = entry;
-            }
+        } else if let Some(mut worst) = self.heap.peek_mut()
+            && entry < *worst
+        {
+            *worst = entry;
         }
     }
 

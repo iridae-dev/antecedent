@@ -384,14 +384,14 @@ impl PreparedZTransport {
             Ok(interval) => interval,
             Err(reason) => return Ok(point_only(reason)),
         };
-        if provider.is_some() {
-            if let Err(reason) = PERCENTILE_FLOOR.decide(
+        if provider.is_some()
+            && let Err(reason) = PERCENTILE_FLOOR.decide(
                 interval.replicates_requested,
                 interval.replicates_ok,
                 interval.replicates_failed,
-            ) {
-                return Ok(point_only(reason));
-            }
+            )
+        {
+            return Ok(point_only(reason));
         }
         Ok(ZTransportResult {
             distribution,

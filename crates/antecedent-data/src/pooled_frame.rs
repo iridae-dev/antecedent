@@ -86,8 +86,7 @@ impl PooledLaggedFrame {
     /// Whether `v` is a synthesized dummy column.
     #[must_use]
     pub fn is_dummy(&self, v: VariableId) -> bool {
-        self.space_dummy_variables.iter().any(|&x| x == v)
-            || self.time_dummy_variables.iter().any(|&x| x == v)
+        self.space_dummy_variables.contains(&v) || self.time_dummy_variables.contains(&v)
     }
 }
 

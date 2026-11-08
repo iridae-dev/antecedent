@@ -166,7 +166,10 @@ fn incomplete_gamma_and_log_gamma_match_high_precision() {
     // Chi-square is Q(df/2, x/2) at integer df.
     for df in [1usize, 2, 3, 7, 30] {
         for x in [0.5_f64, 3.0, 12.0, 80.0] {
-            assert!((chi_square_sf(x, df) - gamma_q(df as f64 / 2.0, x / 2.0)).abs() == 0.0);
+            assert_eq!(
+                (chi_square_sf(x, df) - gamma_q(df as f64 / 2.0, x / 2.0)).abs().to_bits(),
+                0
+            );
         }
     }
     let mut s = Sweep::new("ln_gamma", 1e-13);

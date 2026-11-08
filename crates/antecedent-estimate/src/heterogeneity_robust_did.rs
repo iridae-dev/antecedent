@@ -927,10 +927,10 @@ fn two_by_two(
     period: i64,
     base: i64,
 ) -> Result<Option<Cell>, &'static str> {
-    if let Comparison::LastCohort(last) = comparison {
-        if period.max(base) >= last - spec.anticipation {
-            return Ok(None);
-        }
+    if let Comparison::LastCohort(last) = comparison
+        && period.max(base) >= last - spec.anticipation
+    {
+        return Ok(None);
     }
     let mut treated: Vec<(f64, &[f64], f64)> = Vec::new();
     let mut controls: Vec<(f64, &[f64], f64)> = Vec::new();
@@ -1092,10 +1092,10 @@ fn group_time_cells(
         _ => spec.base_period,
     };
     for &group in &prepared.cohorts {
-        if let Comparison::LastCohort(last) = comparison {
-            if group == last {
-                continue;
-            }
+        if let Comparison::LastCohort(last) = comparison
+            && group == last
+        {
+            continue;
         }
         for &period in &prepared.periods {
             let event_time = period - group;

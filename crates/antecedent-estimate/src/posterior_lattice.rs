@@ -119,7 +119,9 @@ pub(crate) fn normalize(pmf: &mut [f64]) -> Option<()> {
     if !(total.is_finite() && total > 0.0) {
         return None;
     }
-    pmf.iter_mut().for_each(|m| *m /= total);
+    for m in pmf.iter_mut() {
+        *m /= total;
+    }
     Some(())
 }
 

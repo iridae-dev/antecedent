@@ -275,6 +275,10 @@ impl AdaptiveInferenceHandle {
     }
 
     /// The observations behind each look, counted once, as JSON.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+    )]
     fn interim_evidence(&self) -> Refused<String> {
         match self.inner.interim_evidence() {
             Ok(evidence) => {

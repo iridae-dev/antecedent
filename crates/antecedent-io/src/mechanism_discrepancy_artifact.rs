@@ -822,10 +822,10 @@ impl MechanismDiscrepancyArtifact {
                 "statistic, p-value, coefficients or detectability",
             ));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &computed.identity) {
-                return Err(MechanismDiscrepancyArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &computed.identity)
+        {
+            return Err(MechanismDiscrepancyArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta, request, result: computed.result })
     }

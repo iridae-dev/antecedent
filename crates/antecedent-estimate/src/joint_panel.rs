@@ -746,10 +746,11 @@ impl PanelData {
 pub fn validate_fit_options(data: &PanelData, options: &PanelFitOptions) -> Result<(), PanelError> {
     data.validate()?;
     inference::validate_options(options)?;
-    if let PanelInference::Bayesian { prior, .. } = &options.inference {
-        if !prior.lag.is_empty() && prior.lag.len() != data.channels.len() {
-            return Err(invalid("Dirichlet priors must follow the complete channel axis"));
-        }
+    if let PanelInference::Bayesian { prior, .. } = &options.inference
+        && !prior.lag.is_empty()
+        && prior.lag.len() != data.channels.len()
+    {
+        return Err(invalid("Dirichlet priors must follow the complete channel axis"));
     }
     if options.optimizer.max_iterations == 0
         || options.optimizer.max_iterations > 100_000

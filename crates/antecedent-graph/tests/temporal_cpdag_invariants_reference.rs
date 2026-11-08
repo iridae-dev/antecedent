@@ -79,14 +79,15 @@ impl Model {
         seen[from] = true;
         while let Some(u) = stack.pop() {
             for kind in self.edges.values() {
-                if let Kind::Directed(p, c) = *kind {
-                    if p == u && !seen[c] {
-                        if c == to {
-                            return true;
-                        }
-                        seen[c] = true;
-                        stack.push(c);
+                if let Kind::Directed(p, c) = *kind
+                    && p == u
+                    && !seen[c]
+                {
+                    if c == to {
+                        return true;
                     }
+                    seen[c] = true;
+                    stack.push(c);
                 }
             }
         }

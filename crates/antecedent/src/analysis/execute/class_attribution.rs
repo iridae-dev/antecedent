@@ -328,10 +328,10 @@ impl super::Study {
                 });
             }
             let outcome = run(member);
-            if let Err(error) = &outcome {
-                if matches!(error, CausalError::Cancelled { .. } | CausalError::Resource { .. }) {
-                    return Err(error.clone());
-                }
+            if let Err(error) = &outcome
+                && matches!(error, CausalError::Cancelled { .. } | CausalError::Resource { .. })
+            {
+                return Err(error.clone());
             }
             outcomes.push(outcome);
         }
@@ -678,11 +678,10 @@ impl super::Study {
         if let Some(posterior) = posterior {
             if let (ResultPayload::ChangeAttribution(_), Some(index)) =
                 (&result.payload, posterior.effect_column())
+                && let Some(estimate) = result.estimate.as_effect_mut()
             {
-                if let Some(estimate) = result.estimate.as_effect_mut() {
-                    estimate.ate = posterior.summaries.mean[index];
-                    estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
-                }
+                estimate.ate = posterior.summaries.mean[index];
+                estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
             }
             result.posterior = Some(posterior);
         } else {

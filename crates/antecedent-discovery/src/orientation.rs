@@ -944,7 +944,7 @@ fn apply_orient_collider<G: CpdagOps>(
                     state.mark_ambiguous_triple(a, *c, b);
                     continue;
                 };
-                if sep.iter().any(|x| *x == *c) {
+                if sep.contains(c) {
                     continue;
                 }
                 for &(endpoint, kind) in &[(a, a_kind), (b, b_kind)] {

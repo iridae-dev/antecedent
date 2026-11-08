@@ -26,7 +26,7 @@ const BANDWIDTH: f64 = 1.0;
 const TOLERANCE: f64 = 1e-10;
 
 fn dose() -> Vec<f64> {
-    LEVELS.iter().flat_map(|(level, count)| std::iter::repeat(*level).take(*count)).collect()
+    LEVELS.iter().flat_map(|(level, count)| std::iter::repeat_n(*level, *count)).collect()
 }
 
 /// Closed-form Kish size at `at`, from the grouped levels.

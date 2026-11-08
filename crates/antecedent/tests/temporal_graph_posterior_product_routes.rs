@@ -32,7 +32,7 @@ use antecedent_data::{
 };
 use antecedent_discovery::{GraphPosterior, SamplingSummary};
 use antecedent_prob::InferenceDiagnostics;
-use common::fixtures::{self, confounded_series, heterogeneous_dbn, B2, DBN_UNIDENTIFIED_MASS};
+use common::fixtures::{self, B2, DBN_UNIDENTIFIED_MASS, confounded_series, heterogeneous_dbn};
 
 /// Dense events, one per nanosecond, so alignment to a one-nanosecond grid is the identity.
 fn events_of(series: &TimeSeriesData, rows: usize) -> EventData {

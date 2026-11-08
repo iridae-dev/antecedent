@@ -242,7 +242,7 @@ impl CountFittedModel {
         let (mut joint, mut evidence_mass) = (0.0_f64, 0.0_f64);
         let mut visited = 0usize;
         loop {
-            if visited % 4096 == 0 {
+            if visited.is_multiple_of(4096) {
                 check_cancelled()?;
             }
             visited += 1;

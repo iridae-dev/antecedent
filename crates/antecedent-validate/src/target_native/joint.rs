@@ -119,7 +119,7 @@ pub fn joint_mahalanobis_with_bias(
     replicates: &[f64],
     k: usize,
 ) -> Result<(JointStatistic, Vec<f64>), ValidationError> {
-    if k == 0 || expected.len() != k || replicates.len() % k != 0 {
+    if k == 0 || expected.len() != k || !replicates.len().is_multiple_of(k) {
         return Err(ValidationError::NotApplicable {
             message: "joint statistic: expected vector and replicate rows disagree in dimension",
         });

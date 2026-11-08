@@ -458,13 +458,13 @@ mod tests {
             [failed.clone()],
         );
         let chained = first.compose(&second);
-        assert!(chained.obligations.iter().any(|o| *o == failed));
+        assert!(chained.obligations.contains(&failed));
         assert!(chained.obligations.iter().any(ObligationRecord::is_unresolved));
         assert_eq!(chained.input_identities.as_ref(), first_input.as_slice());
 
         // A later resolved record cannot erase an earlier unresolved one.
         let reversed = second.compose(&first);
-        assert!(reversed.obligations.iter().any(|o| *o == failed));
+        assert!(reversed.obligations.contains(&failed));
         assert_eq!(reversed.input_identities.as_ref(), second_input.as_slice());
     }
 

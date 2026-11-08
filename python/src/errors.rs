@@ -426,8 +426,8 @@ pub(crate) fn reason_code_of(error: &RustCausalError) -> Option<String> {
         RustCausalError::NotIdentified { .. } => Some(reason_code!("effect_not_identified")),
         RustCausalError::Identify(
             antecedent::identify::IdentificationError::UnsupportedQuery { .. },
-        ) => Some(reason_code!("route_not_supported")),
-        RustCausalError::Unsupported { .. } => Some(reason_code!("route_not_supported")),
+        )
+        | RustCausalError::Unsupported { .. } => Some(reason_code!("route_not_supported")),
         // The wire id of a support refusal that is not typed-impossible is its reason code.
         RustCausalError::Support { id, .. } => Some(if id.as_str() == "not_applicable" {
             reason_code!("cell_not_applicable")

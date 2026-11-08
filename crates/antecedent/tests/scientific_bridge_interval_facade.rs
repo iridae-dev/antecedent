@@ -435,7 +435,7 @@ fn a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound
     assert!(interval.lower < interval.value && interval.value < interval.upper);
     assert_eq!(interval.mapping.as_str(), "trial_level_linear");
     assert_eq!(interval.supported_by, "coverage_record");
-    assert!(interval.degrees_of_freedom == Some(18.0));
+    assert_eq!(interval.degrees_of_freedom, Some(18.0));
     assert!(interval.coverage_record.contains("student_t_prediction_interval"));
 }
 

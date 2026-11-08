@@ -141,21 +141,18 @@ pub fn transport_typed(
                 continue;
             }
             (true, source, Some(target)) => {
-                if let Some(source) = source {
-                    if source.spec.parents != target.spec.parents {
-                        findings.push(
-                            finding(
-                                CoherenceKind::CausalParents,
-                                DETAIL_PARENTS_CHANGED,
-                                variable,
-                                "a shifted mechanism's target fit keeps the declared parent set",
-                            )
-                            .comparing(
-                                source.spec.parents.join(","),
-                                target.spec.parents.join(","),
-                            ),
-                        );
-                    }
+                if let Some(source) = source
+                    && source.spec.parents != target.spec.parents
+                {
+                    findings.push(
+                        finding(
+                            CoherenceKind::CausalParents,
+                            DETAIL_PARENTS_CHANGED,
+                            variable,
+                            "a shifted mechanism's target fit keeps the declared parent set",
+                        )
+                        .comparing(source.spec.parents.join(","), target.spec.parents.join(",")),
+                    );
                 }
                 (target, MechanismRole::NativeInTarget, None)
             }

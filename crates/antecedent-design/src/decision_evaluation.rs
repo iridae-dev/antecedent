@@ -1118,7 +1118,7 @@ mod tests {
         };
         assert_eq!(*missing_label, label);
         assert_eq!(*missing, carriers);
-        assert!(!needed.iter().any(|representation| *representation == SourceRepresentation::Mean));
+        assert!(!needed.contains(&SourceRepresentation::Mean));
         let text = error.to_string();
         assert!(text.contains(label), "{text}");
     }

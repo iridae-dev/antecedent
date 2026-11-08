@@ -174,7 +174,7 @@ fn id_scm_random_confounding_pattern_recovers_z() {
     let mut ws = IdentificationWorkspace::default();
     let mut hits = 0u32;
     for _ in 0..25 {
-        let n = if rng.next_u64() % 2 == 0 { 3u32 } else { 4u32 };
+        let n = if rng.next_u64().is_multiple_of(2) { 3u32 } else { 4u32 };
         let mut g = Dag::with_variables(n);
         let t = DenseNodeId::from_raw(0);
         let y = DenseNodeId::from_raw(1);
@@ -182,7 +182,7 @@ fn id_scm_random_confounding_pattern_recovers_z() {
         g.insert_directed(z, t).unwrap();
         g.insert_directed(z, y).unwrap();
         g.insert_directed(t, y).unwrap();
-        if n == 4 && rng.next_u64() % 2 == 0 {
+        if n == 4 && rng.next_u64().is_multiple_of(2) {
             let _ = g.insert_directed(DenseNodeId::from_raw(3), y);
         }
         let prep = id.prepare(&g).unwrap();

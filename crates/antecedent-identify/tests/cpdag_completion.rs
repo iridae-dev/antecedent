@@ -390,7 +390,7 @@ fn cpdag_missing_evidence_refusals() {
         .collect::<Vec<_>>();
     assert_eq!(unbound.len(), 2);
     assert!(unbound.iter().all(|text| text.contains(CPDAG_NO_EVIDENCE_DETAIL)));
-    assert!(decision.completions.iter().filter(|r| r.evidence_identity.is_none()).count() == 2);
+    assert_eq!(decision.completions.iter().filter(|r| r.evidence_identity.is_none()).count(), 2);
     assert_evidence_mismatch_refusals(&a, &b);
 }
 

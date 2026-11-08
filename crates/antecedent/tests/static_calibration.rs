@@ -654,10 +654,10 @@ fn intervention_response_cell_aipw_nominal_95_coverage() {
             Some(EstimatorId::CellAipw),
             seed,
         );
-        if rep == 0 {
-            if let Some((_, result)) = &result {
-                assert_eq!(result.logical_plan.estimator.as_deref(), Some("cell.aipw"));
-            }
+        if rep == 0
+            && let Some((_, result)) = &result
+        {
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some("cell.aipw"));
         }
         result
     });
@@ -1528,8 +1528,8 @@ fn distribution_frequentist(test: &'static str, base: f64, seed: u64) {
             .as_effect()
             .unwrap()
             .se_bootstrap()
-            .filter(|s| s.is_finite() && *s > 0.0)
-            .is_none()
+            .as_ref()
+            .is_none_or(|s| !(s.is_finite() && *s > 0.0))
         {
             tally.skip();
             continue;

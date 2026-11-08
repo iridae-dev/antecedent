@@ -226,14 +226,14 @@ pub(crate) fn check_binding(
             &data.regime_id,
         ));
     }
-    if let ArmBinding::Arm(bound) = &model.binding.arm {
-        if data.arm_id.as_deref() != Some(bound.as_str()) {
-            return Err(mismatch(
-                antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
-                bound,
-                data.arm_id.as_deref().unwrap_or("all_arms"),
-            ));
-        }
+    if let ArmBinding::Arm(bound) = &model.binding.arm
+        && data.arm_id.as_deref() != Some(bound.as_str())
+    {
+        return Err(mismatch(
+            antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
+            bound,
+            data.arm_id.as_deref().unwrap_or("all_arms"),
+        ));
     }
     if model.representation != data.representation {
         return Err(MeasurementError::new(

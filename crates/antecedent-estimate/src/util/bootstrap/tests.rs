@@ -856,7 +856,7 @@ mod interval_procedure_tests {
             || (),
             |(), rows| {
                 *calls.borrow_mut() += 1;
-                Ok((*calls.borrow() % 4 == 0).then(|| statistic(rows)))
+                Ok((*calls.borrow()).is_multiple_of(4).then(|| statistic(rows)))
             },
         )
         .unwrap();

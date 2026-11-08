@@ -29,10 +29,10 @@ fn refused(error: antecedent::CausalError, names: &[String]) -> PyErr {
     };
     let mut words: Vec<String> = rest.split(' ').map(str::to_string).collect();
     for i in 1..words.len() {
-        if words[i - 1] == "variable" {
-            if let Some(name) = words[i].parse::<usize>().ok().and_then(|k| names.get(k)) {
-                words[i].clone_from(name);
-            }
+        if words[i - 1] == "variable"
+            && let Some(name) = words[i].parse::<usize>().ok().and_then(|k| names.get(k))
+        {
+            words[i].clone_from(name);
         }
     }
     let message = words.join(" ");

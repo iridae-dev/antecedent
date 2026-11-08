@@ -1147,10 +1147,10 @@ impl<'c> SharedSearch<'c> {
 impl SearchCharge for SharedSearch<'_> {
     fn charge(&mut self, depth: usize, bytes: u64) -> Result<(), SearchStop> {
         #[cfg(test)]
-        if let Some((after, token)) = &self.cancel_after {
-            if self.budget.operations() >= *after {
-                token.cancel();
-            }
+        if let Some((after, token)) = &self.cancel_after
+            && self.budget.operations() >= *after
+        {
+            token.cancel();
         }
         self.peak_bytes = self.peak_bytes.max(bytes.saturating_add(self.stages_retained));
         self.stage_peak = self.stage_peak.max(bytes);
@@ -1158,11 +1158,11 @@ impl SearchCharge for SharedSearch<'_> {
         self.budget.charge(depth, bytes.saturating_add(self.base_bytes)).inspect_err(|stop| {
             self.stop.get_or_insert(*stop);
         })?;
-        if let Some(ceiling) = &mut self.ceiling {
-            if self.budget.operations() > ceiling.limit {
-                ceiling.crossed = true;
-                return Err(SearchStop::Operations);
-            }
+        if let Some(ceiling) = &mut self.ceiling
+            && self.budget.operations() > ceiling.limit
+        {
+            ceiling.crossed = true;
+            return Err(SearchStop::Operations);
         }
         Ok(())
     }

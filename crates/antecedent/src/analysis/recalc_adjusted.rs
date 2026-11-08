@@ -339,12 +339,11 @@ impl AdjustedRequest {
             }
             _ => return Err(RecalcRunError::Request(RecalcRequestCode::IncompatibleContrast)),
         }
-        if let Some(target) = &self.target {
-            if !target.are_valid(Some(n))
-                || target.depends_on.iter().any(|id| !self.adjustment.contains(&id.raw()))
-            {
-                return Err(RecalcRunError::Request(RecalcRequestCode::InvalidTargetWeights));
-            }
+        if let Some(target) = &self.target
+            && (!target.are_valid(Some(n))
+                || target.depends_on.iter().any(|id| !self.adjustment.contains(&id.raw())))
+        {
+            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidTargetWeights));
         }
         Ok(())
     }

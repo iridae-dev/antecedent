@@ -123,21 +123,21 @@ fn unsupported_programs_and_bad_probabilities_are_refused() {
         randomized_joint_means(d, units).expect_err("must be refused")
     };
     let one_arm = [unit("a", 0, [0.5, 0.5]), unit("b", 0, [0.5, 0.5])];
-    let text = refused(&design(2), &one_arm).to_string();
+    let text = refused(&design(2), &one_arm).clone();
     assert!(
         text.contains("no observed independent-unit support"),
         "a program with no unit: {text}"
     );
     let bad_sum = [unit("a", 0, [0.5, 0.4]), unit("b", 1, [0.5, 0.5])];
-    assert!(refused(&design(2), &bad_sum).to_string().contains(assignment));
+    assert!(refused(&design(2), &bad_sum).clone().contains(assignment));
     let duplicate = [unit("a", 0, [0.5, 0.5]), unit("a", 1, [0.5, 0.5])];
-    assert!(refused(&design(2), &duplicate).to_string().contains(assignment));
+    assert!(refused(&design(2), &duplicate).clone().contains(assignment));
     let mut weightless = ok.clone();
     weightless[0].population_weight = 0.0;
-    assert!(refused(&design(2), &weightless).to_string().contains(assignment));
+    assert!(refused(&design(2), &weightless).clone().contains(assignment));
     let mut unstated = design(2);
     unstated.consistency = " ".into();
-    let text = refused(&unstated, &ok).to_string();
+    let text = refused(&unstated, &ok).clone();
     assert!(text.contains("explicit population/consistency/isolation premises"), "{text}");
 }
 
@@ -292,7 +292,7 @@ fn a_history_without_a_declared_posterior_coordinate_or_a_singular_prior_is_refu
     assert!(switchback_joint_posterior(&design, &sequences, &prior(1.0), &ctx).is_ok());
     let proper = "requires proper priors and known nonsingular sequence covariance";
     let refused = |prior: &SwitchbackGaussianPrior| {
-        switchback_joint_posterior(&design, &sequences, prior, &ctx).unwrap_err().to_string()
+        switchback_joint_posterior(&design, &sequences, prior, &ctx).unwrap_err().clone()
     };
     let text = refused(&prior(0.0));
     assert!(text.contains(proper), "improper prior: {text}");

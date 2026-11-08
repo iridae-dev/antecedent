@@ -537,23 +537,23 @@ impl CohortDecisionSource {
                 "declare the outcome units; they are never inferred and never converted",
             ));
         }
-        if let Some(expected) = &options.expected_contrast_regime {
-            if *expected != model.contrast.regime_id {
-                return Err(semantics_mismatch(
-                    antecedent_core::reason_details::cohort_decision::CONTRAST_MISMATCH,
-                    format!("expected={expected} model={}", model.contrast.regime_id),
-                    "load the model fitted for the contrast the decision names",
-                ));
-            }
+        if let Some(expected) = &options.expected_contrast_regime
+            && *expected != model.contrast.regime_id
+        {
+            return Err(semantics_mismatch(
+                antecedent_core::reason_details::cohort_decision::CONTRAST_MISMATCH,
+                format!("expected={expected} model={}", model.contrast.regime_id),
+                "load the model fitted for the contrast the decision names",
+            ));
         }
-        if let ModelKind::Compact { export, .. } = &model.kind {
-            if export.body().response.units != outcome_units {
-                return Err(semantics_mismatch(
-                    antecedent_core::reason_details::cohort_decision::UNITS_MISMATCH,
-                    format!("model={} declared={outcome_units}", export.body().response.units),
-                    "declare the units the model's response is expressed in; none are converted",
-                ));
-            }
+        if let ModelKind::Compact { export, .. } = &model.kind
+            && export.body().response.units != outcome_units
+        {
+            return Err(semantics_mismatch(
+                antecedent_core::reason_details::cohort_decision::UNITS_MISMATCH,
+                format!("model={} declared={outcome_units}", export.body().response.units),
+                "declare the units the model's response is expressed in; none are converted",
+            ));
         }
         require_exact_schema(model, cohort)?;
         let shifted = resolve_shift(model, cohort, options.shift.as_ref())?;

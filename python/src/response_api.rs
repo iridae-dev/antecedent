@@ -286,6 +286,10 @@ impl ResponseAnalysisResult {
     /// quantities are the `ScientificQuantityWire` objects, one per value in value
     /// order. Units are never inferred: blank units, population or scale refuse.
     #[pyo3(signature = (outcome_units, population="target", transform="identity"))]
+    #[allow(
+        clippy::result_large_err,
+        reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+    )]
     fn response_coordinates(
         &self,
         outcome_units: &str,
@@ -882,7 +886,7 @@ fn support_status_name(status: SupportStatus) -> &'static str {
 type ValueParts = (Vec<Vec<f64>>, Vec<Vec<f64>>, Option<f64>, Option<Vec<Vec<f64>>>);
 
 fn validate_surface_shape(grid: usize, dimension: usize, means: usize) -> Result<(), &'static str> {
-    if dimension == 0 || grid % dimension != 0 || grid / dimension != means {
+    if dimension == 0 || !grid.is_multiple_of(dimension) || grid / dimension != means {
         return Err("invalid surface result shape");
     }
     Ok(())

@@ -557,17 +557,15 @@ impl EvidenceRegime {
         if self.study.as_ref().is_some_and(|study| study.trim().is_empty()) {
             return Err(QueryError::InvalidTransport(TransportFault::StudyIdentityEmpty));
         }
-        if let LawOrigin::ModelArtifact { artifact } = &self.origin {
-            if artifact.trim().is_empty() {
-                return Err(QueryError::InvalidTransport(
-                    TransportFault::ModelArtifactIdentityEmpty,
-                ));
-            }
+        if let LawOrigin::ModelArtifact { artifact } = &self.origin
+            && artifact.trim().is_empty()
+        {
+            return Err(QueryError::InvalidTransport(TransportFault::ModelArtifactIdentityEmpty));
         }
-        if let LawOrigin::Recovered { derivation } = &self.origin {
-            if derivation.trim().is_empty() {
-                return Err(QueryError::InvalidTransport(TransportFault::DerivationIdentityEmpty));
-            }
+        if let LawOrigin::Recovered { derivation } = &self.origin
+            && derivation.trim().is_empty()
+        {
+            return Err(QueryError::InvalidTransport(TransportFault::DerivationIdentityEmpty));
         }
         if let SamplingSelection::SelectedOn { variables } = &self.selection {
             if variables.is_empty() {
@@ -986,10 +984,10 @@ impl EvidenceCatalog {
                     return Err(QueryError::InvalidTransport(TransportFault::VariableNotDeclared));
                 }
             }
-            if let Some(label) = &regime.label {
-                if label.trim().is_empty() || !labels.insert(label.as_ref()) {
-                    return Err(QueryError::InvalidTransport(TransportFault::RegimeLabel));
-                }
+            if let Some(label) = &regime.label
+                && (label.trim().is_empty() || !labels.insert(label.as_ref()))
+            {
+                return Err(QueryError::InvalidTransport(TransportFault::RegimeLabel));
             }
             EvidenceRegime::try_new(
                 regime.id,

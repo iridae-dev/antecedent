@@ -224,14 +224,12 @@ pub(crate) fn predictor_digest(
     for &i in order {
         law(&mut writer, &predictor.laws[i]);
     }
-    if bind_provenance {
-        if let FitDeclaration::FittedOn(keys) = &predictor.fit {
-            let sorted = super::overlap::sorted_distinct(keys);
-            if sorted.iter().any(super::law::ObservationKey::is_caller_minted) {
-                writer.text("caller_minted_fit_provenance_v2").word(sorted.len() as u64);
-                for key in sorted {
-                    writer.word(u64::from(key.is_caller_minted()));
-                }
+    if bind_provenance && let FitDeclaration::FittedOn(keys) = &predictor.fit {
+        let sorted = super::overlap::sorted_distinct(keys);
+        if sorted.iter().any(super::law::ObservationKey::is_caller_minted) {
+            writer.text("caller_minted_fit_provenance_v2").word(sorted.len() as u64);
+            for key in sorted {
+                writer.word(u64::from(key.is_caller_minted()));
             }
         }
     }

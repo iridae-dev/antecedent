@@ -1122,10 +1122,10 @@ impl VectorTreatmentArtifact {
                 "coefficients, covariance, contrasts or joint test",
             ));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &computed.identity) {
-                return Err(VectorTreatmentArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &computed.identity)
+        {
+            return Err(VectorTreatmentArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta, numbers: computed.numbers, fit: computed.fit })
     }

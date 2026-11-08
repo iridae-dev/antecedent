@@ -271,7 +271,7 @@ mod tests {
                 + (logistic(0.2 + 0.7 + 0.5) - logistic(0.2 + 0.5)));
         assert!((contrast.mean_contrast(&beta) - expected).abs() < 1e-14);
         let diffs = contrast.diffs(&beta);
-        assert!(((diffs[0] + diffs[1]) / 2.0 - expected).abs() < 1e-14);
+        assert!((f64::midpoint(diffs[0], diffs[1]) - expected).abs() < 1e-14);
 
         // Counterexample: a treatment-derived design column (T*Z) is held at its observed
         // value, so the identity-link shortcut equals (active - control) * beta_T and omits

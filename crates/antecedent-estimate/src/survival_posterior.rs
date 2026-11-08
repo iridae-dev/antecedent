@@ -190,16 +190,15 @@ fn validate(
              competing causes need cause-specific hazards",
         ));
     }
-    if let Some(entry) = delayed_entry {
-        if entry
+    if let Some(entry) = delayed_entry
+        && entry
             .iter()
             .zip(duration)
             .any(|(left, right)| !left.is_finite() || *left < 0.0 || left >= right)
-        {
-            return Err(EstimationError::data_msg(
-                "entry times must be finite, nonnegative, and earlier than exit",
-            ));
-        }
+    {
+        return Err(EstimationError::data_msg(
+            "entry times must be finite, nonnegative, and earlier than exit",
+        ));
     }
     if cuts.is_empty()
         || cuts.iter().any(|cut| !cut.is_finite() || *cut <= 0.0)

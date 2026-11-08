@@ -324,7 +324,7 @@ impl StatisticStore {
             .iter()
             .map(|(coordinate, result)| StatisticReceipt::from_result(*coordinate, *result))
             .collect();
-        out.sort_unstable_by(|a, b| a.coordinate.cmp(&b.coordinate));
+        out.sort_unstable_by_key(|a| a.coordinate);
         out
     }
 
@@ -357,7 +357,7 @@ impl StatisticStore {
                 inner.entries.get(key).map(|result| StatisticReceipt::from_result(*key, *result))
             })
             .collect();
-        receipts.sort_unstable_by(|a, b| a.coordinate.cmp(&b.coordinate));
+        receipts.sort_unstable_by_key(|a| a.coordinate);
         receipts
     }
 

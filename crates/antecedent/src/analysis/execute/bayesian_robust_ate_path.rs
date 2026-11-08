@@ -102,7 +102,7 @@ impl super::Study {
         }
         if query.target_population != antecedent_core::TargetPopulation::AllObserved
             || query.outcome_functional != antecedent_core::OutcomeFunctional::Mean
-            || query.effect_modifiers.len() > 0
+            || !query.effect_modifiers.is_empty()
             || query.control
                 != antecedent_core::Intervention::set(
                     query.treatment,

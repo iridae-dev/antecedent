@@ -190,7 +190,7 @@ fn a_covariate_shift_of_known_size_is_detected_and_asks_for_a_refresh() {
     assert!(exceeded(&report, FindingKind::CovariateShift, "z1:mean"), "{report:#?}");
     let z1 = report.findings().find(|f| f.subject == "z1:mean").unwrap();
     // Means 0 and 0.9 with variances 2 and 2.2 - 0.81 = 1.39: 0.9 / sqrt((2 + 1.39) / 2) = 0.691.
-    let expected_smd = 0.9 / ((2.0_f64 + 1.39) / 2.0).sqrt();
+    let expected_smd = 0.9 / f64::midpoint(2.0_f64, 1.39).sqrt();
     assert!(
         (z1.statistic.abs() - expected_smd).abs() < 0.06,
         "standardized shift {} against the closed form {expected_smd}",

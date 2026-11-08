@@ -510,12 +510,8 @@ pub fn validate_refutation_scope(scope: &RefutationScopeWire) -> Result<(), IoEr
         (true, false) => "temporal.frequentist",
         (true, true) => "temporal.bayesian",
     };
-    let identity = refutation_target_identity(
-        &target.family,
-        quadrant,
-        &target.labels,
-        &target.source,
-    );
+    let identity =
+        refutation_target_identity(&target.family, quadrant, &target.labels, &target.source);
     if identity != target.identity {
         return Err(IoError::Convert("refutation target identity mismatch".into()));
     }
@@ -697,15 +693,14 @@ pub fn identification_from_wire(
                 "identified estimand functional is outside its expression arena".into(),
             ));
         }
-        if let Some(design) = &estimand.rd_design {
-            if !design.cutoff.is_finite()
+        if let Some(design) = &estimand.rd_design
+            && (!design.cutoff.is_finite()
                 || !design.bandwidth.is_finite()
-                || design.bandwidth <= 0.0
-            {
-                return Err(IoError::Convert(
-                    "sharp RD design needs a finite cutoff and a finite positive bandwidth".into(),
-                ));
-            }
+                || design.bandwidth <= 0.0)
+        {
+            return Err(IoError::Convert(
+                "sharp RD design needs a finite cutoff and a finite positive bandwidth".into(),
+            ));
         }
     }
     Ok(IdentificationResult::from_parts(IdentificationResultParts {

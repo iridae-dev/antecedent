@@ -496,16 +496,16 @@ impl<'a> StaticAteExecution<'a> {
         // projected id `k` is the original id at position `k`; restore the original ids, which
         // are the ones the artifact's header names and every consumer resolve.
         let kept = super::super::helpers::columns_for_ate_estimand(query, &self.estimand);
-        if kept.len() != self.full_cols {
-            if let Some(model) = point.heterogeneity.fitted_effect.as_mut() {
-                let original: Option<Vec<u32>> = model
-                    .features
-                    .iter()
-                    .map(|&feature| kept.get(usize::try_from(feature).ok()?).map(|id| id.raw()))
-                    .collect();
-                if let Some(original) = original {
-                    Arc::make_mut(model).features = original;
-                }
+        if kept.len() != self.full_cols
+            && let Some(model) = point.heterogeneity.fitted_effect.as_mut()
+        {
+            let original: Option<Vec<u32>> = model
+                .features
+                .iter()
+                .map(|&feature| kept.get(usize::try_from(feature).ok()?).map(|id| id.raw()))
+                .collect();
+            if let Some(original) = original {
+                Arc::make_mut(model).features = original;
             }
         }
         self.clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);

@@ -111,26 +111,25 @@ pub(super) fn effect_width_reduction_from(
             Ok(se0 - se1)
         }
         CandidateDesign::ObserveEnvironment(e) => {
-            if let Some(grams) = ew.environment_grams.as_ref() {
-                if let Some(spec) = grams.iter().find(|s| s.environment == e.environment) {
-                    let p_env = gram_side_len(&spec.xtx);
-                    if p_env != p || spec.xtx.len() != ew.xtx.len() {
-                        return Err(DesignError::Shape(format!(
-                            "environment {:?} Gram has {} entries, expected {}",
-                            e.environment,
-                            spec.xtx.len(),
-                            ew.xtx.len()
-                        )));
-                    }
-                    let mut pooled = ew.xtx.to_vec();
-                    for (a, b) in pooled.iter_mut().zip(spec.xtx.iter()) {
-                        *a += *b;
-                    }
-                    let sigma2 = spec.sigma2.unwrap_or(ew.sigma2);
-                    let se1 =
-                        treatment_se(&pooled, p, ew.treatment_col, sigma2, "pooled environment")?;
-                    return Ok(se0 - se1);
+            if let Some(grams) = ew.environment_grams.as_ref()
+                && let Some(spec) = grams.iter().find(|s| s.environment == e.environment)
+            {
+                let p_env = gram_side_len(&spec.xtx);
+                if p_env != p || spec.xtx.len() != ew.xtx.len() {
+                    return Err(DesignError::Shape(format!(
+                        "environment {:?} Gram has {} entries, expected {}",
+                        e.environment,
+                        spec.xtx.len(),
+                        ew.xtx.len()
+                    )));
                 }
+                let mut pooled = ew.xtx.to_vec();
+                for (a, b) in pooled.iter_mut().zip(spec.xtx.iter()) {
+                    *a += *b;
+                }
+                let sigma2 = spec.sigma2.unwrap_or(ew.sigma2);
+                let se1 = treatment_se(&pooled, p, ew.treatment_col, sigma2, "pooled environment")?;
+                return Ok(se0 - se1);
             }
             // No env Gram: fall back to additional-row isotropic scaling for SE only.
             if e.additional_rows == 0 {

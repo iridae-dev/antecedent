@@ -150,30 +150,31 @@ pub fn resolve_passing_range(record: &CoverageRecord, rows: u64) -> RangeResolut
         return RangeResolution::Recovered(region);
     }
     let passing: Vec<&CoverageGridPoint> = record.grid.iter().filter(|p| !p.boundary).collect();
-    if let (Some(first), Some(last)) = (passing.first(), passing.last()) {
-        if first.n_min <= rows && rows <= last.n_max {
-            let interior = record
-                .grid
-                .iter()
-                .find(|p| p.boundary && first.n_max < p.n_min && p.n_max < last.n_min);
-            if let Some(failed) = interior {
-                return RangeResolution::NotContiguous {
-                    failed_point: failed.point,
-                    n_min: failed.n_min,
-                    n_max: failed.n_max,
-                };
-            }
-            let (n_min, n_max) = (first.n_min, last.n_max);
-            let below = record.grid.iter().any(|p| p.boundary && p.n_max < first.n_min);
-            let above = record.grid.iter().any(|p| p.boundary && last.n_max < p.n_min);
-            return if passing.len() < 2 {
-                RangeResolution::LonePassingPoint { n_min, n_max }
-            } else if below && above {
-                RangeResolution::InteriorRun { n_min, n_max }
-            } else {
-                RangeResolution::Unconfirmed { n_min, n_max }
+    if let (Some(first), Some(last)) = (passing.first(), passing.last())
+        && first.n_min <= rows
+        && rows <= last.n_max
+    {
+        let interior = record
+            .grid
+            .iter()
+            .find(|p| p.boundary && first.n_max < p.n_min && p.n_max < last.n_min);
+        if let Some(failed) = interior {
+            return RangeResolution::NotContiguous {
+                failed_point: failed.point,
+                n_min: failed.n_min,
+                n_max: failed.n_max,
             };
         }
+        let (n_min, n_max) = (first.n_min, last.n_max);
+        let below = record.grid.iter().any(|p| p.boundary && p.n_max < first.n_min);
+        let above = record.grid.iter().any(|p| p.boundary && last.n_max < p.n_min);
+        return if passing.len() < 2 {
+            RangeResolution::LonePassingPoint { n_min, n_max }
+        } else if below && above {
+            RangeResolution::InteriorRun { n_min, n_max }
+        } else {
+            RangeResolution::Unconfirmed { n_min, n_max }
+        };
     }
     let distance = |p: &CoverageGridPoint| {
         if rows < p.n_min { p.n_min - rows } else { rows.saturating_sub(p.n_max) }

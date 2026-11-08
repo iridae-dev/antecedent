@@ -422,7 +422,7 @@ mod tests {
         let env = identify_pag_response_general(&pag, &response()).unwrap();
         assert!(env.cases.is_empty());
         assert_eq!(env.status, IdentificationStatus::NotIdentified);
-        assert!(env.identified_weight.0 == 0.0);
+        assert_eq!(env.identified_weight.0, 0.0);
         assert!(
             env.critical_graph_features.iter().any(|f| {
                 f.kind.as_ref() == "pag_completion_validation"
@@ -498,7 +498,7 @@ mod tests {
         });
         let env = identify_pag_response_general(&mag, &query).unwrap();
         assert_eq!(env.status, IdentificationStatus::NotIdentified, "{:?}", env.cases[0].result);
-        assert!(env.identified_weight.0 == 0.0);
+        assert_eq!(env.identified_weight.0, 0.0);
         assert!(
             env.cases[0]
                 .result

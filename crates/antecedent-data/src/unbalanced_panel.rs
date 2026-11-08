@@ -674,7 +674,7 @@ impl PanelBalanceReport {
         let standardized_difference = match (stayers.sample_variance(), attriters.sample_variance())
         {
             (Some(vs), Some(va)) if vs + va > 0.0 => {
-                Some((attriters.mean() - stayers.mean()) / ((vs + va) / 2.0).sqrt())
+                Some((attriters.mean() - stayers.mean()) / f64::midpoint(vs, va).sqrt())
             }
             _ => None,
         };

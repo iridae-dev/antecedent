@@ -481,10 +481,10 @@ impl ConditionalAtoms {
             OverlapPolicy::ExplicitOverride,
         )
         .with_sampling_weights(self.sampling_weights);
-        if self.atom_ifs.len() == n_contributing {
-            if let Some(inf) = mixed_static_influence(&self.atom_ifs, &self.atom_weights) {
-                estimate.scores.influence = Some(inf);
-            }
+        if self.atom_ifs.len() == n_contributing
+            && let Some(inf) = mixed_static_influence(&self.atom_ifs, &self.atom_weights)
+        {
+            estimate.scores.influence = Some(inf);
         }
         Ok((estimate, estimand, n_contributing))
     }

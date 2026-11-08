@@ -274,7 +274,7 @@ impl Walker<'_> {
     /// Lease the bytes of the next block of history receipts (belief, history key and
     /// receipt headers; the key length is bounded by the horizon) before they are built.
     fn admit_receipt(&mut self) -> SequentialResult<()> {
-        if self.histories.len() % RECEIPT_BLOCK != 0 {
+        if !self.histories.len().is_multiple_of(RECEIPT_BLOCK) {
             return Ok(());
         }
         let per_receipt = self
@@ -304,7 +304,7 @@ impl Walker<'_> {
                 self.limits.max_nodes,
             ));
         }
-        if (self.nodes - 1) % 64 == 0 && self.ctx.cancellation.is_cancelled() {
+        if (self.nodes - 1).is_multiple_of(64) && self.ctx.cancellation.is_cancelled() {
             return Err(cancelled());
         }
         if self.histories.len() >= self.limits.max_receipts {

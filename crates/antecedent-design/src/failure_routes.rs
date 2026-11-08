@@ -211,18 +211,18 @@ pub fn failure_routes(
     ))? {
         routes.push(FailureRoute::Hedge(Box::new(family)));
     }
-    if let Some(finding) = sensitivity {
-        if let Some(family) = absent_when_identified(SensitivityRepairFamily::try_new(
+    if let Some(finding) = sensitivity
+        && let Some(family) = absent_when_identified(SensitivityRepairFamily::try_new(
             dag,
             treatment,
             outcome,
             Arc::clone(&population),
             observed.iter().copied(),
             *finding,
-        ))? {
-            confounder = Some(family.confounder());
-            routes.push(FailureRoute::Sensitivity(Box::new(family)));
-        }
+        ))?
+    {
+        confounder = Some(family.confounder());
+        routes.push(FailureRoute::Sensitivity(Box::new(family)));
     }
     Ok(FailureRoutes { routes, panel, confounder })
 }

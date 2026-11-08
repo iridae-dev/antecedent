@@ -108,7 +108,7 @@ impl InterventionalDistributionQuery {
             }
         }
         for &z in self.conditioning.iter() {
-            if self.outcomes.iter().any(|&y| y == z) {
+            if self.outcomes.contains(&z) {
                 return Err(QueryError::ConditioningOverlapsOutcomeOrIntervention);
             }
             if self.interventions.iter().any(|iv| targets(iv, z)) {

@@ -120,14 +120,14 @@ impl GraphFalsificationConfig {
                 "alpha and significance must lie in (0, 1)",
             ));
         }
-        if let Some(share) = self.max_equivalent_share {
-            if !(share.is_finite() && share > 0.0 && share <= 1.0) {
-                return Err(refuse(
-                    invalid,
-                    antecedent_core::reason_details::graph_falsification::INVALID_LEVEL,
-                    "max_equivalent_share must lie in (0, 1]",
-                ));
-            }
+        if let Some(share) = self.max_equivalent_share
+            && !(share.is_finite() && share > 0.0 && share <= 1.0)
+        {
+            return Err(refuse(
+                invalid,
+                antecedent_core::reason_details::graph_falsification::INVALID_LEVEL,
+                "max_equivalent_share must lie in (0, 1]",
+            ));
         }
         if self.n_permutations == 0
             || self.min_permutations == 0

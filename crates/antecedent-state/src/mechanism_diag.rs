@@ -118,7 +118,7 @@ impl RollingMechanismDiagnostics {
     /// Shape mismatch.
     pub fn append_batch(&mut self, rows_rowmajor: &[f64], y: &[f64]) -> Result<(), StateError> {
         let p = self.ols.ncols();
-        if rows_rowmajor.len() % p != 0 {
+        if !rows_rowmajor.len().is_multiple_of(p) {
             return Err(StateError::Shape("rows not multiple of ncols".into()));
         }
         let n = rows_rowmajor.len() / p;

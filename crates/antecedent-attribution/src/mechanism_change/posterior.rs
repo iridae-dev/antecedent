@@ -215,11 +215,11 @@ fn mechanism_change_posterior_impl(
         ));
     }
     let pairs = residual_pairs(graph_model, data, query, ctx)?;
-    if let Some((a, b)) = runs {
-        if let Some((_, rb, rc)) = pairs.first() {
-            validate_runs(a, rb.len(), ctx)?;
-            validate_runs(b, rc.len(), ctx)?;
-        }
+    if let Some((a, b)) = runs
+        && let Some((_, rb, rc)) = pairs.first()
+    {
+        validate_runs(a, rb.len(), ctx)?;
+        validate_runs(b, rc.len(), ctx)?;
     }
     if let Some(budget) = budget {
         let mut work = 0_u64;

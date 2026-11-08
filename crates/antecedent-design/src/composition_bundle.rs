@@ -415,10 +415,10 @@ fn derive(
             .map(|e| ((e.from.as_str(), e.to.as_str()), e.upstream_digest.as_str()))
             .collect()
     });
-    if let Some(edges) = declared {
-        if edges.len() != deps.len() {
-            return Err(graph_error("an edge is repeated", None));
-        }
+    if let Some(edges) = declared
+        && edges.len() != deps.len()
+    {
+        return Err(graph_error("an edge is repeated", None));
     }
     let mut link_ids = vec![String::new(); nodes.len()];
     let mut links = Vec::with_capacity(nodes.len());
@@ -518,14 +518,14 @@ impl CompositionBundle {
             return Err(refused(BundleStage::Oversized, "too many nodes or edges", None));
         }
         for node in &nodes {
-            if let NodeSource::Embedded { bytes } = &node.source {
-                if bytes.len() > limits.max_embedded_bytes {
-                    return Err(refused(
-                        BundleStage::Oversized,
-                        "an embedded artifact exceeds its bound",
-                        Some(node.id.clone()),
-                    ));
-                }
+            if let NodeSource::Embedded { bytes } = &node.source
+                && bytes.len() > limits.max_embedded_bytes
+            {
+                return Err(refused(
+                    BundleStage::Oversized,
+                    "an embedded artifact exceeds its bound",
+                    Some(node.id.clone()),
+                ));
             }
         }
         for node in &mut nodes {
@@ -1167,23 +1167,19 @@ fn find_conflict(
 ) -> Option<(BundleStage, String)> {
     for up in upstream {
         for (key, stage) in BINDING_FACTS {
-            if let (Some(a), Some(b)) = (up.facts.get(key), facts.get(key)) {
-                if a != b {
-                    return Some((
-                        stage,
-                        format!("`{key}` differs from upstream node `{}`", up.id),
-                    ));
-                }
+            if let (Some(a), Some(b)) = (up.facts.get(key), facts.get(key))
+                && a != b
+            {
+                return Some((stage, format!("`{key}` differs from upstream node `{}`", up.id)));
             }
         }
         if let (Some(required), Some(law)) = (facts.get(FACT_REQUIRES_LAW), up.facts.get(FACT_LAW))
+            && required != law
         {
-            if required != law {
-                return Some((
-                    BundleStage::UnsupportedLaw,
-                    format!("upstream node `{}` supplies `{law}`, not `{required}`", up.id),
-                ));
-            }
+            return Some((
+                BundleStage::UnsupportedLaw,
+                format!("upstream node `{}` supplies `{law}`, not `{required}`", up.id),
+            ));
         }
     }
     None
@@ -1334,10 +1330,10 @@ impl BundleConsumer {
                         resolve_reference(node, requires, supplied)
                     }
                 };
-                if !state.is_failed() {
-                    if let Some((stage, reason)) = find_conflict(&state.facts, &upstream) {
-                        state = NodeState::failed(stage, reason);
-                    }
+                if !state.is_failed()
+                    && let Some((stage, reason)) = find_conflict(&state.facts, &upstream)
+                {
+                    state = NodeState::failed(stage, reason);
                 }
                 state
             };

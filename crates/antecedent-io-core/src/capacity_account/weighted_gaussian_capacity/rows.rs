@@ -90,7 +90,7 @@ impl<'a> ResidentWeightedRows<'a> {
         }
         let ncols = if y.is_empty() {
             return Err(WeightedCapacityError::Shape(DesignShape::ZeroColumns));
-        } else if x_rowmajor.len() % y.len() != 0 {
+        } else if !x_rowmajor.len().is_multiple_of(y.len()) {
             return Err(WeightedCapacityError::Shape(DesignShape::DesignLength));
         } else {
             x_rowmajor.len() / y.len()
@@ -319,7 +319,7 @@ pub fn encode_weighted_row_file(
     y: &[f64],
     weights: &[f64],
 ) -> Result<Vec<u8>, WeightedCapacityError> {
-    if y.len() != weights.len() || y.is_empty() || x_rowmajor.len() % y.len() != 0 {
+    if y.len() != weights.len() || y.is_empty() || !x_rowmajor.len().is_multiple_of(y.len()) {
         return Err(WeightedCapacityError::Shape(DesignShape::DesignLength));
     }
     let ncols = x_rowmajor.len() / y.len();

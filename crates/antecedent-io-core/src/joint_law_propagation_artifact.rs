@@ -430,11 +430,8 @@ fn check_bounds(
             }
         }
         PropagationRequestWire::AlignedLinearCombination { x, y, .. }
-        | PropagationRequestWire::AlignedFunctional { x, y, .. } => {
-            draws(x.len())?;
-            draws(y.len())?;
-        }
-        PropagationRequestWire::AlignedFunctionalSpread { x, y, .. }
+        | PropagationRequestWire::AlignedFunctional { x, y, .. }
+        | PropagationRequestWire::AlignedFunctionalSpread { x, y, .. }
         | PropagationRequestWire::AlignedExceedance { x, y, .. } => {
             draws(x.len())?;
             draws(y.len())?;
@@ -1070,10 +1067,10 @@ impl JointLawPropagationArtifactWire {
         if recomputed != self.identity {
             return Err(Error::IdentityMismatch);
         }
-        if let Some(expected) = expected_identity {
-            if expected != recomputed {
-                return Err(Error::IdentityMismatch);
-            }
+        if let Some(expected) = expected_identity
+            && expected != recomputed
+        {
+            return Err(Error::IdentityMismatch);
         }
         // The rule decides again from the stored declaration: a resealed edit
         // that changes the operation, the dependence declaration, an

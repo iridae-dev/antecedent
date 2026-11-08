@@ -267,7 +267,7 @@ mod tests {
             }
             for i in 0..n_usize {
                 for j in (i + 1)..n_usize {
-                    if rng.next_u64() % 3 == 0 {
+                    if rng.next_u64().is_multiple_of(3) {
                         let _ = graph.insert_directed(
                             DenseNodeId::from_raw(order[i]),
                             DenseNodeId::from_raw(order[j]),
@@ -311,7 +311,7 @@ mod tests {
                     if node == source || node == target {
                         continue;
                     }
-                    if rng.next_u64() % 2 == 0 {
+                    if rng.next_u64().is_multiple_of(2) {
                         conditioning.push(node);
                     }
                 }

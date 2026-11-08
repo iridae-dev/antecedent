@@ -898,34 +898,32 @@ impl super::Study {
         }
         let mut plan = self.compile_with_route(&input, &physical_context)?;
         crate::analysis::lowering::offer_retained_identification(self, previous, &mut plan);
-        if let RouteInput::StaticAteDag { data, query, .. } = input {
-            if crate::analysis::compiled_linear::can_retain(self, query)
-                && self.resolve_static_ids().1 == EstimatorId::LinearAdjustmentAte
-            {
-                // A branch on new rows whose retained identification was accepted rebinds the
-                // retained checked operation to them; it does not identify the claim again.
-                let retained =
-                    previous.and_then(|previous| previous.linear.as_ref()).filter(|_| {
-                        matches!((&plan.lowered, previous.and_then(|p| p.lowered.as_ref())),
+        if let RouteInput::StaticAteDag { data, query, .. } = input
+            && crate::analysis::compiled_linear::can_retain(self, query)
+            && self.resolve_static_ids().1 == EstimatorId::LinearAdjustmentAte
+        {
+            // A branch on new rows whose retained identification was accepted rebinds the
+            // retained checked operation to them; it does not identify the claim again.
+            let retained = previous.and_then(|previous| previous.linear.as_ref()).filter(|_| {
+                matches!((&plan.lowered, previous.and_then(|p| p.lowered.as_ref())),
                             (Some(fresh), Some(old)) if std::sync::Arc::ptr_eq(fresh, old))
-                    });
-                let rebound = match retained {
-                    Some(linear) => match linear.rebind(data, query, &mut plan, ctx) {
-                        Ok(rebound) => Some(Ok(rebound)),
-                        // Rows that no longer fit the resident design are compiled afresh.
-                        Err(CausalError::Resource { .. }) => None,
-                        Err(error) => Some(Err(error)),
-                    },
-                    None => None,
-                };
-                plan.linear = match rebound {
-                    Some(rebound) => Some(std::sync::Arc::new(rebound?)),
-                    None => crate::analysis::compiled_linear::CompiledLinearExecution::compile(
-                        self, data, query, &mut plan, ctx,
-                    )?
-                    .map(std::sync::Arc::new),
-                };
-            }
+            });
+            let rebound = match retained {
+                Some(linear) => match linear.rebind(data, query, &mut plan, ctx) {
+                    Ok(rebound) => Some(Ok(rebound)),
+                    // Rows that no longer fit the resident design are compiled afresh.
+                    Err(CausalError::Resource { .. }) => None,
+                    Err(error) => Some(Err(error)),
+                },
+                None => None,
+            };
+            plan.linear = match rebound {
+                Some(rebound) => Some(std::sync::Arc::new(rebound?)),
+                None => crate::analysis::compiled_linear::CompiledLinearExecution::compile(
+                    self, data, query, &mut plan, ctx,
+                )?
+                .map(std::sync::Arc::new),
+            };
         }
         crate::analysis::lowering::attach(self, input, &mut plan, goal, ctx)?;
         Ok(plan)

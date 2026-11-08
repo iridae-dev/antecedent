@@ -948,10 +948,10 @@ impl PropagationChainRecordWire {
         if recomputed != self.identity {
             return Err(Error::IdentityMismatch);
         }
-        if let Some(expected) = expected_identity {
-            if expected != recomputed {
-                return Err(Error::IdentityMismatch);
-            }
+        if let Some(expected) = expected_identity
+            && expected != recomputed
+        {
+            return Err(Error::IdentityMismatch);
         }
         // The rule decides again from the stored declaration, and the arithmetic
         // runs again from the stored draws: a resealed edit that changes an

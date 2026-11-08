@@ -917,7 +917,7 @@ fn the_bayesian_sustained_contrast_on_a_series_with_gaps_recovers_the_known_effe
     assert!((ate - 2.8).abs() < 0.1, "posterior contrast {ate}");
     assert!(result.posterior.is_some());
     let accounting = &result.missing_data().as_ref().unwrap().accounting;
-    assert!(accounting.dropped_rows.iter().any(|row| *row == 91));
+    assert!(accounting.dropped_rows.contains(&91));
 }
 
 #[test]

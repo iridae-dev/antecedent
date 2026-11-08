@@ -508,10 +508,10 @@ fn columns(
     if p.checked_mul(n) != Some(data.covariates.len()) {
         return Err(invalid("covariates are not n x covariate_count"));
     }
-    if let Some(counts) = data.replicate_counts {
-        if counts.len() != n {
-            return Err(invalid("replicate counts differ in length from the other columns"));
-        }
+    if let Some(counts) = data.replicate_counts
+        && counts.len() != n
+    {
+        return Err(invalid("replicate counts differ in length from the other columns"));
     }
     let (outcome, regressor, offsets) = if in_outcome {
         let (outcome, offsets) = resolve_error_prone(data.outcome, data, n)?;
@@ -520,12 +520,12 @@ fn columns(
         let (regressor, offsets) = resolve_error_prone(data.regressor, data, n)?;
         (data.outcome.to_vec(), regressor, offsets)
     };
-    if let ErrorLocation::Covariate { treatment_column } = location {
-        if treatment_column >= p {
-            return Err(invalid(format!(
-                "the treatment column {treatment_column} is not one of the {p} covariates"
-            )));
-        }
+    if let ErrorLocation::Covariate { treatment_column } = location
+        && treatment_column >= p
+    {
+        return Err(invalid(format!(
+            "the treatment column {treatment_column} is not one of the {p} covariates"
+        )));
     }
     Ok(Columns {
         n,

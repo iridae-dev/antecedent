@@ -552,10 +552,8 @@ impl CallbackDeclaration {
             }
             ReplayContract::SideEffecting {
                 retry: RetryContract::IdempotentKey { max_attempts },
-            } => {
-                if *max_attempts == 0 {
-                    return Err(replay_contract_incomplete("max_attempts"));
-                }
+            } if *max_attempts == 0 => {
+                return Err(replay_contract_incomplete("max_attempts"));
             }
             _ => {}
         }

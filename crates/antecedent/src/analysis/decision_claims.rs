@@ -981,12 +981,12 @@ pub fn interval_identified_utilities(
 ) -> Result<Vec<IdentifiedUtility>, ClaimError> {
     if reading == IntervalReading::CoverageInterval {
         let mut quantities = contract.contract.actions.iter().flat_map(|action| &action.inputs);
-        if let Some(first) = quantities.next() {
-            if quantities.any(|quantity| first.require_same_coordinate(quantity).is_err()) {
-                return Err(ClaimError::UnsupportedClaimShape(
-                    "separate input intervals supply no joint coverage contract",
-                ));
-            }
+        if let Some(first) = quantities.next()
+            && quantities.any(|quantity| first.require_same_coordinate(quantity).is_err())
+        {
+            return Err(ClaimError::UnsupportedClaimShape(
+                "separate input intervals supply no joint coverage contract",
+            ));
         }
     }
     for (index, (quantity, _)) in intervals.iter().enumerate() {

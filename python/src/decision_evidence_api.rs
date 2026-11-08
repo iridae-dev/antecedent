@@ -514,18 +514,17 @@ fn evidence_with_context(
             Err(error) => return Ok(Err(error)),
         };
         let mut compatible = actual == value;
-        if !compatible {
-            if let (Dependence::Joint { treated, control }, Dependence::MarginalsOnly { .. }) =
+        if !compatible
+            && let (Dependence::Joint { treated, control }, Dependence::MarginalsOnly { .. }) =
                 (&actual.dependence, &value.dependence)
-            {
-                let k = actual.components.len();
-                let mut downgraded = actual.clone();
-                downgraded.dependence = Dependence::MarginalsOnly {
-                    treated: (0..k).map(|i| treated[i * k + i]).collect(),
-                    control: (0..k).map(|i| control[i * k + i]).collect(),
-                };
-                compatible = downgraded == value;
-            }
+        {
+            let k = actual.components.len();
+            let mut downgraded = actual.clone();
+            downgraded.dependence = Dependence::MarginalsOnly {
+                treated: (0..k).map(|i| treated[i * k + i]).collect(),
+                control: (0..k).map(|i| control[i * k + i]).collect(),
+            };
+            compatible = downgraded == value;
         }
         if !compatible {
             return Ok(Err(EvidenceRefusal::Invalid(
@@ -1157,14 +1156,13 @@ fn decision_evidence_experimental(
         };
         let confounders: Vec<Vec<f64>> =
             if regime.is_some() { decoded(map, "confounders")? } else { Vec::new() };
-        if let Some(d) = &regime {
-            if d.design.realized_assignment != assigned
-                || horizon as usize != d.design.active_path.len()
-            {
-                return Ok(finish(Err(EvidenceRefusal::Invalid(
-                    "regime assignment and horizon must match the compiled histories".into(),
-                ))));
-            }
+        if let Some(d) = &regime
+            && (d.design.realized_assignment != assigned
+                || horizon as usize != d.design.active_path.len())
+        {
+            return Ok(finish(Err(EvidenceRefusal::Invalid(
+                "regime assignment and horizon must match the compiled histories".into(),
+            ))));
         }
         if let Some(d) = regime.as_ref() {
             let fitted = if present(dm, "bootstrap_replicates").is_some() {

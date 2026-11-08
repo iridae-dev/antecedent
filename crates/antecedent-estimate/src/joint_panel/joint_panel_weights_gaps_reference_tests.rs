@@ -348,7 +348,8 @@ fn build_joint_panel_weighted_response_is_the_weighted_group_average() {
             })
             .collect(),
     };
-    let response = evaluate_panel_programs(&data, &draw, &[program.clone()], &ctx()).unwrap();
+    let response =
+        evaluate_panel_programs(&data, &draw, std::slice::from_ref(&program), &ctx()).unwrap();
     let weights = vector(&case["weights"]);
     let mut expected = [0.0; 2];
     for (index, group) in data.groups.iter().enumerate() {

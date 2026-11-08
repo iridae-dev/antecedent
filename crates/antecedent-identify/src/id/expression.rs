@@ -326,7 +326,7 @@ fn intervention_for_factor(
     let mut touching = Vec::new();
     for (t, val) in assign.iter() {
         let t_var = prepared.dense_to_var(*t)?;
-        if *t == vi || conditioned_on.iter().any(|&v| v == t_var) {
+        if *t == vi || conditioned_on.contains(&t_var) {
             touching.push(InterventionAssignment { variable: t_var, value: val.clone() });
         }
     }

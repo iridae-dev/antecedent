@@ -303,12 +303,11 @@ fn identify_structure(
                 } else {
                     temporal.max_history_lag = max_history_lag;
                 }
-                if let Some(grid) = response_grid {
-                    if let antecedent::query::ResponseFunctional::MeanCurve { treatment, .. } =
+                if let Some(grid) = response_grid
+                    && let antecedent::query::ResponseFunctional::MeanCurve { treatment, .. } =
                         &mut response.functional
-                    {
-                        treatment.grid = antecedent::query::GridSpec::Values(grid.into());
-                    }
+                {
+                    treatment.grid = antecedent::query::GridSpec::Values(grid.into());
                 }
                 if let Some(steps) = response_steps {
                     let treatment_ids = steps

@@ -190,13 +190,12 @@ impl CyclicEvidence {
                 for second in &sources[i + 1..] {
                     if let (Some(a), Some(b)) =
                         (&first.report.recovery_origins, &second.report.recovery_origins)
+                        && a.evidence == b.evidence
                     {
-                        if a.evidence == b.evidence {
-                            return Err(joint_refusal(
-                                antecedent_core::reason_code!("evidence_double_counted"),
-                                "cyclic_evidence.shared_training_declared_independent: these products read the same experiment evidence; supply their verified aligned joint law",
-                            ));
-                        }
+                        return Err(joint_refusal(
+                            antecedent_core::reason_code!("evidence_double_counted"),
+                            "cyclic_evidence.shared_training_declared_independent: these products read the same experiment evidence; supply their verified aligned joint law",
+                        ));
                     }
                 }
             }

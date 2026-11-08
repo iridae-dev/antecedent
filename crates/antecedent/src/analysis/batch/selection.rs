@@ -168,10 +168,10 @@ fn candidate_selection(
                                 value.is_finite() && se.is_finite() && *se >= 0.0
                             })
                             .max_by(|a, b| {
-                                let sa = a.1 .1.abs().max(1e-12);
-                                let sb = b.1 .1.abs().max(1e-12);
-                                (a.1 .0.abs() / sa)
-                                    .partial_cmp(&(b.1 .0.abs() / sb))
+                                let sa = a.1.1.abs().max(1e-12);
+                                let sb = b.1.1.abs().max(1e-12);
+                                (a.1.0.abs() / sa)
+                                    .partial_cmp(&(b.1.0.abs() / sb))
                                     .unwrap_or(std::cmp::Ordering::Equal)
                             })
                             .map(|(i, _)| i)

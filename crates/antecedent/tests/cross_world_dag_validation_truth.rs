@@ -131,7 +131,9 @@ fn orthogonal_noise(n: usize, t: &[f64]) -> (Vec<f64>, Vec<f64>) {
     let dot = |a: &[f64], b: &[f64]| a.iter().zip(b).map(|(x, y)| x * y).sum::<f64>();
     let center = |v: &mut Vec<f64>| {
         let mean = v.iter().sum::<f64>() / v.len() as f64;
-        v.iter_mut().for_each(|x| *x -= mean);
+        for x in v.iter_mut() {
+            *x -= mean;
+        }
     };
     let mut tc = t.to_vec();
     center(&mut tc);
@@ -149,7 +151,9 @@ fn orthogonal_noise(n: usize, t: &[f64]) -> (Vec<f64>, Vec<f64>) {
     }
     let unit = |v: &mut Vec<f64>| {
         let rms = (dot(v, v) / v.len() as f64).sqrt();
-        v.iter_mut().for_each(|x| *x /= rms);
+        for x in v.iter_mut() {
+            *x /= rms;
+        }
     };
     unit(&mut a);
     unit(&mut b);

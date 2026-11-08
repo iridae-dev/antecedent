@@ -1015,14 +1015,12 @@ fn reseal_and_consume(
     let mut forged = consumed.contract.clone().expect("a contract");
     let program = forged.program.as_mut().expect("a program");
     edit(program);
-    if rechain {
-        if let Some(programs) = program.graph_posterior_programs.as_mut() {
-            programs.chain = antecedent_io::GraphPosteriorProgramsWire::compute_chain(
-                &programs.mixing,
-                &programs.atoms,
-            )
-            .unwrap();
-        }
+    if rechain && let Some(programs) = program.graph_posterior_programs.as_mut() {
+        programs.chain = antecedent_io::GraphPosteriorProgramsWire::compute_chain(
+            &programs.mixing,
+            &programs.atoms,
+        )
+        .unwrap();
     }
     forged.identities.program =
         *antecedent_io::program_digest(forged.program.as_ref().unwrap()).unwrap().as_bytes();

@@ -235,7 +235,7 @@ fn conditional_logit_contrast_uses_both_intervention_rows_on_outcome_scale() {
         4,
         17,
     );
-    let mut rng = antecedent_core::CausalRng::from_seed(17 ^ 0x4D4F_4449_4649_4552);
+    let mut rng = antecedent_core::CausalRng::from_seed(0x11 ^ 0x4D4F_4449_4649_4552);
     let weights = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, 4, false);
     let expected = weights
         .iter()

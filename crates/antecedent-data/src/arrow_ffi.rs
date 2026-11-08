@@ -273,7 +273,7 @@ pub(crate) fn float64_column_from_array(
     let (validity, validity_copied) = validity_from_arrow(floats)?;
 
     let values_slice = floats.values().as_ref();
-    let aligned = values_slice.as_ptr() as usize % core::mem::align_of::<f64>() == 0;
+    let aligned = (values_slice.as_ptr() as usize).is_multiple_of(core::mem::align_of::<f64>());
     // Arrow leaves the value under a null slot unspecified (exporters commonly
     // write 0.0). Borrow only when every null slot already holds NaN; otherwise
     // copy and write NaN there, so a borrowed slice never shows a missing cell

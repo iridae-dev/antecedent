@@ -97,10 +97,10 @@ impl CrossfitPlan {
         for fold in 0..self.folds() {
             poll(fold)?;
             let rows = self.rows(fold);
-            if let Some(refuse) = &empty {
-                if rows.train.is_empty() || rows.valid.is_empty() {
-                    return Err(refuse());
-                }
+            if let Some(refuse) = &empty
+                && (rows.train.is_empty() || rows.valid.is_empty())
+            {
+                return Err(refuse());
             }
             let nuisance = fit_nuisance(rows)?;
             score(rows, nuisance)?;

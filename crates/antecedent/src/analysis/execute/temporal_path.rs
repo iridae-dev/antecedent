@@ -325,17 +325,14 @@ impl super::Study {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
         }
-        if let Some(cache) = self.temporal_class_cache() {
-            if let Some((_, envelope)) =
+        if let Some(cache) = self.temporal_class_cache()
+            && let Some((_, envelope)) =
                 cache.by_horizon.iter().find(|(horizon, _)| *horizon == query.horizon_steps)
-            {
-                return Ok(Arc::new(
-                    crate::analysis::prepared::CachedTemporalClassIdentification {
-                        envelope: Arc::clone(envelope),
-                        by_horizon: Vec::new(),
-                    },
-                ));
-            }
+        {
+            return Ok(Arc::new(crate::analysis::prepared::CachedTemporalClassIdentification {
+                envelope: Arc::clone(envelope),
+                by_horizon: Vec::new(),
+            }));
         }
         let mut config = antecedent_identify::GeneralizedAdjustmentConfig {
             context: Some(ctx.clone()),
@@ -411,16 +408,16 @@ pub(super) fn enforce_temporal_response_memory_budget(
             message: "temporal response output byte estimate overflow".into(),
         })?;
     let limit = ctx.memory_limit_bytes();
-    if let Some(limit) = limit {
-        if minimum_bytes > limit {
-            return Err(CausalError::Resource {
-                message: format!(
-                    "temporal response needs at least {minimum_bytes} output bytes for {cells} \
+    if let Some(limit) = limit
+        && minimum_bytes > limit
+    {
+        return Err(CausalError::Resource {
+            message: format!(
+                "temporal response needs at least {minimum_bytes} output bytes for {cells} \
                      cells; memory limit is {limit}; coarsen the dose grid or request fewer \
                      horizons"
-                ),
-            });
-        }
+            ),
+        });
     }
     Ok(())
 }

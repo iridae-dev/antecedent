@@ -184,10 +184,10 @@ fn source_point_value(
             source.quantity.canonical_identity(),
         ));
     }
-    if let Some(units) = &source.claim.outcome_units {
-        if &**units != source.quantity.units.as_str() {
-            return Err(units_mismatch(source.quantity.units.clone(), units.to_string()));
-        }
+    if let Some(units) = &source.claim.outcome_units
+        && &**units != source.quantity.units.as_str()
+    {
+        return Err(units_mismatch(source.quantity.units.clone(), units.to_string()));
     }
     if source.claim.kind != ClaimKind::Point {
         return Err(source_not_point(source.claim.kind.as_str()));

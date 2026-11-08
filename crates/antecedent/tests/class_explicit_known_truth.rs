@@ -203,7 +203,7 @@ fn class_average_effect_matches_the_closed_forms_explicit_and_accepted() {
     let pin = &fixture["static_average_effect"];
     let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
     let effects = floats(&pin["identified_atom_effects"]);
-    let completion_mean = (effects[0] + effects[1]) / 2.0;
+    let completion_mean = f64::midpoint(effects[0], effects[1]);
     let structural = effects[1];
     let band = pin["effect_abs_tolerance"].as_f64().unwrap();
     let query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(

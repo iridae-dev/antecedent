@@ -357,49 +357,50 @@ fn column(
     ev: &mut Evaluator,
 ) {
     let (support_forces, support_keys) = keys_for_role(&old.role);
-    if let (Some(o), Some(c)) = (&old.numeric, &current.numeric) {
-        if old.n_valid >= 2 && current.n_valid >= 2 {
-            let (v0, v1) = (variance(old.n_valid, o.m2), variance(current.n_valid, c.m2));
-            let effect = smd(o.mean, v0, c.mean, v1);
-            if let Some((t, p)) = welch(old.n_valid, o.mean, v0, current.n_valid, c.mean, v1) {
-                ev.test(
-                    StalenessFinding::threshold(
-                        FindingKind::CovariateShift,
-                        format!("{}:mean", old.name),
-                        ("standardized_mean_difference", effect),
-                        ("smd_threshold", policy.smd_threshold),
-                        false,
-                        Recommendation::Refresh,
-                        vec![Stage::DataSnapshot],
-                    )
-                    .with("welch_t", t)
-                    .with("recorded_mean", o.mean)
-                    .with("new_mean", c.mean),
-                    p,
-                    effect.abs() >= policy.smd_threshold,
-                );
-            }
-            if let Some((statistic, df, p)) = chi_square_homogeneity(&o.bin_counts, &c.bin_counts) {
-                let (psi, max_ratio) = population_stability(&o.bin_counts, &c.bin_counts);
-                ev.test(
-                    StalenessFinding::threshold(
-                        FindingKind::CovariateShift,
-                        format!("{}:distribution", old.name),
-                        ("population_stability_index", psi),
-                        ("psi_threshold", policy.psi_threshold),
-                        false,
-                        Recommendation::Refresh,
-                        vec![Stage::DataSnapshot],
-                    )
-                    .with("chi_square", statistic)
-                    .with("df", df as f64)
-                    .with("max_density_ratio", max_ratio),
-                    p,
-                    psi >= policy.psi_threshold,
-                );
-            }
-            support(old, o.min, o.max, table, policy, (support_forces, support_keys), ev);
+    if let (Some(o), Some(c)) = (&old.numeric, &current.numeric)
+        && old.n_valid >= 2
+        && current.n_valid >= 2
+    {
+        let (v0, v1) = (variance(old.n_valid, o.m2), variance(current.n_valid, c.m2));
+        let effect = smd(o.mean, v0, c.mean, v1);
+        if let Some((t, p)) = welch(old.n_valid, o.mean, v0, current.n_valid, c.mean, v1) {
+            ev.test(
+                StalenessFinding::threshold(
+                    FindingKind::CovariateShift,
+                    format!("{}:mean", old.name),
+                    ("standardized_mean_difference", effect),
+                    ("smd_threshold", policy.smd_threshold),
+                    false,
+                    Recommendation::Refresh,
+                    vec![Stage::DataSnapshot],
+                )
+                .with("welch_t", t)
+                .with("recorded_mean", o.mean)
+                .with("new_mean", c.mean),
+                p,
+                effect.abs() >= policy.smd_threshold,
+            );
         }
+        if let Some((statistic, df, p)) = chi_square_homogeneity(&o.bin_counts, &c.bin_counts) {
+            let (psi, max_ratio) = population_stability(&o.bin_counts, &c.bin_counts);
+            ev.test(
+                StalenessFinding::threshold(
+                    FindingKind::CovariateShift,
+                    format!("{}:distribution", old.name),
+                    ("population_stability_index", psi),
+                    ("psi_threshold", policy.psi_threshold),
+                    false,
+                    Recommendation::Refresh,
+                    vec![Stage::DataSnapshot],
+                )
+                .with("chi_square", statistic)
+                .with("df", df as f64)
+                .with("max_density_ratio", max_ratio),
+                p,
+                psi >= policy.psi_threshold,
+            );
+        }
+        support(old, o.min, o.max, table, policy, (support_forces, support_keys), ev);
     }
     if let (Some(o), Some(c)) = (&old.levels, &current.levels) {
         levels(old, o, c, policy, (support_forces, &keys_for_role(&old.role).1), ev);

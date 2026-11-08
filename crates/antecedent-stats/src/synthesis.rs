@@ -675,12 +675,12 @@ pub fn hierarchical_normal_borrowing(
     if k < 2 {
         return Err(SynthesisError::TooFewStudies { needed: 2, got: k });
     }
-    if let MeanPrior::Normal { mean, variance } = mean_prior {
-        if !mean.is_finite() || !variance.is_finite() || variance <= 0.0 {
-            return Err(SynthesisError::InvalidPrior(
-                "mean prior needs a finite mean and positive variance",
-            ));
-        }
+    if let MeanPrior::Normal { mean, variance } = mean_prior
+        && (!mean.is_finite() || !variance.is_finite() || variance <= 0.0)
+    {
+        return Err(SynthesisError::InvalidPrior(
+            "mean prior needs a finite mean and positive variance",
+        ));
     }
     let n = tau_prior.support.len();
     if n == 0 || n > MAX_TAU_SUPPORT || tau_prior.probabilities.len() != n {

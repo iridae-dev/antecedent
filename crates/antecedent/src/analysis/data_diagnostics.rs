@@ -140,16 +140,13 @@ fn context(study: &Study, data: &TabularData) -> DataDiagnosticContext {
         CausalQuery::ConditionalEffect(query) => Some(&query.inner),
         _ => None,
     };
-    if let Some(q) = contrast {
-        if let (Intervention::Set { value: control, .. }, Intervention::Set { value: active, .. }) =
+    if let Some(q) = contrast
+        && let (Intervention::Set { value: control, .. }, Intervention::Set { value: active, .. }) =
             (&q.control, &q.active)
-        {
-            if let (Some(control), Some(active), Ok(variable)) =
-                (control.as_f64(), active.as_f64(), data.schema().get(q.treatment))
-            {
-                context.contrasts.insert(variable.name.to_string(), vec![control, active]);
-            }
-        }
+        && let (Some(control), Some(active), Ok(variable)) =
+            (control.as_f64(), active.as_f64(), data.schema().get(q.treatment))
+    {
+        context.contrasts.insert(variable.name.to_string(), vec![control, active]);
     }
     writer.text(&serde_json::to_string(&context.roles).expect("roles"));
     context.plan_identity = writer.finish_hex();

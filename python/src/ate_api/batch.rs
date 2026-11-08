@@ -292,8 +292,10 @@ fn compile_cell_batch(
     for declaration in &parsed_queries {
         let treatment_ids =
             crate::response_api::resolve_names(data.schema(), &declaration.treatments)?;
-        let outcome_ids =
-            crate::response_api::resolve_names(data.schema(), &[declaration.outcome.clone()])?;
+        let outcome_ids = crate::response_api::resolve_names(
+            data.schema(),
+            std::slice::from_ref(&declaration.outcome),
+        )?;
         let built = crate::response_api::build_functional(
             "intervention_response",
             &treatment_ids,

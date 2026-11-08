@@ -184,10 +184,12 @@ impl DecisionReliabilityArtifact {
                 antecedent_core::reason_details::decision_reliability::DECISION_MISMATCH,
             );
         }
-        if let Some(stream) = &expected.selection_stream {
-            if self.draws.candidates.iter().any(|c| c.segment.stream != *stream) {
-                return differs(antecedent_core::reason_details::decision_reliability::SELECTION_STREAM_MISMATCH);
-            }
+        if let Some(stream) = &expected.selection_stream
+            && self.draws.candidates.iter().any(|c| c.segment.stream != *stream)
+        {
+            return differs(
+                antecedent_core::reason_details::decision_reliability::SELECTION_STREAM_MISMATCH,
+            );
         }
         if let Some(stream) = &expected.validation_stream {
             let validated = self

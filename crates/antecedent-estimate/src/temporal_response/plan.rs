@@ -451,10 +451,10 @@ pub(crate) fn plan_temporal_intervention(
                 .checked_add(step.temporal.offset_count()?)
                 .ok_or(T::Limit { dimension: "offsets" })?;
         }
-    } else if let Intervention::Soft { mechanism, .. } = primary {
-        if matches!(mechanism.family_id.as_ref(), "multiplicative" | "truncated_shift") {
-            offsets = spec.policy.offset_count()?;
-        }
+    } else if let Intervention::Soft { mechanism, .. } = primary
+        && matches!(mechanism.family_id.as_ref(), "multiplicative" | "truncated_shift")
+    {
+        offsets = spec.policy.offset_count()?;
     }
     budget.charge_offsets(offsets)?;
     // Multiple copies, sorting, and duplicate checks are bounded by these

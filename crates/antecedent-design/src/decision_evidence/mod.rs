@@ -714,29 +714,27 @@ impl JointExperimentEvidence {
             }
             if let AdjustmentKind::FixedCuped { covariate, coefficient }
             | AdjustmentKind::CenteredFixedCuped { covariate, coefficient } = &a.kind
+                && (covariate.trim().is_empty() || !coefficient.is_finite())
             {
-                if covariate.trim().is_empty() || !coefficient.is_finite() {
-                    return invalid("fixed CUPED needs a covariate and a finite coefficient");
-                }
+                return invalid("fixed CUPED needs a covariate and a finite coefficient");
             }
         }
-        if let Exposure::BoundedSpillover { bias_bounds, .. } = &exposure {
-            if bias_bounds.len() != k || bias_bounds.iter().any(|b| !b.is_finite() || *b < 0.0) {
-                return invalid(
-                    "spillover bounds must be finite, nonnegative and aligned with the components",
-                );
-            }
+        if let Exposure::BoundedSpillover { bias_bounds, .. } = &exposure
+            && (bias_bounds.len() != k || bias_bounds.iter().any(|b| !b.is_finite() || *b < 0.0))
+        {
+            return invalid(
+                "spillover bounds must be finite, nonnegative and aligned with the components",
+            );
         }
         if let Exposure::BoundedArmSpillover { treated_bias_bounds, control_bias_bounds, .. } =
             &exposure
-        {
-            if [treated_bias_bounds, control_bias_bounds].iter().any(|bounds| {
+            && [treated_bias_bounds, control_bias_bounds].iter().any(|bounds| {
                 bounds.len() != k || bounds.iter().any(|b| !b.is_finite() || *b < 0.0)
-            }) {
-                return invalid(
-                    "arm spillover bounds must be finite, nonnegative and aligned with the components",
-                );
-            }
+            })
+        {
+            return invalid(
+                "arm spillover bounds must be finite, nonnegative and aligned with the components",
+            );
         }
         let (treated_regime, control_regime) = (regimes.0.into(), regimes.1.into());
         if treated_regime == control_regime {

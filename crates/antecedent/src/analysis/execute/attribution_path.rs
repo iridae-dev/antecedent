@@ -14,12 +14,12 @@ use super::{
 };
 mod contrast_set;
 mod homogeneity;
+use crate::analysis::proof_support::proof_supplies_full;
+use antecedent_core::StreamDomain;
 use homogeneity::{
     HomogeneityVerdict, heterogeneity_rejected_diagnostic, homogeneity_verdict,
     homogeneity_verdict_over, path_assignments, path_assignments_over,
 };
-use crate::analysis::proof_support::proof_supplies_full;
-use antecedent_core::StreamDomain;
 
 /// The complete-case table of an attribution, the submitted position of each retained row and
 /// the accounting of what was dropped.
@@ -940,11 +940,11 @@ impl super::Study {
         );
         if self.settings.inference.is_bayesian() {
             let posterior = self.change_attribution_posterior(data, query, &fitted, ctx)?;
-            if let Some(index) = posterior.effect_column() {
-                if let Some(estimate) = result.estimate.as_effect_mut() {
-                    estimate.ate = posterior.summaries.mean[index];
-                    estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
-                }
+            if let Some(index) = posterior.effect_column()
+                && let Some(estimate) = result.estimate.as_effect_mut()
+            {
+                estimate.ate = posterior.summaries.mean[index];
+                estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
             }
             result.posterior = Some(posterior);
             result.diagnostics.push(Diagnostic::new(

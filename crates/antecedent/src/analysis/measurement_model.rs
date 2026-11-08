@@ -66,33 +66,35 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt::Write as _;
+
 use antecedent_contract::measurement::{
-    check_latent_posterior, check_measurement_request, route_card, LatentPosteriorTrust,
-    MeasurementOperation, MeasurementRequest,
+    LatentPosteriorTrust, MeasurementOperation, MeasurementRequest, check_latent_posterior,
+    check_measurement_request, route_card,
 };
 use antecedent_contract::{
     ExternalRefusal, ExternalScientificObject, ExternalTrustState, ScientificQuantity,
 };
+use antecedent_core::ExecutionContext;
 use antecedent_core::identity::SemanticDigest;
 use antecedent_core::measurement_model::{
     CorrectedFunctionalRecord, ErrorStructure, MeasurementIdentities, MeasurementInference,
     MeasurementModel, MeasurementParameters, MeasurementRoute, ParameterEvidence,
     ParameterUncertainty, RepresentationMapping, RepresentationVersion,
 };
-use antecedent_core::ExecutionContext;
 use antecedent_estimate::measurement::{
-    correct_binary_prevalence, correct_binary_risk_difference, correct_categorical,
-    correct_classical_linear_effect, correct_latent_posterior_linear_effect,
-    correct_repeated_linear_effect, CategoricalFunctional, CorrectedBinaryPrevalence,
-    CorrectedBinaryRiskDifference, CorrectedCategoricalOutcome, CorrectedLinearEffect,
-    CorrectedPosteriorLinearEffect, DataBinding, LinearMeasuredData, MeasurementError,
-    PosteriorCombination, PosteriorLinearData, RiskDifferenceInput,
-};
-use antecedent_io::measurement_model_wire::{
-    replay_values, CategoricalReplayFunctional, MeasurementModelArtifact, MeasurementReplay,
-    MeasurementResult, ReplayedValues,
+    CategoricalFunctional, CorrectedBinaryPrevalence, CorrectedBinaryRiskDifference,
+    CorrectedCategoricalOutcome, CorrectedLinearEffect, CorrectedPosteriorLinearEffect,
+    DataBinding, LinearMeasuredData, MeasurementError, PosteriorCombination, PosteriorLinearData,
+    RiskDifferenceInput, correct_binary_prevalence, correct_binary_risk_difference,
+    correct_categorical, correct_classical_linear_effect, correct_latent_posterior_linear_effect,
+    correct_repeated_linear_effect,
 };
 use antecedent_io::IoError;
+use antecedent_io::measurement_model_wire::{
+    CategoricalReplayFunctional, MeasurementModelArtifact, MeasurementReplay, MeasurementResult,
+    ReplayedValues, replay_values,
+};
 use antecedent_stats::measurement_error::{ObservedClassSummary, TwoByTwoCounts};
 
 use super::StudyBuilder;
@@ -155,16 +157,16 @@ impl MeasurementModelRefusal {
     fn from_contract(refusal: &ExternalRefusal) -> Self {
         let mut message = format!("refused at stage `{}`", refusal.stage);
         if let Some(offending) = &refusal.offending {
-            message.push_str(&format!("; offending `{offending}`"));
+            let _ = write!(message, "; offending `{offending}`");
         }
         if let Some(expected) = &refusal.expected {
-            message.push_str(&format!("; expected `{expected}`"));
+            let _ = write!(message, "; expected `{expected}`");
         }
         if let Some(supplied) = &refusal.supplied {
-            message.push_str(&format!("; supplied `{supplied}`"));
+            let _ = write!(message, "; supplied `{supplied}`");
         }
         if let Some(remedy) = refusal.remedy {
-            message.push_str(&format!("; {remedy}"));
+            let _ = write!(message, "; {remedy}");
         }
         Self {
             code: refusal.code,
@@ -830,10 +832,9 @@ impl PreparedMeasurementModel {
                 code: antecedent_core::reason_code!("route_not_supported"),
                 detail: antecedent_core::reason_details::measurement_model::ROUTE_MISMATCH
                     .to_owned(),
-                message:
-                    "refresh keeps the question: new data of another route family, \
+                message: "refresh keeps the question: new data of another route family, \
                           functional or arm pair is a different request and needs a new preparation"
-                        .to_owned(),
+                    .to_owned(),
                 remedy: None,
             });
         }
@@ -884,20 +885,19 @@ impl PreparedMeasurementModel {
             MeasurementParameters::ExternalPosterior { reference: old, .. },
             MeasurementParameters::ExternalPosterior { reference: new, .. },
         ) = (&self.model.parameters, &parameters)
+            && old != new
         {
-            if old != new {
-                return Err(MeasurementModelRefusal {
-                    code: antecedent_core::reason_code!("measurement_posterior_not_trusted"),
-                    detail: antecedent_core::reason_details::measurement_model::POSTERIOR_IDENTITY
-                        .to_owned(),
-                    message: format!(
-                        "the provider object changed from `{}/{}` to `{}/{}`; the new object needs \
+            return Err(MeasurementModelRefusal {
+                code: antecedent_core::reason_code!("measurement_posterior_not_trusted"),
+                detail: antecedent_core::reason_details::measurement_model::POSTERIOR_IDENTITY
+                    .to_owned(),
+                message: format!(
+                    "the provider object changed from `{}/{}` to `{}/{}`; the new object needs \
                          its own attestation or verification through a new preparation",
-                        old.provider_id, old.object_id, new.provider_id, new.object_id
-                    ),
-                    remedy: Some("supply the exact provider object the model names".to_owned()),
-                });
-            }
+                    old.provider_id, old.object_id, new.provider_id, new.object_id
+                ),
+                remedy: Some("supply the exact provider object the model names".to_owned()),
+            });
         }
         let mut model = self.model.clone();
         model.parameters = parameters;

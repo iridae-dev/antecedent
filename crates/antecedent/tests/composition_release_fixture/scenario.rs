@@ -611,7 +611,7 @@ pub fn check_interfaces(
         .map_err(|refusals| {
             // Report the defects in order; the stage is the first one.
             let first = &refusals[0];
-            Refused::of("interface", first.code.to_string(), first.detail.to_string())
+            Refused::of("interface", first.code.to_string(), first.detail.clone())
         })
 }
 
@@ -623,9 +623,7 @@ pub fn interface_pair_details(
     let (components, _) = interface_components(model_identity, options);
     match check_interface_connection(&components[0], "prevalence", &components[1], "prevalence") {
         Ok(_) => Vec::new(),
-        Err(refusals) => {
-            refusals.iter().map(|r| (r.code.to_string(), r.detail.to_string())).collect()
-        }
+        Err(refusals) => refusals.iter().map(|r| (r.code.to_string(), r.detail.clone())).collect(),
     }
 }
 

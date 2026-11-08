@@ -143,12 +143,11 @@ fn declared(section: &str, key: &str) -> u64 {
         let line = line.split('#').next().unwrap_or("").trim();
         if let Some(header) = line.strip_prefix('[').and_then(|rest| rest.strip_suffix(']')) {
             inside = header == section;
-        } else if inside {
-            if let Some((name, value)) = line.split_once('=') {
-                if name.trim() == key {
-                    return value.trim().replace('_', "").parse().unwrap();
-                }
-            }
+        } else if inside
+            && let Some((name, value)) = line.split_once('=')
+            && name.trim() == key
+        {
+            return value.trim().replace('_', "").parse().unwrap();
         }
     }
     panic!("[{section}] {key} is not declared in direct_arrow_workloads.toml")

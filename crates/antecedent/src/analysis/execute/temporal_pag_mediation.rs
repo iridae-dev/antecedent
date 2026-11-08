@@ -495,15 +495,16 @@ impl super::Study {
         result.diagnostics.push(disclosure);
         let paired: Vec<(&str, &[f64])> =
             columns.iter().map(|(name, draws)| (*name, draws.as_slice())).collect();
-        if let Some((_, first)) = paired.first() {
-            if paired.len() > 1 && paired.iter().all(|(_, draws)| draws.len() == first.len()) {
-                result.diagnostics.push(joint_diagnostic(
-                    &paired,
-                    first.len(),
-                    "Bayesian-bootstrap",
-                    "unfolded temporal PAG window",
-                ));
-            }
+        if let Some((_, first)) = paired.first()
+            && paired.len() > 1
+            && paired.iter().all(|(_, draws)| draws.len() == first.len())
+        {
+            result.diagnostics.push(joint_diagnostic(
+                &paired,
+                first.len(),
+                "Bayesian-bootstrap",
+                "unfolded temporal PAG window",
+            ));
         }
         if let Some(effect) = result.estimate.as_effect() {
             result.payload = crate::result::ResultPayload::Mediation {

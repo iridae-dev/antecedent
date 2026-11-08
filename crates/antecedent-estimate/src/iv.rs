@@ -524,7 +524,7 @@ fn prepare_iv_problem(
 fn unobserved_discrete_level(values: &[f64], active: f64, control: f64) -> Option<f64> {
     let mut distinct: Vec<f64> = Vec::new();
     for &value in values {
-        if !distinct.iter().any(|seen| *seen == value) {
+        if !distinct.contains(&value) {
             distinct.push(value);
             if distinct.len() > crate::prepare::MAX_DISCRETE_LEVELS {
                 return None;

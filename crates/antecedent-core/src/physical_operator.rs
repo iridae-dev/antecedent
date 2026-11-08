@@ -853,13 +853,13 @@ impl PhysicalOperatorBuilder {
     /// set and the capability is the CPU.
     #[must_use = "a refused operator is not metadata that can be scheduled"]
     pub fn build(self) -> Result<PhysicalOperator, PhysicalOperatorError> {
-        if let Some(point) = self.effect.required_cancellation_point() {
-            if !self.cancellation_points.contains(point) {
-                return Err(PhysicalOperatorError::MissingCancellationPoint {
-                    effect: self.effect,
-                    point,
-                });
-            }
+        if let Some(point) = self.effect.required_cancellation_point()
+            && !self.cancellation_points.contains(point)
+        {
+            return Err(PhysicalOperatorError::MissingCancellationPoint {
+                effect: self.effect,
+                point,
+            });
         }
         if self.device_work && !self.capability.is_device() {
             return Err(PhysicalOperatorError::DeviceCapabilityMissing);

@@ -363,10 +363,10 @@ fn require_a_fit(
     runs: Vec<AtomRun>,
     refusal: Option<CausalError>,
 ) -> Result<Vec<AtomRun>, CausalError> {
-    if !runs.iter().any(|run| matches!(run, AtomRun::Fit(_))) {
-        if let Some(error) = refusal {
-            return Err(error);
-        }
+    if !runs.iter().any(|run| matches!(run, AtomRun::Fit(_)))
+        && let Some(error) = refusal
+    {
+        return Err(error);
     }
     Ok(runs)
 }

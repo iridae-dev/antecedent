@@ -474,10 +474,6 @@ mod essential_graph_enumeration {
     }
 
     /// Number of (DAG, edge) disagreements between the rules' output and the essential graph.
-    #[allow(
-        clippy::match_on_vec_items,
-        reason = "the fixture enumerates a complete relation table"
-    )]
     fn disagreements(rules: &[&dyn OrientationRule<TemporalCpdag>]) -> (usize, usize) {
         let pairs: Vec<(usize, usize)> =
             (0..N).flat_map(|i| ((i + 1)..N).map(move |j| (i, j))).collect();

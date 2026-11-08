@@ -238,39 +238,33 @@ fn recover_recovery_chain(
                 Some(wire) if evaluate => decided.recover(wire.to_law()?)?,
                 _ => decided,
             };
-            match decided.export() {
-                Ok(bytes) => {
-                    let wire = RecoveryChainArtifactWire::decode(&bytes).map_err(|e| {
-                        ChainRecoveryError::new(
-                            ChainRecoveryDetail::InvalidDerivation,
-                            e.to_string(),
-                        )
-                    })?;
-                    Ok((report_of_wire(&wire), Some(bytes)))
-                }
+            if let Ok(bytes) = decided.export() {
+                let wire = RecoveryChainArtifactWire::decode(&bytes).map_err(|e| {
+                    ChainRecoveryError::new(ChainRecoveryDetail::InvalidDerivation, e.to_string())
+                })?;
+                Ok((report_of_wire(&wire), Some(bytes)))
+            } else {
                 // A recovered decision with no law: report the plan only.
-                Err(_) => {
-                    let ChainRecoveryDecision::Recovered(plan) = decided.decision() else {
-                        return Err(ChainRecoveryError::new(
-                            ChainRecoveryDetail::InvalidDerivation,
-                            "only a recovered decision lacks an artifact",
-                        ));
-                    };
-                    let plan = ChainPlanWire::of_plan(plan);
-                    let query = ChainQueryWire::from_query(&query);
-                    let report = report_json(&ReportParts {
-                        names: &nodes,
-                        query: &query,
-                        outcome: "recovered",
-                        plan: Some(&plan),
-                        observed: None,
-                        recovered: None,
-                        witness: None,
-                        check: None,
-                        digests: None,
-                    });
-                    Ok((report, None))
-                }
+                let ChainRecoveryDecision::Recovered(plan) = decided.decision() else {
+                    return Err(ChainRecoveryError::new(
+                        ChainRecoveryDetail::InvalidDerivation,
+                        "only a recovered decision lacks an artifact",
+                    ));
+                };
+                let plan = ChainPlanWire::of_plan(plan);
+                let query = ChainQueryWire::from_query(&query);
+                let report = report_json(&ReportParts {
+                    names: &nodes,
+                    query: &query,
+                    outcome: "recovered",
+                    plan: Some(&plan),
+                    observed: None,
+                    recovered: None,
+                    witness: None,
+                    check: None,
+                    digests: None,
+                });
+                Ok((report, None))
             }
         };
         match step() {

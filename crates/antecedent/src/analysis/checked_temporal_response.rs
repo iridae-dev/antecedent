@@ -317,10 +317,10 @@ impl CheckedTemporalResponseOperation {
         })?;
         let mut fitter = antecedent_estimate::TemporalResponseEstimator::new()
             .with_bootstrap_replicates(bootstrap_replicates);
-        if let InferenceMode::Bayesian(config) = inference {
-            if let Some(gate) = config.white_innovation {
-                fitter = fitter.with_white_innovation(gate);
-            }
+        if let InferenceMode::Bayesian(config) = inference
+            && let Some(gate) = config.white_innovation
+        {
+            fitter = fitter.with_white_innovation(gate);
         }
         Ok(Self {
             graph: graph.clone(),
@@ -349,13 +349,11 @@ impl CheckedTemporalResponseOperation {
     pub(crate) fn with_joint_horizons(mut self, on: bool) -> Self {
         self.retain_joint = on;
         self.fitter = self.fitter.with_joint_replicates(on);
-        if on {
-            if let InferenceMode::Bayesian(config) = &self.inference {
-                self.fitter = self
-                    .fitter
-                    .with_block_weight_posterior(true)
-                    .with_bootstrap_replicates(u32::try_from(config.n_draws).unwrap_or(u32::MAX));
-            }
+        if on && let InferenceMode::Bayesian(config) = &self.inference {
+            self.fitter = self
+                .fitter
+                .with_block_weight_posterior(true)
+                .with_bootstrap_replicates(u32::try_from(config.n_draws).unwrap_or(u32::MAX));
         }
         self
     }

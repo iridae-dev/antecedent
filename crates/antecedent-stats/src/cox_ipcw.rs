@@ -142,12 +142,12 @@ fn fit_standardized(
         let mut accepted = false;
         for _ in 0..30 {
             let candidate: Vec<_> = beta.iter().zip(&step).map(|(b, d)| b + fraction * d).collect();
-            if let Ok(next) = evaluate(time, failure, &x, &order, &candidate, &mut scratch) {
-                if next >= ll - tolerance {
-                    beta = candidate;
-                    accepted = true;
-                    break;
-                }
+            if let Ok(next) = evaluate(time, failure, &x, &order, &candidate, &mut scratch)
+                && next >= ll - tolerance
+            {
+                beta = candidate;
+                accepted = true;
+                break;
             }
             fraction *= 0.5;
         }

@@ -470,7 +470,7 @@ fn bootstrap_stability(
         "derivative.bootstrap_stability",
         value,
         finite.iter().sum::<f64>() / finite.len() as f64,
-        if width > 0.0 { (value - (lower + upper) / 2.0).abs() / width } else { 0.0 },
+        if width > 0.0 { (value - f64::midpoint(lower, upper)).abs() / width } else { 0.0 },
         true,
         passed,
         (!passed).then(|| {

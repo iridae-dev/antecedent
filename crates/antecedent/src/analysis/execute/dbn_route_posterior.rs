@@ -30,24 +30,24 @@ use antecedent_core::{CausalQuery, ResponseQuery, TemporalEffectQuery};
 use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind, LagMask};
 use antecedent_identify::TemporalBackdoorIdentifier;
 
-use super::atom_mix::{mix_atom_evals, AtomBoundRule, AtomMixInput, MixedAtomEvals};
+use super::atom_mix::{AtomBoundRule, AtomMixInput, MixedAtomEvals, mix_atom_evals};
 use super::temporal_path::{
-    cross_world_point, template_scoped_cross_world, temporal_linear_derivative_response,
-    temporal_linear_derivative_value, unit_contrast_query, CrossWorldContrast,
+    CrossWorldContrast, cross_world_point, template_scoped_cross_world,
+    temporal_linear_derivative_response, temporal_linear_derivative_value, unit_contrast_query,
 };
 use super::temporal_point_uncertainty::{
     self as point_uncertainty, FrozenAtom, SlopeAtom, SlopeSource,
 };
 use super::transport_posterior::ScalarAtomEval;
 use super::{
-    elapsed_ns, identification_status_ok_for_case, provenance_ids, resolve_posterior_status,
-    select_estimand, Arc, CausalError, CausalResponse, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GraphIdentFlag,
-    GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId,
-    InferenceMode, Instant, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary,
-    RefuteSuite, ResponseIdentification, ResponseValue, Strategy, StudyResult, TemporalIndexer,
-    TimeSeriesData, VariableId, WeightedGraphSamples,
+    Arc, CausalError, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    EffectEstimate, EstimatorId, ExecutionContext, GraphIdentFlag, GraphPosterior,
+    IdentificationResult, IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras,
+    IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant,
+    OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite,
+    ResponseIdentification, ResponseValue, Strategy, StudyResult, TemporalIndexer, TimeSeriesData,
+    VariableId, WeightedGraphSamples, elapsed_ns, identification_status_ok_for_case,
+    provenance_ids, resolve_posterior_status, select_estimand,
 };
 use crate::analysis::identification_cache::CachedGraphPosteriorAtomIdentification;
 use crate::analysis::proof_support::graph_posterior_withheld_diagnostic;
@@ -148,8 +148,7 @@ impl<'a> DbnPoint<'a> {
                     || matches!(effect.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
                 {
                     return Err(CausalError::Unsupported {
-                        message:
-                            "a temporal conditional effect fits a modifier set on a single-step \
+                        message: "a temporal conditional effect fits a modifier set on a single-step \
                                   pulse or sustained policy",
                     });
                 }
@@ -889,15 +888,14 @@ impl super::Study {
             .iter()
             .map(|position| values[*position].clone().unwrap_or_default())
             .collect();
-        let center =
-            point_uncertainty::weighted_outputs(&atom_values, &weights).ok_or_else(|| {
-                CausalError::Compile {
-                    message: format!(
+        let center = point_uncertainty::weighted_outputs(&atom_values, &weights).ok_or_else(
+            || CausalError::Compile {
+                message: format!(
                     "{label} graph-posterior mix: the atoms' values differ in shape or carry no \
                      mass"
                 ),
-                }
-            })?;
+            },
+        )?;
         let primary_position = positions
             .iter()
             .zip(&weights)

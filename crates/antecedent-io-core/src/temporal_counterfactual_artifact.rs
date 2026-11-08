@@ -980,10 +980,10 @@ impl TemporalCounterfactualArtifact {
         if !means_replay {
             return Err(TemporalCounterfactualArtifactError::ResultMismatch("means"));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &recomputed) {
-                return Err(TemporalCounterfactualArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &recomputed)
+        {
+            return Err(TemporalCounterfactualArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta, request, result })
     }

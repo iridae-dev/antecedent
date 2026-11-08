@@ -175,6 +175,10 @@ pub(crate) fn attribute_runs_checked(
 }
 
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "private enum holding one attribution query per call; boxing the large variant would add an allocation for no benefit"
+)]
 enum AttributionTarget {
     Anomaly(antecedent_core::AnomalyAttributionQuery),
     Change(antecedent_core::ChangeAttributionQuery),
@@ -641,28 +645,28 @@ impl CheckedAttributionOperation {
         // Rows hidden by an analysis mask (a refit on a subset of the rows) are deleted before
         // fitting and scoring. A mask the route ignored would make every subset refit
         // reproduce the full-sample vector, and the subset refuter could never see a change.
-        if matches!(self.target, AttributionTarget::Anomaly(_) | AttributionTarget::Change(_)) {
-            if let Some((table, kept)) = Self::visible_rows(data)? {
-                return match &self.target {
-                    AttributionTarget::Anomaly(query) => {
-                        let query = antecedent_core::AnomalyAttributionQuery {
-                            unit_rows: query
-                                .unit_rows
-                                .as_ref()
-                                .map(|rows| Self::retained_positions(rows, &kept)),
-                            ..query.clone()
-                        };
-                        self.execute_anomaly(&query, &table, ctx, Some(&kept))
-                    }
-                    AttributionTarget::Change(query) => {
-                        let mut query = query.clone();
-                        query.baseline = Self::retained_selector(&query.baseline, &kept);
-                        query.comparison = Self::retained_selector(&query.comparison, &kept);
-                        self.execute_change(&query, &table, ctx)
-                    }
-                    AttributionTarget::Model(_) => unreachable!("guarded above"),
-                };
-            }
+        if matches!(self.target, AttributionTarget::Anomaly(_) | AttributionTarget::Change(_))
+            && let Some((table, kept)) = Self::visible_rows(data)?
+        {
+            return match &self.target {
+                AttributionTarget::Anomaly(query) => {
+                    let query = antecedent_core::AnomalyAttributionQuery {
+                        unit_rows: query
+                            .unit_rows
+                            .as_ref()
+                            .map(|rows| Self::retained_positions(rows, &kept)),
+                        ..query.clone()
+                    };
+                    self.execute_anomaly(&query, &table, ctx, Some(&kept))
+                }
+                AttributionTarget::Change(query) => {
+                    let mut query = query.clone();
+                    query.baseline = Self::retained_selector(&query.baseline, &kept);
+                    query.comparison = Self::retained_selector(&query.comparison, &kept);
+                    self.execute_change(&query, &table, ctx)
+                }
+                AttributionTarget::Model(_) => unreachable!("guarded above"),
+            };
         }
         match &self.target {
             AttributionTarget::Anomaly(query) => self.execute_anomaly(query, data, ctx, None),
@@ -1013,11 +1017,11 @@ impl CheckedAttributionOperation {
                 }
                 diagnostic
             });
-        if let Some(posterior) = &posterior {
-            if let Some(index) = posterior.effect_column() {
-                estimate.ate = posterior.summaries.mean[index];
-                estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
-            }
+        if let Some(posterior) = &posterior
+            && let Some(index) = posterior.effect_column()
+        {
+            estimate.ate = posterior.summaries.mean[index];
+            estimate.uncertainty.analytic.se = posterior.summaries.sd[index];
         }
         let (estimate, posterior, mut extra_diagnostics) =
             publish_lag_aligned(self.lag_aligned.is_some(), estimate, posterior);

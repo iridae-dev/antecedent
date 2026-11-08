@@ -425,7 +425,7 @@ impl<'j> TermEvaluator<'j> {
         ctx: &ExecutionContext,
     ) -> Result<f64, CounterfactualIdRefusal> {
         self.polls += 1;
-        if self.polls % 1024 == 0 && ctx.cancellation.is_cancelled() {
+        if self.polls.is_multiple_of(1024) && ctx.cancellation.is_cancelled() {
             return Err(CounterfactualIdRefusal::budget(SearchReceipt {
                 stop: SearchStop::Cancelled,
                 operations_limit: 0,

@@ -276,11 +276,11 @@ pub fn transport_estimator_menu_with(
     let defaults = LearnedContinuousOptions::default();
     let defaulted = context.options.is_none() && context.learners.is_none();
     let mut options = context.options.unwrap_or(defaults);
-    if context.options.is_none() {
-        if let Some((outcome, membership)) = context.learners {
-            options.outcome = outcome;
-            options.membership = membership;
-        }
+    if context.options.is_none()
+        && let Some((outcome, membership)) = context.learners
+    {
+        options.outcome = outcome;
+        options.membership = membership;
     }
     let learners = context.options.map_or(context.learners, |o| Some((o.outcome, o.membership)));
     let designs = context.sampling.map_or_else(

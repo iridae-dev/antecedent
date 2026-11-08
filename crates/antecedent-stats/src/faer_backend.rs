@@ -577,10 +577,7 @@ impl FactorScratch {
     #[cfg(test)]
     pub(crate) fn bytes(&self) -> u64 {
         match self.buffer.as_ref() {
-            Some(buffer) => match u64::try_from(buffer.len()) {
-                Ok(bytes) => bytes,
-                Err(_) => u64::MAX,
-            },
+            Some(buffer) => u64::try_from(buffer.len()).unwrap_or(u64::MAX),
             None => 0,
         }
     }

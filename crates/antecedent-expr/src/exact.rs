@@ -265,10 +265,10 @@ impl MarginalShard {
         }
         self.clock = self.clock.wrapping_add(1);
         let tick = self.clock;
-        if self.entries.len() >= capacity {
-            if let Some((_, oldest)) = self.order.pop_first() {
-                self.entries.remove(&*oldest);
-            }
+        if self.entries.len() >= capacity
+            && let Some((_, oldest)) = self.order.pop_first()
+        {
+            self.entries.remove(&*oldest);
         }
         let key: Arc<[usize]> = Arc::from(axes);
         self.order.insert(tick, Arc::clone(&key));
@@ -1446,7 +1446,7 @@ mod tests {
             }
         }
         // One axis pinned to two different levels is the empty event.
-        assert!(table.mass(&[(0, 0), (0, 1)]).abs() == 0.0);
+        assert_eq!(table.mass(&[(0, 0), (0, 1)]).abs(), 0.0);
     }
 
     #[test]

@@ -202,24 +202,23 @@ fn switches_of(runs: &[Run], points: &[PointLeaders]) -> (Vec<DecisionSwitch>, V
     while index + 1 < runs.len() {
         if let (PointState::Unique(before), PointState::Tie(_), Some(after)) =
             (&runs[index].state, &runs[index + 1].state, runs.get(index + 2))
+            && let PointState::Unique(beyond) = &after.state
         {
-            if let PointState::Unique(beyond) = &after.state {
-                let tie = &runs[index + 1];
-                if before == beyond {
-                    touched.extend((tie.first..=tie.last).map(|k| points[k].coordinate));
-                } else {
-                    switches.push(DecisionSwitch {
-                        from: vec![before.clone()],
-                        to: vec![beyond.clone()],
-                        lower: points[tie.first].coordinate,
-                        upper: points[tie.last].coordinate,
-                        exact: tie.first == tie.last,
-                        interpolated: None,
-                    });
-                }
-                index += 2;
-                continue;
+            let tie = &runs[index + 1];
+            if before == beyond {
+                touched.extend((tie.first..=tie.last).map(|k| points[k].coordinate));
+            } else {
+                switches.push(DecisionSwitch {
+                    from: vec![before.clone()],
+                    to: vec![beyond.clone()],
+                    lower: points[tie.first].coordinate,
+                    upper: points[tie.last].coordinate,
+                    exact: tie.first == tie.last,
+                    interpolated: None,
+                });
             }
+            index += 2;
+            continue;
         }
         switches.push(switch_between(&runs[index], &runs[index + 1], points));
         index += 1;
@@ -247,10 +246,10 @@ pub fn classify_decision_points(points: &[PointLeaders]) -> SensitivityOutcome {
             PointInput::Unevaluated => PointState::Mixed,
         })
         .collect();
-    if let Some(PointState::Unique(first)) = states.first() {
-        if states.iter().all(|state| matches!(state, PointState::Unique(id) if id == first)) {
-            return SensitivityOutcome::InvariantAction { action: first.clone() };
-        }
+    if let Some(PointState::Unique(first)) = states.first()
+        && states.iter().all(|state| matches!(state, PointState::Unique(id) if id == first))
+    {
+        return SensitivityOutcome::InvariantAction { action: first.clone() };
     }
     let coordinates_where = |wanted: fn(&PointState) -> bool| -> Vec<f64> {
         points.iter().zip(&states).filter(|(_, s)| wanted(s)).map(|(p, _)| p.coordinate).collect()

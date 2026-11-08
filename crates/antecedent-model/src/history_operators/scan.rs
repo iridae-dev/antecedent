@@ -107,10 +107,10 @@ impl HistoryConstruction {
     ) -> Result<HistoryScan, HistoryExecutionError> {
         let columns: Arc<[antecedent_data::LaggedColumn]> = columns.into();
         let needed = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-        if let Some(cap) = self.history.resolved_cap() {
-            if needed > cap {
-                return Err(HistoryExecutionError::HistoryShorterThanColumns { cap, needed });
-            }
+        if let Some(cap) = self.history.resolved_cap()
+            && needed > cap
+        {
+            return Err(HistoryExecutionError::HistoryShorterThanColumns { cap, needed });
         }
         HistoryScan::plan(data, needed, columns)
             .map_err(|error| HistoryExecutionError::Scan { message: error.to_string() })

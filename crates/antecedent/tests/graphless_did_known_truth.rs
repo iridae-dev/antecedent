@@ -67,7 +67,7 @@ fn panel_2x2_matches_the_analytic_effect_cluster_sandwich_and_interval() {
         let active = cluster >= per_arm;
         // Alternating sign inside the arm: the arm mean of the error is exactly zero.
         let within_arm = cluster % per_arm;
-        let sign = if within_arm % 2 == 0 { 1.0 } else { -1.0 };
+        let sign = if within_arm.is_multiple_of(2) { 1.0 } else { -1.0 };
         let error = sign * spread(1_000 + (within_arm / 2) as u64 + 100 * u64::from(active));
         error_by_cluster.push((active, error));
         for subject in 0..2_usize {

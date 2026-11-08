@@ -769,10 +769,9 @@ impl TransportScenarioArtifactWire {
         }
         if let (Some(producer), Some(consumer)) =
             (self.scenario_memory_bytes, ctx.memory_limit_bytes())
+            && producer > consumer
         {
-            if producer > consumer {
-                return Err(exceeded("scenario memory"));
-            }
+            return Err(exceeded("scenario memory"));
         }
         if self.operation_limit > limits.evaluation.operations
             || self.depth_limit > limits.evaluation.depth

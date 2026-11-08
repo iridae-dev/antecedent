@@ -820,10 +820,9 @@ impl super::Study {
         let mut response = response;
         if self.graph_posterior.is_none()
             && super::derivative_refutation::is_derivative(&query.functional)
+            && let Some(dag) = self.graph.as_dag()
         {
-            if let Some(dag) = self.graph.as_dag() {
-                super::structural_zero::apply(&mut response, dag, query);
-            }
+            super::structural_zero::apply(&mut response, dag, query);
         }
         Ok((response, response_scores))
     }
@@ -1252,38 +1251,39 @@ fn general_id_bootstrap_interval(
     // published only when a positive-finite SE returns; otherwise the route fails
     // open to `None` rather than panicking.
     let mut uncertainty = ResponseUncertainty::None;
-    if bootstrap_replicates > 0 {
-        if let ResponseIdentification::PointIdentified(ResponseValue::Scalar(point)) = estimate {
-            let point = *point;
-            let mut ws = FunctionalDistributionWorkspace::default();
-            if let Ok(effect) = est.estimate(prepared, &mut ws, ctx) {
-                if let Some(se) = effect.se_bootstrap() {
-                    if se.is_finite() && se > 0.0 && point.is_finite() {
-                        let z = crate::result::reported_se_interval_z();
-                        uncertainty = ResponseUncertainty::Scalar {
-                            standard_error: se,
-                            lower: point - z * se,
-                            upper: point + z * se,
-                            level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
-                            interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                            draws: None,
-                        };
-                        support.diagnostics.push(antecedent_core::SupportDiagnostic {
-                            id: Arc::from(crate::result::RESPONSE_BOOTSTRAP_SE),
-                            values: Arc::from([
-                                f64::from(bootstrap_replicates),
-                                f64::from(effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0)),
-                            ]),
-                            detail: Arc::from(
-                                "general-ID functional.effect response interval is a normal \
+    if bootstrap_replicates > 0
+        && let ResponseIdentification::PointIdentified(ResponseValue::Scalar(point)) = estimate
+    {
+        let point = *point;
+        let mut ws = FunctionalDistributionWorkspace::default();
+        if let Ok(effect) = est.estimate(prepared, &mut ws, ctx)
+            && let Some(se) = effect.se_bootstrap()
+            && se.is_finite()
+            && se > 0.0
+            && point.is_finite()
+        {
+            let z = crate::result::reported_se_interval_z();
+            uncertainty = ResponseUncertainty::Scalar {
+                standard_error: se,
+                lower: point - z * se,
+                upper: point + z * se,
+                level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
+            };
+            support.diagnostics.push(antecedent_core::SupportDiagnostic {
+                id: Arc::from(crate::result::RESPONSE_BOOTSTRAP_SE),
+                values: Arc::from([
+                    f64::from(bootstrap_replicates),
+                    f64::from(effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0)),
+                ]),
+                detail: Arc::from(
+                    "general-ID functional.effect response interval is a normal \
                                  interval from the front-door plug-in bootstrap SE \
                                  [requested replicates, successful replicates]",
-                            ),
-                            scope: antecedent_core::DiagnosticScope::Global,
-                        });
-                    }
-                }
-            }
+                ),
+                scope: antecedent_core::DiagnosticScope::Global,
+            });
         }
     }
     uncertainty

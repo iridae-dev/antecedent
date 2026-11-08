@@ -434,13 +434,13 @@ impl TemporalCpdagReview {
                 if let (Some(fk), Some(tk)) = (graph.temporal_key(from), graph.temporal_key(to)) {
                     pending.push((fk, tk));
                 }
-            } else if e.is_undirected() {
-                if let (Some(ak), Some(bk)) = (graph.temporal_key(e.a), graph.temporal_key(e.b)) {
-                    if (ak.variable, ak.offset) <= (bk.variable, bk.offset) {
-                        undirected.push((ak, bk));
-                    } else {
-                        undirected.push((bk, ak));
-                    }
+            } else if e.is_undirected()
+                && let (Some(ak), Some(bk)) = (graph.temporal_key(e.a), graph.temporal_key(e.b))
+            {
+                if (ak.variable, ak.offset) <= (bk.variable, bk.offset) {
+                    undirected.push((ak, bk));
+                } else {
+                    undirected.push((bk, ak));
                 }
             }
         }
@@ -515,10 +515,11 @@ pub fn ensure_lagged(
     lag: antecedent_core::Lag,
 ) -> Result<DenseNodeId, GraphError> {
     for (i, n) in graph.nodes().iter().enumerate() {
-        if let NodeRef::Lagged { variable: v, lag: l } = n {
-            if *v == variable && *l == lag {
-                return DenseNodeId::try_from_usize(i);
-            }
+        if let NodeRef::Lagged { variable: v, lag: l } = n
+            && *v == variable
+            && *l == lag
+        {
+            return DenseNodeId::try_from_usize(i);
         }
     }
     graph.add_lagged(variable, lag)
@@ -562,10 +563,12 @@ mod tests {
             assert!(!matches!(node, NodeRef::Static(_)));
         }
         // Positive offsets (the future window) are expressible; `Lagged` could not.
-        assert!(unfolded
-            .dag
-            .nodes()
-            .contains(&NodeRef::Unfolded { variable: VariableId::from_raw(1), offset: 2 }));
+        assert!(
+            unfolded
+                .dag
+                .nodes()
+                .contains(&NodeRef::Unfolded { variable: VariableId::from_raw(1), offset: 2 })
+        );
     }
 
     #[test]
@@ -708,7 +711,7 @@ mod tests {
                 if !time_ok {
                     continue;
                 }
-                if rng.next_u64() % 3 == 0 {
+                if rng.next_u64().is_multiple_of(3) {
                     let _ = g.insert_directed(a, b);
                 }
             }
@@ -818,7 +821,7 @@ mod tests {
                     if v == x || v == y {
                         continue;
                     }
-                    if rng.next_u64() % 3 == 0 {
+                    if rng.next_u64().is_multiple_of(3) {
                         z.push(v);
                     }
                 }

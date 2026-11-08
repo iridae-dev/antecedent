@@ -1413,6 +1413,10 @@ impl ScientificBridgeDrawsArtifact {
 /// derivation.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "public enum of the two artifact shapes; boxing a variant would change its public API"
+)]
 pub enum ScientificBridgeAny {
     /// A bridge of one mean.
     Point(ScientificBridgeArtifact),

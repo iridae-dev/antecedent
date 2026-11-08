@@ -752,11 +752,10 @@ fn statistical_program(inputs: &ProgramInputs<'_>) -> Result<StatisticalProgram,
     if is_series(cell)
         && !matches!(study.data, DataInput::Tabular(_))
         && study.declared.sampling_design.is_none()
+        && let Some(plan) = program.resampling.as_mut()
     {
-        if let Some(plan) = program.resampling.as_mut() {
-            plan.method = ResamplingMethod::BlockBootstrap;
-            plan.unit = ResampleUnit::CalendarBlock;
-        }
+        plan.method = ResamplingMethod::BlockBootstrap;
+        plan.unit = ResampleUnit::CalendarBlock;
     }
     let structure = structure_prior_name(posterior);
     let declared = program.posterior.take();

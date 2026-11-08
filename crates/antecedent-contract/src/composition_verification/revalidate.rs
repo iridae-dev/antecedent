@@ -608,14 +608,12 @@ fn own_causes(
             {
                 causes.push(NumericalCause::SupportRestored);
             }
-            if !coordinate_changed {
-                if let (Some(was), Some(is)) =
+            if !coordinate_changed
+                && let (Some(was), Some(is)) =
                     (held_record(&before.calibration), held_record(&node.calibration))
-                {
-                    if was != is {
-                        causes.push(NumericalCause::CalibrationChanged);
-                    }
-                }
+                && was != is
+            {
+                causes.push(NumericalCause::CalibrationChanged);
             }
             if before.identity != node.identity && !structure_changed {
                 // A node that carries a structural derivation and whose

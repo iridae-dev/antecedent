@@ -299,14 +299,14 @@ pub fn native_response_coordinates(
     let (outcome, treatment, doses) = mean_curve(response)?;
     let outcome = variable_name(schema, outcome)?;
     let treatment = variable_name(schema, treatment)?;
-    if let Some(unit) = &outcome.unit {
-        if &**unit != program.outcome_units.as_str() {
-            return Err(bind_refusal(
-                antecedent_core::reason_details::native_claims::UNITS_CONFLICT,
-                program.outcome_units.clone(),
-                unit.to_string(),
-            ));
-        }
+    if let Some(unit) = &outcome.unit
+        && &**unit != program.outcome_units.as_str()
+    {
+        return Err(bind_refusal(
+            antecedent_core::reason_details::native_claims::UNITS_CONFLICT,
+            program.outcome_units.clone(),
+            unit.to_string(),
+        ));
     }
     let derived = ProgramBinding {
         treatment_id: treatment.name.to_string(),

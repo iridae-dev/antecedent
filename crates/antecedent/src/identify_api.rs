@@ -40,6 +40,10 @@ use crate::strategy_table::{
 /// than averaged away.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "public non-exhaustive result enum; boxing a variant would change its public API"
+)]
 pub enum Identification {
     /// Single-graph identification result.
     Point {

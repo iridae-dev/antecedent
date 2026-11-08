@@ -157,21 +157,20 @@ impl PublishedScalarUncertainty {
         use antecedent_core::IntervalMethod as M;
 
         if let Some(diagnostics) = &estimate.diagnostics.first_stage {
-            if let Some((lower, upper, level)) = diagnostics.anderson_rubin {
-                if !lower.is_nan()
-                    && !upper.is_nan()
-                    && level.is_finite()
-                    && (0.0..1.0).contains(&level)
-                {
-                    return Self {
-                        standard_error: None,
-                        method: M::AndersonRubin,
-                        level,
-                        withheld_reason: None,
-                        lower: Some(lower),
-                        upper: Some(upper),
-                    };
-                }
+            if let Some((lower, upper, level)) = diagnostics.anderson_rubin
+                && !lower.is_nan()
+                && !upper.is_nan()
+                && level.is_finite()
+                && (0.0..1.0).contains(&level)
+            {
+                return Self {
+                    standard_error: None,
+                    method: M::AndersonRubin,
+                    level,
+                    withheld_reason: None,
+                    lower: Some(lower),
+                    upper: Some(upper),
+                };
             }
             if positive_finite(estimate.se_analytic()) {
                 return Self {

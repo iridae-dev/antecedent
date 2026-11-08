@@ -441,12 +441,12 @@ impl Preflight<'_> {
                         .collect();
                     values.dedup();
                 }
-                if let Some(value) = self.request.get(a.variable) {
-                    if !values.iter().any(|level| {
+                if let Some(value) = self.request.get(a.variable)
+                    && !values.iter().any(|level| {
                         crate::exact::value_key(level) == crate::exact::value_key(value)
-                    }) {
-                        values.push(value.clone());
-                    }
+                    })
+                {
+                    values.push(value.clone());
                 }
                 if values.is_empty() {
                     return Err(EvalError::MissingBinding(a.variable));

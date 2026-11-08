@@ -383,7 +383,7 @@ impl HierarchicalChoicePosterior {
                 let jac = self.place(region, *c, *t, &mut scratch);
                 for (v, wv) in v_rule.0.iter().zip(&v_rule.1) {
                     tick += 1;
-                    if tick % CANCEL_STRIDE == 0 && cancelled() {
+                    if tick.is_multiple_of(CANCEL_STRIDE) && cancelled() {
                         return Err(Error::Cancelled);
                     }
                     let density = (self.log_target(&mut scratch, *v) + jac - reference).exp();

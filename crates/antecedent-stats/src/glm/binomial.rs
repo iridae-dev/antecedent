@@ -239,20 +239,19 @@ fn finish_binomial(
     let diag = binomial_diagnostics_at(family, design, &beta, weights);
     let separated = diag.separated(converged);
 
-    if diag.saturated {
-        if let Some(lambda) = options.ridge_on_separation {
-            if lambda > 0.0 {
-                return fit_binomial_ridge(
-                    family,
-                    design,
-                    workspace,
-                    options,
-                    lambda,
-                    Some(separated),
-                    weights,
-                );
-            }
-        }
+    if diag.saturated
+        && let Some(lambda) = options.ridge_on_separation
+        && lambda > 0.0
+    {
+        return fit_binomial_ridge(
+            family,
+            design,
+            workspace,
+            options,
+            lambda,
+            Some(separated),
+            weights,
+        );
     }
 
     Ok(GlmFit {

@@ -1116,10 +1116,7 @@ fn note_distribution_atom_replay(
                 }
             }
             _ => {
-                if !unresolved
-                    .iter()
-                    .any(|reason| *reason == ContractReason::DependenciesDistributionFactorLaws)
-                {
+                if !unresolved.contains(&ContractReason::DependenciesDistributionFactorLaws) {
                     unresolved.push(ContractReason::DependenciesDistributionFactorLaws);
                 }
             }
@@ -1157,10 +1154,7 @@ fn note_scalar_effect_replay(
                 }
             }
             (_, None) => {
-                if !unresolved
-                    .iter()
-                    .any(|reason| *reason == ContractReason::DependenciesFunctionalEffectFactorLaws)
-                {
+                if !unresolved.contains(&ContractReason::DependenciesFunctionalEffectFactorLaws) {
                     unresolved.push(ContractReason::DependenciesFunctionalEffectFactorLaws);
                 }
             }
@@ -1632,10 +1626,10 @@ pub(in crate::contract_section) fn verify_stored_payloads(
     if contract_uses_estimator(contract, "frontdoor.linear_two_stage") && frontdoor.is_none() {
         unresolved.push(ContractReason::ProgramCheckedFrontdoorLowering);
     }
-    if let Some(frontdoor) = frontdoor {
-        if !verify_frontdoor_lowering(contract, frontdoor) {
-            unresolved.push(ContractReason::ProgramFrontdoorBinding);
-        }
+    if let Some(frontdoor) = frontdoor
+        && !verify_frontdoor_lowering(contract, frontdoor)
+    {
+        unresolved.push(ContractReason::ProgramFrontdoorBinding);
     }
     let checked_iv = contract.program.as_ref().and_then(|item| item.checked_iv_lowering.as_ref());
     let is_checked_iv = matches!(contract.estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
@@ -1645,10 +1639,10 @@ pub(in crate::contract_section) fn verify_stored_payloads(
     if is_checked_iv && checked_iv.is_none() {
         unresolved.push(ContractReason::ProgramCheckedIvLowering);
     }
-    if let Some(iv) = checked_iv {
-        if !verify_checked_iv(contract, iv) {
-            unresolved.push(ContractReason::ProgramCheckedIvBinding);
-        }
+    if let Some(iv) = checked_iv
+        && !verify_checked_iv(contract, iv)
+    {
+        unresolved.push(ContractReason::ProgramCheckedIvBinding);
     }
     verify_checked_linear_adjustment(contract, &mut unresolved);
     verify_checked_aipw(contract, &mut unresolved);
@@ -1896,8 +1890,8 @@ mod posterior_index_tests {
     fn duplicate_graph_keys_keep_the_first_published_atom() {
         let atoms = [atom(7, 0.2), atom(4, 0.3), atom(7, 0.5)];
         let index = first_published_atoms(&atoms);
-        assert!(std::ptr::eq(index[&7], &atoms[0]));
-        assert!(std::ptr::eq(index[&4], &atoms[1]));
+        assert!(std::ptr::eq(index[&7], &raw const atoms[0]));
+        assert!(std::ptr::eq(index[&4], &raw const atoms[1]));
         assert!(!index.contains_key(&8));
     }
 }

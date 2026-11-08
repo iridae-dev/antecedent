@@ -316,15 +316,14 @@ impl ExactTransportData {
                     .factor_cache
                     .as_ref()
                     .map(|_| (self.law_identities[law_index], outputs.clone(), conditions.clone()));
-                if let (Some(cache), Some(key)) = (&self.factor_cache, &key) {
-                    if let Some(value) = cache
+                if let (Some(cache), Some(key)) = (&self.factor_cache, &key)
+                    && let Some(value) = cache
                         .values
                         .lock()
                         .unwrap_or_else(std::sync::PoisonError::into_inner)
                         .get(key)
-                    {
-                        return Ok(*value);
-                    }
+                {
+                    return Ok(*value);
                 }
                 let factor_attempt = antecedent_core::execution_attempt::OperationGuard::begin(
                     antecedent_core::execution_attempt::Operation::FactorEvaluation,

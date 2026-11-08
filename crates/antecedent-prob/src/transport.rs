@@ -6,6 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -459,9 +460,10 @@ pub fn apply_transport(
                         "transport reweight Kish ESS {ess:.3} is below the floor \
                          {TRANSPORT_MIN_KISH_ESS}; alpha forced to 0"
                     )));
-                    extra.push_str(&format!(
+                    let _ = write!(
+                        extra,
                         "; alpha_forced=0 reason=reweight_ess_below_floor ess={ess:.3}"
-                    ));
+                    );
                 }
                 (_, Some(adj)) => {
                     let (mean, _het_var) = adj.weighted_moments();
@@ -486,11 +488,12 @@ pub fn apply_transport(
                     let source_v0 = coef.variance[idx];
                     let v0 = source_v0 + reweight_v0;
                     replace_coef_moments(&mut prepared.prior, idx, mean, v0)?;
-                    extra.push_str(&format!(
+                    let _ = write!(
+                        extra,
                         "; reweighted mean={mean:.6} source_v0={source_v0:.6} \
                          reweight_v0={reweight_v0:.6} ess={:.3}",
                         adj.kish_ess()
-                    ));
+                    );
                 }
                 (
                     TransportPolicy::InvariantConditionalOutcome

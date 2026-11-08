@@ -154,10 +154,11 @@ pub(crate) fn admg_window_problem_within(
             if ctx.cancellation.is_cancelled() {
                 return Err(CausalError::Cancelled { stage: "temporal mediation" });
             }
-            if let Some(node) = window.coordinate(variable, period) {
-                if node != treatment && node != outcome {
-                    mediators.push(node);
-                }
+            if let Some(node) = window.coordinate(variable, period)
+                && node != treatment
+                && node != outcome
+            {
+                mediators.push(node);
             }
         }
     }

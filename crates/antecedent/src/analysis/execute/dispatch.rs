@@ -735,21 +735,17 @@ impl super::Study {
         if self.plain_fixed_route()
             && self.declared.split.is_none()
             && self.settings.inference.is_frequentist()
+            && let Some(RouteInput::InterferenceDag { data, query, .. }) = route
+            && matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
+            && query.exposure == antecedent_core::ExposureMapping::NeighborCount
+            && let Some(result) = self.admit_sealed_tabular(
+                data,
+                ctx,
+                |prepared| prepared.retains(ExecutionKind::Interference),
+                "one-shot interference route did not retain its checked operation",
+            )?
         {
-            if let Some(RouteInput::InterferenceDag { data, query, .. }) = route {
-                if matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
-                    && query.exposure == antecedent_core::ExposureMapping::NeighborCount
-                {
-                    if let Some(result) = self.admit_sealed_tabular(
-                        data,
-                        ctx,
-                        |prepared| prepared.retains(ExecutionKind::Interference),
-                        "one-shot interference route did not retain its checked operation",
-                    )? {
-                        return Ok(*result);
-                    }
-                }
-            }
+            return Ok(*result);
         }
         if let Some(result) = self.run_sealed_bayesian_basis_and_robust_effect(route, ctx)? {
             return Ok(*result);

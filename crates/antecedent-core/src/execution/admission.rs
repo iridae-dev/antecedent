@@ -422,12 +422,11 @@ pub(super) fn close_slot(
         }
     }
     let mut removed = state.leases.remove(index);
-    if let Some(parent_index) = parent.and_then(|id| lease_index(&state.leases, id)) {
-        if let (Some(held), Some(returned)) =
+    if let Some(parent_index) = parent.and_then(|id| lease_index(&state.leases, id))
+        && let (Some(held), Some(returned)) =
             (state.leases[parent_index].observation.as_mut(), removed.observation.as_mut())
-        {
-            held.merge(returned);
-        }
+    {
+        held.merge(returned);
     }
     Ok(AdmissionRemainder::new(threads, bytes))
 }
@@ -474,10 +473,10 @@ impl AdmissionLease {
     #[doc(hidden)]
     pub fn observe_current(&self) {
         let mut state = lock_mutex(&self.shared.state);
-        if let Some(index) = lease_index(&state.leases, self.id) {
-            if let Some(observation) = state.leases[index].observation.as_mut() {
-                observation.attach_current();
-            }
+        if let Some(index) = lease_index(&state.leases, self.id)
+            && let Some(observation) = state.leases[index].observation.as_mut()
+        {
+            observation.attach_current();
         }
     }
 
@@ -608,12 +607,12 @@ impl AdmissionLease {
 
 impl Drop for AdmissionLease {
     fn drop(&mut self) {
-        if self.active.swap(false, Ordering::SeqCst) {
-            if let Err(error) = close_and_notify(&self.shared, self.id) {
-                // The lease stays charged in the table. An accounting break is loud, but
-                // never a second panic while one is already unwinding.
-                assert!(std::thread::panicking(), "admission release failed: {error}");
-            }
+        if self.active.swap(false, Ordering::SeqCst)
+            && let Err(error) = close_and_notify(&self.shared, self.id)
+        {
+            // The lease stays charged in the table. An accounting break is loud, but
+            // never a second panic while one is already unwinding.
+            assert!(std::thread::panicking(), "admission release failed: {error}");
         }
     }
 }

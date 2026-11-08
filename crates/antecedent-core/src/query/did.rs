@@ -751,14 +751,13 @@ impl PanelDidQuery {
                 ));
             }
         }
-        if let Some(resampling) = &self.resampling {
-            if resampling.replicates < 2
-                || !(rollout || self.design == DidSamplingDesign::AugmentedPanel)
-            {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    PanelDesignFault::WholeProcedureResample,
-                ));
-            }
+        if let Some(resampling) = &self.resampling
+            && (resampling.replicates < 2
+                || !(rollout || self.design == DidSamplingDesign::AugmentedPanel))
+        {
+            return Err(QueryError::InvalidRandomizedEffect(
+                PanelDesignFault::WholeProcedureResample,
+            ));
         }
         Ok(())
     }

@@ -164,7 +164,6 @@ pub(crate) fn propensity(data: &AdjData) -> Option<Vec<f64>> {
 
 /// The treated and control mean outcomes under the departure `param`, by `estimator`; `None`
 /// for a singular design or an arm with too few observed outcomes.
-#[allow(clippy::match_on_vec_items, reason = "validated row indices address the outcome vector")]
 pub(crate) fn arm_means(
     data: &AdjData,
     propensities: Option<&[f64]>,

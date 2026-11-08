@@ -666,13 +666,11 @@ pub(crate) struct SeparationSignature {
 
 impl SeparationSignature {
     fn push(&mut self, answer: bool) {
-        if self.len % 64 == 0 {
+        if self.len.is_multiple_of(64) {
             self.words.push(0);
         }
-        if answer {
-            if let Some(word) = self.words.last_mut() {
-                *word |= 1u64 << (self.len % 64);
-            }
+        if answer && let Some(word) = self.words.last_mut() {
+            *word |= 1u64 << (self.len % 64);
         }
         self.len += 1;
     }
@@ -1502,7 +1500,7 @@ mod tests {
         let n_usize = usize::try_from(n).unwrap_or(0);
         for i in 0..n_usize {
             for j in (i + 1)..n_usize {
-                if rng.next_u64() % 3 != 0 {
+                if !rng.next_u64().is_multiple_of(3) {
                     continue;
                 }
                 let a = DenseNodeId::from_raw(order[i]);

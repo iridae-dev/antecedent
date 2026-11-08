@@ -346,6 +346,10 @@ type EstimateReply =
     clippy::too_many_arguments,
     reason = "one request: contract, two tables, query, targets, bounds"
 )]
+#[allow(
+    clippy::result_large_err,
+    reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+)]
 fn discovered_transport_estimate_run(
     py: Python<'_>,
     contract_json: &str,
@@ -596,6 +600,10 @@ fn discovered_temporal_graph_transport(
 #[allow(
     clippy::too_many_arguments,
     reason = "one request: contract, two series, query, horizon, bounds"
+)]
+#[allow(
+    clippy::result_large_err,
+    reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
 )]
 fn discovered_temporal_transport_estimate_run(
     py: Python<'_>,

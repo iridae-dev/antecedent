@@ -1332,12 +1332,12 @@ mod tests {
             }
             impl std::io::Seek for Changing {
                 fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
-                    if let std::io::SeekFrom::Start(target) = pos {
-                        if target < self.0.position() {
-                            let bytes = self.0.get_mut();
-                            let last = bytes.len() - 1;
-                            bytes[last] ^= 1;
-                        }
+                    if let std::io::SeekFrom::Start(target) = pos
+                        && target < self.0.position()
+                    {
+                        let bytes = self.0.get_mut();
+                        let last = bytes.len() - 1;
+                        bytes[last] ^= 1;
                     }
                     std::io::Seek::seek(&mut self.0, pos)
                 }

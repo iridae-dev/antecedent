@@ -696,7 +696,9 @@ pub fn beta_binomial_pmf(responses: u32, mean: f64, correlation: f64) -> Vec<f64
         }
     }
     let total: f64 = pmf.iter().sum();
-    pmf.iter_mut().for_each(|p| *p /= total);
+    for p in &mut pmf {
+        *p /= total;
+    }
     pmf
 }
 
@@ -1056,10 +1058,10 @@ impl ParticipantSpec {
         if losses[cheapest] < self.decisions.loss_threshold - THRESHOLD_BAND {
             return Some((StopReason::ExpectedLoss, cheapest));
         }
-        if let Some(rule) = self.decisions.futility {
-            if view.exact.exceedance.iter().all(|&p| p < rule.threshold - THRESHOLD_BAND) {
-                return Some((StopReason::Futility, 0));
-            }
+        if let Some(rule) = self.decisions.futility
+            && view.exact.exceedance.iter().all(|&p| p < rule.threshold - THRESHOLD_BAND)
+        {
+            return Some((StopReason::Futility, 0));
         }
         if self.decisions.participant_cap.is_some_and(|cap| enrolled >= cap) {
             return Some((StopReason::RecruitmentCap, first_maximum(view.means())));
@@ -1171,13 +1173,13 @@ impl ParticipantSpec {
             let batch = source.batch(look, size, &row)?;
             enrolled += size;
             pending.push_back(batch);
-            if pending.len() > self.declaration.lag_looks {
-                if let Some(completed) = pending.pop_front() {
-                    for participant in completed {
-                        tallies[participant.arm].record(participant.successes);
-                        sequences[participant.arm]
-                            .push(f64::from(participant.successes) / f64::from(self.responses))?;
-                    }
+            if pending.len() > self.declaration.lag_looks
+                && let Some(completed) = pending.pop_front()
+            {
+                for participant in completed {
+                    tallies[participant.arm].record(participant.successes);
+                    sequences[participant.arm]
+                        .push(f64::from(participant.successes) / f64::from(self.responses))?;
                 }
             }
             view = self.view(&tallies, detail, cancelled)?;

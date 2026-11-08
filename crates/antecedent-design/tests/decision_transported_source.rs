@@ -824,7 +824,7 @@ fn a_route_with_a_typed_constructor_cannot_be_declared_by_hand() {
 #[test]
 fn a_typed_route_identity_must_be_a_digest_while_a_declared_route_may_be_text() {
     // Free text is a declaration and stays allowed on the declared route.
-    assert!(point(1.0).receipt().transport_identities == vec!["diagram-1".to_owned()]);
+    assert_eq!(point(1.0).receipt().transport_identities, vec!["diagram-1".to_owned()]);
     // A mechanism or cohort-effect route names a producing result's digest.
     for route in [TransportedRoute::Mechanism, TransportedRoute::CohortEffect] {
         let mut declared = declaration();

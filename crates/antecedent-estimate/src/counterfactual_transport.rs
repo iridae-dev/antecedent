@@ -348,7 +348,6 @@ fn charge_catalog_validation(
 
 // Guard the public, caller-constructible execution shape. This is not a replay
 // of identification or a scientific validation of the stored derivation.
-#[allow(clippy::match_on_vec_items, reason = "the retained traversal supplies valid indices")]
 fn validate_execution_shape(
     derivation: &CounterfactualTransportDerivation,
     cards: &[usize],
@@ -442,10 +441,10 @@ fn validate_execution_shape(
                         let Some(card) = cards.get(variable.get()) else {
                             return Err(invalid("a factor references an invalid variable"));
                         };
-                        if let CounterfactualLevel::Fixed(level) = level {
-                            if level.get() >= *card {
-                                return Err(invalid("a factor references an invalid level"));
-                            }
+                        if let CounterfactualLevel::Fixed(level) = level
+                            && level.get() >= *card
+                        {
+                            return Err(invalid("a factor references an invalid level"));
                         }
                     }
                 }
@@ -667,10 +666,10 @@ impl Engine<'_> {
         if item >= self.tables.len() || item >= self.items.len() || idx >= self.total {
             return Err(Failure::Invalid("a derivation references an invalid item or cell"));
         }
-        if let Some(table) = &self.tables[item] {
-            if table[idx] != UNSET {
-                return Ok(table[idx]);
-            }
+        if let Some(table) = &self.tables[item]
+            && table[idx] != UNSET
+        {
+            return Ok(table[idx]);
         }
         let mut stack = ItemStack::new();
         stack.push(ItemFrame::Value { item, idx, depth: 0 }, self.ctx)?;
@@ -689,11 +688,11 @@ impl Engine<'_> {
                             "a derivation references an invalid item or cell",
                         ));
                     }
-                    if let Some(table) = &self.tables[item] {
-                        if table[idx] != UNSET {
-                            returned = Some(table[idx]);
-                            continue;
-                        }
+                    if let Some(table) = &self.tables[item]
+                        && table[idx] != UNSET
+                    {
+                        returned = Some(table[idx]);
+                        continue;
                     }
                     self.ensure_item_cache(item)?;
                     let entry = self.items[item];
@@ -1033,11 +1032,11 @@ impl Engine<'_> {
         if let Some(&cached) = self.factor_cache.get(&key) {
             return Ok(cached);
         }
-        if self.policy == FreeCoordinatePolicy::MassWeightedAverage {
-            if let Some(value) = self.averaged_factor(factor.item, &base)? {
-                self.retain_factor(key, value)?;
-                return Ok(value);
-            }
+        if self.policy == FreeCoordinatePolicy::MassWeightedAverage
+            && let Some(value) = self.averaged_factor(factor.item, &base)?
+        {
+            self.retain_factor(key, value)?;
+            return Ok(value);
         }
         let free: Vec<usize> = (0..n).filter(|&v| base[v] == usize::MAX).collect();
         let mut counters = vec![0usize; free.len()];
@@ -1476,15 +1475,15 @@ fn evaluate_with_policy(
     } else {
         None
     };
-    if let Some(mass) = guard {
-        if mass <= 0.0 {
-            return Err(refused(
-                antecedent_core::reason_code!("transport_support_failure"),
-                DETAIL_ZERO_MASS,
-                "the original conditioning event has zero mass in the target population, so \
+    if let Some(mass) = guard
+        && mass <= 0.0
+    {
+        return Err(refused(
+            antecedent_core::reason_code!("transport_support_failure"),
+            DETAIL_ZERO_MASS,
+            "the original conditioning event has zero mass in the target population, so \
                  the conditional counterfactual probability is undefined",
-            ));
-        }
+        ));
     }
     if denominator <= 0.0 {
         return Err(refused(

@@ -342,15 +342,15 @@ pub fn rollout_joint_posterior(
             if calendar > 0 {
                 row[n + calendar - 1] = 1.0;
             }
-            if let Some(g) = u.adoption {
-                if time >= g {
-                    let cell = design
-                        .cells
-                        .iter()
-                        .position(|c| c.regime == u.regime && c.adoption == g && c.time == time)
-                        .ok_or("unmodeled cohort-time effect")?;
-                    row[offset + cell] = 1.0;
-                }
+            if let Some(g) = u.adoption
+                && time >= g
+            {
+                let cell = design
+                    .cells
+                    .iter()
+                    .position(|c| c.regime == u.regime && c.adoption == g && c.time == time)
+                    .ok_or("unmodeled cohort-time effect")?;
+                row[offset + cell] = 1.0;
             }
             let (response, variance, whitened) =
                 if let Some((before, before_y, before_row)) = &previous {

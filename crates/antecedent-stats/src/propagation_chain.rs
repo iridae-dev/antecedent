@@ -1076,10 +1076,10 @@ pub fn summarize(column: &[f64], weights: Option<&[f64]>) -> Result<ColumnSummar
     if n == 0 {
         return Err(ChainError::Shape("a summary needs at least one row"));
     }
-    if let Some(weights) = weights {
-        if weights.len() != n {
-            return Err(ChainError::InvalidWeights("one weight per row"));
-        }
+    if let Some(weights) = weights
+        && weights.len() != n
+    {
+        return Err(ChainError::InvalidWeights("one weight per row"));
     }
     if column.iter().any(|v| !v.is_finite()) {
         return Err(ChainError::NonFinite("summarized value"));
@@ -1198,10 +1198,10 @@ pub fn preposterior(
             "the parameter, utility and noise columns have one entry per row",
         ));
     }
-    if let Some(weights) = weights {
-        if weights.len() != n {
-            return Err(ChainError::InvalidWeights("one weight per row"));
-        }
+    if let Some(weights) = weights
+        && weights.len() != n
+    {
+        return Err(ChainError::InvalidWeights("one weight per row"));
     }
     let uniform = 1.0 / n as f64;
     let prior = |row: usize| weights.map_or(uniform, |w| w[row]);

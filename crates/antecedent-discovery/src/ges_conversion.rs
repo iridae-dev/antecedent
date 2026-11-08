@@ -26,13 +26,13 @@ pub(crate) fn dag_to_cpdag_with_known(
         cpdag.add_node(*node)?;
     }
     for e in dag.edges() {
-        if let Some((from, to)) = e.parent_child() {
-            if !cpdag.has_edge(from, to) {
-                if known(from, to) {
-                    cpdag.insert_directed(from, to)?;
-                } else {
-                    cpdag.insert_undirected(from, to)?;
-                }
+        if let Some((from, to)) = e.parent_child()
+            && !cpdag.has_edge(from, to)
+        {
+            if known(from, to) {
+                cpdag.insert_directed(from, to)?;
+            } else {
+                cpdag.insert_undirected(from, to)?;
             }
         }
     }

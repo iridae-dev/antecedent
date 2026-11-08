@@ -122,7 +122,7 @@ fn saturation_pointwise_intervals_cover_effects_across_neighbor_mappings() {
                     let a = f64::from(assignment[first + (within + 1) % 3]);
                     let b = f64::from(assignment[first + (within + 2) % 3]);
                     let neighbor = match contrast.mapping {
-                        ExposureMapping::NeighborFraction => (a + b) / 2.0,
+                        ExposureMapping::NeighborFraction => f64::midpoint(a, b),
                         ExposureMapping::WeightedNeighborExposure => (a + 2.0 * b) / 3.0,
                         ExposureMapping::NeighborCount => a + b,
                         _ => unreachable!(),

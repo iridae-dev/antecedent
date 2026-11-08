@@ -304,12 +304,12 @@ impl SyntheticControlQuery {
                 ));
             }
         }
-        if let Some(effect) = self.sharp_null_effect {
-            if !effect.is_finite() || !self.uniform_unit_randomization {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    PanelDesignFault::SharpNullRandomization,
-                ));
-            }
+        if let Some(effect) = self.sharp_null_effect
+            && (!effect.is_finite() || !self.uniform_unit_randomization)
+        {
+            return Err(QueryError::InvalidRandomizedEffect(
+                PanelDesignFault::SharpNullRandomization,
+            ));
         }
         if let Some(rollout) = &self.rollout {
             let units = rollout

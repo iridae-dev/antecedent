@@ -827,14 +827,14 @@ fn check_input(
     if input.snapshot_id.is_empty() {
         return invalid("the snapshot id is empty".to_string());
     }
-    if let Some(bound) = &derivation.observed().snapshot {
-        if bound.as_ref() != input.snapshot_id {
-            return invalid(format!(
-                "the rows' snapshot {:?} is not the snapshot {:?} the catalog binds",
-                input.snapshot_id,
-                bound.as_ref()
-            ));
-        }
+    if let Some(bound) = &derivation.observed().snapshot
+        && bound.as_ref() != input.snapshot_id
+    {
+        return invalid(format!(
+            "the rows' snapshot {:?} is not the snapshot {:?} the catalog binds",
+            input.snapshot_id,
+            bound.as_ref()
+        ));
     }
     if let Some(row) = input.rows.iter().find(|row| !layout.valid(row.pattern)) {
         return invalid(format!("row {} has a pattern the proxy model excludes", row.id));

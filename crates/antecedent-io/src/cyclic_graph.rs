@@ -5,7 +5,7 @@
 use crate::cyclic_system_artifact::{CyclicArtifactError, invalid};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_graph::{CyclicMixedGraph, DenseNodeId, Endpoint};
-use antecedent_identify::cyclic_id::{cyclic_backdoor_valid, identify_cyclic, CyclicIdPremises};
+use antecedent_identify::cyclic_id::{CyclicIdPremises, cyclic_backdoor_valid, identify_cyclic};
 use serde::{Deserialize, Serialize};
 
 /// Dense cyclic graph serialization; reciprocal and bidirected edges are distinct.
@@ -303,7 +303,7 @@ impl CyclicGraphRequest {
         ctx: &ExecutionContext,
     ) -> Result<CyclicGraphReport, CyclicArtifactError> {
         use antecedent_discovery::{
-            cyclic_fci::{discover_cyclic_fci, CyclicFciPremises, SigmaCiOracle},
+            cyclic_fci::{CyclicFciPremises, SigmaCiOracle, discover_cyclic_fci},
             engine::DiscoveryWorkspace,
             fci::Fci,
         };
@@ -423,7 +423,7 @@ impl CyclicGraphRequest {
                 max_checks,
             } => {
                 use antecedent_identify::cyclic_calculus::{
-                    apply_cyclic_calculus, CyclicCalculusStatus,
+                    CyclicCalculusStatus, apply_cyclic_calculus,
                 };
                 let answer = apply_cyclic_calculus(
                     &graph.graph()?,
@@ -678,5 +678,4 @@ mod tests {
         let error = request.execute(&ExecutionContext::for_tests(1)).unwrap_err();
         assert!(error.to_string().contains("cyclic discovery input limits"));
     }
-
 }

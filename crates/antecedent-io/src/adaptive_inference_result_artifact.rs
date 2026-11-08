@@ -739,7 +739,7 @@ fn close(stored: f64, recomputed: f64) -> bool {
 }
 
 fn result_refusal(error: &AdaptiveResultError) -> Error {
-    Error::refused(error.code, error.detail.to_string(), error.message.to_string())
+    Error::refused(error.code, error.detail.clone(), error.message.clone())
 }
 
 fn check(

@@ -715,12 +715,11 @@ impl DagReview {
     pub fn from_dag(graph: Dag, algorithm: impl Into<Arc<str>>) -> Self {
         let mut pending = Vec::new();
         for e in graph.edges() {
-            if let Some((from, to)) = e.parent_child() {
-                if let (Some(fv), Some(tv)) =
+            if let Some((from, to)) = e.parent_child()
+                && let (Some(fv), Some(tv)) =
                     (variable_id_of(&graph, from), variable_id_of(&graph, to))
-                {
-                    pending.push((fv, tv));
-                }
+            {
+                pending.push((fv, tv));
             }
         }
         Self { graph, pending_edges: Arc::from(pending), algorithm: algorithm.into() }

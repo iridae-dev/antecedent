@@ -237,16 +237,15 @@ impl LaggedFrame {
                     message: "missing values under ErrorOnMissing policy",
                 });
             }
-            if options.mask == MaskPolicy::Honor && options.missing == MissingPolicy::ErrorOnMissing
+            if options.mask == MaskPolicy::Honor
+                && options.missing == MissingPolicy::ErrorOnMissing
+                && let Some(mask) = analysis
+                && !mask.is_all_valid()
             {
-                if let Some(mask) = analysis {
-                    if !mask.is_all_valid() {
-                        return Err(DataError::IncompleteSeries {
-                            id: None,
-                            message: "analysis mask hides rows under ErrorOnMissing policy",
-                        });
-                    }
-                }
+                return Err(DataError::IncompleteSeries {
+                    id: None,
+                    message: "analysis mask hides rows under ErrorOnMissing policy",
+                });
             }
             let clean = src.validity.is_all_valid()
                 && (options.mask == MaskPolicy::Ignore || mask_all_valid);

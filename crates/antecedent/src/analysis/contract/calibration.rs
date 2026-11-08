@@ -198,7 +198,7 @@ impl StudyResult {
             posterior: contract.posterior.to_string(),
             functional: String::new(),
             level: 0.0,
-            identification: label.to_string(),
+            identification: label.clone(),
         };
         let row_count = analysis_row_count(self, contract);
         self.reported_interval_bindings(bayesian)

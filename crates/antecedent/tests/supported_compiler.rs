@@ -9,6 +9,7 @@
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 use antecedent::support::{classify_estimator, supported_estimators, supported_route_estimator};
@@ -2555,10 +2556,11 @@ fn render_routes(routes: &[Route]) -> String {
         "# rows whose external oracles exercise them.\n",
     ));
     for route in routes {
-        out.push_str(&format!(
+        let _ = write!(
+            out,
             "\n[[route]]\ncoordinate = \"{}\"\nidentifier = \"{}\"\nestimator = \"{}\"\nlowering = \"{}\"\n",
             route.coordinate, route.identifier, route.estimator, route.lowering
-        ));
+        );
     }
     out
 }
@@ -3220,7 +3222,7 @@ fn cell_support(estimator: &str) -> antecedent::SupportCell {
             cell.inference.as_str() == "Frequentist"
                 && cell.structure.as_str() == "explicit"
                 && cell.query.as_str() == "AverageEffect"
-                && supported_estimators(*cell).iter().any(|name| *name == estimator)
+                && supported_estimators(*cell).contains(&estimator)
         })
         .unwrap_or_else(|| panic!("no supported average-effect cell names {estimator}"))
 }
@@ -3575,15 +3577,16 @@ fn sampled_supported_cells_replay_to_the_published_number() {
         if first.lowered.is_none() || first.lowered != second.lowered {
             failures.push(format!("{coordinate}: the lowered program identity did not replay"));
         }
-        if let Some(wire) = first.wire_estimate {
-            if first.scalar_effect && first.effect.is_finite() {
-                let allowed = 1e-9 * first.effect.abs().max(1.0);
-                if (wire - first.effect).abs() > allowed {
-                    failures.push(format!(
-                        "{coordinate}: consumer read {wire}, route published {}",
-                        first.effect
-                    ));
-                }
+        if let Some(wire) = first.wire_estimate
+            && first.scalar_effect
+            && first.effect.is_finite()
+        {
+            let allowed = 1e-9 * first.effect.abs().max(1.0);
+            if (wire - first.effect).abs() > allowed {
+                failures.push(format!(
+                    "{coordinate}: consumer read {wire}, route published {}",
+                    first.effect
+                ));
             }
         }
     }

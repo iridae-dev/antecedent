@@ -52,14 +52,14 @@ fn interventions_of(
     shifts: Option<&HashMap<String, f64>>,
     programs: Option<&[CallbackProgramArgs]>,
 ) -> PyResult<Vec<Intervention>> {
-    if let Some(shifts) = shifts {
-        if let Some(name) = interventions.keys().find(|k| shifts.contains_key(*k)) {
-            return Err(py_msg(format!(
-                "variable {name:?} is present in both `interventions` and `shifts`; \
+    if let Some(shifts) = shifts
+        && let Some(name) = interventions.keys().find(|k| shifts.contains_key(*k))
+    {
+        return Err(py_msg(format!(
+            "variable {name:?} is present in both `interventions` and `shifts`; \
                  a variable cannot be simultaneously pinned (do(X := v)) and shifted \
                  (do(X := X + delta))"
-            )));
-        }
+        )));
     }
     let mut ints = Vec::with_capacity(interventions.len() + shifts.map_or(0, HashMap::len));
     for (name, value) in interventions {

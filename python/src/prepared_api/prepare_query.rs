@@ -726,15 +726,14 @@ impl PyPreparedAnalysis {
                 let covariate_id = crate::graph_build::schema_var_id(data.schema(), &covariate)?;
                 query = query.with_fixed_cuped(covariate_id, coefficient);
             }
-            if let Some(covariates) = ancova_covariates {
-                if !covariates.is_empty() {
+            if let Some(covariates) = ancova_covariates
+                && !covariates.is_empty() {
                     let ids = covariates
                         .iter()
                         .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
                         .collect::<PyResult<Vec<_>>>()?;
                     query = query.with_ancova(ids);
                 }
-            }
             if let Some(received) = received_treatment {
                 query = if treatment_on_treated {
                     query.with_treatment_on_treated(received)

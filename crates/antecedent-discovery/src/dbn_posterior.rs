@@ -241,12 +241,12 @@ impl DbnPosterior {
         let n_templates = (contemp.len() as u64).saturating_mul(lag_limit);
         // Three stored words per kept template, plus the score workspace.
         let est_bytes = n_templates.saturating_mul(32);
-        if let Some(hard) = ctx.memory_limit_bytes() {
-            if est_bytes > hard {
-                return Err(DiscoveryError::Resource(format!(
-                    "exact DBN enumeration needs ~{est_bytes} bytes; hard limit {hard}"
-                )));
-            }
+        if let Some(hard) = ctx.memory_limit_bytes()
+            && est_bytes > hard
+        {
+            return Err(DiscoveryError::Resource(format!(
+                "exact DBN enumeration needs ~{est_bytes} bytes; hard limit {hard}"
+            )));
         }
         let mut kept_masks = Vec::new();
         let mut kept_lag = Vec::new();
@@ -621,10 +621,11 @@ fn ensure_lagged<G: LaggedGraph>(
     lag: Lag,
 ) -> Result<DenseNodeId, DiscoveryError> {
     for (i, node) in graph.nodes().iter().enumerate() {
-        if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node {
-            if *existing == variable && *existing_lag == lag {
-                return Ok(DenseNodeId::try_from_usize(i)?);
-            }
+        if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node
+            && *existing == variable
+            && *existing_lag == lag
+        {
+            return Ok(DenseNodeId::try_from_usize(i)?);
         }
     }
     Ok(graph.add_lagged(variable, lag)?)

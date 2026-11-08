@@ -3,8 +3,8 @@
 use super::data_policy::{
     PanelCellRole, PanelDataAccounting, PanelMissingPolicy, PanelUnitAccounting, PanelUnitDrop,
 };
-use super::{engine, JointPanelError, JointPanelRequest, JointPanelState, JointPanelWorld};
-use antecedent_core::execution_attempt::{record_physical, PhysicalEvent};
+use super::{JointPanelError, JointPanelRequest, JointPanelState, JointPanelWorld, engine};
+use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
 use antecedent_core::physical_choice::PhysicalChoice;
 use antecedent_core::physical_choice::{
     AvailableCapabilities, CostQuotes, DeclaredCost, OperatorCapability, ResourceCapability,
@@ -15,11 +15,7 @@ use antecedent_data::PanelData;
 use antecedent_data::{ColumnView, SamplingRegularity, TableView};
 
 pub(super) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), JointPanelError> {
-    if ctx.cancellation.is_cancelled() {
-        Err(engine::PanelError::Cancelled.into())
-    } else {
-        Ok(())
-    }
+    if ctx.cancellation.is_cancelled() { Err(engine::PanelError::Cancelled.into()) } else { Ok(()) }
 }
 pub(super) fn check_memory(ctx: &ExecutionContext, bytes: u64) -> Result<(), JointPanelError> {
     if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
@@ -648,11 +644,7 @@ fn adapt_group(
         ));
     }
     let fill = |values: &[f64], row: usize| {
-        if availability.channels[row] || values[row].is_infinite() {
-            values[row]
-        } else {
-            0.0
-        }
+        if availability.channels[row] || values[row].is_infinite() { values[row] } else { 0.0 }
     };
     let history = channel_values
         .iter()

@@ -280,7 +280,8 @@ fn a_tiny_admission_pool_refuses_and_is_restored() {
 #[test]
 fn a_scalar_average_effect_refuter_cannot_certify_another_target() {
     let scalar = RefutationReport::new("placebo_treatment", 0.5, 0.01, 0.8, true, true, None, 50);
-    let error = refuse_scalar_reports_for_target(&world_target(), &[scalar.clone()]).unwrap_err();
+    let error = refuse_scalar_reports_for_target(&world_target(), std::slice::from_ref(&scalar))
+        .unwrap_err();
     match &error {
         TargetCertificationError::ScalarRefuterForOtherTarget {
             refuter,

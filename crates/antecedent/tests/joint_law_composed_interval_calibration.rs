@@ -30,11 +30,7 @@
     clippy::cast_possible_truncation,
     reason = "bounded replicate indices in a calibration fixture"
 )]
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    reason = "bounded simulation sizes and small indices"
-)]
+#![allow(clippy::cast_precision_loss, reason = "bounded simulation sizes and small indices")]
 
 mod common;
 

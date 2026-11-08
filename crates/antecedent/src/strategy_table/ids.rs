@@ -480,7 +480,7 @@ pub enum EstimatorId {
     LongitudinalMarginalStructuralModel,
     /// Cross-fitted DML / AIPW average treatment effect.
     Dml,
-    /// Doubly robust CATE learner (DRLearner).
+    /// Doubly robust CATE learner (`DRLearner`).
     DrLearner,
     /// Native honest causal forest CATE.
     CausalForest,
@@ -1866,8 +1866,7 @@ fn select_estimand_index(
             }
             estimand
                 .method_kind()
-                .map(|method| estimand_compatible_with_estimator(method, &estimator))
-                .unwrap_or(false)
+                .is_ok_and(|method| estimand_compatible_with_estimator(method, &estimator))
         })
         .map_err(|error| match error {
             EstimandSelectionError::NoEstimand => {

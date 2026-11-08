@@ -19,23 +19,23 @@
 use std::sync::Arc;
 
 use antecedent_core::graph_imputation_contract::{
-    admission_bytes, labeled_dag_count, AtomOperation, GraphImputationParts, GraphImputationSource,
-    MAX_VARIABLES, MIN_IMPUTATIONS, MIN_ITERATIONS, MIN_POSTERIOR_DRAWS, MIN_ROWS,
+    AtomOperation, GraphImputationParts, GraphImputationSource, MAX_VARIABLES, MIN_IMPUTATIONS,
+    MIN_ITERATIONS, MIN_POSTERIOR_DRAWS, MIN_ROWS, admission_bytes, labeled_dag_count,
 };
 use antecedent_core::{AverageEffectQuery, CanonicalWriter, ExecutionContext, VariableId};
 use antecedent_data::{ImputationSpec, TableView, TabularData};
-use antecedent_discovery::adjacency_mask::{dag_from_adjacency_mask, AdjacencyMask};
-use antecedent_io::measured_inference::graph_candidate::{
-    replay_point, retained_support, GraphPointReading,
-};
-use antecedent_io::measured_inference::MeasuredInference;
+use antecedent_discovery::adjacency_mask::{AdjacencyMask, dag_from_adjacency_mask};
 use antecedent_io::IoError;
+use antecedent_io::measured_inference::MeasuredInference;
+use antecedent_io::measured_inference::graph_candidate::{
+    GraphPointReading, replay_point, retained_support,
+};
 
-use super::lowering::graph_imputation::{lower, LoweringInput, RetainedAtomBinding};
 use super::RetainedOperation;
+use super::lowering::graph_imputation::{LoweringInput, RetainedAtomBinding, lower};
 use antecedent_core::search::{SearchBudget, SearchLimits};
 mod wire;
-pub use wire::{consume, GraphImputationArtifact, GraphImputationExpectation};
+pub use wire::{GraphImputationArtifact, GraphImputationExpectation, consume};
 
 use crate::planner::lowered::LoweredProgram;
 use crate::{BayesianConfig, CausalError, EstimatorId, InferenceMode, RefuteSuite, Study};

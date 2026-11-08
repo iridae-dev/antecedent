@@ -21,10 +21,10 @@ use antecedent_io_core::distribution_artifact::DistributionArtifact;
 use crate::decision_contract::{
     DecisionContract, DecisionContractError, DecisionCriterion, StructuralPolicy,
 };
-use crate::decision_eval::{evaluate_contract, DecisionEvalError, DecisionResult, Verdict};
+use crate::decision_eval::{DecisionEvalError, DecisionResult, Verdict, evaluate_contract};
 use crate::structure_aggregator::{
-    probability_sum, unassigned_probability, AggregateChoice, AggregateDecision, AggregateFacts,
-    AggregateKind, StructureAggregator,
+    AggregateChoice, AggregateDecision, AggregateFacts, AggregateKind, StructureAggregator,
+    probability_sum, unassigned_probability,
 };
 
 /// What is known about one structure.

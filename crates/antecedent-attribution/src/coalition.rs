@@ -315,11 +315,12 @@ impl CoalitionCache {
         } else {
             self.map.contains_key(&key)
         };
-        if let Some(max) = self.max_bytes {
-            if self.used_bytes + bytes > max && !replacing {
-                self.saturated = true;
-                return;
-            }
+        if let Some(max) = self.max_bytes
+            && self.used_bytes + bytes > max
+            && !replacing
+        {
+            self.saturated = true;
+            return;
         }
         let entry = CacheEntry { value, bytes };
         if let Some(idx) = self.dense_slot(&key) {

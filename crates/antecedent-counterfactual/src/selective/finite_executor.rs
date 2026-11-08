@@ -505,19 +505,19 @@ impl FiniteScmExecutor {
                  set and call execute_envelope, or request the point or spread reading",
             ));
         }
-        if let Some(target) = &request.target_population {
-            if target != &request.scm.population {
-                let refused = MatrixRequest {
-                    quantity: QuantityClass::TransportedCrossWorld,
-                    model: ModelClass::FiniteMarkovianScm,
-                    conditioning: ConditioningKind::FactualEvidence,
-                    interventions: InterventionKind::Hard,
-                    population: PopulationKind::Transported,
-                    history: HistoryKind::NoHistory,
-                    evidence: EvidenceKind::DeclaredMechanisms,
-                };
-                return decide(&refused).map(|_| ()).map_err(matrix_error);
-            }
+        if let Some(target) = &request.target_population
+            && target != &request.scm.population
+        {
+            let refused = MatrixRequest {
+                quantity: QuantityClass::TransportedCrossWorld,
+                model: ModelClass::FiniteMarkovianScm,
+                conditioning: ConditioningKind::FactualEvidence,
+                interventions: InterventionKind::Hard,
+                population: PopulationKind::Transported,
+                history: HistoryKind::NoHistory,
+                evidence: EvidenceKind::DeclaredMechanisms,
+            };
+            return decide(&refused).map(|_| ()).map_err(matrix_error);
         }
         if request.evidence_history != request.scm.history {
             let refused = MatrixRequest {

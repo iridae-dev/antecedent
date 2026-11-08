@@ -582,19 +582,19 @@ fn fold_temporal_class_posterior_atoms(
                     });
                     continue;
                 };
-                if capture {
-                    if let (Some(witnesses), Some(structural)) = (
+                if capture
+                    && let (Some(witnesses), Some(structural)) = (
                         result.temporal_response_witnesses.take(),
                         result.structural_response.take(),
-                    ) {
-                        members.push(crate::result::TemporalPosteriorWitnessMember {
-                            outer_atom: key,
-                            outer_weight: weight,
-                            witnesses,
-                            structural,
-                            _resources: std::mem::take(&mut result.retained_resources),
-                        });
-                    }
+                    )
+                {
+                    members.push(crate::result::TemporalPosteriorWitnessMember {
+                        outer_atom: key,
+                        outer_weight: weight,
+                        witnesses,
+                        structural,
+                        _resources: std::mem::take(&mut result.retained_resources),
+                    });
                 }
                 fold.any_partial |= matches!(value, ResponseValue::Envelope(_))
                     || matches!(

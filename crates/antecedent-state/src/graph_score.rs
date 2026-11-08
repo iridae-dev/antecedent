@@ -301,7 +301,7 @@ fn sorted_parents(parents: &[u32], node: u32) -> Result<Arc<[u32]>, StateError> 
     let mut v: Vec<u32> = parents.to_vec();
     v.sort_unstable();
     v.dedup();
-    if v.iter().any(|&p| p == node) {
+    if v.contains(&node) {
         return Err(StateError::Shape(format!("node {node} cannot be its own parent")));
     }
     Ok(Arc::from(v))
@@ -410,10 +410,9 @@ fn gaussian_bic_from_gram(
     let s_yy = gram[node as usize * m + node as usize];
     if !parent_cols.is_empty()
         && (rss < REFINE_RSS_FRACTION * s_yy || min_pivot_sq < REFINE_PIVOT_SQ)
+        && let Some(refined) = refined_rss(data, gram, &parent_cols, node as usize)
     {
-        if let Some(refined) = refined_rss(data, gram, &parent_cols, node as usize) {
-            rss = refined;
-        }
+        rss = refined;
     }
     bic_from_rss(rss, n, parents.len() + 2)
 }

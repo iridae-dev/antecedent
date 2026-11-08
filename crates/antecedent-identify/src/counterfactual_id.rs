@@ -87,6 +87,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::fmt::Write as _;
 
 use antecedent_core::{
     CounterfactualEvent, CounterfactualEventQuery, ExecutionContext, ExogenousCoupling, NodeRef,
@@ -704,12 +705,12 @@ impl CounterfactualIdDerivation {
     pub fn canonical_text(&self) -> String {
         let mut out = format!("{COUNTERFACTUAL_ID_CONTRACT};{};", self.query_text);
         for (bits, functional) in &self.numerators {
-            out.push_str(&format!("level {bits:016x}: "));
+            let _ = write!(out, "level {bits:016x}: ");
             functional.render(&mut out);
             out.push('\n');
         }
         if let Some(graph) = &self.counterfactual_graph {
-            out.push_str(&format!("cg={graph:?}"));
+            let _ = write!(out, "cg={graph:?}");
         }
         out
     }

@@ -1151,10 +1151,10 @@ impl TransportedCounterfactualArtifact {
         if let Some(what) = result_diff(&meta.result, &replayed) {
             return Err(Failure::ResultMismatch(what));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &recomputed) {
-                return Err(Failure::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &recomputed)
+        {
+            return Err(Failure::IdentityMismatch { field });
         }
         let verified = TransportedCounterfactualMeta { request, result: replayed, ..meta };
         Ok(Self { meta: verified })

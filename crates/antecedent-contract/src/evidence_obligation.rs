@@ -23,6 +23,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt::Write as _;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -558,11 +559,7 @@ fn canonical_content(spec: &EvidenceObligationSpec) -> String {
     );
     // Preserve existing structural IDs, while binding every declared semantic dimension.
     for (variable, quantity) in &spec.quantities {
-        content.push_str(&format!(
-            ";quantity:{}:{}",
-            variable.raw(),
-            quantity.canonical_identity()
-        ));
+        let _ = write!(content, ";quantity:{}:{}", variable.raw(), quantity.canonical_identity());
     }
     content
 }

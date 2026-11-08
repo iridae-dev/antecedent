@@ -93,12 +93,12 @@ impl super::super::Study {
                 message: "a temporal derivative is the local slope at one horizon",
             });
         }
-        if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
-            if cfg.has_transfer() {
-                return Err(CausalError::Unsupported {
-                    message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported",
-                });
-            }
+        if let InferenceMode::Bayesian(cfg) = &self.settings.inference
+            && cfg.has_transfer()
+        {
+            return Err(CausalError::Unsupported {
+                message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported",
+            });
         }
         let probe = unit_contrast_query(
             temporal,

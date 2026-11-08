@@ -81,14 +81,14 @@ pub(super) fn validate_candidates(
                     regime.id.raw()
                 )));
             }
-            if let Some(label) = &regime.label {
-                if !labels.insert(Arc::clone(label)) {
-                    return Err(R::invalid_candidate(format!(
-                        "regime {} of candidate {who} repeats the label {label:?} of a base or \
+            if let Some(label) = &regime.label
+                && !labels.insert(Arc::clone(label))
+            {
+                return Err(R::invalid_candidate(format!(
+                    "regime {} of candidate {who} repeats the label {label:?} of a base or \
                          candidate regime",
-                        regime.id.raw()
-                    )));
-                }
+                    regime.id.raw()
+                )));
             }
             if regime.measured.is_empty()
                 || !regime.conditioned_on.is_empty()

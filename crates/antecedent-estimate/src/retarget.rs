@@ -324,10 +324,10 @@ pub fn check_target_dependencies(
     graph: Option<&dyn DirectedAncestry>,
 ) -> Result<(), EstimationError> {
     for &v in depends_on {
-        if v == treatment || intervened.iter().any(|&x| x == v) {
+        if v == treatment || intervened.contains(&v) {
             return Err(RetargetRefusal::IllegalDependence.error());
         }
-        if !adjustment_set.iter().any(|&z| z == v) {
+        if !adjustment_set.contains(&v) {
             return Err(RetargetRefusal::OutsideAdjustmentSet.error());
         }
     }
@@ -369,10 +369,10 @@ fn descendant_of_intervened(
     }
     graph.descendants_of(&dense, &mut out, &mut ws);
     for &v in depends_on {
-        if let Some(pos) = graph.nodes().iter().position(|n| n.variable() == v) {
-            if out.contains(DenseNodeId::from_raw(pos as u32)) {
-                return Ok(true);
-            }
+        if let Some(pos) = graph.nodes().iter().position(|n| n.variable() == v)
+            && out.contains(DenseNodeId::from_raw(pos as u32))
+        {
+            return Ok(true);
         }
     }
     Ok(false)

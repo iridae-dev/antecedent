@@ -423,7 +423,9 @@ impl ForwardSourceRefusal {
     pub fn code(&self) -> &'static str {
         match self {
             Self::Transported(error) => error.code(),
-            Self::TransportedNotAccepted => {
+            Self::TransportedNotAccepted
+            | Self::ComposedLawNotMaterialized { .. }
+            | Self::PointOnlyLawRequested { .. } => {
                 antecedent_core::reason_code!("decision_contract_unsatisfied")
             }
             Self::IntervalNotSupported(_) => {
@@ -437,9 +439,6 @@ impl ForwardSourceRefusal {
             Self::ComposedQueryResultMismatch(_)
             | Self::ComposedCoordinateIsOutcomeLaw(_)
             | Self::PerActionNotSealable => antecedent_core::reason_code!("invalid_argument"),
-            Self::ComposedLawNotMaterialized { .. } | Self::PointOnlyLawRequested { .. } => {
-                antecedent_core::reason_code!("decision_contract_unsatisfied")
-            }
             Self::Artifact { code, .. } => code,
             Self::Inverse(error) => error.reason_code(),
         }
@@ -841,12 +840,12 @@ fn gaussian_laws(
                 action.action_id.clone(),
             ));
         };
-        if let CompositionQueryWire::GaussianInterventionLaw { outcome, .. } = &action.query {
-            if outcome != &action.coordinate.variable_id {
-                return Err(ForwardSourceRefusal::ComposedInvalid(
-                    "outcome coordinate matches the queried outcome",
-                ));
-            }
+        if let CompositionQueryWire::GaussianInterventionLaw { outcome, .. } = &action.query
+            && outcome != &action.coordinate.variable_id
+        {
+            return Err(ForwardSourceRefusal::ComposedInvalid(
+                "outcome coordinate matches the queried outcome",
+            ));
         }
         let law = crate::gaussian_forward_law::GaussianForwardLaw {
             version: 1,
@@ -1116,15 +1115,15 @@ fn check_demand(
     if demand.interval_region {
         return Err(ForwardSourceRefusal::IntervalNotSupported(kind));
     }
-    if source.origin.representation == ForwardRepresentation::PointOnly {
-        if let Some(needed) = query_needs_law(query) {
-            return Err(match kind {
-                ForwardSourceKind::ComposedMechanism => {
-                    ForwardSourceRefusal::ComposedLawNotMaterialized { needed }
-                }
-                _ => ForwardSourceRefusal::PointOnlyLawRequested { kind, needed },
-            });
-        }
+    if source.origin.representation == ForwardRepresentation::PointOnly
+        && let Some(needed) = query_needs_law(query)
+    {
+        return Err(match kind {
+            ForwardSourceKind::ComposedMechanism => {
+                ForwardSourceRefusal::ComposedLawNotMaterialized { needed }
+            }
+            _ => ForwardSourceRefusal::PointOnlyLawRequested { kind, needed },
+        });
     }
     Ok(())
 }

@@ -827,13 +827,11 @@ impl FunctionalDistribution {
                 .map_err(eval_err)?;
 
             for (outcome_pairs, p) in rows.into_iter().zip(probabilities) {
-                if mean_ok {
-                    if let Some((_, val)) = outcome_pairs.first() {
-                        if let Some(y) = val.as_f64() {
-                            mean_acc += p * y;
-                        } else {
-                            mean_ok = false;
-                        }
+                if mean_ok && let Some((_, val)) = outcome_pairs.first() {
+                    if let Some(y) = val.as_f64() {
+                        mean_acc += p * y;
+                    } else {
+                        mean_ok = false;
                     }
                 }
                 atoms.push(DistributionAtom {

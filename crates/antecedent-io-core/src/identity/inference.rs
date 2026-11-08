@@ -72,13 +72,11 @@ impl PriorMappingIdentityWire {
         match mapping {
             crate::PriorMapping::IdenticalCoefficientSubspace => Self::IdenticalCoefficientSubspace,
             crate::PriorMapping::EffectFunctional { source_quantity } => {
-                Self::EffectFunctional { source_quantity: source_quantity.to_string() }
+                Self::EffectFunctional { source_quantity: source_quantity.clone() }
             }
             crate::PriorMapping::NamedParameters { pairs } => {
-                let mut pairs: Vec<(String, String)> = pairs
-                    .iter()
-                    .map(|(source, target)| (source.to_string(), target.to_string()))
-                    .collect();
+                let mut pairs: Vec<(String, String)> =
+                    pairs.iter().map(|(source, target)| (source.clone(), target.clone())).collect();
                 pairs.sort();
                 pairs.dedup();
                 Self::NamedParameters { pairs }

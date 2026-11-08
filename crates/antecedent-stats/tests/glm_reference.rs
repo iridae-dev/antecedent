@@ -107,10 +107,10 @@ fn fits_match_the_exact_maximum_likelihood_estimates() {
                 fit.converged, fit.separated
             ));
         }
-        if let Some(a) = fit.nb_alpha {
-            if (a - case["alpha"].as_f64().unwrap()).abs() > 0.0 {
-                failures.push(format!("{label}: fixed alpha changed to {a}"));
-            }
+        if let Some(a) = fit.nb_alpha
+            && (a - case["alpha"].as_f64().unwrap()).abs() > 0.0
+        {
+            failures.push(format!("{label}: fixed alpha changed to {a}"));
         }
     }
     assert!(failures.is_empty(), "{} failures:\n{}", failures.len(), failures.join("\n"));

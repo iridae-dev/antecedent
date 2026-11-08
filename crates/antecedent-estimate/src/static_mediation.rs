@@ -331,16 +331,13 @@ fn validate_mediation_prior_bindings(
     bound_targets: &std::collections::HashSet<String>,
     hydrated: &[Arc<str>],
 ) -> Result<(), EstimationError> {
-    if let Some(MediationPriorBridge {
-        mapping: HydrateMapping::NamedParameters { pairs }, ..
-    }) = bridge
+    if let Some(MediationPriorBridge { mapping: HydrateMapping::NamedParameters { pairs }, .. }) =
+        bridge
+        && let Some((_, target)) = pairs.iter().find(|(_, target)| !bound_targets.contains(target))
     {
-        if let Some((_, target)) = pairs.iter().find(|(_, target)| !bound_targets.contains(target))
-        {
-            return Err(EstimationError::stats_msg(format!(
-                "mapped prior target `{target}` did not bind any mediation mechanism"
-            )));
-        }
+        return Err(EstimationError::stats_msg(format!(
+            "mapped prior target `{target}` did not bind any mediation mechanism"
+        )));
     }
     if bridge.is_some() && hydrated.is_empty() {
         return Err(EstimationError::unsupported(
@@ -556,18 +553,18 @@ fn estimate_static_mediation_bayesian_impl(
 
         // An outcome-scoped bridge hydrates only the outcome prior; every mechanism is still fit.
         let is_outcome = i == query.outcome.as_usize();
-        if let Some(bridge) = bridge.filter(|_| !outcome_prior_only || is_outcome) {
-            if let Some(prior) = hydrate_mechanism_prior(
+        if let Some(bridge) = bridge.filter(|_| !outcome_prior_only || is_outcome)
+            && let Some(prior) = hydrate_mechanism_prior(
                 bridge,
                 &coef_names,
                 treatment_col,
                 estimator.prior_scale,
                 is_outcome,
-            )? {
-                node_est.prior = Some(prior);
-                hydrated.push(name_of(VariableId::from_raw(raw_node)));
-                bound_targets.extend(coef_names.iter().map(std::string::ToString::to_string));
-            }
+            )?
+        {
+            node_est.prior = Some(prior);
+            hydrated.push(name_of(VariableId::from_raw(raw_node)));
+            bound_targets.extend(coef_names.iter().map(std::string::ToString::to_string));
         }
         let posterior = node_est.fit(
             &prep,

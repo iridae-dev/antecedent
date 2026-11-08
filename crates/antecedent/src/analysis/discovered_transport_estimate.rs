@@ -334,8 +334,8 @@ struct EstimateWire {
 
 mod verify;
 
-pub use verify::{VerifiedEstimate, verify_discovered_transport_estimate};
 pub(crate) use verify::verify_trial_member_estimate;
+pub use verify::{VerifiedEstimate, verify_discovered_transport_estimate};
 
 fn contrast_of(means: &[f64]) -> Option<f64> {
     (means.len() >= 2).then(|| means[means.len() - 1] - means[0])
@@ -1129,10 +1129,9 @@ fn blocked_contrast_interval(
         };
         if let MemberOutcome::Estimated(estimate) =
             evaluate_member(identified, problem, &resampled, settings, 0, false, ctx)?
+            && let Some(contrast) = estimate.contrast.filter(|c| c.is_finite())
         {
-            if let Some(contrast) = estimate.contrast.filter(|c| c.is_finite()) {
-                contrasts.push(contrast);
-            }
+            contrasts.push(contrast);
         }
     }
     let ok = u32::try_from(contrasts.len()).unwrap_or(u32::MAX);
@@ -1241,20 +1240,20 @@ pub(crate) fn estimate_class(
             .collect();
         let agree = estimated.len() == members.len()
             && estimated.windows(2).all(|w| w[0].1.expression == w[1].1.expression);
-        if settings.evidence.bootstrap_replicates > 0 && agree {
-            if let Some((index, _)) = estimated.first() {
-                if let Ok(identified) = identify_member(&problems[*index], settings, ctx)? {
-                    interval = blocked_contrast_interval(
-                        &identified,
-                        &problems[*index],
-                        columns,
-                        settings,
-                        length,
-                        ctx,
-                    )?
-                    .map(|(low, high, _)| (low, high));
-                }
-            }
+        if settings.evidence.bootstrap_replicates > 0
+            && agree
+            && let Some((index, _)) = estimated.first()
+            && let Ok(identified) = identify_member(&problems[*index], settings, ctx)?
+        {
+            interval = blocked_contrast_interval(
+                &identified,
+                &problems[*index],
+                columns,
+                settings,
+                length,
+                ctx,
+            )?
+            .map(|(low, high, _)| (low, high));
         }
     }
     let coverage = EmpiricalTableOptions::default().coverage_level;

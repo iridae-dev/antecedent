@@ -269,10 +269,10 @@ impl AdjustedFit {
                         "adjusted contrast outside observed treatment support",
                     ));
                 }
-                if let Some(w) = weights {
-                    if w.len() != self.nrows || w.iter().any(|v| !v.is_finite() || *v < 0.) {
-                        return Err(EstimationError::data_msg("invalid adjusted target weights"));
-                    }
+                if let Some(w) = weights
+                    && (w.len() != self.nrows || w.iter().any(|v| !v.is_finite() || *v < 0.))
+                {
+                    return Err(EstimationError::data_msg("invalid adjusted target weights"));
                 }
                 let mass = weights.map_or(self.nrows as f64, |w| w.iter().sum());
                 if !mass.is_finite() || mass <= 0. {

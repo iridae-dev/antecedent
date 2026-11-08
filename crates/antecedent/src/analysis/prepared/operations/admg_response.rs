@@ -275,16 +275,15 @@ impl CheckedAdmgResponseCurveOperation {
                 && self.fitter.bootstrap_replicates > 0
             {
                 let mut ws = antecedent_estimate::FunctionalDistributionWorkspace::default();
-                if let Ok(effect) = self.fitter.estimate(&member.prepared, &mut ws, ctx) {
-                    if let Some(se) = effect.se_bootstrap() {
-                        if se.is_finite() && se > 0.0 {
-                            let z = crate::result::reported_se_interval_z();
-                            freq_bounds.push((value - z * se, value + z * se));
-                            freq_scalar_se = se;
-                            freq_replicates_ok =
-                                effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0);
-                        }
-                    }
+                if let Ok(effect) = self.fitter.estimate(&member.prepared, &mut ws, ctx)
+                    && let Some(se) = effect.se_bootstrap()
+                    && se.is_finite()
+                    && se > 0.0
+                {
+                    let z = crate::result::reported_se_interval_z();
+                    freq_bounds.push((value - z * se, value + z * se));
+                    freq_scalar_se = se;
+                    freq_replicates_ok = effect.uncertainty.bootstrap.replicates_ok.unwrap_or(0);
                 }
             }
         }

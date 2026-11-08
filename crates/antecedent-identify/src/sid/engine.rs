@@ -604,12 +604,13 @@ impl<'a> Engine<'a> {
         if let Some(hit) = self.memo.get(&(state.clone(), source)) {
             return Ok(*hit);
         }
-        if source && self.source_catalog.is_some() {
-            if let Some(output) = self.available_source(&state)? {
-                let step = self.record(state.clone(), Rule::DirectTransport, Vec::new(), output);
-                self.memo.insert((state, source), Some(step));
-                return Ok(Some(step));
-            }
+        if source
+            && self.source_catalog.is_some()
+            && let Some(output) = self.available_source(&state)?
+        {
+            let step = self.record(state.clone(), Rule::DirectTransport, Vec::new(), output);
+            self.memo.insert((state, source), Some(step));
+            return Ok(Some(step));
         }
         let result = self.solve_body(&state, source, depth)?;
         self.memo.insert((state, source), result);
@@ -651,15 +652,13 @@ impl<'a> Engine<'a> {
                 // Direct transport needs no enlargement: it answers the query
                 // as posed, without demanding experiments or laws at every
                 // level of the irrelevant variables.
-                if source {
-                    if let Some(output) = self.available_source(state)? {
-                        return Ok(Some(self.record(
-                            state.clone(),
-                            Rule::DirectTransport,
-                            vec![],
-                            output,
-                        )));
-                    }
+                if source && let Some(output) = self.available_source(state)? {
+                    return Ok(Some(self.record(
+                        state.clone(),
+                        Rule::DirectTransport,
+                        vec![],
+                        output,
+                    )));
                 }
                 let Some(child) = self.solve(next, source, depth + 1)? else {
                     return Ok(None);
@@ -693,15 +692,16 @@ impl<'a> Engine<'a> {
                         districts.first().ok_or(IdentificationError::InvariantViolated {
                             message: "empty sID district",
                         })?;
-                    if source && !self.sources.is_empty() {
-                        if let Some(output) = self.available_source(state)? {
-                            return Ok(Some(self.record(
-                                state.clone(),
-                                Rule::DirectTransport,
-                                vec![],
-                                output,
-                            )));
-                        }
+                    if source
+                        && !self.sources.is_empty()
+                        && let Some(output) = self.available_source(state)?
+                    {
+                        return Ok(Some(self.record(
+                            state.clone(),
+                            Rule::DirectTransport,
+                            vec![],
+                            output,
+                        )));
                     }
                     let containing = self.prepared.c_components(&state.v);
                     if containing.len() == 1 {

@@ -593,10 +593,10 @@ pub fn abduce_cyclic_partial(
     }
     let mut base = initial.to_vec();
     for i in 0..n {
-        if let Some(value) = observations[i] {
-            if measurement_variances[i] == 0.0 {
-                base[i] = value;
-            }
+        if let Some(value) = observations[i]
+            && measurement_variances[i] == 0.0
+        {
+            base[i] = value;
         }
     }
     let initial_parameters: Vec<_> = latent.iter().map(|&i| base[i]).collect();
@@ -610,10 +610,10 @@ pub fn abduce_cyclic_partial(
         match model.log_likelihood(&[RegimeRow { values: state.clone(), clamps: vec![] }], ctx) {
             Ok(mut lp) => {
                 for i in 0..n {
-                    if let Some(observed) = observations[i] {
-                        if measurement_variances[i] > 0.0 {
-                            lp -= 0.5 * (state[i] - observed).powi(2) / measurement_variances[i];
-                        }
+                    if let Some(observed) = observations[i]
+                        && measurement_variances[i] > 0.0
+                    {
+                        lp -= 0.5 * (state[i] - observed).powi(2) / measurement_variances[i];
                     }
                 }
                 lp
@@ -1129,10 +1129,10 @@ pub fn abduce_cyclic_joint(
         (0..n).filter(|&i| observations[i].is_none() || measurement_variances[i] > 0.0).collect();
     let mut base = initial.to_vec();
     for i in 0..n {
-        if let Some(value) = observations[i] {
-            if measurement_variances[i] == 0.0 {
-                base[i] = value;
-            }
+        if let Some(value) = observations[i]
+            && measurement_variances[i] == 0.0
+        {
+            base[i] = value;
         }
     }
     template.log_likelihood(&[RegimeRow { values: base.clone(), clamps: vec![] }], ctx)?;
@@ -1155,10 +1155,10 @@ pub fn abduce_cyclic_joint(
             Ok(mut lp) => {
                 lp -= 0.5 * joint[..p].iter().map(|v| (v / prior_sd).powi(2)).sum::<f64>();
                 for i in 0..n {
-                    if let Some(value) = observations[i] {
-                        if measurement_variances[i] > 0.0 {
-                            lp -= 0.5 * (state[i] - value).powi(2) / measurement_variances[i];
-                        }
+                    if let Some(value) = observations[i]
+                        && measurement_variances[i] > 0.0
+                    {
+                        lp -= 0.5 * (state[i] - value).powi(2) / measurement_variances[i];
                     }
                 }
                 lp

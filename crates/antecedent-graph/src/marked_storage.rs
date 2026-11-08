@@ -163,10 +163,10 @@ pub(crate) fn insert_marked_finish(
     if edge_between(adj, edge.a, edge.b).is_some() {
         return Err(GraphError::DuplicateEdge { from: edge.a.raw(), to: edge.b.raw() });
     }
-    if let Some((from, to)) = edge.parent_child() {
-        if reaches_directed_scratch(adj, to, from) {
-            return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
-        }
+    if let Some((from, to)) = edge.parent_child()
+        && reaches_directed_scratch(adj, to, from)
+    {
+        return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
     }
     push_marked_pair(adj, edge);
     Ok(())

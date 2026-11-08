@@ -179,16 +179,15 @@ impl DrRequest {
         {
             return Err(RecalcRunError::Request(RecalcRequestCode::InvalidQuery));
         }
-        if let Some(target) = &self.target {
-            if !target.are_valid(None)
+        if let Some(target) = &self.target
+            && (!target.are_valid(None)
                 || target.depends_on.iter().any(|id| {
                     id.raw() == self.treatment
                         || id.raw() == self.outcome
                         || self.columns.column(id.raw()).is_none()
-                })
-            {
-                return Err(RecalcRunError::Request(RecalcRequestCode::InvalidTargetWeights));
-            }
+                }))
+        {
+            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidTargetWeights));
         }
         Ok(())
     }
@@ -523,14 +522,13 @@ pub fn execute_dr_with_receipt(
     if ctx.cancellation.is_cancelled() {
         return Err(RecalcRunError::Request(RecalcRequestCode::Cancelled));
     }
-    if let (Some(target), Some(table)) = (&request.target, session.score_table()) {
-        if !recomputed(&plan, Stage::Identification)
-            && !recomputed(&plan, Stage::ScoreArtifact)
-            && (target.weights.len() != table.n_rows
-                || target.depends_on.iter().any(|id| !table.adjustment_set.contains(id)))
-        {
-            return Err(RecalcRunError::Request(RecalcRequestCode::InvalidTargetWeights));
-        }
+    if let (Some(target), Some(table)) = (&request.target, session.score_table())
+        && !recomputed(&plan, Stage::Identification)
+        && !recomputed(&plan, Stage::ScoreArtifact)
+        && (target.weights.len() != table.n_rows
+            || target.depends_on.iter().any(|id| !table.adjustment_set.contains(id)))
+    {
+        return Err(RecalcRunError::Request(RecalcRequestCode::InvalidTargetWeights));
     }
     if recomputed(&plan, Stage::ScoreArtifact) {
         let n = request.columns.n_rows() as u64;

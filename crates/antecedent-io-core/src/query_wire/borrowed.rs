@@ -171,10 +171,9 @@ impl Serialize for BorrowedRetainedQueryWire<'_> {
             CausalQuery::ConditionalEffect(source),
             CausalQueryWire::ConditionalEffect { inner },
         ) = (self.query, self.source, self.encoded)
+            && query == &source.inner
         {
-            if query == &source.inner {
-                return inner.serialize(s);
-            }
+            return inner.serialize(s);
         }
         match self.query {
             CausalQuery::AverageEffect(q) => self.average(q, s),
@@ -309,10 +308,10 @@ pub(crate) struct Population<'a> {
 }
 impl Serialize for Population<'_> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        if self.source == Some(self.population) {
-            if let Some(wire) = self.encoded {
-                return wire.serialize(s);
-            }
+        if self.source == Some(self.population)
+            && let Some(wire) = self.encoded
+        {
+            return wire.serialize(s);
         }
         match self.population {
             TargetPopulation::AllObserved => {

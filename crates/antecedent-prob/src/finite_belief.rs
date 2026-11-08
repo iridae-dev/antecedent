@@ -177,7 +177,7 @@ pub fn linear_functional_rows(rows: &[f64], coefficients: &[f64]) -> Result<Vec<
     let width = coefficients.len();
     if width == 0
         || rows.is_empty()
-        || rows.len() % width != 0
+        || !rows.len().is_multiple_of(width)
         || rows.iter().chain(coefficients).any(|value| !value.is_finite())
     {
         return Err(invalid("invalid finite-law functional axes"));

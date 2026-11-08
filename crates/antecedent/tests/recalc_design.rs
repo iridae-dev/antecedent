@@ -433,7 +433,7 @@ fn design_cutoff_mediator_and_resource_refusals_preserve_previous_state() {
             DesignModel::Iv2Sls { instrument } => *instrument = 1,
             DesignModel::Rd { cutoff, .. } => *cutoff = 2.,
             DesignModel::Frontdoor { mediator } => *mediator = 1,
-        };
+        }
         // An instrument or mediator that is the outcome is an invalid role; a cutoff outside the
         // running variable's range is not a checked regression discontinuity.
         let expected_code = if matches!(r.model, DesignModel::Rd { .. }) {

@@ -258,8 +258,7 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
     let checked = std::sync::atomic::AtomicU64::new(0);
     // Each directed mask is its own graph family. Nextest reserves the machine
     // for this sweep, and the masks share that budget.
-    let workers =
-        std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1).min(8);
+    let workers = std::thread::available_parallelism().map_or(1, std::num::NonZero::get).min(8);
     let catalog = three_node_power_set_catalog();
     let catalog = &catalog;
     let query = &query;
@@ -816,8 +815,7 @@ fn four_node_branch_conformance_has_no_unchecked_obstructions() {
     };
     // Each directed mask is its own graph family. Nextest reserves the machine
     // for this test, and the families split that budget.
-    let workers =
-        std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1).min(64);
+    let workers = std::thread::available_parallelism().map_or(1, std::num::NonZero::get).min(64);
     let rules = std::sync::Mutex::new(std::collections::BTreeSet::new());
     let edges = &edges;
     let query = &query;
@@ -901,8 +899,7 @@ fn four_node_branch_positives_match_latent_scm_truth() {
     let message = std::sync::Mutex::new(String::new());
     let checked = std::sync::atomic::AtomicU64::new(0);
     let visited = std::sync::atomic::AtomicU64::new(0);
-    let workers =
-        std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1).min(64);
+    let workers = std::thread::available_parallelism().map_or(1, std::num::NonZero::get).min(64);
     std::thread::scope(|scope| {
         for worker in 0..workers {
             let failed = &failed;

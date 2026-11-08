@@ -529,9 +529,9 @@ impl NodeProgram {
         })?;
         let parts = [
             std::mem::size_of::<Self>(),
-            self.ops.len().checked_mul(std::mem::size_of::<Op>()).unwrap_or(usize::MAX),
-            self.reads.len().checked_mul(std::mem::size_of::<DenseNodeId>()).unwrap_or(usize::MAX),
-            axis.len().checked_mul(std::mem::size_of::<VariableId>()).unwrap_or(usize::MAX),
+            self.ops.len().saturating_mul(std::mem::size_of::<Op>()),
+            self.reads.len().saturating_mul(std::mem::size_of::<DenseNodeId>()),
+            axis.len().saturating_mul(std::mem::size_of::<VariableId>()),
             column_expression_nodes(&self.expr)
                 .and_then(|n| n.checked_mul(std::mem::size_of::<ValueExpr>()))
                 .unwrap_or(usize::MAX),
@@ -1054,17 +1054,17 @@ fn run_block_in_place(
     }
     let result = &values.values[at..at + m];
     let largest = result.iter().map(|v| v.to_bits() & !(1_u64 << 63)).max().unwrap_or(0);
-    if largest >= f64::INFINITY.to_bits() {
-        if let Some(row) = result.iter().position(|v| !v.is_finite()) {
-            return Err(ModelError::Numerical {
-                message: format!(
-                    "intervention program for dense node {node} is not finite at row {} ({}); \
+    if largest >= f64::INFINITY.to_bits()
+        && let Some(row) = result.iter().position(|v| !v.is_finite())
+    {
+        return Err(ModelError::Numerical {
+            message: format!(
+                "intervention program for dense node {node} is not finite at row {} ({}); \
                      guard a division or restrict the clip bounds",
-                    start + row,
-                    result[row]
-                ),
-            });
-        }
+                start + row,
+                result[row]
+            ),
+        });
     }
     Ok(())
 }
@@ -1239,10 +1239,8 @@ fn nodes_in_a_cycle(n: usize, edges: &[(u32, u32)]) -> Vec<bool> {
             pending[from_id.as_usize()] = true;
             continue;
         }
-        let inserted = graph.insert_directed(from_id, to_id);
-        if let Err(antecedent_graph::error::GraphError::DuplicateEdge { .. }) = inserted {
-            continue;
-        }
+        // A duplicate edge is already in the graph; the insertion result is not needed.
+        let _ = graph.insert_directed(from_id, to_id);
     }
     for component in graph.condensation().components() {
         if component.len() > 1 {

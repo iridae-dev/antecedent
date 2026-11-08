@@ -257,7 +257,7 @@ pub(crate) fn linear_interval(
     let mass_variance = sample_cov(&mass, &mass);
     let covariance = sample_cov(&signal, &mass);
     let variance = noise.variance + target_variance;
-    let z2 = antecedent_stats::normal_ppf((1.0 + level) / 2.0).powi(2);
+    let z2 = antecedent_stats::normal_ppf(f64::midpoint(1.0, level)).powi(2);
     let denominator = 1.0 - z2 * mass_variance;
     if !variance.is_finite() || denominator <= 0.0 {
         return Err(EstimationError::stats_msg("unbounded population AIPW confidence set"));

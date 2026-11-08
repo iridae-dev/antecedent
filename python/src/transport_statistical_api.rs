@@ -24,6 +24,10 @@ use crate::transport_common::{
 const STATISTICAL_PREFIX: &[u8] = b"ANTECEDENT-STATISTICAL-TRANSPORT\x01";
 
 #[derive(Clone)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "private enum held once per prepared study; boxing would only add an indirection"
+)]
 enum StatisticalPreparation {
     Deferred(antecedent::analysis::DeferredStatisticalTransport),
     Ready(antecedent::PreparedStudy<antecedent::StatisticalPreparedState>),

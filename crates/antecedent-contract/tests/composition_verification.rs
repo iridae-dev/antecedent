@@ -267,8 +267,8 @@ fn an_unsupported_target_withdraws_only_what_rests_on_its_support() {
     let after = build(&Params { target_unsupported: true, ..params() });
     let r = revalidate(&before, &after, &no_effects()).expect("revalidate");
     assert_eq!(keys(&r, Revalidation::Withdrawn), vec!["target", "transported"]);
-    assert!(r.claim("decision").expect("claim").class == Revalidation::StillValid);
-    assert!(r.claim("result").expect("claim").class == Revalidation::StillValid);
+    assert_eq!(r.claim("decision").expect("claim").class, Revalidation::StillValid);
+    assert_eq!(r.claim("result").expect("claim").class, Revalidation::StillValid);
     let transported = r.claim("transported").expect("claim");
     assert_eq!(transported.withdrawals.len(), 1);
     let w = &transported.withdrawals[0];
@@ -734,7 +734,7 @@ fn a_reused_claim_does_not_keep_authority_across_a_trust_standing_that_moved() {
     assert_eq!(provider.authority, PriorAuthority::NotRetained);
     // a numerical reason, not a lost support
     assert!(r.claims().all(|c| c.withdrawals.is_empty()));
-    assert!(r.claim("sibling_claim").expect("claim").authority == PriorAuthority::Retained);
+    assert_eq!(r.claim("sibling_claim").expect("claim").authority, PriorAuthority::Retained);
 }
 
 #[test]

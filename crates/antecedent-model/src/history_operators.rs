@@ -1236,7 +1236,7 @@ fn admit_horizon(cadence: &TimeIndex, horizon: Horizon) -> Result<u64, HistoryOp
     let Some(covered) = ticks.checked_mul(interval_ns) else {
         return Err(HistoryOperatorError::CadenceSpanOverflow { interval_ns, ticks });
     };
-    if end_ns == 0 || end_ns % interval_ns != 0 || end_ns > covered {
+    if end_ns == 0 || !end_ns.is_multiple_of(interval_ns) || end_ns > covered {
         return Err(crosses(end_ns, Some(interval_ns), Some(ticks)));
     }
     Ok(interval_ns)
@@ -1252,7 +1252,7 @@ fn crosses(
 
 fn admit_action(frame: &OperatorFrame, at_ns: u64) -> Result<(), HistoryOperatorError> {
     let interval_ns = frame.interval_ns();
-    if at_ns % interval_ns != 0 || at_ns >= frame.horizon().end_ns() {
+    if !at_ns.is_multiple_of(interval_ns) || at_ns >= frame.horizon().end_ns() {
         return Err(HistoryOperatorError::ActionMissesCadence { at_ns, interval_ns });
     }
     Ok(())

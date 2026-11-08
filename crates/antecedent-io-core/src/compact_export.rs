@@ -598,13 +598,13 @@ fn check_terms(
                         quantity.clone(),
                     ));
                 }
-                if let TermSpec::Power { degree, .. } = term {
-                    if !(2..=limits.max_degree).contains(degree) {
-                        return Err(invalid(
-                            antecedent_core::reason_details::compact_export::INVALID_DEGREE,
-                            quantity.clone(),
-                        ));
-                    }
+                if let TermSpec::Power { degree, .. } = term
+                    && !(2..=limits.max_degree).contains(degree)
+                {
+                    return Err(invalid(
+                        antecedent_core::reason_details::compact_export::INVALID_DEGREE,
+                        quantity.clone(),
+                    ));
                 }
             }
             TermSpec::OneHot { quantity, level } => match support_of(quantity)? {
@@ -1019,7 +1019,9 @@ impl CompactExport {
             order.iter().flat_map(|&i| order.iter().map(move |&j| source[i * n + j])).collect();
         let mut inputs = spec.inputs;
         inputs.sort_by(|a, b| a.quantity.variable_id.cmp(&b.quantity.variable_id));
-        inputs.iter_mut().for_each(|input| canonical_support(&mut input.support));
+        for input in &mut inputs {
+            canonical_support(&mut input.support);
+        }
         let mut mask = spec.mask;
         for region in &mut mask {
             region.conditions.iter_mut().for_each(|c| canonical_support(&mut c.within));

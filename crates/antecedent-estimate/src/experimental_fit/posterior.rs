@@ -126,10 +126,10 @@ pub fn posterior_recovery(
 }
 
 fn validate_prior(prior: &RecoveryPrior, n: usize) -> Result<(), PriorFault> {
-    if let CoefficientPrior::Normal { mean, variance } = prior.coefficients {
-        if !(mean.is_finite() && variance.is_finite() && variance > 0.0) {
-            return Err(PriorFault::CoefficientPrior);
-        }
+    if let CoefficientPrior::Normal { mean, variance } = prior.coefficients
+        && !(mean.is_finite() && variance.is_finite() && variance > 0.0)
+    {
+        return Err(PriorFault::CoefficientPrior);
     }
     match &prior.disturbance {
         DisturbancePrior::Known { variances } => {

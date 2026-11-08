@@ -251,10 +251,10 @@ impl CheckedPanelDidOperation {
         }
         let (identification, estimand) =
             study.design_identification_or(physical, || panel_did_identification(query));
-        if let Some(declaration) = &study.declared.missing {
-            if let Some(reason) = design_refusal(query.design, declaration.policy) {
-                return Err(panel_policy_refusal(declaration.policy, reason));
-            }
+        if let Some(declaration) = &study.declared.missing
+            && let Some(reason) = design_refusal(query.design, declaration.policy)
+        {
+            return Err(panel_policy_refusal(declaration.policy, reason));
         }
         let extra = PanelMissing {
             declaration: study.declared.missing.clone(),

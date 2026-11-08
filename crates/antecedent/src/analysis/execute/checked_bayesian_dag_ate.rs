@@ -616,16 +616,15 @@ impl CheckedBayesianDagAteExecution {
             && matches!(prepared.serial_dependence, antecedent_estimate::SerialDependence::Iid)
             && prepared.design.matrix.len() <= 1_000_000
             && self.config.n_draws.saturating_mul(prepared.design.ncols) <= 1_000_000
+            && let Ok(mut slot) = self.retained.try_lock()
         {
-            if let Ok(mut slot) = self.retained.try_lock() {
-                *slot = Some(RetainedGaussianDesign {
-                    source: data.storage().content_digest(),
-                    schema: data.schema().clone(),
-                    prepared,
-                    workspace,
-                    bytes,
-                });
-            }
+            *slot = Some(RetainedGaussianDesign {
+                source: data.storage().content_digest(),
+                schema: data.schema().clone(),
+                prepared,
+                workspace,
+                bytes,
+            });
         }
     }
 }

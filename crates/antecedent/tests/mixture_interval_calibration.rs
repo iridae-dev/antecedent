@@ -1915,7 +1915,7 @@ fn heterogeneous_cpdag_fixture_has_disagreeing_completions() {
         close(
             "CPDAG mixture",
             result.estimate().as_effect().unwrap().ate,
-            (values[0].unwrap() + values[1].unwrap()) / 2.0,
+            f64::midpoint(values[0].unwrap(), values[1].unwrap()),
             1e-10,
         );
     }

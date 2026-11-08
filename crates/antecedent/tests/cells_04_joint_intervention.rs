@@ -229,6 +229,10 @@ fn the_joint_cell_equals_the_standardization_on_a_codetermined_closure_and_refus
     on_large_stack("cells-04-latent-class", latent_class_body);
 }
 
+#[allow(
+    clippy::large_stack_arrays,
+    reason = "test fixture: the result array is built once and holds large result values"
+)]
 fn latent_class_body() {
     let data = tiered_table();
     let background = TieredBackground::from_named(
@@ -266,7 +270,7 @@ fn latent_class_body() {
     edges(&mut admg);
     let mut cpdag = Cpdag::with_variables(3);
     edges(&mut cpdag);
-    for (class, error) in vec![
+    for (class, error) in [
         (
             "admg",
             Study::tabular(table(None, false))

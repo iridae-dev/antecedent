@@ -1296,10 +1296,10 @@ impl PredictiveAssessmentArtifact {
         if let Some(field) = meta.identity.to_identity().first_difference(&report.identity) {
             return Err(Error::IdentityMismatch { field });
         }
-        if let Some(expected) = expected {
-            if let Some(field) = expected.first_difference(&report.identity) {
-                return Err(Error::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = expected.first_difference(&report.identity)
+        {
+            return Err(Error::IdentityMismatch { field });
         }
         let replayed = flatten(&report);
         let stored_values = &numbers[numbers.len() - meta.result_labels.len()..];

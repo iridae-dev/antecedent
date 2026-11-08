@@ -118,10 +118,8 @@ fn known_sigma2_prior(mean: &[f64], v0: &[f64], dense: bool) -> PriorSet {
         mean: Arc::from(mean.to_vec()),
         variance: Arc::from(variance),
     }));
-    if dense {
-        if let Some(corr) = CoefficientCorrelation::from_covariance(v0, P).unwrap() {
-            prior.push(PriorSpec::CoefficientCorrelation(corr));
-        }
+    if dense && let Some(corr) = CoefficientCorrelation::from_covariance(v0, P).unwrap() {
+        prior.push(PriorSpec::CoefficientCorrelation(corr));
     }
     prior.push(PriorSpec::KnownResidualVariance(SIGMA2));
     prior.validate().unwrap();

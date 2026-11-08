@@ -195,11 +195,12 @@ pub fn reject_unsupported_block_size(
     significance: SignificanceMethod,
     test_name: &'static str,
 ) -> Result<(), crate::error::StatsError> {
-    if let SignificanceMethod::BlockShuffle { block_size, .. } = significance {
-        if block_size > 1 {
-            let _ = test_name;
-            return Err(crate::error::StatsError::Unsupported {
-                message: "block-preserving permutation (block_size > 1) is not supported for \
+    if let SignificanceMethod::BlockShuffle { block_size, .. } = significance
+        && block_size > 1
+    {
+        let _ = test_name;
+        return Err(crate::error::StatsError::Unsupported {
+            message: "block-preserving permutation (block_size > 1) is not supported for \
                           this CI test when the conditioning set is non-empty: its null is a \
                           within-Z-stratum exchange over strata whose members are scattered \
                           across time, which is structurally incompatible with a contiguous-block \
@@ -210,8 +211,7 @@ pub fn reject_unsupported_block_size(
                           ParCorr / WeightedParCorr / MultivariateParCorr / Gpdc, which \
                           residualize on Z and so support block-preserving nulls with \
                           conditioning; or set block_size = 1 to accept an exchangeable null.",
-            });
-        }
+        });
     }
     Ok(())
 }

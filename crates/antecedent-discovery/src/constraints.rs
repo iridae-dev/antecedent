@@ -233,14 +233,13 @@ impl MultiDatasetConstraints {
     /// Whether `v` is marked as an observed context variable.
     #[must_use]
     pub fn is_context(&self, v: VariableId) -> bool {
-        self.context_variables.iter().any(|&x| x == v)
+        self.context_variables.contains(&v)
     }
 
     /// Whether `v` is a synthetic dummy.
     #[must_use]
     pub fn is_dummy(&self, v: VariableId) -> bool {
-        self.space_dummy_variables.iter().any(|&x| x == v)
-            || self.time_dummy_variables.iter().any(|&x| x == v)
+        self.space_dummy_variables.contains(&v) || self.time_dummy_variables.contains(&v)
     }
 
     /// Kind of an observed context variable (defaults to space).
@@ -252,10 +251,10 @@ impl MultiDatasetConstraints {
     /// Resolve the J-PCMCI+ role of `v` (system if unmarked).
     #[must_use]
     pub fn role_of(&self, v: VariableId) -> JpcmciNodeRole {
-        if self.space_dummy_variables.iter().any(|&x| x == v) {
+        if self.space_dummy_variables.contains(&v) {
             return JpcmciNodeRole::SpaceDummy;
         }
-        if self.time_dummy_variables.iter().any(|&x| x == v) {
+        if self.time_dummy_variables.contains(&v) {
             return JpcmciNodeRole::TimeDummy;
         }
         if self.is_context(v) {
@@ -552,7 +551,7 @@ impl DiscoveryConstraints {
     /// Günther multi-dataset link assumptions.
     #[must_use]
     pub fn is_forbidden(&self, link: LaggedLink) -> bool {
-        self.forbidden.iter().any(|f| *f == link)
+        self.forbidden.contains(&link)
             || self.tier_forbids(link.source, link.target)
             || self.multi_dataset.gunther_forbids(link)
     }
@@ -560,7 +559,7 @@ impl DiscoveryConstraints {
     /// Whether a link is required.
     #[must_use]
     pub fn is_required(&self, link: LaggedLink) -> bool {
-        self.required.iter().any(|r| *r == link)
+        self.required.contains(&link)
     }
 
     /// Whether both directions of the contemporaneous pair `{a, b}` are forbidden, i.e. a static
@@ -670,7 +669,7 @@ impl DiscoveryConstraints {
         if self.tiers.is_empty() {
             return None;
         }
-        self.tiers.iter().position(|tier| tier.iter().any(|x| *x == v))
+        self.tiers.iter().position(|tier| tier.contains(&v))
     }
 
     /// Tier rule: edge `src → target` is forbidden when `tier(src) > tier(target)`.
@@ -1193,7 +1192,7 @@ mod tests {
         if tiers.is_empty() {
             return None;
         }
-        tiers.iter().position(|tier| tier.iter().any(|id| *id == variable))
+        tiers.iter().position(|tier| tier.contains(&variable))
     }
 
     fn scan_forbidden(constraints: &DiscoveryConstraints, link: LaggedLink) -> bool {
@@ -1204,7 +1203,7 @@ mod tests {
             (Some(src), Some(target)) => src > target,
             _ => false,
         };
-        constraints.forbidden.iter().any(|forbidden| *forbidden == link)
+        constraints.forbidden.contains(&link)
             || tier_forbids
             || constraints.multi_dataset.gunther_forbids(link)
     }

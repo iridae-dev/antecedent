@@ -101,7 +101,7 @@ fn augmented_posterior_matches_the_analytic_two_arm_regression_posterior() {
         &pre,
         &post,
         &treated,
-        &[x.clone()],
+        std::slice::from_ref(&x),
         &ids,
         DidPrior::diffuse(),
         DrawSpec::new(DRAWS, 8),

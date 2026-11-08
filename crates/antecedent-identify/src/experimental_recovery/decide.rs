@@ -344,11 +344,11 @@ pub(super) fn recover(
             });
             continue;
         }
-        if let Some(rank) = equation_rank(set, *target) {
-            if rank.column_rank < width {
-                push_rank_deficiency(nodes, rank, width, &mut recoverable, &mut unresolved);
-                continue;
-            }
+        if let Some(rank) = equation_rank(set, *target)
+            && rank.column_rank < width
+        {
+            push_rank_deficiency(nodes, rank, width, &mut recoverable, &mut unresolved);
+            continue;
         }
         recoverable.extend(incoming(nodes, *target));
     }

@@ -153,7 +153,7 @@ fn degenerate_bulk_falls_back_to_the_mean_absolute_deviation_then_to_one() {
     let d = &r["degenerate"];
     let z: Vec<f64> = d["z"].as_array().unwrap().iter().map(f).collect();
     // A single-node model so that the target column is exactly the sample under test.
-    let data = data_for(&[z.clone()]);
+    let data = data_for(std::slice::from_ref(&z));
     let model = CompiledCausalModel::compile(Dag::with_variables(1))
         .unwrap()
         .with_mechanisms(CompiledMechanismStore { slots: Arc::from([linear(0.0, &[], 1.0)]) });

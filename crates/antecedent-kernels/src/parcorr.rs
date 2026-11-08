@@ -735,11 +735,11 @@ pub fn partial_correlation_batch(
     let mut z_bufs: Vec<&[f64]> = Vec::new();
     for (qi, q) in queries.iter().enumerate() {
         // Queries with nothing to condition on, or too few rows, never touch the pool.
-        if let Some(sd) = shared.as_mut().filter(|sd| q.z_len > 0 && sd.n >= 3) {
-            if let Served::Answer(r) = sd.query(columns, q, z_flat, workspace, corr) {
-                out[qi] = r;
-                continue;
-            }
+        if let Some(sd) = shared.as_mut().filter(|sd| q.z_len > 0 && sd.n >= 3)
+            && let Served::Answer(r) = sd.query(columns, q, z_flat, workspace, corr)
+        {
+            out[qi] = r;
+            continue;
         }
         z_bufs.clear();
         let end = q.z_start + q.z_len;

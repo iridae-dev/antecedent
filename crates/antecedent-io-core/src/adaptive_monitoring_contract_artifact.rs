@@ -676,6 +676,10 @@ pub fn contract_boundaries(
         .map_err(|_| Error::ReplayMismatch("boundaries"))
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "the error is the contract's own refusal type, returned once per encode; boxing would change its API"
+)]
 fn evidence_of(contract: &AdaptiveDesignContract) -> Result<EvidenceWire, Error> {
     let evidence = contract.interim_evidence().map_err(|r| refused_with(&[r]))?;
     let look_sizes = (0..contract.looks())

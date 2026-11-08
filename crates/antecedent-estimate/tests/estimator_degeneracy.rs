@@ -157,7 +157,7 @@ fn a_treatment_column_with_one_level_is_refused_by_every_contrast_estimator() {
                 Ok(fit) => {
                     panic!("{name} published {:?} for a treatment column with {label}", fit.ate)
                 }
-                Err(error) => error.to_string(),
+                Err(error) => error.clone(),
             };
             // Each estimator refuses for its own reason; none publishes an effect.
             let expected = match name {

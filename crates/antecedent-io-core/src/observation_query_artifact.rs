@@ -1010,10 +1010,10 @@ impl ObservationQueryArtifactWire {
         if recomputed != self.identity {
             return Err(ObservationQueryArtifactError::IdentityMismatch);
         }
-        if let Some(expected) = expected_identity {
-            if expected != recomputed {
-                return Err(ObservationQueryArtifactError::IdentityMismatch);
-            }
+        if let Some(expected) = expected_identity
+            && expected != recomputed
+        {
+            return Err(ObservationQueryArtifactError::IdentityMismatch);
         }
         let stored_basis = basis_from_name(&self.inference_basis)?;
         let spec = match &self.premises {

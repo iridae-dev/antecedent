@@ -183,20 +183,20 @@ impl StudyResult {
             }
             return binding;
         }
-        if let Some(distribution) = self.distribution() {
-            if self.posterior.is_none() {
-                match distribution.mean_interval {
-                    Some(antecedent_estimate::ProbabilityInterval::Bounded { level, .. }) => {
-                        let mut binding = IntervalBinding::new(M::BootstrapSe, level, base);
-                        binding.replicates_ok = distribution.bootstrap_replicates_ok;
-                        binding.replicates_failed = distribution.bootstrap_replicates_failed;
-                        return binding;
-                    }
-                    Some(antecedent_estimate::ProbabilityInterval::Unavailable(_)) => {
-                        return IntervalBinding::none(base);
-                    }
-                    None => {}
+        if let Some(distribution) = self.distribution()
+            && self.posterior.is_none()
+        {
+            match distribution.mean_interval {
+                Some(antecedent_estimate::ProbabilityInterval::Bounded { level, .. }) => {
+                    let mut binding = IntervalBinding::new(M::BootstrapSe, level, base);
+                    binding.replicates_ok = distribution.bootstrap_replicates_ok;
+                    binding.replicates_failed = distribution.bootstrap_replicates_failed;
+                    return binding;
                 }
+                Some(antecedent_estimate::ProbabilityInterval::Unavailable(_)) => {
+                    return IntervalBinding::none(base);
+                }
+                None => {}
             }
         }
         if self.posterior.is_some() {
@@ -246,16 +246,11 @@ impl StudyResult {
         let Some(effect_estimate) = self.estimate.as_effect() else {
             return IntervalBinding::none(base);
         };
-        if !effect_estimate.ate.is_finite() {
-            if let Some(bands) = effect_estimate.scenarios.intervals.as_deref() {
-                if !bands.is_empty() {
-                    return IntervalBinding::new(
-                        M::SimultaneousBand,
-                        REPORTED_SE_INTERVAL_LEVEL,
-                        base,
-                    );
-                }
-            }
+        if !effect_estimate.ate.is_finite()
+            && let Some(bands) = effect_estimate.scenarios.intervals.as_deref()
+            && !bands.is_empty()
+        {
+            return IntervalBinding::new(M::SimultaneousBand, REPORTED_SE_INTERVAL_LEVEL, base);
         }
         self.identified_set_interval_binding().unwrap_or_else(|| IntervalBinding::none(base))
     }

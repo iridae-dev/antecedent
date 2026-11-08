@@ -255,8 +255,8 @@ fn validate_inputs(
 #[allow(clippy::float_cmp, reason = "binary treatment levels are exact 0.0 and 1.0 codes")]
 fn is_binary_with_both_levels(treatment: &[f64]) -> bool {
     treatment.iter().all(|value| *value == 0.0 || *value == 1.0)
-        && treatment.iter().any(|value| *value == 0.0)
-        && treatment.iter().any(|value| *value == 1.0)
+        && treatment.contains(&0.0)
+        && treatment.contains(&1.0)
 }
 
 /// Lease `count * width` `f64` cells on the pool before the buffer is allocated.

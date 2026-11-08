@@ -215,12 +215,11 @@ fn parse_observed(
         LawTolerance { absolute, relative },
     )
     .map_err(|e| crate::value_err(e.to_string()))?;
-    if let Ok(counts) = law.getattr("empirical_counts") {
-        if !counts.is_none() {
-            let counts: Vec<u64> = counts.extract()?;
-            exact =
-                exact.with_empirical_counts(counts).map_err(|e| crate::value_err(e.to_string()))?;
-        }
+    if let Ok(counts) = law.getattr("empirical_counts")
+        && !counts.is_none()
+    {
+        let counts: Vec<u64> = counts.extract()?;
+        exact = exact.with_empirical_counts(counts).map_err(|e| crate::value_err(e.to_string()))?;
     }
     Ok(exact)
 }

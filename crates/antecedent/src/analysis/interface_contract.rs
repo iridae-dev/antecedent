@@ -39,6 +39,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt::Write as _;
+
 use antecedent_contract::ExternalRefusal;
 use antecedent_contract::evidence_ledger::EvidenceLedger;
 pub use antecedent_contract::interface_contract::{
@@ -116,16 +118,16 @@ impl InterfaceContractRefusal {
     fn from_contract(refusal: &ExternalRefusal) -> Self {
         let mut message = format!("refused at stage `{}`", refusal.stage);
         if let Some(offending) = &refusal.offending {
-            message.push_str(&format!("; offending `{offending}`"));
+            let _ = write!(message, "; offending `{offending}`");
         }
         if let Some(expected) = &refusal.expected {
-            message.push_str(&format!("; expected `{expected}`"));
+            let _ = write!(message, "; expected `{expected}`");
         }
         if let Some(supplied) = &refusal.supplied {
-            message.push_str(&format!("; supplied `{supplied}`"));
+            let _ = write!(message, "; supplied `{supplied}`");
         }
         if let Some(remedy) = refusal.remedy {
-            message.push_str(&format!("; {remedy}"));
+            let _ = write!(message, "; {remedy}");
         }
         Self {
             code: refusal.code,

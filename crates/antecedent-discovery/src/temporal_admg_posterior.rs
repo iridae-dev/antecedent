@@ -249,7 +249,7 @@ fn invert_spd(a: &[f64], d: usize) -> Option<(Vec<f64>, f64)> {
     let mut inverse = vec![0.0; d * d];
     let mut unit = vec![0.0; d];
     for column in 0..d {
-        unit.iter_mut().for_each(|v| *v = 0.0);
+        unit.fill(0.0);
         unit[column] = 1.0;
         let solved = cholesky_solve(&l, d, &unit);
         for (row, value) in solved.into_iter().enumerate() {

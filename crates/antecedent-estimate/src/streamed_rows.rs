@@ -171,10 +171,10 @@ impl WeightedRowSource for MaskedRows<'_> {
                 if filter.exclude_fold == Some(filter.fold_ids[place]) {
                     continue;
                 }
-                if let Some(arm) = &filter.arm {
-                    if (arm.treatment[row] == arm.active) != arm.treated {
-                        continue;
-                    }
+                if let Some(arm) = &filter.arm
+                    && (arm.treatment[row] == arm.active) != arm.treated
+                {
+                    continue;
                 }
             }
             let cells = &mut x_rowmajor[taken * ncols..(taken + 1) * ncols];

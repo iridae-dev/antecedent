@@ -187,7 +187,7 @@ impl ScoreAccumulator {
             moments.m2[0][1] / scale,
             moments.m2[1][1] / scale,
         ];
-        let ate = (-1.0) * moments.mean[0] + moments.mean[1];
+        let ate = -moments.mean[0] + moments.mean[1];
         let variance = covariance[0] + covariance[3] - covariance[1] - covariance[2];
         if !ate.is_finite() || !variance.is_finite() {
             return Err(EstimationError::data_msg("contrast value or variance is non-finite"));
@@ -668,7 +668,7 @@ mod tests {
                 1 << 24,
             )
             .unwrap();
-        assert!(other.ate != streamed.ate);
+        assert_ne!(other.ate, streamed.ate);
     }
 
     #[test]

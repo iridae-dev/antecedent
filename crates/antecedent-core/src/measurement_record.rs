@@ -248,7 +248,7 @@ impl MeasurementRecord {
     /// Whether `field` (a name from [`OBSERVABLE_FIELDS`]) was observed in this run.
     #[must_use]
     pub fn observed(&self, field: &str) -> bool {
-        !self.unobserved.iter().any(|name| *name == field)
+        !self.unobserved.contains(&field)
     }
 
     /// Add bytes of a native allocation the caller actually performed.

@@ -182,15 +182,15 @@ pub(super) fn resolve_candidates(
     let fits_node = |family: &MechanismFamily| {
         if categorical_node { !family.is_continuous() } else { !family.is_categorical() }
     };
-    if let Some(required) = constraint.required {
-        if !fits_node(&required) {
-            return Err(invalid(format!(
-                "variable {variable} is typed {} but required family {} models a {} outcome",
-                if categorical_node { "categorical" } else { "continuous" },
-                required.id(),
-                if categorical_node { "continuous" } else { "categorical" },
-            )));
-        }
+    if let Some(required) = constraint.required
+        && !fits_node(&required)
+    {
+        return Err(invalid(format!(
+            "variable {variable} is typed {} but required family {} models a {} outcome",
+            if categorical_node { "categorical" } else { "continuous" },
+            required.id(),
+            if categorical_node { "continuous" } else { "categorical" },
+        )));
     }
     // An outcome-agnostic candidate list (`allowed`) names families of both outcome
     // types; the ones that cannot model this node are not its candidates. The

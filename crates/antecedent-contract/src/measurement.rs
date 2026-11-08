@@ -410,14 +410,14 @@ pub fn check_measurement_request(
             request.regime_id,
         ));
     }
-    if let ArmBinding::Arm(bound) = &model.binding.arm {
-        if request.arm_id != Some(bound.as_str()) {
-            return Err(binding_mismatch(
-                antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
-                bound,
-                request.arm_id.unwrap_or("all_arms"),
-            ));
-        }
+    if let ArmBinding::Arm(bound) = &model.binding.arm
+        && request.arm_id != Some(bound.as_str())
+    {
+        return Err(binding_mismatch(
+            antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
+            bound,
+            request.arm_id.unwrap_or("all_arms"),
+        ));
     }
     check_representation_transfer(
         &model.representation,
@@ -519,9 +519,10 @@ fn check_structure(
     assumed: ErrorStructure,
 ) -> Result<(), MeasurementRefusal> {
     if declared == assumed {
-        if let ErrorStructure::Differential(axis) = declared {
-            if axis != DifferentialAxis::Arm {
-                return Err(ExternalRefusal::new(
+        if let ErrorStructure::Differential(axis) = declared
+            && axis != DifferentialAxis::Arm
+        {
+            return Err(ExternalRefusal::new(
                     antecedent_core::reason_code!("differential_error_not_pooled"),
                     STAGE_BIND,
                     antecedent_core::reason_details::measurement_model::DIFFERENTIAL_AXIS_UNSUPPORTED,
@@ -530,7 +531,6 @@ fn check_structure(
                 .with_remedy(
                     "only error that differs by arm has a bounded route; other axes stay refused rather than pooled",
                 ));
-            }
         }
         return Ok(());
     }

@@ -532,15 +532,14 @@ fn initial_law(
 }
 
 fn validate_initial(initial: &OuInitialLaw, n: usize) -> Result<(), OuTrajectoryError> {
-    if let OuInitialLaw::Gaussian { mean, covariance } = initial {
-        if mean.len() != n
+    if let OuInitialLaw::Gaussian { mean, covariance } = initial
+        && (mean.len() != n
             || n.checked_mul(n) != Some(covariance.len())
             || mean.iter().chain(covariance).any(|v| !v.is_finite())
             || (0..n).any(|i| covariance[i * n + i] < 0.0)
-            || !initial_covariance_is_psd(covariance, n)
-        {
-            return Err(bad("OU initial Gaussian law shape/finiteness"));
-        }
+            || !initial_covariance_is_psd(covariance, n))
+    {
+        return Err(bad("OU initial Gaussian law shape/finiteness"));
     }
     Ok(())
 }

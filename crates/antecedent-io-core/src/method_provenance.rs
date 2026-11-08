@@ -21,6 +21,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, HashMap};
+use std::fmt::Write as _;
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
@@ -189,16 +190,16 @@ impl CitationWire {
             text.push(' ');
         }
         if let Some(year) = source.year {
-            text.push_str(&format!("({year}). "));
+            let _ = write!(text, "({year}). ");
         } else if !source.authors.is_empty() {
             text.push_str("(n.d.). ");
         }
         text.push_str(source.title.trim_end_matches('.'));
         text.push('.');
         if let Some(doi) = &source.doi {
-            text.push_str(&format!(" https://doi.org/{doi}"));
+            let _ = write!(text, " https://doi.org/{doi}");
         } else if let Some(url) = &source.url {
-            text.push_str(&format!(" {url}"));
+            let _ = write!(text, " {url}");
         }
         text
     }

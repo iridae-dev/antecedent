@@ -427,10 +427,10 @@ impl AttributeQuery {
                 if target.max_sources == 0 {
                     return invalid(AttributeFault::SourceLimit);
                 }
-                if let InfluenceAllocation::Permutation { n_permutations } = target.allocation {
-                    if n_permutations < 2 {
-                        return invalid(AttributeFault::PermutationCount);
-                    }
+                if let InfluenceAllocation::Permutation { n_permutations } = target.allocation
+                    && n_permutations < 2
+                {
+                    return invalid(AttributeFault::PermutationCount);
                 }
                 Ok(())
             }

@@ -126,13 +126,13 @@ pub fn hydrate_prior_from_coefficient_moments(
             "hydrate_prior_from_posterior: no coefficient columns in posterior",
         ));
     }
-    if let Some(expected) = expected_n_coef {
-        if n_coef != expected {
-            return Err(EstimationError::PriorDimensionMismatch {
-                posterior: n_coef,
-                design: expected,
-            });
-        }
+    if let Some(expected) = expected_n_coef
+        && n_coef != expected
+    {
+        return Err(EstimationError::PriorDimensionMismatch {
+            posterior: n_coef,
+            design: expected,
+        });
     }
     for (i, (index, _)) in coef_cols.iter().enumerate() {
         if *index != i {
@@ -584,20 +584,20 @@ pub fn hydrate_prior(
                     if source_sigma2.is_none() {
                         prior.mark_absolute_coefficient_scale(&mapped);
                     }
-                    if let Some(cov) = coefficient_covariance {
-                        if let Some(permuted) = permute_full_named_coefficient_covariance(
+                    if let Some(cov) = coefficient_covariance
+                        && let Some(permuted) = permute_full_named_coefficient_covariance(
                             quantities,
                             pairs,
                             target_coef_names,
                             cov,
-                        )? {
-                            attach_coefficient_correlation(&mut prior, &permuted, n_target)?;
-                            if prior.coefficient_correlation().is_some() {
-                                prior.restrictions[0].description = Arc::from(format!(
-                                    "external named-parameter prior ({pair_desc}); {}; full coefficient covariance retained under explicit named permutation",
-                                    scale_conversion_note(source_sigma2)
-                                ));
-                            }
+                        )?
+                    {
+                        attach_coefficient_correlation(&mut prior, &permuted, n_target)?;
+                        if prior.coefficient_correlation().is_some() {
+                            prior.restrictions[0].description = Arc::from(format!(
+                                "external named-parameter prior ({pair_desc}); {}; full coefficient covariance retained under explicit named permutation",
+                                scale_conversion_note(source_sigma2)
+                            ));
                         }
                     }
                     merge_baseline_residuals(&mut prior, baseline);

@@ -566,17 +566,16 @@ pub(crate) fn joint_players(
         AttributionComponents::Inputs
             | AttributionComponents::InputsAndMechanisms
             | AttributionComponents::All
-    ) {
-        if let Some(gather) = model.gather_for(outcome) {
-            for &p in gather.parents.iter() {
-                let var = model.output_layout.variables[p.as_usize()];
-                let comp = ComponentId::from_variable(var);
-                if let Some(idx) = players.iter().position(|&c| c == comp) {
-                    kinds[idx] = PlayerKind::Both;
-                } else {
-                    players.push(comp);
-                    kinds.push(PlayerKind::Input);
-                }
+    ) && let Some(gather) = model.gather_for(outcome)
+    {
+        for &p in gather.parents.iter() {
+            let var = model.output_layout.variables[p.as_usize()];
+            let comp = ComponentId::from_variable(var);
+            if let Some(idx) = players.iter().position(|&c| c == comp) {
+                kinds[idx] = PlayerKind::Both;
+            } else {
+                players.push(comp);
+                kinds.push(PlayerKind::Input);
             }
         }
     }

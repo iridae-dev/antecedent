@@ -124,18 +124,18 @@ pub(crate) fn meta_from_dict(d: &Bound<'_, PyDict>) -> PyResult<PriorSourceMeta>
         }
         meta = meta.with_design(design);
     }
-    if let Some(c) = d.get_item("contrast")? {
-        if !c.is_none() {
-            meta.contrast = Some(c.extract()?);
-        }
+    if let Some(c) = d.get_item("contrast")?
+        && !c.is_none()
+    {
+        meta.contrast = Some(c.extract()?);
     }
     if let Some(p) = d.get_item("provenance")? {
         meta.provenance = p.extract()?;
     }
-    if let Some(m) = d.get_item("declared_mapping")? {
-        if !m.is_none() {
-            meta = meta.with_mapping(mapping_from_dict(m.cast::<PyDict>()?)?);
-        }
+    if let Some(m) = d.get_item("declared_mapping")?
+        && !m.is_none()
+    {
+        meta = meta.with_mapping(mapping_from_dict(m.cast::<PyDict>()?)?);
     }
     Ok(meta)
 }
@@ -221,10 +221,10 @@ fn prior_catalog_filter<'py>(
         if let Some(tags) = target.get_item("tags")? {
             td = td.with_tags(tags.extract()?);
         }
-        if let Some(allow) = target.get_item("allow_unidentified")? {
-            if allow.extract::<bool>()? {
-                td = td.allow_unidentified();
-            }
+        if let Some(allow) = target.get_item("allow_unidentified")?
+            && allow.extract::<bool>()?
+        {
+            td = td.allow_unidentified();
         }
 
         let catalog = PriorCatalog::from_sources(refs);

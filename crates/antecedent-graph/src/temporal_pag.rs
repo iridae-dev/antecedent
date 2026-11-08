@@ -520,7 +520,7 @@ mod tests {
         g.set_marks(a, b, Endpoint::Tail, Endpoint::Arrow).unwrap();
         let dag = g.try_into_temporal_dag().unwrap();
         assert_eq!(dag.node_count(), 2);
-        assert!(dag.children(a).iter().any(|c| *c == b));
+        assert!(dag.children(a).contains(&b));
     }
 }
 

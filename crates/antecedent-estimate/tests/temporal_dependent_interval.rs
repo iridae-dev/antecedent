@@ -63,7 +63,7 @@ fn truth_given_state(sequence: [u32; 2], s0: usize) -> f64 {
 
 /// All histories of unit `unit` (sign of the unit effect from its parity).
 fn unit_rows(unit: usize) -> Vec<(u32, u32, u32, u32, f64)> {
-    let shift: i64 = if unit % 2 == 0 { 2 } else { -2 };
+    let shift: i64 = if unit.is_multiple_of(2) { 2 } else { -2 };
     let mut rows = Vec::new();
     for s0 in 0..2_usize {
         for a1 in 0..2_usize {

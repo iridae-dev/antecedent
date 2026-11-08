@@ -443,7 +443,10 @@ pub(crate) fn run_tempered_mask_chain<C: MaskChain>(
                 }
             }
         }
-        if step >= plan.n_warmup && (step - plan.n_warmup) % plan.thin == 0 && kept < plan.n_draws {
+        if step >= plan.n_warmup
+            && (step - plan.n_warmup).is_multiple_of(plan.thin)
+            && kept < plan.n_draws
+        {
             let cold = &replicas[holder[0]];
             cold.record(&mut traces[kept * plan.n_params..(kept + 1) * plan.n_params]);
             scores[kept] = cold.current_score();

@@ -1012,7 +1012,7 @@ pub fn interaction_coefficients(table: &ScoreTable) -> Result<Vec<f64>, Estimati
                 "interaction contrast requires arm codes 0..2^k on the mean cells",
             ));
         }
-        coeffs[column] = if (factors - arm.count_ones()) % 2 == 0 { 1.0 } else { -1.0 };
+        coeffs[column] = if (factors - arm.count_ones()).is_multiple_of(2) { 1.0 } else { -1.0 };
     }
     Ok(coeffs)
 }

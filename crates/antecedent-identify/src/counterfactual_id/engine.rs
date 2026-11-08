@@ -187,12 +187,12 @@ impl Engine<'_, '_> {
                 let ancestors = cg.ancestors(c);
                 for &p in outside_parents.intersection(&ancestors) {
                     let var = cg.nodes[p].var;
-                    if let Some(previous) = sub.insert(var, values[p]) {
-                        if previous != values[p] {
-                            return Err(Halt::Failure(
-                                "two copies of one variable among a node's ancestors".into(),
-                            ));
-                        }
+                    if let Some(previous) = sub.insert(var, values[p])
+                        && previous != values[p]
+                    {
+                        return Err(Halt::Failure(
+                            "two copies of one variable among a node's ancestors".into(),
+                        ));
                     }
                 }
                 atoms.push(Atom { var: cg.nodes[c].var, value: values[c], sub });
@@ -207,17 +207,17 @@ impl Engine<'_, '_> {
         let mut sub: BTreeMap<u32, CfValue> = BTreeMap::new();
         for node in &cg.nodes {
             for (&var, &value) in &node.eff_sub {
-                if let Some(previous) = sub.insert(var, value) {
-                    if previous != value {
-                        return Err(Halt::Obstruction(Box::new(
-                            CounterfactualObstruction::ConflictingSubscripts {
-                                graph: cg.record(),
-                                variable: var,
-                                subscript: previous,
-                                event: Some(value),
-                            },
-                        )));
-                    }
+                if let Some(previous) = sub.insert(var, value)
+                    && previous != value
+                {
+                    return Err(Halt::Obstruction(Box::new(
+                        CounterfactualObstruction::ConflictingSubscripts {
+                            graph: cg.record(),
+                            variable: var,
+                            subscript: previous,
+                            event: Some(value),
+                        },
+                    )));
                 }
             }
         }
@@ -575,12 +575,12 @@ fn propagate_effective_subscripts(nodes: &mut [CgNode], topo: &[u32]) -> Result<
         let mut sub = nodes[i].eff_sub.clone();
         for &p in &nodes[i].parents.clone() {
             for (&var, &value) in &nodes[p].eff_sub {
-                if let Some(previous) = sub.insert(var, value) {
-                    if previous != value {
-                        return Err(Halt::Failure(
-                            "a node's ancestors are set to two levels of one variable".into(),
-                        ));
-                    }
+                if let Some(previous) = sub.insert(var, value)
+                    && previous != value
+                {
+                    return Err(Halt::Failure(
+                        "a node's ancestors are set to two levels of one variable".into(),
+                    ));
                 }
             }
         }

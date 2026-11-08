@@ -209,10 +209,10 @@ fn bayesian_surface_draws(
             antecedent_core::StreamDomain::TemporalBlock,
             antecedent_core::derive_stream(HORIZON_BAYES_STREAM, u64::from(replicate)),
         );
-        if let Some(flat) = draw(&mut refit, &mut rng) {
-            if flat.iter().all(|x| x.is_finite()) {
-                draws.push(flat);
-            }
+        if let Some(flat) = draw(&mut refit, &mut rng)
+            && flat.iter().all(|x| x.is_finite())
+        {
+            draws.push(flat);
         }
     }
     finish_surface_draws(draws, attempted, cancelled, refit.ncols)

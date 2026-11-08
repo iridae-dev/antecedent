@@ -801,10 +801,10 @@ impl EffectConstancyArtifact {
                 "statistic, p-value or contrasts",
             ));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &computed.identity) {
-                return Err(EffectConstancyArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &computed.identity)
+        {
+            return Err(EffectConstancyArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta, request, result: computed.result })
     }

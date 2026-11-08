@@ -525,10 +525,10 @@ impl PreparedAdaptivePolicySearch {
         {
             return Err(invalid("constraints must be finite with probabilities in [0, 1]"));
         }
-        if let PolicyObjective::LowerTailMean { alpha } = objective {
-            if !(alpha.is_finite() && alpha > 0.0 && alpha <= 1.0) {
-                return Err(invalid("lower-tail share must lie in (0, 1]"));
-            }
+        if let PolicyObjective::LowerTailMean { alpha } = objective
+            && !(alpha.is_finite() && alpha > 0.0 && alpha <= 1.0)
+        {
+            return Err(invalid("lower-tail share must lie in (0, 1]"));
         }
         let o = &options;
         if o.max_evaluations == 0

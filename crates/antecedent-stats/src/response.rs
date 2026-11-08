@@ -843,10 +843,10 @@ pub fn gaussian_local_quadratic_bias_corrected_influence(
     {
         return Err(StatsError::Shape { message: "local bias-correction inputs must be finite" });
     }
-    if let Some(weights) = observation_weights {
-        if weights.len() != x.len() || !crate::weight_validation::finite_nonnegative(weights) {
-            return Err(StatsError::Shape { message: "invalid local bias-correction weights" });
-        }
+    if let Some(weights) = observation_weights
+        && (weights.len() != x.len() || !crate::weight_validation::finite_nonnegative(weights))
+    {
+        return Err(StatsError::Shape { message: "invalid local bias-correction weights" });
     }
     let (cubic, cubic_se, cubic_influence) =
         robust_local_polynomial::<4>(x, y, at, bandwidth, observation_weights)?;

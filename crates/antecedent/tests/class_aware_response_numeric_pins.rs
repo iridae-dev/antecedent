@@ -357,8 +357,8 @@ fn class_aware_intervention_pins_against_ate_envelope() {
         let ate = section["ate_contrast"].as_f64().unwrap();
         let low_targets = count_derived_intervention_targets(&pin, 0.0);
         let high_targets = count_derived_intervention_targets(&pin, 1.0);
-        let do0 = (low_targets[0] + low_targets[1]) / 2.0;
-        let do1 = (high_targets[0] + high_targets[1]) / 2.0;
+        let do0 = f64::midpoint(low_targets[0], low_targets[1]);
+        let do1 = f64::midpoint(high_targets[0], high_targets[1]);
         assert!((do0 - 0.17).abs() < 1e-12);
         assert!((do1 - 0.63).abs() < 1e-12);
         let identifier = section["identification"]["identifier"].as_str().unwrap();
@@ -921,7 +921,7 @@ fn class_aware_curve_gap_to_average_effect_is_explained_and_flagged_as_extrapola
     let ate_value = ate.estimate().as_effect().unwrap().ate;
     let slope_unadjusted = ols_first_coefficient(&y_col, &[&t_col]);
     let slope_adjusted = ols_first_coefficient(&y_col, &[&t_col, &z_col]);
-    assert!((ate_value - (slope_unadjusted + slope_adjusted) / 2.0).abs() < 1e-9);
+    assert!((ate_value - f64::midpoint(slope_unadjusted, slope_adjusted)).abs() < 1e-9);
     // The whole gap is accounted for completion by completion.
     let gap = ate_value - curve_contrast;
     let unadjusted_gap = (slope_unadjusted - (unadjusted[1] - unadjusted[0])) / 2.0;

@@ -87,15 +87,16 @@ impl ConflictPolicy {
             return 0.0;
         }
         let mut factor = 1.0;
-        if let Some(pval) = p {
-            if pval <= self.p_min {
-                factor = 0.0;
-            }
+        if let Some(pval) = p
+            && pval <= self.p_min
+        {
+            factor = 0.0;
         }
-        if let Some(k) = kl {
-            if k > 0.0 && self.kl_scale > 0.0 {
-                factor *= (-self.kl_scale * k).exp();
-            }
+        if let Some(k) = kl
+            && k > 0.0
+            && self.kl_scale > 0.0
+        {
+            factor *= (-self.kl_scale * k).exp();
         }
         (alpha * factor).clamp(0.0, alpha)
     }

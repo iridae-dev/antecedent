@@ -52,6 +52,10 @@ impl SupportMarginal {
 /// Only the two extremal couplings are values of this type. There is no
 /// constructor for an independence coupling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(
+    clippy::struct_field_names,
+    reason = "fields are named for the cell of the joint table they hold; the shared prefix is the cell label"
+)]
 pub struct JointCoupling {
     /// Numerator of `P(X = 0, Y = 0)`.
     mass_0_0: i64,

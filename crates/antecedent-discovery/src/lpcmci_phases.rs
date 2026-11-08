@@ -85,10 +85,11 @@ fn known_parents_of(
     };
     let mut out = Vec::new();
     for (n, at_target, at_neighbor) in pag.neighbors(tgt) {
-        if matches!(at_neighbor, Endpoint::Tail) && matches!(at_target, Endpoint::Arrow) {
-            if let Some(pair) = node_key(pag, n) {
-                out.push(pair);
-            }
+        if matches!(at_neighbor, Endpoint::Tail)
+            && matches!(at_target, Endpoint::Arrow)
+            && let Some(pair) = node_key(pag, n)
+        {
+            out.push(pair);
         }
     }
     out.sort_unstable_by_key(|(variable, lag)| (variable.raw(), lag.raw()));
@@ -103,10 +104,10 @@ fn known_non_ancestors(pag: &TemporalPag, idx: &NodeIndex, of: VariableId) -> Ha
     for (n, _, at_neighbor) in pag.neighbors(node) {
         // An arrowhead at the neighbor excludes that neighbor as an ancestor of `of`,
         // regardless of whether the mark at `of` is a tail, arrowhead or circle.
-        if matches!(at_neighbor, Endpoint::Arrow) {
-            if let Some((v, l)) = node_key(pag, n) {
-                out.insert((v.raw(), l.raw()));
-            }
+        if matches!(at_neighbor, Endpoint::Arrow)
+            && let Some((v, l)) = node_key(pag, n)
+        {
+            out.insert((v.raw(), l.raw()));
         }
     }
     out
@@ -225,10 +226,9 @@ fn homologous_pairs(
     // Always include the queried pair.
     if let (Some(&a), Some(&b)) =
         (idx.get(&(x.raw(), x_lag.raw())), idx.get(&(y.raw(), y_lag.raw())))
+        && !out.iter().any(|&(u, v)| (u == a && v == b) || (u == b && v == a))
     {
-        if !out.iter().any(|&(u, v)| (u == a && v == b) || (u == b && v == a)) {
-            out.push((a, b));
-        }
+        out.push((a, b));
     }
     out
 }

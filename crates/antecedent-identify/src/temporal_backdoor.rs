@@ -916,10 +916,10 @@ fn resolve_schedule_active_level(
 ) -> Result<f64, IdentificationError> {
     let mut distinct: Vec<f64> = Vec::new();
     for &(_, _, level) in schedule {
-        if let Some(value) = level {
-            if !distinct.contains(&value) {
-                distinct.push(value);
-            }
+        if let Some(value) = level
+            && !distinct.contains(&value)
+        {
+            distinct.push(value);
         }
     }
     match distinct.as_slice() {

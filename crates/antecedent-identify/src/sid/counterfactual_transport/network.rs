@@ -134,12 +134,11 @@ pub(super) fn build_network(
         let mut additions: Vec<((usize, usize), usize)> = Vec::new();
         for world in 0..w {
             for variable in 0..n {
-                if let Some(id) = raw.pair_node[world][variable] {
-                    if let Some(level) = node_value[id] {
-                        if !known.contains_key(&(world, variable)) {
-                            additions.push(((world, variable), level));
-                        }
-                    }
+                if let Some(id) = raw.pair_node[world][variable]
+                    && let Some(level) = node_value[id]
+                    && !known.contains_key(&(world, variable))
+                {
+                    additions.push(((world, variable), level));
                 }
             }
         }
@@ -213,11 +212,11 @@ fn finalize(
     }
     while let Some(i) = stack.pop() {
         for &(_, input) in &raw.nodes[i].1 {
-            if let Input::Node(j) = input {
-                if !keep[j] {
-                    keep[j] = true;
-                    stack.push(j);
-                }
+            if let Input::Node(j) = input
+                && !keep[j]
+            {
+                keep[j] = true;
+                stack.push(j);
             }
         }
     }

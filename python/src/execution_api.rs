@@ -71,10 +71,10 @@ pub(crate) fn apply(ctx: &mut ExecutionContext) {
         ctx.with_temporal_materialization_limits(policy.context.temporal_materialization_limits());
     *ctx = ctx.with_randomization_test_limits(policy.context.randomization_test_limits());
     ctx.kernel_policy = policy.context.kernel_policy;
-    if let Some(ranges) = policy.pulse_extrapolation_ranges {
-        if let Some(scoped) = ctx.with_pulse_extrapolation_ranges(ranges) {
-            *ctx = scoped;
-        }
+    if let Some(ranges) = policy.pulse_extrapolation_ranges
+        && let Some(scoped) = ctx.with_pulse_extrapolation_ranges(ranges)
+    {
+        *ctx = scoped;
     }
     if let Some(progress) = &policy.progress {
         ctx.progress = crate::interrupt::bind_progress(Some(Arc::clone(progress)));
@@ -112,12 +112,12 @@ impl PythonExecution {
         randomization_test_max_row_visits: Option<u64>,
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
-            if let Some(ranges) = pulse_extrapolation_ranges {
-                if !(ranges.is_finite() && ranges >= 0.0) {
-                    return Err(crate::value_err(
-                        "pulse_extrapolation_ranges must be finite and nonnegative",
-                    ));
-                }
+            if let Some(ranges) = pulse_extrapolation_ranges
+                && !(ranges.is_finite() && ranges >= 0.0)
+            {
+                return Err(crate::value_err(
+                    "pulse_extrapolation_ranges must be finite and nonnegative",
+                ));
             }
             if threads == Some(0) {
                 return Err(crate::value_err("threads must be positive"));

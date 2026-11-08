@@ -831,14 +831,14 @@ fn summary_section(input: &ReportInput<'_>) -> Section {
         }
         .to_owned(),
     );
-    if let Some(claim) = input.claim {
-        if claim.calibration.status.as_ref() != "calibrated" {
-            readings.push(format!(
-                "Calibration status is {}: the reported uncertainty carries no measured-coverage \
+    if let Some(claim) = input.claim
+        && claim.calibration.status.as_ref() != "calibrated"
+    {
+        readings.push(format!(
+            "Calibration status is {}: the reported uncertainty carries no measured-coverage \
                  record.",
-                claim.calibration.status
-            ));
-        }
+            claim.calibration.status
+        ));
     }
     if let SlotAvailability::Available(slot) = &reasoning(input).identification {
         readings.push(format!("Identification status is {}.", slot.status.as_str()));
@@ -1268,18 +1268,18 @@ fn recorded_limits(input: &ReportInput<'_>) -> Vec<String> {
             ));
         }
     }
-    if let Some(claim) = input.claim {
-        if claim.calibration.status.as_ref() != "calibrated" {
-            limits.push(format!(
-                "Calibration is {}{}.",
-                claim.calibration.status,
-                claim
-                    .calibration
-                    .reason
-                    .as_deref()
-                    .map_or_else(String::new, |reason| format!(" ({reason})"))
-            ));
-        }
+    if let Some(claim) = input.claim
+        && claim.calibration.status.as_ref() != "calibrated"
+    {
+        limits.push(format!(
+            "Calibration is {}{}.",
+            claim.calibration.status,
+            claim
+                .calibration
+                .reason
+                .as_deref()
+                .map_or_else(String::new, |reason| format!(" ({reason})"))
+        ));
     }
     if let Some(plan) = input.plan {
         let identification = plan.identification();

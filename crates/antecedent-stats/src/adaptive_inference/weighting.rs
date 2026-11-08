@@ -220,7 +220,7 @@ pub fn weighted_estimate(
     if !(2..=MAX_WEIGHTED_ARMS).contains(&arms) {
         return Err(Error::Shape("an adaptive analysis needs between 2 and 64 arms"));
     }
-    if scores.len() % arms != 0 || probabilities.len() != scores.len() {
+    if !scores.len().is_multiple_of(arms) || probabilities.len() != scores.len() {
         return Err(Error::Shape("scores and probabilities must be n x arms"));
     }
     let n = scores.len() / arms;

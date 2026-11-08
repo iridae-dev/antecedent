@@ -599,7 +599,7 @@ impl EvidenceLedger {
                     "a transport identity states at least one invariance or selection assumption"
                 ));
             }
-            if transport.source_populations.iter().any(|p| *p == transport.target_population) {
+            if transport.source_populations.contains(&transport.target_population) {
                 return Err(invalid!(
                     "evidence_ledger.invalid_declaration",
                     "a transport target population is not one of its source populations"
@@ -1400,13 +1400,13 @@ impl EvidenceLedger {
                 .with_sources([target]));
             }
         }
-        if let Some(reason) = reason {
-            if !text_ok(reason) {
-                return Err(invalid!(
-                    "evidence_ledger.invalid_declaration",
-                    "a withdrawal states its reason"
-                ));
-            }
+        if let Some(reason) = reason
+            && !text_ok(reason)
+        {
+            return Err(invalid!(
+                "evidence_ledger.invalid_declaration",
+                "a withdrawal states its reason"
+            ));
         }
         let Some(replacement) = replacement else {
             return Ok(Plan::Retire { retire, target, reason: reason.cloned(), replacement: None });

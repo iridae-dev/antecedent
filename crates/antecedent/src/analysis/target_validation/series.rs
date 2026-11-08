@@ -511,36 +511,35 @@ impl PreparedRefit<'_> {
         // A route that reads no row weights (a conditional effect) cannot take the circular
         // window as zero weights; the same subset is then cut as a contiguous window, which keeps
         // every lag the procedure reads inside it.
-        if refit.is_err() {
-            if let TargetPerturbation::Subset { fraction, .. } = perturbation {
-                let n = series.row_count();
-                #[allow(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_sign_loss,
-                    reason = "the subset fraction lies in (0, 1), and the saturating cast is clamped into [1, n]"
-                )]
-                let width = ((fraction * n as f64).round() as usize).clamp(1, n);
-                let start = unbiased_index(rng, n - width + 1);
-                if let Some(window) = truncated_series(series, start, start + width)? {
-                    match self.reestimate(&Modal::Series(window), ctx) {
-                        Ok(values) => return Ok(values),
-                        Err(error) if operational_refit_error(&error) => return Err(error),
-                        Err(_) => {}
-                    }
+        if refit.is_err()
+            && let TargetPerturbation::Subset { fraction, .. } = perturbation
+        {
+            let n = series.row_count();
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "the subset fraction lies in (0, 1), and the saturating cast is clamped into [1, n]"
+            )]
+            let width = ((fraction * n as f64).round() as usize).clamp(1, n);
+            let start = unbiased_index(rng, n - width + 1);
+            if let Some(window) = truncated_series(series, start, start + width)? {
+                match self.reestimate(&Modal::Series(window), ctx) {
+                    Ok(values) => return Ok(values),
+                    Err(error) if operational_refit_error(&error) => return Err(error),
+                    Err(_) => {}
                 }
             }
         }
         // Routes that do not consume row weights need a gathered circular-block series.
         // Attribution refits retain the block boundaries so complete windows do not cross joins.
-        if refit.is_err() {
-            if let Some((window, provenance, _guard)) =
+        if refit.is_err()
+            && let Some((window, provenance, _guard)) =
                 self.materialised_window(series, perturbation, rng, ctx)?
-            {
-                match self.reestimate_materialised_series(&window, provenance.as_ref(), ctx) {
-                    Ok(values) => return Ok(values),
-                    Err(error) if operational_refit_error(&error) => return Err(error),
-                    Err(_) => {}
-                }
+        {
+            match self.reestimate_materialised_series(&window, provenance.as_ref(), ctx) {
+                Ok(values) => return Ok(values),
+                Err(error) if operational_refit_error(&error) => return Err(error),
+                Err(_) => {}
             }
         }
         if matches!(perturbation, TargetPerturbation::Bootstrap { .. }) && refit.is_err() {

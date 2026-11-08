@@ -128,28 +128,28 @@ pub(super) fn overlay_prepared_score_functional(
     } else {
         crate::analysis::helpers::attach_score_functional_grid(effect, table.clone())?
     };
-    if functional.quantile_level().is_some() {
-        if let Some(response) = result.payload.response_mut() {
-            response.estimate = antecedent_core::ResponseIdentification::PointIdentified(
-                antecedent_core::ResponseValue::Scalar(estimate.ate),
-            );
-            let standard_error = estimate.se_analytic();
-            // An interval needs a usable standard error; a missing or degenerate one
-            // is withheld rather than published as a point-width band.
-            response.uncertainty = if standard_error.is_finite() && standard_error > 0.0 {
-                let half_width = crate::result::reported_se_interval_z() * standard_error;
-                antecedent_core::ResponseUncertainty::Scalar {
-                    standard_error,
-                    lower: estimate.ate - half_width,
-                    upper: estimate.ate + half_width,
-                    level: 0.95,
-                    interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                    draws: None,
-                }
-            } else {
-                antecedent_core::ResponseUncertainty::None
-            };
-        }
+    if functional.quantile_level().is_some()
+        && let Some(response) = result.payload.response_mut()
+    {
+        response.estimate = antecedent_core::ResponseIdentification::PointIdentified(
+            antecedent_core::ResponseValue::Scalar(estimate.ate),
+        );
+        let standard_error = estimate.se_analytic();
+        // An interval needs a usable standard error; a missing or degenerate one
+        // is withheld rather than published as a point-width band.
+        response.uncertainty = if standard_error.is_finite() && standard_error > 0.0 {
+            let half_width = crate::result::reported_se_interval_z() * standard_error;
+            antecedent_core::ResponseUncertainty::Scalar {
+                standard_error,
+                lower: estimate.ate - half_width,
+                upper: estimate.ate + half_width,
+                level: 0.95,
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
+            }
+        } else {
+            antecedent_core::ResponseUncertainty::None
+        };
     }
     result.estimate = crate::PrimaryEstimate::Effect(estimate);
     result.rebind_interval(result.posterior.is_some());

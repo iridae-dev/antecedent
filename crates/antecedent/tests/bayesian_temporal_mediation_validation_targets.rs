@@ -17,7 +17,7 @@ use antecedent_core::{
     CausalQuery, ExecutionContext, Lag, MediationContrast, MediationQuery, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_graph::{ensure_lagged, TemporalDag};
+use antecedent_graph::{TemporalDag, ensure_lagged};
 
 /// Tolerance of the estimate against the pinned posterior mean.
 const ATE_TOLERANCE: f64 = 0.02;

@@ -189,19 +189,19 @@ pub(super) fn validate(
         )
         .into());
     }
-    if let Some(given_map) = atoms_map(&given_atoms) {
-        if !given_map.is_empty() {
-            let impossible = matches!(
-                build_network(problem, &worlds, &given_map).map_err(Rejection::Invalid)?,
-                Built::Zero
-            );
-            if impossible {
-                return Err(invalid_query(
-                    "the conditioning event contradicts the query's own interventions: it has \
+    if let Some(given_map) = atoms_map(&given_atoms)
+        && !given_map.is_empty()
+    {
+        let impossible = matches!(
+            build_network(problem, &worlds, &given_map).map_err(Rejection::Invalid)?,
+            Built::Zero
+        );
+        if impossible {
+            return Err(invalid_query(
+                "the conditioning event contradicts the query's own interventions: it has \
                      probability zero in every model",
-                )
-                .into());
-            }
+            )
+            .into());
         }
     }
     let (usable, ignored, unused_family) = validate_catalog(problem, catalog, &populations)?;

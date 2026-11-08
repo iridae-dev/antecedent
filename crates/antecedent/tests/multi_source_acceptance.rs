@@ -485,8 +485,8 @@ fn acceptance_the_joint_law_decision_matches_the_hand_derived_values() {
     let artifact = law("lab-2", "snap-e2", None);
     let result = evaluate_contract(&law_contract(), &artifact).unwrap();
     close(result.actions[0].expected_utility, 2.0);
-    close(result.actions[1].expected_utility, (5.0 + 0.0) / 2.0);
-    close(result.actions[2].expected_utility, (0.0 + 4.0) / 2.0);
+    close(result.actions[1].expected_utility, f64::midpoint(5.0, 0.0));
+    close(result.actions[2].expected_utility, f64::midpoint(0.0, 4.0));
     assert_eq!(result.verdict, Verdict::UniquelyOptimal("treat".into()));
     close(result.evpi.unwrap(), 4.5 - 2.5);
     close(result.actions[0].expected_regret.unwrap(), 2.5);

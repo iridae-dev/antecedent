@@ -583,14 +583,12 @@ fn retained_regime_parents(
             for p in g.parents(from) {
                 if let Some(antecedent_graph::NodeRef::Lagged { variable: src, lag: slag }) =
                     g.nodes().get(p.as_usize())
+                    && slag.raw() >= 1
+                    && let Some(si) = variables.iter().position(|v| v == src)
                 {
-                    if slag.raw() >= 1 {
-                        if let Some(si) = variables.iter().position(|v| v == src) {
-                            let parent = (si, slag.raw() as usize);
-                            if !by_target[ti].contains(&parent) {
-                                by_target[ti].push(parent);
-                            }
-                        }
+                    let parent = (si, slag.raw() as usize);
+                    if !by_target[ti].contains(&parent) {
+                        by_target[ti].push(parent);
                     }
                 }
             }

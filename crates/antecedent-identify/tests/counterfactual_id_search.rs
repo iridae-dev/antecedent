@@ -972,7 +972,7 @@ fn the_memory_charged_is_cumulative_across_the_decision() {
         let (mut low, mut high) = (1u64, 1u64 << 20);
         assert!(fits(high));
         while low < high {
-            let mid = (low + high) / 2;
+            let mid = u64::midpoint(low, high);
             if fits(mid) {
                 high = mid;
             } else {

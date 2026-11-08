@@ -45,7 +45,7 @@ fn expand(case: &Value) -> TabularData {
     }
     let rows = values[0].len();
     let order: Vec<usize> = (0..rows).map(|row| (row * 97) % rows).collect();
-    assert!(order.iter().collect::<std::collections::BTreeSet<_>>().len() == rows);
+    assert_eq!(order.iter().collect::<std::collections::BTreeSet<_>>().len(), rows);
     let shuffled: Vec<Vec<f64>> =
         values.iter().map(|column| order.iter().map(|&row| column[row]).collect()).collect();
     let pairs: Vec<(&str, &[f64])> =

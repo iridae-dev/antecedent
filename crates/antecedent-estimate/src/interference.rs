@@ -315,12 +315,12 @@ fn estimate_interference_admitted(
             }
             let mut assigned_clusters = BTreeMap::new();
             for (&cluster, &assigned) in clusters.iter().zip(assignment) {
-                if let Some(previous) = assigned_clusters.insert(cluster, assigned) {
-                    if previous != assigned {
-                        return Err(EstimationError::data_msg(
-                            "cluster randomized assignment must be constant within each cluster",
-                        ));
-                    }
+                if let Some(previous) = assigned_clusters.insert(cluster, assigned)
+                    && previous != assigned
+                {
+                    return Err(EstimationError::data_msg(
+                        "cluster randomized assignment must be constant within each cluster",
+                    ));
                 }
             }
             if assigned_clusters.values().filter(|&&assigned| assigned).count() != *treated_clusters

@@ -728,10 +728,10 @@ pub fn exact_posterior(
     if !(2..=MAX_ARMS).contains(&request.arms.len()) {
         return Err(Error::Shape("a posterior comparison needs between 2 and 64 arms"));
     }
-    if let Some(margin) = request.exceedance_margin {
-        if !(margin.is_finite() && (0.0..1.0).contains(&margin)) {
-            return Err(Error::InvalidParameter("a margin must lie in [0, 1)"));
-        }
+    if let Some(margin) = request.exceedance_margin
+        && !(margin.is_finite() && (0.0..1.0).contains(&margin))
+    {
+        return Err(Error::InvalidParameter("a margin must lie in [0, 1)"));
     }
     let arms = request
         .arms

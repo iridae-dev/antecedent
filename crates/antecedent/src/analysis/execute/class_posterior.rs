@@ -356,10 +356,10 @@ fn evaluate_class_atom_frequentist(
         };
         let mut estimate =
             EffectEstimate::new(weighted / total, se, assumptions, OverlapPolicy::ExplicitOverride);
-        if atom_ifs.len() == n_contributing {
-            if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
-                estimate.scores.influence = Some(inf);
-            }
+        if atom_ifs.len() == n_contributing
+            && let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights)
+        {
+            estimate.scores.influence = Some(inf);
         }
         Some(estimate)
     } else {

@@ -158,7 +158,7 @@ mod tests {
         assert!((cells.max_factor() - cells.kernel_factors[1]).abs() < 1e-15);
         assert!((cells.min_effective_rows() - cells.effective_rows[1]).abs() < 1e-15);
         assert!(cells.is_short_series());
-        let quiet = CellDispersion::from_influences(&[white.clone()], 18);
+        let quiet = CellDispersion::from_influences(std::slice::from_ref(&white), 18);
         assert!(!quiet.is_short_series());
         assert!(CellDispersion::default().is_short_series(), "no reading warns");
         let scores = CellDispersion::from_scores(&[&white, &persistent], 18);

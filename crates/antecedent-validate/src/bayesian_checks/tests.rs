@@ -430,7 +430,9 @@ fn ppc_catches_variance_misspecification_mean_ok() {
     let z: Vec<f64> = (0..n).map(|_| 0.0).collect();
     let mut y: Vec<f64> = (0..n).map(|_| 5.0 * standard_normal(&mut rng)).collect();
     let centre = y.iter().sum::<f64>() / n as f64;
-    y.iter_mut().for_each(|v| *v -= centre);
+    for v in &mut y {
+        *v -= centre;
+    }
     let cols = vec![
         OwnedColumn::Float64(
             Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))

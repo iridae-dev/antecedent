@@ -383,10 +383,10 @@ impl SparseLu {
             candidates_rows.dedup();
             let mut candidates: Vec<(usize, f64)> = Vec::new();
             for r in candidates_rows {
-                if active[r] {
-                    if let Ok(p) = rows[r].binary_search_by_key(&c, |e| e.0) {
-                        candidates.push((r, rows[r][p].1));
-                    }
+                if active[r]
+                    && let Ok(p) = rows[r].binary_search_by_key(&c, |e| e.0)
+                {
+                    candidates.push((r, rows[r][p].1));
                 }
             }
             let largest = candidates.iter().map(|e| e.1.abs()).fold(0.0_f64, f64::max);

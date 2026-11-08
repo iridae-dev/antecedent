@@ -62,15 +62,15 @@ fn next_allowed_after(at_from: Endpoint, at_to: Endpoint) -> &'static [EndpointP
 }
 
 fn matches_pattern(at_from: Endpoint, at_to: Endpoint, pat: EndpointPattern) -> bool {
-    if let Some(p) = pat.at_from {
-        if at_from != p {
-            return false;
-        }
+    if let Some(p) = pat.at_from
+        && at_from != p
+    {
+        return false;
     }
-    if let Some(p) = pat.at_to {
-        if at_to != p {
-            return false;
-        }
+    if let Some(p) = pat.at_to
+        && at_to != p
+    {
+        return false;
     }
     true
 }

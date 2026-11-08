@@ -117,12 +117,12 @@ impl ExactDagPosterior {
         // exact labeled DAG counts for the supported sizes 0..=6.
         let dag_counts: [u64; 7] = [1, 1, 3, 25, 543, 29_281, 3_781_503];
         let est_bytes = dag_counts[n].saturating_mul(32);
-        if let Some(hard) = ctx.memory_limit_bytes() {
-            if est_bytes > hard {
-                return Err(DiscoveryError::Resource(format!(
-                    "exact DAG enumeration needs ~{est_bytes} bytes; hard limit {hard}"
-                )));
-            }
+        if let Some(hard) = ctx.memory_limit_bytes()
+            && est_bytes > hard
+        {
+            return Err(DiscoveryError::Resource(format!(
+                "exact DAG enumeration needs ~{est_bytes} bytes; hard limit {hard}"
+            )));
         }
 
         let masks = enumerate_unique_dags(n);
@@ -148,7 +148,7 @@ impl ExactDagPosterior {
         // Keep only finite-weight graphs.
         let mut kept_masks = Vec::new();
         let mut kept_log = Vec::new();
-        for (mask, lw) in masks.into_iter().zip(log_w.into_iter()) {
+        for (mask, lw) in masks.into_iter().zip(log_w) {
             if lw.is_finite() {
                 kept_masks.push(mask);
                 kept_log.push(lw);

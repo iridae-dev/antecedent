@@ -111,7 +111,7 @@ fn assert_posterior_quantile(study: &Study, result: &StudyResult) {
 /// midpoint (about 3.9 standard errors at the 95% level), so an unadjusted or biased estimate
 /// that merely produces some interval fails.
 fn assert_on_truth(label: &str, lower: f64, upper: f64, truth: f64) {
-    let (mid, half) = ((lower + upper) / 2.0, (upper - lower) / 2.0);
+    let (mid, half) = (f64::midpoint(lower, upper), (upper - lower) / 2.0);
     assert!(half > 0.0, "{label}: degenerate interval [{lower}, {upper}]");
     assert!(
         (mid - truth).abs() <= 2.0 * half,
@@ -1667,7 +1667,10 @@ fn agreeing_temporal_cpdag_publishes_shared_band() {
         unreachable!()
     };
     assert!((level - 0.95).abs() < 1e-12);
-    assert!(((lower[0] + upper[0]) / 2.0 - reference).abs() < 1e-6, "band centred on the value");
+    assert!(
+        (f64::midpoint(lower[0], upper[0]) - reference).abs() < 1e-6,
+        "band centred on the value"
+    );
     let ratio = (upper[0] - lower[0]) / (2.0 * 1.959_963_984_540_054) / textbook_se;
     assert!((0.5..2.0).contains(&ratio), "bootstrap se / textbook se = {ratio}");
     assert!(
@@ -1709,7 +1712,7 @@ fn agreeing_temporal_cpdag_publishes_shared_band() {
             for (index, dose) in [0.0, 1.0].into_iter().enumerate() {
                 let (reference, _) = lagged_ols_value(&data, dose);
                 assert!(
-                    ((lower[index] + upper[index]) / 2.0 - reference).abs() < 1e-6,
+                    (f64::midpoint(lower[index], upper[index]) - reference).abs() < 1e-6,
                     "curve band at dose {dose} is centred on the independent value {reference}"
                 );
             }

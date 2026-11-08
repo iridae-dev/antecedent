@@ -602,10 +602,10 @@ impl CausalExprArena {
         regime_kind: Option<DomainRef>,
     ) -> Result<ExprId, ExprError> {
         let DistributionLeaf { variables, conditioned_on, intervention, domain } = leaf;
-        if let (Some(_), Some(kind)) = (regime, regime_kind) {
-            if kind != domain {
-                return Err(ExprError::RegimeDomainMismatch);
-            }
+        if let (Some(_), Some(kind)) = (regime, regime_kind)
+            && kind != domain
+        {
+            return Err(ExprError::RegimeDomainMismatch);
         }
         let population = self.intern_population(population);
         Ok(self.intern(ExprNode::Distribution {

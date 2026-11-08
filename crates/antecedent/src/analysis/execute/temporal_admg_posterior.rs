@@ -28,21 +28,21 @@ use antecedent_estimate::{FunctionalEffect, PreparedFunctionalEffect, TemporalMe
 use antecedent_identify::temporal_admg::TemporalAdmgWindowPlan;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
-use super::atom_mix::{mix_atom_evals, AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals};
+use super::atom_mix::{AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals, mix_atom_evals};
 use super::mediation_mixed::{component_slot, identify_components};
 use super::mediation_refutation::plug_in_value;
 use super::{
-    elapsed_ns, mass_fields, overlap_diagnostic, overlap_limit_diagnostic, provenance_ids,
-    resolve_posterior_status, run_functional, Arc, BootstrapAccounting, CausalError,
-    CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId,
-    ExecutionContext, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights, IdentifierId, Instant,
-    PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, Strategy, StudyResult, TabularData,
-    TimeSeriesData,
+    Arc, BootstrapAccounting, CausalError, CausalPosterior, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedKeyWeights, IdentifierId, Instant, PhysicalExecutionPlan, PosteriorMassSummary,
+    RefuteSuite, Strategy, StudyResult, TabularData, TimeSeriesData, elapsed_ns, mass_fields,
+    overlap_diagnostic, overlap_limit_diagnostic, provenance_ids, resolve_posterior_status,
+    run_functional,
 };
 use crate::analysis::identification_cache::{
-    build_temporal_admg_posterior_identification_cache, CachedGraphPosteriorAtomIdentification,
-    CachedGraphPosteriorIdentification,
+    CachedGraphPosteriorAtomIdentification, CachedGraphPosteriorIdentification,
+    build_temporal_admg_posterior_identification_cache,
 };
 use crate::analysis::proof_support::graph_posterior_withheld_diagnostic;
 use crate::analysis::temporal_admg_contrast::{used_variables, window_table_over};
@@ -363,7 +363,7 @@ fn temporal_pag_posterior_window_namespace(
             Err(e @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
                 return Err(e);
             }
-            Ok(None) | Err(_) => continue,
+            Ok(None) | Err(_) => {}
         }
     }
     Ok(None)
@@ -423,7 +423,7 @@ pub(crate) fn temporal_admg_posterior_window_namespace(
                 Err(e @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
                     return Err(e);
                 }
-                Ok(None) | Err(_) => continue,
+                Ok(None) | Err(_) => {}
             },
             antecedent_core::CausalQuery::TemporalEffect(query) => {
                 let contrast = match identify_window_contrast_within(
@@ -1267,10 +1267,11 @@ fn atom_components(
             if ctx.cancellation.is_cancelled() {
                 return Err(CausalError::Cancelled { stage: "temporal posterior" });
             }
-            if let Some(node) = window.coordinate(variable, period) {
-                if node != treatment && node != outcome {
-                    mediators.push(node);
-                }
+            if let Some(node) = window.coordinate(variable, period)
+                && node != treatment
+                && node != outcome
+            {
+                mediators.push(node);
             }
         }
     }

@@ -1547,10 +1547,10 @@ impl CategoricalTreatmentArtifact {
                 "counts, coefficients, covariance, contrasts or tests",
             ));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &computed.identity) {
-                return Err(CategoricalTreatmentArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &computed.identity)
+        {
+            return Err(CategoricalTreatmentArtifactError::IdentityMismatch { field });
         }
         if let Some(stored) = &meta.posterior {
             reject_posterior_of_declared_rows(&decl)?;

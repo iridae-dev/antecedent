@@ -320,7 +320,9 @@ fn run_chain(
         .map(|_| sample_gamma(spec.dirichlet_concentration.max(1.0), 1.0, &mut rng).max(1e-6))
         .collect();
     let total: f64 = start.iter().sum();
-    start.iter_mut().for_each(|w| *w /= total);
+    for w in &mut start {
+        *w /= total;
+    }
     let residual = residuals(panel, &start);
     let ss = whitened_ss(&residual, spec.ar1_rho);
     let shape = spec.variance_shape + 0.5 * panel.target_pre.len() as f64;

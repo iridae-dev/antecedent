@@ -138,7 +138,7 @@ impl TieredBackground {
         if Arc::ptr_eq(&self.index.source, &self.tiers) {
             return self.index.tier_of.get(&id).copied();
         }
-        self.tiers.iter().position(|t| t.iter().any(|&v| v == id))
+        self.tiers.iter().position(|t| t.contains(&id))
     }
 
     /// Tier-closure adjustment set: all nodes in tiers `≤ k` except `treatment`,
@@ -350,7 +350,7 @@ mod tests {
         let t = s.id_of("t").unwrap();
         let y = s.id_of("y").unwrap();
         let set = bg.tier_closure(t, y).unwrap();
-        assert!(!set.iter().any(|&v| v == t));
+        assert!(!set.contains(&t));
         assert!(set.iter().any(|&v| v == s.id_of("era").unwrap()));
         assert!(set.iter().any(|&v| v == s.id_of("design").unwrap()));
         assert!(!set.iter().any(|&v| v == s.id_of("m").unwrap()));

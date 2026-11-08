@@ -1172,10 +1172,10 @@ mod tests {
         let orders = [[0.7, 0.2, 0.1], [0.1, 0.2, 0.7], [0.2, 0.7, 0.1], [0.1, 0.7, 0.2]];
         let sums = orders.map(mass_sum);
         assert!(sums.iter().all(|s| s.to_bits() == sums[0].to_bits()), "{sums:?}");
-        assert!(unaccounted_after(sums[0]).abs() == 0.0);
-        assert!(unaccounted_after(0.999_999_999_999_9).abs() == 0.0);
+        assert_eq!(unaccounted_after(sums[0]).abs().to_bits(), 0);
+        assert_eq!(unaccounted_after(0.999_999_999_999_9).abs().to_bits(), 0);
         assert!((unaccounted_after(0.9) - 0.1).abs() < 1e-15);
-        assert!(unaccounted_after(1.5).abs() == 0.0);
+        assert_eq!(unaccounted_after(1.5).abs().to_bits(), 0);
         // Declared weights are accepted and leave no residual in either order.
         for weights in [[0.7, 0.2, 0.1], [0.1, 0.2, 0.7]] {
             let set = TransportScenarioSet::try_new(vec![

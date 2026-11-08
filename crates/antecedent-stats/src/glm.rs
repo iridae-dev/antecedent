@@ -51,11 +51,12 @@ pub enum GlmFamily {
 }
 
 /// Policy for NB2 dispersion `α` (`Var = μ + α μ²`).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub enum NbAlphaPolicy {
     /// Fixed dispersion.
     Fixed(f64),
     /// Pearson method-of-moments after a Poisson warm-start (default).
+    #[default]
     MethodOfMoments,
     /// Alternating β-IRLS and 1-D MLE for `α`.
     NestedMle {
@@ -64,12 +65,6 @@ pub enum NbAlphaPolicy {
         /// Absolute tolerance on `|Δα|`.
         tol_alpha: f64,
     },
-}
-
-impl Default for NbAlphaPolicy {
-    fn default() -> Self {
-        Self::MethodOfMoments
-    }
 }
 
 impl GlmFamily {

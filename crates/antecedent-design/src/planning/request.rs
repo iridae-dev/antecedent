@@ -778,15 +778,15 @@ impl PlanningRequest {
                     format!("the effect must be finite (got {effect})"),
                 ));
             }
-            if let OutcomeModel::Binary { control_rate } = a.outcome {
-                if !probability(control_rate + effect) {
-                    return Err(PlanningRefusal::invalid(
-                        "planning.effect",
-                        format!(
-                            "control rate {control_rate} plus effect {effect} is not a probability"
-                        ),
-                    ));
-                }
+            if let OutcomeModel::Binary { control_rate } = a.outcome
+                && !probability(control_rate + effect)
+            {
+                return Err(PlanningRefusal::invalid(
+                    "planning.effect",
+                    format!(
+                        "control rate {control_rate} plus effect {effect} is not a probability"
+                    ),
+                ));
             }
         }
         Ok(())
@@ -1146,16 +1146,16 @@ impl PlanningRequest {
             }
             _ => {}
         }
-        if let Some(spec) = self.simulation {
-            if spec.replicates == 0 || spec.replicates > MAX_SIMULATION_REPLICATES {
-                return Err(PlanningRefusal::invalid(
-                    "planning.simulation",
-                    format!(
-                        "simulation replicates must lie in [1, {MAX_SIMULATION_REPLICATES}] (got {})",
-                        spec.replicates
-                    ),
-                ));
-            }
+        if let Some(spec) = self.simulation
+            && (spec.replicates == 0 || spec.replicates > MAX_SIMULATION_REPLICATES)
+        {
+            return Err(PlanningRefusal::invalid(
+                "planning.simulation",
+                format!(
+                    "simulation replicates must lie in [1, {MAX_SIMULATION_REPLICATES}] (got {})",
+                    spec.replicates
+                ),
+            ));
         }
         Ok(())
     }

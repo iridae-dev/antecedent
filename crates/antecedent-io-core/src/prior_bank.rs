@@ -832,12 +832,11 @@ fn assess_compatibility(source: &PriorSourceRef, target: &TargetDesign) -> Compa
     };
     let qty_set: BTreeSet<&str> = qty_names.iter().map(String::as_str).collect();
 
-    if let Some(mapping) = &source.meta.declared_mapping {
-        if let Some(early) =
+    if let Some(mapping) = &source.meta.declared_mapping
+        && let Some(early) =
             validate_declared_mapping(mapping, wire.as_ref(), &qty_set, &effect_names, &id)
-        {
-            return early;
-        }
+    {
+        return early;
     }
 
     let mut mappable = effect_names;
@@ -856,12 +855,11 @@ fn assess_compatibility(source: &PriorSourceRef, target: &TargetDesign) -> Compa
     }
 
     if !missing.is_empty() {
-        if mappable.is_empty() {
-            if let Some(PriorMapping::EffectFunctional { source_quantity }) =
+        if mappable.is_empty()
+            && let Some(PriorMapping::EffectFunctional { source_quantity }) =
                 &source.meta.declared_mapping
-            {
-                mappable.push(source_quantity.clone());
-            }
+        {
+            mappable.push(source_quantity.clone());
         }
         return CompatibilityReport::Partial { artifact_id: id, missing, mappable };
     }

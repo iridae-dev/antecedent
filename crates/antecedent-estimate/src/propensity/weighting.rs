@@ -299,8 +299,8 @@ impl PropensityWeighting {
             None
         };
         let z = reference_df.map_or_else(
-            || antecedent_stats::normal_ppf((1.0 + level) / 2.0),
-            |df| antecedent_stats::student_t_ppf((1.0 + level) / 2.0, df),
+            || antecedent_stats::normal_ppf(f64::midpoint(1.0, level)),
+            |df| antecedent_stats::student_t_ppf(f64::midpoint(1.0, level), df),
         );
         let a = 1.0 - z * z * v_mass;
         if !a.is_finite() || a <= 0.0 {
@@ -375,7 +375,7 @@ impl PropensityWeighting {
         let joint: Vec<f64> = signal.iter().zip(&mass).map(|(a, b)| a + b).collect();
         let effect_mass_covariance = (variance(&joint) - components.target - mass_variance) / 2.0;
         let effect_variance = components.noise + components.target;
-        let z = antecedent_stats::normal_ppf((1.0 + level) / 2.0);
+        let z = antecedent_stats::normal_ppf(f64::midpoint(1.0, level));
         let a = 1.0 - z * z * mass_variance;
         if !a.is_finite() || a <= 0.0 {
             return Err(EstimationError::stats_msg("population-mass confidence set is unbounded"));
@@ -796,13 +796,12 @@ pub(crate) fn hajek_influence_values(
         return Ok(Vec::new());
     }
     let ncols = propensity.as_ref().map_or(0, |p| p.ncols);
-    if let Some(p) = &propensity {
-        if p.scores.len() != n
+    if let Some(p) = &propensity
+        && (p.scores.len() != n
             || p.design.len() != n * ncols
-            || p.row_mass.is_some_and(|mass| mass.len() != n)
-        {
-            return Err(EstimationError::data_msg("Hajek propensity design/score length mismatch"));
-        }
+            || p.row_mass.is_some_and(|mass| mass.len() != n))
+    {
+        return Err(EstimationError::data_msg("Hajek propensity design/score length mismatch"));
     }
     let mu1 = hajek_weighted_mean(arms, outcome, weights, true);
     let mu0 = hajek_weighted_mean(arms, outcome, weights, false);

@@ -139,7 +139,7 @@ pub(in crate::analysis::execute) fn template_scoped_cross_world(
     contrast: CrossWorldContrast,
 ) -> IdentificationResult {
     let CrossWorldContrast { treatment, outcome, mediator, active, control } = contrast;
-    let map = |id: VariableId| indexer.key_of(id.raw()).map(|key| key.variable).unwrap_or(id);
+    let map = |id: VariableId| indexer.key_of(id.raw()).map_or(id, |key| key.variable);
     let adjustment: Vec<VariableId> = identification
         .estimands
         .first()

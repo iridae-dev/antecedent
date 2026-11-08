@@ -72,20 +72,20 @@
 use std::collections::BTreeMap;
 
 use antecedent_contract::evidence_ledger::{
-    CombinationRequest, EvidenceLedger, LedgerError, LedgerOperation, OperationId,
-    PoolingDependence, SynthesisOperation, MAX_COMBINATION_SOURCES,
+    CombinationRequest, EvidenceLedger, LedgerError, LedgerOperation, MAX_COMBINATION_SOURCES,
+    OperationId, PoolingDependence, SynthesisOperation,
 };
 use antecedent_core::ExecutionContext;
-use antecedent_io::evidence_ledger_artifact::{
-    covariance_digest, covariance_has_cross_terms, ComputedSynthesis, EvidenceLedgerArtifact,
-    EvidenceLedgerArtifactError, SynthesisMethod, SynthesisRecord,
-};
 use antecedent_io::IoError;
+use antecedent_io::evidence_ledger_artifact::{
+    ComputedSynthesis, EvidenceLedgerArtifact, EvidenceLedgerArtifactError, SynthesisMethod,
+    SynthesisRecord, covariance_digest, covariance_has_cross_terms,
+};
 use antecedent_stats::synthesis::{
-    equal_study_gaussian, fixed_effect_gls, fixed_effect_inverse_variance,
-    hierarchical_normal_borrowing, pooled_dependence_envelope, random_effects_dersimonian_laird,
-    random_effects_reml, DependenceEnvelope, GaussianStudyEstimate, HierarchicalPosterior,
-    MeanPrior, PooledEstimate, RandomEffectsEstimate, SynthesisError, TauPrior,
+    DependenceEnvelope, GaussianStudyEstimate, HierarchicalPosterior, MeanPrior, PooledEstimate,
+    RandomEffectsEstimate, SynthesisError, TauPrior, equal_study_gaussian, fixed_effect_gls,
+    fixed_effect_inverse_variance, hierarchical_normal_borrowing, pooled_dependence_envelope,
+    random_effects_dersimonian_laird, random_effects_reml,
 };
 
 pub use antecedent_contract::evidence_ledger::{

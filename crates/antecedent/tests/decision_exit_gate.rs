@@ -243,7 +243,7 @@ fn story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals
     );
     let mut w = original.clone();
     w.laws[0].population = "elsewhere".into();
-    assert!(refusal(&w.export().unwrap()).refusal().0 == "transport_not_certified");
+    assert_eq!(refusal(&w.export().unwrap()).refusal().0, "transport_not_certified");
     let mut w = original.clone();
     w.bindings[0].0 = "elsewhere".into();
     assert_eq!(

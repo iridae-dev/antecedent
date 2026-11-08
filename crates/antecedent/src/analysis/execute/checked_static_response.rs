@@ -105,8 +105,8 @@ impl CheckedDerivativeResponseOperation {
                 .estimands
                 .iter()
                 .any(|candidate| candidate.adjustment_set != estimand.adjustment_set)
-            || estimand.instruments.len() > 0
-            || estimand.mediators.len() > 0
+            || !estimand.instruments.is_empty()
+            || !estimand.mediators.is_empty()
         {
             return Err(CausalError::Compile {
                 message: "derivative response query, identification, estimand, or estimator do not form one checked static adjustment route".into(),

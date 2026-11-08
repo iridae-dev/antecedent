@@ -424,17 +424,17 @@ pub fn identification_failure_obligations(
     ))? {
         out.extend(family.unresolved_obligations());
     }
-    if let Some(finding) = sensitivity {
-        if let Some(family) = absent_when_identified(SensitivityRepairFamily::try_new(
+    if let Some(finding) = sensitivity
+        && let Some(family) = absent_when_identified(SensitivityRepairFamily::try_new(
             dag,
             treatment,
             outcome,
             Arc::clone(&population),
             observed.iter().copied(),
             *finding,
-        ))? {
-            out.extend(family.unresolved_obligations());
-        }
+        ))?
+    {
+        out.extend(family.unresolved_obligations());
     }
     if !unmeasured.is_empty() {
         unmeasured.sort_unstable_by_key(|v| v.raw());

@@ -497,7 +497,7 @@ impl SpillRegistry {
             options.mode(0o600);
             match options.open(&path) {
                 Ok(file) => return Ok((path, file)),
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
                 Err(error) => return Err(io_error("cannot create the spilled state", &error)),
             }
         }
@@ -706,10 +706,10 @@ impl SpillRegistry {
         let mut inner = self.lock();
         inner.tick = inner.tick.saturating_add(1);
         let tick = inner.tick;
-        if let Some(entry) = inner.entries.get_mut(key) {
-            if entry.generation == loaded_generation {
-                entry.last_used = tick;
-            }
+        if let Some(entry) = inner.entries.get_mut(key)
+            && entry.generation == loaded_generation
+        {
+            entry.last_used = tick;
         }
         inner.reloads = inner.reloads.saturating_add(1);
         drop(inner);
@@ -964,7 +964,7 @@ mod tests {
         assert_eq!(registry.stats().evictions, 1);
         drop((first, third));
         drop(registry);
-        assert!(fs::read_dir(&directory).map(|mut d| d.next().is_none()).unwrap_or(true));
+        assert!(fs::read_dir(&directory).map_or(true, |mut d| d.next().is_none()));
         let _ = fs::remove_dir_all(&directory);
     }
 

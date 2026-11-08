@@ -193,10 +193,10 @@ impl CausalState {
         // event must be observationally atomic: callers use `version` as the
         // freshness boundary for cached causal results, so consuming a version
         // on an operation that did not happen would make that evidence stamp lie.
-        if let StateEvent::RemoveConstraint(id) = &event {
-            if !self.graph_evidence.constraints.iter().any(|constraint| constraint.id == id.0) {
-                return Err(StateError::UnknownId(format!("constraint {}", id.0)));
-            }
+        if let StateEvent::RemoveConstraint(id) = &event
+            && !self.graph_evidence.constraints.iter().any(|constraint| constraint.id == id.0)
+        {
+            return Err(StateError::UnknownId(format!("constraint {}", id.0)));
         }
         self.version = self.version.next();
         let v = self.version;
@@ -477,16 +477,15 @@ impl CausalState {
                     update.query.raw()
                 )));
             }
-            if let Some(published) = update.data_snapshot {
-                if previous.data_version != self.data_catalog.version
-                    && published == previous.data_snapshot
-                {
-                    return Err(StateError::InvalidEvent(format!(
-                        "query {} republishes the data snapshot recorded before the latest data \
+            if let Some(published) = update.data_snapshot
+                && previous.data_version != self.data_catalog.version
+                && published == previous.data_snapshot
+            {
+                return Err(StateError::InvalidEvent(format!(
+                    "query {} republishes the data snapshot recorded before the latest data \
                          event; recompute on the current data before publishing",
-                        update.query.raw()
-                    )));
-                }
+                    update.query.raw()
+                )));
             }
             // Every stage input that changed since the previous publication must be
             // reflected in the identity layer that reads it: an identical lineage after a

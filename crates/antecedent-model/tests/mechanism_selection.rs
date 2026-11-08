@@ -588,7 +588,7 @@ mod with_providers {
         .2;
         let node = child(&assignments, CHILD);
         assert_eq!(node.selected, MechanismFamily::LinearGaussian, "{:?}", node.candidates);
-        assert!(node.candidates.iter().filter(|c| is_tree(c.family)).count() == 2);
+        assert_eq!(node.candidates.iter().filter(|c| is_tree(c.family)).count(), 2);
     }
 
     #[test]

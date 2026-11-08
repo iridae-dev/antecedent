@@ -40,18 +40,17 @@ pub(super) fn check_coherence(
         }
     }
     for world in &parts.world_obligations {
-        if world.outcome == IdentificationOutcome::Identified {
-            if let Some(index) = first_unresolved(&world.unresolved) {
-                return Err(ProductRefusal::IdentifiedWithUnresolvedObligation { index });
-            }
+        if world.outcome == IdentificationOutcome::Identified
+            && let Some(index) = first_unresolved(&world.unresolved)
+        {
+            return Err(ProductRefusal::IdentifiedWithUnresolvedObligation { index });
         }
     }
-    if let Some(assembled) = &parts.assembled {
-        if assembled.outcome == IdentificationOutcome::Identified {
-            if let Some(index) = first_unresolved(&assembled.unresolved) {
-                return Err(ProductRefusal::IdentifiedWithUnresolvedObligation { index });
-            }
-        }
+    if let Some(assembled) = &parts.assembled
+        && assembled.outcome == IdentificationOutcome::Identified
+        && let Some(index) = first_unresolved(&assembled.unresolved)
+    {
+        return Err(ProductRefusal::IdentifiedWithUnresolvedObligation { index });
     }
     Ok(())
 }
@@ -66,10 +65,10 @@ pub(super) fn check_obligation_scope(parts: &CompiledProductParts) -> Result<(),
             return Err(ProductRefusal::WorldObligationMissingWorld);
         }
     }
-    if let Some(assembled) = &parts.assembled {
-        if let Some(world) = assembled.world {
-            return Err(ProductRefusal::AssembledObligationNamesWorld { world });
-        }
+    if let Some(assembled) = &parts.assembled
+        && let Some(world) = assembled.world
+    {
+        return Err(ProductRefusal::AssembledObligationNamesWorld { world });
     }
     Ok(())
 }

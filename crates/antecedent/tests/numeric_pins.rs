@@ -2882,7 +2882,7 @@ fn pag_route_refuses_the_front_door_admg() {
     });
     let env = antecedent_identify::identify_pag_response_general(&pag, &query).unwrap();
     assert!(env.cases.is_empty(), "no maximal ancestral graph carries these marks");
-    assert!(env.identified_weight.0 == 0.0);
+    assert_eq!(env.identified_weight.0, 0.0);
     let err = Study::tabular(data)
         .graph(pag)
         .query(CausalQuery::Response(query))

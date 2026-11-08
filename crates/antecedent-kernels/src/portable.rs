@@ -14,10 +14,10 @@ use crate::view::{BitMaskView, F64VectorView, ViewError};
 ///
 /// Same contract as [`crate::scalar::masked_sum`].
 pub fn masked_sum(x: F64VectorView<'_>, mask: Option<BitMaskView<'_>>) -> Result<f64, ViewError> {
-    if mask.is_none() {
-        if let Some(slice) = x.as_slice() {
-            return Ok(slice.iter().sum());
-        }
+    if mask.is_none()
+        && let Some(slice) = x.as_slice()
+    {
+        return Ok(slice.iter().sum());
     }
     crate::scalar::masked_sum(x, mask)
 }
@@ -31,14 +31,14 @@ pub fn masked_mean(
     x: F64VectorView<'_>,
     mask: Option<BitMaskView<'_>>,
 ) -> Result<Option<f64>, ViewError> {
-    if mask.is_none() {
-        if let Some(slice) = x.as_slice() {
-            if slice.is_empty() {
-                return Ok(None);
-            }
-            let sum: f64 = slice.iter().sum();
-            return Ok(Some(sum / slice.len() as f64));
+    if mask.is_none()
+        && let Some(slice) = x.as_slice()
+    {
+        if slice.is_empty() {
+            return Ok(None);
         }
+        let sum: f64 = slice.iter().sum();
+        return Ok(Some(sum / slice.len() as f64));
     }
     crate::scalar::masked_mean(x, mask)
 }
@@ -52,23 +52,23 @@ pub fn masked_variance(
     x: F64VectorView<'_>,
     mask: Option<BitMaskView<'_>>,
 ) -> Result<Option<f64>, ViewError> {
-    if mask.is_none() {
-        if let Some(slice) = x.as_slice() {
-            if slice.is_empty() {
-                return Ok(None);
-            }
-            let n = slice.len() as f64;
-            let mean = slice.iter().sum::<f64>() / n;
-            let var = slice
-                .iter()
-                .map(|v| {
-                    let d = v - mean;
-                    d * d
-                })
-                .sum::<f64>()
-                / n;
-            return Ok(Some(var));
+    if mask.is_none()
+        && let Some(slice) = x.as_slice()
+    {
+        if slice.is_empty() {
+            return Ok(None);
         }
+        let n = slice.len() as f64;
+        let mean = slice.iter().sum::<f64>() / n;
+        let var = slice
+            .iter()
+            .map(|v| {
+                let d = v - mean;
+                d * d
+            })
+            .sum::<f64>()
+            / n;
+        return Ok(Some(var));
     }
     crate::scalar::masked_variance(x, mask)
 }
@@ -111,21 +111,21 @@ pub fn masked_covariance(
     if x.len() != y.len() {
         return Err(ViewError::InvalidShape { message: "covariance views must share length" });
     }
-    if mask.is_none() {
-        if let (Some(xs), Some(ys)) = (x.as_slice(), y.as_slice()) {
-            let n = xs.len();
-            if n == 0 {
-                return Ok(None);
-            }
-            let nf = n as f64;
-            let mx = xs.iter().sum::<f64>() / nf;
-            let my = ys.iter().sum::<f64>() / nf;
-            let mut acc = 0.0;
-            for i in 0..n {
-                acc += (xs[i] - mx) * (ys[i] - my);
-            }
-            return Ok(Some(acc / nf));
+    if mask.is_none()
+        && let (Some(xs), Some(ys)) = (x.as_slice(), y.as_slice())
+    {
+        let n = xs.len();
+        if n == 0 {
+            return Ok(None);
         }
+        let nf = n as f64;
+        let mx = xs.iter().sum::<f64>() / nf;
+        let my = ys.iter().sum::<f64>() / nf;
+        let mut acc = 0.0;
+        for i in 0..n {
+            acc += (xs[i] - mx) * (ys[i] - my);
+        }
+        return Ok(Some(acc / nf));
     }
     crate::scalar::masked_covariance(x, y, mask)
 }

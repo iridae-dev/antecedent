@@ -374,14 +374,13 @@ pub fn randomized_survival_summary(
     if duration.iter().any(|&time| !time.is_finite() || time < 0.0) {
         return Err("durations must be finite and nonnegative");
     }
-    if let Some(entry) = delayed_entry {
-        if entry
+    if let Some(entry) = delayed_entry
+        && entry
             .iter()
             .zip(duration)
             .any(|(&left, &right)| !left.is_finite() || left < 0.0 || left >= right)
-        {
-            return Err("entry times must be finite, nonnegative, and earlier than exit");
-        }
+    {
+        return Err("entry times must be finite, nonnegative, and earlier than exit");
     }
     match endpoint {
         SurvivalEndpoint::Survival => {
@@ -414,10 +413,10 @@ pub fn randomized_survival_summary(
         if rows.iter().all(|&index| duration[index] < tau) {
             return Err("tau exceeds observed follow-up in one arm");
         }
-        if let Some(entry) = delayed_entry {
-            if rows.iter().all(|&index| entry[index] != 0.0) {
-                return Err("RMST or incidence from zero requires a time-zero entrant in each arm");
-            }
+        if let Some(entry) = delayed_entry
+            && rows.iter().all(|&index| entry[index] != 0.0)
+        {
+            return Err("RMST or incidence from zero requires a time-zero entrant in each arm");
         }
     }
 

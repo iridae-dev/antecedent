@@ -741,7 +741,9 @@ pub fn fixed_graph_conditional_mechanism_sensitivity(
             if denominator <= 0.0 {
                 return Err(FixedGraphSensitivityError::InvalidParentLaw);
             }
-            probabilities.iter_mut().for_each(|probability| *probability /= denominator);
+            for probability in &mut probabilities {
+                *probability /= denominator;
+            }
             table.insert(context, probabilities);
         }
         conditional_tables.insert(*variable, table);

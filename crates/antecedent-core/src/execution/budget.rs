@@ -25,8 +25,7 @@ pub const DEFAULT_USER_THREAD_CAP: u32 = 16;
 #[must_use]
 pub fn default_user_threads() -> u32 {
     std::thread::available_parallelism()
-        .map(|n| u32::try_from(n.get()).unwrap_or(DEFAULT_USER_THREAD_CAP))
-        .unwrap_or(1)
+        .map_or(1, |n| u32::try_from(n.get()).unwrap_or(DEFAULT_USER_THREAD_CAP))
         .clamp(1, DEFAULT_USER_THREAD_CAP)
 }
 

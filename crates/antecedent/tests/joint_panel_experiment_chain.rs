@@ -512,7 +512,7 @@ fn verify_decision_and_next_study(
         (dot(after) - dot(before)).abs() > 1e-8,
         "the declared experimental likelihood must change the joint response"
     );
-    let threshold = (dot(before) + dot(after)) / 2.0;
+    let threshold = f64::midpoint(dot(before), dot(after));
     let coordinates = updated.quantities(ledger).unwrap();
     let expression = coefficients.iter().enumerate().fold(
         UtilityExpr::Const(-threshold),

@@ -578,7 +578,7 @@ mod tests {
         let keep: Vec<ColumnRole> =
             sample.closure.columns().iter().map(|column| column.role.clone()).collect();
         let retained = sample.closure.project(&keep).unwrap();
-        assert!(std::ptr::eq(retained, &sample.closure));
+        assert!(std::ptr::eq(retained, &raw const sample.closure));
         assert!(retained.contains(&sample.validator));
     }
 

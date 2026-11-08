@@ -350,7 +350,7 @@ pub(crate) fn calibrate_gsquared(
         let y_alt: Vec<f64> = x
             .iter()
             .map(|&xi| {
-                if rng.next_u64() % 5 == 0 {
+                if rng.next_u64().is_multiple_of(5) {
                     (rng.next_u64() % u64::try_from(levels).unwrap_or(1)) as f64
                 } else {
                     xi
@@ -1055,8 +1055,8 @@ mod tests {
         let n = 100usize;
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
         let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x51);
-        let x: Vec<f64> = (0..n).map(|_| ((rng.next_u64() % 4) as f64)).collect();
-        let y_null: Vec<f64> = (0..n).map(|_| ((rng.next_u64() % 4) as f64)).collect();
+        let x: Vec<f64> = (0..n).map(|_| (rng.next_u64() % 4) as f64).collect();
+        let y_null: Vec<f64> = (0..n).map(|_| (rng.next_u64() % 4) as f64).collect();
         let cols_null: [&[f64]; 2] = [&x, &y_null];
         let req = CiBatchRequest {
             columns: &cols_null,

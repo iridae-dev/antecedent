@@ -81,17 +81,16 @@ pub(super) fn evidence_program(
         _ => Composition::Single,
     };
     let decision = cx.goal.decision().cloned();
-    if let Some(program) = &decision {
-        if !matches!(cx.goal, CompileGoal::RobustDecision { .. })
+    if let Some(program) = &decision
+        && (!matches!(cx.goal, CompileGoal::RobustDecision { .. })
             || matches!(
                 statistical.realization(),
                 crate::planner::statistical::Realization::GraphImputationV1
                     | crate::planner::statistical::Realization::CategoricalPosteriorCandidateV1
-            )
-        {
-            require_carrier(cx.cell, statistical.realization(), program)
-                .map_err(CausalError::rejected)?;
-        }
+            ))
+    {
+        require_carrier(cx.cell, statistical.realization(), program)
+            .map_err(CausalError::rejected)?;
     }
     let mut sources =
         vec![EvidenceSourceRef { role: EvidenceRole::Observations, digest: source_digest }];

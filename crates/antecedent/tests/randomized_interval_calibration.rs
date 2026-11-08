@@ -340,10 +340,10 @@ const Z975: f64 = 1.959_963_984_540_054;
 
 /// Student-t quantile by bisection on the integrated density (`ln_gamma` normalization).
 fn student_quantile_975(df: f64) -> f64 {
-    let ln_norm = antecedent_stats::ln_gamma((df + 1.0) / 2.0)
+    let ln_norm = antecedent_stats::ln_gamma(f64::midpoint(df, 1.0))
         - antecedent_stats::ln_gamma(df / 2.0)
         - 0.5 * (df * std::f64::consts::PI).ln();
-    let pdf = |t: f64| (ln_norm - (df + 1.0) / 2.0 * (1.0 + t * t / df).ln()).exp();
+    let pdf = |t: f64| (ln_norm - f64::midpoint(df, 1.0) * (1.0 + t * t / df).ln()).exp();
     // P(0 < T < x) by Simpson's rule; the target is 0.475.
     let half_mass = |x: f64| {
         let steps = 4000;
@@ -437,7 +437,7 @@ fn the_scored_intervals_equal_their_hand_computed_constructions() {
     assert!((fit.standard_error.unwrap() - (a + b).sqrt()).abs() < 1e-12);
     let [lower, upper] = fit.interval_95.unwrap();
     let ratio = (upper - lower) / (2.0 * fit.standard_error.unwrap());
-    assert!(((upper + lower) / 2.0 - (m1 - m0)).abs() < 1e-12);
+    assert!((f64::midpoint(upper, lower) - (m1 - m0)).abs() < 1e-12);
     assert!(
         (ratio - student_quantile_975(welch)).abs() < 0.01,
         "reference {ratio} vs Welch t {} at {welch} degrees of freedom",

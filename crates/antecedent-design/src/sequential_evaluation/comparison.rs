@@ -195,10 +195,10 @@ fn check_kind(
         let symbols = compiled.actions[action].symbols;
         let mut seen: Vec<&[(usize, f64)]> = Vec::new();
         for symbol in 0..symbols {
-            if let Some(next) = policy.distribution(&root.extended(action, symbol)) {
-                if !seen.contains(&next) {
-                    seen.push(next);
-                }
+            if let Some(next) = policy.distribution(&root.extended(action, symbol))
+                && !seen.contains(&next)
+            {
+                seen.push(next);
             }
         }
         if seen.len() < 2 {

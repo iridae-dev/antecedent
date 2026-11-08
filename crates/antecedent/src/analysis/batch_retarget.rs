@@ -959,13 +959,13 @@ pub(crate) fn retarget_family(
         ));
     }
     let snapshot = scores.snapshot_id()?;
-    if let Some(expected) = request.expected_snapshot.as_deref() {
-        if snapshot.as_deref() != Some(expected) {
-            return Err(mixed_snapshot(format!(
-                "the family was declared on snapshot {expected} but the scores are on {}",
-                snapshot.as_deref().unwrap_or("no snapshot")
-            )));
-        }
+    if let Some(expected) = request.expected_snapshot.as_deref()
+        && snapshot.as_deref() != Some(expected)
+    {
+        return Err(mixed_snapshot(format!(
+            "the family was declared on snapshot {expected} but the scores are on {}",
+            snapshot.as_deref().unwrap_or("no snapshot")
+        )));
     }
 
     let mut evaluated: Vec<Result<Evaluated, MemberFailure>> =
@@ -1623,7 +1623,7 @@ mod tests {
                 let c = critical(&equicorrelation(k, 0.0), level, 21);
                 let exponent = i32::try_from(k).unwrap();
                 let covered = (2.0 * phi(c) - 1.0).powi(exponent);
-                let oracle = inverse_phi((1.0 + level.powf(1.0 / f64::from(exponent))) / 2.0);
+                let oracle = inverse_phi(f64::midpoint(1.0, level.powf(1.0 / f64::from(exponent))));
                 assert!((c - oracle).abs() < TOL, "k {k} level {level}: {c} vs {oracle}");
                 assert!((covered - level).abs() < 0.01, "k {k} level {level}: covered {covered}");
             }

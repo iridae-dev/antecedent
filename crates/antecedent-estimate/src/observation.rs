@@ -1142,7 +1142,7 @@ impl ObservationMechanismEstimator {
     ) -> Result<CrossFittedSelectedNuisances, EstimationError> {
         let n = indicator.len();
         let folds = self.options.crossfit_folds;
-        let ncols = if n == 0 { 0 } else { covariates.len() / n };
+        let ncols = covariates.len().checked_div(n).unwrap_or(0);
         if extras.is_some_and(|extras| extras.values.len() != n * extras.ncols) {
             return Err(EstimationError::unsupported(
                 "outcome-model regressors must align with observation rows",

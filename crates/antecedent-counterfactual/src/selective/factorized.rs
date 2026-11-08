@@ -355,7 +355,6 @@ fn build_factors(
     clippy::too_many_lines,
     reason = "one pass: build the factor graph, then eliminate in a fixed greedy order"
 )]
-#[allow(clippy::match_on_vec_items, reason = "the queue only contains indices of retained labels")]
 #[allow(
     clippy::needless_range_loop,
     reason = "the algorithm follows the world and variable indexing"

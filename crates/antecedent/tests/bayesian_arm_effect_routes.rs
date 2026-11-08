@@ -130,7 +130,7 @@ fn history_fixture(unequal_weights: bool) -> (TabularData, f64) {
         for k in 0..60_usize {
             let base = ((k as f64) * 0.37 + f64::from(p)).sin();
             let (a, b) = (base, base + 0.1 * ((k % 5) as f64 - 2.0));
-            let score = (a + b) / 2.0;
+            let score = f64::midpoint(a, b);
             let treated = score + ((k as f64) * 0.11).cos() * 0.8 > 0.0;
             let effect = 1.0 + 2.0 * score;
             let wiggle = ((k as f64) * 1.3).sin() * 0.05;

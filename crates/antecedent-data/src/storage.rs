@@ -68,14 +68,14 @@ impl OwnedColumnarStorage {
                 });
             }
         }
-        if let Some(mask) = &analysis_mask {
-            if mask.len() != row_count {
-                return Err(DataError::LengthMismatch {
-                    expected: row_count,
-                    actual: mask.len(),
-                    context: "analysis mask",
-                });
-            }
+        if let Some(mask) = &analysis_mask
+            && mask.len() != row_count
+        {
+            return Err(DataError::LengthMismatch {
+                expected: row_count,
+                actual: mask.len(),
+                context: "analysis mask",
+            });
         }
         if let Some(w) = &weights {
             if w.len() != row_count {

@@ -324,14 +324,14 @@ pub fn consume_transported_decision(
             "the stored decision does not replay from its contract, carried value, receipt and policy",
         ));
     }
-    if let Some(expected) = expected_identity {
-        if expected != decision.identity {
-            return Err(refused(
-                antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                DETAIL_IDENTITY,
-                "the decision identity differs from the consumer's retained identity",
-            ));
-        }
+    if let Some(expected) = expected_identity
+        && expected != decision.identity
+    {
+        return Err(refused(
+            antecedent_core::reason_code!("decision_contract_unsatisfied"),
+            DETAIL_IDENTITY,
+            "the decision identity differs from the consumer's retained identity",
+        ));
     }
     Ok(ConsumedTransportedDecision { decision, response })
 }

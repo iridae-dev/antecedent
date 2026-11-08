@@ -442,6 +442,10 @@ impl CheckedReferenceDecomposition {
 }
 /// Executed finer decomposition or an actually evaluated coarser response contrast.
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "public enum returned by value; boxing a variant would change its public API"
+)]
 pub enum IdentifiedReferenceAttempt {
     /// Every hybrid inherits an authentic exact-world identification result.
     Supported(CheckedReferenceDecomposition),

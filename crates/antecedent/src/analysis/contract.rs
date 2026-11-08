@@ -34,15 +34,14 @@ use antecedent_io::{
     IdentificationResultWire, IdentificationSlotWire, InferenceBindingWire,
     InferentialCommitmentsWire, ObligationSectionWire, ObservationIdentityWire,
     ProgramIdentityWire, ReasoningSectionWire, ScoreReuseIdentityWire, SlotSectionWire,
-    SupportSlotWire, TargetIdentityWire, TargetWeightsSectionWire,
-    TemporalIdentificationWire, UncertaintyComponentWire, UncertaintySlotWire, admg_identity,
+    SupportSlotWire, TargetIdentityWire, TargetWeightsSectionWire, TemporalIdentificationWire,
+    UncertaintyComponentWire, UncertaintySlotWire, admg_identity,
     causal_query_to_wire_with_registry, claim_digest, cpdag_identity, dag_identity,
     data_snapshot_digest, digest_wire, execution_digest, execution_identity_from_context,
     graph_posterior_atom_identities, identification_digest, identification_product_digest_wire,
     identification_product_wire, identification_to_wire_with_registry, inference_binding_digest,
     observation_identity_wire, pag_identity, program_digest, schema_to_wire, score_reuse_digest,
-    temporal_admg_identity, temporal_cpdag_identity, temporal_dag_identity,
-    temporal_pag_identity,
+    temporal_admg_identity, temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
 };
 
 use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
@@ -189,15 +188,15 @@ fn graphless_coordinate(
         detail: "supported graphless result does not match this handle's query",
     };
     let mut coordinate = None;
-    if let crate::result::ResultPayload::PosteriorRow(row) = &result.payload {
-        if let Some(source) = &row.randomized_ipow {
-            let CausalQuery::RandomizedEffect(_) = query else { return Err(MISMATCH) };
-            let key = source.key();
-            coordinate = Some(format!(
-                "graphless:{}/{}/{}/{}",
-                key.family, key.design, key.method, key.inference_claim
-            ));
-        }
+    if let crate::result::ResultPayload::PosteriorRow(row) = &result.payload
+        && let Some(source) = &row.randomized_ipow
+    {
+        let CausalQuery::RandomizedEffect(_) = query else { return Err(MISMATCH) };
+        let key = source.key();
+        coordinate = Some(format!(
+            "graphless:{}/{}/{}/{}",
+            key.family, key.design, key.method, key.inference_claim
+        ));
     }
     if result.continuous_dose_response().is_some() {
         coordinate = Some(
@@ -766,14 +765,14 @@ impl PreparedStudy {
         // Cheap inspection includes temporal nested moments even without a
         // prepared operation; capture that exact base before adding the
         // prepared-only replay evidence for tabular sources.
-        if let DataInput::Temporal(series) | DataInput::Event(series) = data {
-            if let CausalQuery::NestedCounterfactual(query) = &self.study().query {
-                snapshot.nested_counterfactual_fit = Some(temporal_nested_fit_wire(
-                    series,
-                    query,
-                    nested_prior_scale(&self.study().settings.inference),
-                )?);
-            }
+        if let DataInput::Temporal(series) | DataInput::Event(series) = data
+            && let CausalQuery::NestedCounterfactual(query) = &self.study().query
+        {
+            snapshot.nested_counterfactual_fit = Some(temporal_nested_fit_wire(
+                series,
+                query,
+                nested_prior_scale(&self.study().settings.inference),
+            )?);
         }
         let inspection_data_snapshot =
             data_snapshot_digest(&snapshot).map_err(|err| io_err(&err))?;

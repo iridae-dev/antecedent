@@ -10,9 +10,9 @@ use antecedent_expr::{
 
 use crate::contract_reason::ContractReason;
 use crate::{
-    functional_program_from_wire, CausalQueryWire, DistributionFactorDomainWire,
-    DistributionFactorKeyWire, DistributionFactorLawsWire, DistributionFactorTableWire,
-    FunctionalProgramWire, InterventionWire, InterventionalDistributionWire, ValueWire,
+    CausalQueryWire, DistributionFactorDomainWire, DistributionFactorKeyWire,
+    DistributionFactorLawsWire, DistributionFactorTableWire, FunctionalProgramWire,
+    InterventionWire, InterventionalDistributionWire, ValueWire, functional_program_from_wire,
 };
 
 /// Wire format version of the portable factor laws.
@@ -106,7 +106,10 @@ struct DistributionEnumeration<'a> {
     evaluator: &'a antecedent_expr::ProgramEvaluator,
 }
 
-#[allow(clippy::too_many_lines, reason = "enumeration and its atom verification share one replay context")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "enumeration and its atom verification share one replay context"
+)]
 fn verify_distribution_enumeration(
     input: DistributionEnumeration<'_>,
     result: &InterventionalDistributionWire,

@@ -499,15 +499,15 @@ impl FiniteSequentialModel {
                 "declare the utility when the horizon is reached without a commit",
             ));
         }
-        if let Some(budget) = self.resource_budget {
-            if !(budget.is_finite() && budget >= 0.0) {
-                return Err(refusal!(
-                    "invalid_argument",
-                    "sequential_evaluation.model_resource_budget",
-                    "the resource budget must be finite and non-negative",
-                    "declare a non-negative budget or none",
-                ));
-            }
+        if let Some(budget) = self.resource_budget
+            && !(budget.is_finite() && budget >= 0.0)
+        {
+            return Err(refusal!(
+                "invalid_argument",
+                "sequential_evaluation.model_resource_budget",
+                "the resource budget must be finite and non-negative",
+                "declare a non-negative budget or none",
+            ));
         }
         Ok(())
     }

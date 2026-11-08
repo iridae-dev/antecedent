@@ -135,7 +135,7 @@ pub fn cyclic_pag_conclusions(
                 emit("not_ancestor", "Proposition 5: no possibly directed path");
             }
             let edge = pag.edge_between(id(a), id(b));
-            if edge.is_none() || edge.is_some_and(|e| e.at_a == Endpoint::Arrow) {
+            if edge.is_none_or(|e| e.at_a == Endpoint::Arrow) {
                 emit("no_direct_edge", "Proposition 7: nonadjacent or arrowhead at source");
             }
             if edge.is_none() {

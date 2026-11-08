@@ -345,12 +345,12 @@ fn distribution_coordinates(
         point.push(atom.probability);
         variances.push(variance);
     }
-    if distribution.mean.is_finite() {
-        if let Some(variance) = distribution.se_bootstrap.and_then(variance_of) {
-            labels.push(label("mean"));
-            point.push(distribution.mean);
-            variances.push(variance);
-        }
+    if distribution.mean.is_finite()
+        && let Some(variance) = distribution.se_bootstrap.and_then(variance_of)
+    {
+        labels.push(label("mean"));
+        point.push(distribution.mean);
+        variances.push(variance);
     }
     Ok(Extracted {
         labels,
@@ -496,33 +496,33 @@ fn randomized_coordinates(
 /// A Bayesian fit's draws: the effect and scalar quantities of its posterior, else the credible
 /// draws a response retained.
 fn extract_bayesian(result: &StudyResult) -> Result<ExtractedDraws, CausalError> {
-    if let ResultPayload::Mediation { grid: Some(grid), .. } = &result.payload {
-        if grid.slices.len() > 1 {
-            return Err(CausalError::Estimate(EstimationError::refused_detail(
-                antecedent_core::reason_code!("missing_policy_not_applicable"),
-                "multiple_imputation.multi_horizon_posterior_not_joint",
-                "a multi-horizon Bayesian mediation retains only per-horizon posterior summaries \
+    if let ResultPayload::Mediation { grid: Some(grid), .. } = &result.payload
+        && grid.slices.len() > 1
+    {
+        return Err(CausalError::Estimate(EstimationError::refused_detail(
+            antecedent_core::reason_code!("missing_policy_not_applicable"),
+            "multiple_imputation.multi_horizon_posterior_not_joint",
+            "a multi-horizon Bayesian mediation retains only per-horizon posterior summaries \
                  (the grid reports `joint_posterior = false` and no draws), so there is no joint \
                  draw set across horizons to stack and a per-horizon summary cannot be mixed \
                  across completed tables; request one horizon (whose posterior draws stack) or \
                  declare `complete_case`",
-            )));
-        }
+        )));
     }
-    if let ResultPayload::Response(response) = &result.payload {
-        if let Some(credible) = response.uncertainty.credible_draws() {
-            let p = credible.n_coordinates();
-            let draws: Vec<Vec<f64>> =
-                (0..p).filter_map(|j| credible.column(j).map(<[f64]>::to_vec)).collect();
-            if draws.len() == p && p > 0 {
-                return Ok(ExtractedDraws {
-                    labels: (0..p).map(|i| label(format!("response[{i}]"))).collect(),
-                    draws,
-                    effect_index: None,
-                    extras: Vec::new(),
-                    uses_posterior: false,
-                });
-            }
+    if let ResultPayload::Response(response) = &result.payload
+        && let Some(credible) = response.uncertainty.credible_draws()
+    {
+        let p = credible.n_coordinates();
+        let draws: Vec<Vec<f64>> =
+            (0..p).filter_map(|j| credible.column(j).map(<[f64]>::to_vec)).collect();
+        if draws.len() == p && p > 0 {
+            return Ok(ExtractedDraws {
+                labels: (0..p).map(|i| label(format!("response[{i}]"))).collect(),
+                draws,
+                effect_index: None,
+                extras: Vec::new(),
+                uses_posterior: false,
+            });
         }
     }
     if let Some(posterior) = &result.posterior {
@@ -1134,10 +1134,8 @@ impl Collected {
             );
             (fit, extracted.labels, extracted.extras, None, extracted.basis)
         };
-        if keep_posterior {
-            if let Some(posterior) = &result.posterior {
-                self.posteriors.push(posterior.clone());
-            }
+        if keep_posterior && let Some(posterior) = &result.posterior {
+            self.posteriors.push(posterior.clone());
         }
         if self.base.is_none() {
             first_check(&result)?;

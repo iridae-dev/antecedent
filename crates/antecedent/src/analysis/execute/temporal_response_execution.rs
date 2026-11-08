@@ -192,13 +192,14 @@ impl CheckedTemporalResponseExecution {
                 message: "a temporal derivative is the local slope at one horizon",
             });
         }
-        if let InferenceMode::Bayesian(cfg) = self.operation.inference() {
-            if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
-            {
-                return Err(CausalError::Unsupported {
-                    message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported",
-                });
-            }
+        if let InferenceMode::Bayesian(cfg) = self.operation.inference()
+            && (cfg.prior.is_some()
+                || cfg.prior_artifact.is_some()
+                || cfg.external_compose.is_some())
+        {
+            return Err(CausalError::Unsupported {
+                message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not supported",
+            });
         }
         super::temporal_dag_derivative_response(
             data,

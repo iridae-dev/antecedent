@@ -12,7 +12,7 @@ use super::{
 /// Bound and monotonize threshold-major two-arm CDF values. Covariance
 /// remains covariance of the raw fitted contrasts, not these projected CDFs.
 pub(crate) fn project_conditional_cdf(cdf: &mut [f64]) -> Result<bool, CausalError> {
-    if cdf.len() % 2 != 0 || cdf.iter().any(|x| !x.is_finite()) {
+    if !cdf.len().is_multiple_of(2) || cdf.iter().any(|x| !x.is_finite()) {
         return Err(CausalError::Compile { message: "invalid conditional CDF grid".into() });
     }
     let mut changed = false;

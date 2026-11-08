@@ -818,7 +818,7 @@ mod tests {
     fn logit_from_the_linear_predictor_stays_finite_where_the_score_rounds_to_one() {
         // At η = 40 the fitted probability is exactly 1.0 in f64, so ln(e/(1−e)) is +∞.
         let e = 1.0 / (1.0 + (-40.0_f64).exp());
-        assert!(e == 1.0);
+        assert_eq!(e, 1.0);
         assert!(((e / (1.0 - e)).ln()).is_infinite());
         assert_eq!(clamp_linear_predictor(40.0, None), 40.0);
         assert_eq!(clamp_linear_predictor(-40.0, None), -40.0);

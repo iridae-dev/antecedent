@@ -91,17 +91,17 @@ impl TrialToTargetRows<'_> {
         {
             return Err(EstimationError::data_msg("transport input length mismatch"));
         }
-        if let Some(weights) = self.weights {
-            if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
-                return Err(crate::sampling_weights::invalid(
-                    "transport sampling weights must be finite and non-negative",
-                ));
-            }
+        if let Some(weights) = self.weights
+            && weights.iter().any(|w| !w.is_finite() || *w < 0.0)
+        {
+            return Err(crate::sampling_weights::invalid(
+                "transport sampling weights must be finite and non-negative",
+            ));
         }
-        if let RowDependence::Clusters(ids) = dependence {
-            if ids.len() != n {
-                return Err(EstimationError::data_msg("transport cluster labels length mismatch"));
-            }
+        if let RowDependence::Clusters(ids) = dependence
+            && ids.len() != n
+        {
+            return Err(EstimationError::data_msg("transport cluster labels length mismatch"));
         }
         let mut read = vec![true; n];
         let (mut trial_weight, mut target_weight) = (0.0, 0.0);

@@ -92,13 +92,13 @@ fn check_observed(
             "the exact table is not the named observed pattern law (population or regime)",
         ));
     }
-    if let Some(snapshot) = &descriptor.snapshot {
-        if observed.snapshot_identity() != snapshot.as_ref() {
-            return Err(refuse(
-                InvalidObservedLaw,
-                "the exact table's snapshot is not the one the catalog binds",
-            ));
-        }
+    if let Some(snapshot) = &descriptor.snapshot
+        && observed.snapshot_identity() != snapshot.as_ref()
+    {
+        return Err(refuse(
+            InvalidObservedLaw,
+            "the exact table's snapshot is not the one the catalog binds",
+        ));
     }
     let proxies: BTreeMap<VariableId, usize> =
         query.partially_observed.iter().enumerate().map(|(i, p)| (p.proxy, i)).collect();

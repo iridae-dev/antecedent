@@ -277,7 +277,7 @@ impl CredibleDraws {
     /// Number of coordinates.
     #[must_use]
     pub fn n_coordinates(&self) -> usize {
-        if self.n_draws == 0 { 0 } else { self.values.len() / self.n_draws }
+        self.values.len().checked_div(self.n_draws).unwrap_or(0)
     }
 
     /// Coordinate `j`'s draws, or `None` past the last coordinate.

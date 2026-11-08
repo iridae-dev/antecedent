@@ -542,18 +542,18 @@ fn validate_spec(spec: &PredictiveAssessmentSpec) -> Result<(), PredictiveAssess
     }
     spec.observations.validate()?;
     let cases = spec.observations.ids.len();
-    if let ValidationDesign::RollingOrigin { horizon_steps, .. } = &spec.design {
-        if spec.observations.target.horizon != Horizon::Steps(*horizon_steps) {
-            return Err(refuse(
-                reason_code!("quantity_semantics_mismatch"),
-                detail::HORIZON_MISMATCH,
-                format!(
-                    "the rolling-origin design forecasts {horizon_steps} steps ahead but the \
+    if let ValidationDesign::RollingOrigin { horizon_steps, .. } = &spec.design
+        && spec.observations.target.horizon != Horizon::Steps(*horizon_steps)
+    {
+        return Err(refuse(
+            reason_code!("quantity_semantics_mismatch"),
+            detail::HORIZON_MISMATCH,
+            format!(
+                "the rolling-origin design forecasts {horizon_steps} steps ahead but the \
                      observations are {}; declare the target horizon the design evaluates",
-                    spec.observations.target.horizon.describe()
-                ),
-            ));
-        }
+                spec.observations.target.horizon.describe()
+            ),
+        ));
     }
     if spec.predictors.is_empty() || spec.predictors.len() > MAX_PREDICTORS {
         return Err(bounds(format!(

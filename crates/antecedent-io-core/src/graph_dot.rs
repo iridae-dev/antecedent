@@ -284,20 +284,20 @@ fn emit_dag_dot(wire: &DagWire, names: Option<&[String]>) -> Result<String, IoEr
 
 /// Refuse edge attributes that would change DAG semantics if ignored.
 fn refuse_unrepresentable_dag_edge_attrs(attrs: &HashMap<String, String>) -> Result<(), IoError> {
-    if let Some(dir) = attrs.get("dir") {
-        if !dir.eq_ignore_ascii_case("forward") {
-            return Err(IoError::Convert(format!(
-                "DAG DOT cannot represent edge attribute dir={dir}; use admg_from_dot or pag_from_dot"
-            )));
-        }
+    if let Some(dir) = attrs.get("dir")
+        && !dir.eq_ignore_ascii_case("forward")
+    {
+        return Err(IoError::Convert(format!(
+            "DAG DOT cannot represent edge attribute dir={dir}; use admg_from_dot or pag_from_dot"
+        )));
     }
     for (key, trivial) in [("arrowhead", "normal"), ("arrowtail", "none")] {
-        if let Some(shape) = attrs.get(key) {
-            if !shape.eq_ignore_ascii_case(trivial) {
-                return Err(IoError::Convert(format!(
-                    "DAG DOT cannot represent edge attribute {key}={shape}; use pag_from_dot"
-                )));
-            }
+        if let Some(shape) = attrs.get(key)
+            && !shape.eq_ignore_ascii_case(trivial)
+        {
+            return Err(IoError::Convert(format!(
+                "DAG DOT cannot represent edge attribute {key}={shape}; use pag_from_dot"
+            )));
         }
     }
     if attrs.contains_key("mark_a") || attrs.contains_key("mark_b") {
@@ -505,15 +505,15 @@ impl<'a> Lexer<'a> {
             return Err(IoError::Convert("unterminated quoted node id".into()));
         }
         // Number or bare identifier.
-        if let Some(c) = self.peek_char() {
-            if c.is_ascii_digit() || c == '-' {
-                let start = self.pos;
+        if let Some(c) = self.peek_char()
+            && (c.is_ascii_digit() || c == '-')
+        {
+            let start = self.pos;
+            self.bump();
+            while matches!(self.peek_char(), Some(d) if d.is_ascii_digit()) {
                 self.bump();
-                while matches!(self.peek_char(), Some(d) if d.is_ascii_digit()) {
-                    self.bump();
-                }
-                return Ok(self.src[start..self.pos].to_string());
             }
+            return Ok(self.src[start..self.pos].to_string());
         }
         Ok(self.expect_ident()?.to_string())
     }

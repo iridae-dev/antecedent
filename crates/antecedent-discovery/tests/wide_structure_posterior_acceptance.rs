@@ -30,8 +30,8 @@ use antecedent_core::{CausalRng, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::adjacency_mask::{mask_is_dag, parents_of};
 use antecedent_discovery::{
-    exact_dag_marginals, DiscoveryConstraints, DiscoveryWorkspace, GraphPosterior, GraphPrior,
-    OrderMcmc, StructureMcmc,
+    DiscoveryConstraints, DiscoveryWorkspace, GraphPosterior, GraphPrior, OrderMcmc, StructureMcmc,
+    exact_dag_marginals,
 };
 use antecedent_state::GraphScoreFamily;
 

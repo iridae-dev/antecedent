@@ -1040,15 +1040,12 @@ impl TransportedRefusal {
             | Self::NativeLabelOnTransported => {
                 antecedent_core::reason_code!("transport_not_certified")
             }
-            Self::LawNotSupplied { .. } => {
+            Self::LawNotSupplied { .. } | Self::SupportBelowPolicy { .. } => {
                 antecedent_core::reason_code!("decision_contract_unsatisfied")
             }
             Self::MixedTransports => antecedent_core::reason_code!("transport_not_certified"),
             Self::IntervalNotSupported => {
                 antecedent_core::reason_code!("uncertainty_representation_insufficient")
-            }
-            Self::SupportBelowPolicy { .. } => {
-                antecedent_core::reason_code!("decision_contract_unsatisfied")
             }
             Self::Boundary(error) => error.reason_code(),
         }

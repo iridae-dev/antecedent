@@ -202,7 +202,11 @@ fn gaussian_intervals_are_the_normal_quantiles_of_the_exact_moments() {
                 "{}",
                 case.name
             );
-            assert!(((lower + upper) / 2.0 - mean[g]).abs() < 0.03 * sd + 1e-9, "{}", case.name);
+            assert!(
+                (f64::midpoint(lower, upper) - mean[g]).abs() < 0.03 * sd + 1e-9,
+                "{}",
+                case.name
+            );
         }
     }
 }

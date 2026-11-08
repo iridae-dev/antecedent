@@ -137,7 +137,7 @@ fn the_dose_response_and_fixed_policy_match_the_exact_rational_reference() {
             if let Some([lo, hi]) = interval {
                 let radius = 1.959_963_984_540_054 * variance.sqrt();
                 close(hi - lo, 2.0 * radius, 1e-12, &format!("{name} width"));
-                close((hi + lo) / 2.0, centre, 1e-12, &format!("{name} centre"));
+                close(f64::midpoint(hi, lo), centre, 1e-12, &format!("{name} centre"));
             }
         }
     }

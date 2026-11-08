@@ -209,7 +209,7 @@ fn random_dag_with_density(rng: &mut CausalRng, n: u32, keep_denom: u64) -> Dag 
     let denom = keep_denom.max(1);
     for i in 0..n as usize {
         for j in (i + 1)..n as usize {
-            if rng.next_u64() % denom == 0 {
+            if rng.next_u64().is_multiple_of(denom) {
                 let a = DenseNodeId::from_raw(order[i]);
                 let b = DenseNodeId::from_raw(order[j]);
                 let _ = g.insert_directed(a, b);
@@ -230,7 +230,7 @@ fn sample_z_mask(rng: &mut CausalRng, n: u32, x: u32, y: u32) -> u32 {
         if i == x || i == y {
             continue;
         }
-        if rng.next_u64() % 2 == 0 {
+        if rng.next_u64().is_multiple_of(2) {
             mask |= 1 << i;
         }
     }

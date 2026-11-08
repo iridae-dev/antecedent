@@ -298,16 +298,15 @@ impl super::Study {
     ) -> Result<(), CausalError> {
         // Completions that disagree: an Imbens-Manski interval for the identified set, from
         // every completion refit on the same resampled rows.
-        if let Some(mixture) = mixture.as_mut() {
-            if self.settings.inference.is_bayesian()
-                && evaluated.iter().all(|(_, _, p)| p.is_some())
-            {
-                mixture.identified_set_interval = super::posterior_identified_set_interval(
-                    evaluated.iter().filter_map(|(_, _, p)| p.as_ref()),
-                    rows,
-                    truncated,
-                );
-            }
+        if let Some(mixture) = mixture.as_mut()
+            && self.settings.inference.is_bayesian()
+            && evaluated.iter().all(|(_, _, p)| p.is_some())
+        {
+            mixture.identified_set_interval = super::posterior_identified_set_interval(
+                evaluated.iter().filter_map(|(_, _, p)| p.as_ref()),
+                rows,
+                truncated,
+            );
         }
         if let (Some(mixture), Some((fitter, _))) = (mixture.as_mut(), prepared_completions.first())
         {

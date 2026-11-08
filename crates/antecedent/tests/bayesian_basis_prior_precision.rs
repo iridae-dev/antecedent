@@ -70,14 +70,14 @@ impl StudentOracle {
     fn quantile(&self, p: f64) -> f64 {
         let (mut low, mut high) = (-8., 8.);
         for _ in 0..55 {
-            let mid = (low + high) / 2.;
+            let mid = f64::midpoint(low, high);
             if self.cdf(mid) < p {
                 low = mid;
             } else {
                 high = mid;
             }
         }
-        (low + high) / 2.
+        f64::midpoint(low, high)
     }
     fn sd(&self) -> f64 {
         self.scale * (self.df / (self.df - 2.)).sqrt()
@@ -114,7 +114,7 @@ fn nig(
         .map(|(a, b)| a * b)
         .sum::<f64>();
     let alpha = 0.001 + design.len() as f64 / 2.;
-    let beta = 0.001 + (residual + penalty) / 2.;
+    let beta = 0.001 + f64::midpoint(residual, penalty);
     StudentOracle { mean: mean[1], scale: (beta / alpha * covariance[1][1]).sqrt(), df: 2. * alpha }
 }
 fn request(t: Vec<f64>, z: Option<Vec<f64>>, y: Vec<f64>, draws: usize) -> BayesianRequest {

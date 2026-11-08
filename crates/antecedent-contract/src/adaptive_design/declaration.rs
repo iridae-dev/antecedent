@@ -409,13 +409,13 @@ fn check_history(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Ext
             ));
         }
     }
-    if let Some(exposure) = &declaration.exposure {
-        if exposure.len() != units || exposure.iter().any(|&a| a as usize >= arms) {
-            refusals.push(invalid(
-                antecedent_core::reason_details::adaptive_inference::SHAPE_MISMATCH,
-                "exposure needs one declared arm per unit",
-            ));
-        }
+    if let Some(exposure) = &declaration.exposure
+        && (exposure.len() != units || exposure.iter().any(|&a| a as usize >= arms))
+    {
+        refusals.push(invalid(
+            antecedent_core::reason_details::adaptive_inference::SHAPE_MISMATCH,
+            "exposure needs one declared arm per unit",
+        ));
     }
 }
 

@@ -575,25 +575,23 @@ impl PreparedStudy {
         };
         if let (PreparedExecution::EstimatorRoute(_), Some(extra), Some(cache)) =
             (&self.execution, route_roles, self.analysis.static_cache())
-        {
-            if cache.estimand.method_kind().ok()
+            && cache.estimand.method_kind().ok()
                 == Some(antecedent_expr::EstimandMethod::PathSpecificNatural)
-            {
-                let mut fitter = antecedent_estimate::FunctionalEffect::new();
-                (fitter.row_resampling, fitter.sampling_design) =
-                    self.analysis.functional_row_resampling()?;
-                return fitter
-                    .prepare(
-                        data,
-                        &cache.estimand,
-                        &cache.identification.arena,
-                        cache.identification.required_assumptions.clone(),
-                        &extra,
-                    )?
-                    .factor_snapshot()
-                    .map(Some)
-                    .map_err(CausalError::from);
-            }
+        {
+            let mut fitter = antecedent_estimate::FunctionalEffect::new();
+            (fitter.row_resampling, fitter.sampling_design) =
+                self.analysis.functional_row_resampling()?;
+            return fitter
+                .prepare(
+                    data,
+                    &cache.estimand,
+                    &cache.identification.arena,
+                    cache.identification.required_assumptions.clone(),
+                    &extra,
+                )?
+                .factor_snapshot()
+                .map(Some)
+                .map_err(CausalError::from);
         }
         Ok(None)
     }

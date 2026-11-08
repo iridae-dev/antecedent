@@ -302,7 +302,9 @@ impl FrequentistTemporalPropensity {
         let scale = if n > 1 { n as f64 / (n as f64 - 1.0) } else { f64::NAN };
         let left = multiply(&inverse, &meat, p);
         let mut covariance = multiply(&left, &inverse, p);
-        covariance.iter_mut().for_each(|v| *v *= scale);
+        for v in &mut covariance {
+            *v *= scale;
+        }
         if covariance.iter().any(|v| !v.is_finite()) {
             return Err(EstimationError::stats_msg(
                 "the penalized score covariance needs at least two subjects",

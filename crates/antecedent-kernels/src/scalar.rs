@@ -13,10 +13,10 @@ fn shape(message: &'static str) -> ViewError {
 /// A mask must cover exactly the vector it masks: `BitMaskView::get` reads out of
 /// range as "excluded", so a short mask would silently drop the tail.
 fn check_mask_len(len: usize, mask: Option<BitMaskView<'_>>) -> Result<(), ViewError> {
-    if let Some(m) = mask {
-        if m.len() != len {
-            return Err(shape("mask length must equal vector length"));
-        }
+    if let Some(m) = mask
+        && m.len() != len
+    {
+        return Err(shape("mask length must equal vector length"));
     }
     Ok(())
 }

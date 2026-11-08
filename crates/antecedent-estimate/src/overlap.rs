@@ -102,12 +102,12 @@ impl OverlapPolicy {
     pub fn validate(self) -> Result<(), EstimationError> {
         if let Self::RequireDiagnostics { clip, trim } = self.canonical() {
             for (name, bound) in [("clip", clip), ("trim", trim)] {
-                if let Some(v) = bound {
-                    if !(v.is_finite() && v > 0.0 && v < 0.5) {
-                        return Err(EstimationError::data_msg(format!(
-                            "overlap {name} must lie in (0, 0.5), got {v}"
-                        )));
-                    }
+                if let Some(v) = bound
+                    && !(v.is_finite() && v > 0.0 && v < 0.5)
+                {
+                    return Err(EstimationError::data_msg(format!(
+                        "overlap {name} must lie in (0, 0.5), got {v}"
+                    )));
                 }
             }
         }
@@ -307,10 +307,10 @@ impl OverlapReport {
         for &p in propensities {
             min_p = min_p.min(p);
             max_p = max_p.max(p);
-            if let Some(t) = trim {
-                if p < t || p > 1.0 - t {
-                    excluded = excluded.saturating_add(1);
-                }
+            if let Some(t) = trim
+                && (p < t || p > 1.0 - t)
+            {
+                excluded = excluded.saturating_add(1);
             }
             if p >= support_lo && p <= support_hi {
                 in_support = in_support.saturating_add(1);

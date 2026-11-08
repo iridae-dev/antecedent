@@ -337,7 +337,7 @@ impl CausalForest {
         let model = portable_forest(&trees, problem, p);
         model.validate()?;
         effect.heterogeneity.fitted_effect = Some(Arc::new(model));
-        if hits.iter().any(|&count| count == 0.0) {
+        if hits.contains(&0.0) {
             return Err(EstimationError::data_msg(
                 "CausalForest has no honest two-arm estimate for a row; increase tree count or sample size",
             ));

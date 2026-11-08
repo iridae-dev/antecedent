@@ -937,7 +937,7 @@ fn penalized_bootstrap_base_clones_only_when_the_seed_or_propensity_differs() {
     seeded.fold_seed = 7;
     let same = super::penalized_bootstrap_base(&seeded, 7, nuisance);
     assert!(matches!(same, std::borrow::Cow::Borrowed(_)));
-    assert!(std::ptr::eq(same.as_ref(), &seeded));
+    assert!(std::ptr::eq(same.as_ref(), &raw const seeded));
 
     let swapped = super::penalized_bootstrap_base(&seeded, 7, PropensityNuisance::default());
     assert!(matches!(swapped, std::borrow::Cow::Owned(_)));

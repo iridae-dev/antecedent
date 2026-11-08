@@ -87,7 +87,7 @@ impl Model {
         for i in 0..p {
             for j in (i + 1)..p {
                 if rng.next() % 100 < density {
-                    let sign = if rng.next() % 2 == 0 { 1.0 } else { -1.0 };
+                    let sign = if rng.next().is_multiple_of(2) { 1.0 } else { -1.0 };
                     parents[order[j]].push((order[i], sign * (0.5 + 0.5 * rng.unit())));
                 }
             }

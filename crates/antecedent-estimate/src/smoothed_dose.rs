@@ -930,16 +930,16 @@ fn check_declared_rows(
             ));
         }
     }
-    if let Some(lag) = input.serial_lag {
-        if lag == 0 || usize::try_from(lag).map_or(true, |lag| lag >= n) {
-            return Err(declared_rows_refusal(
-                antecedent_core::reason_details::dose_response::INVALID_DECLARED_ROWS,
-                &format!(
-                    "the serial-dependence lag must be at least one and below the {n} rows; it \
+    if let Some(lag) = input.serial_lag
+        && (lag == 0 || usize::try_from(lag).map_or(true, |lag| lag >= n))
+    {
+        return Err(declared_rows_refusal(
+            antecedent_core::reason_details::dose_response::INVALID_DECLARED_ROWS,
+            &format!(
+                "the serial-dependence lag must be at least one and below the {n} rows; it \
                      is never silently capped"
-                ),
-            ));
-        }
+            ),
+        ));
     }
     if (input.cluster.is_some() || input.serial_lag.is_some())
         && smoothed_dose_fold_assignment(input, options.folds).is_empty()
@@ -1265,7 +1265,7 @@ pub(crate) fn split_rule(
     let (mut u, mut w) = (Vec::with_capacity(pieces * nodes.len()), Vec::new());
     w.reserve(pieces * nodes.len());
     for pair in edges.windows(2) {
-        let (mid, half) = ((pair[0] + pair[1]) / 2.0, (pair[1] - pair[0]) / 2.0);
+        let (mid, half) = (f64::midpoint(pair[0], pair[1]), (pair[1] - pair[0]) / 2.0);
         for (x, v) in nodes.iter().zip(weights) {
             u.push(mid + half * x);
             w.push(v * half);

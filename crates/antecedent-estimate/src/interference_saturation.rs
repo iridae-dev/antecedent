@@ -808,7 +808,7 @@ mod tests {
                                 for second in [false, true] {
                                     let g = match mapping {
                                         ExposureMapping::NeighborFraction => {
-                                            (f64::from(first) + f64::from(second)) / 2.0
+                                            f64::midpoint(f64::from(first), f64::from(second))
                                         }
                                         ExposureMapping::WeightedNeighborExposure => {
                                             (f64::from(first) + 2.0 * f64::from(second)) / 3.0

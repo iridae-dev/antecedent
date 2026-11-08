@@ -41,14 +41,14 @@ impl PreparedStudy {
         family: RefreshFamily,
         bound_to: Option<antecedent_core::SemanticDigest>,
     ) -> Result<(), CausalError> {
-        if let Some(bound) = bound_to {
-            if self.plan.lowered_program_identity() != Some(bound) {
-                return Err(CausalError::Compile {
-                    message: "this retained refresh was started by another prepared study; \
+        if let Some(bound) = bound_to
+            && self.plan.lowered_program_identity() != Some(bound)
+        {
+            return Err(CausalError::Compile {
+                message: "this retained refresh was started by another prepared study; \
                               start a new retained refresh from this study"
-                        .into(),
-                });
-            }
+                    .into(),
+            });
         }
         let expected = self.retained_refresh_family()?;
         if expected == family {

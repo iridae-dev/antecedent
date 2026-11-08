@@ -1332,37 +1332,33 @@ fn check(
     check_design(estimator, target, bayesian_mode, facet)?;
     if let Some(site) = site {
         check_graph(estimator, target, kind, site)?;
-        if let Facet::Temporal { conditional: true, .. } = facet {
-            if !target.conditional_fixed_on.is_empty()
-                && (site.posterior || !target.conditional_fixed_on.contains(&site.class))
-            {
-                return Err(mismatch(
-                    estimator,
-                    &format!(
-                        "does not take effect modifiers on a {} graph{}: it adjusts for a \
+        if let Facet::Temporal { conditional: true, .. } = facet
+            && !target.conditional_fixed_on.is_empty()
+            && (site.posterior || !target.conditional_fixed_on.contains(&site.class))
+        {
+            return Err(mismatch(
+                estimator,
+                &format!(
+                    "does not take effect modifiers on a {} graph{}: it adjusts for a \
                          named modifier on a fixed temporal DAG only",
-                        site.class.as_str(),
-                        if site.posterior { " posterior" } else { "" }
-                    ),
-                ));
-            }
+                    site.class.as_str(),
+                    if site.posterior { " posterior" } else { "" }
+                ),
+            ));
         }
         // A level curve or joint response posterior over ADMG atoms is evaluated per atom by
         // the identified-functional plug-in (`response_path.rs`), whatever was selected.
-        if let Facet::Response(shapes) = facet {
-            if site.posterior
-                && matches!(site.class, GraphClass::Admg | GraphClass::TemporalAdmg)
-                && shapes
-                    .iter()
-                    .any(|shape| matches!(shape, S::MeanCurve | S::InterventionResponse))
-                && estimator != EstimatorId::FunctionalEffect
-            {
-                return Err(mismatch(
-                    estimator,
-                    "does not run a level or joint response over a graph posterior of ADMG \
+        if let Facet::Response(shapes) = facet
+            && site.posterior
+            && matches!(site.class, GraphClass::Admg | GraphClass::TemporalAdmg)
+            && shapes.iter().any(|shape| matches!(shape, S::MeanCurve | S::InterventionResponse))
+            && estimator != EstimatorId::FunctionalEffect
+        {
+            return Err(mismatch(
+                estimator,
+                "does not run a level or joint response over a graph posterior of ADMG \
                      atoms: each atom is evaluated by functional.effect",
-                ));
-            }
+            ));
         }
     }
     // The route runs another estimator under Bayesian inference for this kind: selecting this

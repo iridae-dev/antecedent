@@ -123,7 +123,7 @@ pub(crate) fn interval(
     if !variance.is_finite() {
         return Err(EstimationError::stats_msg("invalid ATC model variance"));
     }
-    let radius = antecedent_stats::normal_ppf((1.0 + level) / 2.0) * variance.sqrt();
+    let radius = antecedent_stats::normal_ppf(f64::midpoint(1.0, level)) * variance.sqrt();
     estimate.uncertainty.analytic.se = variance.sqrt();
     estimate.uncertainty.analytic.kind = Some(crate::AnalyticSeKind::Hc3);
     estimate.uncertainty.analytic.reference_df = None;

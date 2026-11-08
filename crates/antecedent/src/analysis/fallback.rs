@@ -33,6 +33,7 @@
 
 use std::collections::BTreeSet;
 use std::fmt;
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 use antecedent_contract::{ClaimEnvelope, EvidenceObligation, NextAction};
@@ -213,37 +214,46 @@ impl AnalysisWithFallback {
                 let payload = part.result.association();
                 let analysis =
                     payload.map_or("association", |p| p.estimate.selection.analysis.as_str());
-                text.push_str(&format!(
+                let _ = write!(
+                    text,
                     " Associational description: {analysis} of the outcome on the treatment \
                      holding {} column(s) fixed (rule {}).",
                     part.roles.adjustment.len(),
                     part.roles.rule
-                ));
+                );
             }
-            Err(reason) => text.push_str(&format!(" No associational description: {reason}")),
+            Err(reason) => {
+                let _ = write!(text, " No associational description: {reason}");
+            }
         }
         match &self.evidence {
             Ok(needs) => {
-                text.push_str(&format!(
+                let _ = write!(
+                    text,
                     " Evidence that would resolve the refusal: {} obligation(s), {} next \
                      action(s).",
                     needs.obligations.len(),
                     needs.next_actions.len()
-                ));
+                );
                 match &needs.ranking {
-                    RankedPlan::Ranked(plan) => text.push_str(&format!(
-                        " Ranked plan over the declared studies: {} option(s).",
-                        plan.plan.options.len()
-                    )),
+                    RankedPlan::Ranked(plan) => {
+                        let _ = write!(
+                            text,
+                            " Ranked plan over the declared studies: {} option(s).",
+                            plan.plan.options.len()
+                        );
+                    }
                     RankedPlan::Unavailable(reason) => {
-                        text.push_str(&format!(" No ranked plan: {reason}"));
+                        let _ = write!(text, " No ranked plan: {reason}");
                     }
                     RankedPlan::NotRequested => {
                         text.push_str(" Declare candidate studies to rank the options.");
                     }
                 }
             }
-            Err(reason) => text.push_str(&format!(" No evidence plan: {reason}")),
+            Err(reason) => {
+                let _ = write!(text, " No evidence plan: {reason}");
+            }
         }
         text
     }

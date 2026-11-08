@@ -15,7 +15,7 @@ use antecedent_core::{AssumptionSet, ExecutionContext};
 use super::*;
 use crate::propensity::scale_fixture::{Design, Population, att_query};
 
-const RUNTIME_LIMIT: Duration = Duration::from_secs(120);
+const RUNTIME_LIMIT: Duration = Duration::from_mins(2);
 const MEMORY_LIMIT_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 /// Rows of the subsample whose whole estimate is recomputed by the scan.
 const SUBSAMPLE_ROWS: usize = 5_000;

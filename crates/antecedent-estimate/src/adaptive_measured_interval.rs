@@ -154,7 +154,7 @@ pub fn beta_credible_interval(alpha: f64, beta: f64, level: f64) -> Option<(f64,
         }
         Some(0.5 * (lo + hi))
     };
-    Some((quantile((1.0 - level) / 2.0)?, quantile((1.0 + level) / 2.0)?))
+    Some((quantile((1.0 - level) / 2.0)?, quantile(f64::midpoint(1.0, level))?))
 }
 
 /// Normal-approximation interval around an adaptively weighted estimate.

@@ -825,10 +825,10 @@ impl CrossWorldExecutionArtifact {
                 "values, evidence probabilities or posterior weights",
             ));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &recomputed) {
-                return Err(CrossWorldExecutionArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &recomputed)
+        {
+            return Err(CrossWorldExecutionArtifactError::IdentityMismatch { field });
         }
         if meta.shared_draws.iter().any(|d| d.states.len() > MAX_JOINT_STATES) {
             return Err(CrossWorldExecutionArtifactError::LimitsExceeded("posterior states"));

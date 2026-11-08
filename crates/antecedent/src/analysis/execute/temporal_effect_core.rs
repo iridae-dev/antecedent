@@ -11,20 +11,20 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::sequential_validation::SequentialValidation;
-use super::series_weights::{admit_series_weights, SeriesWeightReading};
+use super::series_weights::{SeriesWeightReading, admit_series_weights};
 use super::{
-    bayesian_gcomp, bayesian_temporal_gcomp, effect_from_posterior,
-    evaluate_bayesian_prior_sensitivity, provenance_ids, push_conflict_diagnostics,
-    require_identified, resolve_bayesian_prior_with_conflict, sequential_linear_sem_assumption,
-    temporal_refuter_average, with_conflict_summary, with_prior_sensitivity, Arc, BayesianConfig,
-    BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp, CausalError,
-    CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
+    Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
+    CausalError, CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
     EstimationWorkspace, EstimatorId, ExecutionContext, IdentificationResult, IdentifiedEstimand,
     IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, OverlapPolicy,
     PhysicalExecutionPlan, PosteriorPredictiveCheck, PredictiveCheckReport,
-    PreparedBayesianProblem, PriorPredictiveCheck, RefutationRun, RefuteSuite, Strategy,
-    StudyResult, TabularData, TemporalDag, TemporalEffectQuery, TemporalIndexer,
-    TemporalLinearAdjustment, TemporalRefitContext, TimeSeriesData, SUSTAINED_LINEAR_SEM,
+    PreparedBayesianProblem, PriorPredictiveCheck, RefutationRun, RefuteSuite,
+    SUSTAINED_LINEAR_SEM, Strategy, StudyResult, TabularData, TemporalDag, TemporalEffectQuery,
+    TemporalIndexer, TemporalLinearAdjustment, TemporalRefitContext, TimeSeriesData,
+    bayesian_gcomp, bayesian_temporal_gcomp, effect_from_posterior,
+    evaluate_bayesian_prior_sensitivity, provenance_ids, push_conflict_diagnostics,
+    require_identified, resolve_bayesian_prior_with_conflict, sequential_linear_sem_assumption,
+    temporal_refuter_average, with_conflict_summary, with_prior_sensitivity,
 };
 
 /// Everything one temporal-effect fit reads, resolved by the caller.
@@ -360,8 +360,7 @@ fn fit_conditional(
     }
     if inputs.refute != RefuteSuite::None {
         return Err(CausalError::Unsupported {
-            message:
-                "temporal conditional effect is point-only; cheap/full refuters are not supported",
+            message: "temporal conditional effect is point-only; cheap/full refuters are not supported",
         });
     }
     let prior_scale = match inputs.inference {
@@ -533,8 +532,7 @@ fn fit_single_window_bayesian(
     if cfg.white_innovation.is_some() {
         if gaps.is_some() {
             return Err(CausalError::Unsupported {
-                message:
-                    "the untempered temporal posterior needs the contiguous lag windows of one \
+                message: "the untempered temporal posterior needs the contiguous lag windows of one \
                           series; a gapped series is not accepted",
             });
         }
@@ -1023,20 +1021,20 @@ fn fit_single_window(
     // Both run against the resolved prior in force and the fitted (tempered) design.
     let mut posterior = posterior;
     let mut predictive_checks = Vec::new();
-    if !matches!(refute, RefuteSuite::None) {
-        if let (Some(fit), Some(post)) = (bayes_fit.as_ref(), posterior.as_ref()) {
-            let (checks, sensitive) = single_window_predictive_checks(
-                inputs,
-                (&fit.0, &fit.1),
-                post,
-                &estimate,
-                &mut refutations,
-                ctx,
-            )?;
-            predictive_checks = checks;
-            if sensitive.is_some() {
-                posterior = sensitive;
-            }
+    if !matches!(refute, RefuteSuite::None)
+        && let (Some(fit), Some(post)) = (bayes_fit.as_ref(), posterior.as_ref())
+    {
+        let (checks, sensitive) = single_window_predictive_checks(
+            inputs,
+            (&fit.0, &fit.1),
+            post,
+            &estimate,
+            &mut refutations,
+            ctx,
+        )?;
+        predictive_checks = checks;
+        if sensitive.is_some() {
+            posterior = sensitive;
         }
     }
     if let Some(summary) = posterior.as_ref().and_then(|p| p.conflict_summary.as_ref()) {

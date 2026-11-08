@@ -209,7 +209,9 @@ pub fn target_law_without(scm: &Scm, zero: impl Fn([u8; 6]) -> bool) -> ExactDis
         }
     }
     let total: f64 = probabilities.iter().sum();
-    probabilities.iter_mut().for_each(|p| *p /= total);
+    for p in &mut probabilities {
+        *p /= total;
+    }
     ExactDiscreteLaw::try_new(
         "target",
         RegimeId::from_raw(0),

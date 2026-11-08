@@ -962,10 +962,10 @@ impl Planner<'_> {
             Boundary::FreshProcess(resume) => Some(resume),
             Boundary::InProcess => None,
         };
-        if let Some(resume) = resume {
-            if let Some(status) = self.fresh_status(stage, &deps, resume) {
-                return status;
-            }
+        if let Some(resume) = resume
+            && let Some(status) = self.fresh_status(stage, &deps, resume)
+        {
+            return status;
         }
         if let Some(by) = self.refused_dependency(&deps, None) {
             return StageStatus::Refused { reason: RefusalReason::Blocked { by } };

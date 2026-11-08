@@ -382,7 +382,7 @@ fn gaussian_lr_statistic(a: &[f64], b: &[f64]) -> f64 {
 type PopulationRuns<'a> = (&'a [std::ops::Range<usize>], &'a [std::ops::Range<usize>]);
 
 fn poll_run_cancellation(ctx: &ExecutionContext, index: usize) -> Result<(), AttributionError> {
-    if index % 256 == 0 && ctx.cancellation.is_cancelled() {
+    if index.is_multiple_of(256) && ctx.cancellation.is_cancelled() {
         Err(AttributionError::Cancelled)
     } else {
         Ok(())

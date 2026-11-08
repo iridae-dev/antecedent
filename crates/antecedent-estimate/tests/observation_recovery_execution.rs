@@ -109,7 +109,7 @@ fn single_censoring_recovery_matches_the_enumerated_truth() {
     assert_eq!(posed.detail, antecedent_identify::RecoveryDetail::InvalidObservedLaw);
     assert!(posed.message.contains("snapshot"), "{posed}");
     // The descriptor never supplies a population law to a catalog route.
-    assert!(recovered.descriptor().origin != LawOrigin::Measured);
+    assert_ne!(recovered.descriptor().origin, LawOrigin::Measured);
     // Closed form P(x | o, R = 1) P(o) straight from the table.
     let law = model.observed_law();
     let p = law.probabilities(); // axes O, R, X* (levels 0, 1, ?)

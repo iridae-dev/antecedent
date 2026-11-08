@@ -19,13 +19,11 @@ use crate::inference::InferenceMode;
 use crate::planner::PhysicalExecutionPlan;
 use crate::result::StudyResult;
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ExecutionContext, InterventionalDistributionQuery, ResponseQuery,
-    TargetPopulation,
+    AverageEffectQuery, CausalQuery, ExecutionContext, InterventionalDistributionQuery,
+    ResponseQuery, TargetPopulation,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_estimate::{
-    AipwAte, EffectEstimate, EstimationWorkspace, OverlapPolicy,
-};
+use antecedent_estimate::{AipwAte, EffectEstimate, EstimationWorkspace, OverlapPolicy};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::IdentificationResult;
 use std::sync::Arc;

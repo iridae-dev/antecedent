@@ -635,26 +635,26 @@ impl DesignRanker {
     }
 
     fn check_constraints(&self, index: usize, cost: DesignCost) -> Option<ConstraintViolation> {
-        if let Some(max) = self.constraints.max_cost {
-            if cost.amount > max {
-                return Some(ConstraintViolation {
-                    candidate_index: index,
-                    constraint: Arc::from("max_cost"),
-                    detail: Arc::from(format!("cost {} exceeds max_cost {max}", cost.amount)),
-                });
-            }
+        if let Some(max) = self.constraints.max_cost
+            && cost.amount > max
+        {
+            return Some(ConstraintViolation {
+                candidate_index: index,
+                constraint: Arc::from("max_cost"),
+                detail: Arc::from(format!("cost {} exceeds max_cost {max}", cost.amount)),
+            });
         }
-        if let Some(max) = self.constraints.max_sample_budget {
-            if cost.sample_budget > max {
-                return Some(ConstraintViolation {
-                    candidate_index: index,
-                    constraint: Arc::from("max_sample_budget"),
-                    detail: Arc::from(format!(
-                        "sample_budget {} exceeds max {max}",
-                        cost.sample_budget
-                    )),
-                });
-            }
+        if let Some(max) = self.constraints.max_sample_budget
+            && cost.sample_budget > max
+        {
+            return Some(ConstraintViolation {
+                candidate_index: index,
+                constraint: Arc::from("max_sample_budget"),
+                detail: Arc::from(format!(
+                    "sample_budget {} exceeds max {max}",
+                    cost.sample_budget
+                )),
+            });
         }
         None
     }
@@ -806,23 +806,23 @@ pub(crate) fn validate_channel_context<A, O>(
     let n = ctx.graphs.n_samples;
     match channel {
         ObjectiveChannel::GraphEntropy => {
-            if let Some(features) = ctx.graph_features {
-                if features.len() != n {
-                    return Err(DesignError::Shape(format!(
-                        "graph_features length {} != graph posterior size {n}",
-                        features.len()
-                    )));
-                }
+            if let Some(features) = ctx.graph_features
+                && features.len() != n
+            {
+                return Err(DesignError::Shape(format!(
+                    "graph_features length {} != graph posterior size {n}",
+                    features.len()
+                )));
             }
         }
         ObjectiveChannel::Identification { .. } => {
-            if let Some(flags) = ctx.identified_under_intervention {
-                if flags.len() != n {
-                    return Err(DesignError::Shape(format!(
-                        "identified_under_intervention length {} != graph posterior size {n}",
-                        flags.len()
-                    )));
-                }
+            if let Some(flags) = ctx.identified_under_intervention
+                && flags.len() != n
+            {
+                return Err(DesignError::Shape(format!(
+                    "identified_under_intervention length {} != graph posterior size {n}",
+                    flags.len()
+                )));
             }
         }
         ObjectiveChannel::EffectWidth { .. } => {
@@ -932,7 +932,7 @@ fn observation_reliability(candidate: &CandidateDesign) -> f64 {
         }
         CandidateDesign::Intervene(p) => {
             let k = p.targets.len() as f64;
-            (1.0 - (-1.0 * k).exp()).clamp(0.0, 0.99)
+            (1.0 - (-k).exp()).clamp(0.0, 0.99)
         }
         CandidateDesign::ObserveEnvironment(p) => {
             let n = p.additional_rows as f64;
@@ -973,12 +973,11 @@ fn id_prob_gain<A, O>(
         if !is_id {
             is_id = candidate_unlocks(candidate, unlock, env_unlock);
         }
-        if !is_id {
-            if let CandidateDesign::Intervene(_) = candidate {
-                if let Some(flags) = intervene_flags {
-                    is_id = flags[i] == GraphIdentFlag::Identified;
-                }
-            }
+        if !is_id
+            && let CandidateDesign::Intervene(_) = candidate
+            && let Some(flags) = intervene_flags
+        {
+            is_id = flags[i] == GraphIdentFlag::Identified;
         }
         if is_id {
             identified += w;
@@ -1697,7 +1696,9 @@ mod tests {
         let offset = 1e8;
         let draws = alternating(offset, 0.5, n);
         let mut acc = Welford::new();
-        draws.iter().for_each(|&x| acc.push(x));
+        for &x in &draws {
+            acc.push(x);
+        }
         let expected = 0.5 * (n as f64 / (n as f64 - 1.0)).sqrt() / (n as f64).sqrt();
         assert!(
             (acc.stderr_of_mean() / expected - 1.0).abs() < 1e-6,

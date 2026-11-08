@@ -118,12 +118,12 @@ impl PreparedJointLinear {
                 "joint Gaussian response requires a valid complete iid linear design".into(),
             ));
         }
-        if let JointLinearInference::Bayesian(config) = &inference {
-            if config.effective_likelihood() != antecedent_prob::BayesLikelihood::GaussianIdentity {
-                return Err(JointLinearError::Invalid(
-                    "linear joint response requires the Gaussian identity likelihood".into(),
-                ));
-            }
+        if let JointLinearInference::Bayesian(config) = &inference
+            && config.effective_likelihood() != antecedent_prob::BayesLikelihood::GaussianIdentity
+        {
+            return Err(JointLinearError::Invalid(
+                "linear joint response requires the Gaussian identity likelihood".into(),
+            ));
         }
         Ok(Self { problem: Arc::new(problem), inference, kernel, fit: Mutex::new(None) })
     }

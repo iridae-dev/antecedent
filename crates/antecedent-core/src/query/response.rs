@@ -235,7 +235,7 @@ impl TemporalResponseSpec {
         if self.horizons.is_empty() {
             return Err(QueryError::InvalidResponse(ResponseFault::HorizonsEmpty));
         }
-        if self.horizons.iter().any(|h| *h == 0) {
+        if self.horizons.contains(&0) {
             return Err(QueryError::NonPositiveHorizon);
         }
         if self.horizons.windows(2).any(|w| w[0] >= w[1]) {

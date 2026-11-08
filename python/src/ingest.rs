@@ -350,11 +350,11 @@ pub(crate) fn numeric_columns_to_batch(
     let mut copied = 0_u64;
     let mut owned = Vec::with_capacity(columns.len());
     for (name, column) in names.iter().zip(columns) {
-        if let NumericColumn::F64(array) = column {
-            if let Some(buffer) = data_snapshot::numpy_buffer(array)? {
-                owned.push(buffer);
-                continue;
-            }
+        if let NumericColumn::F64(array) = column
+            && let Some(buffer) = data_snapshot::numpy_buffer(array)?
+        {
+            owned.push(buffer);
+            continue;
         }
         let (values, strided) = column.owned(name)?;
         noncontiguous += u64::from(strided);

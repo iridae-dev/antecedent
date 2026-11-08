@@ -443,6 +443,10 @@ fn cells_03_joint_panel_refuses_weights_it_has_no_likelihood_for() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one function walks the missing-cell policy through every cell"
+)]
 fn cells_03_joint_panel_declares_a_missing_policy_and_accounts_for_every_missing_cell() {
     let data = fixture::source(false);
     let request = plain_request(&data);
@@ -495,10 +499,11 @@ fn cells_03_joint_panel_declares_a_missing_policy_and_accounts_for_every_missing
         let group = &prepared.model_data().groups[2];
         let hidden: Vec<usize> = (0..24).filter(|&period| group.outcome[period].is_nan()).collect();
         assert_eq!(hidden, excluded, "column {column}");
-        assert!(
-            group.outcome.iter().filter(|value| value.is_finite()).count() == 24 - excluded.len()
+        assert_eq!(
+            group.outcome.iter().filter(|value| value.is_finite()).count(),
+            24 - excluded.len()
         );
-        assert!(prepared.data_accounting().policy == PanelMissingPolicy::DropPeriods);
+        assert_eq!(prepared.data_accounting().policy, PanelMissingPolicy::DropPeriods);
     }
     // The fit of a panel with a missing outcome is finite and the policy is part of the
     // source identity.
@@ -592,7 +597,7 @@ fn cells_03_joint_panel_drops_a_unit_with_no_analysable_period_and_records_it() 
 fn level_of(value: f64, row: usize) -> u32 {
     if value <= 0.0 {
         0
-    } else if row % 2 == 0 {
+    } else if row.is_multiple_of(2) {
         1
     } else {
         2
@@ -701,7 +706,9 @@ fn cells_03_joint_panel_dummy_codes_a_categorical_channel_with_a_declared_level_
         levels: levels.iter().map(ToString::to_string).collect(),
         reference: "none".into(),
     };
-    let coded = dummy_code_panel(&categorical, &fixture::columns(), &[declared.clone()]).unwrap();
+    let coded =
+        dummy_code_panel(&categorical, &fixture::columns(), std::slice::from_ref(&declared))
+            .unwrap();
     // Two indicator channels for the non-reference levels, then the untouched continuous one.
     assert_eq!(coded.indicators.len(), 2);
     assert_eq!(

@@ -131,7 +131,7 @@ pub fn posterior_predictive_target_check(
     let k = input.target.dimension();
     if input.observed.len() != k
         || input.draws.len() != input.replicated.len()
-        || input.draws.len() % k != 0
+        || !input.draws.len().is_multiple_of(k)
         || !(input.alpha > 0.0 && input.alpha < 1.0)
     {
         return Err(ValidationError::NotApplicable {
@@ -213,7 +213,7 @@ pub fn posterior_predictive_target_check(
 }
 
 fn draw_moments(draws: &[f64], k: usize) -> Result<(Vec<f64>, Vec<f64>), ValidationError> {
-    if k == 0 || draws.len() % k != 0 || draws.len() / k < k + 2 {
+    if k == 0 || !draws.len().is_multiple_of(k) || draws.len() / k < k + 2 {
         return Err(ValidationError::NotApplicable {
             message: "posterior draws do not match the target dimension, or are too few for a \
                       covariance (at least dimension + 2)",

@@ -86,6 +86,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt::Write as _;
+
 use antecedent_contract::bridge::{
     BridgeContract, BridgeKind, BridgeRefusal, BridgeSource, BridgedClaim,
     BridgedDistributionClaim, MappingKind, NonlinearMap, PointPropagation, Support, TrialLevelFit,
@@ -155,16 +157,16 @@ impl ScientificBridgeRefusal {
     fn from_contract(refusal: &BridgeRefusal) -> Self {
         let mut message = format!("refused at stage `{}`", refusal.stage);
         if let Some(offending) = &refusal.offending {
-            message.push_str(&format!("; offending `{offending}`"));
+            let _ = write!(message, "; offending `{offending}`");
         }
         if let Some(expected) = &refusal.expected {
-            message.push_str(&format!("; expected `{expected}`"));
+            let _ = write!(message, "; expected `{expected}`");
         }
         if let Some(supplied) = &refusal.supplied {
-            message.push_str(&format!("; supplied `{supplied}`"));
+            let _ = write!(message, "; supplied `{supplied}`");
         }
         if let Some(remedy) = refusal.remedy {
-            message.push_str(&format!("; {remedy}"));
+            let _ = write!(message, "; {remedy}");
         }
         Self {
             code: refusal.code,

@@ -111,9 +111,10 @@ fn fixture(outcome_of: impl Fn(usize, f64, f64) -> f64) -> Fixture {
             let w = i % SIZE;
             let first = c * SIZE;
             let own = f64::from(assignment[i]);
-            let nbr = (f64::from(assignment[first + (w + 1) % SIZE])
-                + f64::from(assignment[first + (w + 2) % SIZE]))
-                / 2.0;
+            let nbr = f64::midpoint(
+                f64::from(assignment[first + (w + 1) % SIZE]),
+                f64::from(assignment[first + (w + 2) % SIZE]),
+            );
             outcome_of(i, own, nbr)
         })
         .collect();

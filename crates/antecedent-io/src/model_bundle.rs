@@ -420,7 +420,7 @@ pub fn decode_model_bundle(artifact: &EncodedArtifact) -> Result<ModelBundle, Io
 }
 
 fn decode_f64_le(sec: &SectionBytes) -> Result<Vec<f64>, IoError> {
-    if sec.data.len() % 8 != 0 {
+    if !sec.data.len().is_multiple_of(8) {
         return Err(IoError::Convert("draws not multiple of 8".into()));
     }
     Ok(crate::width::f64s_from_le_bytes(&sec.data))

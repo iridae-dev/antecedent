@@ -92,7 +92,7 @@ fn bootstrap_unit_draws(
             return Err(antecedent_stats::StatsError::Cancelled.into());
         }
         let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream | replicate as u64);
-        counts.iter_mut().for_each(|value| *value = 0.0);
+        counts.fill(0.0);
         for _ in 0..units {
             counts[antecedent_kernels::unbiased_index(&mut rng, units)] += 1.0;
         }
@@ -244,13 +244,13 @@ impl ClusterScores {
         if scores.iter().any(|score| !score.is_finite()) {
             return Err(invalid("a pair score is not finite"));
         }
-        if let Some(weights) = pair_weights {
-            if weights.len() != pairs || weights.iter().any(|w| !w.is_finite() || *w <= 0.0) {
-                return Err(invalid(
-                    "pair weights must be finite and positive, one per pair (a zero-weight pair \
+        if let Some(weights) = pair_weights
+            && (weights.len() != pairs || weights.iter().any(|w| !w.is_finite() || *w <= 0.0))
+        {
+            return Err(invalid(
+                "pair weights must be finite and positive, one per pair (a zero-weight pair \
                      is removed before scoring)",
-                ));
-            }
+            ));
         }
         let mut dense: Vec<usize> = cluster_of_pair.to_vec();
         dense.sort_unstable();
@@ -504,7 +504,7 @@ pub fn sup_t_critical(
     let k = coordinates;
     if replicates < 2
         || k == 0
-        || residuals.len() % k != 0
+        || !residuals.len().is_multiple_of(k)
         || band_coordinates.is_empty()
         || band_coordinates.iter().any(|j| *j >= k)
     {
@@ -708,15 +708,9 @@ mod tests {
             assert!(super::validate_floor(value).is_ok());
         }
         let expected = super::invalid("the positivity floor must be in (0, 0.5]").to_string();
-        for value in [
-            0.0,
-            -0.0,
-            -1.0,
-            0.500_000_000_000_000_1,
-            f64::NAN,
-            f64::INFINITY,
-            f64::NEG_INFINITY,
-        ] {
+        for value in
+            [0.0, -0.0, -1.0, 0.500_000_000_000_000_1, f64::NAN, f64::INFINITY, f64::NEG_INFINITY]
+        {
             assert_eq!(super::validate_floor(value).unwrap_err().to_string(), expected);
         }
     }

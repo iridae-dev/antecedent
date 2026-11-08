@@ -107,9 +107,10 @@ pub struct EstimationWorkspace {
 }
 
 /// Linear fit family for [`LinearAdjustmentAte`].
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub enum LinearFitKind {
     /// Ordinary least squares.
+    #[default]
     Ols,
     /// Ridge with penalty `lambda` (intercept unpenalized when constant).
     ///
@@ -141,12 +142,6 @@ pub enum LinearFitKind {
         /// Huber tuning constant (default 1.345).
         c: f64,
     },
-}
-
-impl Default for LinearFitKind {
-    fn default() -> Self {
-        Self::Ols
-    }
 }
 
 /// Linear adjustment estimator for backdoor ATE.

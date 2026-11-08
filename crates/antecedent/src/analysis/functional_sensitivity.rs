@@ -29,11 +29,11 @@ use antecedent_graph::{Admg, DSeparationWorkspace, Dag, DenseNodeId};
 use antecedent_kernels::{mean, shuffle};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 use antecedent_validate::target_native::{
-    joint_mahalanobis, target_refuter_stream, RefutationTarget, TargetQuadrant, TargetRefuterKind,
+    RefutationTarget, TargetQuadrant, TargetRefuterKind, joint_mahalanobis, target_refuter_stream,
 };
 use antecedent_validate::{
-    cross_world_noise_range, mediation_range, mediation_sensitivity_fit, natural_direct_range,
-    residual_correlation, total_effect_slope, RefutationReport,
+    RefutationReport, cross_world_noise_range, mediation_range, mediation_sensitivity_fit,
+    natural_direct_range, residual_correlation, total_effect_slope,
 };
 
 use super::execute::Study;
@@ -166,10 +166,10 @@ fn columns(data: &TabularData, ids: &[VariableId]) -> Option<Vec<Vec<f64>>> {
 /// the first coordinate.
 fn first_value(study: &Study, result: &StudyResult) -> Option<f64> {
     let (_, labels, values) = result_target_values(result).ok()?;
-    if matches!(study.query, CausalQuery::NestedCounterfactual(_)) {
-        if let Some(at) = labels.iter().position(|label| label.as_ref() == "direct") {
-            return values.get(at).copied();
-        }
+    if matches!(study.query, CausalQuery::NestedCounterfactual(_))
+        && let Some(at) = labels.iter().position(|label| label.as_ref() == "direct")
+    {
+        return values.get(at).copied();
     }
     values.first().copied()
 }

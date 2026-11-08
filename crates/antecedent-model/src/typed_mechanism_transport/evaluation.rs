@@ -386,7 +386,7 @@ impl TransportedTypedModel {
                     return Err(CompositionError::Cancelled);
                 }
                 if with_gradient {
-                    unit_scores.iter_mut().for_each(|s| *s = 0.0);
+                    unit_scores.fill(0.0);
                 }
                 let mut f = f64::NAN;
                 for &node in &order {

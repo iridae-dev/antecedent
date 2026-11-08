@@ -782,15 +782,14 @@ impl PredictorLaws {
                 ),
             ));
         }
-        if let FitDeclaration::PerCase(fits) = &self.fit {
-            if fits.len() != cases
-                || fits.iter().any(|fit| matches!(fit, FitDeclaration::PerCase(_)))
-            {
-                return Err(invalid(
-                    detail::INVALID_LAW,
-                    "per-case fit declarations must align with cases and cannot be nested",
-                ));
-            }
+        if let FitDeclaration::PerCase(fits) = &self.fit
+            && (fits.len() != cases
+                || fits.iter().any(|fit| matches!(fit, FitDeclaration::PerCase(_))))
+        {
+            return Err(invalid(
+                detail::INVALID_LAW,
+                "per-case fit declarations must align with cases and cannot be nested",
+            ));
         }
         for law in &self.laws {
             law.validate()?;

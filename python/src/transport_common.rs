@@ -525,18 +525,18 @@ pub(crate) fn parse_law_table(
         }
         Err(error) => return Err(error),
     };
-    if let Some(counts) = counts {
-        if !counts.is_none() {
-            let counts: Vec<i64> = counts.extract()?;
-            let counts = counts
-                .into_iter()
-                .map(|count| {
-                    u64::try_from(count)
-                        .map_err(|_| crate::value_err("empirical counts must be non-negative"))
-                })
-                .collect::<PyResult<Vec<_>>>()?;
-            law = law.with_empirical_counts(counts).map_err(error)?;
-        }
+    if let Some(counts) = counts
+        && !counts.is_none()
+    {
+        let counts: Vec<i64> = counts.extract()?;
+        let counts = counts
+            .into_iter()
+            .map(|count| {
+                u64::try_from(count)
+                    .map_err(|_| crate::value_err("empirical counts must be non-negative"))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        law = law.with_empirical_counts(counts).map_err(error)?;
     }
     Ok(law)
 }

@@ -65,16 +65,16 @@ impl Study {
         }
         let (policy, declared) =
             missing_data::effective_policy(MissingRoute::Static, self.declared.missing.as_ref());
-        if policy == MissingPolicy::ErrorOnMissing {
-            if let Some(cell) = first_missing_cell(data, &variables)? {
-                return Err(CausalError::Estimate(
-                    antecedent_estimate::missing_policy::policy_required(
-                        &cell,
-                        MissingRoute::Static.label(),
-                        &[MissingPolicy::CompleteCase],
-                    ),
-                ));
-            }
+        if policy == MissingPolicy::ErrorOnMissing
+            && let Some(cell) = first_missing_cell(data, &variables)?
+        {
+            return Err(CausalError::Estimate(
+                antecedent_estimate::missing_policy::policy_required(
+                    &cell,
+                    MissingRoute::Static.label(),
+                    &[MissingPolicy::CompleteCase],
+                ),
+            ));
         }
         let mask = data.storage().analysis_mask();
         let keep = complete_rows(data, mask, &variables)?;

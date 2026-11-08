@@ -901,10 +901,10 @@ impl CompositionVerificationArtifact {
         ledger: &EvidenceLedger,
         cancel: &CancellationToken,
     ) -> Result<(), CompositionVerificationArtifactError> {
-        if let Some(state) = self.ledger_state {
-            if state != ledger.state_digest() {
-                return Err(CompositionVerificationArtifactError::LedgerMismatch("state digest"));
-            }
+        if let Some(state) = self.ledger_state
+            && state != ledger.state_digest()
+        {
+            return Err(CompositionVerificationArtifactError::LedgerMismatch("state digest"));
         }
         let recomputed =
             shared_data_relations(&self.current, ledger, cancel).map_err(|e| match e {

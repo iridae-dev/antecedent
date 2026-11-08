@@ -15,9 +15,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::descriptor::{
     ComposedModelSpec, Containment, ContextCoordinate, CrossCovarianceBlock, Domain,
-    MechanismDescriptor, MechanismFamily, MechanismForm, MechanismOrigin, MechanismUncertainty,
-    ParameterId, ParameterTerm, PosteriorDependence, MAX_COMPOSED_LATENTS, MAX_COMPOSED_MECHANISMS,
-    MAX_FINITE_STATES, MAX_LEVELS_PER_VARIABLE, MAX_PARENTS_PER_MECHANISM,
+    MAX_COMPOSED_LATENTS, MAX_COMPOSED_MECHANISMS, MAX_FINITE_STATES, MAX_LEVELS_PER_VARIABLE,
+    MAX_PARENTS_PER_MECHANISM, MechanismDescriptor, MechanismFamily, MechanismForm,
+    MechanismOrigin, MechanismUncertainty, ParameterId, ParameterTerm, PosteriorDependence,
 };
 
 /// Tolerance for symmetry and marginal-consistency comparisons of covariances.
@@ -963,15 +963,15 @@ fn check_latents(spec: &ComposedModelSpec, out: &mut Vec<CoherenceFinding>) {
                         format!("{}:{other}", l.latent),
                         "the latent is shared with a mechanism that is not in the composition; add that mechanism or the dropped latent would be treated as independent",
                     ));
-                } else if let Some(peer) = spec.mechanisms.iter().find(|m| m.variable == *other) {
-                    if !peer.latents.iter().any(|x| x.latent == l.latent) {
-                        out.push(CoherenceFinding::new(
+                } else if let Some(peer) = spec.mechanisms.iter().find(|m| m.variable == *other)
+                    && !peer.latents.iter().any(|x| x.latent == l.latent)
+                {
+                    out.push(CoherenceFinding::new(
                             SharedLatent,
                             antecedent_core::reason_details::mechanism_composition::LATENT_SHARING_NOT_RECIPROCAL,
                             format!("{}:{other}", l.latent),
                             "both mechanisms must declare the shared latent",
                         ));
-                    }
                 }
             }
         }

@@ -142,10 +142,10 @@ pub fn joint_influence_covariance(
             return Err(EstimationError::data_msg("score columns must share a row count"));
         }
     }
-    if let Some(w) = weights {
-        if w.len() != n {
-            return Err(EstimationError::data_msg("weight length does not match scores"));
-        }
+    if let Some(w) = weights
+        && w.len() != n
+    {
+        return Err(EstimationError::data_msg("weight length does not match scores"));
     }
 
     let mut means = Vec::with_capacity(dim);
@@ -174,10 +174,10 @@ pub(crate) fn joint_influence_covariance_with_means(
             return Err(EstimationError::data_msg("score columns must share a row count"));
         }
     }
-    if let Some(w) = weights {
-        if w.len() != n {
-            return Err(EstimationError::data_msg("weight length does not match scores"));
-        }
+    if let Some(w) = weights
+        && w.len() != n
+    {
+        return Err(EstimationError::data_msg("weight length does not match scores"));
     }
 
     // Construction storage is distinct from the Arc returned to its caller.

@@ -43,6 +43,10 @@ fn model(varying: VaryingBlock, sharing: SourceSharing) -> LearnedJointModel {
         conflict_z_threshold: 3.,
     }
 }
+#[allow(
+    clippy::result_large_err,
+    reason = "test helper; the error type is the estimator's own refusal and these closures run once per simulated replicate"
+)]
 fn measure(
     test: &'static str,
     expected_id: &str,

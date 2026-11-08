@@ -1035,7 +1035,7 @@ pub fn msm_parameter_fit_refitting_weights(
     let mut failed = 0_usize;
     let mut counts = vec![0.0; n];
     for _ in 0..replicates {
-        counts.iter_mut().for_each(|c| *c = 0.0);
+        counts.fill(0.0);
         for _ in 0..n {
             counts[rng.index(n)] += 1.0;
         }
@@ -1117,7 +1117,7 @@ mod tests {
     #[test]
     fn the_components_at_zero_correlation_are_the_structural_product_and_direct_coefficient() {
         let (t, m, y1, _, x) = data();
-        let components = mediation_components_fit(&t, &m, &y1, &[x.clone()]).unwrap();
+        let components = mediation_components_fit(&t, &m, &y1, std::slice::from_ref(&x)).unwrap();
         let beta = structural(&t, &m, &x, &y1);
         // The mediator coefficient of the mediator regression times the outcome-model slope.
         let indirect = components.effect_at(MediationComponent::Indirect, 0.0).unwrap();
@@ -1132,7 +1132,8 @@ mod tests {
     fn each_component_vanishes_at_its_closed_form_break_even() {
         let (t, m, y1, y2, x) = data();
         for outcome in [&y1, &y2] {
-            let components = mediation_components_fit(&t, &m, outcome, &[x.clone()]).unwrap();
+            let components =
+                mediation_components_fit(&t, &m, outcome, std::slice::from_ref(&x)).unwrap();
             for component in [MediationComponent::Indirect, MediationComponent::Direct] {
                 let rho = components.break_even(component).expect("a mediator effect exists");
                 assert!(rho.abs() < 1.0);
@@ -1145,7 +1146,7 @@ mod tests {
     #[test]
     fn the_vector_range_is_read_at_the_weakest_coordinate() {
         let (t, m, y1, y2, x) = data();
-        let a = mediation_components_fit(&t, &m, &y1, &[x.clone()]).unwrap();
+        let a = mediation_components_fit(&t, &m, &y1, std::slice::from_ref(&x)).unwrap();
         let b = mediation_components_fit(&t, &m, &y2, &[x]).unwrap();
         let outcomes = target(
             TargetFamily::Mediation,
@@ -1420,7 +1421,7 @@ mod tests {
     #[test]
     fn the_paths_are_fitted_from_the_three_regressions() {
         let (t, m, y1, _, x) = data();
-        let paths = mediation_paths_fit(&t, &m, &y1, &[x.clone()]).unwrap();
+        let paths = mediation_paths_fit(&t, &m, &y1, std::slice::from_ref(&x)).unwrap();
         let beta = structural(&t, &m, &x, &y1);
         assert!((paths.mediator_outcome.estimate - beta[2]).abs() < 1e-9);
         assert!((paths.treatment_outcome.estimate - beta[1]).abs() < 1e-9);
@@ -1441,7 +1442,7 @@ mod tests {
         let x: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
         let y: Vec<f64> = vec![0.3, 1.1, 1.8, 3.4, 3.9, 5.2, 5.8, 7.5];
         let weights = [1.0, 2.0, 1.0, 3.0, 1.0, 2.0, 1.0, 1.0];
-        let weighted = msm_parameter_fit(&y, &[x.clone()], &weights).unwrap();
+        let weighted = msm_parameter_fit(&y, std::slice::from_ref(&x), &weights).unwrap();
         let (mut rx, mut ry) = (Vec::new(), Vec::new());
         for ((xi, yi), w) in x.iter().zip(&y).zip(weights) {
             for _ in 0..(w as usize) {
@@ -1454,7 +1455,7 @@ mod tests {
         // Unit weights: the HC1 standard error of a simple regression slope.
         let n = x.len() as f64;
         let ones = vec![1.0; x.len()];
-        let fit = msm_parameter_fit(&y, &[x.clone()], &ones).unwrap();
+        let fit = msm_parameter_fit(&y, std::slice::from_ref(&x), &ones).unwrap();
         let (mx, my) = (x.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
         let sxx: f64 = x.iter().map(|v| (v - mx).powi(2)).sum();
         let slope: f64 = x.iter().zip(&y).map(|(a, b)| (a - mx) * (b - my)).sum::<f64>() / sxx;
@@ -1472,10 +1473,10 @@ mod tests {
         // Unequal weights shrink the effective sample size and its degrees of freedom.
         assert!(weighted[0].dof < n - 2.0);
         // Misaligned inputs, a negative weight and a constant exposure are refused.
-        assert!(msm_parameter_fit(&y, &[x.clone()], &weights[..7]).is_err());
+        assert!(msm_parameter_fit(&y, std::slice::from_ref(&x), &weights[..7]).is_err());
         let mut negative = weights;
         negative[0] = -1.0;
-        assert!(msm_parameter_fit(&y, &[x.clone()], &negative).is_err());
+        assert!(msm_parameter_fit(&y, std::slice::from_ref(&x), &negative).is_err());
         assert!(msm_parameter_fit(&y, &[vec![1.0; 8]], &weights).is_err());
     }
 
@@ -1533,7 +1534,7 @@ mod tests {
             let (y, a, l) = confounded(n, 50_000 + seed);
             let fit = msm_parameter_fit_refitting_weights(
                 &y,
-                &[a.clone()],
+                std::slice::from_ref(&a),
                 &[period(&a, &l)],
                 120,
                 seed + 1,
@@ -1555,8 +1556,14 @@ mod tests {
         // Too few replicates and a non-binary treatment are refused.
         let (y, a, l) = confounded(100, 7);
         assert!(
-            msm_parameter_fit_refitting_weights(&y, &[a.clone()], &[period(&a, &l)], 10, 1)
-                .is_err()
+            msm_parameter_fit_refitting_weights(
+                &y,
+                std::slice::from_ref(&a),
+                &[period(&a, &l)],
+                10,
+                1
+            )
+            .is_err()
         );
         let halves = vec![0.5; 100];
         assert!(

@@ -10,6 +10,7 @@
 //! `ScientificQuantity`, and single-variable encodings are byte-identical to before.
 
 use crate::quantity::{QuantityCondition, QuantityMismatch, QuantityRole, ScientificQuantity};
+use std::fmt::Write as _;
 
 /// Most variables one joint event names. Validation compares every pair of variables for
 /// duplicates and lowering builds one identity string from all of them, so the cap bounds both;
@@ -91,7 +92,7 @@ impl JointEventQuantity {
     fn variable_id(&self) -> String {
         let mut id = format!("{}:joint({}", self.schema_id, self.variables.len());
         for variable in &self.variables {
-            id.push_str(&format!(";{}:{}", variable.name.len(), variable.name));
+            let _ = write!(id, ";{}:{}", variable.name.len(), variable.name);
         }
         id.push(')');
         id

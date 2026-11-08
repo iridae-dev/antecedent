@@ -164,7 +164,7 @@ fn apply_orient_collider<G: PagOps>(
                     state.mark_ambiguous_triple(a, b, c);
                     continue;
                 };
-                if sep.iter().any(|&z| z == b) {
+                if sep.contains(&b) {
                     continue; // non-collider
                 }
                 // Orient a *→ b ←* c
@@ -398,7 +398,7 @@ fn apply_discriminating_path<G: PagOps>(
         let Some(sep) = state.sepset(a, b) else {
             continue;
         };
-        let c_in_sep = sep.iter().any(|&z| z == c);
+        let c_in_sep = sep.contains(&c);
         let collider = discriminating_implies_collider(c_in_sep);
         let Some(e_cb) = graph.edge_between(c, b) else {
             continue;
@@ -559,7 +559,7 @@ fn apply_r9<G: PagOps>(
                 let Some(sep) = state.sepset(b1, c) else {
                     continue;
                 };
-                if !sep.iter().any(|&z| z == a) {
+                if !sep.contains(&a) {
                     continue;
                 }
                 if !state.is_weakly_minimal(b1, c) && !sep.is_empty() {
@@ -839,12 +839,11 @@ fn apply_zhang_r10<G: PagOps>(
                     continue;
                 }
                 let mut firsts: Vec<DenseNodeId> = Vec::new();
-                if let Some((at_a, at_p)) = marks_between(graph, a, p) {
-                    if matches!(at_a, Endpoint::Circle | Endpoint::Tail)
-                        && matches!(at_p, Endpoint::Circle | Endpoint::Arrow)
-                    {
-                        firsts.push(p);
-                    }
+                if let Some((at_a, at_p)) = marks_between(graph, a, p)
+                    && matches!(at_a, Endpoint::Circle | Endpoint::Tail)
+                    && matches!(at_p, Endpoint::Circle | Endpoint::Arrow)
+                {
+                    firsts.push(p);
                 }
                 truncated |= for_each_uncovered_pd_path(
                     graph,
@@ -938,7 +937,7 @@ fn paths_node_disjoint_except_a(
         if n == a {
             continue;
         }
-        if path2.iter().any(|&m| m == n) {
+        if path2.contains(&n) {
             return false;
         }
     }

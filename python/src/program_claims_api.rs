@@ -164,6 +164,10 @@ fn program_binding_identity(binding_json: &str) -> PyResult<(Option<String>, Opt
 
 /// Check a declared claim against the program; returns `{identity, coordinates}`.
 #[pyfunction]
+#[allow(
+    clippy::result_large_err,
+    reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+)]
 fn check_external_program(
     binding_json: &str,
     claim_json: &str,

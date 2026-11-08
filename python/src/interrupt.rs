@@ -458,11 +458,11 @@ where
             if let Some(result) = finished {
                 break result;
             }
-            if interrupt.is_none() {
-                if let Err(e) = py.check_signals() {
-                    scope.cancel_all();
-                    interrupt = Some(e);
-                }
+            if interrupt.is_none()
+                && let Err(e) = py.check_signals()
+            {
+                scope.cancel_all();
+                interrupt = Some(e);
             }
         };
         if let Some(error) = interrupt {

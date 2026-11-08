@@ -357,9 +357,10 @@ pub fn check_continuous_assignments(
             ));
         }
     }
-    if request.operation == ObservationOperation::Conditioning {
-        if let Some((variable, _)) = request.interventions.first() {
-            return Err(ExternalRefusal::new(
+    if request.operation == ObservationOperation::Conditioning
+        && let Some((variable, _)) = request.interventions.first()
+    {
+        return Err(ExternalRefusal::new(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
                 OBSERVATION_QUERY_STAGE,
                 antecedent_core::reason_details::observation_query::INTERVENTION_IN_CONDITIONING_SLOT,
@@ -370,7 +371,6 @@ pub fn check_continuous_assignments(
             .with_remedy(
                 "an intervention is its own claim: ask for the interventional distribution as an intervention query, and for the conditional distribution as a conditioning query",
             ));
-        }
     }
     let mut seen = BTreeSet::new();
     for variable in request
@@ -506,14 +506,14 @@ pub fn measured_likelihood(
             context.regime_id,
         ));
     }
-    if let ArmBinding::Arm(bound) = &model.binding.arm {
-        if context.arm_id != Some(bound.as_str()) {
-            return Err(mismatch(
-                antecedent_core::reason_details::observation_query::ARM_MISMATCH,
-                bound,
-                context.arm_id.unwrap_or("all_arms"),
-            ));
-        }
+    if let ArmBinding::Arm(bound) = &model.binding.arm
+        && context.arm_id != Some(bound.as_str())
+    {
+        return Err(mismatch(
+            antecedent_core::reason_details::observation_query::ARM_MISMATCH,
+            bound,
+            context.arm_id.unwrap_or("all_arms"),
+        ));
     }
     check_representation_transfer(
         &model.representation,

@@ -415,7 +415,7 @@ mod tests {
         let grid = [-0.0, 0.1, 0.5, 1.0, 3.0];
         for value in [0.0, -0.0, 0.1, 0.2, 0.5, 1.0, 3.0, 3.1] {
             let found = grid_contains_by(&grid, value, |a, b| a.partial_cmp(b).unwrap());
-            assert_eq!(found, grid.iter().any(|time| *time == value));
+            assert_eq!(found, grid.contains(&value));
         }
     }
 
@@ -432,7 +432,7 @@ mod tests {
                 comparisons += 1;
                 a.partial_cmp(b).unwrap()
             });
-            assert_eq!(found, grid.iter().any(|time| *time == value));
+            assert_eq!(found, grid.contains(&value));
             assert!(comparisons <= 18, "{comparisons} comparisons for {value}");
         }
     }

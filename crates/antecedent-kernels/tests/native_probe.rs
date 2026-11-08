@@ -127,7 +127,10 @@ fn the_probe_reads_the_allocator_and_the_resident_set_around_real_work() {
             assert!(now >= 48 * MIB, "peak resident set {now} is below the pages touched");
         }
         (_, PeakRss::Unsupported { reason }) => {
-            assert!(!cfg!(all(unix, target_pointer_width = "64")), "{reason}");
+            // Peak RSS is measured on every 64-bit Unix host.
+            #[cfg(all(unix, target_pointer_width = "64"))]
+            panic!("peak RSS unsupported on a 64-bit Unix host: {reason}");
+            #[cfg(not(all(unix, target_pointer_width = "64")))]
             assert!(!reason.is_empty());
         }
         _ => panic!("peak resident set sampled before the run but not after"),

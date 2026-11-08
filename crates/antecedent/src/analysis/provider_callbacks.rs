@@ -749,28 +749,27 @@ impl CallbackSession {
         );
         match plan {
             CallbackPlan::Reuse => {
-                if let Some((index, _)) = stored {
-                    if let CallbackOutcome::Computed { output, state_identity, .. } =
+                if let Some((index, _)) = stored
+                    && let CallbackOutcome::Computed { output, state_identity, .. } =
                         &self.history[index].outcome
-                    {
-                        // A cached output was checked against the policy of
-                        // its original execution. The current caller may
-                        // impose a tighter bound, which reuse must respect.
-                        if output.output().value_count() > call.policy.max_output_values {
-                            return Err(refusal::output_too_large(call.policy.max_output_values));
-                        }
-                        return Ok(Decision::Reuse(Box::new(CallbackExecution {
-                            output: output.clone(),
-                            invocations: 0,
-                            reused: true,
-                            recomputed_because: None,
-                            standing: standing_label(declaration, false),
-                            declaration_identity: call.ids.declaration.to_hex(),
-                            request_identity: call.ids.request.to_hex(),
-                            state_identity: state_identity.clone(),
-                            evidence_state_digest,
-                        })));
+                {
+                    // A cached output was checked against the policy of
+                    // its original execution. The current caller may
+                    // impose a tighter bound, which reuse must respect.
+                    if output.output().value_count() > call.policy.max_output_values {
+                        return Err(refusal::output_too_large(call.policy.max_output_values));
                     }
+                    return Ok(Decision::Reuse(Box::new(CallbackExecution {
+                        output: output.clone(),
+                        invocations: 0,
+                        reused: true,
+                        recomputed_because: None,
+                        standing: standing_label(declaration, false),
+                        declaration_identity: call.ids.declaration.to_hex(),
+                        request_identity: call.ids.request.to_hex(),
+                        state_identity: state_identity.clone(),
+                        evidence_state_digest,
+                    })));
                 }
                 Ok(Decision::Recompute(RecomputeReason::NoPriorResult))
             }
@@ -875,10 +874,10 @@ impl CallbackSession {
         if ctx.cancellation.is_cancelled() {
             return Err(error(refusal::cancelled("after_invocation")));
         }
-        if let Some(limit) = policy.wall_limit_ms {
-            if elapsed.as_millis() > u128::from(limit) {
-                return Err(error(refusal::wall_limit_exceeded(limit, elapsed.as_millis())));
-            }
+        if let Some(limit) = policy.wall_limit_ms
+            && elapsed.as_millis() > u128::from(limit)
+        {
+            return Err(error(refusal::wall_limit_exceeded(limit, elapsed.as_millis())));
         }
         let accepted =
             validate_output(&request.query, output, &declaration.support, policy.max_output_values)

@@ -928,39 +928,35 @@ fn decision_findings(rep: &mut Rep) -> Vec<String> {
         },
     }
     // The executed answer scores by carrier: a mean is scored, a risk needs an outcome law.
-    if let Some(prepared) = prepare(rep, &mut found) {
-        if let Ok(result) = prepared.estimate_retained(&context) {
-            let published = PublishedCarriers { mean: result.effect(), posterior_mean: None };
-            match score_decision(
-                DecisionDemand::AffineMean { slope: 2.0, intercept: -0.5 },
-                published,
-            ) {
-                Ok(scored) => {
-                    found.check(
-                        scored.carrier == EvidencePort::Mean,
-                        "a mean demand scored from another port",
-                    );
-                    found.check(
-                        scored.value.is_finite() == published.mean.is_finite(),
-                        "the affine score does not follow the published answer",
-                    );
-                }
-                Err(missing) => {
-                    found.check(false, format!("a mean demand was refused: {missing:?}"))
-                }
+    if let Some(prepared) = prepare(rep, &mut found)
+        && let Ok(result) = prepared.estimate_retained(&context)
+    {
+        let published = PublishedCarriers { mean: result.effect(), posterior_mean: None };
+        match score_decision(DecisionDemand::AffineMean { slope: 2.0, intercept: -0.5 }, published)
+        {
+            Ok(scored) => {
+                found.check(
+                    scored.carrier == EvidencePort::Mean,
+                    "a mean demand scored from another port",
+                );
+                found.check(
+                    scored.value.is_finite() == published.mean.is_finite(),
+                    "the affine score does not follow the published answer",
+                );
             }
-            found.check(
-                score_decision(DecisionDemand::Risk, published) == Err(MissingCarrier::OutcomeLaw),
-                "an outcome risk was scored from a mean",
-            );
-            found.check(
-                score_decision(
-                    DecisionDemand::AffinePosterior { slope: 1.0, intercept: 0.0 },
-                    published,
-                ) == Err(MissingCarrier::ParameterPosterior),
-                "a posterior demand was scored without a posterior",
-            );
+            Err(missing) => found.check(false, format!("a mean demand was refused: {missing:?}")),
         }
+        found.check(
+            score_decision(DecisionDemand::Risk, published) == Err(MissingCarrier::OutcomeLaw),
+            "an outcome risk was scored from a mean",
+        );
+        found.check(
+            score_decision(
+                DecisionDemand::AffinePosterior { slope: 1.0, intercept: 0.0 },
+                published,
+            ) == Err(MissingCarrier::ParameterPosterior),
+            "a posterior demand was scored without a posterior",
+        );
     }
     found.items
 }
@@ -1350,7 +1346,8 @@ fn retarget_findings(rep: &Rep, prepared: &PreparedStudy, found: &mut Findings) 
         return;
     };
     if score_rows.is_some() {
-        found.check(!preview.refused, "retarget previews as refused on a handle with a score table");
+        found
+            .check(!preview.refused, "retarget previews as refused on a handle with a score table");
     } else {
         found.check(
             !preview.refused,
@@ -2375,10 +2372,8 @@ fn manifest_route_ids() -> Vec<String> {
     for line in text.lines() {
         if line.starts_with("[[") {
             in_route = line == "[[route]]";
-        } else if in_route {
-            if let Some(value) = line.strip_prefix("id = ") {
-                ids.push(quoted(value).remove(0));
-            }
+        } else if in_route && let Some(value) = line.strip_prefix("id = ") {
+            ids.push(quoted(value).remove(0));
         }
     }
     ids

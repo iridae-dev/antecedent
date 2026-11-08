@@ -738,12 +738,7 @@ fn attribution_uncertainty(
         };
         let (outcome, route) =
             source.attribute_resampled(target, inference, bootstrap_replicates, &ctx)?;
-        Ok(attribution_uncertainty_output(
-            &outcome,
-            route.execution.result(),
-            &kind,
-            &names,
-        ))
+        Ok(attribution_uncertainty_output(&outcome, route.execution.result(), &kind, &names))
     })
 }
 

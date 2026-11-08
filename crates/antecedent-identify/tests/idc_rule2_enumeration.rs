@@ -214,7 +214,7 @@ fn run(n: usize, stride: usize) -> (usize, usize, usize) {
     for dir_mask in 0..1usize << pairs {
         for bi_mask in 0..1usize << pairs {
             index += 1;
-            if index % stride != 0 {
+            if !index.is_multiple_of(stride) {
                 continue;
             }
             let g = Graph::from_masks(n, dir_mask, bi_mask);

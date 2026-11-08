@@ -631,12 +631,12 @@ impl PcmciEngine {
         ctx: &ExecutionContext,
     ) -> Result<DagDiscoveryResult, DiscoveryError> {
         self.constraints.validate_temporal_ci_options()?;
-        if let Some(hard) = ctx.memory_limit_bytes() {
-            if frame.values_bytes() > hard {
-                return Err(DiscoveryError::Unsupported {
-                    message: "lagged frames exceed ExecutionContext memory hard limit",
-                });
-            }
+        if let Some(hard) = ctx.memory_limit_bytes()
+            && frame.values_bytes() > hard
+        {
+            return Err(DiscoveryError::Unsupported {
+                message: "lagged frames exceed ExecutionContext memory hard limit",
+            });
         }
 
         let (ci, column_blocks, search_vars) = resolve_vector_ci(
@@ -1320,7 +1320,7 @@ fn resolve_vector_ci(
 
 fn expand_into(out: &mut Vec<usize>, col: usize, blocks: &[Arc<[usize]>]) {
     for block in blocks {
-        if block.iter().any(|&c| c == col) {
+        if block.contains(&col) {
             for &m in block.iter() {
                 if !out.contains(&m) {
                     out.push(m);

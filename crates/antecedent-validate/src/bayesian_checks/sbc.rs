@@ -153,7 +153,7 @@ pub(super) fn sbc_rank_draws(
 ) -> Result<Vec<f64>, ValidationError> {
     if let Some(chains) = diagnostics.n_chains {
         let chains = chains as usize;
-        if chains != 4 || draws.len() % chains != 0 {
+        if chains != 4 || !draws.len().is_multiple_of(chains) {
             return Err(ValidationError::NotApplicable {
                 message: "HMC SBC requires four independent chains with equal retained lengths",
             });
@@ -166,12 +166,12 @@ pub(super) fn sbc_rank_draws(
         }
         return Ok((0..chains).map(|chain| draws[(chain + 1) * per_chain - 1]).collect());
     }
-    if let Some(ess) = diagnostics.ess_bulk_min {
-        if !ess.is_finite() || ess < draws.len() as f64 {
-            return Err(ValidationError::NotApplicable {
-                message: "SBC needs independent draws or separate HMC chains; bulk ESS is below draw count",
-            });
-        }
+    if let Some(ess) = diagnostics.ess_bulk_min
+        && (!ess.is_finite() || ess < draws.len() as f64)
+    {
+        return Err(ValidationError::NotApplicable {
+            message: "SBC needs independent draws or separate HMC chains; bulk ESS is below draw count",
+        });
     }
     Ok(draws.to_vec())
 }
@@ -204,7 +204,7 @@ impl SimulationBasedCalibration {
         ctx: &ExecutionContext,
     ) -> Result<SbcReport, ValidationError> {
         if estimator.backend != antecedent_estimate::BayesianBackendKind::Hmc
-            && (self.n_draws + 1) % SBC_BINS != 0
+            && !(self.n_draws + 1).is_multiple_of(SBC_BINS)
         {
             return Err(ValidationError::NotApplicable {
                 message: "SBC requires n_draws + 1 to be a multiple of the 10 rank bins \

@@ -104,7 +104,7 @@ fn lcg_series(n: usize, seed: u64, mean: f64) -> Vec<f64> {
 fn phase_randomization_keeps_every_fourier_magnitude_and_the_mean() {
     for n in [4usize, 5, 6, 7, 8, 9, 16, 31, 64, 101] {
         let x = lcg_series(n, 17 + n as u64, 50.0);
-        let data = series(&[x.clone()], None);
+        let data = series(std::slice::from_ref(&x), None);
         let out =
             column(&surrogate_phase_randomize(&data, &mut CausalRng::from_seed(9)).unwrap(), 0);
         assert_eq!(out.len(), n);
@@ -134,8 +134,11 @@ fn circular_autocovariance_is_preserved_because_the_power_spectrum_is() {
     let n = 40usize;
     let x = lcg_series(n, 3, 0.0);
     let out = column(
-        &surrogate_phase_randomize(&series(&[x.clone()], None), &mut CausalRng::from_seed(2))
-            .unwrap(),
+        &surrogate_phase_randomize(
+            &series(std::slice::from_ref(&x), None),
+            &mut CausalRng::from_seed(2),
+        )
+        .unwrap(),
         0,
     );
     let circular = |s: &[f64], lag: usize| -> f64 { (0..n).map(|t| s[t] * s[(t + lag) % n]).sum() };
@@ -149,7 +152,7 @@ fn a_constant_series_is_a_fixed_point_and_columns_are_randomized_independently()
     let constant = vec![3.25; 12];
     let out = column(
         &surrogate_phase_randomize(
-            &series(&[constant.clone()], None),
+            &series(std::slice::from_ref(&constant), None),
             &mut CausalRng::from_seed(1),
         )
         .unwrap(),
@@ -215,7 +218,7 @@ fn column_permutation_is_uniform_and_keeps_gaps_where_they_were() {
     let mut valid = vec![0b1111_1011u8];
     valid.truncate(1);
     let validity = ValidityBitmap::from_bytes(valid, 5).unwrap();
-    let data = series(&[values.clone()], Some(validity));
+    let data = series(std::slice::from_ref(&values), Some(validity));
     let mut rng = CausalRng::from_seed(31);
     let mut counts: BTreeMap<Vec<u64>, usize> = BTreeMap::new();
     let draws = 24 * 500;

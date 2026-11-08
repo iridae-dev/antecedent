@@ -793,12 +793,11 @@ fn source_c_factor(
             }
         }
         for other in graph.bidirected_neighbors(from_dense) {
-            if other.as_usize() > from_index {
-                if let Some(reduced_other) =
+            if other.as_usize() > from_index
+                && let Some(reduced_other) =
                     engine.prepared.dense_to_var(*other).ok().and_then(dense)
-                {
-                    reduced.insert_bidirected(reduced_from, reduced_other)?;
-                }
+            {
+                reduced.insert_bidirected(reduced_from, reduced_other)?;
             }
         }
     }

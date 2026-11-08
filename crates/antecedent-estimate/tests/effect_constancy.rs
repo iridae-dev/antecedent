@@ -457,5 +457,5 @@ fn constancy_posterior_consumer_replays_the_shrunk_contrast() {
     )
     .unwrap();
     let weight = (1.0 / 0.5) / (1.0 / 0.5 + 1.0);
-    assert!((produced - weight * -1.0).abs() < 1e-12);
+    assert!((produced - -weight).abs() < 1e-12);
 }

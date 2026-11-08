@@ -257,7 +257,7 @@ impl LinearOlsSuffStats {
         if self.ncols == 0 {
             return Err(StateError::Shape("ncols is 0".into()));
         }
-        if rows_rowmajor.len() % self.ncols != 0 {
+        if !rows_rowmajor.len().is_multiple_of(self.ncols) {
             return Err(StateError::Shape("rows not multiple of ncols".into()));
         }
         let n = rows_rowmajor.len() / self.ncols;
@@ -309,10 +309,10 @@ impl LinearOlsSuffStats {
         if let Some(beta) = self.solve_centered() {
             return Ok(beta);
         }
-        if self.offset_dominates() {
-            if let Some(solution) = self.solve_shifted() {
-                return Ok(solution.mean);
-            }
+        if self.offset_dominates()
+            && let Some(solution) = self.solve_shifted()
+        {
+            return Ok(solution.mean);
         }
         solve_gram(&self.xtx, &self.xty, self.ncols)
     }
@@ -816,7 +816,7 @@ pub(crate) fn solve_shifted_normal(
     let mut unit = vec![0.0; p];
     let mut solved = vec![0.0; p];
     for col in 0..p {
-        unit.iter_mut().for_each(|x| *x = 0.0);
+        unit.fill(0.0);
         unit[col] = 1.0;
         reflect(&mut unit);
         for (value, s) in unit.iter_mut().zip(&scale) {

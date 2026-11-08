@@ -183,9 +183,9 @@ impl CheckedAttributionOperation {
         if bytes > budget.limits().max_bytes {
             return Err(CausalError::Resource { message: "temporal result row byte limit".into() });
         }
-        let lease = ctx
-            .acquire_admission(0, bytes)
-            .map_err(|error| crate::error::resource_admission_error(error, "temporal attribution"))?;
+        let lease = ctx.acquire_admission(0, bytes).map_err(|error| {
+            crate::error::resource_admission_error(error, "temporal attribution")
+        })?;
         Ok(Some(Arc::new(lease)))
     }
 
@@ -264,14 +264,12 @@ impl CheckedAttributionOperation {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "temporal attribution" });
         }
-        if let (Some(n), PopulationSelector::TimeRange { end, .. }) = (source_bound, selector) {
-            if *end > n {
-                return Err(CausalError::Compile {
-                    message: format!(
-                        "temporal population range ends at {end}, beyond {n} source rows"
-                    ),
-                });
-            }
+        if let (Some(n), PopulationSelector::TimeRange { end, .. }) = (source_bound, selector)
+            && *end > n
+        {
+            return Err(CausalError::Compile {
+                message: format!("temporal population range ends at {end}, beyond {n} source rows"),
+            });
         }
         let scans = match selector {
             PopulationSelector::Rows(rows) => rows.len().checked_mul(kept.len()),
@@ -331,9 +329,9 @@ impl CheckedAttributionOperation {
         budget
             .charge_work(work)
             .map_err(|error| CausalError::Resource { message: error.to_string() })?;
-        let lease = ctx
-            .acquire_admission(0, bytes)
-            .map_err(|error| crate::error::resource_admission_error(error, "temporal attribution"))?;
+        let lease = ctx.acquire_admission(0, bytes).map_err(|error| {
+            crate::error::resource_admission_error(error, "temporal attribution")
+        })?;
         let mut positions = Vec::new();
         positions.try_reserve_exact(count).map_err(|_| CausalError::Resource {
             message: "temporal selector allocation refused".into(),

@@ -532,16 +532,15 @@ pub(super) fn projected_mixture_masses(result: &StudyResult) -> Option<(f64, f64
         StructureSource::GraphPosterior => "posterior_probability",
         _ => "completion_enumeration",
     };
-    if let Some(posterior) = &result.posterior {
-        if posterior.unidentified_mass > 0.0
+    if let Some(posterior) = &result.posterior
+        && (posterior.unidentified_mass > 0.0
             || posterior.subsampled_out_mass > 0.0
             || matches!(
                 result.identification.status,
                 IdentificationStatus::GraphDependent | IdentificationStatus::PartiallyIdentified
-            )
-        {
-            return Some((posterior.unidentified_mass, posterior.subsampled_out_mass, basis));
-        }
+            ))
+    {
+        return Some((posterior.unidentified_mass, posterior.subsampled_out_mass, basis));
     }
     if matches!(
         result.identification.status,

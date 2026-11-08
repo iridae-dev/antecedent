@@ -127,12 +127,11 @@ pub fn compile_joint_experiment(
         }
         if let AdjustmentKind::FixedCuped { coefficient, covariate }
         | AdjustmentKind::CenteredFixedCuped { coefficient, covariate } = &adjustment.kind
+            && (!coefficient.is_finite() || covariate.trim().is_empty())
         {
-            if !coefficient.is_finite() || covariate.trim().is_empty() {
-                return Err(EvidenceRefusal::Invalid(
-                    "fixed CUPED needs a covariate and a finite coefficient".into(),
-                ));
-            }
+            return Err(EvidenceRefusal::Invalid(
+                "fixed CUPED needs a covariate and a finite coefficient".into(),
+            ));
         }
     }
     let design = spec.assignment_design.clone();

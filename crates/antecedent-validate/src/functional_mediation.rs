@@ -672,9 +672,9 @@ mod tests {
         let (t, m, y, x) = linear_data(1.5);
         let report = sequential_ignorability_report(&SensitivityInput {
             treatment: &t,
-            mediators: &[m.clone()],
+            mediators: std::slice::from_ref(&m),
             outcome: &y,
-            covariates: &[x.clone()],
+            covariates: std::slice::from_ref(&x),
             contrast_width: 1.0,
             published: 1.35,
         })
@@ -693,9 +693,9 @@ mod tests {
         let (t, m, y, x) = linear_data(0.0);
         let narrow = sequential_ignorability_report(&SensitivityInput {
             treatment: &t,
-            mediators: &[m.clone()],
+            mediators: std::slice::from_ref(&m),
             outcome: &y,
-            covariates: &[x.clone()],
+            covariates: std::slice::from_ref(&x),
             contrast_width: 1.0,
             published: f64::NAN,
         })
@@ -745,7 +745,7 @@ mod tests {
                 treatment: &t,
                 mediators: &[m],
                 outcome: &y,
-                covariates: &[x.clone()],
+                covariates: std::slice::from_ref(&x),
                 contrast_width: 1.0,
                 published: 1.0,
             })
@@ -754,7 +754,7 @@ mod tests {
         assert!(
             sequential_ignorability_report(&SensitivityInput {
                 treatment: &t[1..],
-                mediators: &[y.clone()],
+                mediators: std::slice::from_ref(&y),
                 outcome: &y,
                 covariates: &[x],
                 contrast_width: 1.0,

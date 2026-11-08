@@ -1469,7 +1469,7 @@ mod tests {
         }
         for i in 0..n as usize {
             for j in (i + 1)..n as usize {
-                if rng.next_u64() % 3 == 0 {
+                if rng.next_u64().is_multiple_of(3) {
                     let a = DenseNodeId::from_raw(order[i]);
                     let b = DenseNodeId::from_raw(order[j]);
                     let _ = g.insert_directed(a, b);
@@ -1544,15 +1544,15 @@ mod tests {
                 -1.5,
                 2.25,
             ));
-            if let Ok(res) = id.identify(&prep, &q, &mut ws) {
-                if res.status == IdentificationStatus::NonparametricallyIdentified {
-                    assert_valid_adjustment_sets(&g, t, y, &res.estimands, &mut dsep);
-                }
+            if let Ok(res) = id.identify(&prep, &q, &mut ws)
+                && res.status == IdentificationStatus::NonparametricallyIdentified
+            {
+                assert_valid_adjustment_sets(&g, t, y, &res.estimands, &mut dsep);
             }
-            if let Ok(res) = eff.identify(&prep, &q, &mut ws) {
-                if res.status == IdentificationStatus::NonparametricallyIdentified {
-                    assert_valid_adjustment_sets(&g, t, y, &res.estimands, &mut dsep);
-                }
+            if let Ok(res) = eff.identify(&prep, &q, &mut ws)
+                && res.status == IdentificationStatus::NonparametricallyIdentified
+            {
+                assert_valid_adjustment_sets(&g, t, y, &res.estimands, &mut dsep);
             }
         }
     }

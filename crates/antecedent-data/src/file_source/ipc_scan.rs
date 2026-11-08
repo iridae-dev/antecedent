@@ -198,26 +198,26 @@ fn message_cost(
     };
     let nodes = batch.nodes().map_or(0, |nodes| nodes.len() as u64);
     let mut inflated = 0_u64;
-    if batch.compression().is_some() {
-        if let Some(buffers) = batch.buffers() {
-            for buffer in buffers {
-                let (offset, len) = (buffer.offset(), buffer.length());
-                let (Ok(offset), Ok(len)) = (u64::try_from(offset), u64::try_from(len)) else {
-                    return Err(format_error(path, &"a buffer has a negative extent"));
-                };
-                if len < 8 {
-                    continue;
-                }
-                let at = body_start
-                    .checked_add(offset)
-                    .filter(|at| at.checked_add(8).is_some_and(|end| end <= length))
-                    .ok_or_else(|| format_error(path, &"a buffer lies outside the file"))?;
-                let mut prefix = [0_u8; 8];
-                read_at(file, at, &mut prefix, path)?;
-                // A length of -1 marks a buffer stored uncompressed.
-                let uncompressed = u64::try_from(i64::from_le_bytes(prefix)).unwrap_or(len - 8);
-                inflated = checked_sum(inflated, uncompressed, path)?;
+    if batch.compression().is_some()
+        && let Some(buffers) = batch.buffers()
+    {
+        for buffer in buffers {
+            let (offset, len) = (buffer.offset(), buffer.length());
+            let (Ok(offset), Ok(len)) = (u64::try_from(offset), u64::try_from(len)) else {
+                return Err(format_error(path, &"a buffer has a negative extent"));
+            };
+            if len < 8 {
+                continue;
             }
+            let at = body_start
+                .checked_add(offset)
+                .filter(|at| at.checked_add(8).is_some_and(|end| end <= length))
+                .ok_or_else(|| format_error(path, &"a buffer lies outside the file"))?;
+            let mut prefix = [0_u8; 8];
+            read_at(file, at, &mut prefix, path)?;
+            // A length of -1 marks a buffer stored uncompressed.
+            let uncompressed = u64::try_from(i64::from_le_bytes(prefix)).unwrap_or(len - 8);
+            inflated = checked_sum(inflated, uncompressed, path)?;
         }
     }
     let structure = nodes

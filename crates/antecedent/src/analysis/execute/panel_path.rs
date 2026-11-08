@@ -226,22 +226,21 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<Option<CausalPosterior>, CausalError> {
         // Panel Bayesian: α-grid under Full when external compose is present (mirror temporal).
-        if matches!(self.settings.refute, RefuteSuite::Full) {
-            if let (InferenceMode::Bayesian(cfg), Some(post)) =
+        if matches!(self.settings.refute, RefuteSuite::Full)
+            && let (InferenceMode::Bayesian(cfg), Some(post)) =
                 (&self.settings.inference, &posterior)
-            {
-                let mut bprep = BayesianGComputationAte::from_prepared_estimation(design.prep);
-                bprep.unit_ids = Some(design.cluster_ids.to_vec());
-                return Ok(Some(apply_temporal_prior_sensitivity(
-                    cfg,
-                    &bprep,
-                    status,
-                    post,
-                    ate,
-                    ctx,
-                    refutations,
-                )?));
-            }
+        {
+            let mut bprep = BayesianGComputationAte::from_prepared_estimation(design.prep);
+            bprep.unit_ids = Some(design.cluster_ids.to_vec());
+            return Ok(Some(apply_temporal_prior_sensitivity(
+                cfg,
+                &bprep,
+                status,
+                post,
+                ate,
+                ctx,
+                refutations,
+            )?));
         }
         Ok(posterior)
     }

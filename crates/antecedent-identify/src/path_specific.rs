@@ -1076,7 +1076,7 @@ mod tests {
                     other => panic!("unexpected node {other:?}"),
                 }
             }
-            out.sort_by(|a, b| a.0.cmp(&b.0));
+            out.sort_by_key(|a| a.0);
             out
         };
         (levels(*left), levels(*right))

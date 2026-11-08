@@ -1035,10 +1035,10 @@ fn pulse_witness_design(
     atom: &crate::analysis::prepared::CachedDbnPosteriorAtomIdentification,
     horizon: u32,
 ) -> (&IdentifiedEstimand, &antecedent_data::TemporalIndexer) {
-    if let Some(horizons) = atom.horizons.as_ref() {
-        if let Some(entry) = horizons.get(horizon) {
-            return (&entry.estimand, &entry.indexer);
-        }
+    if let Some(horizons) = atom.horizons.as_ref()
+        && let Some(entry) = horizons.get(horizon)
+    {
+        return (&entry.estimand, &entry.indexer);
     }
     (&atom.estimand, &atom.indexer)
 }

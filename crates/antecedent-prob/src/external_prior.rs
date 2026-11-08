@@ -90,12 +90,12 @@ impl ExternalPriorWeight {
                 message: "external prior alpha must be finite and in [0, 1]",
             });
         }
-        if let Some(w) = self.mixture_weight {
-            if !w.is_finite() || w < 0.0 {
-                return Err(ProbError::InvalidPrior {
-                    message: "mixture weight must be finite and >= 0",
-                });
-            }
+        if let Some(w) = self.mixture_weight
+            && (!w.is_finite() || w < 0.0)
+        {
+            return Err(ProbError::InvalidPrior {
+                message: "mixture weight must be finite and >= 0",
+            });
         }
         Ok(())
     }
@@ -125,12 +125,12 @@ impl ExternalPriorSource {
     /// Invalid `weight`, or `ess` that is non-finite or negative.
     pub fn validate(&self) -> Result<(), ProbError> {
         self.weight.validate()?;
-        if let Some(ess) = self.ess {
-            if !ess.is_finite() || ess < 0.0 {
-                return Err(ProbError::InvalidPrior {
-                    message: "external prior source ess must be finite and >= 0",
-                });
-            }
+        if let Some(ess) = self.ess
+            && (!ess.is_finite() || ess < 0.0)
+        {
+            return Err(ProbError::InvalidPrior {
+                message: "external prior source ess must be finite and >= 0",
+            });
         }
         Ok(())
     }
@@ -181,9 +181,9 @@ impl ComposedPrior {}
 
 /// Compose external Gaussian coefficient priors with a baseline.
 ///
-/// * **Power path** (all `mixture_weight` are `None`):  
+/// * **Power path** (all `mixture_weight` are `None`):\
 ///   `Λ = Λ₀ + Σ α_k Λ_k`, mean from precision-weighted average.
-/// * **Mixture path** (all weights set): moment-match  
+/// * **Mixture path** (all weights set): moment-match\
 ///   `Σ w_k N(μ_k, V_k/α_k) + (1−Σw) · baseline`. Sources with `α_k = 0` are
 ///   dropped and their weight folds into leftover baseline mass.
 ///
@@ -1126,7 +1126,7 @@ mod tests {
         let composed = compose_external_priors(&[dense_source(1.0, Some(0.5))], &baseline).unwrap();
         let coef = composed.prior.gaussian_coefficients().unwrap();
         // μ = ½(1, −1); Σ = ½ V_src + ½ I + ½ m m' − μ μ'.
-        let cov01 = 0.5 * (-0.8 * 0.2 * 0.3) + 0.5 * (-1.0) - 0.25 * (-1.0);
+        let cov01 = 0.5 * (-0.8 * 0.2 * 0.3) + -0.5 - -0.25;
         let var0 = 0.5 * 0.04 + 0.5 + 0.5 - 0.25;
         let var1 = 0.5 * 0.09 + 0.5 + 0.5 - 0.25;
         assert!((coef.mean[0] - 0.5).abs() < 1e-12 && (coef.mean[1] + 0.5).abs() < 1e-12);

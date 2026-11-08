@@ -214,12 +214,12 @@ impl JpcmciPlus {
         all_vars.extend_from_slice(&logical_time_dummies);
         let frame = &pooled.frame;
 
-        if let Some(hard) = ctx.memory_limit_bytes() {
-            if frame.values_bytes() > hard {
-                return Err(DiscoveryError::Unsupported {
-                    message: "pooled lagged frame exceeds ExecutionContext memory hard limit",
-                });
-            }
+        if let Some(hard) = ctx.memory_limit_bytes()
+            && frame.values_bytes() > hard
+        {
+            return Err(DiscoveryError::Unsupported {
+                message: "pooled lagged frame exceeds ExecutionContext memory hard limit",
+            });
         }
 
         let mut mv_groups: Vec<Arc<[VariableId]>> = Vec::new();

@@ -380,8 +380,8 @@ pub(super) fn envelope_to_identification_result_for<G>(
             Arc::clone(&feature.detail),
         ));
     }
-    if let Some(inv) = &envelope.invariant {
-        if estimands.is_empty() {
+    if let Some(inv) = &envelope.invariant
+        && estimands.is_empty() {
             // `IdentificationEnvelope::from_cases` sets `invariant` to a clone of
             // the first identified case's first estimand, so its functional
             // belongs to that same case's arena.
@@ -391,7 +391,6 @@ pub(super) fn envelope_to_identification_result_for<G>(
             }
             estimands.push(inv);
         }
-    }
     IdentificationResult::from_parts(antecedent_identify::IdentificationResultParts {
         status: envelope.status,
         query,
@@ -900,11 +899,10 @@ fn identified_result_diagnostics(
     if matches!(
         args.estimator_id,
         EstimatorId::FunctionalEffect | EstimatorId::FunctionalDistribution
-    ) {
-        if let Some(diagnostic) = free_variables_averaged(&args.identification, &args.estimand) {
+    )
+        && let Some(diagnostic) = free_variables_averaged(&args.identification, &args.estimand) {
             push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
         }
-    }
     let structural_posteriors = args
         .extras
         .structural_response

@@ -413,16 +413,16 @@ impl<'a> Frame<'a> {
         let bytes = (rows_total as u64)
             .saturating_mul(width as u64)
             .saturating_mul(PREFLIGHT_BYTES_PER_CELL);
-        if let Some(limit) = input.memory_limit_bytes.or_else(|| ctx.memory_limit_bytes()) {
-            if bytes > limit {
-                return Err(CausalError::Resource {
-                    message: format!(
-                        "preflight would copy {rows_total} rows x {width} columns ({bytes} bytes), \
+        if let Some(limit) = input.memory_limit_bytes.or_else(|| ctx.memory_limit_bytes())
+            && bytes > limit
+        {
+            return Err(CausalError::Resource {
+                message: format!(
+                    "preflight would copy {rows_total} rows x {width} columns ({bytes} bytes), \
                          over the {limit}-byte memory limit; raise the limit, or run it on a \
                          subset or fewer columns"
-                    ),
-                });
-            }
+                ),
+            });
         }
         let schema = data.schema();
         let mut ids = input.treatments.clone();
@@ -693,12 +693,12 @@ pub fn preflight_design(
 
     for (j, col) in frame.adjustment_columns().iter().enumerate() {
         for (what, code, values) in query_columns(&frame) {
-            if let Some(r2) = r_squared(col, values) {
-                if r2 >= NEAR_DETERMINISTIC_R2 {
-                    let mut flag = review_flag(code, what, &adjustment_names[j], r2);
-                    flag.columns = vec![adjustment_names[j].clone(), what.to_string()];
-                    findings.push(flag);
-                }
+            if let Some(r2) = r_squared(col, values)
+                && r2 >= NEAR_DETERMINISTIC_R2
+            {
+                let mut flag = review_flag(code, what, &adjustment_names[j], r2);
+                flag.columns = vec![adjustment_names[j].clone(), what.to_string()];
+                findings.push(flag);
             }
         }
         if let Some(kind) = separates_arms(col, &frame.indicator) {
@@ -1271,10 +1271,10 @@ pub(super) fn name_stats_refusal(
         return error;
     };
     fields.subject = Some(report.subject.clone());
-    if fields.numerical_rank.is_some() {
-        if let Some(rank) = &report.rank {
-            fields.implicated_columns = rank.dependent.iter().map(|d| d.column.clone()).collect();
-        }
+    if fields.numerical_rank.is_some()
+        && let Some(rank) = &report.rank
+    {
+        fields.implicated_columns = rank.dependent.iter().map(|d| d.column.clone()).collect();
     }
     error.diagnosed(fields)
 }

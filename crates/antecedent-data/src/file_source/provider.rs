@@ -232,10 +232,10 @@ impl BatchProvider for Chained {
                     Some(open_one(self.format, path, stamp, &self.projection, self.batch_rows)?);
                 self.next += 1;
             }
-            if let Some(current) = self.current.as_mut() {
-                if let Some(batch) = current.next_batch()? {
-                    return Ok(Some(batch));
-                }
+            if let Some(current) = self.current.as_mut()
+                && let Some(batch) = current.next_batch()?
+            {
+                return Ok(Some(batch));
             }
             self.current = None;
         }

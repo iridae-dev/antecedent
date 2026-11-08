@@ -666,10 +666,10 @@ impl MeasurementModel {
                 return Err(MeasurementModelError::BlankField(name));
             }
         }
-        if let ArmBinding::Arm(arm) = &self.binding.arm {
-            if blank(arm) {
-                return Err(MeasurementModelError::BlankField("binding.arm"));
-            }
+        if let ArmBinding::Arm(arm) = &self.binding.arm
+            && blank(arm)
+        {
+            return Err(MeasurementModelError::BlankField("binding.arm"));
         }
         if self.indicator.kind == MeasurementKind::Observed {
             return Err(MeasurementModelError::ObservedIndicator);
@@ -825,12 +825,10 @@ impl MeasurementModel {
                 ));
             }
         }
-        if let Some(counts) = column_counts {
-            if counts.len() != k || counts.contains(&0) {
-                return Err(MeasurementModelError::InvalidParameter(
-                    ParameterFault::ValidationCounts,
-                ));
-            }
+        if let Some(counts) = column_counts
+            && (counts.len() != k || counts.contains(&0))
+        {
+            return Err(MeasurementModelError::InvalidParameter(ParameterFault::ValidationCounts));
         }
         if !(max_condition.is_finite() && max_condition >= 1.0) {
             return Err(MeasurementModelError::InvalidParameter(ParameterFault::ConditionNumber));

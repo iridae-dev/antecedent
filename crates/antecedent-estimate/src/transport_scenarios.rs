@@ -18,6 +18,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 use antecedent_core::VariableId;
@@ -750,12 +751,13 @@ fn outcome_detail(
             let mut detail = obligations.join("; ");
             if let Some(candidate) = candidate {
                 let hedge = candidate.s_hedge().to_record();
-                detail.push_str(&format!(
+                let _ = write!(
+                    detail,
                     "; inspection-only candidate (not a proof): reduced-joint s-hedge forest \
                      {{{}}} inside {{{}}}",
                     names(&hedge.smaller.nodes),
                     names(&hedge.larger.nodes)
-                ));
+                );
             }
             detail
         }
@@ -765,11 +767,12 @@ fn outcome_detail(
                 .to_owned();
             if let Some(candidate) = proof.candidate() {
                 let hedge = candidate.s_hedge().to_record();
-                detail.push_str(&format!(
+                let _ = write!(
+                    detail,
                     "; reduced-joint s-hedge forest {{{}}} inside {{{}}}",
                     names(&hedge.smaller.nodes),
                     names(&hedge.larger.nodes)
-                ));
+                );
             }
             detail
         }

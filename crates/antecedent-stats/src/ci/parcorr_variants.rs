@@ -363,7 +363,7 @@ impl MultivariatePartialCorrelation {
                 let q = z_flat.len() as f64 + 1.0;
                 let n_resid = n as f64 - q;
                 let df = (px * py) as f64;
-                let multiplier = n_resid - ((px + py) as f64 + 1.0) / 2.0;
+                let multiplier = n_resid - f64::midpoint((px + py) as f64, 1.0);
                 if multiplier <= 0.0 {
                     return Err(StatsError::Shape { message: "non-positive residual df" });
                 }

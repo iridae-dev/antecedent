@@ -21,15 +21,14 @@ use crate::table::TableView;
     reason = "Exchangeability requires exactly equal finite observation weights."
 )]
 fn require_uniform_weights(data: &TimeSeriesData) -> Result<(), DataError> {
-    if let Some(weights) = data.storage().weights() {
-        if let Some(&first) = weights.first() {
-            if !first.is_finite() || weights.iter().any(|&w| !w.is_finite() || w != first) {
-                return Err(DataError::invalid_value(
-                    "surrogate observation weights",
-                    "nonuniform weights do not support exchangeable surrogates",
-                ));
-            }
-        }
+    if let Some(weights) = data.storage().weights()
+        && let Some(&first) = weights.first()
+        && (!first.is_finite() || weights.iter().any(|&w| !w.is_finite() || w != first))
+    {
+        return Err(DataError::invalid_value(
+            "surrogate observation weights",
+            "nonuniform weights do not support exchangeable surrogates",
+        ));
     }
     Ok(())
 }
@@ -163,7 +162,7 @@ fn phase_randomize_column(
 
     // spectrum[0] = DC (real). spectrum[last] = Nyquist when n even (must stay real).
     let last = spectrum.len() - 1;
-    let nyquist_real = n % 2 == 0;
+    let nyquist_real = n.is_multiple_of(2);
     for (k, bin) in spectrum.iter_mut().enumerate().skip(1) {
         if nyquist_real && k == last {
             *bin = Complex::new(bin.re, 0.0);

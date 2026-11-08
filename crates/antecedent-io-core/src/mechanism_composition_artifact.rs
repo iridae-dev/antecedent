@@ -845,10 +845,10 @@ pub fn mechanism_composition_identity(
 fn check_query_bounds(
     query: &CompositionQueryWire,
 ) -> Result<(), MechanismCompositionArtifactError> {
-    if let CompositionQueryWire::GaussianMeanContrast { arms, .. } = query {
-        if arms.is_empty() {
-            return Err(MechanismCompositionArtifactError::LimitsExceeded("arms"));
-        }
+    if let CompositionQueryWire::GaussianMeanContrast { arms, .. } = query
+        && arms.is_empty()
+    {
+        return Err(MechanismCompositionArtifactError::LimitsExceeded("arms"));
     }
     Ok(())
 }
@@ -1023,10 +1023,10 @@ impl MechanismCompositionArtifactWire {
         if recomputed != self.premises_digest {
             return Err(MechanismCompositionArtifactError::PremisesMismatch);
         }
-        if let Some(expected) = expected_identity {
-            if expected != recomputed {
-                return Err(MechanismCompositionArtifactError::PremisesMismatch);
-            }
+        if let Some(expected) = expected_identity
+            && expected != recomputed
+        {
+            return Err(MechanismCompositionArtifactError::PremisesMismatch);
         }
         let spec = self.premises.to_spec()?;
         let (family, result) = evaluate_composition_query(&spec, &self.query, ctx)?;

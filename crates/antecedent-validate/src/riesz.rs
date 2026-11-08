@@ -489,7 +489,7 @@ mod tests {
             }
             None => assert!(report.comparison.is_infinite(), "comparison={}", report.comparison),
         }
-        if let Some(prev) = grid.iter().copied().filter(|&d| d < report.comparison).last() {
+        if let Some(prev) = grid.iter().copied().rfind(|&d| d < report.comparison) {
             assert!(prev * unit < ate.abs(), "δ={prev} already explains away |ate|={}", ate.abs());
         }
     }

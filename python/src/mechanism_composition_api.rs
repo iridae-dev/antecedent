@@ -37,6 +37,7 @@ use antecedent::{
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
+use std::fmt::Write as _;
 
 use crate::evidence_ledger_api::EvidenceLedgerHandle;
 use crate::measurement_model_api::{
@@ -64,13 +65,13 @@ pub(crate) fn interval_json(interval: &FirstOrderInterval) -> String {
 fn one_refusal(refusal: &ExternalRefusal) -> Json {
     let mut message = String::new();
     if let Some(expected) = &refusal.expected {
-        message.push_str(&format!("expected `{expected}`"));
+        let _ = write!(message, "expected `{expected}`");
     }
     if let Some(supplied) = &refusal.supplied {
         if !message.is_empty() {
             message.push_str("; ");
         }
-        message.push_str(&format!("supplied `{supplied}`"));
+        let _ = write!(message, "supplied `{supplied}`");
     }
     json!({
         "code": refusal.code,

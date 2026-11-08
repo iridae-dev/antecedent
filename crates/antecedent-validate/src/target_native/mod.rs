@@ -191,11 +191,7 @@ impl RefutationTarget {
             });
         }
         let mut writer = CanonicalWriter::new("antecedent.refutation_target");
-        writer
-            .text(family.as_str())
-            .text(quadrant.as_str())
-            .texts(&labels)
-            .bytes(&source);
+        writer.text(family.as_str()).text(quadrant.as_str()).texts(&labels).bytes(&source);
         let identity = writer.finish();
         Ok(Self { family, quadrant, labels, source, identity })
     }

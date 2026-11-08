@@ -154,7 +154,9 @@ pub(crate) fn xtx_inverse_qr(x_colmajor: &[f64], nrows: usize, ncols: usize) -> 
         if !(norm.is_finite() && norm > 0.0) {
             return None;
         }
-        column.iter_mut().for_each(|v| *v /= norm);
+        for v in column.iter_mut() {
+            *v /= norm;
+        }
         *s = norm;
     }
     // Householder triangularisation; `r[k]` is the diagonal entry of the k-th reflection.

@@ -114,7 +114,7 @@ pub fn marginal_interval_candidate(
     check_level(level)?;
     Ok(IntervalCandidate {
         lower: marginal.quantile((1.0 - level) / 2.0)?,
-        upper: marginal.quantile((1.0 + level) / 2.0)?,
+        upper: marginal.quantile(f64::midpoint(1.0, level))?,
         level,
         construction: MIXTURE_EQUAL_TAIL_CONSTRUCTION,
         calibration: CALIBRATION_STATUS,

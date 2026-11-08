@@ -848,25 +848,25 @@ pub fn fit_nested_markov(
             RouteCheck::new(false, RouteMass::zero()),
         ),
     };
-    if let Some(limit) = options.refuse_constraint_residual_above {
-        if residuals.max_abs > limit {
-            return Err(routed(
-                numerical(
-                    "constraint_violated",
-                    "the empirical law violates the nested-Markov equality constraints",
-                    RefusalFields {
-                        stage: Some("nested_markov.fit".to_owned()),
-                        reason: Some("equality constraint violated by the data".to_owned()),
-                        ..RefusalFields::default()
-                    },
-                ),
-                Some(&diag),
-                RouteNativeDiagnostic::check(
-                    RouteKind::ConstrainedDraws,
-                    RouteCheck::new(true, RouteMass::unreported()),
-                ),
-            ));
-        }
+    if let Some(limit) = options.refuse_constraint_residual_above
+        && residuals.max_abs > limit
+    {
+        return Err(routed(
+            numerical(
+                "constraint_violated",
+                "the empirical law violates the nested-Markov equality constraints",
+                RefusalFields {
+                    stage: Some("nested_markov.fit".to_owned()),
+                    reason: Some("equality constraint violated by the data".to_owned()),
+                    ..RefusalFields::default()
+                },
+            ),
+            Some(&diag),
+            RouteNativeDiagnostic::check(
+                RouteKind::ConstrainedDraws,
+                RouteCheck::new(true, RouteMass::unreported()),
+            ),
+        ));
     }
     let direct = parameters_from_law(&law).map_err(plain)?;
     let rebuilt = direct.cell_probabilities();

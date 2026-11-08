@@ -26,13 +26,13 @@ use std::collections::VecDeque;
 
 use antecedent_core::CausalRng;
 
+use super::AdaptiveInferenceError as Error;
 use super::capacity::{CapacityError, ResourceBudget, ResourceReceipt, SimulationShape};
 use super::procedure_contract::{Attribution, ProcedureSpec};
-use super::procedure_law::{deliveries, Rules};
+use super::procedure_law::{Rules, deliveries};
 use super::weighting::{
-    adaptive_scores, weighted_estimate, Estimand, OutcomeModelPrior, WeightScheme,
+    Estimand, OutcomeModelPrior, WeightScheme, adaptive_scores, weighted_estimate,
 };
-use super::AdaptiveInferenceError as Error;
 
 /// Most replications one simulation accepts.
 pub const MAX_SIMULATION_REPLICATIONS: u32 = 1_000_000;
@@ -284,15 +284,15 @@ fn simulate_one_procedure(
             });
         }
         pending.push_back(batch);
-        if pending.len() > lag {
-            if let Some(aged) = pending.pop_front() {
-                for index in aged {
-                    let unit = &units[index];
-                    if unit.observed {
-                        let cell = unit.context * arms + unit.attributed;
-                        observed[2 * cell + usize::from(!unit.success)] += 1;
-                        revealed.push(index);
-                    }
+        if pending.len() > lag
+            && let Some(aged) = pending.pop_front()
+        {
+            for index in aged {
+                let unit = &units[index];
+                if unit.observed {
+                    let cell = unit.context * arms + unit.attributed;
+                    observed[2 * cell + usize::from(!unit.success)] += 1;
+                    revealed.push(index);
                 }
             }
         }

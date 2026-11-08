@@ -199,11 +199,11 @@ struct Ascending<'a, T, S> {
 impl<T: Ord + Copy, I: Iterator<Item = T>, S: Fn() -> I> Iterator for Ascending<'_, T, S> {
     type Item = T;
     fn next(&mut self) -> Option<T> {
-        if let Some((value, remaining)) = &mut self.run {
-            if *remaining > 0 {
-                *remaining -= 1;
-                return Some(*value);
-            }
+        if let Some((value, remaining)) = &mut self.run
+            && *remaining > 0
+        {
+            *remaining -= 1;
+            return Some(*value);
         }
         if self.stopped.get() || (self.should_stop)() {
             self.stopped.set(true);
@@ -599,10 +599,10 @@ mod tests {
             let marks = [Endpoint::Tail, Endpoint::Arrow, Endpoint::Circle];
             for (i, &a) in ids.iter().enumerate() {
                 for (j, &b) in ids.iter().enumerate().skip(i + 1) {
-                    if (i * 7 + j * 3 + seed as usize) % 3 == 0 {
+                    if (i * 7 + j * 3 + seed as usize).is_multiple_of(3) {
                         let _ = dag.insert_directed(a, b);
                     }
-                    if (i * 5 + j * 11 + seed as usize) % 2 == 0 {
+                    if (i * 5 + j * 11 + seed as usize).is_multiple_of(2) {
                         let edge = MarkedEdge {
                             a: mag_ids[i],
                             b: mag_ids[j],

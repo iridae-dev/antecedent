@@ -656,12 +656,12 @@ impl PyProgressSink {
 impl antecedent::execution::ProgressSink for PyProgressSink {
     fn report(&self, fraction: f64, stage: &str) {
         Python::attach(|py| {
-            if let Err(err) = self.callback.bind(py).call1((fraction, stage)) {
-                if let Err(unscoped) = crate::interrupt::observer_failure(err) {
-                    // Outside an executing run no Result boundary owns this observer.
-                    // Keep the historical diagnostic without leaking it into another run.
-                    unscoped.print(py);
-                }
+            if let Err(err) = self.callback.bind(py).call1((fraction, stage))
+                && let Err(unscoped) = crate::interrupt::observer_failure(err)
+            {
+                // Outside an executing run no Result boundary owns this observer.
+                // Keep the historical diagnostic without leaking it into another run.
+                unscoped.print(py);
             }
         });
     }
@@ -719,10 +719,10 @@ impl antecedent::StageResultSink for PyStageResultSink {
                     d
                 }
             };
-            if let Err(err) = self.callback.bind(py).call1((event.stage_id(), payload)) {
-                if let Err(unscoped) = crate::interrupt::observer_failure(err) {
-                    unscoped.print(py);
-                }
+            if let Err(err) = self.callback.bind(py).call1((event.stage_id(), payload))
+                && let Err(unscoped) = crate::interrupt::observer_failure(err)
+            {
+                unscoped.print(py);
             }
         });
     }

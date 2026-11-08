@@ -467,10 +467,9 @@ impl super::super::Study {
         if self.settings.inference.is_bayesian()
             && envelope.unidentified_weight.0 <= 1e-12
             && unestimated_id_mass <= 1e-12
+            && let Some(shared) = shared_completion_uncertainty(&weighted)
         {
-            if let Some(shared) = shared_completion_uncertainty(&weighted) {
-                mixed.uncertainty = shared;
-            }
+            mixed.uncertainty = shared;
         }
         let mixed_scores = if atom_scores.len() == weighted.len()
             && envelope.unidentified_weight.0 <= 1e-12

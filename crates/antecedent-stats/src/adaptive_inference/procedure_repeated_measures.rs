@@ -61,24 +61,24 @@
 
 mod covariance;
 
-pub(super) use covariance::gls_unit_summary;
 use covariance::Covariance;
+pub(super) use covariance::gls_unit_summary;
 
 use std::collections::VecDeque;
 
 use antecedent_core::CausalRng;
 use antecedent_kernels::norm_cdf;
 
+use super::AdaptiveInferenceError as Error;
 use super::capacity::{CapacityError, ResourceBudget, ResourceReceipt, SimulationShape};
 use super::procedure_contract::{
-    ContractGap, ProcedureContractError, StoppingRule, MAX_PROCEDURE_ARMS, MAX_PROCEDURE_UNITS,
+    ContractGap, MAX_PROCEDURE_ARMS, MAX_PROCEDURE_UNITS, ProcedureContractError, StoppingRule,
 };
 use super::procedure_simulation::MAX_SIMULATION_REPLICATIONS;
-use super::procedure_uncertainty::{UncertaintyParadigm, DERIVED_NOT_MEASURED};
+use super::procedure_uncertainty::{DERIVED_NOT_MEASURED, UncertaintyParadigm};
 use super::weighting::{
-    adaptive_scores, weighted_estimate, Estimand, OutcomeModelPrior, WeightScheme,
+    Estimand, OutcomeModelPrior, WeightScheme, adaptive_scores, weighted_estimate,
 };
-use super::AdaptiveInferenceError as Error;
 
 /// Most measurements per unit (or members per cluster).
 pub const MAX_MEASUREMENTS_PER_UNIT: u32 = 32;
@@ -1236,13 +1236,13 @@ pub fn simulate_repeated_measures_within(
                 });
             }
             pending.push_back(batch);
-            if pending.len() > spec.lag_looks {
-                if let Some(aged) = pending.pop_front() {
-                    for index in aged {
-                        sums[units[index].arm] += units[index].summary;
-                        counts[units[index].arm] += 1;
-                        revealed.push(index);
-                    }
+            if pending.len() > spec.lag_looks
+                && let Some(aged) = pending.pop_front()
+            {
+                for index in aged {
+                    sums[units[index].arm] += units[index].summary;
+                    counts[units[index].arm] += 1;
+                    revealed.push(index);
                 }
             }
         }

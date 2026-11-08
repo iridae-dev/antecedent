@@ -196,9 +196,7 @@ fn external_aipw_crossfit(
         || design[0].is_empty()
         || design.iter().any(|row| row.len() != design[0].len())
     {
-        return Err(crate::value_err(
-            "design must be a nonempty rectangular matrix",
-        ));
+        return Err(crate::value_err("design must be a nonempty rectangular matrix"));
     }
     let n = design.len();
     let cols = design[0].len();
@@ -211,8 +209,7 @@ fn external_aipw_crossfit(
         .ok_or_else(|| crate::value_err("design size overflow"))?;
     let _input_hold = ctx.acquire_admission(0, bytes).map_err(|e| admission_error(e, &ctx))?;
     let mut column_major = Vec::with_capacity(
-        n.checked_mul(cols)
-            .ok_or_else(|| crate::value_err("design size overflow"))?,
+        n.checked_mul(cols).ok_or_else(|| crate::value_err("design size overflow"))?,
     );
     for c in 0..cols {
         for row in &design {
@@ -323,9 +320,7 @@ fn external_dml_ate(
 )> {
     use antecedent::data::TableView;
     if names.len() != columns.len() || names.is_empty() {
-        return Err(crate::value_err(
-            "one data column is required per name",
-        ));
+        return Err(crate::value_err("one data column is required per name"));
     }
     let task_and_weights = |obj: &Py<PyAny>, expected: &str| -> PyResult<bool> {
         let bound = obj.bind(py);

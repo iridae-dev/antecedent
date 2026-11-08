@@ -952,20 +952,18 @@ impl ExternalCallbackSession {
                 .to_bytes("executed-attested-callback")
                 .map_err(|error| ExternalCallbackError::Artifact(error.to_string()))?,
         };
-        if let Some(portable) = &self.portable {
-            if artifact.identity != portable.identity
+        if let Some(portable) = &self.portable
+            && (artifact.identity != portable.identity
                 || scientific.values()
                     != ExternalClaimArtifact::from_bytes(&portable.artifact, &portable.identity)
                         .map_err(|error| ExternalCallbackError::Artifact(error.to_string()))?
-                        .values()
-            {
-                return Err(ExternalCallbackError::Attempt {
-                    detail: antecedent_core::reason_details::external_recalc::REPLAY_MISMATCH,
-                    report,
-                    message: "provided callback did not reproduce the portable attested output"
-                        .into(),
-                });
-            }
+                        .values())
+        {
+            return Err(ExternalCallbackError::Attempt {
+                detail: antecedent_core::reason_details::external_recalc::REPLAY_MISMATCH,
+                report,
+                message: "provided callback did not reproduce the portable attested output".into(),
+            });
         }
         Ok((claim, artifact))
     }

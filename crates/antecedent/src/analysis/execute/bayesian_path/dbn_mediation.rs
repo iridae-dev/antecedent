@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt::Write as _;
+
 use antecedent_data::TableView;
 
 use super::{
@@ -790,7 +792,7 @@ fn dbn_mediation_diagnostics(
     let mut demotion_summary =
         identified.identify_demotion.summary(prepare_demoted, fit_demoted, draws_demoted);
     if let Some(error) = first_estimation_error.as_ref() {
-        demotion_summary.push_str(&format!("; first_estimation_error={error:?}"));
+        let _ = write!(demotion_summary, "; first_estimation_error={error:?}");
     }
     diagnostics.push(Diagnostic::new(
         "estimate.dbn_posterior.atom_demotion",

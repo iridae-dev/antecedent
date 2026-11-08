@@ -655,34 +655,32 @@ fn mix_atom_response(
                 }
                 _ => ResponseUncertainty::None,
             };
-            if bayesian {
-                if let Some(ResponseValue::Scalar(point)) = &value {
-                    if let Some(draws) = pooled_credible_draws(fits) {
-                        super::temporal_point_uncertainty::attach_posterior_response_band(
-                            &mut response,
-                            &draws,
-                            &[*point],
-                        );
-                        diagnostics.push(Diagnostic::new(
-                            ATOM_ROUTE_POSTERIOR_CODE,
-                            DiagnosticKind::Scientific,
-                            DiagnosticSeverity::Info,
-                            "pooled credible draws: draw d of the mixture is the \
+            if bayesian && let Some(ResponseValue::Scalar(point)) = &value {
+                if let Some(draws) = pooled_credible_draws(fits) {
+                    super::temporal_point_uncertainty::attach_posterior_response_band(
+                        &mut response,
+                        &draws,
+                        &[*point],
+                    );
+                    diagnostics.push(Diagnostic::new(
+                        ATOM_ROUTE_POSTERIOR_CODE,
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Info,
+                        "pooled credible draws: draw d of the mixture is the \
                              posterior-weighted sum of draw d of every contributing \
                              atom's response draws, all run in one context so that \
                              draw d is one draw of the row weights",
-                        ));
-                    } else {
-                        diagnostics.push(Diagnostic::new(
-                            NO_UNCERTAINTY_METHOD_CODE,
-                            DiagnosticKind::Scientific,
-                            DiagnosticSeverity::Warning,
-                            "no aggregate credible interval: the atoms' response \
+                    ));
+                } else {
+                    diagnostics.push(Diagnostic::new(
+                        NO_UNCERTAINTY_METHOD_CODE,
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Warning,
+                        "no aggregate credible interval: the atoms' response \
                              draws differ in count or are not retained, so they are \
                              not draws of one shared run; each atom's own interval is \
                              kept on the structural mixture",
-                        ));
-                    }
+                    ));
                 }
             }
             let supports: Vec<&antecedent_core::SupportReport> = fits
@@ -714,11 +712,11 @@ fn mix_atom_response(
             None,
             None,
         );
-        if contributing == 1 {
-            if let Some(own) = representative.1.estimate.as_effect() {
-                estimate.uncertainty = own.uncertainty;
-                estimate.scores.influence.clone_from(&own.scores.influence);
-            }
+        if contributing == 1
+            && let Some(own) = representative.1.estimate.as_effect()
+        {
+            estimate.uncertainty = own.uncertainty;
+            estimate.scores.influence.clone_from(&own.scores.influence);
         }
         return Some(ResultPayload::Response(response));
     }
@@ -821,10 +819,8 @@ impl super::Study {
             records.push(AtomRecord { key, graph, study, run });
         }
         let fitted = records.iter().any(|record| matches!(record.run, AtomRun::Fit(_)));
-        if !fitted {
-            if let Some(error) = refusal {
-                return Err(error);
-            }
+        if !fitted && let Some(error) = refusal {
+            return Err(error);
         }
         Ok(records)
     }

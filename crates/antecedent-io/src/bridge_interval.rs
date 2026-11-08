@@ -34,15 +34,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_contract::ExternalRefusal;
 use antecedent_contract::bridge::{
     BridgeMapping, BridgedClaim, MappingKind, MeasurementDirection, SourceMappingDependence,
     TrialEffectPair,
 };
-use antecedent_contract::ExternalRefusal;
 use antecedent_core::measurement_model::{MeasurementParameters, ParameterEvidence};
 use antecedent_core::reason_code;
 use antecedent_io_core::calibration::{
-    calibration_slot, CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire,
+    CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
 };
 use antecedent_io_core::contract_section::{CalibrationSlotWire, CalibrationStatus};
 use antecedent_stats::{normal_ppf, student_t_ppf};
@@ -173,15 +173,14 @@ fn validate_bridge_interval_input(
 ) -> Result<f64, ExternalRefusal> {
     if let (BridgeMapping::Identity | BridgeMapping::Affine { .. }, Some(uncertainty)) =
         (&bridged.contract.mapping, &bridged.contract.mapping_uncertainty)
+        && (uncertainty.intercept_variance > 0.0 || uncertainty.slope_variance > 0.0)
     {
-        if uncertainty.intercept_variance > 0.0 || uncertainty.slope_variance > 0.0 {
-            return Err(bridge_interval_scope_refusal(format!(
-                "the affine map declares uncertainty `{}`: it is no exact transform of the \
+        return Err(bridge_interval_scope_refusal(format!(
+            "the affine map declares uncertainty `{}`: it is no exact transform of the \
                  source interval, and its propagated variance is an uncalibrated spread that no \
                  coverage record measured",
-                uncertainty.id
-            )));
-        }
+            uncertainty.id
+        )));
     }
     if let Some(SourceMappingDependence::SlopeCovariance { evidence, .. }) =
         &bridged.contract.source_dependence

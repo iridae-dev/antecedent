@@ -513,7 +513,7 @@ impl McmcDoSampler {
                     accepted += 1;
                 }
             }
-            if i >= self.burn_in && (i - self.burn_in) % self.thin.max(1) == 0 {
+            if i >= self.burn_in && (i - self.burn_in).is_multiple_of(self.thin.max(1)) {
                 out.push(current);
                 if out.len() == n_samples {
                     break;

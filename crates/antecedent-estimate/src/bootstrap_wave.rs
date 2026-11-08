@@ -1068,7 +1068,7 @@ mod adaptive_resample {
             let stopped = run_adaptive_resample_wave(&request, &ctx, |draw| {
                 let current = id;
                 id += 1;
-                if current % 3 == 0 { Ok(None) } else { mean_rows(&DATA, draw) }
+                if current.is_multiple_of(3) { Ok(None) } else { mean_rows(&DATA, draw) }
             })
             .unwrap();
             let mut expect_ok = 0u32;
@@ -1076,7 +1076,7 @@ mod adaptive_resample {
             let mut replicate = 0u32;
             while expect_ok < budget.required_replicates() {
                 expect_attempted += 1;
-                if replicate % 3 != 0 {
+                if !replicate.is_multiple_of(3) {
                     expect_ok += 1;
                 }
                 replicate += 1;
@@ -1098,7 +1098,7 @@ mod adaptive_resample {
             let prefix_run = run_adaptive_resample_wave(&prefix, &ctx, |draw| {
                 let current = prefix_id;
                 prefix_id += 1;
-                if current % 3 == 0 { Ok(None) } else { mean_rows(&DATA, draw) }
+                if current.is_multiple_of(3) { Ok(None) } else { mean_rows(&DATA, draw) }
             })
             .unwrap();
             assert!(!prefix_run.early_stopped);
@@ -1129,7 +1129,7 @@ mod adaptive_resample {
             let majority_run = run_adaptive_resample_wave(&majority, &ctx, |draw| {
                 let current = majority_id;
                 majority_id += 1;
-                if current % 3 == 0 { mean_rows(&DATA, draw) } else { Ok(None) }
+                if current.is_multiple_of(3) { mean_rows(&DATA, draw) } else { Ok(None) }
             })
             .unwrap();
             accounted(&majority_run);

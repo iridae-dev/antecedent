@@ -313,12 +313,12 @@ impl ConfusionMatrix {
                 ));
             }
         }
-        if let Some(counts) = &column_counts {
-            if counts.len() != levels || counts.contains(&0) {
-                return Err(MeasurementErrorError::InvalidParameter(
-                    "validation counts need one positive count per true category",
-                ));
-            }
+        if let Some(counts) = &column_counts
+            && (counts.len() != levels || counts.contains(&0))
+        {
+            return Err(MeasurementErrorError::InvalidParameter(
+                "validation counts need one positive count per true category",
+            ));
         }
         Ok(Self { levels, matrix, column_counts })
     }

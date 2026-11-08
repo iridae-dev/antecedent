@@ -431,16 +431,16 @@ fn invariant_source<'a>(
             ),
         ));
     }
-    if let ArmBinding::Arm(arm) = &source.binding.arm {
-        if data.arm_id.as_deref() != Some(arm.as_str()) {
-            return Err(refusal(
-                antecedent_core::reason_code!("measurement_binding_mismatch"),
-                antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
-                format!(
-                    "the model is bound to arm `{arm}`; the invariance premise covers the population only"
-                ),
-            ));
-        }
+    if let ArmBinding::Arm(arm) = &source.binding.arm
+        && data.arm_id.as_deref() != Some(arm.as_str())
+    {
+        return Err(refusal(
+            antecedent_core::reason_code!("measurement_binding_mismatch"),
+            antecedent_core::reason_details::measurement_model::ARM_MISMATCH,
+            format!(
+                "the model is bound to arm `{arm}`; the invariance premise covers the population only"
+            ),
+        ));
     }
     Ok(source)
 }

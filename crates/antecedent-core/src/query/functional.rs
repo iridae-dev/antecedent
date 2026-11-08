@@ -20,8 +20,10 @@ use super::attribution::OrderedFloatBits;
 /// with an indicator of the upper tail; the adjustment set does not change.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
+#[derive(Default)]
 pub enum OutcomeFunctional {
     /// `E[Y(a)]` (default).
+    #[default]
     Mean,
     /// `P(Y(a) > c)` at a single threshold.
     Exceedance(OrderedFloatBits),
@@ -51,12 +53,6 @@ impl CanonicalEncode for OutcomeFunctional {
                 writer.word(4).real(tau.to_f64());
             }
         }
-    }
-}
-
-impl Default for OutcomeFunctional {
-    fn default() -> Self {
-        Self::Mean
     }
 }
 

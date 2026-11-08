@@ -41,10 +41,9 @@ pub(super) fn refute_class_intervention_atoms<G>(
     let mut ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
     if let antecedent_core::ResponseFunctional::InterventionResponse { interventions, .. } =
         &query.functional
+        && let [action] = interventions.as_ref()
     {
-        if let [action] = interventions.as_ref() {
-            ate_query.active = action.clone();
-        }
+        ate_query.active = action.clone();
     }
     ate_query.target_population = query.target_population.clone();
     let mut workspace = EstimationWorkspace::default();

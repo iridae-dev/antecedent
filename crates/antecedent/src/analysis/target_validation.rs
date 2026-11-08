@@ -773,15 +773,14 @@ pub fn refute_prepared_target(
             });
         }
     };
-    if let Some(lowered) = prepared.plan().lowered() {
-        if lowered.semantic_identity().is_none()
-            || lowered.semantic_identity() != result.lowered_program_identity()
-        {
-            return Err(CausalError::Conflict {
-                what: "program",
-                detail: "the result was not produced by this prepared handle's lowered program",
-            });
-        }
+    if let Some(lowered) = prepared.plan().lowered()
+        && (lowered.semantic_identity().is_none()
+            || lowered.semantic_identity() != result.lowered_program_identity())
+    {
+        return Err(CausalError::Conflict {
+            what: "program",
+            detail: "the result was not produced by this prepared handle's lowered program",
+        });
     }
     let plan = TargetRefutationPlan::for_target(target.clone(), suite);
     let refit = PreparedRefit {

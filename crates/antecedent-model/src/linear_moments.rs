@@ -3,8 +3,8 @@
 //! Aggregation retains each joint intervention regime and all cross moments;
 //! it never substitutes local equilibrium regressions for the joint likelihood.
 use crate::nonlinear_equilibrium::{
-    cholesky, local_positions, Activation, Clamp, EquilibriumError, EquilibriumModel,
-    MechanismLikelihoodScore, RegimeRow, MAX_ORDER,
+    Activation, Clamp, EquilibriumError, EquilibriumModel, MAX_ORDER, MechanismLikelihoodScore,
+    RegimeRow, cholesky, local_positions,
 };
 use crate::sparse_equilibrium::{FactorError, SolverBudgetCode, SparseLu};
 use antecedent_core::ExecutionContext;

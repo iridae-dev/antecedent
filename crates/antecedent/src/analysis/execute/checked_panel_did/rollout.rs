@@ -15,11 +15,13 @@
 //! interval is unsupported with calibration `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt::Write as _;
+
 use super::super::bayesian_quasi_common::{
-    effect_quantity, finish_design_posterior_as, scalar_quantity, DesignFinish, DesignPosterior,
+    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior_as, scalar_quantity,
 };
 use super::super::rollout_finish::{
-    finish_rollout, named, rollout_payload, split_report, RolloutReport,
+    RolloutReport, finish_rollout, named, rollout_payload, split_report,
 };
 use super::{
     Arc, CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EstimatorId,
@@ -31,12 +33,12 @@ use antecedent_core::{
     PanelObservationProcess, RolloutDidEstimator,
 };
 use antecedent_data::{MissingPolicy, PanelLayout, PreparationMode};
+use antecedent_estimate::EstimationError;
 use antecedent_estimate::heterogeneity_robust_did::{
-    estimate_rollout_did, posterior_rollout_did, RolloutDidFit, RolloutDidSpec, RolloutPanel,
-    RolloutResampling,
+    RolloutDidFit, RolloutDidSpec, RolloutPanel, RolloutResampling, estimate_rollout_did,
+    posterior_rollout_did,
 };
 use antecedent_estimate::rollout_resampling::UnitWeighting;
-use antecedent_estimate::EstimationError;
 
 /// The unit weighting of a declared resampling scheme.
 pub(super) const fn weighting(scheme: DidResamplingScheme) -> UnitWeighting {
@@ -75,11 +77,7 @@ fn rollout_draw_sd(draws: &[f64]) -> f64 {
         return f64::NAN;
     }
     let sd = antecedent_stats::sample_std(draws);
-    if sd.is_finite() {
-        sd
-    } else {
-        f64::NAN
-    }
+    if sd.is_finite() { sd } else { f64::NAN }
 }
 
 impl super::CheckedPanelDidOperation {
@@ -465,10 +463,10 @@ impl super::CheckedPanelDidOperation {
             robust.aggregation.as_str()
         );
         if robust.estimator != RolloutDidEstimator::Imputation {
-            method.push_str(&format!(".base_{}", robust.base_period.as_str()));
+            let _ = write!(method, ".base_{}", robust.base_period.as_str());
         }
         if robust.anticipation > 0 {
-            method.push_str(&format!(".anticipation_{}", robust.anticipation));
+            let _ = write!(method, ".anticipation_{}", robust.anticipation);
         }
         let mut effects =
             Vec::with_capacity(1 + fit.aggregated.len() + fit.group_time.len() + fit.leads.len());

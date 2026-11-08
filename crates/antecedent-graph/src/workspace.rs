@@ -24,10 +24,10 @@ impl BitSet {
     pub fn full(len: usize) -> Self {
         let mut set = Self { words: vec![u64::MAX; len.div_ceil(64)], len };
         let tail = len % 64;
-        if tail != 0 {
-            if let Some(last) = set.words.last_mut() {
-                *last = (1u64 << tail) - 1;
-            }
+        if tail != 0
+            && let Some(last) = set.words.last_mut()
+        {
+            *last = (1u64 << tail) - 1;
         }
         set
     }
@@ -47,10 +47,10 @@ impl BitSet {
         self.len = len;
         self.words.resize(len.div_ceil(64), 0);
         let tail = len % 64;
-        if tail != 0 {
-            if let Some(last) = self.words.last_mut() {
-                *last &= (1u64 << tail) - 1;
-            }
+        if tail != 0
+            && let Some(last) = self.words.last_mut()
+        {
+            *last &= (1u64 << tail) - 1;
         }
     }
 

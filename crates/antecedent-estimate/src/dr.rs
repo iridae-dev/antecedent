@@ -439,10 +439,7 @@ impl DrLearner {
         Ok((effect, results))
     }
 
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one cohesive nuisance-fit-and-profile routine"
-    )]
+    #[allow(clippy::too_many_lines, reason = "one cohesive nuisance-fit-and-profile routine")]
     fn fit_with_profiles(
         &self,
         problem: &PreparedPropensityProblem,

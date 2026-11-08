@@ -214,7 +214,7 @@ mod tests {
             for k in 0..60_usize {
                 let base = ((k as f64) * 0.37 + period as f64).sin();
                 let history = [base, base + 0.1 * ((k % 5) as f64 - 2.0)];
-                let score = (history[0] + history[1]) / 2.0;
+                let score = f64::midpoint(history[0], history[1]);
                 let treated = score + ((k as f64) * 0.11).cos() * 0.8 > 0.0;
                 let effect = 1.0 + 2.0 * score;
                 let wiggle = ((k as f64) * 1.3).sin() * 0.05;

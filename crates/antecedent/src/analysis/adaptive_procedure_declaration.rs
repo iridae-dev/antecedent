@@ -24,7 +24,7 @@ use antecedent_contract::adaptive_design::{
 };
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_stats::adaptive_inference::group_sequential::{
-    boundaries, Sidedness, SpendingFunction,
+    Sidedness, SpendingFunction, boundaries,
 };
 use antecedent_stats::adaptive_inference::{
     AssignmentRule, Attribution, BetaPrior, ContractGap, ExposureModel, FinalSelection,

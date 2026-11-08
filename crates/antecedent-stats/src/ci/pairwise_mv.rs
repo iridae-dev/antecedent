@@ -49,7 +49,7 @@ impl PairwiseMultivariateCi {
 
     fn expand_endpoint(&self, col: usize) -> Vec<usize> {
         for block in self.column_blocks.iter() {
-            if block.iter().any(|&c| c == col) {
+            if block.contains(&col) {
                 return block.to_vec();
             }
         }

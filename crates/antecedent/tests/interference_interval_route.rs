@@ -271,7 +271,7 @@ fn supported_saturation_interval_round_trips_and_refuses_forgery() {
     // clusters are low (0.2) and half high (0.8), so each exposure has marginal probability
     // (0.8^3 + 0.2^3) / 2 = 0.26 and the Horvitz-Thompson contrast over the 144 units is
     // sum(1[all treated] y - 1[none treated] y) / (0.26 * 144).
-    let pi = (0.8_f64.powi(3) + 0.2_f64.powi(3)) / 2.0;
+    let pi = f64::midpoint(0.8_f64.powi(3), 0.2_f64.powi(3));
     let total: f64 = (0..outcomes.len())
         .map(|u| match u / 3 % 4 {
             3 => outcomes[u],

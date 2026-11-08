@@ -481,10 +481,10 @@ fn check(
                 .ok()
                 .and_then(identified)
             });
-            if let Some(result) = naive {
-                if worst_error(result, &law, truth) > 1e-6 {
-                    tally.naive_wrong += 1;
-                }
+            if let Some(result) = naive
+                && worst_error(result, &law, truth) > 1e-6
+            {
+                tally.naive_wrong += 1;
             }
         }
     }
@@ -512,7 +512,7 @@ fn sweep(k: usize, l: usize, stride: u64, tally: &mut Tally) {
             }
             counter += 1;
             let seed = 0x5EED ^ (u64::from(edges) << 8) ^ u64::from(latent);
-            check(&dag, counter % stride == 0, seed, &mut cache, tally);
+            check(&dag, counter.is_multiple_of(stride), seed, &mut cache, tally);
         }
     }
     tally.mags += cache.len();

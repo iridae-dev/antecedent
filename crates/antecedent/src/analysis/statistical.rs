@@ -291,14 +291,13 @@ impl<T: Clone> MaterializationCache<T> {
         let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         loop {
             check_deferred_cancel(ctx)?;
-            if let Some(product) = &state.product {
-                if product.kernel == ctx.kernel_policy
-                    && product.retention.belongs_to(&ctx.admission)
-                    && ctx.cache_policy.max_bytes.is_none_or(|limit| product.bytes <= limit)
-                {
-                    product.retention.observe_current();
-                    return Ok(product.value.clone());
-                }
+            if let Some(product) = &state.product
+                && product.kernel == ctx.kernel_policy
+                && product.retention.belongs_to(&ctx.admission)
+                && ctx.cache_policy.max_bytes.is_none_or(|limit| product.bytes <= limit)
+            {
+                product.retention.observe_current();
+                return Ok(product.value.clone());
             }
             if !state.building {
                 state.building = true;
@@ -1661,14 +1660,15 @@ struct StatisticalExecutionWire {
     reasoning: antecedent_io::ReasoningSectionWire,
 }
 
-
 mod artifact_checks;
 mod contrast;
 mod deferred_retarget;
 
 pub(super) use artifact_checks::validate_sample_summaries;
 
-use artifact_checks::{PosteriorFault, UncertaintyFault, validate_bayesian_posterior, validate_uncertainty};
+use artifact_checks::{
+    PosteriorFault, UncertaintyFault, validate_bayesian_posterior, validate_uncertainty,
+};
 
 impl From<IoError> for UncertaintyFault {
     fn from(error: IoError) -> Self {

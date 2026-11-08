@@ -459,7 +459,7 @@ fn cpdag_confounded_undirected_has_two_identified_completions() {
     let q = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(2));
     let env = id.identify_cpdag_envelope(&cpdag, &q).unwrap();
     assert_eq!(env.cases.len(), 2);
-    assert!(env.unidentified_weight.0 == 0.0);
+    assert_eq!(env.unidentified_weight.0, 0.0);
     assert_eq!(env.identified_weight.0, 2.0);
     assert!(
         env.cases
@@ -480,5 +480,5 @@ fn fully_oriented_cpdag_is_a_one_case_envelope() {
         .unwrap();
     assert_eq!(env.cases.len(), 1);
     assert_eq!(env.status, IdentificationStatus::NonparametricallyIdentified);
-    assert!(env.unidentified_weight.0 == 0.0);
+    assert_eq!(env.unidentified_weight.0, 0.0);
 }

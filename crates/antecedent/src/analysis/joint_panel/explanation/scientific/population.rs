@@ -417,6 +417,10 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
 
 /// Actual next supported intervention contrast after a finer population explanation fails.
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "public enum returned by value; boxing a variant would change its public API"
+)]
 pub enum PopulationReferenceAttempt {
     /// The supplied selection diagram earned population-standardized reference worlds.
     Supported(PopulationReferenceDecomposition),

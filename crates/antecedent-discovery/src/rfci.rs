@@ -419,7 +419,7 @@ fn rfci_unshielded_triples(
         }
 
         // Both dependent: orient v-structure iff b ∉ sep(a,c).
-        let b_in_sep = sepset_vars(graph.sepsets, a, c).is_some_and(|s| s.iter().any(|&z| z == b));
+        let b_in_sep = sepset_vars(graph.sepsets, a, c).is_some_and(|s| s.contains(&b));
         if !b_in_sep {
             let ad = (graph.dense_of)(a)?;
             let bd = (graph.dense_of)(b)?;

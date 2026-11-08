@@ -969,11 +969,12 @@ pub fn pag_posterior_mcmc(
                 }
                 None => rejected += 1,
             }
-            if step >= schedule.warmup && (step - schedule.warmup) % schedule.thin == 0 {
-                if let Some((_, signature)) = evaluate(&state, &mut cache, &mut budget)? {
-                    *visits.entry(signature).or_insert(0) += 1;
-                    representative.entry(signature).or_insert_with(|| state.clone());
-                }
+            if step >= schedule.warmup
+                && (step - schedule.warmup).is_multiple_of(schedule.thin)
+                && let Some((_, signature)) = evaluate(&state, &mut cache, &mut budget)?
+            {
+                *visits.entry(signature).or_insert(0) += 1;
+                representative.entry(signature).or_insert_with(|| state.clone());
             }
         }
         counts.push(visits);

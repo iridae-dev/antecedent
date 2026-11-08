@@ -65,10 +65,10 @@ fn parse(dot: &str) -> Parsed {
         if stmt.is_empty() {
             continue;
         }
-        if let Some((name, attrs)) = node_attr(stmt) {
-            if attrs.split([',', ' ']).any(|tok| tok.trim() == "latent") {
-                latents.insert(name);
-            }
+        if let Some((name, attrs)) = node_attr(stmt)
+            && attrs.split([',', ' ']).any(|tok| tok.trim() == "latent")
+        {
+            latents.insert(name);
         }
     }
 
@@ -95,10 +95,10 @@ fn parse(dot: &str) -> Parsed {
             directed.push((from, to));
             continue;
         }
-        if let Some((name, attrs)) = node_attr(stmt) {
-            if !attrs.split([',', ' ']).any(|tok| tok.trim() == "latent") {
-                intern(&name, &mut observed, &mut interned);
-            }
+        if let Some((name, attrs)) = node_attr(stmt)
+            && !attrs.split([',', ' ']).any(|tok| tok.trim() == "latent")
+        {
+            intern(&name, &mut observed, &mut interned);
         }
     }
 

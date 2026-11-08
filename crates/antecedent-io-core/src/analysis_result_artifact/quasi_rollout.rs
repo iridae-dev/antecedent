@@ -257,19 +257,19 @@ pub(in crate::analysis_result_artifact) fn validate_quasi_rollout(
                     );
                 }
             }
-            if let Some(band) = effect.band {
-                if band[0] > interval[0] + 1e-12 || band[1] < interval[1] - 1e-12 {
-                    return fail("a simultaneous band does not contain its pointwise interval");
-                }
+            if let Some(band) = effect.band
+                && (band[0] > interval[0] + 1e-12 || band[1] < interval[1] - 1e-12)
+            {
+                return fail("a simultaneous band does not contain its pointwise interval");
             }
         } else if effect.band.is_some() {
             return fail("a band without its pointwise interval");
         }
     }
-    if let Some(summary) = rederive_rollout_summary(rollout) {
-        if !near(summary, overall.estimate) {
-            return fail("the scalar summary does not re-derive from the reported effects");
-        }
+    if let Some(summary) = rederive_rollout_summary(rollout)
+        && !near(summary, overall.estimate)
+    {
+        return fail("the scalar summary does not re-derive from the reported effects");
     }
     Ok(())
 }

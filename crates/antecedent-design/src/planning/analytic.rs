@@ -1498,10 +1498,10 @@ pub fn plan_analytic(request: &PlanningRequest) -> Result<PlanningResult, Planni
     let mut sequential = detail.sequential;
     if let (Some(seq), PlanningGoal::SampleSize { .. }, Some(effect)) =
         (sequential.as_mut(), request.goal, effect)
+        && matches!(request.criterion, PlanningCriterion::Power { .. })
+        && effect != 0.0
     {
-        if matches!(request.criterion, PlanningCriterion::Power { .. }) && effect != 0.0 {
-            seq.fixed_design_units = Some(planner.fixed_design_units(effect));
-        }
+        seq.fixed_design_units = Some(planner.fixed_design_units(effect));
     }
     let power = (!matches!(request.criterion, PlanningCriterion::PosteriorPrecision { .. }))
         .then_some(detail.power);

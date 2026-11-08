@@ -976,10 +976,10 @@ impl NonlinearMediationArtifact {
         };
         // A caller-supplied expectation the stored identity already contradicts is refused
         // before any re-estimation work.
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &meta.identity) {
-                return Err(NonlinearMediationArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &meta.identity)
+        {
+            return Err(NonlinearMediationArtifactError::IdentityMismatch { field });
         }
         let estimate = estimate_of(&request, ctx)?;
         let rebuilt = build_meta(&request, &estimate)?;
@@ -996,10 +996,10 @@ impl NonlinearMediationArtifact {
         if to_cbor(&meta)? != to_cbor(&stored_form)? {
             return Err(NonlinearMediationArtifactError::ResultMismatch("record"));
         }
-        if let Some(expected) = expected {
-            if let Some(field) = identity_diff(expected, &rebuilt.identity) {
-                return Err(NonlinearMediationArtifactError::IdentityMismatch { field });
-            }
+        if let Some(expected) = expected
+            && let Some(field) = identity_diff(expected, &rebuilt.identity)
+        {
+            return Err(NonlinearMediationArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta: rebuilt, request, estimate })
     }

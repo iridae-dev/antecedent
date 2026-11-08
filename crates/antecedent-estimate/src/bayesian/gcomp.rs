@@ -83,22 +83,23 @@ fn summarize_gcomp_draws(
             .iter()
             .position(|quantity| matches!(quantity, PosteriorQuantityKind::Effect { .. }));
         let values = column.and_then(|column| draws.column(column).ok());
-        if let (Some(column), Some(values)) = (column, values) {
-            if values.len() >= 2 && values.iter().all(|value| value.is_finite()) {
-                let mut sorted = values.to_vec();
-                sorted.sort_by(f64::total_cmp);
-                let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
-                    &sorted,
-                    0.95,
-                    antecedent_stats::QuantileRule::ExchangeableRank,
-                );
-                let mut q025 = summaries.q025.to_vec();
-                let mut q975 = summaries.q975.to_vec();
-                q025[column] = lower;
-                q975[column] = upper;
-                summaries.q025 = Arc::from(q025);
-                summaries.q975 = Arc::from(q975);
-            }
+        if let (Some(column), Some(values)) = (column, values)
+            && values.len() >= 2
+            && values.iter().all(|value| value.is_finite())
+        {
+            let mut sorted = values.to_vec();
+            sorted.sort_by(f64::total_cmp);
+            let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+                &sorted,
+                0.95,
+                antecedent_stats::QuantileRule::ExchangeableRank,
+            );
+            let mut q025 = summaries.q025.to_vec();
+            let mut q975 = summaries.q975.to_vec();
+            q025[column] = lower;
+            q975[column] = upper;
+            summaries.q025 = Arc::from(q025);
+            summaries.q975 = Arc::from(q975);
         }
     }
     summaries
@@ -323,7 +324,7 @@ impl BayesianGComputationAte {
             &row_mask,
         )?;
         let schema = data.schema();
-        let treatment_name = schema.get(treatment).map(|v| v.name.as_ref()).unwrap_or("treatment");
+        let treatment_name = schema.get(treatment).map_or("treatment", |v| v.name.as_ref());
         let coef_names = coefficient_names_from_design(&design, treatment_name, |id| {
             schema.get(id).ok().map(|v| Arc::clone(&v.name))
         });
@@ -885,12 +886,10 @@ fn whiten_design(
     likelihood: BayesLikelihood,
     extra_notes: &mut Vec<Arc<str>>,
 ) -> Result<Option<WhitenedDesign>, EstimationError> {
-    if let Some(ids) = problem.unit_ids.as_deref() {
-        if ids.len() != problem.design.nrows {
-            return Err(EstimationError::data_msg(
-                "unit_ids length must match the design row count",
-            ));
-        }
+    if let Some(ids) = problem.unit_ids.as_deref()
+        && ids.len() != problem.design.nrows
+    {
+        return Err(EstimationError::data_msg("unit_ids length must match the design row count"));
     }
     Ok(match (likelihood, problem.unit_ids.as_deref()) {
         (BayesLikelihood::GaussianIdentity, Some(ids)) => {
@@ -994,13 +993,8 @@ impl EffectEvaluation<'_> {
             let cov = fit.cov.as_deref().ok_or_else(|| {
                 EstimationError::stats_msg("Laplace adaptive draws require posterior covariance")
             })?;
-            let plan = AdaptiveRedraw {
-                map: &fit.map,
-                cov,
-                seed,
-                max_draws,
-                budget: ctx.adaptive_draws,
-            };
+            let plan =
+                AdaptiveRedraw { map: &fit.map, cov, seed, max_draws, budget: ctx.adaptive_draws };
             let outcome = self.redraw(&plan, &coef_draws, n_draws, workspace, ctx)?;
             let mechanism_draws = concat_coefficient_draws(&coef_draws, &outcome.extra_blocks)?;
             (mechanism_draws, outcome.effects, outcome.n_draws, outcome.early_stopped)
@@ -1306,10 +1300,10 @@ pub(super) fn add_modifier_mean_uncertainty(
 /// Apply durable names onto coefficient quantities (in place).
 fn apply_coefficient_names(quantities: &mut [PosteriorQuantityKind], names: &[Arc<str>]) {
     for q in quantities {
-        if let PosteriorQuantityKind::Coefficient { index, name } = q {
-            if let Some(n) = names.get(*index) {
-                *name = Some(Arc::clone(n));
-            }
+        if let PosteriorQuantityKind::Coefficient { index, name } = q
+            && let Some(n) = names.get(*index)
+        {
+            *name = Some(Arc::clone(n));
         }
     }
 }

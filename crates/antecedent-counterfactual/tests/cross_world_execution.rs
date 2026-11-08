@@ -555,7 +555,7 @@ fn units_keep_their_identity_and_the_order_of_units_does_not_matter() {
     assert_eq!(one.units[0].unit, "a");
     assert!((one.units[0].value - 0.7).abs() < TOL);
     assert!((one.units[1].value - 5.0 / 7.0).abs() < TOL);
-    assert!((one.value - (0.7 + 5.0 / 7.0) / 2.0).abs() < TOL);
+    assert!((one.value - f64::midpoint(0.7, 5.0 / 7.0)).abs() < TOL);
 }
 
 #[test]

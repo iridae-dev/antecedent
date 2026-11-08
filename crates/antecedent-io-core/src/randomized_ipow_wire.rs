@@ -160,15 +160,14 @@ impl RandomizedIpowWire {
         {
             return Err(fail());
         }
-        if let RandomizationDesignWire::Complete { treated_units } = query.design {
-            if treated_units != self.assignment.iter().filter(|arm| **arm == 1).count()
+        if let RandomizationDesignWire::Complete { treated_units } = query.design
+            && (treated_units != self.assignment.iter().filter(|arm| **arm == 1).count()
                 || query
                     .assignment_probabilities
                     .iter()
-                    .any(|p| (*p - treated_units as f64 / n as f64).abs() > 1e-10)
-            {
-                return Err(fail());
-            }
+                    .any(|p| (*p - treated_units as f64 / n as f64).abs() > 1e-10))
+        {
+            return Err(fail());
         }
         let arms = self.probabilities.first().map_or(0, Vec::len);
         if arms != 2

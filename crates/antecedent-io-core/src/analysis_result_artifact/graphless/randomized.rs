@@ -468,7 +468,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                     && query.realized_assignment.len() >= MIN_SMALL_ARM_ROWS
                     && control >= MIN_SMALL_ARM_UNITS
                     && treated >= MIN_SMALL_ARM_UNITS
-                    && REPLAY_ABSOLUTE_LOOSE.close((lower + upper) / 2.0, randomized.effect)
+                    && REPLAY_ABSOLUTE_LOOSE.close(f64::midpoint(lower, upper), randomized.effect)
                     && critical >= z95 - 1e-8
                     && critical <= antecedent_stats::student_t_ppf(0.975, 1.0) + 1e-8
             } else {
@@ -538,7 +538,8 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                                 lower.is_finite()
                                     && upper.is_finite()
                                     && lower < upper
-                                    && REPLAY_ABSOLUTE_LOOSE.close((lower + upper) / 2.0, contrast)
+                                    && REPLAY_ABSOLUTE_LOOSE
+                                        .close(f64::midpoint(lower, upper), contrast)
                             })
                         },
                     )

@@ -269,10 +269,10 @@ fn run_grid(
     } else {
         estimator
     };
-    if gram_applicable(problem, estimator) {
-        if let Some(result) = try_run_grid_gram(problem, estimator, &setup)? {
-            return Ok(result);
-        }
+    if gram_applicable(problem, estimator)
+        && let Some(result) = try_run_grid_gram(problem, estimator, &setup)?
+    {
+        return Ok(result);
     }
     run_grid_data_pass(problem, workspace, ctx, estimator, &setup)
 }
@@ -864,14 +864,14 @@ fn neighborhood_loo_predict_pair(
         .and_then(|words| words.checked_mul(word))
         .and_then(|bytes| u64::try_from(bytes).ok())
         .unwrap_or(u64::MAX);
-    if let Some(limit_bytes) = ctx.memory_limit_bytes() {
-        if required > limit_bytes {
-            return Err(ValidationError::Stats(antecedent_stats::StatsError::ResourceLimit {
-                message: "neighborhood sensitivity smoother",
-                required_bytes: required,
-                limit_bytes,
-            }));
-        }
+    if let Some(limit_bytes) = ctx.memory_limit_bytes()
+        && required > limit_bytes
+    {
+        return Err(ValidationError::Stats(antecedent_stats::StatsError::ResourceLimit {
+            message: "neighborhood sensitivity smoother",
+            required_bytes: required,
+            limit_bytes,
+        }));
     }
     if ctx.cancellation.is_cancelled() {
         return Err(ValidationError::Cancelled);
@@ -2171,7 +2171,7 @@ mod tipping_closed_form {
         let n = 200_usize;
         let z: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
         let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
-        let y: Vec<f64> = (0..n).map(|i| -1.0 * t[i] + 0.2 * z[i]).collect();
+        let y: Vec<f64> = (0..n).map(|i| -t[i] + 0.2 * z[i]).collect();
         let data = tabular(&[t, y, z]);
         let estimand = backdoor(1);
         let query = ate_query();

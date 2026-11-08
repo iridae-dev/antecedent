@@ -163,10 +163,10 @@ fn refuse_unsupported_panel_effect(
     if split.is_some() {
         return Err(CausalError::Unsupported { message: PANEL_CLASS_SEQUENTIAL_SPLIT_REFUSAL });
     }
-    if let InferenceMode::Bayesian(cfg) = inference {
-        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
-            return Err(CausalError::Unsupported { message: PANEL_CLASS_SEQUENTIAL_PRIOR_REFUSAL });
-        }
+    if let InferenceMode::Bayesian(cfg) = inference
+        && (cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some())
+    {
+        return Err(CausalError::Unsupported { message: PANEL_CLASS_SEQUENTIAL_PRIOR_REFUSAL });
     }
     Ok(())
 }

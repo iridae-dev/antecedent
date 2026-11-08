@@ -249,15 +249,15 @@ fn screened_design_lengths(design: BayesDesignRef<'_>) -> Result<(), ProbError> 
     if design.x_colmajor.len() < design.nrows.saturating_mul(design.ncols) {
         return Err(ProbError::Shape { message: "X buffer too short" });
     }
-    if let Some(weights) = design.weights {
-        if weights.len() != design.nrows {
-            return Err(ProbError::Shape { message: "weights length != nrows" });
-        }
+    if let Some(weights) = design.weights
+        && weights.len() != design.nrows
+    {
+        return Err(ProbError::Shape { message: "weights length != nrows" });
     }
-    if let Some(offsets) = design.offsets {
-        if offsets.len() != design.nrows {
-            return Err(ProbError::Shape { message: "offsets length != nrows" });
-        }
+    if let Some(offsets) = design.offsets
+        && offsets.len() != design.nrows
+    {
+        return Err(ProbError::Shape { message: "offsets length != nrows" });
     }
     Ok(())
 }

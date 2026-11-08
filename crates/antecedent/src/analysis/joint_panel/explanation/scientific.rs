@@ -85,11 +85,7 @@ fn split(
             groups[classify(intervention)?].push(intervention.clone());
         }
         return Ok(groups.map(|values| {
-            if values.is_empty() {
-                Actions::Empty
-            } else {
-                Actions::Static(values)
-            }
+            if values.is_empty() { Actions::Empty } else { Actions::Static(values) }
         }));
     }
     if let Some((intervention, policy)) = action.schedule_parts() {
@@ -116,11 +112,7 @@ fn split(
             groups[block(action.variable(), bindings)?].push(action.clone());
         }
         return Ok(groups.map(|values| {
-            if values.is_empty() {
-                Actions::Empty
-            } else {
-                Actions::Structural(values)
-            }
+            if values.is_empty() { Actions::Empty } else { Actions::Structural(values) }
         }));
     }
     Err(invalid("unrecognized reference-world action"))
@@ -526,12 +518,13 @@ mod tests {
                 )
                 .unwrap();
             assert!((decomposition.decomposition.point.total - 16.6).abs() < 0.5);
-            assert!(decomposition.decomposition.draws.iter().flatten().all(|draw| (draw.shapley
-                [0]
-                - draw.total)
-                .abs()
-                < 1e-10
-                && draw.shapley[1..].iter().all(|value| value.abs() < 1e-10)));
+            assert!(
+                decomposition.decomposition.draws.iter().flatten().all(|draw| (draw.shapley[0]
+                    - draw.total)
+                    .abs()
+                    < 1e-10
+                    && draw.shapley[1..].iter().all(|value| value.abs() < 1e-10))
+            );
             if let Some(rows) = result.law().frequentist_realizations() {
                 assert_eq!(decomposition.decomposition.draws.len(), rows.len());
                 assert_eq!(
@@ -791,7 +784,7 @@ mod tests {
                 &ExecutionContext::for_tests(312),
             )
             .unwrap();
-            assert!(decomposition.decomposition.draws.len() == 8192);
+            assert_eq!(decomposition.decomposition.draws.len(), 8192);
             let truth: [f64; 16] = std::array::from_fn(|mask| {
                 let a = if mask & 1 == 0 { 1.0 } else { 4.0 };
                 let s = if mask & 2 == 0 { 1.0 } else { 2.0 };
@@ -833,13 +826,15 @@ mod tests {
             );
             let mut invalid = bindings.clone();
             invalid.hybrids[3] = invalid.hybrids[0];
-            assert!(decompose_scientific_reference(
-                &source,
-                &invalid,
-                ScientificConsumptionScope::IdentifiedCausal,
-                &ExecutionContext::for_tests(312)
-            )
-            .is_err());
+            assert!(
+                decompose_scientific_reference(
+                    &source,
+                    &invalid,
+                    ScientificConsumptionScope::IdentifiedCausal,
+                    &ExecutionContext::for_tests(312)
+                )
+                .is_err()
+            );
             let reference_artifact = result
                 .export_reference_decomposition(
                     &bindings,
@@ -865,22 +860,26 @@ mod tests {
             assert_eq!(historical.covariance, current_reference.covariance);
             let mut changed_order = bindings.clone();
             changed_order.order.swap(0, 1);
-            assert!(result
-                .consume_reference_decomposition_current(
-                    &reference_artifact,
-                    &changed_order,
-                    ScientificConsumptionScope::IdentifiedCausal,
-                    &ExecutionContext::for_tests(314)
-                )
-                .is_err());
-            assert!(result
-                .consume_reference_decomposition_current(
-                    &reference_artifact,
-                    &bindings,
-                    ScientificConsumptionScope::ModelConditional,
-                    &ExecutionContext::for_tests(314)
-                )
-                .is_err());
+            assert!(
+                result
+                    .consume_reference_decomposition_current(
+                        &reference_artifact,
+                        &changed_order,
+                        ScientificConsumptionScope::IdentifiedCausal,
+                        &ExecutionContext::for_tests(314)
+                    )
+                    .is_err()
+            );
+            assert!(
+                result
+                    .consume_reference_decomposition_current(
+                        &reference_artifact,
+                        &bindings,
+                        ScientificConsumptionScope::ModelConditional,
+                        &ExecutionContext::for_tests(314)
+                    )
+                    .is_err()
+            );
             let bytes = result.export_artifact().unwrap();
             let replay = crate::analysis::joint_panel::designs::replay_joint_design_artifact(
                 &bytes,
@@ -933,18 +932,18 @@ mod tests {
                 after_weights: vec![0.2, 0.8],
                 components: components.clone(),
             };
-            if !temporal {
-                if let Some(path) = std::env::var_os("ANTECEDENT_POPULATION_FIXTURE_OUTPUT") {
-                    let source = posterior.mean_source().unwrap();
-                    let target =
-                        antecedent_io::scientific_target_wire::ScientificTargetWire::from_domain(
-                            source.target(),
-                        )
-                        .unwrap();
-                    let declaration = serde_json::json!({"baseline":3,"strata":[0.0,1.0],"stratum_worlds":bindings.stratum_worlds.iter().map(|worlds|worlds.map(ScientificWorldId::raw)).collect::<Vec<_>>(),"before_weights":bindings.before_weights,"after_weights":bindings.after_weights,"exposure":[0],"saturation":[1],"mechanism":[2],"order":["exposure","saturation","population","mechanism"],"diagram":{"node_count":5,"directed":[[0,4],[1,4],[2,4],[3,4]],"bidirected":[],"selection_targets":[3]},"require_identified":true});
-                    let fixture = serde_json::json!({"schema":1,"target":target,"proof":posterior.prepared().proof(),"population_reference":declaration,"bayesian":{"inference":"randomized_gaussian","prior":{"mean":vec![0.0;16],"variance":vec![1e6;16],"outcome_variance":vec![0.04;64],"draws":512,"seed":986_311}},"known_truth":{"response":"(1+L)*M*A/(A+S)","before_population":[0.8,0.2],"after_population":[0.2,0.8]}});
-                    std::fs::write(path, serde_json::to_vec_pretty(&fixture).unwrap()).unwrap();
-                }
+            if !temporal
+                && let Some(path) = std::env::var_os("ANTECEDENT_POPULATION_FIXTURE_OUTPUT")
+            {
+                let source = posterior.mean_source().unwrap();
+                let target =
+                    antecedent_io::scientific_target_wire::ScientificTargetWire::from_domain(
+                        source.target(),
+                    )
+                    .unwrap();
+                let declaration = serde_json::json!({"baseline":3,"strata":[0.0,1.0],"stratum_worlds":bindings.stratum_worlds.iter().map(|worlds|worlds.map(ScientificWorldId::raw)).collect::<Vec<_>>(),"before_weights":bindings.before_weights,"after_weights":bindings.after_weights,"exposure":[0],"saturation":[1],"mechanism":[2],"order":["exposure","saturation","population","mechanism"],"diagram":{"node_count":5,"directed":[[0,4],[1,4],[2,4],[3,4]],"bidirected":[],"selection_targets":[3]},"require_identified":true});
+                let fixture = serde_json::json!({"schema":1,"target":target,"proof":posterior.prepared().proof(),"population_reference":declaration,"bayesian":{"inference":"randomized_gaussian","prior":{"mean":vec![0.0;16],"variance":vec![1e6;16],"outcome_variance":vec![0.04;64],"draws":512,"seed":986_311}},"known_truth":{"response":"(1+L)*M*A/(A+S)","before_population":[0.8,0.2],"after_population":[0.2,0.8]}});
+                std::fs::write(path, serde_json::to_vec_pretty(&fixture).unwrap()).unwrap();
             }
             let frequentist = posterior
                 .prepared()
@@ -1025,15 +1024,17 @@ mod tests {
                 assert_eq!(decomposition.covariance, current.covariance);
                 let mut changed = bindings.clone();
                 changed.after_weights = vec![0.4, 0.6];
-                assert!(result
-                    .consume_population_reference_current(
-                        &bytes,
-                        &changed,
-                        &diagram,
-                        ScientificConsumptionScope::IdentifiedCausal,
-                        &ExecutionContext::for_tests(319)
-                    )
-                    .is_err());
+                assert!(
+                    result
+                        .consume_population_reference_current(
+                            &bytes,
+                            &changed,
+                            &diagram,
+                            ScientificConsumptionScope::IdentifiedCausal,
+                            &ExecutionContext::for_tests(319)
+                        )
+                        .is_err()
+                );
                 let mut isolated = bindings.clone();
                 isolated.components.hybrids.fill(components.hybrids[0]);
                 isolated.stratum_worlds =
@@ -1058,14 +1059,16 @@ mod tests {
             }
             let invalid =
                 SelectionDiagram::try_new(graph.clone(), [VariableId::from_raw(4)]).unwrap();
-            assert!(posterior
-                .decompose_population_reference(
-                    &bindings,
-                    &invalid,
-                    ScientificConsumptionScope::IdentifiedCausal,
-                    &ExecutionContext::for_tests(319)
-                )
-                .is_err());
+            assert!(
+                posterior
+                    .decompose_population_reference(
+                        &bindings,
+                        &invalid,
+                        ScientificConsumptionScope::IdentifiedCausal,
+                        &ExecutionContext::for_tests(319)
+                    )
+                    .is_err()
+            );
             graph.insert_bidirected(DenseNodeId::from_raw(3), DenseNodeId::from_raw(4)).unwrap();
             let mut fallback = components.clone();
             fallback.exposure = (0..4).map(VariableId::from_raw).collect();
@@ -1089,14 +1092,16 @@ mod tests {
             assert!(refusal.contains("selection"));
             assert!(executed.decomposition.point.total > 3.0);
             let confounded = SelectionDiagram::try_new(graph, [VariableId::from_raw(3)]).unwrap();
-            assert!(posterior
-                .decompose_population_reference(
-                    &bindings,
-                    &confounded,
-                    ScientificConsumptionScope::IdentifiedCausal,
-                    &ExecutionContext::for_tests(319)
-                )
-                .is_err());
+            assert!(
+                posterior
+                    .decompose_population_reference(
+                        &bindings,
+                        &confounded,
+                        ScientificConsumptionScope::IdentifiedCausal,
+                        &ExecutionContext::for_tests(319)
+                    )
+                    .is_err()
+            );
         }
     }
 
@@ -1309,12 +1314,12 @@ impl crate::analysis::joint_panel::designs::JointDesignResult {
 
 mod artifact;
 pub use artifact::{
+    HistoricalPopulationReference, HistoricalReferenceDecomposition, ReferenceArtifactLimits,
     replay_population_reference, replay_population_reference_with_limits,
     replay_reference_decomposition, replay_reference_decomposition_with_limits,
-    HistoricalPopulationReference, HistoricalReferenceDecomposition, ReferenceArtifactLimits,
 };
 mod population;
 pub use population::{
-    decompose_population_reference, PopulationReferenceAttempt, PopulationReferenceBindings,
-    PopulationReferenceDecomposition, PopulationReferenceTransportProof,
+    PopulationReferenceAttempt, PopulationReferenceBindings, PopulationReferenceDecomposition,
+    PopulationReferenceTransportProof, decompose_population_reference,
 };

@@ -661,8 +661,7 @@ pub(super) fn mix_static_envelope_se<T: AsRef<[f64]>>(atom_ifs: &[T], atom_weigh
 /// Standard error of an already-mixed influence column.
 pub(super) fn mixture_se(mixed: &[f64]) -> f64 {
     antecedent_estimate::joint_influence_covariance(&[mixed], None)
-        .map(|c| c.se(0))
-        .unwrap_or(f64::NAN)
+        .map_or(f64::NAN, |c| c.se(0))
 }
 
 /// Frozen-weight mixture IF, or `None` when atoms do not share a row universe.

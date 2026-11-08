@@ -1031,13 +1031,12 @@ pub(super) fn validate_finite_affine_mapping(
     }
     if let Some(SourceMappingDependence::SlopeCovariance { covariance: declared, .. }) =
         &contract.source_dependence
+        && !close(covariance(slopes, source), *declared)
     {
-        if !close(covariance(slopes, source), *declared) {
-            return Err(source_dependence_invalid(
-                "finite_source_mapping_covariance",
-                "retain the declared finite source/mapping covariance in the paired slots",
-            ));
-        }
+        return Err(source_dependence_invalid(
+            "finite_source_mapping_covariance",
+            "retain the declared finite source/mapping covariance in the paired slots",
+        ));
     }
     Ok(())
 }

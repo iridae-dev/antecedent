@@ -78,6 +78,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use antecedent_contract::ExternalRefusal;
 use antecedent_contract::claim::{ClaimEnvelope, ClaimFreshness};
@@ -144,13 +145,13 @@ impl CompositionVerificationRefusal {
     fn from_structured(refusal: &ExternalRefusal) -> Self {
         let mut message = format!("refused at stage `{}`", refusal.stage);
         if let Some(offending) = &refusal.offending {
-            message.push_str(&format!("; claim `{offending}`"));
+            let _ = write!(message, "; claim `{offending}`");
         }
         if let Some(expected) = &refusal.expected {
-            message.push_str(&format!("; {expected}"));
+            let _ = write!(message, "; {expected}");
         }
         if let Some(supplied) = &refusal.supplied {
-            message.push_str(&format!("; support lost: {supplied}"));
+            let _ = write!(message, "; support lost: {supplied}");
         }
         Self {
             code: refusal.code,

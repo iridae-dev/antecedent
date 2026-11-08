@@ -1078,9 +1078,8 @@ mod tests {
         .unwrap();
         assert_eq!(fit.choice, TemporalModelChoice::Smooth { penalty: 0.5 });
         assert!(fit.smooth);
-        let error = match selected_from_scores(&spec, &[None, None, None, None, None, None]) {
-            Ok(_) => panic!("all failed candidates must refuse"),
-            Err(error) => error,
+        let Err(error) = selected_from_scores(&spec, &[None, None, None, None, None, None]) else {
+            panic!("all failed candidates must refuse")
         };
         assert!(matches!(&error, PanelError::Numerical(_)));
         assert!(error.to_string().contains("6 attempted"));

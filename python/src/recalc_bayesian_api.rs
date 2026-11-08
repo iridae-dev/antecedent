@@ -52,13 +52,13 @@ fn inference(dict: &Bound<'_, PyDict>, features: usize) -> PyResult<BayesianConf
     let get = |key| -> PyResult<Option<Bound<'_, PyAny>>> {
         Ok(dict.get_item(key)?.filter(|value| !value.is_none()))
     };
-    if let Some(bytes) = get("prior_artifact")? {
-        if bytes.cast::<PyBytes>()?.as_bytes().len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
-            return Err(invalid(
-                antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
-                "prior artifact exceeds byte bound",
-            ));
-        }
+    if let Some(bytes) = get("prior_artifact")?
+        && bytes.cast::<PyBytes>()?.as_bytes().len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES
+    {
+        return Err(invalid(
+            antecedent::reason::reason_details::recalc::LIMITS_EXCEEDED,
+            "prior artifact exceeds byte bound",
+        ));
     }
     let n = get("n_draws")?.map(|value| value.extract::<usize>()).transpose()?.unwrap_or(256);
     if n == 0 || n > 100_000 || n.checked_mul(features).is_none_or(|cells| cells > 1_000_000) {

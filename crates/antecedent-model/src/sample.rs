@@ -1246,8 +1246,8 @@ mod tests {
             &mut out,
         )
         .unwrap();
-        assert!(out.iter().any(|x| *x == 0.0));
-        assert!(out.iter().any(|x| *x == 1.0));
+        assert!(out.contains(&0.0));
+        assert!(out.contains(&1.0));
         assert!(out.iter().all(|x| *x == 0.0 || *x == 1.0));
         let mut rng = CausalRng::from_seed(4);
         sample_stochastic(&StochasticPolicy::gaussian(1.0, 4.0), 256, &mut rng, &mut out).unwrap();

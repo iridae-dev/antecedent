@@ -43,14 +43,18 @@ fn orthonormal_noise(rng: &mut Lcg, n: usize, count: usize) -> Vec<Vec<f64>> {
         let mut v: Vec<f64> = (0..n).map(|_| rng.unit() - 0.5).collect();
         for _ in 0..2 {
             let mean = v.iter().sum::<f64>() / n as f64;
-            v.iter_mut().for_each(|x| *x -= mean);
+            for x in &mut v {
+                *x -= mean;
+            }
             for b in &basis {
                 let dot: f64 = v.iter().zip(b).map(|(x, y)| x * y).sum::<f64>() / n as f64;
                 v.iter_mut().zip(b).for_each(|(x, y)| *x -= dot * y);
             }
         }
         let scale = (v.iter().map(|x| x * x).sum::<f64>() / n as f64).sqrt();
-        v.iter_mut().for_each(|x| *x /= scale);
+        for x in &mut v {
+            *x /= scale;
+        }
         basis.push(v);
     }
     basis
@@ -187,7 +191,9 @@ fn unshielded_colliders(n: usize, edges: &[(usize, usize)]) -> BTreeSet<(usize, 
 
 fn acyclic(n: usize, edges: &[(usize, usize)]) -> bool {
     let mut indeg = vec![0usize; n];
-    edges.iter().for_each(|&(_, v)| indeg[v] += 1);
+    for &(_, v) in edges {
+        indeg[v] += 1;
+    }
     let mut ready: Vec<usize> = (0..n).filter(|&v| indeg[v] == 0).collect();
     let mut seen = 0;
     while let Some(v) = ready.pop() {
@@ -253,7 +259,7 @@ fn random_model(rng: &mut Lcg, n: usize, density: u64) -> Model {
     for i in 0..n {
         for j in (i + 1)..n {
             if rng.next() % 100 < density {
-                let sign = if rng.next() % 2 == 0 { 1.0 } else { -1.0 };
+                let sign = if rng.next().is_multiple_of(2) { 1.0 } else { -1.0 };
                 parents[order[j]].push((order[i], sign * (0.6 + 0.4 * rng.unit())));
             }
         }

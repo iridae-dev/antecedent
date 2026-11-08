@@ -143,7 +143,7 @@ fn registry_state_space_reference_em_fit_matches_joint_law_em() {
         let (model, frame, y_node) = if xs.is_empty() {
             (
                 CompiledCausalModel::compile(Dag::with_variables(1)).unwrap(),
-                table(&[y.clone()], &["y"]),
+                table(std::slice::from_ref(&y), &["y"]),
                 0,
             )
         } else {

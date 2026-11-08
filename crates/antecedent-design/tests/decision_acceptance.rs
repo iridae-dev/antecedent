@@ -237,7 +237,7 @@ fn two_actions_nonlinear_utility_joint_rows_choose_b() {
 
     // The same marginals paired by independent means would give E[x]E[y] = 1 and
     // a tie; only the joint rows give 0.
-    let marginal_mean_product = ((0.0 + 2.0) / 2.0) * ((2.0 + 0.0) / 2.0);
+    let marginal_mean_product = f64::midpoint(0.0, 2.0) * f64::midpoint(2.0, 0.0);
     assert!(near(marginal_mean_product, 1.0));
     assert!(!near(result.actions[0].expected_utility, marginal_mean_product));
 }

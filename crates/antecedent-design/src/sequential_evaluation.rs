@@ -232,31 +232,31 @@ impl SequentialRequest {
     /// A different population or period: the typed transport refusal naming
     /// the contract that is missing.
     pub fn check(&self, model: &FiniteSequentialModel) -> SequentialResult<()> {
-        if let Some(population) = &self.target_population {
-            if population != &model.population {
-                return Err(refusal!(
-                    "transport_missing_evidence",
-                    "sequential_evaluation.transported_policy_contract_missing",
-                    format!(
-                        "the policy value was requested for population `{population}` but the model describes `{}`",
-                        model.population
-                    ),
-                    "supply a source-to-target selection diagram with the transition and observation mechanisms marked invariant and a target initial-state law with support overlap, through counterfactual transport; or declare a model native to the target population",
-                ));
-            }
+        if let Some(population) = &self.target_population
+            && population != &model.population
+        {
+            return Err(refusal!(
+                "transport_missing_evidence",
+                "sequential_evaluation.transported_policy_contract_missing",
+                format!(
+                    "the policy value was requested for population `{population}` but the model describes `{}`",
+                    model.population
+                ),
+                "supply a source-to-target selection diagram with the transition and observation mechanisms marked invariant and a target initial-state law with support overlap, through counterfactual transport; or declare a model native to the target population",
+            ));
         }
-        if let Some(period) = &self.target_period {
-            if period != &model.period {
-                return Err(refusal!(
-                    "transport_missing_evidence",
-                    "sequential_evaluation.temporal_transport_contract_missing",
-                    format!(
-                        "the policy value was requested for period `{period}` but the model describes `{}`",
-                        model.period
-                    ),
-                    "declare a model established for the target period, or supply a time-invariance contract for the transition and observation mechanisms across the periods; temporal transport is not a bounded route here",
-                ));
-            }
+        if let Some(period) = &self.target_period
+            && period != &model.period
+        {
+            return Err(refusal!(
+                "transport_missing_evidence",
+                "sequential_evaluation.temporal_transport_contract_missing",
+                format!(
+                    "the policy value was requested for period `{period}` but the model describes `{}`",
+                    model.period
+                ),
+                "declare a model established for the target period, or supply a time-invariance contract for the transition and observation mechanisms across the periods; temporal transport is not a bounded route here",
+            ));
         }
         Ok(())
     }

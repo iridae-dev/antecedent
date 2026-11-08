@@ -22,11 +22,11 @@
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
+use antecedent_estimate::EstimationError;
 use antecedent_estimate::observational_policy::{
     KnownPropensity, ObservationalPolicyValue as Estimator, PolicyData, PolicyEvaluation,
     PolicyObjective, PolicyOrigin,
 };
-use antecedent_estimate::EstimationError;
 use serde::{Deserialize, Serialize};
 
 use super::multi_level_treatment::AdjustmentColumn;

@@ -173,15 +173,15 @@ impl FactorizedJointConfig {
         if !(self.ordering_tolerance_sd.is_finite() && self.ordering_tolerance_sd >= 0.0) {
             return bad("ordering_tolerance_sd must be finite and non-negative");
         }
-        if let Some(spec) = self.learner {
-            if matches!(spec, LearnerSpec::Auto) || spec.validate().is_err() {
-                return Err(refuse(
-                    antecedent_core::reason_code!("invalid_argument"),
-                    antecedent_core::reason_details::joint_cells::LEARNER,
-                    "declare an explicit learner with valid hyperparameters; auto is refused \
+        if let Some(spec) = self.learner
+            && (matches!(spec, LearnerSpec::Auto) || spec.validate().is_err())
+        {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::joint_cells::LEARNER,
+                "declare an explicit learner with valid hyperparameters; auto is refused \
                      because it hides the learner actually fit",
-                ));
-            }
+            ));
         }
         Ok(())
     }

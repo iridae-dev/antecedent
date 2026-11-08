@@ -35,17 +35,17 @@
 //! temporal ADMG is refused with that reason rather than reduced to one treatment of the set.
 
 use super::{
-    elapsed_ns, provenance_ids, AcceptedGraph, Arc, CausalError, CausalExprArena, CausalPosterior,
-    CausalQuery, ClassAtomOutcome, CounterfactualProcedure, DerivationMeta, DerivationTrace,
-    Diagnostic, DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate, EstimandMethod,
-    EstimatorId, ExecutionContext, ExprNode, GcmSlot, GraphRef, IdentificationEnvelope,
+    AcceptedGraph, Arc, CausalError, CausalExprArena, CausalPosterior, CausalQuery,
+    ClassAtomOutcome, CounterfactualProcedure, DerivationMeta, DerivationTrace, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate, EstimandMethod, EstimatorId,
+    ExecutionContext, ExprNode, GcmSlot, GraphRef, IdentificationEnvelope,
     IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
     IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, Instant,
     OutcomeExprId, OverlapPolicy, PhysicalExecutionPlan, RefuteSuite, Strategy, StudyResult,
-    TableView, TabularData, VariableId,
+    TableView, TabularData, VariableId, elapsed_ns, provenance_ids,
 };
 use crate::counterfactual_id::{
-    prepare_counterfactual_id, CounterfactualIdOptions, PreparedCounterfactualId,
+    CounterfactualIdOptions, PreparedCounterfactualId, prepare_counterfactual_id,
 };
 use crate::gcm::{
     ContrastedOutcome, CounterfactualContrasts, ExogenousPosterior, NoiseInferenceKind,
@@ -58,7 +58,7 @@ use antecedent_estimate::BootstrapAccounting;
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
 use antecedent_graph::{Admg, Cpdag, Dag, Pag};
 use antecedent_identify::counterfactual_id::{
-    CounterfactualIdRefusal, COUNTERFACTUAL_ID_MAX_LEVELS, COUNTERFACTUAL_ID_MAX_VARIABLES,
+    COUNTERFACTUAL_ID_MAX_LEVELS, COUNTERFACTUAL_ID_MAX_VARIABLES, CounterfactualIdRefusal,
 };
 use antecedent_identify::{GraphIdentificationCase, ProbabilityMass};
 
@@ -623,9 +623,9 @@ fn column_name(shape: &Shape, outcome: usize) -> String {
 
 mod resampling;
 
+use resampling::Resampled;
 #[cfg(test)]
 use resampling::admit_counterfactual_resamples;
-use resampling::Resampled;
 
 /// Refuse a validation suite the population-level route has no refuter for.
 fn ensure_validation_none(refute: RefuteSuite) -> Result<(), CausalError> {

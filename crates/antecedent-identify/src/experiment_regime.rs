@@ -324,7 +324,7 @@ impl fmt::Display for RegimeRefusalReason {
                 write!(f, "regime {regime} claims dependence but no other regime shares {source}")
             }
             Self::IndependenceContradictedBySharedSource { left, right, source } => {
-                write!(f, "regimes {left} and {right} share {source}, contradicting independence",)
+                write!(f, "regimes {left} and {right} share {source}, contradicting independence")
             }
         }
     }

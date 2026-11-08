@@ -115,12 +115,11 @@ pub enum ExternalCyclicArtifactError {
 impl From<EquilibriumError> for ExternalCyclicArtifactError {
     fn from(error: EquilibriumError) -> Self {
         // A refusal raised inside the model keeps its typed code across this boundary.
-        if let EquilibriumError::Invalid(message) = &error {
-            if let Some((code, detail)) = antecedent_core::reason_code::split_prefix(message) {
-                if let Some(refusal) = refusal_from_code(code, detail) {
-                    return Self::Refusal(refusal);
-                }
-            }
+        if let EquilibriumError::Invalid(message) = &error
+            && let Some((code, detail)) = antecedent_core::reason_code::split_prefix(message)
+            && let Some(refusal) = refusal_from_code(code, detail)
+        {
+            return Self::Refusal(refusal);
         }
         Self::Execution(error)
     }

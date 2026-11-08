@@ -87,10 +87,11 @@ impl Enclosure {
             _ => {}
         }
         let mut values = vec![function.apply(self.lower), function.apply(self.upper)];
-        if let Some(turn) = function.turning_point() {
-            if self.lower < turn && turn < self.upper {
-                values.push(function.apply(turn));
-            }
+        if let Some(turn) = function.turning_point()
+            && self.lower < turn
+            && turn < self.upper
+        {
+            values.push(function.apply(turn));
         }
         Ok(Self::hull(&values))
     }

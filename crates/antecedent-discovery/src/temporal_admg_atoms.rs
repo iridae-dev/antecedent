@@ -95,10 +95,11 @@ fn node_of(
     lag: Lag,
 ) -> Result<DenseNodeId, DiscoveryError> {
     for (index, node) in graph.nodes().iter().enumerate() {
-        if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node {
-            if *existing == variable && *existing_lag == lag {
-                return Ok(DenseNodeId::try_from_usize(index)?);
-            }
+        if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node
+            && *existing == variable
+            && *existing_lag == lag
+        {
+            return Ok(DenseNodeId::try_from_usize(index)?);
         }
     }
     Ok(graph.add_lagged(variable, lag)?)

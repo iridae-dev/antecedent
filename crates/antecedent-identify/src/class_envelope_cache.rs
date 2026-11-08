@@ -79,12 +79,12 @@ fn memoized<E>(
 ) -> Result<TemporalClassEnvelope, E> {
     {
         let mut held = entries();
-        if let Some(at) = held.iter().position(|(stored, _)| *stored == key) {
-            if let Some(hit) = held.remove(at) {
-                let envelope = hit.1.as_ref().clone();
-                held.push_front(hit);
-                return Ok(envelope);
-            }
+        if let Some(at) = held.iter().position(|(stored, _)| *stored == key)
+            && let Some(hit) = held.remove(at)
+        {
+            let envelope = hit.1.as_ref().clone();
+            held.push_front(hit);
+            return Ok(envelope);
         }
     }
     // The lock is not held across the enumeration: concurrent first calls both compute the

@@ -259,10 +259,10 @@ impl EventData {
         if let Some(mask) = self.storage.analysis_mask() {
             let mut bytes = vec![0u8; n_bins.div_ceil(8)];
             for (b, &src) in last_in_bin.iter().enumerate() {
-                if let Some(i) = src {
-                    if mask.is_valid(i) {
-                        bytes[b / 8] |= 1 << (b % 8);
-                    }
+                if let Some(i) = src
+                    && mask.is_valid(i)
+                {
+                    bytes[b / 8] |= 1 << (b % 8);
                 }
             }
             analysis_mask = Some(ValidityBitmap::from_bytes(bytes, n_bins)?);
@@ -301,11 +301,11 @@ fn align_column(
         OwnedColumn::Float64(c) => {
             let mut values = vec![0.0_f64; n_bins];
             for (b, &src) in last_in_bin.iter().enumerate() {
-                if let Some(i) = src {
-                    if c.validity.is_valid(i) {
-                        values[b] = c.values.as_slice()[i];
-                        valid_bytes[b / 8] |= 1 << (b % 8);
-                    }
+                if let Some(i) = src
+                    && c.validity.is_valid(i)
+                {
+                    values[b] = c.values.as_slice()[i];
+                    valid_bytes[b / 8] |= 1 << (b % 8);
                 }
             }
             Ok(OwnedColumn::Float64(Float64Column::new(
@@ -317,11 +317,11 @@ fn align_column(
         OwnedColumn::Int64(c) => {
             let mut values = vec![0_i64; n_bins];
             for (b, &src) in last_in_bin.iter().enumerate() {
-                if let Some(i) = src {
-                    if c.validity.is_valid(i) {
-                        values[b] = c.values[i];
-                        valid_bytes[b / 8] |= 1 << (b % 8);
-                    }
+                if let Some(i) = src
+                    && c.validity.is_valid(i)
+                {
+                    values[b] = c.values[i];
+                    valid_bytes[b / 8] |= 1 << (b % 8);
                 }
             }
             Ok(OwnedColumn::Int64(Int64Column::new(
@@ -333,11 +333,11 @@ fn align_column(
         OwnedColumn::Boolean(c) => {
             let mut values = vec![0u8; n_bins];
             for (b, &src) in last_in_bin.iter().enumerate() {
-                if let Some(i) = src {
-                    if c.validity.is_valid(i) {
-                        values[b] = c.values[i];
-                        valid_bytes[b / 8] |= 1 << (b % 8);
-                    }
+                if let Some(i) = src
+                    && c.validity.is_valid(i)
+                {
+                    values[b] = c.values[i];
+                    valid_bytes[b / 8] |= 1 << (b % 8);
                 }
             }
             Ok(OwnedColumn::Boolean(BooleanColumn::new(
@@ -349,11 +349,11 @@ fn align_column(
         OwnedColumn::Timestamp(c) => {
             let mut values = vec![0_i64; n_bins];
             for (b, &src) in last_in_bin.iter().enumerate() {
-                if let Some(i) = src {
-                    if c.validity.is_valid(i) {
-                        values[b] = c.values_ns[i];
-                        valid_bytes[b / 8] |= 1 << (b % 8);
-                    }
+                if let Some(i) = src
+                    && c.validity.is_valid(i)
+                {
+                    values[b] = c.values_ns[i];
+                    valid_bytes[b / 8] |= 1 << (b % 8);
                 }
             }
             Ok(OwnedColumn::Timestamp(TimestampColumn::new(
@@ -367,14 +367,14 @@ fn align_column(
             let mut values =
                 crate::column::checked_f64_buffer(n_bins, dim, "event grid vector values")?;
             for (b, &src) in last_in_bin.iter().enumerate() {
-                if let Some(i) = src {
-                    if c.validity.is_valid(i) {
-                        let src_off = i * dim;
-                        let dst_off = b * dim;
-                        values[dst_off..dst_off + dim]
-                            .copy_from_slice(&c.values[src_off..src_off + dim]);
-                        valid_bytes[b / 8] |= 1 << (b % 8);
-                    }
+                if let Some(i) = src
+                    && c.validity.is_valid(i)
+                {
+                    let src_off = i * dim;
+                    let dst_off = b * dim;
+                    values[dst_off..dst_off + dim]
+                        .copy_from_slice(&c.values[src_off..src_off + dim]);
+                    valid_bytes[b / 8] |= 1 << (b % 8);
                 }
             }
             Ok(OwnedColumn::FixedVector(FixedVectorColumn::new(

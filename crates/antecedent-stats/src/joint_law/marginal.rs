@@ -157,7 +157,7 @@ fn coupled_expectation(
     let mut steps = 0_usize;
     loop {
         steps += 1;
-        if steps % CANCEL_STRIDE == 0 {
+        if steps.is_multiple_of(CANCEL_STRIDE) {
             check_cancel(cancel)?;
         }
         let m = rx.min(ry);

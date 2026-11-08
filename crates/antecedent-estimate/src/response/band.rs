@@ -233,8 +233,15 @@ mod tests {
         let draws: Vec<f64> = (0..120).map(|i| 1.0 + (f64::from(i) - 60.0) / 100.0).collect();
         let scaled_draws: Vec<f64> = draws.iter().map(|v| v * scale).collect();
         let unbounded = endpoints(
-            simultaneous_posterior_band(&[1.0], &[draws.clone()], &[0.5], &[1.5], &[0.35], 0.999)
-                .unwrap(),
+            simultaneous_posterior_band(
+                &[1.0],
+                std::slice::from_ref(&draws),
+                &[0.5],
+                &[1.5],
+                &[0.35],
+                0.999,
+            )
+            .unwrap(),
         );
         assert_eq!(unbounded, (vec![f64::NEG_INFINITY], vec![f64::INFINITY]));
         let a = endpoints(

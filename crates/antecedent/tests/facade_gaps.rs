@@ -296,7 +296,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
     let median = |values: &[f64]| {
         let mut sorted = values.to_vec();
         sorted.sort_by(f64::total_cmp);
-        (sorted[29] + sorted[30]) / 2.0
+        f64::midpoint(sorted[29], sorted[30])
     };
     let center = median(&y);
     let mad = median(&y.iter().map(|v| (v - center).abs()).collect::<Vec<_>>());

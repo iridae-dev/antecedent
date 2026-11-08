@@ -254,7 +254,7 @@ fn the_identity_jacobian_band_equals_the_hand_computed_hc2_sandwich() {
             "at {at}: half-width {half} vs {}",
             want.half_width
         );
-        assert!(((upper[0] + lower[0]) / 2.0 - point).abs() <= 1e-9 * (1.0 + point.abs()));
+        assert!((f64::midpoint(upper[0], lower[0]) - point).abs() <= 1e-9 * (1.0 + point.abs()));
         // The tolerance discriminates the leverage correction.
         assert!(
             want.half_width > 1.05 * want.half_width_uncorrected,

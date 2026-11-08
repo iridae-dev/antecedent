@@ -404,22 +404,19 @@ fn validate(request: &PropagationRequest) -> Result<(), ExternalRefusal> {
         if !seen.insert(input.id.as_str()) {
             return Err(invalid(input.id.clone(), "list each input once"));
         }
-        if let InputAlignment::Aligned { alignment_id } = &input.alignment {
-            if blank(alignment_id) {
-                return Err(invalid(
-                    input.id.clone(),
-                    "an aligned input names its alignment identity",
-                ));
-            }
+        if let InputAlignment::Aligned { alignment_id } = &input.alignment
+            && blank(alignment_id)
+        {
+            return Err(invalid(input.id.clone(), "an aligned input names its alignment identity"));
         }
     }
-    if let PropagationDependence::Covariance { id } = &request.dependence {
-        if blank(id) {
-            return Err(invalid(
-                "covariance",
-                "name the covariance declaration or the shared evidence that supplies it",
-            ));
-        }
+    if let PropagationDependence::Covariance { id } = &request.dependence
+        && blank(id)
+    {
+        return Err(invalid(
+            "covariance",
+            "name the covariance declaration or the shared evidence that supplies it",
+        ));
     }
     Ok(())
 }
@@ -609,18 +606,17 @@ fn check_envelope(
     shared: Vec<String>,
 ) -> Result<PropagationPlan, ExternalRefusal> {
     use PropagationOperation as Op;
-    if let PropagationDependence::CorrelationRange { rho_lo, rho_hi } = request.dependence {
-        if !(rho_lo.is_finite()
+    if let PropagationDependence::CorrelationRange { rho_lo, rho_hi } = request.dependence
+        && !(rho_lo.is_finite()
             && rho_hi.is_finite()
             && -1.0 <= rho_lo
             && rho_lo < rho_hi
             && rho_hi <= 1.0)
-        {
-            return Err(invalid(
-                "correlation_range",
-                "declare finite correlation bounds with -1 <= lower < upper <= 1",
-            ));
-        }
+    {
+        return Err(invalid(
+            "correlation_range",
+            "declare finite correlation bounds with -1 <= lower < upper <= 1",
+        ));
     }
     let route = match request.dependence {
         PropagationDependence::CorrelationRange { .. } => {

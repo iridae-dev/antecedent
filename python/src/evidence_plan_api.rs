@@ -36,6 +36,7 @@ use antecedent::query::{AverageEffectQuery, CausalQuery};
 use antecedent::schema::AssumptionSet;
 use pyo3::prelude::*;
 use serde_json::{Value, json};
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 /// Magic prefix of a portable evidence plan: the design crate's container bytes,
@@ -69,13 +70,10 @@ fn ids_of(ids: &[Arc<str>]) -> Vec<String> {
 fn template_json(template: &CandidateTemplate, names: &[String]) -> Value {
     let mut label = format!("{} in {}", template.kind.as_str(), template.population);
     if !template.interventions.is_empty() {
-        label.push_str(&format!(
-            " setting [{}]",
-            names_of(names, &template.interventions).join(", ")
-        ));
+        let _ = write!(label, " setting [{}]", names_of(names, &template.interventions).join(", "));
     }
     if !template.measured.is_empty() {
-        label.push_str(&format!(" measuring [{}]", names_of(names, &template.measured).join(", ")));
+        let _ = write!(label, " measuring [{}]", names_of(names, &template.measured).join(", "));
     }
     json!({
         "label": label,

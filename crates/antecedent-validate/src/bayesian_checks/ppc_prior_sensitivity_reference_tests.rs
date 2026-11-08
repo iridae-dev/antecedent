@@ -346,7 +346,7 @@ fn temporal_predictive_residuals_use_each_likelihoods_observation_mean() {
         let n = prep.design.nrows;
         let mut expected = 0.0;
         let mut replicate_expected = 0.0;
-        let mut rng = CausalRng::from_seed(93 ^ SERIAL_PPC);
+        let mut rng = CausalRng::from_seed(0x5D ^ SERIAL_PPC);
         for k in 0..count {
             let d = k * posterior.draws.n_draws / count;
             let means: Vec<f64> = (0..n)

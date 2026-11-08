@@ -1053,7 +1053,7 @@ fn complete_binary_histories(unit_id: u64) -> Vec<TemporalHistoryWire> {
 
 fn binary_outcome(unit_id: u64, a1: u32, a2: u32) -> f64 {
     let treated = a1 == 1 && a2 == 1;
-    let on = if treated { unit_id % 2 == 0 } else { unit_id % 3 == 0 };
+    let on = if treated { unit_id.is_multiple_of(2) } else { unit_id.is_multiple_of(3) };
     if on { 1.0 } else { 0.0 }
 }
 

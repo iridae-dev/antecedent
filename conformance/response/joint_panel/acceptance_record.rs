@@ -46,15 +46,14 @@ pub fn record(
             );
         }
         let mut row_checks = checks.clone();
-        if decision == "binding_operational_constraint" {
-            if let Some(specific) =
+        if decision == "binding_operational_constraint"
+            && let Some(specific) =
                 checks.get("constrained_next_study").and_then(serde_json::Value::as_object)
             {
                 for (key, value) in specific {
                     row_checks.as_object_mut().unwrap().insert(key.clone(), value.clone());
                 }
             }
-        }
         let value = serde_json::json!({"row":row,"case":case,"source_identity":identity,"source_dependency":dependency,"status":"passed","stages":stages,"checks":row_checks});
         let name = format!("{}--{}.json", row.replace("::", "_"), case);
         let path = std::path::Path::new(&directory).join(name);

@@ -436,14 +436,14 @@ fn target_population_of(
         ));
     }
     let target_population = targets.iter().next().map(|t| (*t).to_owned());
-    if let (Some(native), Some(target)) = (native_population, target_population.as_deref()) {
-        if native != target {
-            return Err(declaration(
-                DETAIL_TARGET_POPULATION_MISMATCH,
-                classified.iter().find(|c| c.transport_digest.is_none()).map(|c| c.source),
-                "the native contributions were observed in another population than the transports' target; transport them too, or drop them",
-            ));
-        }
+    if let (Some(native), Some(target)) = (native_population, target_population.as_deref())
+        && native != target
+    {
+        return Err(declaration(
+            DETAIL_TARGET_POPULATION_MISMATCH,
+            classified.iter().find(|c| c.transport_digest.is_none()).map(|c| c.source),
+            "the native contributions were observed in another population than the transports' target; transport them too, or drop them",
+        ));
     }
     Ok(target_population)
 }

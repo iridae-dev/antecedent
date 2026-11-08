@@ -13,6 +13,10 @@ use antecedent::prelude::{ExecutionContext, Value};
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 #[derive(Clone)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "private enum held once per prepared study; boxing would only add an indirection"
+)]
 enum GridPreparation {
     Deferred(antecedent::analysis::DeferredTransportGrid),
     Ready(antecedent::PreparedStudy<TransportGridState>),

@@ -103,13 +103,12 @@ impl CheckedTemporalClassMediationOperation {
         {
             return false;
         }
-        if let InferenceMode::Bayesian(config) = &study.settings.inference {
-            if config.prior.is_some()
+        if let InferenceMode::Bayesian(config) = &study.settings.inference
+            && (config.prior.is_some()
                 || config.prior_artifact.is_some()
-                || config.external_compose.is_some()
-            {
-                return false;
-            }
+                || config.external_compose.is_some())
+        {
+            return false;
         }
         match (study.graph_posterior.as_ref(), study.graph.class(), study.structure_source) {
             (

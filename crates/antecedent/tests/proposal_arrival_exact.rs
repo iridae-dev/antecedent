@@ -166,13 +166,14 @@ fn fixture_family(z: bool) -> ArrivalRequest {
         z_family.as_ref().map_or(RepairFamilyRef::Transport(&family), RepairFamilyRef::ZTransport);
     let report = repair(
         actual,
-        &[study.clone()],
+        std::slice::from_ref(&study),
         RepairObjective::MinimizeCost,
         RepairLimits::default(),
         &ctx,
     )
     .unwrap();
-    let artifact = RepairReportArtifact::build(reference, &[study.clone()], &report).unwrap();
+    let artifact =
+        RepairReportArtifact::build(reference, std::slice::from_ref(&study), &report).unwrap();
     let id = study.semantic_id().to_string();
     let ranked = ranking(&id);
     let mut regimes = family.hypothetical_regimes(&[&study]).unwrap();

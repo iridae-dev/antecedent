@@ -1921,7 +1921,7 @@ mod tests {
         let n = 120usize;
         let x1 = linspace(n, -1.0, 1.0);
         let y: Vec<f64> = x1.iter().map(|&v| 1.5 + 2.0 * v).collect();
-        let (x, nrows, ncols) = colmajor_from_cols(&[x1.clone()]);
+        let (x, nrows, ncols) = colmajor_from_cols(std::slice::from_ref(&x1));
         let specs = [SmoothSpec::new(0, 8, 1e-4)];
         let mut ws = GamWorkspace::default();
         let fit = fit_gam(
@@ -2426,7 +2426,7 @@ mod tests {
         let n = 80usize;
         let x1 = linspace(n, 0.0, 1.0);
         let y: Vec<f64> = x1.iter().map(|&v| (2.0 * std::f64::consts::PI * v).sin()).collect();
-        let (x, nrows, ncols) = colmajor_from_cols(&[x1.clone()]);
+        let (x, nrows, ncols) = colmajor_from_cols(std::slice::from_ref(&x1));
         let specs = [SmoothSpec::new(0, 8, 0.01)];
         let backend = FaerBackend;
         let mut ws = GamWorkspace::default();

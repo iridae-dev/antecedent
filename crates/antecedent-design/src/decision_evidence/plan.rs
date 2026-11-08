@@ -218,22 +218,22 @@ pub fn plan_evidence(
                 let mut q = quantity.clone();
                 let mut touched = false;
                 for b in &mut q.inputs {
-                    if let InputBinding::Assumed { lower, upper, assumption_id: id, .. } = b {
-                        if id == assumption_id {
-                            if !narrowed.0.is_finite()
-                                || !narrowed.1.is_finite()
-                                || narrowed.0 < *lower
-                                || narrowed.1 > *upper
-                                || narrowed.0 > narrowed.1
-                            {
-                                return Err(EvidenceRefusal::Invalid(format!(
-                                    "candidate `{}` must narrow the existing assumption range",
-                                    c.id()
-                                )));
-                            }
-                            (*lower, *upper) = *narrowed;
-                            touched = true;
+                    if let InputBinding::Assumed { lower, upper, assumption_id: id, .. } = b
+                        && id == assumption_id
+                    {
+                        if !narrowed.0.is_finite()
+                            || !narrowed.1.is_finite()
+                            || narrowed.0 < *lower
+                            || narrowed.1 > *upper
+                            || narrowed.0 > narrowed.1
+                        {
+                            return Err(EvidenceRefusal::Invalid(format!(
+                                "candidate `{}` must narrow the existing assumption range",
+                                c.id()
+                            )));
                         }
+                        (*lower, *upper) = *narrowed;
+                        touched = true;
                     }
                 }
                 let value = if !touched {

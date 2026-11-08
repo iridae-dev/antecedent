@@ -1037,7 +1037,7 @@ macro_rules! recalc_request_codes {
         #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
         pub enum RecalcRequestCode {
             $(
-                #[doc = $text]
+                #[doc = concat!("`", $text, "`")]
                 $variant,
             )*
         }

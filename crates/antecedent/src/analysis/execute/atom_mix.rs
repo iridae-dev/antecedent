@@ -233,11 +233,12 @@ where
     let key_weights = IdentifiedKeyWeights::new(input.graphs);
     for eval in evals {
         let w = key_weights.get(eval.key());
-        if w > 0.0 && input.bounds == AtomBoundRule::SetAlways {
-            if let Some((lower, upper)) = eval.identified_bounds() {
-                lo = lo.min(lower);
-                hi = hi.max(upper);
-            }
+        if w > 0.0
+            && input.bounds == AtomBoundRule::SetAlways
+            && let Some((lower, upper)) = eval.identified_bounds()
+        {
+            lo = lo.min(lower);
+            hi = hi.max(upper);
         }
         let value = eval.scalar();
         if let Some(v) = value.filter(|_| w > 0.0) {
@@ -354,10 +355,8 @@ where
     };
     let estimand = estimand.ok_or_else(|| CausalError::Compile { message: missing_estimand() })?;
     let mut estimate = EffectEstimate::new(ate, se, assumptions, OverlapPolicy::ExplicitOverride);
-    if joint {
-        if let Some(influence) = mixed_influence {
-            estimate.scores.influence = Some(influence);
-        }
+    if joint && let Some(influence) = mixed_influence {
+        estimate.scores.influence = Some(influence);
     }
     // A component posterior is not the posterior of a weighted aggregate.
     // Retain it, and the standard errors of its fit, at the top level only when it covers the

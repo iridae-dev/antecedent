@@ -673,7 +673,7 @@ fn cancelled_batches_return_before_mutating_output() {
     context.cancellation.cancel();
     let mut indexes = [GlobalId::new(7)];
     let mut weights = [0.7];
-    assert!(
+    assert_eq!(
         fill_resample_index_batch(
             ResamplingPlan::IidBootstrap,
             1,
@@ -683,10 +683,10 @@ fn cancelled_batches_return_before_mutating_output() {
             0,
             &mut indexes,
         )
-        .unwrap_err()
-            == DataError::Cancelled
+        .unwrap_err(),
+        DataError::Cancelled
     );
-    assert!(
+    assert_eq!(
         fill_resample_weight_batch(
             ResamplingPlan::BayesianBootstrap,
             1,
@@ -695,8 +695,8 @@ fn cancelled_batches_return_before_mutating_output() {
             0,
             &mut weights,
         )
-        .unwrap_err()
-            == DataError::Cancelled
+        .unwrap_err(),
+        DataError::Cancelled
     );
     assert_eq!(indexes, [GlobalId::new(7)]);
     assert!((weights[0] - 0.7).abs() < 1e-12);

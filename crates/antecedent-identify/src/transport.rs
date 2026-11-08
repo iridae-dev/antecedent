@@ -586,11 +586,9 @@ fn bind_catalog(
         };
         let needed = need.needed_variables();
         let regime = catalog.satisfying_regime(&need).map(|regime| regime.id);
-        if sampling_valid {
-            if let Some(regime) = regime {
-                factor.regime = Some(regime);
-                continue;
-            }
+        if sampling_valid && let Some(regime) = regime {
+            factor.regime = Some(regime);
+            continue;
         }
         // A catalog is an evidence declaration, and silence is not evidence: a target factor no
         // declared regime supplies is missing, whether or not the catalog lists any regime for

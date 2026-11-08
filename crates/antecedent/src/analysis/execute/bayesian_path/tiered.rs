@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::analysis::execute;
 use super::{
     AverageEffectQuery, BayesianGcompPointInput, CausalError, CausalPosterior, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext,
@@ -11,6 +10,7 @@ use super::{
     Strategy, StudyResult, TableView, TabularData, elapsed_ns, identification_from_cache_or,
     project_for_ate_estimate,
 };
+use crate::analysis::execute;
 
 /// Per-scenario posteriors of an unidentified within-tier order: each scenario keeps its own
 /// posterior and interval, the scalar stays withheld, and no scenario weight is invented.

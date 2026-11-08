@@ -150,7 +150,7 @@ pub fn evaluate_nonlinear_world(
     let resolved = resolve_cyclic_world(family, &spec.variables, &[], request)?;
     let world = resolved.world;
     let n = spec.model.order();
-    if noise_draws.is_empty() || noise_draws.len() % n != 0 {
+    if noise_draws.is_empty() || !noise_draws.len().is_multiple_of(n) {
         return Err(specification_refusal(
             family,
             Some(world),

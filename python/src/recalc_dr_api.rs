@@ -248,7 +248,8 @@ fn dr_error_refusal(error: &RecalcRunError) -> String {
             let (code, stage) = match detail {
                 antecedent::reason::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH
                 | antecedent::reason::reason_details::recalc::DR_FIT_COUNTER_MISMATCH
-                | antecedent::reason::reason_details::recalc::DR_EFFECT_UNAVAILABLE => {
+                | antecedent::reason::reason_details::recalc::DR_EFFECT_UNAVAILABLE
+                | antecedent::reason::reason_details::recalc::MEMORY_BUDGET_EXCEEDED => {
                     (antecedent::reason::reason_code!("invalid_argument"), "score_artifact")
                 }
                 antecedent::reason::reason_details::recalc::DR_PREDICTOR_UNAVAILABLE
@@ -267,9 +268,6 @@ fn dr_error_refusal(error: &RecalcRunError) -> String {
                 }
                 antecedent::reason::reason_details::recalc::CANCELLED => {
                     (antecedent::reason::reason_code!("cancelled_no_claim"), "score_artifact")
-                }
-                antecedent::reason::reason_details::recalc::MEMORY_BUDGET_EXCEEDED => {
-                    (antecedent::reason::reason_code!("invalid_argument"), "score_artifact")
                 }
                 antecedent::reason::reason_details::recalc::INVALID_TARGET_WEIGHTS => {
                     (antecedent::reason::reason_code!("invalid_argument"), "target_population")
@@ -529,21 +527,21 @@ impl PyDrSession {
                 ))),
             ));
         }
-        if let Some(expected) = self.inner.prediction_columns() {
-            if expected != columns {
-                return Ok((
+        if let Some(expected) = self.inner.prediction_columns()
+            && expected != columns
+        {
+            return Ok((
+                None,
+                Some(refusal_json(
+                    antecedent::reason::reason_code!("invalid_argument"),
+                    "score_artifact",
+                    antecedent::reason::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH,
                     None,
-                    Some(refusal_json(
-                        antecedent::reason::reason_code!("invalid_argument"),
-                        "score_artifact",
-                        antecedent::reason::reason_details::recalc::DR_PREDICTION_SCHEMA_MISMATCH,
-                        None,
-                        None,
-                        "prediction feature names/order differ from retained CATE map",
-                        None,
-                    )),
-                ));
-            }
+                    None,
+                    "prediction feature names/order differ from retained CATE map",
+                    None,
+                )),
+            ));
         }
         let features = self
             .inner

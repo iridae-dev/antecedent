@@ -76,11 +76,10 @@ impl ScoreTable {
     #[must_use]
     pub fn named_for_shared_design(mut self) -> Self {
         use crate::crossfit_aipw::{AIPW_CROSSFIT_PROVENANCE, AIPW_SHARED_DESIGN_PROVENANCE};
-        if let Some(suffix) = self.nuisance_provenance.strip_prefix(AIPW_CROSSFIT_PROVENANCE) {
-            if !self.reads_shared_design() {
-                self.nuisance_provenance =
-                    format!("{AIPW_SHARED_DESIGN_PROVENANCE}{suffix}").into();
-            }
+        if let Some(suffix) = self.nuisance_provenance.strip_prefix(AIPW_CROSSFIT_PROVENANCE)
+            && !self.reads_shared_design()
+        {
+            self.nuisance_provenance = format!("{AIPW_SHARED_DESIGN_PROVENANCE}{suffix}").into();
         }
         self
     }

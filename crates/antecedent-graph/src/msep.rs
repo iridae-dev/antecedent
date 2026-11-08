@@ -70,12 +70,12 @@ impl Admg {
             target_set.try_insert(target)?;
         }
         for &source in sources {
-            if target_set.contains(source) || z.iter().any(|&node| node == source) {
+            if target_set.contains(source) || z.contains(&source) {
                 return Ok(false);
             }
         }
         for &target in targets {
-            if z.iter().any(|&node| node == target) {
+            if z.contains(&target) {
                 return Ok(false);
             }
         }

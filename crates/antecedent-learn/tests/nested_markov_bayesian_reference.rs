@@ -31,7 +31,7 @@ fn gauss(n: usize) -> Vec<(f64, f64)> {
                 break;
             }
         }
-        out.push(((z + 1.0) / 2.0, 1.0 / ((1.0 - z * z) * derivative * derivative)));
+        out.push((f64::midpoint(z, 1.0), 1.0 / ((1.0 - z * z) * derivative * derivative)));
     }
     out.sort_by(|a, b| a.0.total_cmp(&b.0));
     out

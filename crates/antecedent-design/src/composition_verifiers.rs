@@ -542,17 +542,15 @@ fn check_relationship(
             "a node the relationship names is not verified upstream of it",
         ));
     };
-    if *relationship == EvidenceRelationship::Independent {
-        if let (Some(x), Some(y)) =
+    if *relationship == EvidenceRelationship::Independent
+        && let (Some(x), Some(y)) =
             (a.facts.get(FACT_EVIDENCE_DIGEST), b.facts.get(FACT_EVIDENCE_DIGEST))
-        {
-            if x == y {
-                return Err(failure(
-                    BundleStage::SwappedEvidence,
-                    "the nodes are declared independent but rest on the same evidence",
-                ));
-            }
-        }
+        && x == y
+    {
+        return Err(failure(
+            BundleStage::SwappedEvidence,
+            "the nodes are declared independent but rest on the same evidence",
+        ));
     }
     Ok(())
 }
@@ -600,13 +598,13 @@ fn check_recalculation_binding(
 ) -> Result<(), NodeFailure> {
     if let Some(expected) = inspected.facts.get("recalc_score_identity") {
         for source in upstream {
-            if let Some(actual) = source.facts.get("recalc_score_identity") {
-                if expected != actual {
-                    return Err(failure(
-                        BundleStage::SwappedEvidence,
-                        "frozen scores and execution receipt name different executed fits",
-                    ));
-                }
+            if let Some(actual) = source.facts.get("recalc_score_identity")
+                && expected != actual
+            {
+                return Err(failure(
+                    BundleStage::SwappedEvidence,
+                    "frozen scores and execution receipt name different executed fits",
+                ));
             }
         }
     }
@@ -688,27 +686,27 @@ fn cross_check(
                 publish(&mut inspected.facts, key, value.clone());
             }
         }
-        if let Some(own) = contract.facts.get(FACT_COORDINATES) {
-            if !matched.is_empty() && !covered(own, &matched) {
-                return Err(failure(
-                    BundleStage::TamperedQuantity,
-                    "an action reads a coordinate its sources do not carry",
-                ));
-            }
+        if let Some(own) = contract.facts.get(FACT_COORDINATES)
+            && !matched.is_empty()
+            && !covered(own, &matched)
+        {
+            return Err(failure(
+                BundleStage::TamperedQuantity,
+                "an action reads a coordinate its sources do not carry",
+            ));
         }
-        if contract.facts.contains_key(FACT_REQUIRES_DISTRIBUTION) {
-            if let Some(mean_only) = matched
+        if contract.facts.contains_key(FACT_REQUIRES_DISTRIBUTION)
+            && let Some(mean_only) = matched
                 .iter()
                 .find(|s| s.facts.get(FACT_LAW).map(String::as_str) == Some(LAW_MEAN_ONLY))
-            {
-                return Err(failure(
-                    BundleStage::UnsupportedLaw,
-                    format!(
-                        "the decision needs a distribution but upstream node `{}` supplies a mean only",
-                        mean_only.id
-                    ),
-                ));
-            }
+        {
+            return Err(failure(
+                BundleStage::UnsupportedLaw,
+                format!(
+                    "the decision needs a distribution but upstream node `{}` supplies a mean only",
+                    mean_only.id
+                ),
+            ));
         }
     }
     Ok(())
@@ -718,16 +716,15 @@ fn check_rollout_binding(
     inspected: &Inspected,
     upstream: &[UpstreamNode<'_>],
 ) -> Result<(), NodeFailure> {
-    if let Some(identity) = inspected.facts.get("rollout_source_identity") {
-        if !upstream
+    if let Some(identity) = inspected.facts.get("rollout_source_identity")
+        && !upstream
             .iter()
             .any(|node| node.kind == NodeKind::Distribution && node.identity == identity)
-        {
-            return Err(failure(
-                BundleStage::SwappedEvidence,
-                "rollout requires its original full source law upstream",
-            ));
-        }
+    {
+        return Err(failure(
+            BundleStage::SwappedEvidence,
+            "rollout requires its original full source law upstream",
+        ));
     }
     for rollout in upstream.iter().filter(|node| node.kind == NodeKind::Rollout) {
         let expected = rollout.facts.get("rollout_terminal_decision");

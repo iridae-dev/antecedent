@@ -385,10 +385,10 @@ pub(super) fn plugin_level_on_class_response_atoms(
         message: "static completion refutation requires its lowered program identity".into(),
     })?;
     let mut ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
-    if let ResponseFunctional::InterventionResponse { interventions, .. } = &query.functional {
-        if let [action] = interventions.as_ref() {
-            ate_query.active = action.clone();
-        }
+    if let ResponseFunctional::InterventionResponse { interventions, .. } = &query.functional
+        && let [action] = interventions.as_ref()
+    {
+        ate_query.active = action.clone();
     }
     ate_query.target_population = query.target_population.clone();
     let mut refute_ws = EstimationWorkspace::default();

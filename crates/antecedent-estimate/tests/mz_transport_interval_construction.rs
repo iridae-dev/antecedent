@@ -45,7 +45,7 @@ fn hand_quantile(values: &[f64], p: f64) -> f64 {
 }
 
 fn hand_interval(values: &[f64], level: f64) -> (f64, f64) {
-    (hand_quantile(values, (1.0 - level) / 2.0), hand_quantile(values, (1.0 + level) / 2.0))
+    (hand_quantile(values, (1.0 - level) / 2.0), hand_quantile(values, f64::midpoint(1.0, level)))
 }
 
 #[test]

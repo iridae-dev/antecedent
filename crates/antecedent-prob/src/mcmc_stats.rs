@@ -221,7 +221,7 @@ fn diagnostics_one(
         return fail;
     }
     // Drop last draw when odd so halves are equal.
-    let n_use = if n_draws % 2 == 0 { n_draws } else { n_draws - 1 };
+    let n_use = if n_draws.is_multiple_of(2) { n_draws } else { n_draws - 1 };
     let half = n_use / 2;
     if half < 4 {
         return fail;

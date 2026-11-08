@@ -151,9 +151,8 @@ mod tests {
         let y = [0.2, 0.8];
         let ctx = ExecutionContext::for_tests(1);
         let view = DesignView::from_column_major(&x, 2, 2).unwrap();
-        let err = match LogisticLearner::default().fit(view, TargetView::new(&y), None, &ctx) {
-            Ok(_) => panic!("non-binary labels should fail"),
-            Err(error) => error,
+        let Err(err) = LogisticLearner::default().fit(view, TargetView::new(&y), None, &ctx) else {
+            panic!("non-binary labels should fail");
         };
         assert!(matches!(err, LearnError::Shape { message } if message.contains("0 or 1")));
     }

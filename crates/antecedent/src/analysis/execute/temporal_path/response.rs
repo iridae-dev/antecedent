@@ -587,10 +587,10 @@ impl super::super::Study {
         // uncertainty. Replicates = 0 keeps the analytic OLS linear-functional SE.
         let mut estimator =
             TemporalResponseEstimator::new().with_allow_gaps(self.declares_complete_case());
-        if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
-            if let Some(gate) = cfg.white_innovation {
-                estimator = estimator.with_white_innovation(gate);
-            }
+        if let InferenceMode::Bayesian(cfg) = &self.settings.inference
+            && let Some(gate) = cfg.white_innovation
+        {
+            estimator = estimator.with_white_innovation(gate);
         }
         estimator.inner.inference.bootstrap_replicates =
             if observation_adjusted.is_some() { 0 } else { self.settings.bootstrap_replicates };
@@ -643,8 +643,8 @@ impl super::super::Study {
         .map_err(CausalError::from)?;
         if let Some(adjusted) = observation_adjusted {
             apply_temporal_observation_result(&mut response, adjusted);
-            if self.settings.bootstrap_replicates > 0 {
-                if let Some(bootstrap) = bootstrap_observation_adjusted_temporal_response(
+            if self.settings.bootstrap_replicates > 0
+                && let Some(bootstrap) = bootstrap_observation_adjusted_temporal_response(
                     source_data,
                     query,
                     aligned,
@@ -653,13 +653,13 @@ impl super::super::Study {
                         replicates: self.settings.bootstrap_replicates,
                     },
                     ctx,
-                )? {
-                    apply_observation_bootstrap(
-                        &mut response,
-                        &bootstrap,
-                        self.settings.bootstrap_replicates,
-                    );
-                }
+                )?
+            {
+                apply_observation_bootstrap(
+                    &mut response,
+                    &bootstrap,
+                    self.settings.bootstrap_replicates,
+                );
             }
         }
         // The estimator's public API accepts one aggregate status for callers

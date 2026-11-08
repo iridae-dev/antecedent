@@ -997,10 +997,10 @@ fn best_insert_with(
                 continue;
             };
             search.note_pruned(entry.truncated);
-            if let Some((set, delta)) = &entry.best {
-                if best.as_ref().is_none_or(|b| *delta > b.delta) {
-                    best = Some(OpCand { x, y, set: set.clone(), delta: *delta });
-                }
+            if let Some((set, delta)) = &entry.best
+                && best.as_ref().is_none_or(|b| *delta > b.delta)
+            {
+                best = Some(OpCand { x, y, set: set.clone(), delta: *delta });
             }
         }
     }
@@ -1182,10 +1182,10 @@ fn apply_insert(
 ) -> Result<(), DiscoveryError> {
     cpdag.insert_directed(x, y)?;
     for &ti in t {
-        if let Some(e) = cpdag.edge_between(ti, y) {
-            if e.is_undirected() {
-                cpdag.orient_undirected(ti, y)?;
-            }
+        if let Some(e) = cpdag.edge_between(ti, y)
+            && e.is_undirected()
+        {
+            cpdag.orient_undirected(ti, y)?;
         }
     }
     let dag = pdag_to_dag(cpdag)?;
@@ -1201,15 +1201,15 @@ fn apply_delete(
 ) -> Result<(), DiscoveryError> {
     cpdag.remove_edge(x, y)?;
     for &hi in h {
-        if let Some(e) = cpdag.edge_between(y, hi) {
-            if e.is_undirected() {
-                cpdag.orient_undirected(y, hi)?;
-            }
+        if let Some(e) = cpdag.edge_between(y, hi)
+            && e.is_undirected()
+        {
+            cpdag.orient_undirected(y, hi)?;
         }
-        if let Some(e) = cpdag.edge_between(x, hi) {
-            if e.is_undirected() {
-                cpdag.orient_undirected(x, hi)?;
-            }
+        if let Some(e) = cpdag.edge_between(x, hi)
+            && e.is_undirected()
+        {
+            cpdag.orient_undirected(x, hi)?;
         }
     }
     let dag = pdag_to_dag(cpdag)?;

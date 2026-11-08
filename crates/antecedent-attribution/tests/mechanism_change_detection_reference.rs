@@ -125,10 +125,10 @@ fn detection_statistics_and_family_correction_match_the_reference() {
                 let want = &case["targets"][target][key];
                 let at = format!("{name} {key} {target}");
                 close(detection.statistic, want["statistic"].as_f64().unwrap(), 1e-7, &at);
-                if let Some(p) = want.get("p_value").and_then(Value::as_f64) {
-                    if key == "mean_diff" || large {
-                        close(detection.p_value, p, 1e-5, &format!("{at} p"));
-                    }
+                if let Some(p) = want.get("p_value").and_then(Value::as_f64)
+                    && (key == "mean_diff" || large)
+                {
+                    close(detection.p_value, p, 1e-5, &format!("{at} p"));
                 }
                 if key == "kernel" {
                     assert_eq!(detection.n_permutations, Some(999), "{at}");

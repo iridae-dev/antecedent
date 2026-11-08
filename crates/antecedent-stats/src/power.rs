@@ -432,14 +432,14 @@ impl EquicorrelatedComparisons {
             for (slot, &c) in exceed.iter_mut().zip(critical) {
                 *slot = self.exceedance(node, noncentrality, c);
             }
-            state.iter_mut().for_each(|value| *value = 0.0);
+            state.fill(0.0);
             state[0] = 1.0;
             for i in 0..k {
                 let previous = if i == 0 { 0.0 } else { exceed[i - 1] };
                 let band = (exceed[i] - previous).max(0.0);
                 let remaining = (1.0 - previous).max(0.0);
                 let p = if remaining > 0.0 { (band / remaining).clamp(0.0, 1.0) } else { 0.0 };
-                next.iter_mut().for_each(|value| *value = 0.0);
+                next.fill(0.0);
                 for (m, &mass) in state.iter().enumerate() {
                     if mass == 0.0 {
                         continue;

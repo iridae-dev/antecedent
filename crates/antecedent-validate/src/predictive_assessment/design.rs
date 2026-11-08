@@ -208,20 +208,19 @@ pub(crate) fn resolve_design(
         ValidationDesign::RollingOrigin { horizon_steps, .. },
         Some(DependenceDeclaration::Serial { truncation_lag, .. }),
     ) = (design, dependence)
+        && u64::from(*truncation_lag) + 1 < u64::from(*horizon_steps)
     {
-        if u64::from(*truncation_lag) + 1 < u64::from(*horizon_steps) {
-            return Err(refuse(
-                reason_code!("sampling_dependence_unknown"),
-                detail::SERIAL_LAG_BELOW_HORIZON,
-                format!(
-                    "forecasts {horizon_steps} steps ahead have errors that overlap across up to \
+        return Err(refuse(
+            reason_code!("sampling_dependence_unknown"),
+            detail::SERIAL_LAG_BELOW_HORIZON,
+            format!(
+                "forecasts {horizon_steps} steps ahead have errors that overlap across up to \
                      {} origins, but the declared truncation lag is {truncation_lag}; declare a \
                      truncation lag of at least {}",
-                    horizon_steps,
-                    horizon_steps - 1
-                ),
-            ));
-        }
+                horizon_steps,
+                horizon_steps - 1
+            ),
+        ));
     }
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by(|&a, &b| primary[a].cmp(&primary[b]).then(keys[a].cmp(&keys[b])));

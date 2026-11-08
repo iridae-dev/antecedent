@@ -156,6 +156,10 @@ fn a_latent_confounded_modifier_gives_the_stratified_difference() {
     clippy::cast_precision_loss,
     reason = "the quantile is inside [0, 1] and the draw count fits an index"
 )]
+#[allow(
+    clippy::large_stack_arrays,
+    reason = "test fixture: the result array is built once and holds large result values"
+)]
 fn the_bayesian_arm_is_a_dirichlet_posterior_of_the_same_contrast() {
     let cells = confounded_modifier_cells();
     let data = expand(&["z", "x", "y"], &cells);
@@ -168,7 +172,7 @@ fn the_bayesian_arm_is_a_dirichlet_posterior_of_the_same_contrast() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    for result in vec![
+    for result in [
         study.clone().run(&ctx).unwrap(),
         study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap(),
     ] {

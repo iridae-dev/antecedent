@@ -246,7 +246,7 @@ impl CheckedRandomizedOperation {
         let weighted = self.extra.as_ref().filter(|_| !complete);
         let interval_published = fit.interval_95.is_some();
         let sampled = fit.sampling.is_some();
-        let small_arm = fit.small_arm_df.and_then(|df| method.small_arm().map(|text| (df, text)));
+        let small_arm = fit.small_arm_df.zip(method.small_arm());
         let uncertainty = Arc::<str>::from(match weighted {
             Some(declaration) => responder_uncertainty(declaration.policy, method),
             None if sampled => SAMPLING_WEIGHTED_UNCERTAINTY,

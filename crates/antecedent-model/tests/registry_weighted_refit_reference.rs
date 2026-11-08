@@ -98,7 +98,7 @@ fn weighted_linear_gaussian_refits_match_exact_weighted_least_squares() {
         let (x1, x2, y) = (floats(&case["x1"]), floats(&case["x2"]), floats(&case["y"]));
         let weights = floats(&case["weights"]);
         let data = table(&[&x1, &x2, &y]);
-        let store = if weights.iter().any(|w| *w == 0.0) {
+        let store = if weights.contains(&0.0) {
             registry
                 .refit_frequency_weighted_polled(&model, &data, &assignments, &weights, &|| false)
                 .unwrap()

@@ -280,16 +280,16 @@ impl ExternalMechanismSpec {
         if self.parameter_names.iter().any(|p| !text_ok(p) || !params.insert(p.as_str())) {
             return bad("parameter names must be distinct nonblank text");
         }
-        if let DerivativeDeclaration::FiniteDifference { step, .. } = self.derivative {
-            if !(step.is_finite() && step > 0.0 && step <= 1.0) {
-                return bad("finite-difference step must lie in (0, 1]");
-            }
+        if let DerivativeDeclaration::FiniteDifference { step, .. } = self.derivative
+            && !(step.is_finite() && step > 0.0 && step <= 1.0)
+        {
+            return bad("finite-difference step must lie in (0, 1]");
         }
-        if let Some(bounds) = &self.input_lipschitz {
-            if bounds.len() != self.reads.len() || bounds.iter().any(|b| !b.is_finite() || *b < 0.0)
-            {
-                return bad("input Lipschitz bounds need one finite nonnegative bound per input");
-            }
+        if let Some(bounds) = &self.input_lipschitz
+            && (bounds.len() != self.reads.len()
+                || bounds.iter().any(|b| !b.is_finite() || *b < 0.0))
+        {
+            return bad("input Lipschitz bounds need one finite nonnegative bound per input");
         }
         Ok(())
     }

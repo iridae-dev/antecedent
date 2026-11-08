@@ -923,16 +923,15 @@ mod tests {
 
     #[test]
     fn stratification_rejects_singleton_arm_uncertainty() {
-        let err = match stratified_ate(
+        let Err(err) = stratified_ate(
             &[0.0, 1.0],
             &[0.0, 1.0],
             None,
             &[0, 0],
             1,
             &TargetPopulation::AllObserved,
-        ) {
-            Ok(_) => panic!("singleton arms must be rejected"),
-            Err(err) => err,
+        ) else {
+            panic!("singleton arms must be rejected")
         };
         assert_eq!(err.reason_code(), Some("stratum_too_sparse"), "{err}");
         assert!(err.to_string().contains("stratum 0 has 1 treated and 1 control"), "{err}");

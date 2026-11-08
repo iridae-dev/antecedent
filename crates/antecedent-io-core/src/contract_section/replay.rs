@@ -271,7 +271,7 @@ impl FormulaCanon {
                 self.node(arena, memo, *denominator, depth + 1)?,
             ),
             N::Expectation { function, distribution } => {
-                format!("E|{function}|{}", self.node(arena, memo, *distribution, depth + 1)?,)
+                format!("E|{function}|{}", self.node(arena, memo, *distribution, depth + 1)?)
             }
             N::Contrast { left, right, op } => format!(
                 "C|{op}|{}|{}",
@@ -705,10 +705,10 @@ pub(in crate::contract_section) fn verify_layer_links(
     }
     verify_score_reuse_link(contract, unresolved);
     verify_target_weights_link(contract, unresolved);
-    if let Some(observation) = &contract.observation {
-        if observation.schema != target.schema {
-            unresolved.push(ContractReason::ObservationSchema);
-        }
+    if let Some(observation) = &contract.observation
+        && observation.schema != target.schema
+    {
+        unresolved.push(ContractReason::ObservationSchema);
     }
     if let Some(program) = &contract.program {
         let commitments = &program.commitments;

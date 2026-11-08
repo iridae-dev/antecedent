@@ -714,7 +714,7 @@ impl SdeSimulationPolicy {
             || self.steps > MAX_SDE_STEPS
             || self.output_every == 0
             || self.output_every > self.steps
-            || self.steps % self.output_every != 0
+            || !self.steps.is_multiple_of(self.output_every)
             || self.paths < 2
             || self.paths > MAX_SDE_PATHS
             || !self.weak_tolerance.is_finite()

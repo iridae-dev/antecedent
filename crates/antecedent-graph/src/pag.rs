@@ -651,7 +651,7 @@ impl Pag {
         if path.len() < 2 {
             return false;
         }
-        let in_z = |n: DenseNodeId| z.iter().any(|&v| v == n);
+        let in_z = |n: DenseNodeId| z.contains(&n);
         if in_z(path[0]) || in_z(path[path.len() - 1]) {
             return true;
         }

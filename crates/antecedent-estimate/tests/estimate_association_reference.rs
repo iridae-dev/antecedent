@@ -417,7 +417,7 @@ fn resampling_summaries_and_posteriors_match_the_references_on_the_library_strea
                 ),
                 None => assert!(term.standard_error.is_none(), "{name}: se {k}"),
             }
-            if boot.is_some() {
+            if let Some(boot) = boot {
                 let series = case["modality"] == "series";
                 let method = if boot_se.is_some() {
                     Some(if series { "bootstrap_circular_block" } else { "bootstrap_row" })
@@ -432,7 +432,7 @@ fn resampling_summaries_and_posteriors_match_the_references_on_the_library_strea
                         "{name}: a term with too few finite replicates keeps its analytic error"
                     );
                 }
-                match boot.unwrap()["spread"].as_array() {
+                match boot["spread"].as_array() {
                     Some(s) => {
                         let (lo, hi) = term.spread.unwrap_or_else(|| panic!("{name}: spread {k}"));
                         close(lo, s[0].as_f64().unwrap(), se_tol, &format!("{name} spread lo {k}"));

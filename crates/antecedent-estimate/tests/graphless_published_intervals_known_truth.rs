@@ -107,7 +107,7 @@ fn cluster_total_welch_interval_matches_the_hand_computed_construction() {
         }
         first += size as u64;
     }
-    let treated_cluster = |c: usize| c % 2 == 0 || c == 5; // 10 + 1 = 11 treated clusters
+    let treated_cluster = |c: usize| c.is_multiple_of(2) || c == 5; // 10 + 1 = 11 treated clusters
     let treated_count = (0..k).filter(|&c| treated_cluster(c)).count();
     let assignment: Vec<bool> = clusters.iter().map(|&c| treated_cluster(c as usize)).collect();
     let outcomes: Vec<f64> = (0..n)

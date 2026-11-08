@@ -335,24 +335,24 @@ pub(super) fn mix_response_uncertainty(
     // A single atom retains its valid uncertainty. Averaging confidence limits
     // does not produce confidence limits for the weighted mean (the fits share
     // observations), nor quantiles of a distribution over graphs.
-    if let [(weight, uncertainty)] = items {
-        if weight.is_finite() && *weight > 0.0 {
-            return (*uncertainty).clone();
-        }
+    if let [(weight, uncertainty)] = items
+        && weight.is_finite()
+        && *weight > 0.0
+    {
+        return (*uncertainty).clone();
     }
     // Markov-equivalent completions of a fully identified class produce the same
     // adjustment, hence the same estimate and the same interval (for a Bayesian
     // response, the same retained draws). Their weighted posterior is that one
     // distribution, so the class interval is the shared interval — collapsing
     // agreeing completions invents nothing, unlike averaging distinct components.
-    if let Some((first_weight, first)) = items.first() {
-        if first_weight.is_finite()
-            && *first_weight > 0.0
-            && !matches!(**first, ResponseUncertainty::None)
-            && items.iter().all(|(weight, u)| weight.is_finite() && *weight > 0.0 && *u == *first)
-        {
-            return (*first).clone();
-        }
+    if let Some((first_weight, first)) = items.first()
+        && first_weight.is_finite()
+        && *first_weight > 0.0
+        && !matches!(**first, ResponseUncertainty::None)
+        && items.iter().all(|(weight, u)| weight.is_finite() && *weight > 0.0 && *u == *first)
+    {
+        return (*first).clone();
     }
     ResponseUncertainty::None
 }

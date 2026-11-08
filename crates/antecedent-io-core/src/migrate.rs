@@ -31,7 +31,7 @@ pub const SUPPORTED_SOURCE_FORMATS: &[FormatVersion] = &[
 /// analysis-result extension is checked against its artifact kind separately.
 #[must_use]
 pub fn is_supported_source(v: FormatVersion) -> bool {
-    SUPPORTED_SOURCE_FORMATS.iter().any(|s| *s == v)
+    SUPPORTED_SOURCE_FORMATS.contains(&v)
 }
 
 /// Migrate an encoded artifact's format version toward [`STABLE_FORMAT`].

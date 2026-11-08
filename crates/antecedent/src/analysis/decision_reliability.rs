@@ -52,6 +52,8 @@ pub use super::design_exports::design_crate::decision_reliability::{
     RolloutNoise, RolloutUtilityDraws, SelectionComponent, SelectionCorrectedInterval, TruthKind,
     UtilityInterval,
 };
+use std::fmt::Write as _;
+
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{
     ReliabilityError, assess, consume, coverage_design, derive_uncertainty, reach_carrier,
@@ -78,13 +80,13 @@ impl DecisionReliabilityRefusal {
         let refusal = error.to_refusal();
         let mut message = refusal.detail.clone();
         if let Some(offending) = &refusal.offending {
-            message.push_str(&format!(": {offending}"));
+            let _ = write!(message, ": {offending}");
         }
         if let Some(expected) = &refusal.expected {
-            message.push_str(&format!("; expected {expected}"));
+            let _ = write!(message, "; expected {expected}");
         }
         if let Some(remedy) = refusal.remedy {
-            message.push_str(&format!("; {remedy}"));
+            let _ = write!(message, "; {remedy}");
         }
         Self { code: refusal.code, detail: refusal.detail, message, remedy: refusal.remedy }
     }
@@ -110,17 +112,18 @@ impl DecisionReliabilityRefusal {
         }
         // The loader's own kind-mismatch detail survives; every other artifact
         // failure keeps the generic detail.
-        if let IoError::Refused { code, message } = error {
-            if let Some(text) =
+        if let IoError::Refused { code, message } = error
+            && let Some(text) =
                 message.strip_prefix("decision_reliability.artifact_kind_mismatch: ")
-            {
-                return Self {
-                    code: *code,
-                    detail: antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH.to_owned(),
-                    message: text.to_owned(),
-                    remedy: None,
-                };
-            }
+        {
+            return Self {
+                code: *code,
+                detail:
+                    antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH
+                        .to_owned(),
+                message: text.to_owned(),
+                remedy: None,
+            };
         }
         Self {
             code: error.reason_code().unwrap_or(antecedent_core::reason_code!("invalid_argument")),
@@ -431,24 +434,21 @@ pub fn consume_decision_reliability_artifact(
 ) -> Result<PreparedDecisionReliability, DecisionReliabilityRefusal> {
     // A readable container of another kind is a recognised artifact this consumer
     // does not read: name both kinds and the consumer that does.
-    if let Some(kind) = antecedent_design::inverse_query_artifact::recognised_artifact_kind(bytes) {
-        if kind != antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND {
-            let message = format!(
-                "decision_reliability.artifact_kind_mismatch: expected {}, supplied {kind}; {}",
-                antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND,
-                antecedent_design::inverse_query_artifact::artifact_kind_remedy(&kind),
-            );
-            return Err(DecisionReliabilityRefusal {
-                code: antecedent_core::reason_code!("invalid_argument"),
-                detail:
-                    antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH
-                        .to_owned(),
-                message,
-                remedy: Some(antecedent_design::inverse_query_artifact::artifact_kind_remedy(
-                    &kind,
-                )),
-            });
-        }
+    if let Some(kind) = antecedent_design::inverse_query_artifact::recognised_artifact_kind(bytes)
+        && kind != antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND
+    {
+        let message = format!(
+            "decision_reliability.artifact_kind_mismatch: expected {}, supplied {kind}; {}",
+            antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND,
+            antecedent_design::inverse_query_artifact::artifact_kind_remedy(&kind),
+        );
+        return Err(DecisionReliabilityRefusal {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            detail: antecedent_core::reason_details::decision_reliability::ARTIFACT_KIND_MISMATCH
+                .to_owned(),
+            message,
+            remedy: Some(antecedent_design::inverse_query_artifact::artifact_kind_remedy(&kind)),
+        });
     }
     let artifact = consume(bytes, expected, ctx)
         .map_err(|error| DecisionReliabilityRefusal::from_io(&error))?;

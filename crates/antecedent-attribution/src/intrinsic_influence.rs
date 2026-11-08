@@ -707,7 +707,9 @@ pub fn intrinsic_influence_with_temporal_runs(
 
     let sim_se = |series: &[f64]| -> f64 {
         let mut w = Welford::new();
-        series.iter().for_each(|&x| w.push(x));
+        for &x in series {
+            w.push(x);
+        }
         w.stderr_of_mean()
     };
     let sources_sim: Vec<f64> = (0..players.len())
@@ -1145,7 +1147,9 @@ impl<'a> ReplicateBank<'a> {
 /// Bessel-corrected sample variance.
 fn variance_of(y: &[f64]) -> f64 {
     let mut w = Welford::new();
-    y.iter().for_each(|&x| w.push(x));
+    for &x in y {
+        w.push(x);
+    }
     w.sample_variance().unwrap_or(f64::NAN)
 }
 
@@ -1157,7 +1161,9 @@ fn nested_variance(y: &[f64], outer: usize, inner: usize) -> f64 {
     let mut within = 0.0;
     for group in y.chunks_exact(inner) {
         let mut w = Welford::new();
-        group.iter().for_each(|&x| w.push(x));
+        for &x in group {
+            w.push(x);
+        }
         means.push(w.mean());
         within += w.sample_variance().unwrap_or(0.0);
     }
@@ -1256,7 +1262,9 @@ fn bootstrap_spread(
     let whole = (0..players)
         .map(|i| {
             let mut w = Welford::new();
-            draws.iter().for_each(|d| w.push(d[i]));
+            for d in draws {
+                w.push(d[i]);
+            }
             let boot_var = w.sample_variance().unwrap_or(f64::NAN);
             let permutation_var =
                 pooled.component_mc_stderr.as_ref().map_or(0.0, |se| se[i] * se[i]);
@@ -1266,7 +1274,9 @@ fn bootstrap_spread(
     let stderr = (0..players)
         .map(|i| {
             let mut w = Welford::new();
-            draws.iter().for_each(|d| w.push(d[i]));
+            for d in draws {
+                w.push(d[i]);
+            }
             let boot_var = w.sample_variance().unwrap_or(f64::NAN);
             // The refits reuse the same permutation stream; their spread is
             // conditional on those permutations. Only the fresh simulation

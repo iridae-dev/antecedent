@@ -717,10 +717,10 @@ impl MechanismProgram {
         graph: &Dag,
         data: &TabularData,
     ) -> Result<Arc<FittedGcm>, CausalError> {
-        if let Some((fitted, rows)) = &self.prefit {
-            if *rows == data.storage().content_digest() {
-                return Ok(Arc::clone(fitted));
-            }
+        if let Some((fitted, rows)) = &self.prefit
+            && *rows == data.storage().content_digest()
+        {
+            return Ok(Arc::clone(fitted));
         }
         if self.wrapped.is_some() {
             return Err(crate::compile_reason!(
@@ -1026,7 +1026,7 @@ fn history_batches(
 ) -> Result<Vec<ValueBatch>, CausalError> {
     let n_nodes = fitted.model.n_nodes();
     let width = n_nodes.saturating_mul(n_rows);
-    if width == 0 || history.len() % width != 0 {
+    if width == 0 || !history.len().is_multiple_of(width) {
         return Err(crate::compile_reason!(
             "invalid_argument",
             "rollout history needs {n_rows} values for each of the model's {n_nodes} variables \

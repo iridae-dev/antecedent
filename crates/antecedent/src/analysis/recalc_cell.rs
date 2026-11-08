@@ -780,10 +780,10 @@ impl ScoreResumeSession {
                 return Err(RecalcRunError::Request(RecalcRequestCode::RowIdsMismatch));
             }
         }
-        if let Some(target) = &request.target {
-            if target.weights.len() != self.table.n_rows {
-                return Err(RecalcRunError::Request(RecalcRequestCode::RowCountMismatch));
-            }
+        if let Some(target) = &request.target
+            && target.weights.len() != self.table.n_rows
+        {
+            return Err(RecalcRunError::Request(RecalcRequestCode::RowCountMismatch));
         }
         Ok(())
     }

@@ -398,7 +398,7 @@ impl Wide {
     // Larger terms cancel before smaller terms are added, retaining a small
     // intercept after equal and opposite huge shifts.
     fn sum(mut values: Vec<Self>) -> Self {
-        values.sort_by(|a, b| b.exponent.cmp(&a.exponent));
+        values.sort_by_key(|value| std::cmp::Reverse(value.exponent));
         values.into_iter().fold(Self { mantissa: 0.0, exponent: 0 }, Self::add)
     }
     fn to_f64(self) -> f64 {

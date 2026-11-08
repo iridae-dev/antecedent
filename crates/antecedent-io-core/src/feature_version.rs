@@ -209,7 +209,8 @@ mod tests {
         assert_eq!(STABLE_FORMAT, FormatVersion { major: 0, minor: 5 });
         assert!(!is_migration_source(STABLE_FORMAT));
         let feature = family();
-        let got = classify_feature_read(STABLE_FORMAT, request(&feature), &[feature.clone()]);
+        let got =
+            classify_feature_read(STABLE_FORMAT, request(&feature), std::slice::from_ref(&feature));
         assert_eq!(got, Ok(FeatureRead::Compatible { feature }));
     }
 
@@ -221,7 +222,7 @@ mod tests {
             assert!(is_supported_source(from));
             assert!(is_migration_source(from));
             assert_eq!(
-                classify_feature_read(from, request(&feature), &[feature.clone()]),
+                classify_feature_read(from, request(&feature), std::slice::from_ref(&feature)),
                 Ok(FeatureRead::RequiresMigration { from, feature: feature.clone() }),
             );
         }
@@ -237,7 +238,7 @@ mod tests {
         ] {
             assert!(!is_migration_source(container));
             assert_eq!(
-                classify_feature_read(container, request(&feature), &[feature.clone()]),
+                classify_feature_read(container, request(&feature), std::slice::from_ref(&feature)),
                 Err(FeatureRefusal::UnsupportedContainer {
                     major: container.major,
                     minor: container.minor,
@@ -270,11 +271,12 @@ mod tests {
             classify_feature_read(
                 FormatVersion { major: 1, minor: 0 },
                 request(&feature),
-                &[feature.clone()],
+                std::slice::from_ref(&feature),
             ),
             Err(FeatureRefusal::UnsupportedContainer { major: 1, minor: 0 }),
         );
-        let got = classify_feature_read(STABLE_FORMAT, request(&feature), &[feature.clone()]);
+        let got =
+            classify_feature_read(STABLE_FORMAT, request(&feature), std::slice::from_ref(&feature));
         assert_eq!(got, Ok(FeatureRead::Compatible { feature }));
     }
 }

@@ -229,22 +229,22 @@ fn apply_atom_observation_bands(
             structural_atoms.get_mut(atom.atom_index).and_then(|item| item.response.as_mut())
         {
             apply_observation_bootstrap(atom_response, &band, replicates);
-        } else if let Some(structural) = structural_atoms.get_mut(atom.atom_index) {
-            if let Some(value) = structural.value.clone() {
-                let mut stub = CausalResponse {
-                    estimand: response.estimand.clone(),
-                    identification_status: structural.status,
-                    estimate: ResponseIdentification::PointIdentified(value),
-                    uncertainty: ResponseUncertainty::None,
-                    support: response.support.clone(),
-                    assumptions: atom.assumptions.clone(),
-                    provenance_id: Arc::from("estimate.temporal_response.class_atom"),
-                    horizon_identification: None,
-                    interaction_structurally_zero: false,
-                };
-                apply_observation_bootstrap(&mut stub, &band, replicates);
-                structural.response = Some(stub);
-            }
+        } else if let Some(structural) = structural_atoms.get_mut(atom.atom_index)
+            && let Some(value) = structural.value.clone()
+        {
+            let mut stub = CausalResponse {
+                estimand: response.estimand.clone(),
+                identification_status: structural.status,
+                estimate: ResponseIdentification::PointIdentified(value),
+                uncertainty: ResponseUncertainty::None,
+                support: response.support.clone(),
+                assumptions: atom.assumptions.clone(),
+                provenance_id: Arc::from("estimate.temporal_response.class_atom"),
+                horizon_identification: None,
+                interaction_structurally_zero: false,
+            };
+            apply_observation_bootstrap(&mut stub, &band, replicates);
+            structural.response = Some(stub);
         }
     }
 }
@@ -293,10 +293,10 @@ pub(super) fn apply_class_observation_bootstrap(
     let (attempted, points) = (tuple.attempted, &tuple.points);
     for replicate_atom_values in &tuple.values {
         for (atom_i, values) in replicate_atom_values.iter().enumerate() {
-            if let Some(values) = values {
-                if atom_draws[atom_i].first().is_none_or(|first| first.len() == values.len()) {
-                    atom_draws[atom_i].push(values.clone());
-                }
+            if let Some(values) = values
+                && atom_draws[atom_i].first().is_none_or(|first| first.len() == values.len())
+            {
+                atom_draws[atom_i].push(values.clone());
             }
         }
         if apply_class_band && class_len > 0 {

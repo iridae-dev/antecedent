@@ -43,10 +43,10 @@ impl EntropyChannel {
         if n == 0 {
             return None;
         }
-        if let Some(feat) = graph_features {
-            if feat.len() != n {
-                return None;
-            }
+        if let Some(feat) = graph_features
+            && feat.len() != n
+        {
+            return None;
         }
         let labels: Vec<u64> = if let Some(feat) = graph_features {
             feat.iter().map(|&label| u64::from(label)).collect()

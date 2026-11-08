@@ -294,6 +294,10 @@ fn consume_cyclic_family(
     ))
 }
 
+#[allow(
+    clippy::large_enum_variant,
+    reason = "private owner enum held once per executed study; boxing would only add an indirection"
+)]
 enum CyclicExecutionOwner {
     System(antecedent::analysis::cyclic::ExecutedCyclicSystem),
     Family(antecedent::analysis::cyclic::ExecutedCyclicFamily),

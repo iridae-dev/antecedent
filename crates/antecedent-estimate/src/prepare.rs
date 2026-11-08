@@ -267,7 +267,7 @@ pub(crate) fn require_contrast_arms_populated(
 ) -> Result<(), EstimationError> {
     let mut distinct: Vec<f64> = Vec::new();
     for &value in values {
-        if !distinct.iter().any(|seen| *seen == value) {
+        if !distinct.contains(&value) {
             distinct.push(value);
             if distinct.len() > MAX_DISCRETE_LEVELS {
                 return Ok(());
@@ -307,14 +307,14 @@ pub(crate) fn require_contrast_arms_populated(
 pub(crate) fn is_discrete_with_other_levels(values: &[f64], active: f64, control: f64) -> bool {
     let mut distinct: Vec<f64> = Vec::new();
     for &value in values {
-        if !distinct.iter().any(|seen| *seen == value) {
+        if !distinct.contains(&value) {
             distinct.push(value);
             if distinct.len() > MAX_DISCRETE_LEVELS {
                 return false;
             }
         }
     }
-    let has = |level: f64| distinct.iter().any(|seen| *seen == level);
+    let has = |level: f64| distinct.contains(&level);
     distinct.len() >= 3 && has(active) && has(control)
 }
 
@@ -428,16 +428,16 @@ pub(crate) fn validate_streamed_iv_levels(
             ),
         ));
     }
-    if levels.iter().all(|(value, _)| value.fract() == 0.0) {
-        if let Some(level) = [control, active].into_iter().find(|level| !has(*level)) {
-            return Err(crate::util::refuse(
-                antecedent_core::reason_code!("arm_not_populated"),
-                "iv.unobserved_level",
-                &format!(
-                    "the contrasted level {level} is not taken by any row of the discrete treatment ({description}); the instrumental fit would return the slope scaled by the gap to a level the data never visited. Next attempt: contrast levels the treatment takes, or use a continuous dose whose range spans them"
-                ),
-            ));
-        }
+    if levels.iter().all(|(value, _)| value.fract() == 0.0)
+        && let Some(level) = [control, active].into_iter().find(|level| !has(*level))
+    {
+        return Err(crate::util::refuse(
+            antecedent_core::reason_code!("arm_not_populated"),
+            "iv.unobserved_level",
+            &format!(
+                "the contrasted level {level} is not taken by any row of the discrete treatment ({description}); the instrumental fit would return the slope scaled by the gap to a level the data never visited. Next attempt: contrast levels the treatment takes, or use a continuous dose whose range spans them"
+            ),
+        ));
     }
     Ok(())
 }

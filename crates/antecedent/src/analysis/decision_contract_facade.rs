@@ -229,10 +229,10 @@ impl BoundDecisionContract {
         }
         for action in &contract.actions {
             for input in 0..action.inputs.len() {
-                if let Some(required) = rules.weakest_allowed(&action.id, input) {
-                    if supplied.severity() > required.severity() {
-                        return Err(support_rule_refusal(&action.id, supplied, required));
-                    }
+                if let Some(required) = rules.weakest_allowed(&action.id, input)
+                    && supplied.severity() > required.severity()
+                {
+                    return Err(support_rule_refusal(&action.id, supplied, required));
                 }
             }
         }

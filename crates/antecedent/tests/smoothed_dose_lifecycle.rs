@@ -912,7 +912,7 @@ fn a_kinked_fitted_curve_surfaces_its_quadrature_error_and_refuses_at_a_tight_to
     // is strictly below the largest row difference.
     assert!(record.max_row_error > 1e-4, "{record:?}");
     assert!(record.estimate_error < 0.8 * record.max_row_error, "{record:?}");
-    for tolerance in [(record.estimate_error + record.max_row_error) / 2.0, 1e-9] {
+    for tolerance in [f64::midpoint(record.estimate_error, record.max_row_error), 1e-9] {
         let error = evaluate(tolerance).unwrap_err();
         let (code, message) = estimation_refusal(&error);
         assert_eq!(code, "transport_numerical_failure");

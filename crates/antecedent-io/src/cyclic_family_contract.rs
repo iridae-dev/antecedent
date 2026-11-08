@@ -68,6 +68,10 @@ pub struct CyclicRealization {
 
 /// Layer one of a cyclic family.
 #[derive(Clone, Debug, PartialEq)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "public contract enum; boxing a variant would change its public API"
+)]
 pub enum CyclicProblem {
     /// Keyed worlds with a declared outcome.
     Target(ScientificTarget),

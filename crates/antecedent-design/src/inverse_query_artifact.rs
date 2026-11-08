@@ -601,13 +601,13 @@ pub fn encode_parts(
 pub fn decode_parts(bytes: &[u8]) -> Result<(InverseQueryMeta, Vec<u8>, Vec<u8>), IoError> {
     // A readable container of another kind is a recognised artifact this consumer
     // does not read; bytes that are no container at all keep the layout refusal.
-    if let Some(kind) = recognised_artifact_kind(bytes) {
-        if kind != ARTIFACT_KIND {
-            return Err(IoError::Refused {
-                code: antecedent_core::reason_code!("invalid_argument"),
-                message: format!("{KIND_MISMATCH}: expected {ARTIFACT_KIND}, supplied {kind}"),
-            });
-        }
+    if let Some(kind) = recognised_artifact_kind(bytes)
+        && kind != ARTIFACT_KIND
+    {
+        return Err(IoError::Refused {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            message: format!("{KIND_MISMATCH}: expected {ARTIFACT_KIND}, supplied {kind}"),
+        });
     }
     let parts = antecedent_io_core::decode_container(
         ARTIFACT_KIND,
@@ -977,12 +977,12 @@ impl InverseQueryArtifact {
         if meta.result != artifact.result_wire() {
             return Err(wrong_contract("stored result table does not replay from the evidence"));
         }
-        if let Some(retained) = expected {
-            if let Some(field) = identity_diff(retained, &artifact.identity) {
-                return Err(wrong_contract(&format!(
-                    "{field} differs from the consumer's retained identity"
-                )));
-            }
+        if let Some(retained) = expected
+            && let Some(field) = identity_diff(retained, &artifact.identity)
+        {
+            return Err(wrong_contract(&format!(
+                "{field} differs from the consumer's retained identity"
+            )));
         }
         Ok(artifact)
     }

@@ -115,7 +115,7 @@ fn nested_fisher_candidate_replays_covariance_and_refuses_semantic_mutations() {
     // The normal-delta candidate for the contrast is centred on that value with half-width
     // z_{0.975} * sd (observed ratio 1.95996), computed here from the stored covariance.
     let [lo, hi] = consumer.interval_candidates[2];
-    assert!(((lo + hi) / 2.0 - 0.175).abs() < 1e-9);
+    assert!((f64::midpoint(lo, hi) - 0.175).abs() < 1e-9);
     let half = (hi - lo) / 2.0;
     let z = half / consumer.effect_covariance[2][2].sqrt();
     assert!((z - 1.959_963_984_540_054).abs() < 1e-6, "{z}");

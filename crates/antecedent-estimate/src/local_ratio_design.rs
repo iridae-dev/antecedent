@@ -345,7 +345,7 @@ pub fn mse_optimal_bandwidth(
     };
     let variance = side_variance(false)? + side_variance(true)?;
     let (b_nu, v_nu) = boundary_constants(nu)?;
-    let sign = if (ORDER + 1 + nu) % 2 == 0 { 1.0 } else { -1.0 };
+    let sign = if (ORDER + 1 + nu).is_multiple_of(2) { 1.0 } else { -1.0 };
     let curvature = (third_derivative(true)? - sign * third_derivative(false)?) / 6.0;
     let bias = b_nu * curvature;
     let variance_constant = v_nu * variance / density;

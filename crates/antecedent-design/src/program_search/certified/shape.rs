@@ -89,18 +89,17 @@ impl PreparedCertifiedSearch {
                 if let Some(c) = constant(rhs) {
                     return if c > 0.0 { self.shape(lhs) } else { self.shape(lhs).negative() };
                 }
-                if self.shape(lhs) == Shape::Affine {
-                    if let Some(k) = saturation(lhs, rhs) {
-                        if self.enclose(rhs, &self.root(), 0, &mut 0).is_ok_and(|v| v.lower > 0.0) {
-                            return if k > 0.0 {
-                                Shape::Concave
-                            } else if k < 0.0 {
-                                Shape::Convex
-                            } else {
-                                Shape::Affine
-                            };
-                        }
-                    }
+                if self.shape(lhs) == Shape::Affine
+                    && let Some(k) = saturation(lhs, rhs)
+                    && self.enclose(rhs, &self.root(), 0, &mut 0).is_ok_and(|v| v.lower > 0.0)
+                {
+                    return if k > 0.0 {
+                        Shape::Concave
+                    } else if k < 0.0 {
+                        Shape::Convex
+                    } else {
+                        Shape::Affine
+                    };
                 }
                 Shape::Unknown
             }
@@ -293,11 +292,11 @@ impl PreparedCertifiedSearch {
                 let mut best = previous;
                 for trial in trials {
                     multipliers[row] = trial;
-                    if let Ok(value) = self.dual_value(at, &gradient, &multipliers) {
-                        if value < upper {
-                            upper = value;
-                            best = trial;
-                        }
+                    if let Ok(value) = self.dual_value(at, &gradient, &multipliers)
+                        && value < upper
+                    {
+                        upper = value;
+                        best = trial;
                     }
                 }
                 multipliers[row] = best;

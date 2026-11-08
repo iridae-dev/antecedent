@@ -411,8 +411,8 @@ mod policy_tests {
             .map(|i| 1.0 + f64::from(i >= N / 2) + 0.35 * (0.13 * i as f64).sin())
             .sum::<f64>()
             / N as f64;
-        let truth_policy = baseline_mean + (1.5 * 0.7 + 2.0 * 0.8) / 2.0;
-        let truth_reference = baseline_mean + (1.5 * 0.3 + 2.0 * 0.4) / 2.0;
+        let truth_policy = baseline_mean + f64::midpoint(1.5 * 0.7, 2.0 * 0.8);
+        let truth_reference = baseline_mean + f64::midpoint(1.5 * 0.3, 2.0 * 0.4);
         let truths = [truth_policy, truth_reference, truth_policy - truth_reference];
         let mut covered = [0_usize; 3];
         for replicate in 0..REPLICATES {
@@ -491,8 +491,8 @@ mod policy_tests {
             .map(|i| 1.0 + f64::from(i >= N / 2) + 0.35 * (0.13 * i as f64).sin())
             .sum::<f64>()
             / N as f64;
-        let truth_policy = baseline_mean + (1.5 * 0.7 + 2.0 * 0.8) / 2.0;
-        let truth_reference = baseline_mean + (1.5 * 0.3 + 2.0 * 0.4) / 2.0;
+        let truth_policy = baseline_mean + f64::midpoint(1.5 * 0.7, 2.0 * 0.8);
+        let truth_reference = baseline_mean + f64::midpoint(1.5 * 0.3, 2.0 * 0.4);
         let truth = [truth_policy, truth_reference, truth_policy - truth_reference];
         let mut covered = [0_usize; 3];
         for rep in 0..REPLICATES {

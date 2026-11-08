@@ -462,14 +462,14 @@ fn reference_normal_cdf(x: f64) -> f64 {
 fn reference_normal_inverse(p: f64) -> f64 {
     let (mut lo, mut hi) = (-8.0, 8.0);
     for _ in 0..60 {
-        let mid = (lo + hi) / 2.0;
+        let mid = f64::midpoint(lo, hi);
         if reference_normal_cdf(mid) < p {
             lo = mid;
         } else {
             hi = mid;
         }
     }
-    (lo + hi) / 2.0
+    f64::midpoint(lo, hi)
 }
 
 #[test]

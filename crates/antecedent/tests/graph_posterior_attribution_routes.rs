@@ -455,6 +455,6 @@ fn a_series_posterior_attributes_each_template_as_a_supplied_temporal_dag() {
         let mixture = result.structural_response.as_ref().expect("the atom mixture");
         assert_eq!(mixture.atoms.len(), 2);
         assert!((mixture.identified_mass - 1.0).abs() < 1e-9);
-        assert!(keys.len() == 2);
+        assert_eq!(keys.len(), 2);
     });
 }

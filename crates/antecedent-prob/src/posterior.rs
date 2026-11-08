@@ -62,10 +62,10 @@ impl PosteriorSchema {
     pub fn with_coefficient_names(&self, names: &[Arc<str>]) -> Self {
         let mut quantities = self.quantities.to_vec();
         for q in &mut quantities {
-            if let PosteriorQuantityKind::Coefficient { index, name } = q {
-                if let Some(n) = names.get(*index) {
-                    *name = Some(Arc::clone(n));
-                }
+            if let PosteriorQuantityKind::Coefficient { index, name } = q
+                && let Some(n) = names.get(*index)
+            {
+                *name = Some(Arc::clone(n));
             }
         }
         Self { quantities: Arc::from(quantities) }

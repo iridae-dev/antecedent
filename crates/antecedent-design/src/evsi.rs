@@ -482,13 +482,13 @@ fn validate_costs(request: &EvsiRequest) -> Result<(), EvsiError> {
         if !(cost.amount.is_finite() && cost.amount >= 0.0) || is_blank(&cost.unit) {
             return Err(EvsiError::InvalidCost(candidate.semantic_id.clone()));
         }
-        if let Some(map) = &request.cost_map {
-            if cost.unit != map.cost_unit {
-                return Err(EvsiError::CostUnitsMismatch(format!(
-                    "candidate {} cost unit {} differs from map cost unit {}",
-                    candidate.semantic_id, cost.unit, map.cost_unit
-                )));
-            }
+        if let Some(map) = &request.cost_map
+            && cost.unit != map.cost_unit
+        {
+            return Err(EvsiError::CostUnitsMismatch(format!(
+                "candidate {} cost unit {} differs from map cost unit {}",
+                candidate.semantic_id, cost.unit, map.cost_unit
+            )));
         }
     }
     Ok(())

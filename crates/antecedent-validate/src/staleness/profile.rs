@@ -571,7 +571,9 @@ fn overlap_summary(
     for read in &reads {
         let values: Vec<f64> = rows.iter().map(|&i| read.value(i)).collect();
         let mut welford = Welford::new();
-        values.iter().for_each(|v| welford.push(*v));
+        for v in &values {
+            welford.push(*v);
+        }
         let sd = variance(welford.count(), welford.m2()).sqrt();
         let scale = if sd > 0.0 { sd } else { 1.0 };
         standardized.push(values.iter().map(|v| (v - welford.mean()) / scale).collect::<Vec<_>>());

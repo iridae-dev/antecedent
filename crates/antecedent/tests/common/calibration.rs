@@ -385,9 +385,7 @@ pub const TALLY_OUT_ENV: &str = "ANTECEDENT_CALIBRATION_TALLY_OUT";
 #[must_use]
 pub fn worker_threads(n: usize) -> usize {
     let threads = match std::env::var(THREADS_ENV) {
-        Err(_) => {
-            std::thread::available_parallelism().map(std::num::NonZeroUsize::get).unwrap_or(1)
-        }
+        Err(_) => std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get),
         Ok(raw) => raw
             .trim()
             .parse::<usize>()
@@ -556,7 +554,7 @@ fn hex(bytes: &[u8]) -> String {
 
 fn unhex_digests(text: &str) -> Vec<[u8; 16]> {
     assert!(
-        text.len() % 32 == 0,
+        text.len().is_multiple_of(32),
         "event digests: hex length {} is not a multiple of 32",
         text.len()
     );
@@ -1486,13 +1484,12 @@ impl CoverageTally {
         if let Some((side, target)) = one_sided {
             payload["one_sided"] = serde_json::json!({ "side": side.as_str(), "target": target });
         }
-        if role != "named_boundary" {
-            if let Some(decision) =
+        if role != "named_boundary"
+            && let Some(decision) =
                 self.family_decision(matches!(role, "one_sided" | "conservative_point"))
-            {
-                payload["decision_protocol"] =
-                    serde_json::to_value(decision).expect("decision serializes");
-            }
+        {
+            payload["decision_protocol"] =
+                serde_json::to_value(decision).expect("decision serializes");
         }
         if role == "conservative_point" {
             payload["conservative_point"] = serde_json::json!({

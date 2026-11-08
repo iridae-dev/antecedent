@@ -573,10 +573,10 @@ fn estimate_exact_shapley<P: CoalitionPayoff>(
             if ctx.cancellation.is_cancelled() {
                 return Err(AttributionError::Cancelled);
             }
-            if mask % report_every == 0 {
-                if let Some(p) = &ctx.progress {
-                    p.report(mask as f64 / n_coalitions as f64, "shapley");
-                }
+            if mask % report_every == 0
+                && let Some(p) = &ctx.progress
+            {
+                p.report(mask as f64 / n_coalitions as f64, "shapley");
             }
             table.push(payoff.value(&Coalition::from_bits(mask))?);
             budget.evaluations += 1;
@@ -608,10 +608,10 @@ fn estimate_exact_shapley<P: CoalitionPayoff>(
             if ctx.cancellation.is_cancelled() {
                 return Err(AttributionError::Cancelled);
             }
-            if mask % report_every == 0 {
-                if let Some(p) = &ctx.progress {
-                    p.report(mask as f64 / n_coalitions as f64, "shapley");
-                }
+            if mask % report_every == 0
+                && let Some(p) = &ctx.progress
+            {
+                p.report(mask as f64 / n_coalitions as f64, "shapley");
             }
             let v_s = eval(&Coalition::from_bits(mask), payoff, &mut cache, &mut budget)?;
             if mask == 0 {
@@ -877,7 +877,9 @@ mod tests {
         assert!((sample_var_ref - 2.5).abs() < 1e-12);
         let se_ref = (sample_var_ref / ns).sqrt();
         let mut acc = Welford::new();
-        draws.iter().for_each(|&x| acc.push(x));
+        for &x in &draws {
+            acc.push(x);
+        }
         assert!((acc.stderr_of_mean() - se_ref).abs() < 1e-12);
 
         // The pre-fix formula (population variance, no Bessel correction, i.e.

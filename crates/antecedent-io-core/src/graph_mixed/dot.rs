@@ -450,12 +450,10 @@ fn emit_isolated(
         }
     }
     for (i, present) in seen.iter().enumerate() {
-        if !*present {
-            if let Ok(id) = u32::try_from(i) {
-                out.push(' ');
-                push_label(out, id, names, use_names);
-                out.push_str(";\n");
-            }
+        if !*present && let Ok(id) = u32::try_from(i) {
+            out.push(' ');
+            push_label(out, id, names, use_names);
+            out.push_str(";\n");
         }
     }
 }

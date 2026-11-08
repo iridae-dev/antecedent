@@ -35,7 +35,6 @@
 #![cfg(feature = "calibration-internal")]
 #![allow(
     clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
     clippy::too_many_arguments,
     reason = "bounded simulation sizes and small indices"
 )]

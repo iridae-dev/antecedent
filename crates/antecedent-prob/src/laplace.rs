@@ -330,10 +330,10 @@ fn fit_laplace_glm_inner(
         "laplace", converged, iterations, grad_inf, condition, sep_map, notes,
     );
 
-    if let Some(message) = diagnostics.curvature_refusal() {
-        if let Some(error) = diagnostics.publication_error(message) {
-            return Err(error);
-        }
+    if let Some(message) = diagnostics.curvature_refusal()
+        && let Some(error) = diagnostics.publication_error(message)
+    {
+        return Err(error);
     }
 
     let map = workspace.beta[..ncols].to_vec();
@@ -485,10 +485,10 @@ fn fit_gaussian_laplace_known(
         false,
         vec![Arc::from("gaussian_laplace_known_sigma2")],
     );
-    if let Some(message) = diagnostics.curvature_refusal() {
-        if let Some(error) = diagnostics.publication_error(message) {
-            return Err(error);
-        }
+    if let Some(message) = diagnostics.curvature_refusal()
+        && let Some(error) = diagnostics.publication_error(message)
+    {
+        return Err(error);
     }
     let draws_vals = sample_gaussian_mvn(&map, &cov, options.n_draws, options.seed, workspace)?;
     let draws = PosteriorDraws::from_column_major(

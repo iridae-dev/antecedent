@@ -1147,10 +1147,11 @@ impl TemporalAdmg {
                     let variable = var_of(name)?;
                     let lag = Lag::from_raw(lag);
                     for (i, node) in graph.nodes().iter().enumerate() {
-                        if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node {
-                            if *existing == variable && *existing_lag == lag {
-                                return dense_id(i);
-                            }
+                        if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node
+                            && *existing == variable
+                            && *existing_lag == lag
+                        {
+                            return dense_id(i);
                         }
                     }
                     graph.add_lagged(variable, lag).map_err(py_err)
@@ -1231,10 +1232,11 @@ fn ensure_lagged_cpdag(
 ) -> PyResult<DenseNodeId> {
     // Reuse existing node if present.
     for (i, node) in g.nodes().iter().enumerate() {
-        if let NodeRef::Lagged { variable: v, lag: l } = node {
-            if *v == variable && *l == lag {
-                return dense_id(i);
-            }
+        if let NodeRef::Lagged { variable: v, lag: l } = node
+            && *v == variable
+            && *l == lag
+        {
+            return dense_id(i);
         }
     }
     g.add_lagged(variable, lag).map_err(py_err)
@@ -1246,10 +1248,11 @@ fn ensure_lagged_pag(
     lag: Lag,
 ) -> PyResult<DenseNodeId> {
     for (i, node) in g.nodes().iter().enumerate() {
-        if let NodeRef::Lagged { variable: v, lag: l } = node {
-            if *v == variable && *l == lag {
-                return dense_id(i);
-            }
+        if let NodeRef::Lagged { variable: v, lag: l } = node
+            && *v == variable
+            && *l == lag
+        {
+            return dense_id(i);
         }
     }
     g.add_lagged(variable, lag).map_err(py_err)

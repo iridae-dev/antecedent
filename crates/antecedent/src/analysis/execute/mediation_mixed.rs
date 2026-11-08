@@ -89,15 +89,16 @@ fn joint_fields(columns: &[(&str, &[f64])]) -> Vec<(&'static str, String)> {
     for (a, b, key) in pairs {
         let left = columns.iter().find(|(column, _)| *column == a);
         let right = columns.iter().find(|(column, _)| *column == b);
-        if let (Some((_, x)), Some((_, y))) = (left, right) {
-            if x.len() == y.len() && x.len() > 1 {
-                let (mx, sx) = moments(x);
-                let (my, sy) = moments(y);
-                let n = x.len() as f64;
-                let covariance =
-                    x.iter().zip(*y).map(|(u, v)| (u - mx) * (v - my)).sum::<f64>() / (n - 1.0);
-                fields.push((key, format!("{}", covariance / (sx * sy))));
-            }
+        if let (Some((_, x)), Some((_, y))) = (left, right)
+            && x.len() == y.len()
+            && x.len() > 1
+        {
+            let (mx, sx) = moments(x);
+            let (my, sy) = moments(y);
+            let n = x.len() as f64;
+            let covariance =
+                x.iter().zip(*y).map(|(u, v)| (u - mx) * (v - my)).sum::<f64>() / (n - 1.0);
+            fields.push((key, format!("{}", covariance / (sx * sy))));
         }
     }
     fields
@@ -394,15 +395,15 @@ impl super::Study {
                         .map(|p| (COMPONENTS[i].1, p.draws.values.as_ref()))
                 })
                 .collect();
-            if let Some((_, first)) = columns.first() {
-                if columns.iter().all(|(_, values)| values.len() == first.len()) {
-                    diagnostics.push(joint_diagnostic(
-                        &columns,
-                        first.len(),
-                        "Bayesian-bootstrap",
-                        structure,
-                    ));
-                }
+            if let Some((_, first)) = columns.first()
+                && columns.iter().all(|(_, values)| values.len() == first.len())
+            {
+                diagnostics.push(joint_diagnostic(
+                    &columns,
+                    first.len(),
+                    "Bayesian-bootstrap",
+                    structure,
+                ));
             }
         } else if self.settings.bootstrap_replicates > 0 {
             let refs: Vec<&antecedent_estimate::PreparedFunctionalEffect> =
@@ -490,15 +491,16 @@ impl super::Study {
         }
         let paired: Vec<(&str, &[f64])> =
             columns.iter().map(|(name, draws)| (*name, draws.as_slice())).collect();
-        if let Some((_, first)) = paired.first() {
-            if paired.len() > 1 && paired.iter().all(|(_, draws)| draws.len() == first.len()) {
-                result.diagnostics.push(joint_diagnostic(
-                    &paired,
-                    first.len(),
-                    "Bayesian-bootstrap",
-                    "class",
-                ));
-            }
+        if let Some((_, first)) = paired.first()
+            && paired.len() > 1
+            && paired.iter().all(|(_, draws)| draws.len() == first.len())
+        {
+            result.diagnostics.push(joint_diagnostic(
+                &paired,
+                first.len(),
+                "Bayesian-bootstrap",
+                "class",
+            ));
         }
         if let Some(effect) = result.estimate.as_effect() {
             result.payload = crate::result::ResultPayload::Mediation {

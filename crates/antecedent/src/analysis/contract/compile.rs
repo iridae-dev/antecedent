@@ -365,14 +365,14 @@ pub(super) fn contract_payloads(
         data_snapshot.cross_product_moments =
             cross_product_moments_wire(tabular, prepared.execution())?;
     }
-    if let DataInput::Temporal(series) | DataInput::Event(series) = &study.data {
-        if let CausalQuery::NestedCounterfactual(query) = &study.query {
-            data_snapshot.nested_counterfactual_fit = Some(temporal_nested_fit_wire(
-                series,
-                query,
-                nested_prior_scale(&study.settings.inference),
-            )?);
-        }
+    if let DataInput::Temporal(series) | DataInput::Event(series) = &study.data
+        && let CausalQuery::NestedCounterfactual(query) = &study.query
+    {
+        data_snapshot.nested_counterfactual_fit = Some(temporal_nested_fit_wire(
+            series,
+            query,
+            nested_prior_scale(&study.settings.inference),
+        )?);
     }
     let snapshot_digest = data_snapshot_digest(&data_snapshot).map_err(|err| io_err(&err))?;
     Ok(ContractPayloads { identities: program.identities(snapshot_digest), program, data_snapshot })

@@ -174,10 +174,10 @@ pub(crate) fn is_mec_member<G: MecCpdag, D: MecDag>(cpdag: &G, dag: &D, same_nod
         }
     }
     for e in dag.edges() {
-        if let Some((from, to)) = e.parent_child() {
-            if !cpdag.has_edge(from, to) {
-                return false;
-            }
+        if let Some((from, to)) = e.parent_child()
+            && !cpdag.has_edge(from, to)
+        {
+            return false;
         }
     }
     unshielded_colliders_cpdag(cpdag) == unshielded_colliders_dag(dag)

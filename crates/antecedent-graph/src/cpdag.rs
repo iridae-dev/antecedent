@@ -266,13 +266,13 @@ impl CpdagReview {
                 if let (Some(fv), Some(tv)) = (graph.variable_id(from), graph.variable_id(to)) {
                     pending.push((fv, tv));
                 }
-            } else if e.is_undirected() {
-                if let (Some(av), Some(bv)) = (graph.variable_id(e.a), graph.variable_id(e.b)) {
-                    if av.raw() <= bv.raw() {
-                        undirected.push((av, bv));
-                    } else {
-                        undirected.push((bv, av));
-                    }
+            } else if e.is_undirected()
+                && let (Some(av), Some(bv)) = (graph.variable_id(e.a), graph.variable_id(e.b))
+            {
+                if av.raw() <= bv.raw() {
+                    undirected.push((av, bv));
+                } else {
+                    undirected.push((bv, av));
                 }
             }
         }
@@ -424,10 +424,11 @@ impl TemporalCpdag {
             NodeRef::Lagged { variable: v1, lag: l1 },
             NodeRef::Lagged { variable: v2, lag: l2 },
         ) = (self.nodes[edge.a.as_usize()], self.nodes[edge.b.as_usize()])
+            && v1 == v2
+            && l1 == l2
+            && l1.is_contemporaneous()
         {
-            if v1 == v2 && l1 == l2 && l1.is_contemporaneous() {
-                return Err(GraphError::ContemporaneousSelfEdge { variable: v1 });
-            }
+            return Err(GraphError::ContemporaneousSelfEdge { variable: v1 });
         }
         if edge.a == edge.b {
             // A lagged self-loop on a single node is a cycle once oriented,
@@ -472,10 +473,6 @@ impl TemporalCpdag {
     ///
     /// A lagged node is itself. An untagged context is the contemporaneous node of its
     /// variable, a root (a context is never caused by a system node).
-    #[allow(
-        clippy::match_on_vec_items,
-        reason = "The node index is validated by the enclosing graph traversal."
-    )]
     fn dag_node(&self, id: usize) -> Result<NodeRef, GraphError> {
         match self.nodes[id] {
             node @ NodeRef::Lagged { .. } => Ok(node),

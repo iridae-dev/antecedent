@@ -333,15 +333,14 @@ impl CompiledIdentificationProduct {
         }
         let identified_product = states_identified_claim(self.outcome, self.claim_class);
         let identified_assembled = self.assembled_is_identified_claim();
-        if identified_product || identified_assembled {
-            if let Some(world) =
+        if (identified_product || identified_assembled)
+            && let Some(world) =
                 self.world_obligations.iter().find(|world| !world.is_identified_claim())
-            {
-                let Some(world_id) = world.world else {
-                    return Err(ProductRefusal::WorldObligationMissingWorld);
-                };
-                return Err(ProductRefusal::IdentifiedWithoutWorldSupport { world: world_id });
-            }
+        {
+            let Some(world_id) = world.world else {
+                return Err(ProductRefusal::WorldObligationMissingWorld);
+            };
+            return Err(ProductRefusal::IdentifiedWithoutWorldSupport { world: world_id });
         }
         if identified_product && needs_assembled && !identified_assembled {
             return Err(ProductRefusal::IdentifiedWithoutAssembledSupport);

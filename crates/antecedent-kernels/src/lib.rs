@@ -255,14 +255,14 @@ mod tests {
                 // Mix finite values with occasional NaNs (inject into logical slots).
                 let u = rng.next_u64();
                 let base = ((u % 1000) as f64) * 0.01 - 5.0;
-                x_buf[i] = if u % 17 == 0 { f64::NAN } else { base };
-                y_buf[i] = if (u / 17) % 19 == 0 { f64::NAN } else { base * 0.3 + 1.0 };
+                x_buf[i] = if u.is_multiple_of(17) { f64::NAN } else { base };
+                y_buf[i] = if (u / 17).is_multiple_of(19) { f64::NAN } else { base * 0.3 + 1.0 };
             }
             let x = F64VectorView::strided(&x_buf, len, stride).unwrap();
             let y = F64VectorView::strided(&y_buf, len, stride).unwrap();
 
             let mut bits = vec![0u8; len.div_ceil(8)];
-            let use_mask = rng.next_u64() % 3 != 0;
+            let use_mask = !rng.next_u64().is_multiple_of(3);
             if use_mask {
                 for i in 0..len {
                     if rng.next_u64() & 1 == 1 {

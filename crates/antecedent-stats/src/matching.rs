@@ -218,10 +218,10 @@ impl MatchingIndex {
         if !best_d.is_finite() {
             return Ok(None);
         }
-        if let Some(c) = caliper {
-            if best_d > c {
-                return Ok(None);
-            }
+        if let Some(c) = caliper
+            && best_d > c
+        {
+            return Ok(None);
         }
         Ok(Some((self.donor_rows[best_i], best_d)))
     }
@@ -687,10 +687,10 @@ impl Nearest {
         let entry = Entry { distance, position };
         if self.heap.len() < self.k {
             self.heap.push(entry);
-        } else if let Some(mut worst) = self.heap.peek_mut() {
-            if entry < *worst {
-                *worst = entry;
-            }
+        } else if let Some(mut worst) = self.heap.peek_mut()
+            && entry < *worst
+        {
+            *worst = entry;
         }
     }
 
@@ -1067,10 +1067,10 @@ mod tests {
         if !best_d.is_finite() {
             return None;
         }
-        if let Some(c) = caliper {
-            if best_d > c {
-                return None;
-            }
+        if let Some(c) = caliper
+            && best_d > c
+        {
+            return None;
         }
         Some((index.donor_rows[best_i], best_d))
     }

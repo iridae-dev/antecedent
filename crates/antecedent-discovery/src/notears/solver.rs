@@ -439,25 +439,25 @@ fn lbfgs_minimize_al(
             // long, not a failed solve: the penalty's exponential term is finite only near the
             // acyclic set, so the search backtracks. The restore below re-evaluates a point the
             // search has already accepted, where an error is a real failure.
-            if let Ok(f_new) = al_value_and_grad(x, n, d, cfg.lambda, alpha, rho, ws) {
-                if f_new <= f + 1e-4 * step * gtd {
-                    // Update L-BFGS history
-                    for t in 0..n_free {
-                        ws.s_hist[hist_pos][t] = ws.free[t] - ws.free_prev[t];
-                        ws.y_hist[hist_pos][t] = ws.free_grad[t] - ws.grad_prev[t];
-                    }
-                    let ys = dot(&ws.y_hist[hist_pos][..n_free], &ws.s_hist[hist_pos][..n_free]);
-                    if ys > 1e-16 {
-                        ws.rho_hist[hist_pos] = 1.0 / ys;
-                        hist_pos = (hist_pos + 1) % m;
-                        if hist_len < m {
-                            hist_len += 1;
-                        }
-                    }
-                    f = f_new;
-                    accepted = true;
-                    break;
+            if let Ok(f_new) = al_value_and_grad(x, n, d, cfg.lambda, alpha, rho, ws)
+                && f_new <= f + 1e-4 * step * gtd
+            {
+                // Update L-BFGS history
+                for t in 0..n_free {
+                    ws.s_hist[hist_pos][t] = ws.free[t] - ws.free_prev[t];
+                    ws.y_hist[hist_pos][t] = ws.free_grad[t] - ws.grad_prev[t];
                 }
+                let ys = dot(&ws.y_hist[hist_pos][..n_free], &ws.s_hist[hist_pos][..n_free]);
+                if ys > 1e-16 {
+                    ws.rho_hist[hist_pos] = 1.0 / ys;
+                    hist_pos = (hist_pos + 1) % m;
+                    if hist_len < m {
+                        hist_len += 1;
+                    }
+                }
+                f = f_new;
+                accepted = true;
+                break;
             }
             step *= 0.5;
         }

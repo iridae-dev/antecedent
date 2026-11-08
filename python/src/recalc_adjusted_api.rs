@@ -408,21 +408,21 @@ impl PyAdjustedSession {
             antecedent::reason::reason_details::recalc::ADJUSTED_PREDICTION_SCHEMA_MISMATCH,
             &ctx,
         )?;
-        if let Some(expected) = self.inner.prediction_columns() {
-            if expected != columns {
-                return Ok((
+        if let Some(expected) = self.inner.prediction_columns()
+            && expected != columns
+        {
+            return Ok((
+                None,
+                Some(refusal_json(
+                    antecedent::reason::reason_code!("invalid_argument"),
+                    "score_artifact",
+                    antecedent::reason::reason_details::recalc::ADJUSTED_PREDICTION_SCHEMA_MISMATCH,
                     None,
-                    Some(refusal_json(
-                        antecedent::reason::reason_code!("invalid_argument"),
-                        "score_artifact",
-                        antecedent::reason::reason_details::recalc::ADJUSTED_PREDICTION_SCHEMA_MISMATCH,
-                        None,
-                        None,
-                        "prediction feature names/order differ from the retained model",
-                        None,
-                    )),
-                ));
-            }
+                    None,
+                    "prediction feature names/order differ from the retained model",
+                    None,
+                )),
+            ));
         }
         let (result, model_fits) =
             detach_catch(py, move || Ok(count_adjusted_model_fits(|| self.inner.predict(&rows))))?;

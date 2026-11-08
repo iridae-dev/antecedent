@@ -109,8 +109,10 @@ pub struct SetInterventionWire {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum OutcomeFunctionalWire {
     /// Mean (default).
+    #[default]
     Mean,
     /// Single exceedance threshold.
     Exceedance(f64),
@@ -118,12 +120,6 @@ pub enum OutcomeFunctionalWire {
     ExceedanceGrid(Vec<f64>),
     /// Quantile level τ.
     Quantile(f64),
-}
-
-impl Default for OutcomeFunctionalWire {
-    fn default() -> Self {
-        Self::Mean
-    }
 }
 
 /// Positive zero for either zero: a threshold of `-0.0` is the threshold `0.0`.

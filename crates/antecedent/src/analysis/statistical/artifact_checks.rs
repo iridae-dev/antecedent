@@ -555,10 +555,10 @@ pub(in crate::analysis) fn validate_sample_summaries(
             .and_then(|binding| binding.dataset_identity.as_ref())
         {
             let key = antecedent_io::to_cbor(&(identity.as_ref(), &sample.interventions))?;
-            if let Some(previous) = aliases.insert(key, sample) {
-                if previous.n != sample.n || previous.content_digest != sample.content_digest {
-                    return Err(err("conflicting forwarded dataset provenance"));
-                }
+            if let Some(previous) = aliases.insert(key, sample)
+                && (previous.n != sample.n || previous.content_digest != sample.content_digest)
+            {
+                return Err(err("conflicting forwarded dataset provenance"));
             }
         }
     }

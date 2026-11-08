@@ -407,8 +407,10 @@ mod projection;
 use projection::event_point;
 mod system_bridge;
 
-pub use system_bridge::{ConsumedCyclicSystem, CyclicSystemBridgeProvenance, CyclicSystemFamilyBridge};
 use system_bridge::system_bridge_provenance;
+pub use system_bridge::{
+    ConsumedCyclicSystem, CyclicSystemBridgeProvenance, CyclicSystemFamilyBridge,
+};
 
 /// Live sources retain the exact executed owner; consumed sources retain their
 /// original bytes. Only explicit export encodes a live source.
@@ -1454,7 +1456,6 @@ impl CyclicEvidence {
         evidence.original_encoding = Some((Arc::from(bytes), owner));
         Ok(evidence)
     }
-
 }
 
 #[cfg(test)]

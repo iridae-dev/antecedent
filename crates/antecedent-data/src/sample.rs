@@ -129,13 +129,13 @@ impl LagMap {
 /// so lagged temporal analysis (discovery and estimation) requires the full
 /// contiguous series.
 pub(crate) fn ensure_unmasked(data: &TimeSeriesData) -> Result<(), DataError> {
-    if let Some(mask) = data.storage().analysis_mask() {
-        if !mask.is_all_valid() {
-            return Err(DataError::IncompleteSeries {
-                id: None,
-                message: "analysis mask hides rows; lagged temporal analysis requires complete series",
-            });
-        }
+    if let Some(mask) = data.storage().analysis_mask()
+        && !mask.is_all_valid()
+    {
+        return Err(DataError::IncompleteSeries {
+            id: None,
+            message: "analysis mask hides rows; lagged temporal analysis requires complete series",
+        });
     }
     Ok(())
 }

@@ -516,10 +516,10 @@ fn check_graph(
     }
     let mut indegree: BTreeMap<&str, usize> = by_var.keys().map(|v| (*v, 0)).collect();
     for (p, ch) in &edges {
-        if by_var.contains_key(p) {
-            if let Some(n) = indegree.get_mut(ch) {
-                *n += 1;
-            }
+        if by_var.contains_key(p)
+            && let Some(n) = indegree.get_mut(ch)
+        {
+            *n += 1;
         }
     }
     let mut ready: Vec<&str> = indegree.iter().filter(|(_, n)| **n == 0).map(|(v, _)| *v).collect();
@@ -527,12 +527,12 @@ fn check_graph(
     while let Some(v) = ready.pop() {
         removed += 1;
         for (p, ch) in &edges {
-            if *p == v {
-                if let Some(n) = indegree.get_mut(ch) {
-                    *n -= 1;
-                    if *n == 0 {
-                        ready.push(*ch);
-                    }
+            if *p == v
+                && let Some(n) = indegree.get_mut(ch)
+            {
+                *n -= 1;
+                if *n == 0 {
+                    ready.push(*ch);
                 }
             }
         }

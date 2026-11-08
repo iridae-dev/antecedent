@@ -210,7 +210,7 @@ fn monte_carlo_evsi(
             *t = sample_gamma(*a, 1.0, &mut rng);
             s += *t;
         }
-        counts.iter_mut().for_each(|c| *c = 0.0);
+        counts.fill(0.0);
         for i in 0..n {
             if i % 256 == 0 && cancelled() {
                 return Err(ChoiceEvsiError::Cancelled);
@@ -463,11 +463,11 @@ mod resource_tests {
     fn ranking_refuses_invalid_shapes_excessive_work_and_cancellation() {
         let candidate = StudyCandidate { label: "study".into(), observations: 10, cost: 0.0 };
         assert!(matches!(
-            rank_studies(&[], &[], &[candidate.clone()], 1),
+            rank_studies(&[], &[], std::slice::from_ref(&candidate), 1),
             Err(ChoiceEvsiError::Invalid(_))
         ));
         assert!(matches!(
-            rank_studies(&[f64::NAN, 1.0], &[1.0, 1.0], &[candidate.clone()], 1),
+            rank_studies(&[f64::NAN, 1.0], &[1.0, 1.0], std::slice::from_ref(&candidate), 1),
             Err(ChoiceEvsiError::Invalid(_))
         ));
         let huge = StudyCandidate { observations: 10_000, ..candidate.clone() };

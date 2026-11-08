@@ -132,6 +132,10 @@ fn local_failure(
 }
 /// One retained coordinate and its checked result.
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "public enum returned by value; boxing a variant would change its public API"
+)]
 pub enum TransportGridPoint {
     /// Supplied-law target distribution.
     Exact(PreparedStudy<ExactPreparedState>, Box<ExactStudyResult>),

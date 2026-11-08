@@ -533,13 +533,11 @@ fn fit_sequential_completion(
     run.total_w += weight;
     if let Some(posterior) = posterior.as_ref() {
         run.atom_posteriors.insert(key, posterior.clone());
-        if let Some(col) = posterior.effect_column() {
-            if let Ok(draws) = posterior.draws.column(col) {
-                run.per_graph.push(GraphEffectDraws {
-                    graph_key: key,
-                    effect_draws: Arc::from(draws.to_vec()),
-                });
-            }
+        if let Some(col) = posterior.effect_column()
+            && let Ok(draws) = posterior.draws.column(col)
+        {
+            run.per_graph
+                .push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws.to_vec()) });
         }
     }
     run.seq_atom_keys.push(key);

@@ -57,19 +57,19 @@ impl PrepareRequest {
         identifier: Option<antecedent::IdentifierId>,
         estimator: Option<antecedent::EstimatorId>,
     ) -> PyResult<()> {
-        if let (Some(named), Some(declared)) = (identifier, self.opts.identifier) {
-            if named != declared {
-                return Err(crate::value_err(format!(
-                    "identifier {named:?} contradicts the identifier {declared:?} in options"
-                )));
-            }
+        if let (Some(named), Some(declared)) = (identifier, self.opts.identifier)
+            && named != declared
+        {
+            return Err(crate::value_err(format!(
+                "identifier {named:?} contradicts the identifier {declared:?} in options"
+            )));
         }
-        if let (Some(named), Some(declared)) = (estimator, self.opts.estimator) {
-            if named != declared {
-                return Err(crate::value_err(format!(
-                    "estimator {named:?} contradicts the estimator {declared:?} in options"
-                )));
-            }
+        if let (Some(named), Some(declared)) = (estimator, self.opts.estimator)
+            && named != declared
+        {
+            return Err(crate::value_err(format!(
+                "estimator {named:?} contradicts the estimator {declared:?} in options"
+            )));
         }
         Ok(())
     }

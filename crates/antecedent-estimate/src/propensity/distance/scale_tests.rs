@@ -18,7 +18,7 @@ use crate::propensity::prepare::{gather_rowmajor, split_by_treatment};
 use crate::propensity::scale_fixture::{Design, att_query};
 
 const COVARIATES: usize = 8;
-const RUNTIME_LIMIT: Duration = Duration::from_secs(900);
+const RUNTIME_LIMIT: Duration = Duration::from_mins(15);
 const MEMORY_LIMIT_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 /// Retained bytes allowed per donor feature value: the index keeps the features, the tree
 /// and per-query buffers, a small constant multiple of the raw features and nothing

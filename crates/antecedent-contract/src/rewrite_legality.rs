@@ -931,10 +931,10 @@ fn admit(
     frames: &[(&FrameFingerprint, &FrameFingerprint)],
 ) -> Result<(), RewriteRefusal> {
     for axis in PreservationAxis::ALL {
-        if let Some((forced, because)) = defect {
-            if forced == axis {
-                return Err(altered(kind, axis, because));
-            }
+        if let Some((forced, because)) = defect
+            && forced == axis
+        {
+            return Err(altered(kind, axis, because));
         }
         for (original, rewritten) in pairs {
             let original_id = original.identity(axis);

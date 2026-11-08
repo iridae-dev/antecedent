@@ -190,7 +190,7 @@ fn a_prepared_study_holds_one_identification_product() {
     let primary = analysis.identification.as_ref().and_then(|product| product.primary());
     assert!(std::ptr::eq(
         primary.expect("a static product answers for the whole study"),
-        &cache.identification
+        &raw const cache.identification
     ));
 
     let mut replaced = analysis.clone();

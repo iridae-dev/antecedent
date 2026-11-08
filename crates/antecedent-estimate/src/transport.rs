@@ -375,10 +375,10 @@ pub(crate) fn trial_to_target_parts(
 ) -> Result<(TransportEffectEstimate, Vec<f64>), EstimationError> {
     require_dahabreh_compatible_formula(identification, "trial-to-target effect")?;
     let n = outcome.len();
-    if let Some((mu0, mu1)) = outcome_regressions {
-        if mu0.len() != n || mu1.len() != n {
-            return Err(EstimationError::data_msg("transport outcome-regression length mismatch"));
-        }
+    if let Some((mu0, mu1)) = outcome_regressions
+        && (mu0.len() != n || mu1.len() != n)
+    {
+        return Err(EstimationError::data_msg("transport outcome-regression length mismatch"));
     }
     let target_n = validate_trial_to_target_inputs(
         outcome,

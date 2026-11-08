@@ -2254,7 +2254,7 @@ mod dr_replay {
     }
 
     fn arm(i: usize) -> f64 {
-        f64::from(u8::from(i % 2 == 0))
+        f64::from(u8::from(i.is_multiple_of(2)))
     }
 
     fn covariate(i: usize) -> f64 {

@@ -516,10 +516,10 @@ impl TemporalRefreshArtifactWire {
         if self.decision == label && self.invalidation == invalidation {
             return Ok(decision);
         }
-        if self.decision == REUSABLE {
-            if let RefreshDecision::Invalidated(reason) = decision {
-                return Err(reason.into_error().into());
-            }
+        if self.decision == REUSABLE
+            && let RefreshDecision::Invalidated(reason) = decision
+        {
+            return Err(reason.into_error().into());
         }
         Err(mismatch(PREFIX, "decision"))
     }

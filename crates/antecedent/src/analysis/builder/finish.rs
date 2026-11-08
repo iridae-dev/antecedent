@@ -209,14 +209,14 @@ fn refuse_conflicting_inputs(input: &FinishInput) -> Result<(), CausalError> {
         },
         input.declared.missing.as_ref(),
     )?;
-    if let Some(spec) = &input.declared.estimator_spec {
-        if spec.is_configured() {
-            if input.settings.bootstrap_explicit {
-                return Err(estimator_setting_conflict("bootstrap_replicates"));
-            }
-            if input.declared.overlap_policy.is_some() {
-                return Err(estimator_setting_conflict("overlap_policy"));
-            }
+    if let Some(spec) = &input.declared.estimator_spec
+        && spec.is_configured()
+    {
+        if input.settings.bootstrap_explicit {
+            return Err(estimator_setting_conflict("bootstrap_replicates"));
+        }
+        if input.declared.overlap_policy.is_some() {
+            return Err(estimator_setting_conflict("overlap_policy"));
         }
     }
     if let (Some(design), Some(_)) = (input.declared.sampling_design, input.declared.split.as_ref())
@@ -733,17 +733,16 @@ fn apply_design_contract(
             | CausalQuery::IvBounds(_)
             | CausalQuery::Association(_)
     );
-    if let (InferenceMode::Bayesian(config), false) = (&carry.settings.inference, reads_own_model) {
-        if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
-            || config.has_transfer()
-        {
-            return Err(crate::unsupported_reason!(
-                "option_not_applicable",
-                "the Bayesian panel DiD, synthetic control and local ratio fit their own \
+    if let (InferenceMode::Bayesian(config), false) = (&carry.settings.inference, reads_own_model)
+        && (config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
+            || config.has_transfer())
+    {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "the Bayesian panel DiD, synthetic control and local ratio fit their own \
                  built-in Gaussian models; use the conjugate backend with prior_scale and \
                  n_draws only, and no transferred or custom prior"
-            ));
-        }
+        ));
     }
     if carry.declared.identifier.is_some_and(|id| id != IdentifierId::for_design_query(query))
         || carry.declared.estimator.is_some_and(|id| {
@@ -830,21 +829,16 @@ fn retarget_cutoff_estimand(
     // retargeted to that population here, so the contract, the calibration key and
     // the result all name the estimand that is actually identified; the
     // identification diagnostics say that the population-wide effect was not.
-    if matches!(
+    if (matches!(
         carry.declared.estimator,
         Some(EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear)
-    ) || carry.declared.identifier == Some(IdentifierId::RdSharp)
-    {
-        if let (Some(rd), CausalQuery::AverageEffect(average)) =
+    ) || carry.declared.identifier == Some(IdentifierId::RdSharp))
+        && let (Some(rd), CausalQuery::AverageEffect(average)) =
             (carry.declared.rd.as_ref(), &mut query)
-        {
-            if average.target_population == antecedent_core::TargetPopulation::AllObserved {
-                average.target_population = antecedent_core::TargetPopulation::local_at_cutoff(
-                    rd.running_variable,
-                    rd.cutoff,
-                );
-            }
-        }
+        && average.target_population == antecedent_core::TargetPopulation::AllObserved
+    {
+        average.target_population =
+            antecedent_core::TargetPopulation::local_at_cutoff(rd.running_variable, rd.cutoff);
     }
     Ok(RetargetedEstimand(Spine { carry, graph, graph_posterior, query }))
 }
@@ -1144,29 +1138,28 @@ fn require_declared_dependence_read(
     // setting changes nothing in them, so it is not a way to read a declared clustered panel or
     // dependent series.
     let cell_aipw = carry.declared.estimator == Some(EstimatorId::CellAipw);
-    if let CausalQuery::Response(response) = query {
-        if replicates > 0
-            && response.temporal.is_none()
-            && (cell_aipw
-                || (graph_class == GraphClass::Dag
-                    && carry.declared.estimator_spec.is_none()
-                    && matches!(
-                        response.functional,
-                        antecedent_core::ResponseFunctional::MeanCurve { .. }
-                            | antecedent_core::ResponseFunctional::InterventionResponse { .. }
-                    )))
-        {
-            return Err(crate::unsupported_reason!(
-                "option_not_applicable",
-                "the default response curve, the intervention response and the joint cell AIPW publish an \
+    if let CausalQuery::Response(response) = query
+        && replicates > 0
+        && response.temporal.is_none()
+        && (cell_aipw
+            || (graph_class == GraphClass::Dag
+                && carry.declared.estimator_spec.is_none()
+                && matches!(
+                    response.functional,
+                    antecedent_core::ResponseFunctional::MeanCurve { .. }
+                        | antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                )))
+    {
+        return Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "the default response curve, the intervention response and the joint cell AIPW publish an \
                  influence-function interval over independent rows and do not bootstrap, so a \
                  declared clustered-panel or dependent-time-series design would be silently \
                  ignored whatever the bootstrap setting. Next attempt: declare independent \
                  subject trajectories if the rows are independent, declare the labels or lag \
                  with score_dependence on the joint cell (bootstrap off), or estimate an \
                  average effect with a cluster or Newey-West standard error"
-            ));
-        }
+        ));
     }
     if replicates > 0 {
         return Ok(());

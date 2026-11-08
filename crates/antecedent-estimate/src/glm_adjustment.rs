@@ -608,7 +608,7 @@ impl GlmAdjustmentAte {
                 };
                 if fit.require_ok().is_err() {
                     return Ok(None);
-                };
+                }
                 let diffs = GcompContrast {
                     family: problem.family,
                     x_colmajor: x_boot,

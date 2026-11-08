@@ -98,9 +98,8 @@ fn unavailable_b_static_panel_without_a_path_prepares_and_with_a_path_is_refused
             static_request(&data, inference, Some(spec())),
             &ctx(),
         );
-        let error = match refused {
-            Ok(_) => panic!("{label}: a time-varying path on a static panel was accepted"),
-            Err(error) => error,
+        let Err(error) = refused else {
+            panic!("{label}: a time-varying path on a static panel was accepted")
         };
         assert!(
             matches!(&error, JointPanelError::Engine(PanelError::Invalid(message))

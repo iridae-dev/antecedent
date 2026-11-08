@@ -975,12 +975,12 @@ fn studentize_replicates(
         let (selected, _) = draw_units(panel, record.replicate_id);
         let selected_scores = selected.iter().map(|unit| lookup[&unit.unit_id]).collect::<Vec<_>>();
         let variance = mean_se(&selected_scores);
-        if let (Some(estimate), Some((mean, _))) = (record.point, variance) {
-            if !close(mean, estimate) {
-                return Err(unsupported_history(
-                    antecedent_core::reason_details::temporal_interval::STUDENTIZED_SCORE_MISMATCH,
-                ));
-            }
+        if let (Some(estimate), Some((mean, _))) = (record.point, variance)
+            && !close(mean, estimate)
+        {
+            return Err(unsupported_history(
+                antecedent_core::reason_details::temporal_interval::STUDENTIZED_SCORE_MISMATCH,
+            ));
         }
         let pair = record
             .point

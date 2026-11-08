@@ -1397,7 +1397,7 @@ mod tests {
         assert!(estimate.diagnostics.overlap_report.is_some(), "overlap report missing");
         assert_eq!(estimate.provenance.overlap, crate::propensity::default_propensity_overlap());
         let substituted = crossfit_substitution_record();
-        assert!(estimate.provenance.assumptions.entries.iter().any(|r| *r == substituted));
+        assert!(estimate.provenance.assumptions.entries.contains(&substituted));
         assert!(scores.influence[0].iter().all(|v| v.is_finite()));
         assert!(scores.influence[1].iter().all(|v| v.is_finite()));
         let contrast: Vec<f64> =

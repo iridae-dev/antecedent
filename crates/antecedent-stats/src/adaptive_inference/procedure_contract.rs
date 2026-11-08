@@ -653,18 +653,17 @@ impl ProcedureSpec {
                 gaps.push(ContractGap::Invalid(antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID));
             }
         }
-        if let Some(exposure) = &declaration.exposure {
-            if exposure.failure_probability.len() != arms
+        if let Some(exposure) = &declaration.exposure
+            && (exposure.failure_probability.len() != arms
                 || exposure
                     .failure_probability
                     .iter()
                     .any(|p| !(p.is_finite() && (0.0..1.0).contains(p)))
-                || exposure.fallback_arm >= arms
-            {
-                gaps.push(ContractGap::Invalid(
-                    antecedent_core::reason_details::adaptive_inference::EXPOSURE_INVALID,
-                ));
-            }
+                || exposure.fallback_arm >= arms)
+        {
+            gaps.push(ContractGap::Invalid(
+                antecedent_core::reason_details::adaptive_inference::EXPOSURE_INVALID,
+            ));
         }
         validate_stopping_and_selection(&declaration, single_context, looks, &mut gaps);
         if !gaps.is_empty() {

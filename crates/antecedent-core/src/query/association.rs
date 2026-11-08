@@ -299,10 +299,10 @@ impl AssociationQuery {
                 }
             }
         }
-        if let Some(reason) = &self.refused_after {
-            if reason.is_empty() || reason.len() > MAX_REFUSED_AFTER_BYTES {
-                return invalid(AssociationFault::RefusalReasonLength);
-            }
+        if let Some(reason) = &self.refused_after
+            && (reason.is_empty() || reason.len() > MAX_REFUSED_AFTER_BYTES)
+        {
+            return invalid(AssociationFault::RefusalReasonLength);
         }
         Ok(())
     }

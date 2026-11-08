@@ -53,9 +53,8 @@ fn assert_not_applicable(
     replicates: u32,
     what: &str,
 ) {
-    let error = match study(query, inference, replicates).build() {
-        Ok(_) => panic!("{what}: a temporal contrast on a static graph was accepted"),
-        Err(error) => error,
+    let Err(error) = study(query, inference, replicates).build() else {
+        panic!("{what}: a temporal contrast on a static graph was accepted")
     };
     assert!(
         matches!(&error, CausalError::Support { id: SupportRefusal::NotApplicable, .. }),

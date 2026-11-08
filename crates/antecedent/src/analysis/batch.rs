@@ -943,10 +943,10 @@ impl BatchStudy {
         query: &AverageEffectQuery,
         ctx: &ExecutionContext,
     ) -> Result<Arc<[VariableId]>, CausalError> {
-        if let BatchGraph::Tiered(background) = &self.graph {
-            if background.within_tier == antecedent_graph::WithinTier::Unknown {
-                return Ok(Arc::from([]));
-            }
+        if let BatchGraph::Tiered(background) = &self.graph
+            && background.within_tier == antecedent_graph::WithinTier::Unknown
+        {
+            return Ok(Arc::from([]));
         }
         let identification = self.study_for_data(data, query)?.identify_structure_within(ctx)?;
         let crate::Identification::Point { result, .. } = &identification else {

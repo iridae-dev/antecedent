@@ -314,15 +314,9 @@ pub(crate) fn reject_future_to_past(
 ) -> Result<(), GraphError> {
     if let (NodeRef::Lagged { lag: from_lag, .. }, NodeRef::Lagged { lag: to_lag, .. }) =
         (nodes[from.as_usize()], nodes[to.as_usize()])
+        && from_lag < to_lag
     {
-        if from_lag < to_lag {
-            return Err(GraphError::FutureToPast {
-                from: from.raw(),
-                to: to.raw(),
-                from_lag,
-                to_lag,
-            });
-        }
+        return Err(GraphError::FutureToPast { from: from.raw(), to: to.raw(), from_lag, to_lag });
     }
     Ok(())
 }
