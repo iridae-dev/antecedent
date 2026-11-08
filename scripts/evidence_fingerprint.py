@@ -254,6 +254,12 @@ def file_digest(path: Path, root: Path | None = None) -> str:
     return _sha(data)
 
 
+# Files a host file manager writes into any directory it shows. They are never data,
+# git ignores them, and binding them would make a record owed whenever a directory is
+# browsed.
+HOST_METADATA = frozenset({".DS_Store", "Thumbs.db", "desktop.ini"})
+
+
 def tree_files(directory: Path, suffixes: set[str] | None = None) -> list[Path]:
     found: list[Path] = []
     if not directory.is_dir():
@@ -261,6 +267,8 @@ def tree_files(directory: Path, suffixes: set[str] | None = None) -> list[Path]:
     for base, dirs, files in os.walk(directory):
         dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS and not d.startswith("."))
         for name in sorted(files):
+            if name in HOST_METADATA or name.startswith("._"):
+                continue
             path = Path(base) / name
             if suffixes is not None and path.suffix not in suffixes:
                 continue

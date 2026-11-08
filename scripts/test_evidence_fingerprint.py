@@ -228,6 +228,12 @@ class EmbeddedAndRuntimeInputTests(_InputCase):
             fp.rust_test_side({"evidence_test": "crates/top/tests/cov.rs", "evidence_assertion": "cov_case"}, "top")
         self.assertIn(self.root / "parity/t.toml", used.data_reads(None))
 
+    def test_host_metadata_in_a_read_directory_is_never_an_input(self):
+        self.write("parity/data/a.toml", "a = 1\n")
+        self.write("parity/data/.DS_Store", "finder")
+        self.write("parity/data/._a.toml", "appledouble")
+        self.assertEqual({p.name for p in ef.tree_files(self.root / "parity/data")}, {"a.toml"})
+
     def test_runtime_reads_from_sources_in_every_literal_form(self):
         forms = {
             "../../parity/lit.toml": 'const P: &str = "../../parity/lit.toml";\n',
