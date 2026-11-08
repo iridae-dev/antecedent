@@ -28,6 +28,12 @@ class ManifestTests(unittest.TestCase):
         target.write_text(value, encoding="utf-8")
         return target
 
+    def stored_projection(self, projection):
+        from evidence_projection import fingerprint
+        digest = fingerprint(projection)
+        self.write(f"{em.PROJECTIONS}/{digest}.json", json.dumps(projection))
+        return digest
+
     def manifest(self, kind="file", key="src/a.rs"):
         checker = em.Checker(self.root, {})
         return {
@@ -136,8 +142,7 @@ class ManifestTests(unittest.TestCase):
         start = source.index('{ 7 }')
         projection = capture(source, [(start, start + 5)])
         manifest = self.manifest()
-        manifest['inputs'][0].update(kind='guarded_file', projection=projection,
-                                     digest=fingerprint(projection))
+        manifest['inputs'][0].update(kind='guarded_file', digest=self.stored_projection(projection))
         self.write('src/a.rs', source.replace('{ 7 }', '{ 8 }'))
         self.assertTrue(self.check(manifest)['current'])
         self.write('src/a.rs', source.replace('unused()', 'unused(x:i32)'))
@@ -149,8 +154,7 @@ class ManifestTests(unittest.TestCase):
         self.write('src/a.rs', source)
         projection = capture(source, [(source.index('{'), len(source))])
         manifest = self.manifest()
-        manifest['inputs'][0].update(kind='guarded_file', projection=projection,
-                                     digest=fingerprint(projection))
+        manifest['inputs'][0].update(kind='guarded_file', digest=self.stored_projection(projection))
         self.write('src/a.rs', 'fn unused() { impl T for S {} 7 }')
         self.assertFalse(self.check(manifest)['current'])
 

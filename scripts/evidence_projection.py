@@ -15,7 +15,10 @@ import re
 
 from _rust_source import lex
 
-VERSION = 1
+# A projection records the length of every retained segment, the layout of every hole
+# and one SHA-256 over the retained text: the same guard as the text itself, at a few
+# hundred bytes instead of a copy of the file.
+VERSION = 2
 # Ordinary body expressions cannot alter module lookup. Nested impls, exported
 # macros and attributes can; never allow them to hide behind a body hole.
 FORBIDDEN = re.compile(r"\b(?:fn|impl|trait|struct|enum|union|mod|const|static|type|extern|unsafe|macro_rules)\b|#|\b[A-Za-z_][A-Za-z_0-9:]*\s*!")
@@ -183,29 +186,38 @@ def capture(source: str, spans: list[tuple[int, int]]) -> dict:
         layouts.append(layout(source[start:end]))
         cursor = end
     segments.append(source[cursor:])
-    return {"version": VERSION, "segments": segments, "layouts": layouts}
+    return {"version": VERSION, "lengths": [len(segment) for segment in segments], "layouts": layouts,
+            "sha256": hashlib.sha256("".join(segments).encode()).hexdigest()}
 
 
 def matches(source: str, projection: dict, skeleton: str | None = None) -> bool:
     if projection.get("version") != VERSION:
         raise ProjectionChanged("unsupported source projection")
-    segments, layouts = projection.get("segments"), projection.get("layouts")
-    if (not isinstance(segments, list) or not all(isinstance(s, str) for s in segments)
-            or not isinstance(layouts, list) or len(segments) != len(layouts) + 1):
+    lengths, layouts, expected = projection.get("lengths"), projection.get("layouts"), projection.get("sha256")
+    if (not isinstance(lengths, list) or not all(type(n) is int and n >= 0 for n in lengths)
+            or not isinstance(layouts, list) or len(lengths) != len(layouts) + 1
+            or not isinstance(expected, str)):
         raise ProjectionChanged("malformed source projection")
     skeleton = lex(source).skeleton if skeleton is None else skeleton
-    cursor = 0
-    for prefix, expected_layout in zip(segments, layouts, strict=False):
-        if not source.startswith(prefix, cursor):
+    retained, cursor = hashlib.sha256(), 0
+    for length, expected_layout in zip(lengths, layouts, strict=False):
+        if cursor + length > len(source):
             return False
-        cursor += len(prefix)
+        retained.update(source[cursor:cursor + length].encode())
+        cursor += length
+        # A body moved or reshaped by an edit no longer starts where the guard says.
+        if cursor >= len(skeleton) or skeleton[cursor] != "{":
+            return False
         end = end_of_body(skeleton, cursor)
         body = source[cursor:end]
         check_body(body)
         if layout(body) != expected_layout:
             return False
         cursor = end
-    return source[cursor:] == segments[-1]
+    if len(source) - cursor != lengths[-1]:
+        return False
+    retained.update(source[cursor:].encode())
+    return retained.hexdigest() == expected
 
 
 def from_compiler_coverage(source: str, candidates: dict[str, tuple[int, int]],

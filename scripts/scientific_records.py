@@ -465,7 +465,9 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
                 failed += 1
                 continue
             manifest = f"parity/evidence_manifests/{ref}.json"
-            _remember_nix_output(root, allowed, manifest)
+            # The manifest and the projections it names are this run's own outputs.
+            for output in snapshots[selector].outputs:
+                _remember_nix_output(root, allowed, output)
             # Manifest filenames are content addresses, not merely paths to trust.
             if allowed[manifest] != ref:
                 raise RuntimeError("published evidence manifest does not match its content address")

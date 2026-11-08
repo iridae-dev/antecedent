@@ -48,6 +48,7 @@ class NixRustEarning(unittest.TestCase):
                     data = self.name.encode()
                     ref = hashlib.sha256(data).hexdigest()
                     (root / "parity/evidence_manifests" / (ref + ".json")).write_bytes(data)
+                    self.outputs = [f"parity/evidence_manifests/{ref}.json"]
                     return ref
 
             def ledger(*args, **kwargs):

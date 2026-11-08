@@ -21,6 +21,7 @@ from evidence_manifests import (
     ANALYZER,
     BUILD_ENV,
     NORMALIZATION,
+    PROJECTIONS,
     SCHEMA,
     STORE,
     Checker,
@@ -390,23 +391,37 @@ class Snapshot:
             self.manifest['inputs'] = [i for i in self.manifest['inputs'] if i not in inside]
             self.manifest['inputs'].append(dict(kind='tree', path=prefix,
                                                 digest=self.source_trees[prefix], role='compile'))
-        ref = manifest_id(self.manifest)
-        store = self.root / STORE
-        store.mkdir(parents=True, exist_ok=True)
-        destination = store / f'{ref}.json'
-        data = canonical(self.manifest)
-        if destination.exists():
-            if destination.read_bytes() != data:
-                raise RuntimeError('manifest address collision or corrupt store')
-        else:
-            with tempfile.NamedTemporaryFile(dir=store, delete=False) as file:
-                temporary = Path(file.name)
-                file.write(data)
-            try:
-                os.replace(temporary, destination)
-            finally:
-                temporary.unlink(missing_ok=True)
+        # Projections are stored once by content; the manifest names each by digest.
+        self.outputs = []
+        inputs = []
+        for entry in self.manifest['inputs']:
+            if entry['kind'] == 'guarded_file':
+                self.outputs.append(_write_addressed(self.root / PROJECTIONS, entry['digest'],
+                                                     canonical(entry['projection']), self.root))
+                entry = {key: value for key, value in entry.items() if key != 'projection'}
+            inputs.append(entry)
+        stored = {**self.manifest, 'inputs': inputs}
+        ref = manifest_id(stored)
+        self.outputs.append(_write_addressed(self.root / STORE, ref, canonical(stored), self.root))
         return ref
+
+
+def _write_addressed(store: Path, address: str, data: bytes, root: Path) -> str:
+    """Write `<address>.json` once; an existing file must hold the same bytes."""
+    store.mkdir(parents=True, exist_ok=True)
+    destination = store / f'{address}.json'
+    if destination.exists():
+        if destination.read_bytes() != data:
+            raise RuntimeError('content address collision or corrupt store')
+    else:
+        with tempfile.NamedTemporaryFile(dir=store, delete=False) as file:
+            temporary = Path(file.name)
+            file.write(data)
+        try:
+            os.replace(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return destination.relative_to(root).as_posix()
 
 
 def build_analyzer(root: Path, output: Path) -> Path | None:

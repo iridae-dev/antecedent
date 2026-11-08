@@ -30,6 +30,9 @@ import _repo
 
 ROOT = Path(__file__).resolve().parents[1]
 STORE = "parity/evidence_manifests"
+# Content-addressed source projections, `<fingerprint>.json`, shared by every manifest
+# that guards a file the same way; a manifest's guarded entry names one by its digest.
+PROJECTIONS = "parity/evidence_projections"
 SCHEMA = 1
 NORMALIZATION = "raw-bytes-v1"
 # The dependency policy that writes manifests. Changing what earning records,
@@ -144,10 +147,8 @@ def validate(manifest: dict, binding: dict) -> None:
         seen.add((kind, key))
         if not isinstance(entry.get("digest"), str) or not HEX.fullmatch(entry["digest"]):
             raise InvalidManifest("invalid input digest")
-        if kind == "guarded_file":
-            from evidence_projection import fingerprint
-            if not isinstance(entry.get("projection"), dict) or fingerprint(entry["projection"]) != entry["digest"]:
-                raise InvalidManifest("invalid guarded source projection")
+        if kind == "guarded_file" and "projection" in entry:
+            raise InvalidManifest("a guarded entry names its projection by digest")
         if kind == "build_env" and key not in BUILD_ENV:
             raise InvalidManifest("unknown build environment input")
         if entry.get("role") not in ROLES:
@@ -257,6 +258,7 @@ class Checker:
         self.files_hashed = 0
         self.source_cache: dict[str, tuple[str, str]] = {}
         self.projection_cache: dict[tuple[str, str], bool] = {}
+        self.projections: dict[str, dict] = {}
         self._tracked: list[str] | None = None
         self._tracked_loaded = False
 
@@ -307,6 +309,20 @@ class Checker:
             self.path(p)
             out.append(p)
         return out
+
+    def projection(self, digest_hex: str) -> dict:
+        """The stored projection with this fingerprint; refused when missing or altered."""
+        if digest_hex not in self.projections:
+            from evidence_projection import fingerprint
+            path = self.root / PROJECTIONS / f"{digest_hex}.json"
+            try:
+                projection = json.loads(path.read_bytes())
+            except (OSError, ValueError) as error:
+                raise InvalidManifest(f"missing guarded source projection {digest_hex}") from error
+            if not isinstance(projection, dict) or fingerprint(projection) != digest_hex:
+                raise InvalidManifest("invalid guarded source projection")
+            self.projections[digest_hex] = projection
+        return self.projections[digest_hex]
 
     def input_digest(self, kind: str, key: str) -> str:
         cache_key = kind, key
@@ -405,7 +421,7 @@ class Checker:
                             source = self.path(key).read_bytes().decode("utf-8")
                             self.source_cache[key] = source, lex(source).skeleton
                         source, skeleton = self.source_cache[key]
-                        self.projection_cache[cache_key] = matches(source, entry["projection"], skeleton)
+                        self.projection_cache[cache_key] = matches(source, self.projection(entry["digest"]), skeleton)
                         self.parsing_seconds += time.perf_counter() - start
                     unchanged = self.projection_cache[cache_key]
                 else:

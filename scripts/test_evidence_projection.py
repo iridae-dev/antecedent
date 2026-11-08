@@ -1,4 +1,5 @@
 """Engineering mutation matrix for compiler-selected source body projections."""
+import json
 import unittest
 
 from evidence_projection import ProjectionChanged, capture, from_compiler_coverage, matches
@@ -144,7 +145,7 @@ fn unused() -> i32 { 7 }
         start = source.index('{ 7 }')
         projection, _ = from_compiler_coverage(source, {'unused': (start, start + 5)}, {2},
                                                opaque=False)
-        self.assertEqual(projection['version'], 1)
+        self.assertEqual(projection['version'], 2)
         self.assertTrue(matches(source.replace('{ 7 }', '{ 8 }'), projection))
         self.assertFalse(matches(source.replace('{ 7 }', '{\n7\n}'), projection))
         self.assertFalse(matches(source.replace('{ 7 }', '{ 77 }'), projection))
@@ -153,6 +154,17 @@ fn unused() -> i32 { 7 }
         self.assertEqual(len(changed.encode()), len(source.encode()))
         self.assertFalse(matches(changed, projection))
 
+
+    def test_the_guard_holds_no_source_text_and_still_detects_every_retained_edit(self):
+        source = 'fn unused() { 7 }\nfn used() { v[0].unwrap() }\n'
+        start = source.index('{ 7 }')
+        projection, _ = from_compiler_coverage(source, {'unused': (start, start + 5)}, {2}, opaque=False)
+        self.assertNotIn('unwrap', json.dumps(projection))
+        self.assertTrue(matches(source, projection))
+        # A same-length edit to retained text, a moved hole and a shorter file all fail.
+        self.assertFalse(matches(source.replace('v[0]', 'w[0]'), projection))
+        self.assertFalse(matches(' ' + source[:-1], projection))
+        self.assertFalse(matches(source[:-1], projection))
 
 if __name__ == '__main__':
     unittest.main()
