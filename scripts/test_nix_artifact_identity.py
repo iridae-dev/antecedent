@@ -25,7 +25,7 @@ class ArtifactIdentityTests(unittest.TestCase):
         self.binary.parent.mkdir(parents=True)
         self.binary.write_bytes(b'fixture binary')
         (self.output / 'source-root').write_text(str(self.source) + '\n', encoding="utf-8")
-        for name in ('nix/evidence-target.nix', 'nix/evidence-toolchain.nix', 'flake.lock'):
+        for name in identity.RECIPE_FILES:
             file = self.root / name
             file.parent.mkdir(parents=True, exist_ok=True)
             file.write_text(name, encoding="utf-8")
@@ -52,7 +52,8 @@ class ArtifactIdentityTests(unittest.TestCase):
 
     def inspect(self, **overrides):
         args = dict(root=self.root, output=str(self.output), source=str(self.source), crate='fixture',
-                    target_kind='test', target_name='basic', features=['z', 'a', 'a'], store=self.store)
+                    target_kind='test', target_name='basic', features=['z', 'a', 'a'],
+                    deps_source=str(self.source), store=self.store)
         args.update(overrides)
         return identity.inspect_artifact(**args)
 
@@ -62,6 +63,9 @@ class ArtifactIdentityTests(unittest.TestCase):
         self.assertEqual(json.loads(command[command.index('targetsJson') + 1]),
                          [{'crate': 'fixture', 'features': ['a', 'z'], 'kind': 'test', 'name': 'basic'}])
         self.assertIn(str(self.source), command[command.index('src') + 1])
+        self.assertIn(str(self.source), command[command.index('depsSrc') + 1])
+        self.assertEqual(json.loads(command[command.index('depsTargetsJson') + 1]),
+                         json.loads(command[command.index('targetsJson') + 1]))
         self.assertFalse(result['sandbox_verified'])
         self.assertEqual(result['features'], ['a', 'z'])
         self.assertEqual(result['binary'], 'targets/fixture/test/basic/bin/test')

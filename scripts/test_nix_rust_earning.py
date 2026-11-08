@@ -26,7 +26,8 @@ class NixRustEarning(unittest.TestCase):
                 name = row["name"]
                 return {"lang": "rust", "crate": name, "target": ["--lib"], "selector": name + "::lib::test"}
 
-            def build(_, targets, *, allowed_outputs):
+            def build(_, targets, *, deps_targets, allowed_outputs):
+                self.assertEqual(deps_targets, [("a", "lib", ""), ("b", "lib", "")])
                 seen.append((sorted(targets), dict(allowed_outputs)))
                 return {(crate, kind, name): {
                     "source": {"commit": "head", "store_path": "/nix/store/source"},
@@ -62,6 +63,7 @@ class NixRustEarning(unittest.TestCase):
                  patch.object(evidence_earning, "project_snapshot"), \
                  patch.object(evidence_earning, "require_compile_environment"), \
                  patch.object(nix_evidence_build, "build_committed_targets", side_effect=build), \
+                 patch.object(scientific, "all_scientific_rows", return_value=rows), \
                  patch.object(nix_evidence_capture, "capture_built_target", side_effect=capture), \
                  patch.object(nix_evidence_policy, "validate_build"), \
                  patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")):
@@ -80,6 +82,7 @@ class NixRustEarning(unittest.TestCase):
             patch.object(scientific, "withdraw_records") as withdraw,
             patch.object(evidence_earning, "require_compile_environment"),
             patch.object(nix_evidence_build, "build_committed_targets", return_value={("a", "lib", ""): {}}),
+            patch.object(scientific, "all_scientific_rows", return_value=[{}]),
             patch.object(nix_evidence_capture, "capture_built_target") as capture,
             patch.object(nix_evidence_policy, "validate_build", side_effect=RuntimeError("unreviewed")),
             patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")),

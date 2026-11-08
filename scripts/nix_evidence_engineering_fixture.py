@@ -89,6 +89,9 @@ def _prepare_fixture(root: Path) -> None:
           "commit", "-qm", "disposable engineering fixture"], cwd=root, env=env)
 
 
+TARGETS = targets_json([{"crate": CRATE, "kind": "lib", "name": "", "features": FEATURES}])
+
+
 def _build(source: str) -> str:
     recipe = ROOT / "nix/evidence-target.nix"
     command = [
@@ -96,8 +99,9 @@ def _build(source: str) -> str:
         "--option", "substitute", "false", "--option", "builders", "",
         "build", "--file", str(recipe), "--no-link", "--print-out-paths",
         "--arg", "src", "builtins.storePath " + json.dumps(source),
-        "--argstr", "targetsJson",
-        targets_json([{"crate": CRATE, "kind": "lib", "name": "", "features": FEATURES}]),
+        "--argstr", "targetsJson", TARGETS,
+        # The disposable fixture builds its dependencies from its own source.
+        "--arg", "depsSrc", "builtins.storePath " + json.dumps(source), "--argstr", "depsTargetsJson", TARGETS,
     ]
     output = _run(command, cwd=ROOT)
     rebuild = command.copy()
@@ -161,7 +165,8 @@ def run_fixture() -> dict:
         source = import_committed_snapshot(checkout, snapshot, commit)
         verify_committed_snapshot(checkout, snapshot, commit)
         output = _build(source["store_path"])
-        artifact = inspect_artifact(ROOT, output, source["store_path"], CRATE, "lib", "", FEATURES)
+        artifact = inspect_artifact(ROOT, output, source["store_path"], CRATE, "lib", "", FEATURES,
+                                    deps_source=source["store_path"])
         if artifact["source_nar_hash"] != source["nar_hash"] or artifact["output"] != output:
             raise ValueError("artifact source differs from the committed fixture")
         if artifact["sandbox_verified"] is not False:

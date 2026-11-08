@@ -7,6 +7,7 @@ are verified by the caller; the result is never authorization to earn a record.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -15,8 +16,15 @@ import tomllib
 from pathlib import Path
 
 from _repo import scientific_target_feature_args
-from nix_artifact_identity import inspect_artifact, recheck_artifact, target_dir, targets_json
+from nix_artifact_identity import (
+    RECIPE_FILES,
+    inspect_artifact,
+    recheck_artifact,
+    target_dir,
+    targets_json,
+)
 from nix_compile_time_inventory import compiler_units
+from nix_evidence_deps import import_deps_source, write_deps_source
 from nix_evidence_source import (
     import_committed_snapshot,
     materialize_committed_source,
@@ -40,13 +48,44 @@ def _target_features(root: Path, crate: str, target_kind: str, target_name: str)
     return features
 
 
-def _build(root: Path, source: str, build_targets: list[dict]) -> str:
+# Recipe and lock combinations whose builds a `--rebuild` reproduced, on this machine.
+# Reproducibility is a property of the recipe: once checked for given recipe bytes
+# and lock, rebuilding every run proves nothing new. The record is local state.
+REPRODUCED = "target/nix-evidence/reproduced.json"
+
+
+def _reproducibility_key(root: Path) -> str:
+    digest = hashlib.sha256()
+    for rel in (*RECIPE_FILES, "Cargo.lock"):
+        digest.update(rel.encode() + b"\0" + (root / rel).read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def _reproduced(root: Path) -> set[str]:
+    path = root / REPRODUCED
+    try:
+        return set(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError, TypeError):
+        return set()
+
+
+def _record_reproduced(root: Path, key: str) -> None:
+    path = root / REPRODUCED
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(sorted(_reproduced(root) | {key})) + "\n", encoding="utf-8")
+
+
+def _build(root: Path, source: str, build_targets: list[dict], deps_source: str | None = None,
+           deps_targets: list[dict] | None = None) -> str:
+    deps_source = deps_source or source
+    deps_arguments = ["--arg", "depsSrc", "builtins.storePath " + json.dumps(deps_source),
+                      "--argstr", "depsTargetsJson", targets_json(deps_targets or build_targets)]
+    base = ["nix", "--extra-experimental-features", "nix-command flakes", "--offline",
+            "--option", "substitute", "false", "--option", "builders", "", "build"]
     command = [
-        "nix", "--extra-experimental-features", "nix-command flakes", "--offline",
-        "--option", "substitute", "false", "--option", "builders", "",
-        "build", "--file", str(root / "nix/evidence-target.nix"),
+        *base, "--file", str(root / "nix/evidence-target.nix"),
         "--no-link", "--print-out-paths", "--arg", "src", "builtins.storePath " + json.dumps(source),
-        "--argstr", "targetsJson", targets_json(build_targets),
+        "--argstr", "targetsJson", targets_json(build_targets), *deps_arguments,
     ]
 
     def build(argv: list[str]) -> str:
@@ -57,10 +96,18 @@ def _build(root: Path, source: str, build_targets: list[dict]) -> str:
         return result.stdout.strip()
 
     output = build(command)
-    rebuild = command.copy()
-    rebuild.insert(rebuild.index("build") + 1, "--rebuild")
-    if build(rebuild) != output:
-        raise ValueError("Nix rebuild returned a different output")
+    key = _reproducibility_key(root)
+    if key not in _reproduced(root):
+        # A new recipe or lock: check that both derivations rebuild bit for bit.
+        deps = [*base, "--file", str(root / "nix/evidence-deps.nix"), "--no-link", "--print-out-paths",
+                *deps_arguments]
+        for argv in (deps, command):
+            first = build(argv)
+            rebuild = argv.copy()
+            rebuild.insert(rebuild.index("build") + 1, "--rebuild")
+            if build(rebuild) != first:
+                raise ValueError("Nix rebuild returned a different output")
+        _record_reproduced(root, key)
     return output
 
 
@@ -96,6 +143,7 @@ def _compiler_graph(output: Path, crate: str, target_kind: str,
 
 
 def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
+                            deps_targets: list[tuple[str, str, str]] | None = None,
                             allowed_outputs: dict[str, str] | None = None) -> dict[tuple[str, str, str], dict]:
     """Build but never run targets from clean HEAD in one derivation; never attestation.
 
@@ -106,20 +154,28 @@ def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
     wanted = sorted(set(targets))
     if not wanted:
         raise ValueError("no Rust targets to build")
-    build_targets = [{"crate": crate, "kind": kind, "name": name,
-                      "features": _target_features(root, crate, kind, name)} for crate, kind, name in wanted]
+    def described(selection):
+        return [{"crate": crate, "kind": kind, "name": name,
+                 "features": _target_features(root, crate, kind, name)} for crate, kind, name in selection]
+    build_targets = described(wanted)
+    # The dependency build covers every scientific target, not just the owed ones,
+    # so it is the same derivation whichever targets a run builds.
+    all_targets = described(sorted(set(deps_targets or ()) | set(wanted)))
     with tempfile.TemporaryDirectory(prefix="antecedent-nix-source-") as tmp:
         snapshot = Path(tmp) / "snapshot"
         commit = materialize_committed_source(root, snapshot, allowed_outputs=allowed_outputs)["commit"]
         source = import_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
         verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
-        output = _build(root, source["store_path"], build_targets)
+        write_deps_source(snapshot, Path(tmp) / "deps")
+        deps_source = import_deps_source(Path(tmp) / "deps")
+        output = _build(root, source["store_path"], build_targets, deps_source, all_targets)
         tools = _versions(root, Path(output))
         built = {}
         for target in build_targets:
             crate, kind, name, features = target["crate"], target["kind"], target["name"], target["features"]
             artifact = inspect_artifact(root, output, source["store_path"], crate, kind, name, features,
-                                        build_targets=build_targets)
+                                        build_targets=build_targets, deps_source=deps_source,
+                                        deps_targets=all_targets)
             if artifact["source_nar_hash"] != source["nar_hash"] or artifact["sandbox_verified"] is not False:
                 raise ValueError("Nix artifact source or sandbox status is inconsistent")
             graph = _compiler_graph(Path(output), crate, kind, name, features)

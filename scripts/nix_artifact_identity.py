@@ -17,6 +17,9 @@ class ArtifactIdentityError(ValueError):
     """The Nix result does not match the requested source or build."""
 
 
+# Every file that defines the evidence derivations; each is bound into an artifact identity.
+RECIPE_FILES = ('nix/evidence-target.nix', 'nix/evidence-deps.nix', 'nix/evidence-common.nix',
+                'nix/evidence-toolchain.nix', 'flake.lock')
 _NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*\Z")
 _FEATURE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./+-]*\Z")
 _STORE_ITEM = re.compile(r"[0-9abcdfghijklmnpqrsvwxyz]{32}-[^/]+\Z")
@@ -99,7 +102,8 @@ _VERIFIED_OUTPUTS: set[tuple[str, str]] = set()
 
 def inspect_artifact(root: Path, output: str, source: str, crate: str,
                      target_kind: str, target_name: str, features: list[str],
-                     *, build_targets: list[dict] | None = None,
+                     *, build_targets: list[dict] | None = None, deps_source: str,
+                     deps_targets: list[dict] | None = None,
                      store: Path = Path('/nix/store')) -> dict:
     """Bind requested inputs to an existing store result and its executable.
 
@@ -111,6 +115,7 @@ def inspect_artifact(root: Path, output: str, source: str, crate: str,
     root, store = root.resolve(), store.resolve()
     output = _store_path(output, store)
     source = _store_path(source, store)
+    deps_source = _store_path(deps_source, store)
     if any(Path(p).is_symlink() or not Path(p).is_dir() for p in (output, source)):
         raise ArtifactIdentityError('missing or linked Nix store directory')
     if not _NAME.fullmatch(crate) or target_kind not in ('lib', 'test'):
@@ -124,14 +129,18 @@ def inspect_artifact(root: Path, output: str, source: str, crate: str,
         {'crate': crate, 'kind': target_kind, 'name': target_name, 'features': features}])
     if {'crate': crate, 'kind': target_kind, 'name': target_name, 'features': features} not in build_targets:
         raise ArtifactIdentityError('the target is not one the evidence build compiled')
-    recipe, lock, toolchain = (root / 'nix/evidence-target.nix', root / 'flake.lock', root / 'nix/evidence-toolchain.nix')
-    recipe_hashes = {str(p.relative_to(root)): _file_hash(p) for p in (recipe, lock, toolchain)}
+    deps_targets = canonical_targets(deps_targets if deps_targets is not None else build_targets)
+    recipe = root / 'nix/evidence-target.nix'
+    recipe_files = [root / rel for rel in RECIPE_FILES]
+    recipe_hashes = {str(p.relative_to(root)): _file_hash(p) for p in recipe_files}
     expr = f'builtins.storePath {json.dumps(source)}'
-    arguments = targets_json(build_targets)
-    key = (tuple(sorted(recipe_hashes.items())), source, arguments)
+    arguments, deps_arguments = targets_json(build_targets), targets_json(deps_targets)
+    key = (tuple(sorted(recipe_hashes.items())), source, arguments, deps_source, deps_arguments)
     if key not in _DERIVATIONS:
         _DERIVATIONS[key] = _nix('nix-instantiate', '--extra-experimental-features', 'nix-command flakes',
-                                 str(recipe), '--arg', 'src', expr, '--argstr', 'targetsJson', arguments)
+                                 str(recipe), '--arg', 'src', expr, '--argstr', 'targetsJson', arguments,
+                                 '--arg', 'depsSrc', f'builtins.storePath {json.dumps(deps_source)}',
+                                 '--argstr', 'depsTargetsJson', deps_arguments)
     drv = _DERIVATIONS[key]
     _store_path(drv, store, derivation=True)
     try:
@@ -159,13 +168,14 @@ def inspect_artifact(root: Path, output: str, source: str, crate: str,
     recorded_source = Path(output) / 'source-root'
     if recorded_source.is_symlink() or not recorded_source.is_file() or recorded_source.read_text(encoding="utf-8").strip() != source:
         raise ArtifactIdentityError('artifact source-root does not match')
-    if any(_file_hash(p) != recipe_hashes[str(p.relative_to(root))] for p in (recipe, lock, toolchain)):
+    if any(_file_hash(p) != recipe_hashes[str(p.relative_to(root))] for p in recipe_files):
         raise ArtifactIdentityError('Nix recipe changed during inspection')
     return {
         'schema': 2, 'derivation': drv, 'output': output, 'output_nar_hash': output_nar,
         'source': source, 'source_nar_hash': source_nar,
         'crate': crate, 'target_kind': target_kind, 'target_name': target_name, 'features': features,
-        'build_targets': build_targets, 'binary': relative,
+        'build_targets': build_targets, 'deps_source': deps_source, 'deps_targets': deps_targets,
+        'binary': relative,
         'binary_sha256': _file_hash(binary), 'recipe_sha256': recipe_hashes,
         'sandbox_verified': False,
     }
@@ -176,7 +186,8 @@ def recheck_artifact(root: Path, identity: dict, *, store: Path = Path('/nix/sto
     try:
         current = inspect_artifact(root, identity['output'], identity['source'], identity['crate'],
                                    identity['target_kind'], identity['target_name'], identity['features'],
-                                   build_targets=identity['build_targets'], store=store)
+                                   build_targets=identity['build_targets'], deps_source=identity['deps_source'],
+                                   deps_targets=identity['deps_targets'], store=store)
     except (KeyError, TypeError) as error:
         raise ArtifactIdentityError('invalid recorded artifact identity') from error
     if current != identity:

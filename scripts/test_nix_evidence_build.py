@@ -46,14 +46,29 @@ class BuildOnlyTest(unittest.TestCase):
         def fake_run(argv, **kwargs):
             commands.append(argv)
             return SimpleNamespace(stdout="/nix/store/output\n", stderr="")
-        with patch.object(build.subprocess, "run", side_effect=fake_run):
-            self.assertEqual(build._build(Path("/repo"), "/nix/store/source", TOY), "/nix/store/output")
-        self.assertEqual(len(commands), 2)
+        recorded = []
+        with patch.object(build.subprocess, "run", side_effect=fake_run), \
+             patch.object(build, "_reproducibility_key", return_value="key"), \
+             patch.object(build, "_reproduced", return_value=set()), \
+             patch.object(build, "_record_reproduced", side_effect=lambda root, key: recorded.append(key)):
+            self.assertEqual(build._build(Path("/repo"), "/nix/store/source", TOY, "/nix/store/deps"), "/nix/store/output")
+        # A new recipe or lock rebuilds both derivations once and records it.
+        self.assertEqual(len(commands), 5)
         self.assertIn("--offline", commands[0])
-        self.assertIn("--rebuild", commands[1])
-        self.assertIn("--option", commands[1])
-        self.assertNotIn("run", commands[1])
         self.assertEqual(json.loads(commands[0][commands[0].index("targetsJson") + 1]), TOY)
+        self.assertIn("/nix/store/deps", commands[0][commands[0].index("depsSrc") + 1])
+        self.assertTrue(commands[1][commands[1].index("--file") + 1].endswith("evidence-deps.nix"))
+        self.assertIn("--rebuild", commands[2])
+        self.assertIn("--rebuild", commands[4])
+        self.assertNotIn("run", commands[4])
+        self.assertEqual(recorded, ["key"])
+        commands.clear()
+        with patch.object(build.subprocess, "run", side_effect=fake_run), \
+             patch.object(build, "_reproducibility_key", return_value="key"), \
+             patch.object(build, "_reproduced", return_value={"key"}):
+            build._build(Path("/repo"), "/nix/store/source", TOY, "/nix/store/deps")
+        # Already reproduced for this recipe and lock: one build, no rebuild.
+        self.assertEqual(len(commands), 1)
         with (
             patch.object(build.subprocess, "run", return_value=SimpleNamespace(stdout="/nix/store/output", stderr="warning: ignoring untrusted setting")),
             self.assertRaisesRegex(ValueError, "untrusted"),
@@ -87,6 +102,8 @@ class BuildOnlyTest(unittest.TestCase):
              patch.object(build, "materialize_committed_source", return_value={"commit": "abc"}), \
              patch.object(build, "import_committed_snapshot", return_value=source), \
              patch.object(build, "verify_committed_snapshot") as verify, \
+             patch.object(build, "write_deps_source"), \
+             patch.object(build, "import_deps_source", return_value="/nix/store/deps"), \
              patch.object(build, "_build", return_value="/nix/store/output"), \
              patch.object(build, "inspect_artifact", return_value=artifact), \
              patch.object(build, "_versions", return_value={"rustc": "1.85.1"}), \
@@ -101,19 +118,25 @@ class BuildOnlyTest(unittest.TestCase):
     def test_several_targets_share_one_derivation_and_keep_their_own_records(self):
         source = {"commit": "abc", "store_path": "/nix/store/source", "nar_hash": "nar"}
 
-        def artifact(root, output, source_path, crate, kind, name, features, build_targets):
+        def artifact(root, output, source_path, crate, kind, name, features, build_targets,
+                     deps_source, deps_targets):
             self.assertEqual(len(build_targets), 2)
+            self.assertEqual(deps_source, "/nix/store/deps")
+            self.assertEqual(len(deps_targets), 3)
             return {"source_nar_hash": "nar", "sandbox_verified": False, "crate": crate}
         with patch.object(build, "_target_features", return_value=[]), \
              patch.object(build, "materialize_committed_source", return_value={"commit": "abc"}), \
              patch.object(build, "import_committed_snapshot", return_value=source), \
              patch.object(build, "verify_committed_snapshot"), \
+             patch.object(build, "write_deps_source"), \
+             patch.object(build, "import_deps_source", return_value="/nix/store/deps"), \
              patch.object(build, "_build", return_value="/nix/store/output") as derivation, \
              patch.object(build, "inspect_artifact", side_effect=artifact), \
              patch.object(build, "_versions", return_value={"rustc": "1.85.1"}), \
              patch.object(build, "_compiler_graph", return_value={"roots": [0], "units": [{}]}), \
              patch.object(build, "recheck_artifact"):
-            result = build.build_committed_targets(Path("/repo"), [("b", "test", "t"), ("a", "lib", ""), ("a", "lib", "")])
+            result = build.build_committed_targets(Path("/repo"), [("b", "test", "t"), ("a", "lib", ""), ("a", "lib", "")],
+                                                   deps_targets=[("c", "lib", "")])
         derivation.assert_called_once()
         self.assertEqual(sorted(result), [("a", "lib", ""), ("b", "test", "t")])
         self.assertEqual(result[("b", "test", "t")]["artifact"]["crate"], "b")

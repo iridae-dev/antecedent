@@ -344,7 +344,8 @@ def _remember_nix_output(root: Path, allowed: dict[str, str], relative: str) -> 
     allowed[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run) -> int:
+def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
+                  scientific_targets: list[tuple[str, str, str]] | None = None) -> int:
     """Build every owed target in one audited Nix derivation, then capture and record each."""
     from evidence_earning import Snapshot, binding, project_snapshot, require_compile_environment
     from nix_artifact_identity import target_binary
@@ -377,7 +378,12 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run) -> int:
 
     _clean_head(root, allowed)
     print(f"scientific records: building {len(groups)} target(s) in one Nix derivation", flush=True)
-    builds = build_committed_targets(root, [cargo_target(c, t) for c, t in groups], allowed_outputs=allowed)
+    if scientific_targets is None:
+        # The cached dependency build covers every scientific target, owed or not.
+        located = (locate(root, row) for row in all_scientific_rows(root))
+        scientific_targets = sorted({cargo_target(i["crate"], tuple(i["target"])) for i in located})
+    builds = build_committed_targets(root, [cargo_target(c, t) for c, t in groups],
+                                     deps_targets=scientific_targets, allowed_outputs=allowed)
     for (crate, target), todo in sorted(groups.items()):
         _clean_head(root, allowed)
         built = builds[cargo_target(crate, target)]

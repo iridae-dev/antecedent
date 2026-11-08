@@ -7,19 +7,19 @@
 # alone, in sequence over one shared target directory: Cargo reuses every unit whose
 # fingerprint matches, so dependencies compile once per distinct feature set. A
 # single invocation over several targets would unify their features and is never used.
-{ src, targetsJson }:
+{ src, targetsJson, depsSrc, depsTargetsJson }:
 let
   lock = builtins.fromJSON (builtins.readFile ../flake.lock);
   nixpkgsSource = builtins.fetchTree lock.nodes.nixpkgs.locked;
   pkgs = import nixpkgsSource { system = "aarch64-darwin"; };
   lib = pkgs.lib;
-  rust = import ./evidence-toolchain.nix { inherit pkgs; };
+  common = import ./evidence-common.nix { inherit pkgs; };
+  rust = common.rust;
+  dir = common.dir;
   targets = builtins.fromJSON targetsJson;
-  vendor = pkgs.rustPlatform.importCargoLock { lockFile = src + "/Cargo.lock"; };
+  vendor = common.vendor (builtins.unsafeDiscardStringContext (builtins.readFile (src + "/Cargo.lock")));
+  deps = import ./evidence-deps.nix { inherit depsSrc depsTargetsJson; };
   valid = t: (t.kind == "lib" && t.name == "") || (t.kind == "test" && t.name != "");
-  dir = t: "targets/${t.crate}/${t.kind}/${if t.kind == "lib" then "lib" else t.name}";
-  targetArgs = t: if t.kind == "lib" then [ "--lib" ] else [ "--test" t.name ];
-  featureArgs = t: if t.features == [] then [] else [ "--features" (builtins.concatStringsSep "," t.features) ];
   # Metadata resolves from the workspace root rather than from `-p crate`.
   # Qualify features so an unrelated default member is not selected instead.
   metadataFeatureArgs = t: if t.features == [] then [] else
@@ -29,11 +29,8 @@ let
     ${pkgs.cargo}/bin/cargo ${lib.escapeShellArgs ([ "metadata" "--format-version=1" "--locked" "--offline" ] ++ metadataFeatureArgs t)} > "$TMPDIR/${dir t}/cargo-metadata.json"
     # Cargo's unit graph is unstable metadata: enable its flag only in this
     # subprocess. The test build itself never sees RUSTC_BOOTSTRAP.
-    RUSTC_BOOTSTRAP=1 ${pkgs.cargo}/bin/cargo -Z unstable-options ${lib.escapeShellArgs ([ "test" "--unit-graph" "--locked" "--offline" "--no-run" "-p" t.crate ] ++ targetArgs t ++ featureArgs t)} > "$TMPDIR/${dir t}/cargo-unit-graph.json"
-    ${pkgs.cargo}/bin/cargo ${lib.escapeShellArgs ([ "test" "--locked" "--offline" "--no-run" "--message-format=json" "-p" t.crate ] ++ targetArgs t ++ featureArgs t)} > "$TMPDIR/${dir t}/cargo-messages.jsonl" || {
-      cat "$TMPDIR/${dir t}/cargo-messages.jsonl" >&2
-      exit 1
-    }
+    RUSTC_BOOTSTRAP=1 ${pkgs.cargo}/bin/cargo -Z unstable-options ${lib.escapeShellArgs ([ "test" "--unit-graph" "--locked" "--offline" "--no-run" "-p" t.crate ] ++ common.targetArgs t ++ common.featureArgs t)} > "$TMPDIR/${dir t}/cargo-unit-graph.json"
+    ${common.build t "$TMPDIR"}
   '';
 in
 assert builtins.isList targets && targets != [];
@@ -42,51 +39,31 @@ pkgs.stdenv.mkDerivation {
   pname = "antecedent-evidence-targets";
   version = "0";
   inherit src;
-  # Cargo from nixpkgs uses store-provided curl/OpenSSL rather than the host
-  # LibreSSL used by the upstream Cargo binary. The compiler remains pinned to
-  # the separately verified official 1.85.1 toolchain.
-  nativeBuildInputs = [ rust pkgs.cargo pkgs.python3 ];
-  # librustc_driver links zlib; only the inventory driver uses it.
-  buildInputs = [ pkgs.zlib ];
+  nativeBuildInputs = common.nativeBuildInputs;
+  buildInputs = common.buildInputs;
   dontConfigure = true;
   dontStrip = true;
   passAsFile = [ "targetsJson" ];
   inherit targetsJson;
   buildPhase = ''
-    # Build scripts may reuse probe files in OUT_DIR. Never use an ambient or
-    # shared scratch tree: Nix's per-build TMPDIR must belong to this builder.
-    umask 077
-    python3 - "$TMPDIR" <<'PY'
-    import os, stat, sys
-    path = sys.argv[1]
-    info = os.lstat(path)
-    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
-        raise SystemExit("Nix build scratch directory must be private to the builder")
-    PY
-    export HOME="$TMPDIR/home" CARGO_HOME="$TMPDIR/cargo" CARGO_TARGET_DIR="$TMPDIR/target"
-    export RUSTC=${rust}/bin/rustc
-    # A stable prefix keeps file!() independent of the Nix store hash, which
+    ${common.environment vendor}
+    # Start from the compiled third-party units; Cargo recompiles workspace crates
+    # and anything whose fingerprint differs.
+    cp -a ${deps}/target/. "$CARGO_TARGET_DIR/"
+    chmod -R u+w "$CARGO_TARGET_DIR"
+    # Inventory only this fresh workspace compilation; the analyzer is pinned
+    # to the same rustc and never wraps external dependency compilations. A
+    # stable prefix keeps file!() independent of the Nix store hash, which
     # changes even for unrelated commits. Coverage is mapped back only after
     # verifying the store source against the committed checkout.
-    export RUSTFLAGS="-C instrument-coverage --remap-path-prefix=$PWD=/antecedent-source" CARGO_PROFILE_TEST_OPT_LEVEL=2 CARGO_PROFILE_TEST_DEBUG=line-tables-only
-    mkdir -m 700 "$HOME" "$CARGO_HOME" "$CARGO_TARGET_DIR"
-    # The private parents protect scratch; outputs must remain readable after
-    # Nix canonicalizes ownership in the store.
-    umask 022
-    cat > "$CARGO_HOME/config.toml" <<'EOF'
-    [source.crates-io]
-    replace-with = "vendored-sources"
-    [source.vendored-sources]
-    directory = "${vendor}"
-    [net]
-    offline = true
-    EOF
-    # Inventory only this fresh workspace compilation; the analyzer is pinned
-    # to the same rustc and never wraps external dependency compilations. Every
-    # target sees the same wrapper, so Cargo's fingerprints agree across them.
     mkdir -m 700 "$TMPDIR/compiler-inventory"
     RUSTC_BOOTSTRAP=1 ${rust}/bin/rustc "$PWD/tools/evidence-analyzer/driver.rs" --edition=2021 -C link-arg=-Wl,-rpath,${rust}/lib/rustlib/aarch64-apple-darwin/lib -C link-arg=-Wl,-rpath,${rust}/lib -o "$TMPDIR/evidence-driver"
-    export RUSTC_WORKSPACE_WRAPPER="$TMPDIR/evidence-driver" ANTECEDENT_ANALYZER_OUTPUT="$TMPDIR/compiler-inventory"
+    cat > "$TMPDIR/workspace-rustc" <<EOF
+    #!${pkgs.bash}/bin/bash
+    exec "$TMPDIR/evidence-driver" "\$@" --remap-path-prefix="$PWD=/antecedent-source"
+    EOF
+    chmod 700 "$TMPDIR/workspace-rustc"
+    export RUSTC_WORKSPACE_WRAPPER="$TMPDIR/workspace-rustc" ANTECEDENT_ANALYZER_OUTPUT="$TMPDIR/compiler-inventory"
     ${lib.concatMapStrings step targets}
   '';
   installPhase = ''

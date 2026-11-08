@@ -23341,3 +23341,10 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_registry_integrity.py"
 gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-nix-evidence-deps"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_nix_evidence_deps.py"
+gates = ["inventory"]
