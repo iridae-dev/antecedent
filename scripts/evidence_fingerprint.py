@@ -49,8 +49,6 @@ with it. Nothing here reads a ledger or runs a test.
 
 from __future__ import annotations
 
-import _repo
-
 import ast
 import hashlib
 import json
@@ -63,6 +61,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import _repo
 from _repo import cargo_target_feature_args, scientific_target_feature_args, test_target
 
 SKIP_DIRS = {"__pycache__", "target", ".venv", "node_modules", ".git", ".pytest_cache"}
@@ -223,8 +222,8 @@ def evidence_only(path: Path, data: bytes, drop: tuple[str, ...]) -> str | None:
         parsed = tomllib.loads(text) if path.suffix == ".toml" else json.loads(text)
     except (UnicodeDecodeError, tomllib.TOMLDecodeError, ValueError):
         return None
-    for field in drop:
-        _drop_fields(parsed, field.split("."))
+    for dropped in drop:
+        _drop_fields(parsed, dropped.split("."))
     return json.dumps(parsed, sort_keys=True, ensure_ascii=False)
 
 
@@ -353,6 +352,9 @@ class Scan:
     dynamic: list[str] = field(default_factory=list)
     directories: set[Path] = field(default_factory=set)
     data_files: set[Path] = field(default_factory=set)
+    # (crate directory, file) read only by `#[cfg(test)]` code of that crate, which
+    # is compiled only when that crate's own unit tests are the target.
+    test_data_files: set[tuple[Path, Path]] = field(default_factory=set)
 
     def merge(self, other: Scan) -> None:
         self.files |= other.files
@@ -361,6 +363,7 @@ class Scan:
         self.dynamic += other.dynamic
         self.directories |= other.directories
         self.data_files |= other.data_files
+        self.test_data_files |= other.test_data_files
 
 
 _INCLUDE = re.compile(r"\binclude(?:_str|_bytes)?\s*!\s*[(\[{]")
@@ -378,6 +381,44 @@ _ANTECEDENT_ENV = re.compile(r"\bANTECEDENT_[A-Z0-9_]+\b")
 _RERUN = re.compile(r"cargo::?rerun-if-(changed|env-changed)=(.+)", re.S)
 _PATHLIKE = re.compile(r"/?[A-Za-z0-9_.\-]+(?:/[A-Za-z0-9_.\-]+)+/?\Z")
 _BARE_SEGMENTS = re.compile(r"[A-Za-z0-9_.\-]+(?:/[A-Za-z0-9_.\-]+)*\Z")
+
+
+_CFG_TEST = re.compile(r"#\s*\[\s*cfg\s*\(\s*(?:test|all\s*\(\s*test\s*,[^\]]*\))\s*\)\s*\]")
+_CFG_TEST_FILE = re.compile(r"#\s*!\s*\[\s*cfg\s*\(\s*(?:test|all\s*\(\s*test\s*,[^\]]*\))\s*\)\s*\]")
+
+
+def cfg_test_regions(skeleton: str) -> list[tuple[int, int]]:
+    """Spans of items under `#[cfg(test)]` (or `cfg(all(test, ...))`) in a masked skeleton.
+
+    An `any(test, ...)` or other cfg may compile in ordinary builds and is not a region.
+    A file-level `#![cfg(test)]` makes the whole file a region."""
+    if _CFG_TEST_FILE.search(skeleton):
+        return [(0, len(skeleton))]
+    regions = []
+    pairs = {"(": ")", "[": "]", "{": "}"}
+    for m in _CFG_TEST.finditer(skeleton):
+        pos, n = m.end(), len(skeleton)
+        stack: list[str] = []
+        while pos < n:
+            c = skeleton[pos]
+            if c in pairs:
+                if c == "{" and not stack:
+                    depth = 0
+                    for end in range(pos, n):
+                        depth += (skeleton[end] == "{") - (skeleton[end] == "}")
+                        if depth == 0:
+                            break
+                    pos = end + 1
+                    break
+                stack.append(pairs[c])
+            elif stack and c == stack[-1]:
+                stack.pop()
+            elif c == ";" and not stack:
+                pos += 1
+                break
+            pos += 1
+        regions.append((m.start(), pos))
+    return regions
 
 
 def _str_consts(text: str) -> dict[str, str]:
@@ -495,6 +536,13 @@ def scan_rust_text(
     out = Scan()
     nested_rs: list[Path] = []
     covered: list[tuple[int, int]] = []
+    test_regions = cfg_test_regions(skeleton)
+
+    def read_as_data(pos: int, targets) -> None:
+        if any(lo <= pos < hi for lo, hi in test_regions):
+            out.test_data_files.update((crate_dir, target) for target in targets)
+        else:
+            out.data_files.update(targets)
 
     def where(pos: int) -> str:
         return f"{rel}:{_line(kept, pos)}"
@@ -523,7 +571,7 @@ def scan_rust_text(
             raise UnresolvedInput(f"{where(m.start())}: include target {target.relative_to(root)} is missing")
         out.files.add(target)
         if "include_str" in m.group(0) or "include_bytes" in m.group(0):
-            out.data_files.add(target)
+            read_as_data(m.start(), [target])
         if target.suffix == ".rs":
             nested_rs.append(target)
 
@@ -574,13 +622,12 @@ def scan_rust_text(
             if "target" in target.relative_to(root).parts[:1]:
                 continue
             out.files.update(expand(target))
-            out.data_files.update(expand(target))
+            read_as_data(site, expand(target))
             if target.is_dir():
                 out.directories.add(target)
             found = True
         return found
 
-    pos = 0
     for m in _RUN_START.finditer(kept):
         if any(a <= m.start() < b for a, b in covered):
             continue
@@ -597,11 +644,15 @@ def scan_rust_text(
         if manifest and end == m.end():
             continue  # a bare env!(..): `concat!` or the leftover check below handles it
         covered.append((m.start(), end))
-        if segs and not add_candidates(joined, bases, m.start()) and manifest:
-            if _bounded(root, crate_dir / joined) == root:
-                out.dynamic.append(
-                    f"{where(m.start())}: repository root joined with {joined!r}; files read beneath it by a run-time path are not tracked"
-                )
+        if (
+            segs
+            and not add_candidates(joined, bases, m.start())
+            and manifest
+            and _bounded(root, crate_dir / joined) == root
+        ):
+            out.dynamic.append(
+                f"{where(m.start())}: repository root joined with {joined!r}; files read beneath it by a run-time path are not tracked"
+            )
     # Join runs on an unknown base (`root.join("parity").join("x")`) resolve against the root.
     cursor = 0
     while (m := _JOIN.search(kept, cursor)):
@@ -639,7 +690,7 @@ def scan_rust_text(
             continue
         if target is not None and target != root and target.exists():
             out.files.update(expand(target))
-            out.data_files.update(expand(target))
+            read_as_data(m.start(), expand(target))
             if target.is_dir():
                 out.directories.add(target)
     # CARGO_MANIFEST_DIR in any other shape cannot be followed.
@@ -736,9 +787,14 @@ def scan_python_file(path: Path, text: str, root: Path) -> tuple[Scan, list[Path
                 if run and (len(run) >= 2 or idx - len(run) <= 1):
                     add("/".join(x for x in run if x))
                 run = []
-        if isinstance(node, ast.Constant) and isinstance(node.value, str) and "/" in node.value:
-            if len(node.value) <= 240 and _PATHLIKE.fullmatch(node.value):
-                add(node.value)
+        if (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and "/" in node.value
+            and len(node.value) <= 240
+            and _PATHLIKE.fullmatch(node.value)
+        ):
+            add(node.value)
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             names = [a.name for a in node.names]
             if isinstance(node, ast.Import):
@@ -813,11 +869,17 @@ class Usage:
     files: set[Path] = field(default_factory=set)
     directories: set[Path] = field(default_factory=set)
     data_files: set[Path] = field(default_factory=set)
+    test_data_files: set[tuple[Path, Path]] = field(default_factory=set)
 
     def merge(self, other: Usage) -> None:
         self.files |= other.files
         self.directories |= other.directories
         self.data_files |= other.data_files
+        self.test_data_files |= other.test_data_files
+
+    def data_reads(self, test_crate: Path | None) -> set[Path]:
+        """Files read as data by code compiled when `test_crate`'s unit tests (if any) are built."""
+        return self.data_files | {f for crate, f in self.test_data_files if crate == test_crate}
 
 
 class Fingerprinter:
@@ -842,6 +904,7 @@ class Fingerprinter:
         self._file_scans: dict[tuple[Path, Path], tuple[Scan, list[Path]]] = {}
         self._fd: dict[Path, str] = {}
         self._modules: dict[Path, list[Path]] = {}
+        self._test_modules: dict[Path, set[Path]] = {}
         self._declarations: list[dict] | None = None
         # Memoized digests replay what they read into every open `tracking()` usage.
         self._usage: dict[str, Usage] = {}
@@ -864,7 +927,7 @@ class Fingerprinter:
             active.merge(usage)
 
     def _use_scan(self, scan: Scan) -> Scan:
-        self._use(Usage(set(), set(scan.directories), set(scan.data_files)))
+        self._use(Usage(set(), set(scan.directories), set(scan.data_files), set(scan.test_data_files)))
         return scan
 
     def _memo(self, key: str, compute):
@@ -894,16 +957,18 @@ class Fingerprinter:
             self._modules[f] = module_targets(f, self.root) if f.suffix == ".rs" else []
         return self._modules[f]
 
-    def scan_rust(self, files: list[Path], crate_dir: Path) -> Scan:
+    def scan_rust(self, files: list[Path], crate_dir: Path, *, test_build: bool = False) -> Scan:
         """Embeds, runtime reads, build-script inputs and env names of `files`, of the Rust
         files they `include!` and of the modules they declare (`mod x;`, `#[path]`); the modules
         are inputs too. Raises `UnresolvedInput` for an embed it cannot resolve."""
-        out, seen, todo = Scan(), set(), [f for f in files if f.is_file()]
+        # First the file graph: modules (gated or not by `#[cfg(test)]`) and includes.
+        scans: dict[Path, tuple[Scan, list[Path], list[Path]]] = {}
+        edges: dict[Path, list[tuple[Path, bool]]] = {}
+        todo = [f for f in files if f.is_file()]
         while todo:
             f = todo.pop()
-            if f in seen:
+            if f in scans:
                 continue
-            seen.add(f)
             modules = self.modules_of(f)
             key = (f, crate_dir)
             if key not in self._file_scans:
@@ -914,11 +979,43 @@ class Fingerprinter:
                     f, f.read_text(encoding="utf-8", errors="replace"), self.root, crate_dir, extra
                 )
             scan, nested = self._file_scans[key]
-            out.merge(scan)
-            out.files.update(modules)
+            scans[f] = scan, nested, modules
+            gated = {m.resolve() for m in self.test_only_modules(f)}
+            edges[f] = [(n, False) for n in nested] + [(m, m.resolve() in gated) for m in modules]
             todo.extend(nested)
             todo.extend(modules)
+        # A file is ordinary code when an ungated path reaches it from a file no other file
+        # declares (a crate or target root); otherwise only `cfg(test)` builds compile it.
+        declared = {target.resolve() for targets in edges.values() for target, _ in targets}
+        ordinary: set[Path] = set()
+        todo = [f for f in scans if f.resolve() not in declared]
+        while todo:
+            f = todo.pop()
+            if f.resolve() in ordinary:
+                continue
+            ordinary.add(f.resolve())
+            todo.extend(target for target, gated in edges.get(f, []) if not gated)
+        out = Scan()
+        for f, (scan, _, modules) in scans.items():
+            if test_build:
+                # A test target compiles `cfg(test)` code: every read is a data read.
+                scan = Scan(scan.files, scan.env, scan.markers, scan.dynamic, scan.directories,
+                            scan.data_files | {d for _, d in scan.test_data_files}, set())
+            elif f.resolve() not in ordinary:
+                # Every read of a module compiled only under `cfg(test)` is a test read.
+                scan = Scan(scan.files, scan.env, scan.markers, scan.dynamic, scan.directories, set(),
+                            scan.test_data_files | {(crate_dir, d) for d in scan.data_files})
+            out.merge(scan)
+            out.files.update(modules)
         return self._use_scan(out)
+
+    def test_only_modules(self, f: Path) -> set[Path]:
+        """Module files `f` declares under `#[cfg(test)]` (directly or in a test-only inline module)."""
+        if f not in self._test_modules:
+            import test_evidence as te
+            self._test_modules[f] = ({m for m, gated in te._declared_modules(f, self.root) if gated}
+                                     if f.suffix == ".rs" else set())
+        return self._test_modules[f]
 
     def scan_python(self, test: Path) -> Scan:
         """Env names, repo path literals and local imports reachable from a Python test."""
@@ -1080,9 +1177,10 @@ class Fingerprinter:
     def rust_test_side(self, row: dict, crate: str) -> tuple[str, Scan]:
         """Digest of the test files plus what they embed or read, and that scan."""
         files = self.rust_test_files(row["evidence_test"], crate)
-        scan = self.scan_rust([f for f in files if f.suffix == ".rs"], self.crate_dir(crate))
+        scan = self.scan_rust([f for f in files if f.suffix == ".rs"], self.crate_dir(crate), test_build=True)
         declared, env = self.declared(scan.dynamic)
-        scan = Scan(scan.files, scan.env | env, scan.markers, scan.dynamic, scan.directories, scan.data_files)
+        scan = Scan(scan.files, scan.env | env, scan.markers, scan.dynamic, scan.directories, scan.data_files,
+                    scan.test_data_files)
         return _sha(self._tree(files), self._scan_digest(scan), declared), scan
 
     def parts(self, row: dict) -> dict:

@@ -6,8 +6,8 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
-from unittest import mock
 from pathlib import Path
+from unittest import mock
 
 from _repo import ensure_scripts_on_path
 
@@ -191,6 +191,42 @@ class EmbeddedAndRuntimeInputTests(_InputCase):
         self.assertEqual(before, self.closure_fp())
         self.write("parity/read.toml", "a = 2\n")
         self.assertNotEqual(before, self.closure_fp())
+
+    def _data_reads(self, crate: str, test_crate: str | None):
+        fp = ef.Fingerprinter(self.root, self.metadata, "", platform=False, environ={})
+        with fp.tracking() as used:
+            fp.crate_scan(crate)
+        reads = used.data_reads(None if test_crate is None else fp.crate_dir(test_crate))
+        return {p.relative_to(self.root).as_posix() for p in reads}
+
+    def test_cfg_test_reads_count_only_for_their_crates_unit_tests(self):
+        self.write("parity/lib.toml", "a = 1\n")
+        self.write("parity/unit.toml", "a = 1\n")
+        self.write("parity/module.toml", "a = 1\n")
+        self.write(
+            "crates/leaf/src/lib.rs",
+            'pub fn leaf() -> &str { include_str!("../../../parity/lib.toml") }\n'
+            "#[cfg(test)]\nmod unit {\n"
+            '    #[test]\n    fn reads() { let _ = include_str!("../../../parity/unit.toml"); }\n}\n'
+            "#[cfg(test)]\nmod gated;\n"
+            '#[cfg(any(test, feature = "x"))]\n'
+            'pub fn either() -> &str { include_str!("../../../parity/lib.toml") }\n',
+        )
+        self.write("crates/leaf/src/gated.rs", 'pub fn g() -> &str { include_str!("../../../parity/module.toml") }\n')
+        self.assertEqual(self._data_reads("leaf", None), {"parity/lib.toml"})
+        self.assertEqual(self._data_reads("leaf", "top"), {"parity/lib.toml"})
+        self.assertEqual(self._data_reads("leaf", "leaf"), {"parity/lib.toml", "parity/unit.toml", "parity/module.toml"})
+
+    def test_cfg_test_reads_in_a_test_target_are_data_reads(self):
+        self.write("parity/t.toml", "a = 1\n")
+        self.write(
+            "crates/top/tests/cov.rs",
+            '#[cfg(test)]\nmod m {\n    #[test]\n    fn cov_case() { let _ = include_str!("../../../parity/t.toml"); }\n}\n',
+        )
+        fp = ef.Fingerprinter(self.root, self.metadata, "", platform=False, environ={})
+        with fp.tracking() as used:
+            fp.rust_test_side({"evidence_test": "crates/top/tests/cov.rs", "evidence_assertion": "cov_case"}, "top")
+        self.assertIn(self.root / "parity/t.toml", used.data_reads(None))
 
     def test_runtime_reads_from_sources_in_every_literal_form(self):
         forms = {

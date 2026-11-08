@@ -10,15 +10,25 @@ a Rust assertion prove a function body unexecuted (`project_snapshot`).
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import subprocess
 import tempfile
+from pathlib import Path
 
 from _repo import load_toml
 from compile_time_environment import noncanonical_compile_environment
-from evidence_fingerprint import Fingerprinter, closure, locate, INPUT_DECLARATIONS
-from evidence_manifests import (ANALYZER, BUILD_ENV, NORMALIZATION, SCHEMA, STORE, Checker,
-                                canonical, digest, manifest_id, noncanonical_environment)
+from evidence_fingerprint import INPUT_DECLARATIONS, Fingerprinter, closure, locate
+from evidence_manifests import (
+    ANALYZER,
+    BUILD_ENV,
+    NORMALIZATION,
+    SCHEMA,
+    STORE,
+    Checker,
+    canonical,
+    digest,
+    manifest_id,
+    noncanonical_environment,
+)
 
 
 def binding(kind: str, key: str, fingerprint: str, measurement=None) -> dict:
@@ -146,7 +156,13 @@ class Snapshot:
         if record.get('fingerprint') is None:
             # The record's identity: what its dependency closure was when earned.
             record = {**record, 'fingerprint': digest(canonical(parts))}
-        self.source_consumers = {p.resolve() for p in used.data_files}
+        # Reads in `#[cfg(test)]` code count only for the crate whose unit tests are built.
+        test_crate = None
+        if row['evidence_test'].endswith('.rs'):
+            located = locate(root, row)
+            if located['target'] == ['--lib']:
+                test_crate = fp.crate_dir(located['crate'])
+        self.source_consumers = {p.resolve() for p in used.data_reads(test_crate)}
         env_names = {'ANTECEDENT_SCIENTIFIC_FEATURES', *parts.get('env', {}).get('hashed', {})}
         wrong = noncanonical_environment(os.environ, env_names)
         if wrong:
@@ -165,8 +181,8 @@ class Snapshot:
             if (record.get('kind') != 'scientific' or tools['rustc'] != checker.pin['release']
                     or tools['rustc_commit'] != checker.pin['commit']):
                 raise RuntimeError('Nix build compiler or evidence kind is invalid')
-            from nix_evidence_policy import validate_build
             from nix_artifact_identity import recheck_artifact
+            from nix_evidence_policy import validate_build
             from nix_evidence_source import _clean_head
             self.nix_policy = validate_build(root, nix_build)
             recheck_artifact(root, nix_build['artifact'])
@@ -446,7 +462,7 @@ def project_snapshot(snapshot: Snapshot, directory: Path, coverage: dict[str, se
     Compile-time code anywhere in the compilation, missing inventory, missing coverage,
     unresolved attributes and source read as data keep complete source.
     """
-    from evidence_projection import from_compiler_coverage, fingerprint, ProjectionChanged
+    from evidence_projection import ProjectionChanged, fingerprint, from_compiler_coverage
     if not snapshot.unchanged():
         raise RuntimeError('source changed during instrumented execution')
     if snapshot.opaque:
