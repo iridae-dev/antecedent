@@ -19,6 +19,11 @@ let
   targets = builtins.fromJSON targetsJson;
   vendor = common.vendor (builtins.unsafeDiscardStringContext (builtins.readFile (src + "/Cargo.lock")));
   deps = import ./evidence-deps.nix { inherit depsSrc depsTargetsJson; };
+  # Content-addressed, so the wrapper's store path changes only with the driver.
+  driver = import ./evidence-driver.nix {
+    inherit pkgs;
+    driver = builtins.path { path = src + "/tools/evidence-analyzer/driver.rs"; name = "evidence-driver.rs"; };
+  };
   valid = t: (t.kind == "lib" && t.name == "") || (t.kind == "test" && t.name != "");
   # Metadata resolves from the workspace root rather than from `-p crate`.
   # Qualify features so an unrelated default member is not selected instead.
@@ -57,13 +62,8 @@ pkgs.stdenv.mkDerivation {
     # changes even for unrelated commits. Coverage is mapped back only after
     # verifying the store source against the committed checkout.
     mkdir -m 700 "$TMPDIR/compiler-inventory"
-    RUSTC_BOOTSTRAP=1 ${rust}/bin/rustc "$PWD/tools/evidence-analyzer/driver.rs" --edition=2021 -C link-arg=-Wl,-rpath,${rust}/lib/rustlib/aarch64-apple-darwin/lib -C link-arg=-Wl,-rpath,${rust}/lib -o "$TMPDIR/evidence-driver"
-    cat > "$TMPDIR/workspace-rustc" <<EOF
-    #!${pkgs.bash}/bin/bash
-    exec "$TMPDIR/evidence-driver" "\$@" --remap-path-prefix="$PWD=/antecedent-source"
-    EOF
-    chmod 700 "$TMPDIR/workspace-rustc"
-    export RUSTC_WORKSPACE_WRAPPER="$TMPDIR/workspace-rustc" ANTECEDENT_ANALYZER_OUTPUT="$TMPDIR/compiler-inventory"
+    export RUSTC_WORKSPACE_WRAPPER="${driver}/bin/workspace-rustc" ANTECEDENT_SOURCE_ROOT="$PWD"
+    export ANTECEDENT_ANALYZER_OUTPUT="$TMPDIR/compiler-inventory"
     ${lib.concatMapStrings step targets}
   '';
   installPhase = ''

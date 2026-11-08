@@ -19,6 +19,7 @@ class ArtifactIdentityError(ValueError):
 
 # Every file that defines the evidence derivations; each is bound into an artifact identity.
 RECIPE_FILES = ('nix/evidence-target.nix', 'nix/evidence-deps.nix', 'nix/evidence-common.nix',
+                'nix/evidence-driver.nix',
                 'nix/evidence-toolchain.nix', 'flake.lock')
 _NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*\Z")
 _FEATURE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./+-]*\Z")

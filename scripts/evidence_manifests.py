@@ -203,7 +203,7 @@ def validate_nix_receipt(receipt: object, binding: dict, inputs: list[dict]) -> 
         tracked = {i.get("path"): i.get("digest") for i in inputs if i.get("kind") == "evidence_file"}
         required = dict(artifact["recipe_sha256"])
         if set(required) != {"nix/evidence-target.nix", "nix/evidence-deps.nix", "nix/evidence-common.nix",
-                             "nix/evidence-toolchain.nix", "flake.lock"}:
+                             "nix/evidence-driver.nix", "nix/evidence-toolchain.nix", "flake.lock"}:
             raise ValueError("incomplete recipe identity")
         if not required or any(tracked.get(path) != value for path, value in required.items()):
             raise ValueError("unbound recipe or audit registry")

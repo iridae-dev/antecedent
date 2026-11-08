@@ -192,7 +192,7 @@ class Snapshot:
                                          'scripts/compile_time_environment.py')} | used.files
         if nix_build is not None:
             files.update(root / rel for rel in ('flake.lock', 'nix/evidence-target.nix', 'nix/evidence-deps.nix',
-                         'nix/evidence-common.nix', 'nix/evidence-toolchain.nix',
+                         'nix/evidence-common.nix', 'nix/evidence-driver.nix', 'nix/evidence-toolchain.nix',
                          'scripts/nix_evidence_policy.py', 'scripts/nix_evidence_deps.py'))
         for rel in row.get('fixtures', []):
             for path in (root / rel, root / f'{rel}.json'):
