@@ -31,7 +31,7 @@ def _clean_head(root: Path, allowed_outputs: dict[str, str] | None = None) -> tu
         if b"R" in status or b"C" in status:
             raise ValueError("source checkout must have no tracked or untracked changes")
         is_output = name == "parity/scientific_records.toml" or bool(
-            re.fullmatch(r"parity/evidence_(?:manifests|projections)/[0-9a-f]{64}\.json", name)
+            re.fullmatch(r"parity/evidence_(?:manifests|projections|inputs)/[0-9a-f]{64}\.json", name)
         )
         path = root / name
         expected = allowed.get(name)

@@ -33,6 +33,32 @@ STORE = "parity/evidence_manifests"
 # Content-addressed source projections, `<fingerprint>.json`, shared by every manifest
 # that guards a file the same way; a manifest's guarded entry names one by its digest.
 PROJECTIONS = "parity/evidence_projections"
+# Content-addressed input groups, `<sha256>.json`: the inputs of one directory (or one
+# kind of named input), shared by every manifest whose inputs there are identical. A
+# stored manifest lists its groups; loading it restores the full input list.
+INPUT_GROUPS = "parity/evidence_inputs"
+
+
+def input_group_key(entry: dict) -> str:
+    """The group of an input: its directory, or its kind for named inputs."""
+    path = entry.get("path")
+    if isinstance(path, str):
+        return path.rsplit("/", 1)[0] if "/" in path else "."
+    return f":{entry.get('kind')}"
+
+
+def grouped(manifest: dict) -> tuple[dict, dict[str, bytes]]:
+    """The stored form of a manifest and the group files it names, by address."""
+    groups: dict[str, list[dict]] = {}
+    for entry in manifest["inputs"]:
+        groups.setdefault(input_group_key(entry), []).append(entry)
+    files: dict[str, bytes] = {}
+    for entries in groups.values():
+        data = canonical(sorted(entries, key=lambda e: (e["kind"], e.get("path", e.get("name", "")))))
+        files[digest(data)] = data
+    stored = {key: value for key, value in manifest.items() if key != "inputs"}
+    stored["input_groups"] = sorted(files)
+    return stored, files
 SCHEMA = 1
 NORMALIZATION = "raw-bytes-v1"
 # The dependency policy that writes manifests. Changing what earning records,
@@ -259,6 +285,7 @@ class Checker:
         self.source_cache: dict[str, tuple[str, str]] = {}
         self.projection_cache: dict[tuple[str, str], bool] = {}
         self.projections: dict[str, dict] = {}
+        self.groups: dict[str, list[dict]] = {}
         self._tracked: list[str] | None = None
         self._tracked_loaded = False
 
@@ -309,6 +336,29 @@ class Checker:
             self.path(p)
             out.append(p)
         return out
+
+    def expanded(self, manifest: dict) -> dict:
+        """A stored manifest with its input groups restored to one input list."""
+        groups = manifest.get("input_groups")
+        if "inputs" in manifest or not isinstance(groups, list) or groups != sorted(set(groups)):
+            raise InvalidManifest("a stored manifest lists its inputs as sorted, distinct groups")
+        inputs: list[dict] = []
+        for address in groups:
+            if not isinstance(address, str) or not HEX.fullmatch(address):
+                raise InvalidManifest("invalid input group address")
+            if address not in self.groups:
+                try:
+                    data = self.path(f"{INPUT_GROUPS}/{address}.json").read_bytes()
+                except OSError as error:
+                    raise InvalidManifest(f"missing input group {address}") from error
+                if digest(data) != address:
+                    raise InvalidManifest("input group content does not match its address")
+                entries = json.loads(data)
+                if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
+                    raise InvalidManifest("invalid input group")
+                self.groups[address] = entries
+            inputs.extend(self.groups[address])
+        return {**{k: v for k, v in manifest.items() if k != "input_groups"}, "inputs": inputs}
 
     def projection(self, digest_hex: str) -> dict:
         """The stored projection with this fingerprint; refused when missing or altered."""
@@ -389,7 +439,7 @@ class Checker:
             manifest = json.loads(self.path(f"{STORE}/{ref}.json").read_bytes())
             if manifest_id(manifest) != ref:
                 raise InvalidManifest("manifest content does not match its address")
-            self.manifests[ref] = manifest
+            self.manifests[ref] = self.expanded(manifest)
             self.parsing_seconds += time.perf_counter() - start
         return self.manifests[ref]
 

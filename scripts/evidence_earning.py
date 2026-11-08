@@ -20,6 +20,7 @@ from evidence_fingerprint import INPUT_DECLARATIONS, Fingerprinter, closure, loc
 from evidence_manifests import (
     ANALYZER,
     BUILD_ENV,
+    INPUT_GROUPS,
     NORMALIZATION,
     PROJECTIONS,
     SCHEMA,
@@ -27,6 +28,7 @@ from evidence_manifests import (
     Checker,
     canonical,
     digest,
+    grouped,
     manifest_id,
     noncanonical_environment,
 )
@@ -400,7 +402,9 @@ class Snapshot:
                                                      canonical(entry['projection']), self.root))
                 entry = {key: value for key, value in entry.items() if key != 'projection'}
             inputs.append(entry)
-        stored = {**self.manifest, 'inputs': inputs}
+        stored, groups = grouped({**self.manifest, 'inputs': inputs})
+        for address, data in groups.items():
+            self.outputs.append(_write_addressed(self.root / INPUT_GROUPS, address, data, self.root))
         ref = manifest_id(stored)
         self.outputs.append(_write_addressed(self.root / STORE, ref, canonical(stored), self.root))
         return ref

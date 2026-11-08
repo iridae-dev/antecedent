@@ -46,9 +46,26 @@ class ManifestTests(unittest.TestCase):
         }
 
     def store(self, manifest):
-        ref = em.manifest_id(manifest)
-        self.write(f"{em.STORE}/{ref}.json", json.dumps(manifest))
+        stored, groups = em.grouped(manifest)
+        for address, data in groups.items():
+            self.write(f"{em.INPUT_GROUPS}/{address}.json", data.decode())
+        ref = em.manifest_id(stored)
+        self.write(f"{em.STORE}/{ref}.json", json.dumps(stored))
         return ref
+
+    def test_shared_inputs_are_stored_once_and_a_stored_manifest_restores_them(self):
+        manifest = self.manifest()
+        stored, groups = em.grouped(manifest)
+        self.assertNotIn("inputs", stored)
+        self.assertEqual(stored["input_groups"], sorted(groups))
+        ref = self.store(manifest)
+        checker = em.Checker(self.root, {})
+        self.assertEqual(sorted(checker.load(ref)["inputs"], key=json.dumps),
+                         sorted(manifest["inputs"], key=json.dumps))
+        # A group file whose content does not match its address is refused.
+        first = stored["input_groups"][0]
+        self.write(f"{em.INPUT_GROUPS}/{first}.json", "[]")
+        self.assertFalse(em.Checker(self.root, {}).check(self.binding, ref)["current"])
 
     def check(self, manifest, binding=None):
         return em.Checker(self.root, {}).check(binding or self.binding, self.store(manifest))
@@ -136,7 +153,7 @@ class ManifestTests(unittest.TestCase):
         self.assertFalse(self.check(manifest)["current"])
 
     def test_guarded_file_selectively_tracks_bodies_but_guards_declarations(self):
-        from evidence_projection import capture, fingerprint
+        from evidence_projection import capture
         source = 'fn used()->i32 { 1 }\nfn unused()->i32 { 7 }\n'
         self.write('src/a.rs', source)
         start = source.index('{ 7 }')
@@ -149,7 +166,7 @@ class ManifestTests(unittest.TestCase):
         self.assertFalse(self.check(manifest)['current'])
 
     def test_guarded_file_cannot_hide_a_new_impl_in_a_body(self):
-        from evidence_projection import capture, fingerprint
+        from evidence_projection import capture
         source = 'fn unused() { 7 }'
         self.write('src/a.rs', source)
         projection = capture(source, [(source.index('{'), len(source))])
