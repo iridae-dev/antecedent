@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+import weakref
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from itertools import islice
 from typing import Any, Literal, Self
@@ -13,6 +14,7 @@ from pydantic import (
     Field,
     PrivateAttr,
     ValidationError,
+    ValidatorFunctionWrapHandler,
     field_serializer,
     field_validator,
     model_serializer,
@@ -20,13 +22,47 @@ from pydantic import (
 from pydantic.config import ExtraValues
 
 from .._columns import coerce_fields
-from .._freeze import freeze, thaw
+from .._freeze import freeze, is_retained_frozen, retain_frozen, thaw
 
 InspectionStage = Literal[
     "prepared", "executed", "declared", "consumed", "exported", "unavailable", "refused"
 ]
 
 _HANDLE_ATTRS = ("_raw", "_prepared", "_execution", "_live_study")
+
+_FROZEN_REPORT_FIELDS = (
+    "contract",
+    "target",
+    "details",
+    "diagnostics",
+    "inference_binding",
+    "answer",
+    "calibration",
+    "next_actions",
+    "neighbors",
+    "unmet_obligations",
+    "evidence_obligations",
+)
+
+#: One inspection report per live result, keyed by ``id`` and dropped when the
+#: result is collected. Results are immutable, so their report never changes.
+_INSPECTIONS: dict[int, InspectionReport] = {}
+
+
+def cached_inspection(owner: Any, build: Callable[[], InspectionReport]) -> InspectionReport:
+    """Build ``owner``'s frozen inspection report once and return it thereafter."""
+    key = id(owner)
+    report = _INSPECTIONS.get(key)
+    if report is not None:
+        return report
+    report = build()
+    try:
+        weakref.finalize(owner, _INSPECTIONS.pop, key, None)
+    except TypeError:
+        # Not weak-referenceable: no way to know when the id is reused.
+        return report
+    _INSPECTIONS[key] = report
+    return report
 
 
 class SlotModel(BaseModel):
@@ -89,6 +125,16 @@ class InspectionReport(BaseModel):
     details: Any = None
     operations: tuple[str, ...] = ()
 
+    @field_validator("contract", mode="wrap")
+    @classmethod
+    def _keep_retained_contract(cls, value: Any, handler: ValidatorFunctionWrapHandler) -> Any:
+        # Mapping validation would copy a frozen contract into a plain dict and
+        # force a deep re-freeze. A contract already frozen and retained by its
+        # result is a valid ``Mapping[str, Any]`` with string keys; keep it.
+        if is_retained_frozen(value) and all(type(key) is str for key in value):
+            return value
+        return handler(value)
+
     @field_validator(
         "contract",
         "target",
@@ -120,22 +166,17 @@ class InspectionReport(BaseModel):
     def _json_details(self, value: Any) -> Any:
         return thaw(value)
 
+    def model_post_init(self, __context: Any) -> None:
+        retain_frozen(self, *(getattr(self, name) for name in _FROZEN_REPORT_FIELDS))
+
     def model_copy(self, *, update: Mapping[str, Any] | None = None, deep: bool = False) -> Self:
         result = super().model_copy(update=update, deep=deep)
-        for name in (
-            "contract",
-            "target",
-            "details",
-            "diagnostics",
-            "inference_binding",
-            "answer",
-            "calibration",
-            "next_actions",
-            "neighbors",
-            "unmet_obligations",
-            "evidence_obligations",
-        ):
-            object.__setattr__(result, name, freeze(getattr(result, name)))
+        # A shallow copy shares values the validators already froze; only the
+        # replaced ones arrive unfrozen. A deep copy re-creates every value.
+        for name in _FROZEN_REPORT_FIELDS:
+            if deep or (update is not None and name in update):
+                object.__setattr__(result, name, freeze(getattr(result, name)))
+        result.model_post_init(None)
         return result
 
     def __repr__(self) -> str:
@@ -337,12 +378,17 @@ class ResultModel(BaseModel):
         for name in _HANDLE_ATTRS:
             if name in extra:
                 coerce_fields(self, **{name: extra.pop(name)})
+        frozen: list[Any] = []
         for name in type(self).model_fields:
             if not name.startswith("_"):
-                object.__setattr__(self, name, freeze(getattr(self, name)))
-        coerce_fields(
-            self, __pydantic_extra__={name: freeze(value) for name, value in extra.items()} or None
-        )
+                value = freeze(getattr(self, name))
+                object.__setattr__(self, name, value)
+                frozen.append(value)
+        frozen_extra = {name: freeze(value) for name, value in extra.items()}
+        coerce_fields(self, __pydantic_extra__=frozen_extra or None)
+        # Copies and inspection reports of this result share these frozen
+        # values instead of freezing its retained contract again.
+        retain_frozen(self, *frozen, *frozen_extra.values())
 
     @property
     def model_extra(self) -> Any:
@@ -375,10 +421,14 @@ def copy_model(obj: Any, **updates: Any) -> Any:
     return replace(obj, **updates)
 
 
-def as_inspection(slots: Any) -> InspectionReport:
-    """Wrap ``ReasoningSlots`` without flattening answer/calibration to dicts."""
+def as_inspection(slots: Any, **overrides: Any) -> InspectionReport:
+    """Wrap ``ReasoningSlots`` without flattening answer/calibration to dicts.
+
+    ``overrides`` set report fields at construction, so the payload is
+    validated and frozen once instead of again by a ``model_copy``.
+    """
     if isinstance(slots, InspectionReport):
-        return slots
+        return slots.model_copy(update=overrides) if overrides else slots
     if hasattr(slots, "identification") and hasattr(slots, "to_dict"):
         from ._slots import _target_query
 
@@ -410,5 +460,6 @@ def as_inspection(slots: Any) -> InspectionReport:
             evidence_obligations=getattr(slots, "evidence_obligations", ()),
             target={"query": _target_query(contract)},
             inference_binding=contract.get("inference_binding") or slots.inference_binding_id,
+            **overrides,
         )
-    return InspectionReport.model_validate(dict(slots))
+    return InspectionReport.model_validate({**dict(slots), **overrides})

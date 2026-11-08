@@ -227,32 +227,31 @@ class LoadedResult(ResultAPI):
             return None
         return temporal_design_from_wire(payload.get("temporal_design"))
 
-    def inspect(self) -> InspectionReport:
+    def _build_inspection(self) -> InspectionReport:
+        overrides: dict[str, Any] = {
+            "stage": "consumed",
+            "family": "LoadedResult",
+            "operations": ("inspect", "export", "artifact"),
+        }
         if not self.acceptance.answer_available and not (
             self.acceptance.recognized and isinstance(self.decoded_artifact.contract, Mapping)
         ):
-            report = as_inspection(
+            return as_inspection(
                 replace(
                     ReasoningSlots.from_contract({}),
                     answer=self.answer,
                     calibration=self.calibration,
-                )
+                ),
+                **overrides,
             )
-        else:
-            report = as_inspection(
-                ReasoningSlots.from_result_section(
-                    self.decoded_artifact.contract,
-                    self.decoded_artifact.payload,
-                    answer=self.answer,
-                    calibration=self.calibration,
-                )
-            )
-        return report.model_copy(
-            update={
-                "stage": "consumed",
-                "family": "LoadedResult",
-                "operations": ("inspect", "export", "artifact"),
-            }
+        return as_inspection(
+            ReasoningSlots.from_result_section(
+                self.decoded_artifact.contract,
+                self.decoded_artifact.payload,
+                answer=self.answer,
+                calibration=self.calibration,
+            ),
+            **overrides,
         )
 
     def export(

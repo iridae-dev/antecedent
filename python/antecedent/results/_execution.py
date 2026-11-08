@@ -24,7 +24,7 @@ from ..errors import CausalUnsupportedError
 from ..outcomes import ANSWER_KINDS as ANSWER_KINDS
 from ..outcomes import Answer, AnswerKind, Refused
 from ._families import canonical_from_live, canonical_from_wire
-from ._report import InspectionReport, as_inspection
+from ._report import InspectionReport, as_inspection, cached_inspection
 from ._slots import ReasoningSlots, SlotView
 
 
@@ -893,6 +893,9 @@ class ResultAPI:
 
     def inspect(self) -> InspectionReport:
         """Inspect this execution, including uncertainty and all available evidence."""
+        return cached_inspection(self, self._build_inspection)
+
+    def _build_inspection(self) -> InspectionReport:
         slots = getattr(self, "reasoning", None)
         if slots is None:
             slots = ReasoningSlots.from_contract({})
@@ -968,12 +971,11 @@ class ResultAPI:
             ),
             diagnostics=tuple(getattr(self, "diagnostics", ())),
         )
-        return as_inspection(self._with_portable_record(report)).model_copy(
-            update={
-                "stage": "executed",
-                "family": type(self).__name__,
-                "operations": ("inspect", "export", "refute"),
-            }
+        return as_inspection(
+            self._with_portable_record(report),
+            stage="executed",
+            family=type(self).__name__,
+            operations=("inspect", "export", "refute"),
         )
 
     def _with_portable_record(self, report: ReasoningSlots) -> ReasoningSlots:
