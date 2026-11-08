@@ -62,7 +62,10 @@ def _copy(snapshot: Path, destination: Path, rel: str) -> None:
 
 def import_deps_source(tree: Path, *, run=subprocess.run) -> str:
     """Add the tree to the store by content: identical manifests give the same path."""
+    # Nix refuses a path with a symlinked component, such as macOS's /var.
     result = run(["nix", "--extra-experimental-features", "nix-command", "--offline", "store", "add-path",
-                  "--name", "antecedent-deps-source", str(tree)],
-                 check=True, capture_output=True, text=True)
+                  "--name", "antecedent-deps-source", str(tree.resolve())],
+                 capture_output=True, text=True)
+    if result.returncode != 0:
+        raise ValueError("cannot add the dependency source to the Nix store: " + result.stderr.strip()[-400:])
     return result.stdout.strip()
