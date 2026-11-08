@@ -8,6 +8,7 @@ from unittest.mock import patch
 import evidence_earning
 import nix_evidence_build
 import nix_evidence_capture
+import nix_evidence_engineering_fixture
 import nix_evidence_policy
 import nix_evidence_source
 import scientific_records as scientific
@@ -58,6 +59,7 @@ class NixRustEarning(unittest.TestCase):
 
             with patch.object(scientific, "locate", side_effect=locate), \
                  patch.object(scientific, "exact_test_name", return_value="test"), \
+                 patch.object(nix_evidence_engineering_fixture, "run_fixture") as preflight, \
                  patch.object(scientific, "Fingerprinter"), \
                  patch.object(scientific, "withdraw_records", side_effect=ledger), \
                  patch.object(scientific, "record_passes", side_effect=ledger) as record, \
@@ -70,6 +72,8 @@ class NixRustEarning(unittest.TestCase):
                  patch.object(nix_evidence_policy, "validate_build"), \
                  patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")):
                 self.assertEqual(scientific.earn_rust(root, rows, backend="nix"), 0)
+            # The boundary preflight runs once, before the derivation is built.
+            preflight.assert_called_once_with()
             # One derivation, built from a clean checkout before any record is written.
             self.assertEqual(seen, [([("a", "lib", ""), ("b", "lib", "")], {})])
             self.assertEqual(marks, ["/nix/store/shared/targets/a/lib/lib/bin/test",
@@ -81,6 +85,7 @@ class NixRustEarning(unittest.TestCase):
         with (
             patch.object(scientific, "locate", return_value=info),
             patch.object(scientific, "exact_test_name", return_value="test"),
+            patch.object(nix_evidence_engineering_fixture, "run_fixture"),
             patch.object(scientific, "Fingerprinter"),
             patch.object(scientific, "withdraw_records") as withdraw,
             patch.object(evidence_earning, "require_compile_environment"),
