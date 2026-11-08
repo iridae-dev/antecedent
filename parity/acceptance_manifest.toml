@@ -1718,7 +1718,7 @@ configuration = { passing_points = [800, 1600, 3200], failed_point = 400 }
 expected = { kind = "receipt", outputs = ["contiguous passing upper subrange accepted", "failed lower point and its evidence preserved"] }
 targets = { runtime_seconds = 30, memory_bytes = 1073741824, rationale = "Record-set logic is static; no data are generated." }
 dataset = { generator = "calibration_records_fixture", seed = 6812707, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-io-core/src/calibration.rs::independently_confirmed_upper_subrange_recovered" }
+evidence = { status = "bound", test = "crates/antecedent-io-core/src/calibration/tests.rs::independently_confirmed_upper_subrange_recovered" }
 
 [[case]]
 id = "unconfirmed_subrange_not_recovered"
@@ -1728,7 +1728,7 @@ configuration = { confirmation = "absent" }
 expected = { kind = "refusal", outputs = ["names missing independent confirmation"], refusal = "subrange unconfirmed" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Record-set logic is static; no data are generated." }
 dataset = { generator = "calibration_records_fixture", seed = 4208387, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-io-core/src/calibration.rs::unconfirmed_subrange_not_recovered" }
+evidence = { status = "bound", test = "crates/antecedent-io-core/src/calibration/tests.rs::unconfirmed_subrange_not_recovered" }
 
 [[case]]
 id = "non_contiguous_passing_points_not_merged"
@@ -1738,7 +1738,7 @@ configuration = { passing_points = [400, 1600], failed_between = 800 }
 expected = { kind = "refusal", outputs = ["names the failed interior point"], refusal = "passing region not contiguous" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Record-set logic is static; no data are generated." }
 dataset = { generator = "calibration_records_fixture", seed = 7616916, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "crates/antecedent-io-core/src/calibration.rs::non_contiguous_passing_points_not_merged" }
+evidence = { status = "bound", test = "crates/antecedent-io-core/src/calibration/tests.rs::non_contiguous_passing_points_not_merged" }
 
 [[case]]
 id = "calibration_subrange_construction_mismatch_refused"
@@ -3098,7 +3098,7 @@ configuration = { variables = 10, rows = 2000 }
 expected = { kind = "value", outputs = ["posterior with diagnostics", "published computational and model conditions"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP." }
 dataset = { generator = "tractable_posterior_scm", seed = 4867969, n = 2000, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics" }
+evidence = { status = "bound", test = "crates/antecedent-discovery/tests/wide_structure_posterior_acceptance.rs::ten_variable_ring_publishes_a_posterior_with_diagnostics" }
 
 [[case]]
 id = "graph_posterior_10_variable_claims_calibrated"
@@ -3108,7 +3108,7 @@ configuration = { variables = 10, rows = 2000 }
 expected = { kind = "value", outputs = ["the route's published claims hold: exact BIC-posterior edge marginals agreeing with independent enumeration, and the published samplers agreeing with them within Monte Carlo error"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP.", target_change = "Kind changed from calibrated_interval to value. The exact route publishes exact edge marginals of the Gaussian-BIC pseudo-posterior and its log evidence and no interval, credible set or effect interval (crates/antecedent-discovery/src/exact_marginals.rs, provenance/discovery.exact_marginals.toml), and docs/graph_uncertainty.md states the marginals are not claimed to be calibrated against the true graph; a diagnostic showed the BIC posterior's low marginals are not calibrated against the generating graph in either direction of the effect-size distribution. With no interval to cover, the newly advertised claims are computational: exactness of the marginals and agreement of the published samplers with them, which the bound test asserts at this size on the case generator. The coverage, replicate, reporting and width targets of the calibrated_interval kind are removed with it." }
 dataset = { generator = "tractable_posterior_scm", seed = 8113836, n = 2000, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics" }
+evidence = { status = "bound", test = "crates/antecedent-discovery/tests/wide_structure_posterior_acceptance.rs::ten_variable_ring_publishes_a_posterior_with_diagnostics" }
 
 [[case]]
 id = "graph_posterior_12_variable_workflow"
@@ -3118,7 +3118,7 @@ configuration = { variables = 12, rows = 2000 }
 expected = { kind = "value", outputs = ["posterior with diagnostics", "published computational and model conditions"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP." }
 dataset = { generator = "tractable_posterior_scm", seed = 5398576, n = 2000, variables = 12, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics" }
+evidence = { status = "bound", test = "crates/antecedent-discovery/tests/wide_structure_posterior_acceptance.rs::twelve_variable_ring_publishes_a_posterior_with_diagnostics" }
 
 [[case]]
 id = "graph_posterior_12_variable_claims_calibrated"
@@ -3128,7 +3128,7 @@ configuration = { variables = 12, rows = 2000 }
 expected = { kind = "value", outputs = ["the route's published claims hold: exact BIC-posterior edge marginals agreeing with independent enumeration, and the published samplers agreeing with them within Monte Carlo error"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP.", target_change = "Kind changed from calibrated_interval to value. The exact route publishes exact edge marginals of the Gaussian-BIC pseudo-posterior and its log evidence and no interval, credible set or effect interval (crates/antecedent-discovery/src/exact_marginals.rs, provenance/discovery.exact_marginals.toml), and docs/graph_uncertainty.md states the marginals are not claimed to be calibrated against the true graph; a diagnostic showed the BIC posterior's low marginals are not calibrated against the generating graph in either direction of the effect-size distribution. With no interval to cover, the newly advertised claims are computational: exactness of the marginals and agreement of the published samplers with them, which the bound test asserts at this size on the case generator. The coverage, replicate, reporting and width targets of the calibrated_interval kind are removed with it." }
 dataset = { generator = "tractable_posterior_scm", seed = 7573334, n = 2000, variables = 12, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics" }
+evidence = { status = "bound", test = "crates/antecedent-discovery/tests/wide_structure_posterior_acceptance.rs::twelve_variable_colliders_publish_a_posterior_with_diagnostics" }
 
 [[case]]
 id = "graph_posterior_matches_independent_enumeration_on_tractable_cases"

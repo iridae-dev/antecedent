@@ -401,90 +401,6 @@ fixtures = []
 why = "Hierarchical choice posterior is less certain than pooled-count Dirichlet for repeated choosers; shares sum to one."
 
 [[test]]
-evidence_test = "python/tests/test_adaptive_binary_family.py"
-evidence_assertion = "test_an_estimated_correlation_is_integrated_jointly_with_the_arm_means"
-kind = "posterior"
-fixtures = []
-why = "Joint posterior integration of an estimated arm correlation with the arm means, checked against the closed-form family."
-
-[[test]]
-evidence_test = "python/tests/test_graph_posterior_acceptance.py"
-evidence_assertion = "test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics"
-kind = "posterior"
-fixtures = []
-why = "Ten- and twelve-variable structure posteriors recover the planted graphs and publish mixing diagnostics."
-
-[[test]]
-evidence_test = "python/tests/test_python_products.py"
-evidence_assertion = "test_route_temporal_mediation_event_graph_posterior"
-kind = "route_sweep"
-fixtures = ["parity/python_products.toml"]
-why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
-
-[[test]]
-evidence_test = "python/tests/test_python_products.py"
-evidence_assertion = "test_route_intervention_response_event_graph_posterior"
-kind = "route_sweep"
-fixtures = ["parity/python_products.toml"]
-why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
-
-[[test]]
-evidence_test = "python/tests/test_python_products.py"
-evidence_assertion = "test_route_intervention_response_series_graph_posterior"
-kind = "route_sweep"
-fixtures = ["parity/python_products.toml"]
-why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
-
-[[test]]
-evidence_test = "python/tests/test_python_products.py"
-evidence_assertion = "test_route_response_curve_event_graph_posterior"
-kind = "route_sweep"
-fixtures = ["parity/python_products.toml"]
-why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
-
-[[test]]
-evidence_test = "python/tests/test_python_products.py"
-evidence_assertion = "test_route_response_curve_series_graph_posterior"
-kind = "route_sweep"
-fixtures = ["parity/python_products.toml"]
-why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
-
-[[test]]
-evidence_test = "python/tests/test_python_products.py"
-evidence_assertion = "test_route_temporal_mediation_series_graph_posterior"
-kind = "route_sweep"
-fixtures = ["parity/python_products.toml"]
-why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
-
-[[test]]
-evidence_test = "python/tests/test_python_products.py"
-evidence_assertion = "test_route_sustained_event_graph_posterior"
-kind = "route_sweep"
-fixtures = ["parity/python_products.toml"]
-why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
-
-[[test]]
-evidence_test = "python/tests/test_python_products.py"
-evidence_assertion = "test_route_pulse_series_graph_posterior"
-kind = "route_sweep"
-fixtures = ["parity/python_products.toml"]
-why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
-
-[[test]]
-evidence_test = "python/tests/test_python_products.py"
-evidence_assertion = "test_route_sustained_series_graph_posterior"
-kind = "route_sweep"
-fixtures = ["parity/python_products.toml"]
-why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
-
-[[test]]
-evidence_test = "python/tests/test_python_products.py"
-evidence_assertion = "test_route_pulse_event_graph_posterior"
-kind = "route_sweep"
-fixtures = ["parity/python_products.toml"]
-why = "Graph-posterior route executed through the Python product surface against its pinned atom-weighted answer."
-
-[[test]]
 evidence_test = "crates/antecedent/tests/inverse_forward_sources_facade.rs"
 evidence_assertion = "composed_gaussian_outcome_law_matches_independent_chain_reference"
 kind = "known_truth"
@@ -511,3 +427,66 @@ evidence_assertion = "joint_dependence_and_maximin_match_independent_finite_enum
 kind = "known_truth"
 fixtures = []
 why = "Independent enumeration of equal and opposite Bernoulli joint states with identical marginals, nonlinear product utility and maximin/invariant decisions. Registered and owed after freeze."
+
+[[test]]
+evidence_test = "crates/antecedent-discovery/tests/wide_structure_posterior_acceptance.rs"
+evidence_assertion = "ten_variable_ring_publishes_a_posterior_with_diagnostics"
+kind = "posterior"
+fixtures = []
+why = "Ten-variable ring structure posterior from structure and order MCMC at published conditions recovers the planted skeleton, publishes clearing gate diagnostics within the parent cap, matches the exact marginals, and a short schedule is refused."
+
+[[test]]
+evidence_test = "crates/antecedent-discovery/tests/wide_structure_posterior_acceptance.rs"
+evidence_assertion = "twelve_variable_ring_publishes_a_posterior_with_diagnostics"
+kind = "posterior"
+fixtures = []
+why = "Twelve-variable ring structure posterior from structure and order MCMC at published conditions recovers the planted skeleton, publishes clearing gate diagnostics within the parent cap, matches the exact marginals, and a short schedule is refused."
+
+[[test]]
+evidence_test = "crates/antecedent-discovery/tests/wide_structure_posterior_acceptance.rs"
+evidence_assertion = "twelve_variable_colliders_publish_a_posterior_with_diagnostics"
+kind = "posterior"
+fixtures = []
+why = "Twelve-variable independent-collider structure posterior from structure and order MCMC at published conditions recovers the planted skeleton, publishes clearing gate diagnostics within the parent cap, matches the exact marginals, and a short schedule is refused."
+
+[[test]]
+evidence_test = "crates/antecedent-stats/tests/adaptive_participant_correlation_reference.rs"
+evidence_assertion = "an_estimated_correlation_is_integrated_jointly_with_the_arm_means"
+kind = "posterior"
+fixtures = []
+why = "Joint posterior integration of an estimated arm correlation with the arm means at every look of a simulated participant history, checked against an in-test grid integration over the correlation and the arm means."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/temporal_graph_posterior_product_routes.rs"
+evidence_assertion = "pulse_on_event_data_recovers_the_atom_weighted_truth_and_the_series_answer"
+kind = "known_truth"
+fixtures = []
+why = "Temporal graph-posterior pulse on event data lies within 0.12 of the frozen-weight mixture of the identified atoms' truths, equals the aligned series route, and retains the unidentified mass."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/temporal_graph_posterior_product_routes.rs"
+evidence_assertion = "sustained_on_event_data_recovers_the_atom_weighted_truth_and_the_series_answer"
+kind = "known_truth"
+fixtures = []
+why = "Temporal graph-posterior two-step sustained effect on event data lies within 0.12 of the atom-weighted multi-step truth and equals the aligned series route."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/temporal_graph_posterior_product_routes.rs"
+evidence_assertion = "response_curve_on_event_data_matches_the_known_level_and_the_series_answer"
+kind = "known_truth"
+fixtures = ["conformance/bayesian/known_truth_mixtures"]
+why = "Temporal graph-posterior response curve on event data matches the known level 0.9 x on the grid within the pin tolerance and equals the aligned series route."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/temporal_graph_posterior_product_routes.rs"
+evidence_assertion = "intervention_response_on_event_data_matches_the_known_level_and_the_series_answer"
+kind = "known_truth"
+fixtures = ["conformance/bayesian/known_truth_mixtures"]
+why = "Temporal graph-posterior intervention response on event data matches the known level 0.9 within the pin tolerance and equals the aligned series route."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/temporal_graph_posterior_product_routes.rs"
+evidence_assertion = "temporal_mediation_on_event_data_recovers_the_mediated_truth_and_the_series_answer"
+kind = "known_truth"
+fixtures = ["conformance/bayesian/known_truth_mixtures"]
+why = "Temporal graph-posterior mediated effect on event data recovers the identified atom's 0.44 path product within 0.015 and equals the aligned series route."

@@ -74,6 +74,10 @@ name = "exact_marginals_reference"
 path = "tests/exact_marginals_reference.rs"
 
 [[test]]
+name = "wide_structure_posterior_acceptance"
+path = "tests/wide_structure_posterior_acceptance.rs"
+
+[[test]]
 name = "fci_pag_class_exhaustive"
 path = "tests/fci_pag_class_exhaustive.rs"
 

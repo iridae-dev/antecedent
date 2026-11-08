@@ -785,16 +785,19 @@ class Classification(unittest.TestCase):
         row = {
             "key": "one",
             "roles": ["scientific"],
-            "evidence_test": "test.py",
-            "evidence_assertion": "test_truth",
+            "evidence_test": "crates/c/tests/truth.rs",
+            "evidence_assertion": "truth",
         }
         selected = audit.scientific_rows([row, {**row, "key": "two"}])
         self.assertEqual(len(selected), 1)
-        self.assertEqual(selected[0]["evidence_assertion"], "test_truth")
+        self.assertEqual(selected[0]["evidence_assertion"], "truth")
         with self.assertRaisesRegex(ValueError, "empty"):
             audit.scientific_rows(
                 [{**row, "evidence_activity": "calibration_acceptance"}]
             )
+        # The scientific engine is Rust: a claim citing a Python test is refused.
+        with self.assertRaisesRegex(ValueError, "scientific assertions are Rust tests"):
+            audit.scientific_rows([{**row, "evidence_test": "python/tests/test_x.py"}])
 
     def test_claim_reader_classifies_calibration_for_every_report_consumer(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -882,7 +885,6 @@ class Classification(unittest.TestCase):
         self.assertFalse(calibration & scientific)
         for name in sorted(calibration | scientific)[:25]:
             self.assertIn(name, engineering)
-        self.assertEqual(audit.scientific_python_nodes(root), sorted(set(audit.scientific_python_nodes(root))))
 
     def _registry_root(self, tmp: str, registry: str) -> Path:
         root = Path(tmp)
@@ -981,13 +983,13 @@ class Classification(unittest.TestCase):
         root = Path(__file__).parents[1]
         config = tomllib.loads((root / "python/pyproject.toml").read_text(encoding="utf-8"))
         addopts = config["tool"]["pytest"]["ini_options"]["addopts"]
-        for excluded in ("scientific", "requires_calibration", "calibration_simulation"):
+        for excluded in ("requires_calibration", "calibration_simulation"):
             self.assertIn(f"not {excluded}", addopts)
             self.assertIn(excluded, [m.split(":")[0] for m in config["tool"]["pytest"]["ini_options"]["markers"]])
+        # Python tests are never scientific, so no lane deselects a scientific marker.
+        self.assertNotIn("scientific", addopts)
         workflow = (root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        self.assertEqual(
-            workflow.count("-m 'not scientific and not requires_calibration and not calibration_simulation'"), 2
-        )
+        self.assertEqual(workflow.count("-m 'not requires_calibration and not calibration_simulation'"), 2)
 
     def test_generator_presence_requires_an_explicit_retained_path(self):
         with tempfile.TemporaryDirectory() as tmp:

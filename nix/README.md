@@ -63,10 +63,11 @@ A custom derive scopes only to its own data item and helper attributes.
 
 ## Python and calibration
 
-The Python scientific rows run against the host extension checked by
-`native_build_identity.py`. Their compile-time boundary is the same registry
+Scientific claims are Rust tests; `evidence_audit` refuses a Python scientific
+row. Python tests check that the binding returns the Rust result and run in the
+engineering lane. Calibration snapshots build on the host: the same registry is
 applied to the host unit graph (`host_compiler_graph`), with complete source
-retained. Calibration snapshots use that host check too.
+retained.
 
 ## Trust assumptions
 

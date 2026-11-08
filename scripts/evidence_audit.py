@@ -6,9 +6,7 @@ on every reported gap.
 
 The test lanes are derived from the registries, never listed by hand:
 
-  scientific-filter         nextest expression of the cited Rust scientific assertions
-  scientific-python-nodes   the cited Python scientific assertions, one node per line
-                            (python/tests/conftest.py marks them `scientific`)
+  scientific-filter         nextest expression of the Rust scientific assertions
   rust-engineering-filter   `not (calibration) and not (scientific)`: every other Rust test.
                             It is the nextest default-filter; --write regenerates
                             .config/nextest.toml and --check fails on drift.
@@ -20,8 +18,6 @@ performance acceptance measurements.
 
 from __future__ import annotations
 
-import _repo
-
 import argparse
 import hashlib
 import json
@@ -32,6 +28,7 @@ import tomllib
 from collections import Counter, defaultdict
 from pathlib import Path
 
+import _repo
 import check_evidence_ledger
 from _repo import REPO_ROOT, load_toml
 from evidence_kinds import (
@@ -800,6 +797,12 @@ SCIENTIFIC_TESTS = "parity/scientific_tests.toml"
 SCIENTIFIC_TEST_KINDS = ("known_truth", "reference", "posterior", "simulation", "route_sweep")
 
 
+# The scientific engine is Rust: a scientific claim is a Rust test. A Python test checks that
+# the binding returns the Rust result, which is engineering.
+PYTHON_NOT_SCIENTIFIC = ("scientific assertions are Rust tests; a Python test checks that the "
+                         "binding preserves the Rust result and runs in the engineering lane")
+
+
 def scientific_test_problems(root: Path) -> list[str]:
     """Findings in the registry of scientific assertions that no claim cites."""
     path = root / SCIENTIFIC_TESTS
@@ -836,32 +839,13 @@ def scientific_test_problems(root: Path) -> list[str]:
         elif source.suffix == ".rs":
             problems.extend(f"{where}: {p}" for p in rust_test_declaration_problems(source, name, True))
         elif source.suffix == ".py":
-            if f"{test}::{name}" not in generated_python_tests(root):
-                problems.extend(f"{where}: {p}" for p in static_python_test(source, name))
+            problems.append(f"{where}: {PYTHON_NOT_SCIENTIFIC}")
         else:
-            problems.append(f"{where}: only Rust and Python tests can be scientific")
+            problems.append(f"{where}: only Rust tests can be scientific")
     return problems
 
 
-GENERATED_PYTHON_TESTS = "parity/python_products.toml"
 
-
-def generated_python_tests(root: Path) -> set[str]:
-    """Python tests installed at import from the product table's rows, keyed `path::name`.
-
-    `python/tests/test_python_products.py` defines one test per route and refusal row under the
-    row's `test` name, so the table, not a `def`, is where those names are declared.
-    """
-    path = root / GENERATED_PYTHON_TESTS
-    if not path.is_file():
-        return set()
-    table = _repo.load_toml(path)
-    return {
-        row["test"]
-        for kind in ("route", "refusal")
-        for row in table.get(kind, [])
-        if isinstance(row.get("test"), str)
-    }
 
 
 def registered_scientific_tests(root: Path) -> list[dict]:
@@ -891,7 +875,7 @@ def scientific_rows(claims: list[dict], registered: list[dict] | tuple = ()) -> 
     `registered` are rows of the scientific test registry: scientific exactly like a cited
     assertion, with the fixtures the registry declares."""
     found = {}
-    incomplete = []
+    incomplete, python = [], []
     for row in registered:
         entry = found.setdefault(
             (row["evidence_test"], row["evidence_assertion"]),
@@ -908,6 +892,9 @@ def scientific_rows(claims: list[dict], registered: list[dict] | tuple = ()) -> 
         if row.get("evidence_activity") == "calibration_acceptance":
             continue
         path, assertion = row.get("evidence_test"), row.get("evidence_assertion")
+        if path and assertion and not path.endswith(".rs"):
+            python.append(f"{row['key']}: {path}::{assertion}")
+            continue
         if path and assertion:
             entry = found.setdefault(
                 (path, assertion),
@@ -927,6 +914,8 @@ def scientific_rows(claims: list[dict], registered: list[dict] | tuple = ()) -> 
                 if isinstance(f, str) and f
             }
             entry["fixtures"] = sorted(set(entry["fixtures"]) | declared)
+    if python:
+        raise ValueError(f"{PYTHON_NOT_SCIENTIFIC}: " + ", ".join(sorted(python)))
     if incomplete:
         raise ValueError("scientific evidence incomplete: calibration simulations were not run: "
                          + ", ".join(sorted(set(incomplete))))
@@ -968,14 +957,6 @@ def scientific_rust_rows(root: Path) -> list[dict]:
     if not rust:
         raise ValueError("scientific Rust selection is empty")
     return rust
-
-
-def scientific_python_nodes(root: Path) -> list[str]:
-    return sorted(
-        f"{r['evidence_test']}::{r['evidence_assertion']}"
-        for r in scientific_rows(claim_rows(root), registered_scientific_tests(root))
-        if r["evidence_test"].endswith(".py")
-    )
 
 
 def engineering_filter_lines(root: Path) -> list[str]:
@@ -1027,7 +1008,6 @@ def main() -> int:
             "rust-calibration-simulation-filter",
             "rust-engineering-filter",
             "scientific-filter",
-            "scientific-python-nodes",
         ),
     )
     parser.add_argument("--listing", type=Path, help="Verify classified assertions in a nextest JSON listing")
@@ -1054,9 +1034,6 @@ def main() -> int:
                 print(drift, file=sys.stderr)
             return int(bool(drift))
         print(engineering_filter(REPO_ROOT))
-        return 0
-    if args.command == "scientific-python-nodes":
-        print("\n".join(scientific_python_nodes(REPO_ROOT)))
         return 0
     if args.command in ("rust-calibration-filter", "rust-calibration-simulation-filter"):
         rows = (

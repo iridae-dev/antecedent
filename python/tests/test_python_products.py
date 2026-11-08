@@ -55,8 +55,8 @@ from antecedent.inference import Frequentist
 from antecedent.intervention import Set
 from antecedent.outcomes import require_success
 
-from _repo_text import REPO_ROOT, read_text
 from _loaded_results import assert_answer_kept, assert_refutation_replay_withheld
+from _repo_text import REPO_ROOT, read_text
 
 ROOT = REPO_ROOT
 PRODUCTS = tomllib.loads(read_text(ROOT / "parity" / "python_products.toml"))
@@ -402,12 +402,15 @@ def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
 
     label = f"{kind}/{data}/{structure}"
     ids = ("program_id", "claim_id", "data_snapshot_id")
+    # `identities` inspects the whole result; read each outcome's once.
+    expected = {name: outcome.identities[name] for name in ids}
 
     def assert_reproduces(branch_outcome, how: str) -> None:
         again = require_success(branch_outcome)
         assert _same(_point(result), _point(again)), f"{label}: {how} did not reproduce its point"
+        identities = branch_outcome.identities
         for name in ids:
-            assert branch_outcome.identities[name] == outcome.identities[name], (label, how, name)
+            assert identities[name] == expected[name], (label, how, name)
 
     assert_reproduces(ant.estimate(study), "the retained study")
     # A rebind onto the same observations is a new branch; it does not disturb its source.

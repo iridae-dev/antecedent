@@ -30,12 +30,11 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
-from _repo import REPO_ROOT, scientific_target_feature_args, load_toml
+from _repo import REPO_ROOT, load_toml, scientific_target_feature_args
 from evidence_fingerprint import Fingerprinter, UnresolvedInput, locate
 
 RECORDS = "parity/scientific_records.toml"
@@ -271,7 +270,13 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str
     print(f"scientific records: earning {len(items)} Rust assertion(s) in {len(groups)} target(s)", flush=True)
     if not groups:
         return 0
-    from evidence_earning import Snapshot, binding, build_analyzer, compile_time_code, project_snapshot
+    from evidence_earning import (
+        Snapshot,
+        binding,
+        build_analyzer,
+        compile_time_code,
+        project_snapshot,
+    )
 
     fp = Fingerprinter(root, scientific_build=True)
     env = capture_env(root)
@@ -437,14 +442,6 @@ def cmd_status(root: Path, args: argparse.Namespace) -> int:
     return int(args.check and bool(owed))
 
 
-def python_environment_ok(root: Path) -> bool:
-    for candidate in (root / "python/.venv/bin/python", root / "python/.venv/Scripts/python.exe"):
-        if candidate.is_file():
-            return subprocess.run([str(candidate), str(root / "scripts/native_build_identity.py"), "check"]).returncode == 0
-    print("FAIL: the Python conformance environment is missing; run bash scripts/test.sh python")
-    return False
-
-
 def matches_only(item: dict, patterns: list[str]) -> bool:
     """Does a row match any `--only` pattern (substring or glob) on its selector, test path or id?"""
     if not patterns:
@@ -453,37 +450,6 @@ def matches_only(item: dict, patterns: list[str]) -> bool:
     return any(
         pattern in field or fnmatch.fnmatchcase(field, pattern) for pattern in patterns for field in fields
     )
-
-
-def run_batch(root: Path, batch: list[dict]) -> tuple[int, set[str]]:
-    """Execute one batch through run_evidence_rows.py; its exit status and the selectors proven passed."""
-    with tempfile.TemporaryDirectory(prefix="antecedent-scientific-") as tmp:
-        ledger = Path(tmp) / "selection.toml"
-        passed_out = Path(tmp) / "passed.json"
-        ledger.write_text(
-            "".join(
-                "[[capabilities]]\n"
-                f"id = {json.dumps(i['selector'])}\n"
-                f"evidence_test = {json.dumps(i['evidence_test'])}\n"
-                f"evidence_assertion = {json.dumps(i['evidence_assertion'])}\n\n"
-                for i in batch
-            ),
-            encoding="utf-8",
-        )
-        env = {
-            **os.environ,
-            # The optimized test profile of scripts/test.sh, unless the caller chose one.
-            "CARGO_PROFILE_TEST_OPT_LEVEL": os.environ.get("CARGO_PROFILE_TEST_OPT_LEVEL", "2"),
-            "CARGO_PROFILE_TEST_DEBUG": os.environ.get("CARGO_PROFILE_TEST_DEBUG", "line-tables-only"),
-            "ANTECEDENT_EVIDENCE_PASSED_OUT": str(passed_out),
-        }
-        code = subprocess.run(
-            [sys.executable, str(root / "scripts/run_evidence_rows.py"), str(root), str(ledger), str(root),
-             "capabilities", "scientific"],
-            cwd=root, env=env,
-        ).returncode
-        passed = set(json.loads(passed_out.read_text(encoding="utf-8"))) if passed_out.is_file() else set()
-    return code, passed
 
 
 def cmd_run(root: Path, args: argparse.Namespace) -> int:
@@ -506,39 +472,10 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
     )
     if not run_items:
         return 0
-    if any(i["evidence_test"].endswith(".py") for i in run_items) and not python_environment_ok(root):
-        return 1
-    # Each batch is recorded as soon as it finishes, so an interrupted or partly failing
-    # run keeps every pass it earned.
-    status, recorded = 0, 0
-    rust = [i for i in run_items if not i["evidence_test"].endswith(".py")]
-    python = [i for i in run_items if i["evidence_test"].endswith(".py")]
-    if rust:
-        failed = earn_rust(root, rust, backend=getattr(args, "rust_build_backend", "nix"))
-        recorded += len(rust) - failed
-        status = status or int(bool(failed))
-    if python:
-        print(f"scientific records: batch python ({len(python)})", flush=True)
-        from evidence_earning import Snapshot, binding
-
-        fp = Fingerprinter(root, scientific_build=True)
-        snapshots = {i["selector"]: Snapshot(root, i, binding("scientific", i["selector"], None), fp) for i in python}
-        withdraw_records(root, python)
-        code, passed = run_batch(root, python)
-        verified = []
-        for item in python:
-            if item["selector"] not in passed:
-                continue
-            snapshot = snapshots[item["selector"]]
-            try:
-                ref = snapshot.publish()
-            except RuntimeError as error:
-                print(f"FAIL: {item['selector']}: {error}")
-                status = 1
-                continue
-            verified.append({**item, "dependency_manifest": ref, "fingerprint": snapshot.manifest["record"]["fingerprint"]})
-        recorded += record_passes(root, verified)
-        status = status or code
+    # Each target is recorded as soon as it finishes, so an interrupted or partly failing
+    # run keeps every pass it earned. Scientific assertions are Rust tests (evidence_audit).
+    failed = earn_rust(root, run_items, backend=getattr(args, "rust_build_backend", "nix"))
+    recorded, status = len(run_items) - failed, int(bool(failed))
     print(f"scientific records: recorded {recorded} pass(es); {len(run_items) - recorded} not recorded")
     return status
 

@@ -3826,11 +3826,3 @@ dirty = true
 fingerprint = "05984fb3b885ff04e1c7e9fe45ba15bb8db70e429111daeba6e63129545aef22"
 recorded_at = "2026-11-04T22:36:56Z"
 
-[[record]]
-test = "tests/test_posterior_moments.py::test_mediation_validation_targets_and_prior_grid"
-roles = ["scientific", "software"]
-passed = true
-commit = "e6c46149fc0916c38acbdc6ba11a37e51089acd4"
-dirty = true
-fingerprint = "64a5cbc3f07071dffe52fc65df6aaf18610c635e8f045ec9ecb92a5b0324c23a"
-recorded_at = "2026-11-04T22:36:56Z"

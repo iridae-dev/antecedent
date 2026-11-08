@@ -322,6 +322,14 @@ name = "bayesian_temporal"
 path = "tests/bayesian_temporal.rs"
 
 [[test]]
+name = "bayesian_temporal_mediation_validation_targets"
+path = "tests/bayesian_temporal_mediation_validation_targets.rs"
+
+[[test]]
+name = "temporal_graph_posterior_product_routes"
+path = "tests/temporal_graph_posterior_product_routes.rs"
+
+[[test]]
 name = "calibration_admg"
 path = "tests/calibration_admg.rs"
 

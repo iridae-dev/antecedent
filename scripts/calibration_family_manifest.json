@@ -20,7 +20,7 @@
     }
   ],
   "gate_sha256": "d4345f5327d3a4aafb071a075f8e971ecdb06b24a5372cf6a916fcf36d8fa8ea",
-  "acceptance_sha256": "0b462b91305906d9f72b54244f74d7e027ec99608a56337d6072fee92fa78017",
+  "acceptance_sha256": "aa465bdbab5e3505c2f35899bccd67ad7aa6bbecbf5e3bf7eba0b5557cd3c13b",
   "label_audit_sha256": "e106a876f742b39e1823d10d8e47e84d73a7ff338f128c41f1309911382cb9b3",
   "groups": [
     {
