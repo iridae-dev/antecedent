@@ -245,10 +245,11 @@ case "$suite" in
     rust_tests "$@" -E 'kind(test)'
     ;;
   scientific)
-    # One entry point: scientific_records.py runs the owed Rust assertions (one nextest
-    # run per crate) and the owed Python assertions (one pytest batch), proves each exact
-    # assertion ran, and records every batch's passes as it finishes. Records whose
-    # fingerprint is current are not rerun; --all (manual) reruns and re-records all.
+    # One entry point: scientific_records.py builds every owed Rust target in one audited
+    # Nix derivation (third-party dependencies come from a cached derivation), runs each
+    # exact assertion, and records each target's passes as it finishes. Scientific
+    # assertions are Rust tests. Records whose inputs are current are not rerun, and with
+    # nothing owed nothing is built; --all (manual) reruns and re-records all.
     # A recorded pass is support evidence, never calibration. CI never runs this lane:
     # it checks `scientific_records.py status --check`.
     python3 "$ROOT/scripts/scientific_records.py" run ${scientific_args[@]+"${scientific_args[@]}"}
