@@ -226,7 +226,7 @@ impl super::super::Study {
         if self.settings.inference.is_bayesian() {
             plan.record.estimator = Some(Arc::from(EstimatorId::TemporalResponseBayesian.as_str()));
         }
-        Ok(plan)
+        Ok(self.classified_as_series_input(plan))
     }
 
     pub(super) fn compile_logical_temporal_response_class(
@@ -238,7 +238,7 @@ impl super::super::Study {
         plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         plan.record.estimator =
             Some(Arc::from(EstimatorId::temporal_response_for(&self.settings.inference).as_str()));
-        Ok(plan)
+        Ok(self.classified_as_series_input(plan))
     }
 
     /// Logical plan of a derivative at one horizon on a temporal ADMG.
@@ -317,7 +317,7 @@ impl super::super::Study {
         plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         plan.record.estimator =
             Some(Arc::from(EstimatorId::temporal_response_for(&self.settings.inference).as_str()));
-        Ok(plan)
+        Ok(self.classified_as_series_input(plan))
     }
 
     pub(super) fn compile_logical_multi_env_temporal_effect(
