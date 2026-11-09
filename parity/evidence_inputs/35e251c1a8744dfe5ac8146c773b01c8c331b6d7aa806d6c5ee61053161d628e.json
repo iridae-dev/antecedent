@@ -1,0 +1,1 @@
+[{"digest":"a65b2819c8a6e0e179a9816ce0cd5f6393e663a5e38762acb335cc6b8ec6ca82","file":"f51be9d6c7286676925b6b71cc193a26c1e5685feb0828331ce2d7c31408996b","kind":"rust_items","path":"crates/antecedent-model/tests/mechanism_transport.rs","role":"compile","scopes":[[[],true]],"select":{"full":[0,4,5,7,8,12]},"table":"b5126eb1862d0848fefd25dde9e47127f618220d3c72832399bebe056c46c2e0"}]

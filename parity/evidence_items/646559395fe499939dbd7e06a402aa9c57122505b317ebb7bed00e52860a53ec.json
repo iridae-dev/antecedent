@@ -1,0 +1,1 @@
+["use:antecedent_io_core::artifact_codec::{f64s_from_le_bytes,f64s_to_le_bytes,split_reals,};#0","use:antecedent_io_core::error::lossless_u64;#0","fn:take_blocks#0","fn:columns_from_le#0","mod:tests#0","mod:tests#0/use:super::{columns_from_le,f64s_to_le_bytes};#0","mod:tests#0/fn:blocks_round_trip_keeps_signed_zero_and_nan#0"]

@@ -1,0 +1,1 @@
+[{"digest":"f4e0119c9e6dc48839685dba5706d71656734fa5687df53ed8f9600083893867","file":"b5f53b12811e92c709e3e33fd9739b04414e294f5db854ba4a996c2801b27eaa","kind":"rust_items","path":"crates/antecedent/tests/estimate_uncertainty_reference.rs","role":"compile","scopes":[[[],true]],"select":{"full":[4,6,9]},"table":"f4f70a355b28aee389ac9f0bf85e10dd2e3b364bff26408b914b664e5125e203"}]

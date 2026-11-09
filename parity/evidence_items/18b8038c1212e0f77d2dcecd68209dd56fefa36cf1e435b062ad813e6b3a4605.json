@@ -1,0 +1,1 @@
+["use:antecedent_core::CausalSchema;#0","use:crate::error::GraphError;#0","use:crate::types::DenseNodeId;#0","fn:resolve_named_edge#0","fn:schema_node_count#0"]

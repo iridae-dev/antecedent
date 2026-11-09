@@ -1,0 +1,1 @@
+["mod:dgp#0","use:antecedent_core::ExecutionContext;#0","use:antecedent_estimate::posterior_mean::{PosteriorRequest,learned_continuous_score_posterior};#0","use:antecedent_estimate::{LearnedContinuousOptions,LearnerSpec,LinearSpec};#0","use:dgp::{Design,Scenario,draw,graph};#0","fn:learned_continuous_posterior_mean_equals_the_hand_update_of_the_route_scores#0"]

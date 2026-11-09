@@ -1,0 +1,1 @@
+["use:antecedent_estimate::randomized_neyman::complete_cluster_itt;#0","use:antecedent_estimate::randomized_scores::cuped_ht_effect;#0","fn:close#0","fn:cuped_ht_contrast_slope_and_standard_error_match_the_closed_form#0","fn:variance#0","fn:covariate_adjusted_cluster_totals_have_the_exact_neyman_mean_and_variance#0"]
