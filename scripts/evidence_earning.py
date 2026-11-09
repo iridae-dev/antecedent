@@ -186,7 +186,8 @@ class Snapshot:
                 raise RuntimeError('the compiler does not match tools/evidence-analyzer/pin.toml')
         else:
             tools = nix_build['tools']
-            if (record.get('kind') != 'scientific' or tools['rustc'] != checker.pin['release']
+            if (record.get('kind') not in ('scientific', 'calibration', 'probe')
+                    or tools['rustc'] != checker.pin['release']
                     or tools['rustc_commit'] != checker.pin['commit']):
                 raise RuntimeError('Nix build compiler or evidence kind is invalid')
             from nix_artifact_identity import recheck_artifact

@@ -290,3 +290,38 @@ def _timed_measure(spec: dict) -> dict:
     result = measure(spec)
     result["seconds"] = time.monotonic() - begin
     return result
+
+
+# ---------------------------------------------------------------------- binding records
+
+def record_runs(log_dir: Path) -> dict[str, set[str]]:
+    """Record id -> the task stems (`<group>[.p<k>][.confirm]`) whose logs emitted it."""
+    import json
+    runs: dict[str, set[str]] = {}
+    for log in log_dir.glob("*.log"):
+        stem = log.name.removesuffix(".log").removesuffix(".recheck")
+        for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.startswith("calibration-record "):
+                runs.setdefault(str(json.loads(line.split(" ", 1)[1])["id"]), set()).add(stem)
+    return runs
+
+
+def run_evidence(root: Path, log_dir: Path, stems: set[str]) -> tuple[dict, dict]:
+    """The Nix build record and the executed regions behind a record measured by `stems`:
+    every stem must come from one test binary and carry its coverage."""
+    import json
+    by_safe = {g.safe: g for g in load_groups(root)}
+    builds = json.loads((log_dir / BUILDS).read_text(encoding="utf-8"))
+    targets, regions = set(), {}
+    for stem in stems:
+        safe = re.sub(r"(\.p[012])?(\.confirm)?$", "", stem)
+        group = by_safe.get(safe)
+        path = log_dir / f"{stem}.coverage.json"
+        if group is None or not path.is_file():
+            raise RuntimeError(f"no measured coverage for {stem}")
+        targets.add(group.build_target)
+        for source, points in json.loads(path.read_text(encoding="utf-8")).items():
+            regions.setdefault(source, set()).update(tuple(p) for p in points)
+    if len(targets) != 1:
+        raise RuntimeError(f"a record is measured by several test binaries: {sorted(targets)}")
+    return builds["|".join(targets.pop())], regions

@@ -22909,6 +22909,13 @@ path = "scripts/test_evidence_items.py"
 gates = ["inventory"]
 
 [[test]]
+id = "scripts-test-calibration-runner"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_calibration_runner.py"
+gates = ["inventory"]
+
+[[test]]
 id = "engineering-contract-posterior-atom-index"
 crate = "antecedent-io-core"
 cargo_target = "lib"

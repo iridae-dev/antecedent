@@ -890,7 +890,7 @@ def toml_value(key: str, value) -> str:
 FINGERPRINT_INPUTS = ("crates", "python", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "rust-toolchain")
 
 
-def stamp_fingerprints(records: dict[str, dict], sha: str) -> None:
+def stamp_fingerprints(records: dict[str, dict], sha: str, log_dir: Path = LOG_DIR) -> None:
     """Stamp each record with the fingerprint of its test target in the tree.
 
     Only a tree equal to HEAD in everything a fingerprint reads, measured at HEAD,
@@ -908,18 +908,28 @@ def stamp_fingerprints(records: dict[str, dict], sha: str) -> None:
             "the sources a record's fingerprint reads differ from HEAD, so these logs do not "
             "describe a commit; commit first (or pass --sha):\n  " + "\n  ".join(dirty)
         )
-    from evidence_earning import Snapshot, measurement_binding
+    from calibration_runner import record_runs, run_evidence
+    from evidence_earning import Snapshot, measurement_binding, publish_executed
     from evidence_fingerprint import coverage_row
+    from scientific_records import _remember_nix_output
 
     fp = calibration_status.tree_fingerprinter()
     fingerprints = calibration_status.identity_fingerprints(list(records.values()), fp)
+    runs = record_runs(log_dir)
+    allowed: dict[str, str] = {}
     for rid, rec in records.items():
-        if fingerprints.get(rid):
-            rec["fingerprint"] = fingerprints[rid]
-            snapshot = Snapshot(ROOT, coverage_row(rec['test'], rec.get('dgp', '')),
-                                measurement_binding(rec), fp)
-            snapshot.verify_commit(sha)
-            rec['dependency_manifest'] = snapshot.publish()
+        if not fingerprints.get(rid):
+            continue
+        rec["fingerprint"] = fingerprints[rid]
+        # Bind the record to the Nix-built binary that measured it and to the items
+        # its runs executed, as a scientific record is (`publish_executed`).
+        built, coverage = run_evidence(ROOT, log_dir, runs.get(rid, set()))
+        snapshot = Snapshot(ROOT, coverage_row(rec['test'], rec.get('dgp', '')),
+                            measurement_binding(rec), fp, nix_build=built, allowed_outputs=allowed)
+        snapshot.verify_commit(sha)
+        rec['dependency_manifest'] = publish_executed(snapshot, built, coverage)
+        for output in snapshot.outputs:
+            _remember_nix_output(ROOT, allowed, output)
 
 
 def existing_records() -> dict[str, dict]:
@@ -1439,7 +1449,7 @@ def main() -> int:
         selected_logs=collection_logs,
         allow_empty=args.passing_only,
     )
-    stamp_fingerprints(records, sha)
+    stamp_fingerprints(records, sha, args.log_dir)
     if args.append_attested:
         existing = existing_records()
         records = append_attested_records(existing, records)

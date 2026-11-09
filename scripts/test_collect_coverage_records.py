@@ -560,6 +560,9 @@ class FingerprintStampTest(unittest.TestCase):
             patch.object(collector.subprocess, "check_output", return_value="a" * 40 + "\n"),
             patch.object(collector.subprocess, "run") as status,
             patch('evidence_earning.Snapshot') as snapshot,
+            patch('evidence_earning.publish_executed', return_value='d' * 64) as publish,
+            patch('calibration_runner.record_runs', return_value={"a": {"g.p0"}}),
+            patch('calibration_runner.run_evidence', return_value=({"artifact": {}}, {"src": {(1, 1)}})) as runs,
             patch.object(collector.calibration_status, "tree_fingerprinter"),
             patch.object(
                 collector.calibration_status,
@@ -568,11 +571,15 @@ class FingerprintStampTest(unittest.TestCase):
             ),
         ):
             status.return_value.stdout = ""
-            snapshot.return_value.publish.return_value = 'd' * 64
+            snapshot.return_value.outputs = []
             collector.stamp_fingerprints(records, "a" * 40)
         self.assertEqual(records["a"]["fingerprint"], "f" * 64)
         self.assertEqual(records['a']['dependency_manifest'], 'd' * 64)
         self.assertNotIn("fingerprint", records["b"])
+        # The record is bound to the binary and the regions of the runs that emitted it.
+        self.assertEqual(runs.call_args.args[2], {"g.p0"})
+        self.assertEqual(snapshot.call_args.kwargs["nix_build"], {"artifact": {}})
+        self.assertEqual(publish.call_args.args[2], {"src": {(1, 1)}})
 
     def test_logs_stamped_at_another_commit_carry_no_fingerprint(self):
         records = {"a": {"id": "a"}}
