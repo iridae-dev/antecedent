@@ -265,6 +265,8 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str
     (through the compiler inventory driver when `rustc-dev` is installed), run each assertion
     exactly, and publish its manifest. The ledger is written after every target, so an
     interrupted run keeps what it finished. Returns the number of failures."""
+    # One canonical root: scanned `#[path]` modules and data reads resolve through symlinks.
+    root = root.resolve()
     if backend == "nix":
         return earn_rust_nix(root, items, run, check_reproducible=check_reproducible)
     if backend != "cargo":
@@ -518,6 +520,31 @@ def cmd_status(root: Path, args: argparse.Namespace) -> int:
     return int(bool(unresolved) or (args.check and bool(owed or orphans)))
 
 
+def cmd_refine(root: Path, args: argparse.Namespace) -> int:
+    """Narrow earned records' inputs by the current precision rules, running nothing
+    (`evidence_refine`), then prune what no record reaches."""
+    from evidence_manifests import Checker
+    from evidence_refine import refine_records
+    from nix_evidence_source import _clean_head
+    _clean_head(root)
+    rows = {locate(root, row)["selector"]: row for row in all_scientific_rows(root)}
+    records = load_records(root)
+    checker = Checker(root)
+    work = []
+    for selector, record in records.items():
+        ref = record.get("dependency_manifest")
+        if ref and selector in rows:
+            work.append((record, checker.load(ref), rows[selector]))
+    moved = refine_records(root, work)
+    if moved:
+        for record in records.values():
+            if record.get("dependency_manifest") in moved:
+                record["dependency_manifest"] = moved[record["dependency_manifest"]]
+        write_records(root, records)
+    print(f"scientific records: refined {len(moved)} manifest(s) without running anything")
+    return cmd_prune(root, args)
+
+
 def cmd_prune(root: Path, args: argparse.Namespace) -> int:
     from evidence_manifests import prune_evidence
     removed = prune_evidence(root)
@@ -570,6 +597,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("prune", help="delete stored evidence no record reaches (a run does this as it finishes)")
+    sub.add_parser("refine", help="narrow earned records' inputs by the current precision rules; runs nothing")
     status = sub.add_parser("status")
     status.add_argument(
         "--check", action="store_true", help="exit 1 when any assertion is owed or stored evidence is unreachable; executes nothing"
@@ -592,7 +620,8 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        return {"status": cmd_status, "run": cmd_run, "prune": cmd_prune}[args.command](REPO_ROOT, args)
+        return {"status": cmd_status, "run": cmd_run, "prune": cmd_prune,
+            "refine": cmd_refine}[args.command](REPO_ROOT, args)
     except UnresolvedInput as problem:
         # An input the fingerprint cannot account for owes its record; it is never silently current.
         print(f"FAIL: a scientific assertion has an undeclared input: {problem}")

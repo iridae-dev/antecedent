@@ -327,8 +327,12 @@ class Snapshot:
         if stray:
             raise RuntimeError('untracked files among the evidence inputs; add or ignore them: '
                                + ', '.join(stray[:10]) + (' …' if len(stray) > 10 else ''))
-        inputs = [dict(kind='evidence_file', path=rel, digest=checker.input_digest('evidence_file', rel), role='external')
-                  for rel in file_rels]
+        def bound(rel: str) -> dict:
+            # A Rust source bound whole is bound as code, so a comment edit never owes it.
+            if rel.endswith('.rs') and (root / rel).is_file():
+                return dict(kind='evidence_file', path=rel, digest=checker.rust_text(rel), text='rust', role='external')
+            return dict(kind='evidence_file', path=rel, digest=checker.input_digest('evidence_file', rel), role='external')
+        inputs = [bound(rel) for rel in file_rels]
         for rel in sorted(dirs):
             inputs.append(dict(kind='membership', path=rel, digest=checker.input_digest('membership', rel), role='selection'))
         consulted = sorted(used.declaration_sources)
@@ -389,6 +393,9 @@ class Snapshot:
                 continue
             elif i['kind'] == 'declarations':
                 if declarations_digest(self.root, i['sources']) != i['digest']:
+                    return False
+            elif i['kind'] == 'evidence_file' and i.get('text') == 'rust':
+                if checker.rust_text(i['path']) != i['digest']:
                     return False
             elif checker.input_digest(i['kind'], i.get('path', i.get('name'))) != i['digest']:
                 return False
@@ -572,10 +579,21 @@ def select_items(snapshot: Snapshot, directory: Path, coverage: dict[str, set[tu
         sites = snapshot.data_sites.get(target)
         return bool(sites) and not any(selected(source, position) for source, position in sites)
 
+    compiled = set(inventory.by_file) | {m['file'] for m in inventory.modules.values()}
+
     def item_tracked(rel: str) -> bool:
-        """A crate source the item entries stand for; build scripts stay whole files."""
-        return rel.endswith('.rs') and any(rel.startswith(f'{d}/src/') or rel.startswith(f'{d}/tests/')
-                                           for d in snapshot.crate_dirs)
+        """A Rust source the item entries stand for: a crate source, or any file the compiler
+        inventory shows compiled (an example a test includes by `#[path]`). A Rust file the
+        build never compiled, outside every crate's `src/` and not a build script or a data
+        read, cannot change this assertion's binary (another target's example or suite file).
+        Build scripts stay whole files."""
+        if not rel.endswith('.rs') or rel.endswith('/build.rs'):
+            return False
+        if rel in compiled or any(rel.startswith(f'{d}/src/') or rel.startswith(f'{d}/tests/')
+                                  for d in snapshot.crate_dirs):
+            return True
+        return (not any(rel.startswith(f'{d}/src/') for d in snapshot.crate_dirs)
+                and (root / rel).resolve() not in snapshot.source_consumers)
 
     rust_trees = {f'{d}/{sub}' for d in snapshot.crate_dirs for sub in ('src', 'tests')}
     kept = [i for i in snapshot.manifest['inputs']

@@ -90,6 +90,13 @@ LINT_FLAG = re.compile(r"-[DWAF]\S+|--(?:deny|warn|allow|forbid|force-warn)=\S+"
 LINT_OPTION = {"-D", "-W", "-A", "-F", "--deny", "--warn", "--allow", "--forbid", "--force-warn"}
 
 
+def rust_text_digest(text: str) -> str:
+    """Digest of a Rust source as code: comments (doc comments included) blanked, literals
+    kept, blank lines dropped. A comment or layout edit leaves it unchanged."""
+    from evidence_fingerprint import normalized_rust
+    return digest(b"rust-text\0" + normalized_rust(text).encode("utf-8"))
+
+
 def canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
                       allow_nan=False).encode("utf-8")
@@ -202,6 +209,8 @@ def validate(manifest: dict, binding: dict) -> None:
                 key == DECLARATIONS and isinstance(entry.get("sources"), list)
                 and all(isinstance(s, str) for s in entry["sources"]) and entry["sources"] == sorted(set(entry["sources"]))):
             raise InvalidManifest("invalid input declarations")
+        if kind == "evidence_file" and entry.get("text") not in (None, "rust"):
+            raise InvalidManifest("unknown evidence text normalization")
         if kind == "build_env" and key not in BUILD_ENV:
             raise InvalidManifest("unknown build environment input")
         if entry.get("role") not in ROLES:
@@ -400,6 +409,31 @@ class Checker:
             inputs.extend(self.groups[address])
         return {**{k: v for k, v in manifest.items() if k != "input_groups"}, "inputs": inputs}
 
+    def rust_text(self, key: str) -> str:
+        """`rust_text_digest` of a checkout file ("missing-input" when absent)."""
+        path = self.path(key)
+        if not path.is_file():
+            return digest(b"missing-input")
+        return rust_text_digest(path.read_text(encoding="utf-8", errors="replace"))
+
+    def same_code_as_bound(self, key: str, bound: str, manifest: dict) -> bool:
+        """Whether a Rust file bound by raw bytes differs from them only in comments or layout.
+
+        The bound bytes are read from the commit the record's Nix build used and must hash
+        to the recorded digest; anything else (no such commit in this clone, other bytes)
+        leaves the input changed."""
+        commit = (manifest.get("nix_build") or {}).get("source", {}).get("commit")
+        if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit):
+            return False
+        cache = self.__dict__.setdefault("_bound_code", {})
+        if (commit, key) not in cache:
+            shown = subprocess.run(["git", "show", f"{commit}:{key}"], cwd=self.root, capture_output=True)
+            data = shown.stdout if shown.returncode == 0 else None
+            cache[(commit, key)] = (data is not None and digest(data) == bound
+                                    and rust_text_digest(data.decode("utf-8", "replace")))
+        bound_text = cache[(commit, key)]
+        return bool(bound_text) and bound_text == self.rust_text(key)
+
     def input_digest(self, kind: str, key: str) -> str:
         cache_key = kind, key
         if cache_key in self.cache:
@@ -496,8 +530,14 @@ class Checker:
                     unchanged = True
                 elif kind == "declarations":
                     unchanged = declarations_digest(self.root, entry["sources"]) == entry["digest"]
+                elif kind == "evidence_file" and entry.get("text") == "rust":
+                    unchanged = self.rust_text(key) == entry["digest"]
                 else:
                     unchanged = self.input_digest(kind, key) == entry["digest"]
+                    if not unchanged and kind == "evidence_file" and key.endswith(".rs"):
+                        # Bound by raw bytes before code text was recorded: recover the bound
+                        # bytes from the commit the record was built from and compare as code.
+                        unchanged = self.same_code_as_bound(key, entry["digest"], manifest)
                 if not unchanged:
                     reasons.append(f"input_changed:{kind}:{key}")
             result["current"] = not reasons
