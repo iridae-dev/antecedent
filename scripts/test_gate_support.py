@@ -131,5 +131,19 @@ class EvidenceOnlyMode(unittest.TestCase):
         self.assertEqual(result["records_current_owed"], (0, 0))
 
 
+
+class CitedChecksAreRows(unittest.TestCase):
+    def test_every_rust_check_the_rule_cites_is_a_scientific_row(self):
+        """A cited check with no scientific row could never earn its record."""
+        import scientific_records
+
+        rows = {(r["evidence_test"], r["evidence_assertion"])
+                for r in scientific_records.all_scientific_rows(gate_support.ROOT)}
+        cited = {(r["evidence_test"], r["evidence_assertion"]) for r in gate_support.cited_checks()
+                 if r["evidence_test"].endswith(".rs")}
+        self.assertTrue(cited)
+        self.assertEqual(cited - rows, set())
+
+
 if __name__ == "__main__":
     unittest.main()

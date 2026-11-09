@@ -329,12 +329,12 @@ def check_graphless(row: dict, prov: Provenance, manifest: dict, ledger: Ledger 
             )
     # The independent check is `independent_check`; a row that names none falls back to its
     # `known_truth_test`. A registered calibration simulation never satisfies the rule.
-    ref = row.get("independent_check") or row.get("known_truth_test")
-    field_name = "independent_check" if row.get("independent_check") else "known_truth_test"
-    if not isinstance(ref, str) or "::" not in ref:
+    citation = graphless_citation(row)
+    if citation is None:
         unit.problems.append("no independent check: no independent_check or known_truth_test")
     else:
-        path, name = ref.split("::", 1)
+        field_name, path, name = citation
+        ref = f"{path}::{name}"
         if (path, name) in calibration_simulations():
             unit.problems.append(
                 f"no independent check: {field_name} {ref} is a calibration simulation, not an independent check"
@@ -379,10 +379,20 @@ def record_provenance(record: dict, prov: Provenance) -> list[str]:
 _PROVENANCE_TEXT: dict[str, str] = {}
 
 
-def independent_fixtures(record: dict) -> tuple[list[dict], list[str]]:
-    """Fixtures that are an independent check, and why others in the role set do not count."""
-    good: list[dict] = []
-    notes: list[str] = []
+def graphless_citation(row: dict) -> tuple[str, str, str] | None:
+    """A graphless row's independent check: (field, test path, function), or None."""
+    ref = row.get("independent_check") or row.get("known_truth_test")
+    field_name = "independent_check" if row.get("independent_check") else "known_truth_test"
+    if not isinstance(ref, str) or "::" not in ref:
+        return None
+    path, name = ref.split("::", 1)
+    return field_name, path, name
+
+
+def capability_citations(record: dict) -> tuple[list[dict], list[str]]:
+    """A capability's fixtures in an independent role with a known-truth kind and a cited
+    test, and why the others in that role do not count (before resolving the test)."""
+    cited, notes = [], []
     for fx in record.get("fixtures") or []:
         if fx.get("role") not in INDEPENDENT_FIXTURE_ROLES:
             continue
@@ -390,10 +400,43 @@ def independent_fixtures(record: dict) -> tuple[list[dict], list[str]]:
         if kind is not None and kind not in KNOWN_TRUTH_KINDS:
             notes.append(f"{fx['id']}: evidence_kind {kind}")
             continue
-        test, name = fx.get("evidence_test"), fx.get("evidence_assertion")
-        if not (test and name):
+        if not (fx.get("evidence_test") and fx.get("evidence_assertion")):
             notes.append(f"{fx['id']}: no cited test")
             continue
+        cited.append(fx)
+    return cited, notes
+
+
+def cited_checks(root: Path = ROOT) -> list[dict]:
+    """Every check the support rule cites as a unit's independent check outside the claim
+    registries (graphless rows, capability records): each must be a scientific row, or it
+    could never earn the record the rule requires. Calibration simulations are excluded,
+    as the rule excludes them."""
+    simulations = calibration_simulations()
+    found: dict[tuple[str, str], dict] = {}
+    for row in _repo.load_toml(root / GRAPHLESS).get("support") or []:
+        citation = graphless_citation(row)
+        if citation is not None:
+            _, path, name = citation
+            found.setdefault((path, name), {"evidence_test": path, "evidence_assertion": name,
+                                            "id": f"{GRAPHLESS}::{graphless_ident(row)}", "fixtures": []})
+    for record in _repo.load_toml(root / RECORDS).get("record") or []:
+        if record.get("support_unit") is False or record.get("status") != "supported" \
+                or record.get("matrix_units") or record.get("graphless_units"):
+            continue
+        for fx in capability_citations(record)[0]:
+            found.setdefault((fx["evidence_test"], fx["evidence_assertion"]),
+                             {"evidence_test": fx["evidence_test"], "evidence_assertion": fx["evidence_assertion"],
+                              "id": f"{RECORDS}::{record['id']}", "fixtures": []})
+    return [row for key, row in sorted(found.items()) if key not in simulations]
+
+
+def independent_fixtures(record: dict) -> tuple[list[dict], list[str]]:
+    """Fixtures that are an independent check, and why others in the role set do not count."""
+    good: list[dict] = []
+    cited, notes = capability_citations(record)
+    for fx in cited:
+        test, name = fx["evidence_test"], fx["evidence_assertion"]
         if (test, name) in calibration_simulations():
             notes.append(f"{fx['id']}: {test}::{name} is a calibration simulation")
             continue

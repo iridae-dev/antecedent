@@ -160,8 +160,14 @@ def all_scientific_rows(root: Path) -> list[dict]:
 
     # The claim rows alone: the full audit report (fixture, review and link checks) is
     # not needed to list the assertions, and is most of the cost of building it.
+    import gate_support
+
+    # Every check the support rule cites outside the claim registries is a row too: a cited
+    # check with no row could never earn the record the rule requires. Scientific checks
+    # are Rust tests; a capability citing a Python test is a citation the gate refuses.
+    cited = [row for row in gate_support.cited_checks(root.resolve()) if row["evidence_test"].endswith(".rs")]
     return evidence_audit.scientific_rows(
-        evidence_audit.claim_rows(root.resolve()), evidence_audit.registered_scientific_tests(root)
+        evidence_audit.claim_rows(root.resolve()), evidence_audit.registered_scientific_tests(root) + cited
     )
 
 
