@@ -22902,10 +22902,10 @@ path = "scripts/test_evidence_pipeline.py"
 gates = ["inventory"]
 
 [[test]]
-id = "scripts-test-evidence-projection"
+id = "scripts-test-evidence-items"
 crate = "scripts"
 cargo_target = "script"
-path = "scripts/test_evidence_projection.py"
+path = "scripts/test_evidence_items.py"
 gates = ["inventory"]
 
 [[test]]

@@ -30,9 +30,6 @@ import _repo
 
 ROOT = Path(__file__).resolve().parents[1]
 STORE = "parity/evidence_manifests"
-# Content-addressed source projections, `<fingerprint>.json`, shared by every manifest
-# that guards a file the same way; a manifest's guarded entry names one by its digest.
-PROJECTIONS = "parity/evidence_projections"
 # Content-addressed input groups, `<sha256>.json`: the inputs of one directory (or one
 # kind of named input), shared by every manifest whose inputs there are identical. A
 # stored manifest lists its groups; loading it restores the full input list.
@@ -63,9 +60,10 @@ SCHEMA = 1
 NORMALIZATION = "raw-bytes-v1"
 # The dependency policy that writes manifests. Changing what earning records,
 # or how, renames it, which owes every manifest written under the old policy.
-ANALYZER = "conservative-source-v2"
+ANALYZER = "compiler-items-v1"
 HEX = re.compile(r"[0-9a-f]{64}\Z")
-KINDS = ("file", "tree", "env", "guarded_file", "membership", "evidence_file", "glob", "build_env")
+KINDS = ("file", "tree", "env", "membership", "evidence_file", "glob", "build_env",
+         "rust_items", "rust_names", "rust_guards")
 ROLES = ("execution", "compile", "selection", "external", "identity")
 # The build configuration evidence is earned and released under. Earning refuses
 # any other value; lint levels are not configuration and are ignored.
@@ -173,8 +171,17 @@ def validate(manifest: dict, binding: dict) -> None:
         seen.add((kind, key))
         if not isinstance(entry.get("digest"), str) or not HEX.fullmatch(entry["digest"]):
             raise InvalidManifest("invalid input digest")
-        if kind == "guarded_file" and "projection" in entry:
-            raise InvalidManifest("a guarded entry names its projection by digest")
+        if kind == "rust_items" and not (
+                isinstance(entry.get("file"), str) and HEX.fullmatch(entry["file"])
+                and isinstance(entry.get("table"), str) and HEX.fullmatch(entry["table"])
+                and isinstance(entry.get("select"), dict) and isinstance(entry.get("scopes"), list)):
+            raise InvalidManifest("invalid item selection")
+        if kind == "rust_names" and not (isinstance(entry.get("bits"), int) and isinstance(entry.get("filter"), str)):
+            raise InvalidManifest("invalid name filter")
+        if kind == "rust_guards" and not (
+                isinstance(entry.get("dirs"), list) and isinstance(entry.get("spec"), dict)
+                and isinstance(entry.get("tree"), str) and HEX.fullmatch(entry["tree"])):
+            raise InvalidManifest("invalid resolution guards")
         if kind == "build_env" and key not in BUILD_ENV:
             raise InvalidManifest("unknown build environment input")
         if entry.get("role") not in ROLES:
@@ -282,10 +289,9 @@ class Checker:
         self.hashing_seconds = 0.0
         self.bytes_hashed = 0
         self.files_hashed = 0
-        self.source_cache: dict[str, tuple[str, str]] = {}
-        self.projection_cache: dict[tuple[str, str], bool] = {}
-        self.projections: dict[str, dict] = {}
         self.groups: dict[str, list[dict]] = {}
+        from evidence_items import ItemChecker
+        self.items = ItemChecker(self)
         self._tracked: list[str] | None = None
         self._tracked_loaded = False
 
@@ -359,20 +365,6 @@ class Checker:
                 self.groups[address] = entries
             inputs.extend(self.groups[address])
         return {**{k: v for k, v in manifest.items() if k != "input_groups"}, "inputs": inputs}
-
-    def projection(self, digest_hex: str) -> dict:
-        """The stored projection with this fingerprint; refused when missing or altered."""
-        if digest_hex not in self.projections:
-            from evidence_projection import fingerprint
-            path = self.root / PROJECTIONS / f"{digest_hex}.json"
-            try:
-                projection = json.loads(path.read_bytes())
-            except (OSError, ValueError) as error:
-                raise InvalidManifest(f"missing guarded source projection {digest_hex}") from error
-            if not isinstance(projection, dict) or fingerprint(projection) != digest_hex:
-                raise InvalidManifest("invalid guarded source projection")
-            self.projections[digest_hex] = projection
-        return self.projections[digest_hex]
 
     def input_digest(self, kind: str, key: str) -> str:
         cache_key = kind, key
@@ -457,23 +449,17 @@ class Checker:
             if "nix_build" in manifest:
                 from nix_evidence_policy import recheck_selection
                 recheck_selection(self.root, manifest["nix_build"]["policy"])
+            names = next((e for e in manifest["inputs"] if e["kind"] == "rust_names"), None)
             for entry in manifest["inputs"]:
                 kind = entry["kind"]
                 key = entry["name"] if kind in ("env", "build_env") else entry["path"]
                 self.reverse[f"{kind}:{key}"].add(label)
-                if kind == "guarded_file":
-                    from _rust_source import lex
-                    from evidence_projection import matches
-                    cache_key = key, entry["digest"]
-                    if cache_key not in self.projection_cache:
-                        start = time.perf_counter()
-                        if key not in self.source_cache:
-                            source = self.path(key).read_bytes().decode("utf-8")
-                            self.source_cache[key] = source, lex(source).skeleton
-                        source, skeleton = self.source_cache[key]
-                        self.projection_cache[cache_key] = matches(source, self.projection(entry["digest"]), skeleton)
-                        self.parsing_seconds += time.perf_counter() - start
-                    unchanged = self.projection_cache[cache_key]
+                if kind == "rust_items":
+                    unchanged = self.items.items_current(entry, names)
+                elif kind == "rust_guards":
+                    unchanged = self.items.guards_current(entry)
+                elif kind == "rust_names":
+                    unchanged = True
                 else:
                     unchanged = self.input_digest(kind, key) == entry["digest"]
                 if not unchanged:

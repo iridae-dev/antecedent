@@ -65,7 +65,7 @@ class NixRustEarning(unittest.TestCase):
                  patch.object(scientific, "withdraw_records", side_effect=ledger), \
                  patch.object(scientific, "record_passes", side_effect=ledger) as record, \
                  patch.object(evidence_earning, "Snapshot", Snapshot), \
-                 patch.object(evidence_earning, "project_snapshot"), \
+                 patch.object(evidence_earning, "select_items"), \
                  patch.object(evidence_earning, "require_compile_environment"), \
                  patch.object(nix_evidence_build, "build_committed_targets", side_effect=build), \
                  patch.object(scientific, "all_scientific_rows", return_value=rows), \

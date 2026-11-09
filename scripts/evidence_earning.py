@@ -4,8 +4,9 @@ Dependency discovery runs at earning time; `evidence_manifests.Checker` later
 checks the stored inputs without Cargo metadata or a compiler. Earning refuses a
 non-canonical build environment and untracked files among the inputs, so a
 manifest written on a development machine is current in a clean checkout.
-Complete source is kept unless the compiler inventory and execution coverage of
-a Rust assertion prove a function body unexecuted (`project_snapshot`).
+A Rust assertion's sources are reduced to the items its execution coverage and
+the compiler inventory show it depends on (`select_items`, `evidence_items.py`);
+otherwise complete source is kept.
 """
 from __future__ import annotations
 
@@ -22,7 +23,6 @@ from evidence_manifests import (
     BUILD_ENV,
     INPUT_GROUPS,
     NORMALIZATION,
-    PROJECTIONS,
     SCHEMA,
     STORE,
     Checker,
@@ -166,6 +166,11 @@ class Snapshot:
             if located['target'] == ['--lib']:
                 test_crate = fp.crate_dir(located['crate'])
         self.source_consumers = {p.resolve() for p in used.data_reads(test_crate)}
+        # Where each Rust data read is written, so a file read only by unselected items is not an input.
+        self.data_sites: dict[Path, set[tuple[Path, int]]] = {}
+        for scan, _ in fp._file_scans.values():
+            for source, position, target in scan.sites:
+                self.data_sites.setdefault(target.resolve(), set()).add((source.resolve(), position))
         env_names = {'ANTECEDENT_SCIENTIFIC_FEATURES', *parts.get('env', {}).get('hashed', {})}
         wrong = noncanonical_environment(os.environ, env_names)
         if wrong:
@@ -191,11 +196,13 @@ class Snapshot:
             if _clean_head(root, self.allowed_outputs)[0] != nix_build['source']['commit']:
                 raise RuntimeError('Nix source commit does not match the checkout')
         files = {root / rel for rel in (INPUT_DECLARATIONS, '.cargo/config.toml', '.cargo/config',
-                                         'scripts/compile_time_environment.py')} | used.files
+                                         'scripts/compile_time_environment.py')}
         if nix_build is not None:
             files.update(root / rel for rel in ('flake.lock', 'nix/evidence-target.nix', 'nix/evidence-deps.nix',
                          'nix/evidence-common.nix', 'nix/evidence-driver.nix', 'nix/evidence-toolchain.nix',
                          'scripts/nix_evidence_policy.py', 'scripts/nix_evidence_deps.py'))
+        self.fixed_files = {path.resolve() for path in files}
+        files |= used.files
         for rel in row.get('fixtures', []):
             for path in (root / rel, root / f'{rel}.json'):
                 if not path.is_dir():
@@ -214,6 +221,10 @@ class Snapshot:
                     artifact['crate'], artifact['target_kind'], artifact['target_name']) != (info['crate'], *expected):
                 raise RuntimeError('Nix build target does not match the evidence assertion')
         names = closure(fp.graph, info['crate']) if info['lang'] == 'rust' else list(fp.graph)
+        self.crate_dirs = sorted(fp.crate_dir(name).relative_to(root).as_posix() for name in names)
+        self.scope_dir = (fp.crate_dir(info['crate']).relative_to(root).as_posix()
+                          if info['lang'] == 'rust' else 'python')
+        self.item_tables: dict[str, bytes] = {}
         owned = {fp.crate_dir(name).resolve() for name in fp.graph}
         configs = [(root, load_toml(root / 'Cargo.toml'))]
         configs += [(fp.crate_dir(name), load_toml(fp.crate_dir(name) / 'Cargo.toml')) for name in names]
@@ -290,7 +301,7 @@ class Snapshot:
             if wrong:
                 raise RuntimeError('compile-time inputs require the canonical environment; unset: ' + ', '.join(wrong))
         if nix_build is not None and self.nix_policy.get('source_projection_allowed') is not True:
-            raise RuntimeError('Nix source-read audit does not permit precise per-function evidence')
+            raise RuntimeError('Nix source-read audit does not permit precise per-item evidence')
         self.opaque = bool(required) if nix_build is None else False
         for name in names:
             directory = fp.crate_dir(name)
@@ -349,10 +360,17 @@ class Snapshot:
             if _validated_build(self.root, self.nix_build) != self.nix_policy:
                 return False
         checker = Checker(self.root)
+        checker.items.pending = self.item_tables
+        names = next((i for i in self.manifest['inputs'] if i['kind'] == 'rust_names'), None)
         for i in self.manifest['inputs']:
-            if i['kind'] == 'guarded_file':
-                if not _guard_matches(self.root / i['path'], i):
+            if i['kind'] == 'rust_items':
+                if not checker.items.items_current(i, names):
                     return False
+            elif i['kind'] == 'rust_guards':
+                if not checker.items.guards_current(i):
+                    return False
+            elif i['kind'] == 'rust_names':
+                continue
             elif checker.input_digest(i['kind'], i.get('path', i.get('name'))) != i['digest']:
                 return False
         return True
@@ -374,8 +392,7 @@ class Snapshot:
             raise RuntimeError('Nix evidence cannot be published before exact execution')
         if not self.unchanged():
             raise RuntimeError('evidence inputs changed during execution; pass not recorded')
-        # Share complete source-tree digests across records. Projected source
-        # stays explicit so body precision is not lost through tree hashing.
+        # Share complete source-tree digests across records.
         checker = Checker(self.root)
         for guard in list(self.manifest['inputs']):
             prefix = guard.get('path', '')
@@ -386,23 +403,14 @@ class Snapshot:
             members = set(checker.members(prefix))
             inside = [i for i in self.manifest['inputs'] if i['kind'] == 'evidence_file'
                       and i.get('path') in members]
-            projected = [i for i in self.manifest['inputs'] if i.get('path', '').startswith(prefix + '/')
-                         and i['kind'] == 'guarded_file']
-            if projected:
-                continue
             self.manifest['inputs'] = [i for i in self.manifest['inputs'] if i not in inside]
             self.manifest['inputs'].append(dict(kind='tree', path=prefix,
                                                 digest=self.source_trees[prefix], role='compile'))
-        # Projections are stored once by content; the manifest names each by digest.
-        self.outputs = []
-        inputs = []
-        for entry in self.manifest['inputs']:
-            if entry['kind'] == 'guarded_file':
-                self.outputs.append(_write_addressed(self.root / PROJECTIONS, entry['digest'],
-                                                     canonical(entry['projection']), self.root))
-                entry = {key: value for key, value in entry.items() if key != 'projection'}
-            inputs.append(entry)
-        stored, groups = grouped({**self.manifest, 'inputs': inputs})
+        # Item tables are stored once by content; an entry names its file's table.
+        from evidence_items import STORE as ITEM_TABLES
+        self.outputs = [_write_addressed(self.root / ITEM_TABLES, address, data, self.root)
+                        for address, data in sorted(self.item_tables.items())]
+        stored, groups = grouped(self.manifest)
         for address, data in groups.items():
             self.outputs.append(_write_addressed(self.root / INPUT_GROUPS, address, data, self.root))
         ref = manifest_id(stored)
@@ -445,8 +453,6 @@ def build_analyzer(root: Path, output: Path) -> Path | None:
 # Per-process caches for earning many rows of one build. Each key carries everything
 # its value depends on, so a cached value is the value that would be recomputed.
 _INVENTORIES: dict[tuple, dict] = {}
-_PROJECTIONS: dict[tuple, tuple] = {}
-_GUARDS: dict[tuple, bool] = {}
 _POLICIES: dict[tuple, dict] = {}
 
 
@@ -462,71 +468,19 @@ def _validated_build(root: Path, nix_build: dict) -> dict:
     return _POLICIES[key]
 
 
-def _guard_matches(path: Path, entry: dict) -> bool:
-    """Whether a guarded file still matches its projection, once per file state and projection."""
-    from evidence_manifests import _stat_signature
-    from evidence_projection import matches
-    signature = _stat_signature(path)
-    key = (signature, entry['digest'])
-    if signature is None or key not in _GUARDS:
-        result = matches(path.read_text(encoding="utf-8"), entry['projection'])
-        if signature is None:
-            return result
-        _GUARDS[key] = result
-    return _GUARDS[key]
+def select_items(snapshot: Snapshot, directory: Path, coverage: dict[str, set[tuple[int, int]]],
+                 *, source_root: Path | None = None) -> None:
+    """Replace a Rust assertion's whole sources with the items it depends on.
 
-
-def inventory_bodies(directory: Path, *, source_root: Path | None = None,
-                     checkout_root: Path | None = None) -> dict[Path, dict[str, tuple[int, int]]]:
-    """Compiler-reported function body spans whose reported text still matches the file."""
-    from evidence_manifests import _stat_signature
-    files = sorted(directory.glob('*.tsv'))
-    key = (str(directory), str(source_root), str(checkout_root), tuple(_stat_signature(f) for f in files))
-    if key not in _INVENTORIES:
-        _INVENTORIES[key] = _inventory_bodies(files, source_root=source_root, checkout_root=checkout_root)
-    return _INVENTORIES[key]
-
-
-def _inventory_bodies(files: list[Path], *, source_root: Path | None,
-                      checkout_root: Path | None) -> dict[Path, dict[str, tuple[int, int]]]:
-    by_file: dict[Path, dict[str, tuple[int, int]]] = {}
-    contents: dict[Path, bytes | None] = {}
-    for path in files:
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.startswith('body\t'):
-                continue
-            _, name, hexpath, start, end, text = line.split('\t')
-            source = Path(bytes.fromhex(hexpath).decode()).resolve()
-            if source_root is not None:
-                if checkout_root is None:
-                    raise ValueError('checkout root required for Nix compiler inventory')
-                try:
-                    relative = source.relative_to(source_root.resolve())
-                except ValueError:
-                    continue
-                checkout = (checkout_root / relative).resolve()
-                if not source.is_file() or not checkout.is_file() or source.read_bytes() != checkout.read_bytes():
-                    raise RuntimeError('Nix compiler inventory source differs from checkout')
-                source = checkout
-            if source not in contents:
-                contents[source] = source.read_bytes() if source.is_file() else None
-            lo, hi = int(start), int(end)
-            # A span whose bytes are not the reported body is not this file's body.
-            if contents[source] is not None and contents[source][lo:hi] == bytes.fromhex(text):
-                by_file.setdefault(source, {})[name] = (lo, hi)
-    return by_file
-
-
-def project_snapshot(snapshot: Snapshot, directory: Path, coverage: dict[str, set[int]],
-                     *, source_root: Path | None = None) -> None:
-    """Replace sources with guarded projections whose holes are bodies proven unexecuted.
-
-    Compile-time code anywhere in the compilation, missing inventory, missing coverage,
-    unresolved attributes and source read as data keep complete source.
+    `coverage` maps checkout paths to executed (line, column) positions and
+    `directory` holds the compiler inventory of the same compilation. Compile-time
+    code that may read any source (host builds only), a missing inventory or
+    missing coverage keep complete source; so do files read as data, files the
+    parser cannot read, and the files of an assertion that observes positions.
     """
-    from evidence_projection import ProjectionChanged, fingerprint, from_compiler_coverage
+    from evidence_items import Selection, load_inventory
     # A Nix capture was checked unchanged when it was marked executed, with nothing run
-    # since; publication checks again after projecting.
+    # since; publication checks again after selecting.
     if not snapshot.nix_executed and not snapshot.unchanged():
         raise RuntimeError('source changed during instrumented execution')
     if snapshot.opaque:
@@ -534,38 +488,68 @@ def project_snapshot(snapshot: Snapshot, directory: Path, coverage: dict[str, se
             dict(path=i['path'], reason='compile-time code may read any source; source retained')
             for i in snapshot.manifest['inputs'] if i['kind'] == 'membership']
         return
-    by_file = inventory_bodies(directory, source_root=source_root,
-                               checkout_root=snapshot.root if source_root is not None else None)
-    if source_root is not None and (not by_file or not coverage):
-        raise RuntimeError('Nix precision requires compiler inventory and instrumented coverage')
-    for entry in snapshot.manifest['inputs']:
-        rel = entry.get('path', '')
-        if entry['kind'] != 'evidence_file' or not rel.endswith('.rs'):
+    inventory = load_inventory(directory)
+    if not inventory.items or not coverage:
+        if source_root is not None:
+            raise RuntimeError('Nix precision requires compiler inventory and instrumented coverage')
+        return
+    root = snapshot.root.resolve()
+    selection = Selection(root, inventory)
+    for path, positions in sorted(coverage.items()):
+        try:
+            rel = Path(path).resolve().relative_to(root).as_posix()
+        except ValueError:
             continue
-        path = (snapshot.root / rel).resolve()
-        if path in snapshot.source_consumers or path not in by_file:
+        if not rel.endswith('.rs'):
             continue
-        if source_root is None and str(path) not in coverage:
+        file = selection.file(rel)
+        if file is None:
             continue
-        source = path.read_text(encoding="utf-8")
-        lines = frozenset(coverage.get(str(path), set()))
-        key = (str(path), digest(source.encode()), tuple(sorted(by_file[path].items())), lines,
-               source_root is not None)
-        if key not in _PROJECTIONS:
-            raw = source.encode()
-            spans = {name: (len(raw[:lo].decode()), len(raw[:hi].decode()))
-                     for name, (lo, hi) in by_file[path].items()}
-            try:
-                projection, _ = from_compiler_coverage(source, spans, lines,
-                                                        opaque=False, coverage_complete=source_root is not None,
-                                                        # Derives read only their item under the
-                                                        # audited Nix compile-time policy.
-                                                        scoped_derives=source_root is not None)
-                _PROJECTIONS[key] = (projection, fingerprint(projection))
-            except ProjectionChanged:
-                _PROJECTIONS[key] = (None, None)
-        projection, projected = _PROJECTIONS[key]
-        if projection is None:
-            continue
-        if projection['layouts']:
-            entry.update(kind='guarded_file', projection=projection, digest=projected)
+        for line, column in sorted(positions):
+            selection.execute(rel, file.offset(line, column))
+    for path in snapshot.source_consumers:
+        if path.suffix == '.rs' and path.is_relative_to(root):
+            selection.keep_whole(path.relative_to(root).as_posix(), 'read as data')
+    entries, tables = selection.entries(Checker(root), snapshot.crate_dirs, snapshot.scope_dir)
+
+    def selected(source: Path, position: int) -> bool:
+        """Whether a data read is written inside an item the assertion depends on."""
+        if not source.is_relative_to(root):
+            return True
+        rel = source.relative_to(root).as_posix()
+        if rel in selection.whole:
+            return True
+        file = selection.file(rel) if rel in selection.parts else None
+        if file is None or '\r' in file.text:
+            return file is not None
+        for locator, parts in selection.parts[rel].items():
+            node = file.by_locator.get(locator)
+            if node is not None and node.start <= position < (node.end if 'full' in parts else node.head_end):
+                return True
+        return False
+
+    def unread(entry: dict) -> bool:
+        if entry['kind'] != 'evidence_file':
+            return False
+        target = (root / entry['path']).resolve()
+        if (target in snapshot.fixed_files or target.name == 'Cargo.toml'
+                or target.suffix == '.rs' or target not in snapshot.source_consumers):
+            return False
+        sites = snapshot.data_sites.get(target)
+        return bool(sites) and not any(selected(source, position) for source, position in sites)
+
+    def item_tracked(rel: str) -> bool:
+        """A crate source the item entries stand for; build scripts stay whole files."""
+        return rel.endswith('.rs') and any(rel.startswith(f'{d}/src/') or rel.startswith(f'{d}/tests/')
+                                           for d in snapshot.crate_dirs)
+
+    rust_trees = {f'{d}/{sub}' for d in snapshot.crate_dirs for sub in ('src', 'tests')}
+    kept = [i for i in snapshot.manifest['inputs']
+            if not (i['kind'] == 'evidence_file' and item_tracked(i['path']))
+            and not (i['kind'] == 'membership' and i['path'] in rust_trees)
+            and not unread(i)]
+    seen = {(i['kind'], i.get('path', i.get('name'))) for i in kept}
+    kept.extend(e for e in entries if (e['kind'], e['path']) not in seen)
+    snapshot.manifest['inputs'] = kept
+    snapshot.manifest['whole_sources'] = selection.reasons
+    snapshot.item_tables = tables

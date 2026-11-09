@@ -108,8 +108,8 @@ class EarningTests(Fixture):
 
     def test_compile_time_code_anywhere_in_the_graph_keeps_complete_source(self):
         import evidence_earning
-        from evidence_earning import project_snapshot
-        coverage = {str((self.root / 'crates/leaf/src/lib.rs').resolve()): {1}}
+        from evidence_earning import select_items
+        coverage = {str((self.root / 'crates/leaf/src/lib.rs').resolve()): {(1, 1)}}
         with (
             patch.dict(evidence_earning._COMPILE_TIME, {self.root: None}),
             self.assertRaisesRegex(RuntimeError, 'Cargo metadata'),
@@ -124,8 +124,8 @@ class EarningTests(Fixture):
             with patch.dict(evidence_earning._COMPILE_TIME, {self.root: graph}):
                 snapshot = self.snapshot()
             self.assertTrue(snapshot.opaque, graph)
-            project_snapshot(snapshot, self.root / 'no-inventory', coverage)
-            self.assertFalse(any(i['kind'] == 'guarded_file' for i in snapshot.manifest['inputs']))
+            select_items(snapshot, self.root / 'no-inventory', coverage)
+            self.assertFalse(any(i['kind'] == 'rust_items' for i in snapshot.manifest['inputs']))
             self.assertTrue(snapshot.manifest['fallbacks'])
         with patch.dict(evidence_earning._COMPILE_TIME, {self.root: {'leaf': set(), 'mid': set(), 'top': set()}}):
             self.assertFalse(self.snapshot().opaque)

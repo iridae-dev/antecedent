@@ -169,14 +169,22 @@ def all_scientific_rows(root: Path) -> list[dict]:
 
 PASSED_ONE = re.compile(r"test result: ok\. 1 passed")
 
-def line_coverage(export: dict) -> dict[str, set[int]]:
-    """Resolved source path -> lines where a covered region starts, from an llvm-cov export."""
-    coverage: dict[str, set[int]] = {}
+def region_coverage(export: dict) -> dict[str, set[tuple[int, int]]]:
+    """Resolved source path -> (line, column) of every executed code region, from an llvm-cov export.
+
+    A region is `[line, column, end line, end column, count, file, expanded file, kind]`;
+    kind 0 is code. A function that never ran contributes nothing.
+    """
+    coverage: dict[str, set[tuple[int, int]]] = {}
     for block in export.get("data", []):
-        for item in block.get("files", []):
-            coverage[str(Path(item["filename"]).resolve())] = {
-                s[0] for s in item.get("segments", []) if s[2] > 0 and s[3]
-            }
+        for function in block.get("functions", []):
+            if function.get("count", 0) <= 0:
+                continue
+            filenames = function.get("filenames", [])
+            for region in function.get("regions", []):
+                if region[4] > 0 and region[7] == 0:
+                    path = str(Path(filenames[region[5]]).resolve())
+                    coverage.setdefault(path, set()).add((region[0], region[1]))
     return coverage
 
 
@@ -244,7 +252,7 @@ def exact_test_name(root: Path, row: dict, info: dict) -> str:
 
 def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=subprocess.run,
                 *, llvm_tools: dict[str, str] | None = None) -> dict[str, set[int]] | None:
-    """Run one Rust assertion's instrumented binary; its line coverage, or `None` on failure.
+    """Run one Rust assertion's instrumented binary; its executed regions, or `None` on failure.
 
     Running no test at all is an infrastructure error and raises: a wrong name or a missing
     test must stop the run, not be recorded as one more failure."""
@@ -278,7 +286,7 @@ def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=su
             print(f"FAIL: {info['selector']}: llvm-cov export failed\n{export.stderr[-400:]}")
             return None
         data = json.loads(export.stdout)
-        return line_coverage(data)
+        return region_coverage(data)
 
 
 def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str = "cargo",
@@ -305,7 +313,7 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str
         binding,
         build_analyzer,
         compile_time_code,
-        project_snapshot,
+        select_items,
     )
 
     fp = Fingerprinter(root, scientific_build=True)
@@ -316,7 +324,7 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str
     inventory_dir = root / "target/evidence-compiler-inventory"
     shutil.rmtree(inventory_dir, ignore_errors=True)
     inventory_dir.mkdir(parents=True)
-    # Body projection needs a compilation with no compile-time code (see project_snapshot).
+    # Item selection needs a compilation with no compile-time code (see select_items).
     compile_time = compile_time_code(root)
     projectable = compile_time is not None and any(not compile_time.get(crate, {crate}) for crate, _ in groups)
     driver = build_analyzer(root, root / "target/evidence-analyzer") if projectable else None
@@ -352,7 +360,7 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str
             snapshot = snapshots[info["selector"]]
             try:
                 if driver is not None:
-                    project_snapshot(snapshot, inventory_dir, coverage)
+                    select_items(snapshot, inventory_dir, coverage)
                 ref = snapshot.publish()
             except RuntimeError as error:
                 print(f"FAIL: {info['selector']}: {error}")
@@ -378,7 +386,7 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
                   scientific_targets: list[tuple[str, str, str]] | None = None,
                   check_reproducible: bool = False) -> int:
     """Build every owed target in one audited Nix derivation, then capture and record each."""
-    from evidence_earning import Snapshot, binding, project_snapshot, require_compile_environment
+    from evidence_earning import Snapshot, binding, require_compile_environment, select_items
     from nix_artifact_identity import target_binary
     from nix_evidence_build import build_committed_targets
     from nix_evidence_capture import capture_built_target
@@ -457,15 +465,15 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
             _clean_head(root, allowed)
             try:
                 snapshots[selector].mark_nix_executed(str(target_binary(built["artifact"])))
-                project_snapshot(snapshots[selector], Path(built["artifact"]["output"]) / "compiler-inventory",
-                                 result["coverage"][selector], source_root=Path(built["source"]["store_path"]))
+                select_items(snapshots[selector], Path(built["artifact"]["output"]) / "compiler-inventory",
+                             result["coverage"][selector], source_root=Path(built["source"]["store_path"]))
                 ref = snapshots[selector].publish()
             except RuntimeError as error:
                 print(f"FAIL: {selector}: {error}")
                 failed += 1
                 continue
             manifest = f"parity/evidence_manifests/{ref}.json"
-            # The manifest and the projections it names are this run's own outputs.
+            # The manifest, its input groups and item tables are this run's own outputs.
             for output in snapshots[selector].outputs:
                 _remember_nix_output(root, allowed, output)
             # Manifest filenames are content addresses, not merely paths to trust.

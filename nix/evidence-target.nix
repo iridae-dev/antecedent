@@ -62,11 +62,12 @@ pkgs.stdenv.mkDerivation {
     # and anything whose fingerprint differs.
     cp -a ${deps}/target/. "$CARGO_TARGET_DIR/"
     chmod -R u+w "$CARGO_TARGET_DIR"
-    # Inventory only this fresh workspace compilation; the analyzer is pinned
-    # to the same rustc and never wraps external dependency compilations. A
-    # stable prefix keeps file!() independent of the Nix store hash, which
-    # changes even for unrelated commits. Coverage is mapped back only after
-    # verifying the store source against the committed checkout.
+    # Inventory only this fresh workspace compilation: the analyzer is pinned
+    # to the same rustc, never wraps external dependency compilations, and
+    # records each workspace item's dependencies. A stable prefix keeps file!()
+    # independent of the Nix store hash, which changes even for unrelated
+    # commits. Coverage is mapped back only after verifying the store source
+    # against the committed checkout.
     mkdir -m 700 "$TMPDIR/compiler-inventory"
     export RUSTC_WORKSPACE_WRAPPER="${driver}/bin/workspace-rustc" ANTECEDENT_SOURCE_ROOT="$PWD"
     export ANTECEDENT_ANALYZER_OUTPUT="$TMPDIR/compiler-inventory"
@@ -106,24 +107,21 @@ pkgs.stdenv.mkDerivation {
         for name in ("cargo-metadata.json", "cargo-unit-graph.json"):
             data = json.loads((built / name).read_text(encoding="utf-8"))
             (dest / name).write_text(json.dumps(remap(data), sort_keys=True) + "\n", encoding="utf-8")
+    # The analyzer's records name workspace files relative to the source root.
     records = set()
-    for inventory in (pathlib.Path(temporary) / "compiler-inventory").glob("*.tsv"):
+    for inventory in (pathlib.Path(temporary) / "compiler-inventory").glob("*.jsonl"):
         for line in inventory.read_text(encoding="utf-8").splitlines():
-            fields = line.split("\t")
-            if len(fields) != 6 or fields[0] != "body":
-                raise SystemExit("unexpected compiler inventory record")
-            path = bytes.fromhex(fields[2]).decode("utf-8")
-            if path == "/antecedent-source" or path.startswith("/antecedent-source/"):
-                path = workdir + path[len("/antecedent-source"):]
-            if path != workdir and not path.startswith(workdir + "/"):
-                raise SystemExit("compiler inventory references a non-workspace source")
-            fields[2] = (source + path[len(workdir):]).encode("utf-8").hex()
-            records.add("\t".join(fields))
+            record = json.loads(line)
+            for name in [record.get("file"), *(k.rsplit(":", 1)[0] for k in [record.get("key")] if record.get("t") == "item")]:
+                if name is not None and (name.startswith("/") or ".." in name.split("/")
+                                         or not (pathlib.Path(workdir) / name).is_file()):
+                    raise SystemExit(f"compiler inventory references a non-workspace source: {name}")
+            records.add(json.dumps(record, sort_keys=True, separators=(",", ":")))
     if not records:
         raise SystemExit("compiler inventory is empty")
     inventory_dir = pathlib.Path(out) / "compiler-inventory"
     inventory_dir.mkdir()
-    (inventory_dir / "bodies.tsv").write_text("\n".join(sorted(records)) + "\n", encoding="utf-8")
+    (inventory_dir / "items.jsonl").write_text("\n".join(sorted(records)) + "\n", encoding="utf-8")
     PY
     ln -s ${rust}/lib/rustlib/aarch64-apple-darwin/bin/llvm-profdata "$out/bin/llvm-profdata"
     ln -s ${rust}/lib/rustlib/aarch64-apple-darwin/bin/llvm-cov "$out/bin/llvm-cov"

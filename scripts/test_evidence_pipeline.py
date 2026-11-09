@@ -87,13 +87,13 @@ why="reader macro reads its consumer's input.txt"
             row = dict(evidence_test='crates/toy/tests/check.rs',evidence_assertion='check',fixtures=[],roles=['scientific'])
             # Only the selection provider is replaced: compilation, instrumentation,
             # exact assertion execution, publication and production checking are real.
-            # An inventory from an earlier compilation that called `konst` an ordinary body
-            # must not make it a hole: a constant's body is compile-time input.
+            # An inventory left by an earlier compilation is never read: earning
+            # starts from an empty inventory directory.
             stale = root/'target/evidence-compiler-inventory'
             stale.mkdir(parents=True)
-            lib = (root/'crates/toy/src/lib.rs').resolve()
-            lo = source.encode().index(b'{ 3 }')
-            (stale/'old.tsv').write_text('\t'.join(['body','toy::konst',str(lib).encode().hex(),str(lo),str(lo+5),b'{ 3 }'.hex()])+'\n', encoding="utf-8")
+            (stale/'old.jsonl').write_text('{"t":"item","key":"crates/toy/src/lib.rs:0","kind":"Fn","mod":"",'
+                                            '"deps":[],"bdeps":[],"lookups":[],"probes":[],"observes":true,'
+                                            '"includes":false}\n', encoding="utf-8")
             with patch.object(sr,'all_scientific_rows',return_value=[row]), redirect_stdout(io.StringIO()):
                 self.assertEqual(sr.earn_rust(root,[row]),0)
             records = sr.load_records(root)
@@ -105,10 +105,12 @@ why="reader macro reads its consumer's input.txt"
             (root/'crates/toy/src/lib.rs').write_text(source.replace('{ 7 }','{ 8 }'), encoding="utf-8")
             owed,current = sr.classify(root,[row])
             self.assertEqual((len(owed),len(current)),(0,1), [owed, json.loads((root/'parity/evidence_manifests'/f"{record['dependency_manifest']}.json").read_text(encoding="utf-8"))])
-            (root/'crates/toy/src/lib.rs').write_text(source.replace('{ 3 }','{ 4 }'), encoding="utf-8")
-            owed,current = sr.classify(root,[row])
-            self.assertEqual((len(owed),len(current)),(1,0))
-            (root/'crates/toy/src/lib.rs').write_text(source.replace('unused()','unused(x:i32)'), encoding="utf-8")
+            # Items the assertion neither executed nor named are not its inputs.
+            for edit in (('{ 3 }','{ 4 }'), ('unused()','unused(x:i32)'), ('pub const fn', 'pub fn added() {}\npub const fn')):
+                (root/'crates/toy/src/lib.rs').write_text(source.replace(*edit), encoding="utf-8")
+                owed,current = sr.classify(root,[row])
+                self.assertEqual((len(owed),len(current)),(0,1), edit)
+            (root/'crates/toy/src/lib.rs').write_text(source.replace('{ 2 }','{ 5 }'), encoding="utf-8")
             owed,current = sr.classify(root,[row])
             self.assertEqual((len(owed),len(current)),(1,0))
 

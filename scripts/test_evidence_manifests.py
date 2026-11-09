@@ -28,11 +28,19 @@ class ManifestTests(unittest.TestCase):
         target.write_text(value, encoding="utf-8")
         return target
 
-    def stored_projection(self, projection):
-        from evidence_projection import fingerprint
-        digest = fingerprint(projection)
-        self.write(f"{em.PROJECTIONS}/{digest}.json", json.dumps(projection))
-        return digest
+    def item_entries(self, rel, executed):
+        """Item inputs of a record that executed the items at `executed` in `rel`."""
+        import evidence_items as ei
+        inventory = ei.Inventory.read([json.dumps({"t": "mod", "key": "r#", "file": rel, "chain": [],
+                                                   "parent": None, "name": ""})])
+        selection = ei.Selection(self.root, inventory)
+        file = selection.file(rel)
+        for offset in executed:
+            selection.execute(rel, offset)
+        entries, tables = selection.entries(em.Checker(self.root, {}), ["src"], "src")
+        for address, data in tables.items():
+            self.write(f"{ei.STORE}/{address}.json", data.decode())
+        return entries
 
     def manifest(self, kind="file", key="src/a.rs"):
         checker = em.Checker(self.root, {})
@@ -152,27 +160,32 @@ class ManifestTests(unittest.TestCase):
         manifest["inputs"][0]["kind"] = "item"
         self.assertFalse(self.check(manifest)["current"])
 
-    def test_guarded_file_selectively_tracks_bodies_but_guards_declarations(self):
-        from evidence_projection import capture
-        source = 'fn used()->i32 { 1 }\nfn unused()->i32 { 7 }\n'
+    def test_item_inputs_track_executed_items_and_ignore_the_rest(self):
+        source = 'fn used() -> i32 { 1 }\nfn unused() -> i32 { 7 }\n'
         self.write('src/a.rs', source)
-        start = source.index('{ 7 }')
-        projection = capture(source, [(start, start + 5)])
         manifest = self.manifest()
-        manifest['inputs'][0].update(kind='guarded_file', digest=self.stored_projection(projection))
+        manifest['inputs'] = self.item_entries('src/a.rs', [source.index('{ 1 }')])
+        self.assertTrue(self.check(manifest)['current'])
         self.write('src/a.rs', source.replace('{ 7 }', '{ 8 }'))
         self.assertTrue(self.check(manifest)['current'])
-        self.write('src/a.rs', source.replace('unused()', 'unused(x:i32)'))
+        self.write('src/a.rs', '// a comment\n' + source.replace('{ 7 }', '{ 8 }'))
+        self.assertTrue(self.check(manifest)['current'])
+        self.write('src/a.rs', source.replace('{ 1 }', '{ 2 }'))
+        self.assertFalse(self.check(manifest)['current'])
+        self.write('src/a.rs', source.replace('fn used', '#[cfg(any())]\nfn used'))
         self.assertFalse(self.check(manifest)['current'])
 
-    def test_guarded_file_cannot_hide_a_new_impl_in_a_body(self):
-        from evidence_projection import capture
-        source = 'fn unused() { 7 }'
+    def test_item_inputs_owe_a_vanished_item_or_missing_table(self):
+        source = 'fn used() -> i32 { 1 }\n'
         self.write('src/a.rs', source)
-        projection = capture(source, [(source.index('{'), len(source))])
         manifest = self.manifest()
-        manifest['inputs'][0].update(kind='guarded_file', digest=self.stored_projection(projection))
-        self.write('src/a.rs', 'fn unused() { impl T for S {} 7 }')
+        manifest['inputs'] = self.item_entries('src/a.rs', [source.index('{ 1 }')])
+        self.write('src/a.rs', 'fn renamed() -> i32 { 1 }\n')
+        self.assertFalse(self.check(manifest)['current'])
+        self.write('src/a.rs', source + 'fn more() {}\n')
+        self.assertTrue(self.check(manifest)['current'])
+        table = next(e['table'] for e in manifest['inputs'] if e['kind'] == 'rust_items')
+        (self.root / 'parity/evidence_items' / f'{table}.json').unlink()
         self.assertFalse(self.check(manifest)['current'])
 
     def test_fallback_must_hash_its_boundary(self):

@@ -23,7 +23,7 @@ from nix_evidence_source import (
     verify_committed_snapshot,
 )
 from nix_manifest_binding import exercise_fixture
-from scientific_records import line_coverage
+from scientific_records import region_coverage
 
 ROOT = Path(__file__).resolve().parent.parent
 CRATE = "nix_boundary_fixture"
@@ -134,10 +134,24 @@ def _execute_and_measure(binary: Path, source: Path, checkout: Path, scratch: Pa
     _run([str(output / "bin/llvm-profdata"), "merge", "-sparse", str(raw), "-o", str(profile)], cwd=checkout)
     exported = _run([str(output / "bin/llvm-cov"), "export", f"-instr-profile={profile}",
                      str(binary)], cwd=checkout)
-    coverage = map_coverage_sources(line_coverage(json.loads(exported)), source, checkout)
-    lines = coverage.get(str((checkout / "crates" / CRATE / "src/lib.rs").resolve()), set())
-    if not lines:
+    coverage = map_coverage_sources(region_coverage(json.loads(exported)), source, checkout)
+    lib = f"crates/{CRATE}/src/lib.rs"
+    positions = coverage.get(str((checkout / lib).resolve()), set())
+    if not positions:
         raise ValueError("the disposable fixture's source coverage was not mapped")
+    # The item boundary: the executed test and the function it calls are selected
+    # from the compiler inventory, and nothing falls back to whole files.
+    from evidence_items import Selection, load_inventory
+    selection = Selection(checkout.resolve(), load_inventory(output / "compiler-inventory"))
+    file = selection.file(lib)
+    if file is None:
+        raise ValueError("the disposable fixture's source was not parsed")
+    for line, column in positions:
+        selection.execute(lib, file.offset(line, column))
+    parts = selection.parts.get(lib, {})
+    if (selection.whole or "full" not in parts.get("mod:tests#0/fn:engineering_fixture#0", ())
+            or "full" not in parts.get("fn:value#0", ())):
+        raise ValueError(f"the disposable fixture's items were not selected: {parts} {selection.whole}")
 
 
 def _tool_versions(output: Path) -> dict[str, str]:

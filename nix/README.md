@@ -26,7 +26,7 @@ current, so CI only checks that records are up to date.
 - The build uses a private scratch tree, the pinned `rustc`,
   a stable `--remap-path-prefix` (so `file!()` and panic locations do not depend
   on the store hash), coverage instrumentation, and the analyzer driver as
-  workspace wrapper to inventory ordinary function bodies (one shared inventory).
+  workspace wrapper to inventory every workspace item (one shared inventory).
 - `nix_evidence_policy.validate_build` requires the daemon's `sandbox = true`
   and `sandbox-fallback = false` with only the reviewed sandbox paths, then checks
   every build-script and procedural-macro unit (and their dependencies) in the
@@ -36,7 +36,7 @@ current, so CI only checks that records are up to date.
   SHA-256, toolchain versions and the selected audit rows. Publication rechecks
   all of them after execution.
 
-## Compile-time review and precise evidence
+## Compile-time review and item evidence
 
 `compile-time-reviewed.json` covers the union of compile-time units of every
 scientific Rust target and of the Python extension. Each row has a
@@ -49,22 +49,16 @@ scientific Rust target and of the Python extension. Each row has a
   depends on it keeps complete source.
 - `unresolved`: not assessed. The Nix backend refuses it.
 
-When every selected unit is `reviewed-safe`, unexecuted function bodies become
-holes in the evidence projection (`scripts/evidence_projection.py`). Such a hole
-keeps the exact line count, last-line bytes and last-line characters of the body,
-so every later line and column is unchanged. Rust embeds source locations in
-generated code far beyond `line!()`. Examples are `#[track_caller]` calls such as
-`unwrap` and indexing, overflow and bounds panics, and macros that read spans.
-Lexical analysis cannot rule these out, so no hole may move later source. Edits
-that change only the inside of an unexecuted body keep a claim current. Edits
-elsewhere in the file, or ones that change its layout, make it owed. A body is
-never a hole when it:
-
-- contains a macro, item or attribute,
-- lies inside a function-like macro's input,
-- is under a custom attribute macro.
-
-A custom derive scopes only to its own data item and helper attributes.
+When every selected unit is `reviewed-safe`, the evidence reads the items an
+assertion depends on rather than whole sources (`scripts/evidence_items.py`). The
+analyzer driver runs as the workspace compiler wrapper and records each item's
+dependencies, name lookups and method resolutions; with execution coverage, earning
+selects the executed functions whole and follows those dependencies. Positions are
+not inputs: they reach a binary through panic locations and debug information,
+which a passing assertion does not read, except in an assertion whose executed code
+observes them, which keeps its files whole. Bodies inside a function-like macro's
+input are part of the invocation, which is recorded whole; an item under a custom
+attribute or a derive that may read documentation is hashed with its doc comments.
 
 ## Python and calibration
 

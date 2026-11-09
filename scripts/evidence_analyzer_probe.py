@@ -1,143 +1,236 @@
 #!/usr/bin/env python3
-"""Probe the pinned compiler interface using disposable engineering fixtures only.
+"""Check item-level evidence precision with the real compiler driver on a disposable fixture.
 
-Does not run Antecedent tests, write evidence, or qualify the analyzer. The
-inventory driver deliberately reports incomplete dependency information.
+Builds `tools/evidence-analyzer/driver.rs` with the pinned compiler (it needs the
+`rustc-dev` component), compiles a small two-module workspace through it with
+coverage instrumentation, runs one test and selects its items exactly as earning
+does. It then applies each edit of a matrix to a copy and checks the selection
+without rebuilding: an edit to code the test does not depend on must leave it
+current, and an edit to code it does must owe it. Runs no Antecedent test and
+writes no evidence.
+
+    python3 scripts/evidence_analyzer_probe.py
 """
 from __future__ import annotations
 
-import argparse
 import json
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
+import evidence_items as ei
+import evidence_manifests as em
 from _repo import load_toml
-from evidence_projection import from_compiler_coverage, matches
+from scientific_records import region_coverage
 
 ROOT = Path(__file__).resolve().parents[1]
+A = "crates/alpha/src/"
+FILES = {
+    "Cargo.toml": '[workspace]\nmembers = ["crates/alpha"]\nresolver = "2"\n',
+    "crates/alpha/Cargo.toml": '[package]\nname = "alpha"\nversion = "0.1.0"\nedition = "2021"\n',
+    A + "lib.rs": """//! Fixture.
+#![allow(dead_code)]
+pub mod est;
+pub use est::*;
+
+pub const SCALE: f64 = scale_of(2.0);
+const fn scale_of(x: f64) -> f64 { x * 2.0 }
+
+#[macro_export]
+macro_rules! twice { ($e:expr) => { $e + $e } }
+
+pub trait Estimator {
+    const NAME: &'static str;
+    type Out;
+    fn fit(&self, data: &[f64]) -> Self::Out;
+    fn label(&self) -> String { format!("{}", Self::NAME) }
+}
+
+pub fn run<E: Estimator>(e: &E, data: &[f64]) -> (E::Out, &'static str) { (e.fit(data), E::NAME) }
+
+mod inner {
+    pub fn helper(x: f64) -> f64 { x + 1.0 }
+    pub fn called_not_run(x: f64) -> f64 { x }
+    pub mod deeper { pub fn where_am_i() -> u32 { line!() } }
+}
+pub use inner::{called_not_run, helper};
+""",
+    A + "est/mod.rs": "mod mean;\nmod median;\npub use mean::Mean;\npub use median::Median;\n",
+    A + "est/mean.rs": """use crate::Estimator;
+
+#[derive(Debug, Clone, Default)]
+pub struct Mean { pub bias: f64 }
+
+#[derive(Debug, PartialEq)]
+pub enum Kind { Plain, Weighted(f64) }
+
+impl Mean {
+    pub fn new() -> Self { Mean { bias: crate::SCALE } }
+    fn unused(&self) -> f64 { self.bias * 3.0 }
+}
+
+impl Estimator for Mean {
+    const NAME: &'static str = "mean";
+    type Out = f64;
+    fn fit(&self, data: &[f64]) -> f64 {
+        let k = Kind::Plain;
+        let s: f64 = data.iter().sum();
+        let m = crate::twice!(s) / (2.0 * data.len() as f64);
+        if k == Kind::Plain { m + self.bias + crate::helper(0.0) } else { crate::called_not_run(0.0) }
+    }
+}
+""",
+    A + "est/median.rs": """use crate::Estimator;
+pub struct Median;
+impl Estimator for Median {
+    const NAME: &'static str = "median";
+    type Out = f64;
+    fn fit(&self, data: &[f64]) -> f64 { let mut v = data.to_vec(); v.sort_by(|a, b| a.partial_cmp(b).unwrap()); v[v.len() / 2] }
+}
+""",
+    "crates/alpha/tests/accept.rs": """use alpha::{run, Mean, Estimator};
+#[test]
+fn mean_runs() {
+    let m = Mean::new();
+    let (v, name) = run(&m, &[1.0, 3.0]);
+    assert_eq!(name, "mean");
+    assert!(v > 0.0);
+    assert_eq!(m.label(), "mean");
+}
+""",
+}
+NEW_ESTIMATOR = ("use crate::Estimator;\npub struct Mode;\nimpl Estimator for Mode { const NAME: &'static str = "
+                 "\"mode\"; type Out = f64; fn fit(&self, d: &[f64]) -> f64 { d[0] } }\n")
+# (expected, label, [(file, old, new)]); a file with old None is created.
+CASES = [
+    ("current", "new estimator file, mod and use", [(A + "est/mod.rs", "mod median;", "mod median;\nmod mode;"),
+     (A + "est/mod.rs", "pub use median::Median;", "pub use median::Median;\npub use mode::Mode;"),
+     (A + "est/mode.rs", None, NEW_ESTIMATOR)]),
+    ("current", "unexecuted method body", [(A + "est/mean.rs", "self.bias * 3.0", "self.bias * 4.0")]),
+    ("current", "called function's body that never ran", [(A + "lib.rs", "-> f64 { x }", "-> f64 { x * 2.0 }")]),
+    ("current", "new unrelated enum", [(A + "est/mean.rs", "impl Mean {", "pub enum Spare { A, B }\n\nimpl Mean {")]),
+    ("current", "new unrelated use", [(A + "est/median.rs", "pub struct Median;", "use std::fmt::Write as _;\npub struct Median;")]),
+    ("current", "comment and layout in the executed body", [(A + "est/mean.rs", "let s: f64 = data.iter().sum();",
+                                                              "// sum it\n        let s: f64 =   data.iter().sum();")]),
+    ("current", "unexecuted position read", [(A + "lib.rs", "line!()", "line!() + 1")]),
+    ("current", "new unrelated inherent method", [(A + "est/mean.rs", "    fn unused(", "    pub fn extra(&self) -> f64 { 1.0 }\n    fn unused(")]),
+    ("current", "new impl of the trait for another type", [(A + "est/median.rs", "impl Estimator for Median",
+     "pub struct Other;\nimpl Estimator for Other { const NAME: &'static str = \"o\"; type Out = f64; "
+     "fn fit(&self, _: &[f64]) -> f64 { 0.0 } }\nimpl Estimator for Median")]),
+    ("owed", "executed body", [(A + "est/mean.rs", "(2.0 * data.len() as f64)", "(3.0 * data.len() as f64)")]),
+    ("owed", "called function's signature", [(A + "lib.rs", "called_not_run(x: f64) -> f64", "called_not_run(x: f64) -> f32")]),
+    ("owed", "used enum gains a variant", [(A + "est/mean.rs", "Weighted(f64) }", "Weighted(f64), Extra }")]),
+    ("owed", "used constant", [(A + "lib.rs", "scale_of(2.0)", "scale_of(3.0)")]),
+    ("owed", "const fn evaluated at compile time", [(A + "lib.rs", "x * 2.0 }", "x * 2.5 }")]),
+    ("owed", "used macro", [(A + "lib.rs", "$e + $e", "$e * 2.0")]),
+    ("owed", "inherent method shadowing a trait method", [(A + "est/mean.rs", "    fn unused(",
+                                                           "    pub fn label(&self) -> String { String::new() }\n    fn unused(")]),
+    ("owed", "derive removed from a used struct", [(A + "est/mean.rs", "#[derive(Debug, Clone, Default)]", "#[derive(Debug, Clone)]")]),
+    ("owed", "root item shadowing a glob import", [(A + "lib.rs", "pub use inner::{", "pub struct Mean;\npub use inner::{")]),
+    ("owed", "module declaration compiled out", [(A + "lib.rs", "pub mod est;", "#[cfg(any())]\npub mod est;")]),
+    ("owed", "trait gains a default method", [(A + "lib.rs", "    fn label(&self)", "    fn extra(&self) -> u8 { 0 }\n    fn label(&self)")]),
+    ("owed", "crate attribute", [(A + "lib.rs", "#![allow(dead_code)]", "#![allow(dead_code, unused)]")]),
+    ("owed", "impl constant read through a generic", [(A + "est/mean.rs", '"mean";', '"Mean";')]),
+]
 
 
-def inventory(driver: Path, sysroot: str, directory: Path, source: str) -> tuple[dict[str, str], list[str], dict]:
-    path = directory / "fixture.rs"
-    path.write_text(source, encoding="utf-8")
-    result = subprocess.run(
-        [str(driver), "--sysroot", sysroot, "--test", str(path),
-         "--crate-name", "fixture", "--out-dir", str(directory),
-         "-C", f"incremental={directory / 'incremental'}", "-Z", "query-dep-graph"],
-        env={**os.environ, "RUSTC_BOOTSTRAP": "1"},
-        check=True, capture_output=True, text=True,
-    )
-    items = {}
-    bodies = {}
-    for line in result.stdout.splitlines():
-        if line.startswith("item\t"):
-            _, name, expanded, source_hex = line.split("\t")
-            items[name] = bytes.fromhex(source_hex).decode("utf-8")
-        elif line.startswith("body\t"):
-            _, name, path_hex, start, end, _text = line.split("\t")
-            if Path(bytes.fromhex(path_hex).decode()).resolve() == path.resolve():
-                raw = source.encode()
-                bodies[name] = (len(raw[:int(start)].decode()), len(raw[:int(end)].decode()))
-    if "used" not in items:
-        raise RuntimeError("compiler inventory did not report the fixture's used function")
-    return items, [line for line in result.stdout.splitlines() if line.startswith("edge\t")], bodies
+def _rustc(*args: str, env: dict | None = None) -> str:
+    return subprocess.run(["rustc", *args], env=env, check=True, capture_output=True, text=True).stdout
 
 
-def probe(root: Path = ROOT) -> dict:
-    pin = load_toml(root / "tools/evidence-analyzer/pin.toml")
-    version = subprocess.check_output(["rustc", "-vV"], text=True)
-    identity = dict(line.split(": ", 1) for line in version.splitlines() if ": " in line)
+def earn(root: Path, driver: Path, tools: Path) -> list[dict]:
+    """Build the fixture through the driver, run its test, and select its items."""
+    env = {**os.environ, "RUSTFLAGS": "-C instrument-coverage", "CARGO_TARGET_DIR": str(root / "target"),
+           "RUSTC_WORKSPACE_WRAPPER": str(driver), "ANTECEDENT_ANALYZER_OUTPUT": str(root / "inventory")}
+    (root / "inventory").mkdir()
+    built = subprocess.run(["cargo", "test", "--no-run", "--offline", "--message-format=json"], cwd=root, env=env,
+                           check=True, capture_output=True, text=True).stdout
+    binary = next(m["executable"] for m in map(json.loads, built.splitlines())
+                  if m.get("reason") == "compiler-artifact" and m.get("executable") and m["target"]["name"] == "accept")
+    raw, data = root / "t.profraw", root / "t.profdata"
+    subprocess.run([binary, "--exact", "mean_runs"], env={**os.environ, "LLVM_PROFILE_FILE": str(raw)},
+                   check=True, capture_output=True)
+    subprocess.run([str(tools / "llvm-profdata"), "merge", "-sparse", str(raw), "-o", str(data)], check=True)
+    export = json.loads(subprocess.check_output([str(tools / "llvm-cov"), "export", f"-instr-profile={data}", binary]))
+    selection = ei.Selection(root, ei.load_inventory(root / "inventory"))
+    for path, positions in region_coverage(export).items():
+        try:
+            rel = Path(path).relative_to(root).as_posix()
+        except ValueError:
+            continue
+        file = selection.file(rel)
+        for line, column in positions:
+            if file is not None:
+                selection.execute(rel, file.offset(line, column))
+    if selection.whole or selection.observes:
+        raise RuntimeError(f"fixture fell back to whole files: {selection.whole}")
+    entries, tables = selection.entries(em.Checker(root, {}), ["crates/alpha"], "crates/alpha")
+    for address, data in tables.items():
+        (root / ei.STORE).mkdir(parents=True, exist_ok=True)
+        (root / ei.STORE / f"{address}.json").write_bytes(data)
+    return entries
+
+
+def owed(root: Path, entries: list[dict]) -> list[str]:
+    em._FILE_DIGESTS.clear()
+    ei._PARSED.clear()
+    checker = em.Checker(root, {})
+    names = next(e for e in entries if e["kind"] == "rust_names")
+    changed = []
+    for entry in entries:
+        kind = entry["kind"]
+        if kind == "rust_items":
+            ok = checker.items.items_current(entry, names)
+        elif kind == "rust_guards":
+            ok = checker.items.guards_current(entry)
+        elif kind == "rust_names":
+            ok = True
+        else:
+            ok = checker.input_digest("file", entry["path"]) == entry["digest"]
+        if not ok:
+            changed.append(f"{kind}:{entry['path']}")
+    return changed
+
+
+def probe() -> int:
+    pin = load_toml(ROOT / "tools/evidence-analyzer/pin.toml")
+    identity = dict(line.split(": ", 1) for line in _rustc("-vV").splitlines() if ": " in line)
     if identity.get("release") != pin["release"] or identity.get("commit-hash") != pin["commit"]:
         raise RuntimeError("compiler identity differs from tools/evidence-analyzer/pin.toml")
-    sysroot = subprocess.check_output(["rustc", "--print", "sysroot"], text=True).strip()
+    tools = Path(_rustc("--print", "sysroot").strip()) / "lib/rustlib" / identity["host"] / "bin"
     with tempfile.TemporaryDirectory(prefix="antecedent-analyzer-probe-") as tmp:
-        directory = Path(tmp)
-        driver = directory / "inventory-driver"
-        subprocess.run(
-            ["rustc", str(root / "tools/evidence-analyzer/driver.rs"),
-             "--edition=2021", "-C", "rpath=yes", "-o", str(driver)],
-            env={**os.environ, "RUSTC_BOOTSTRAP": "1"}, check=True, capture_output=True, text=True,
-        )
-        source = (
-            "macro_rules! value { () => {2} }\n"
-            "fn used() -> i32 { value!() }\n"
-            "fn irrelevant() -> i32 { 7 }\n"
-            "#[test] fn check() { assert_eq!(used(), 2); }\n"
-        )
-        baseline, edges, bodies = inventory(driver, sysroot, directory, source)
-        unrelated, _, _ = inventory(driver, sysroot, directory, source.replace("{ 7 }", "{ 8 }"))
-        changed_macro, _, _ = inventory(driver, sysroot, directory, source.replace("=> {2}", "=> {3}"))
-        # Run only this disposable engineering fixture, never an Antecedent
-        # assertion. Obtain execution evidence from the same pinned compiler.
-        fixture = directory / 'fixture.rs'
-        fixture.write_text(source, encoding="utf-8")
-        binary = directory / 'fixture-test'
-        subprocess.run(['rustc', '--test', str(fixture), '--crate-name', 'fixture',
-                        '-C', 'instrument-coverage', '-o', str(binary)],
-                       check=True, capture_output=True, text=True)
-        raw = directory / 'fixture.profraw'
-        subprocess.run([str(binary), '--exact', 'check'],
-                       env={**os.environ, 'LLVM_PROFILE_FILE': str(raw)},
-                       check=True, capture_output=True, text=True)
-        llvm = Path(sysroot) / 'lib/rustlib' / identity['host'] / 'bin'
-        profdata = directory / 'fixture.profdata'
-        subprocess.run([str(llvm / 'llvm-profdata'), 'merge', '-sparse', str(raw),
-                        '-o', str(profdata)], check=True, capture_output=True, text=True)
-        export = json.loads(subprocess.check_output(
-            [str(llvm / 'llvm-cov'), 'export', str(binary), f'-instr-profile={profdata}'], text=True))
-        covered = set()
-        for block in export['data']:
-            for file in block['files']:
-                if Path(file['filename']).resolve() == fixture.resolve():
-                    covered.update(s[0] for s in file['segments'] if s[2] > 0 and s[3])
-        projection, _ = from_compiler_coverage(source, bodies, covered, opaque=False)
-        assert projection['layouts'], 'no unexecuted ordinary body was admitted'
-        assert matches(source.replace("{ 7 }", "{ 8 }"), projection)
-        assert not matches(source.replace("=> {2}", "=> {3}"), projection)
-        assert not matches(source.replace("fn irrelevant()", "fn irrelevant(x: i32)"), projection)
-        assert edges, "compiler query graph was not enabled"
-        unmapped_resolution = any("resolver_for_lowering_raw" in edge and "<unmapped>" in edge for edge in edges)
-        assert unmapped_resolution, "expected crate-scoped resolver query was not observed"
-        assert baseline["used"] == unrelated["used"]
-        assert baseline["irrelevant"] != unrelated["irrelevant"]
-        # A source inventory alone is not a dependency relation: the used item's
-        # spelling remains unchanged when its macro's expansion changes.
-        assert baseline["used"] == changed_macro["used"]
-        assert baseline["value"] != changed_macro["value"]
-    return {
-        "compiler": identity,
-        "driver": "tools/evidence-analyzer/driver.rs",
-        "observations": {
-            "compiler_item_inventory_available": True,
-            "same_file_unrelated_body_is_distinguishable": True,
-            "macro_change_leaves_calling_item_source_unchanged": True,
-            "compiler_query_edges_available": len(edges),
-            "crate_resolution_has_no_item_identity": unmapped_resolution,
-            "compiler_body_projection_ignores_unrelated_edit": True,
-            "whole_declaration_guard_catches_macro_and_signature_changes": True,
-            "projection_uses_real_instrumented_fixture_coverage": True,
-        },
-        "query_graph_gaps": [
-            "resolve non-item query nodes and cross-crate dependency boundaries",
-            "map expansion provenance and constant evaluation to input items",
-            "guard lookup scopes, imports, implementation sets, cfg and new definitions",
-            "bind build scripts, procedural macros and generated inputs to bounded fallbacks",
-        ],
-    }
-
-
-def main() -> int:
-    argparse.ArgumentParser(description=__doc__).parse_args()
-    try:
-        report = probe()
-    except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
-        print(json.dumps({"error": str(error), "detail": getattr(error, "stderr", "")}, indent=2))
-        return 1
-    print(json.dumps(report, indent=2))
-    return 0
+        scratch = Path(tmp).resolve()
+        driver = scratch / "driver"
+        _rustc(str(ROOT / "tools/evidence-analyzer/driver.rs"), "--edition=2021", "-C", "rpath=yes",
+               "-o", str(driver), env={**os.environ, "RUSTC_BOOTSTRAP": "1"})
+        base = scratch / "base"
+        for rel, text in FILES.items():
+            (base / rel).parent.mkdir(parents=True, exist_ok=True)
+            (base / rel).write_text(text, encoding="utf-8")
+        entries = earn(base, driver, tools)
+        failures = 0
+        for index, (expected, label, edits) in enumerate(CASES):
+            root = scratch / f"case{index}"
+            shutil.copytree(base, root, ignore=shutil.ignore_patterns("target", "*.profraw", "*.profdata"))
+            for rel, old, new in edits:
+                path = root / rel
+                text = new if old is None else path.read_text(encoding="utf-8")
+                if old is not None:
+                    if old not in text:
+                        raise RuntimeError(f"{label}: {old!r} not in {rel}")
+                    text = text.replace(old, new, 1)
+                path.write_text(text, encoding="utf-8")
+            changed = owed(root, entries)
+            got = "owed" if changed else "current"
+            failures += got != expected
+            print(f"{'ok  ' if got == expected else 'FAIL'} {expected:7} {label}: {', '.join(changed) or '-'}")
+            shutil.rmtree(root)
+        print(f"{len(CASES) - failures}/{len(CASES)} cases as expected")
+        return 1 if failures else 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(probe())

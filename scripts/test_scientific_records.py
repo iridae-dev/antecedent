@@ -257,12 +257,14 @@ class ExecutionCaptureTests(Fixture):
             ]
         }
 
-    def test_line_coverage_keeps_lines_where_a_covered_region_starts(self):
-        export = {"data": [{"files": [{"filename": str(self.root / "crates/top/src/lib.rs"),
-                                       "segments": [[1, 1, 3, True, True, False], [2, 1, 0, True, True, False],
-                                                    [4, 1, 5, False, False, False]]}]}]}
-        coverage = sr.line_coverage(export)
-        self.assertEqual(coverage[str((self.root / "crates/top/src/lib.rs").resolve())], {1})
+    def test_region_coverage_keeps_executed_code_regions_of_functions_that_ran(self):
+        name = str(self.root / "crates/top/src/lib.rs")
+        export = {"data": [{"functions": [
+            {"count": 2, "filenames": [name], "regions": [[1, 1, 3, 2, 2, 0, 0, 0], [2, 5, 2, 9, 0, 0, 0, 0],
+                                                          [4, 1, 4, 3, 1, 0, 0, 1]]},
+            {"count": 0, "filenames": [name], "regions": [[7, 1, 8, 2, 0, 0, 0, 0]]}]}]}
+        coverage = sr.region_coverage(export)
+        self.assertEqual(coverage[str((self.root / "crates/top/src/lib.rs").resolve())], {(1, 1)})
 
     def test_the_target_is_built_once_and_each_case_runs_its_binary_exactly(self):
         info = sr.locate(self.root, self.row("top"))

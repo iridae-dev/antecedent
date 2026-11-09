@@ -363,6 +363,8 @@ class Scan:
     # (crate directory, file) read only by `#[cfg(test)]` code of that crate, which
     # is compiled only when that crate's own unit tests are the target.
     test_data_files: set[tuple[Path, Path]] = field(default_factory=set)
+    # (source file, character offset, file read): where each Rust data read is written.
+    sites: set[tuple[Path, int, Path]] = field(default_factory=set)
 
     def merge(self, other: Scan) -> None:
         self.files |= other.files
@@ -372,6 +374,7 @@ class Scan:
         self.directories |= other.directories
         self.data_files |= other.data_files
         self.test_data_files |= other.test_data_files
+        self.sites |= other.sites
 
 
 _INCLUDE = re.compile(r"\binclude(?:_str|_bytes)?\s*!\s*[(\[{]")
@@ -547,6 +550,8 @@ def scan_rust_text(
     test_regions = cfg_test_regions(skeleton)
 
     def read_as_data(pos: int, targets) -> None:
+        targets = list(targets)
+        out.sites.update((path, pos, target) for target in targets)
         if any(lo <= pos < hi for lo, hi in test_regions):
             out.test_data_files.update((crate_dir, target) for target in targets)
         else:
@@ -1188,7 +1193,7 @@ class Fingerprinter:
         scan = self.scan_rust([f for f in files if f.suffix == ".rs"], self.crate_dir(crate), test_build=True)
         declared, env = self.declared(scan.dynamic)
         scan = Scan(scan.files, scan.env | env, scan.markers, scan.dynamic, scan.directories, scan.data_files,
-                    scan.test_data_files)
+                    scan.test_data_files, scan.sites)
         return _sha(self._tree(files), self._scan_digest(scan), declared), scan
 
     def parts(self, row: dict) -> dict:

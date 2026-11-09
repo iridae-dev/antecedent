@@ -9,6 +9,7 @@ A single scan produces the three views the gates already consume:
 * ``kept`` blanks comments but leaves literal contents in place, which is what
   a cited test's closure wants when it must still read a string.
 * ``line_docs`` are the ``///`` spans (not ``////``).
+* ``literals`` are the string, raw string and character literal spans.
 
 Byte raw strings, raw strings, character literals, and lifetimes are the same
 tokens in every view.
@@ -36,6 +37,7 @@ class RustSource:
     kept: str
     kept_skeleton: str
     line_docs: tuple[tuple[int, int], ...]
+    literals: tuple[tuple[int, int], ...] = ()
 
 
 def _spaces(text: str, a: int, b: int) -> str:
@@ -49,6 +51,7 @@ def lex(text: str) -> RustSource:
     kept: list[str] = []
     kept_skel: list[str] = []
     docs: list[tuple[int, int]] = []
+    literals: list[tuple[int, int]] = []
     i, n = 0, len(text)
 
     def emit(head: str) -> None:
@@ -64,6 +67,7 @@ def lex(text: str) -> RustSource:
         kept_skel.append(blank)
 
     def blank_literal(a: int, b: int, opener: int, closer: int) -> None:
+        literals.append((a, b))
         code.append('""' + "\n" * text.count("\n", a, b))
         skel.append(_spaces(text, a, b))
         kept.append(text[a:b])
@@ -139,6 +143,7 @@ def lex(text: str) -> RustSource:
         "".join(kept),
         "".join(kept_skel),
         tuple(docs),
+        tuple(literals),
     )
 
 
