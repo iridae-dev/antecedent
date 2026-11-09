@@ -58,9 +58,20 @@ def diagnose_target(root: Path, rows: list[dict], run=subprocess.run) -> dict:
 
 # Concurrent test processes across every target of a run: half the cores, leaving room
 # for tests that use threads internally and for the earning process itself. Targets are
-# captured concurrently, so the limit is one process-wide set of slots.
+# captured concurrently through one process-wide queue, first come first served, so
+# targets finish (and are recorded) in the order they were submitted rather than all
+# progressing at once.
 CAPTURE_WORKERS = max(1, (os.cpu_count() or 2) // 2)
-_SLOTS = threading.BoundedSemaphore(CAPTURE_WORKERS)
+_POOL: ThreadPoolExecutor | None = None
+_POOL_LOCK = threading.Lock()
+
+
+def _capture_pool() -> ThreadPoolExecutor:
+    global _POOL
+    with _POOL_LOCK:
+        if _POOL is None:
+            _POOL = ThreadPoolExecutor(max_workers=CAPTURE_WORKERS, thread_name_prefix="capture")
+        return _POOL
 # Held while the checkout is read against its committed snapshot, and by a caller while
 # it writes and allows run outputs: a check never sees a written output not yet allowed.
 CHECKOUT_LOCK = threading.RLock()
@@ -138,15 +149,11 @@ def capture_built_target(root: Path, rows: list[dict], built: dict, run=subproce
         verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
         recheck_artifact(root, artifact)
     try:
-        # Rows are independent test processes: run them concurrently, within the
-        # process-wide slots shared with other targets. The source and artifact are
-        # checked before and after the batch.
-        def one(info: dict) -> dict[str, set[int]] | None:
-            with _SLOTS:
-                return capture_one(root, binary, info, env, run, llvm_tools=tools)
-
-        with ThreadPoolExecutor(max_workers=min(len(infos), CAPTURE_WORKERS)) as pool:
-            captured = list(pool.map(one, infos))
+        # Rows are independent test processes: run them concurrently in the queue shared
+        # with other targets. The source and artifact are checked before and after the batch.
+        pool = _capture_pool()
+        futures = [pool.submit(capture_one, root, binary, info, env, run, llvm_tools=tools) for info in infos]
+        captured = [future.result() for future in futures]
     finally:
         # Recheck even on a test or coverage failure; no result is returned if
         # the source or artifact changed while the batch ran.
