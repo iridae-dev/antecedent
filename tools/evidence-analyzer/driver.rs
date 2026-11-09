@@ -82,21 +82,36 @@ impl Paths {
 
     /// The workspace-relative path, or `None` outside the workspace.
     fn relative(&self, name: &str) -> Option<String> {
+        if name.starts_with('<') {
+            return None;
+        }
         if !name.starts_with('/') {
-            if name.starts_with('<') || name.contains("..") {
-                return None;
-            }
-            return Some(name.trim_start_matches("./").to_string());
+            return normalize(name);
         }
         for root in &self.roots {
             if let Some(rest) = name.strip_prefix(root.as_str()) {
                 if let Some(rest) = rest.strip_prefix('/') {
-                    return Some(rest.to_string());
+                    return normalize(rest);
                 }
             }
         }
         None
     }
+}
+
+/// `a/b/../c` as `a/c`; `None` when the path leaves its root.
+fn normalize(path: &str) -> Option<String> {
+    let mut parts: Vec<&str> = Vec::new();
+    for part in path.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            part => parts.push(part),
+        }
+    }
+    if parts.is_empty() { None } else { Some(parts.join("/")) }
 }
 
 struct Inventory {
