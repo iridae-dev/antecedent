@@ -1795,6 +1795,7 @@ pub fn estimate_smoothed_dose(
 /// the complement of each held-out fold. Bootstrap refits are not provided here.
 /// # Errors
 /// A validation, capability, portability, time-order, budget, fit or overlap refusal.
+#[doc(hidden)]
 pub fn estimate_smoothed_dose_with_factories(
     id: &TransportIdentification,
     query: &SmoothedDoseTransportQuery,

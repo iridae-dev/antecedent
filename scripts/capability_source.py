@@ -599,7 +599,9 @@ def finite_refusal_helpers(path: Path, *, in_crate: bool = True) -> tuple[list[L
     if path.name in {"lib.rs", "main.rs", "mod.rs"} or re.search(
         r"\bmod\s+[A-Za-z_]\w*\s*[;{]|\binclude\s*!|\bmacro_rules\s*!", skel
     ):
-        return [], set()
+        # Formatter helpers are not expanded here, but the reviewed sectioned-artifact
+        # table is closed and does not depend on the file's module structure.
+        return sectioned_artifact_refusals(path, in_crate=in_crate), set()
     _, items = rust_items(path.resolve())
     output: list[Lit] = []
     proven_lines: set[int] = set()
