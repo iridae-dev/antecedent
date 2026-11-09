@@ -179,7 +179,7 @@ def refine_records(root: Path, records: list[tuple[dict, dict, dict]]) -> dict[s
     moved: dict[str, str] = {}
     with tempfile.TemporaryDirectory(prefix="antecedent-refine-") as tmp:
         for n, (commit, items) in enumerate(sorted(by_commit.items())):
-            tree = checkout(root, commit, Path(tmp) / f"c{n}")
+            tree = checkout(root, commit, Path(tmp).resolve() / f"c{n}")
             try:
                 fp = Fingerprinter(tree, platform=False, scientific_build=True)
                 for record, manifest, row in items:
