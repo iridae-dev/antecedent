@@ -27,10 +27,11 @@
 //! bridge (they stay unresolved obligations), invariance of the mapping across
 //! populations beyond a declared premise, and any individual-level reading.
 //!
-//! The interval is published only where a current attesting coverage record measured
-//! this construction at this bridge kind, mapping, direction and (for a trial-level
-//! line) number of validation trials; the record is resolved from the shipped coverage
-//! table and nothing the caller declares opens the route.
+//! The interval is reported with its calibration status: `calibrated` where a current
+//! attesting coverage record measured this construction at this bridge kind, mapping,
+//! direction and (for a trial-level line) number of validation trials, and otherwise the
+//! status that names why not. The record is resolved from the shipped coverage table and
+//! nothing the caller declares sets the status.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

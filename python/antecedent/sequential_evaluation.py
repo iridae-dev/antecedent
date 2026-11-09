@@ -34,7 +34,7 @@ What is supplied and what is refused:
   decision.
 * :func:`evaluate_off_policy` weights logged finite trajectories by their logged assignment
   probabilities. Its interval is a Wald interval from the importance-weighted standard error,
-  reported with the calibration status ``not_measured``.
+  reported with its calibration status.
 * :func:`rollout` simulates on common random streams keyed by ``(seed, rollout, time, role)``;
   :func:`stream_uniform` exposes one stream identity.
 * :func:`compare` evaluates named act-now, wait, collect-evidence and choose-after-observation
@@ -648,8 +648,8 @@ class PolicyEvaluation:
 class OffPolicyInterval:
     """A Wald interval of an off-policy estimate with its calibration slot.
 
-    ``calibration`` is the calibration slot mapping; its ``status`` is ``not_measured`` because
-    no coverage record measures the importance-weighted construction.
+    ``calibration`` is the calibration slot mapping; its ``status`` is ``not_measured`` unless a
+    coverage record measures the importance-weighted construction at this coordinate.
     """
 
     level: float

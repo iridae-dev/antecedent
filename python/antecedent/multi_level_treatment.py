@@ -31,11 +31,12 @@ What the answer is **not**:
   checked path outside the central compiler (it checks columns, levels and overlap); it
   does not identify the effect.
 * The standard error is the plug-in influence-function variance of cross-fitted scores. The
-  95% interval ``effect ± z · se_analytic`` is published (``interval`` set), and ``interval_status == "calibrated"`` only when a current coverage record measured this
-  construction (the full-population target, its number of levels, folds and row count).
-  Otherwise ``interval`` is ``None``, ``interval_status`` is the calibration status of the
-  construction (``"outside_measured_scope"``, ``"measured_below_nominal"`` or
-  ``"not_measured"``), ``interval_reason`` names why, and the standard error is labelled
+  95% interval ``effect ± z · se_analytic`` is reported whenever the standard error is
+  positive and finite (``interval`` is ``None`` only when it is not), annotated by
+  ``interval_status``: ``"calibrated"`` when a current coverage record measured this
+  construction (the full-population target, its number of levels, folds and row count),
+  otherwise ``"outside_measured_scope"``, ``"measured_below_nominal"`` or
+  ``"not_measured"``, with ``interval_reason`` naming why and the standard error labelled
   ``calibration == "not_measured"``. The pairwise-subpopulation target has no coverage
   measurement and always reports ``interval_status == "not_measured"``.
 * With ``target="full_population"`` every row must be at a declared level; a row at an
@@ -119,12 +120,13 @@ class MultiLevelEffect:
     level_means: tuple[LevelMean, ...]
     #: ``"calibrated"`` when a coverage record governs the interval, else ``"not_measured"``.
     calibration: str
-    #: The 95% interval, present only when a current coverage record covers this construction.
+    #: The 95% interval, present whenever the standard error is positive and finite.
     interval: MultiLevelInterval | None
-    #: The calibration status of the interval: ``"calibrated"`` when it is published, otherwise
-    #: ``"outside_measured_scope"``, ``"measured_below_nominal"`` or ``"not_measured"``.
+    #: The calibration status of the interval: ``"calibrated"`` when a current coverage record
+    #: measured this construction, otherwise ``"outside_measured_scope"``,
+    #: ``"measured_below_nominal"`` or ``"not_measured"``.
     interval_status: CalibrationStatus
-    #: Why the interval is withheld, when it is.
+    #: Why the interval is not calibrated, or ``"no_positive_standard_error"`` when it is absent.
     interval_reason: str | None
     #: ``"declared"``: the ``adjust`` columns are the caller's declaration and no graph
     #: was checked, so the contrast is not a graph-identified effect.

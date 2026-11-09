@@ -5,9 +5,9 @@
 //! `p` in its identity) and the cohort decision source built from exactly that export.
 //! The consumer re-verifies both under their retained identities, recomputes the
 //! weighted cohort mean and its model-based standard error from the stored rows and
-//! coefficients, and issues `point +/- t_{n-p} se`. The reported scalar must resolve to
-//! a currently attesting calibration record of the native construction; a declared
-//! (caller-built) export, a shifted cohort and a `not_measured` level are refused.
+//! coefficients, and issues `point +/- t_{n-p} se`. The reported scalar carries the
+//! calibration status the coverage records give the native construction; a declared
+//! (caller-built) export, a shifted cohort and a level outside `(0, 1)` are refused.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
@@ -109,11 +109,11 @@ impl CohortIntervalArtifactWire {
         })
     }
 
-    /// Replay both artifacts and bind the interval to the current calibration evidence.
+    /// Replay both artifacts and annotate the interval with its calibration status.
     ///
     /// # Errors
-    /// A changed or tampered artifact, a declared export, a shifted cohort, an invalid
-    /// level, or a construction with no currently attesting record.
+    /// A changed or tampered artifact, a declared export, a shifted cohort, or an invalid
+    /// level.
     pub fn measure(bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredInference, IoError> {
         let wire: Self = crate::from_cbor(bytes)?;
         if wire.version != 1 || crate::to_cbor(&wire)? != bytes {

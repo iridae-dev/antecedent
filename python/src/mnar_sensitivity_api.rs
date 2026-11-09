@@ -4,7 +4,7 @@
 //! changes.
 //!
 //! Python declares the data, the mechanism, the parameter range and the decisions; the effect
-//! as a function of the parameter, withheld sampling intervals, the tipping points,
+//! as a function of the parameter, the sampling intervals, the tipping points,
 //! the assumption records and every refusal are Rust's. A refusal comes back as structured
 //! JSON (`code`, `detail`, `message`) for the Python layer to raise as its own typed
 //! exception. Every range is an assumption range, never a confidence interval.

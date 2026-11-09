@@ -331,9 +331,10 @@ impl AcceptanceReport {
         }
     }
 
-    /// Whether this report accepts the claim as a usable causal claim.
+    /// Whether every part of the artifact was replayed and agrees, and it carries a claim.
     ///
-    /// Requires a replayed program that carries a claim.
+    /// [`Self::accepts_as_replayed_program`] with a claim present; it reports what replay
+    /// recomputed, not whether the claim may be used.
     #[must_use]
     pub fn accepts_as_claim(&self) -> bool {
         self.accepts_as_replayed_program() && self.claim_present
@@ -341,7 +342,7 @@ impl AcceptanceReport {
 
     /// Whether every part of the artifact was replayed and agrees, with or without a claim.
     ///
-    /// Distinct from storage/forwarding. Old artifacts without a contract
+    /// Distinct from storage/forwarding. Artifacts without a contract
     /// section remain readable but do not pass this check.
     #[must_use]
     pub fn accepts_as_replayed_program(&self) -> bool {

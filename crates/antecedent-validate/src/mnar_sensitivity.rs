@@ -36,9 +36,10 @@
 //! `(ybar - g)^2 pi (1 - pi) / n + Var_obs(pi y_i + (1 - pi) psi_i) / n_obs`, with `psi_i`
 //! the influence of the missing-pattern mean (`y_i - ybar` for the shift,
 //! `w_i (y_i - g) / mean(w)` for the tilt); the arms are independent. It is a sampling
-//! interval conditional on the parameter value. Its public endpoint is withheld until its
-//! exact construction has applicable calibration evidence. The assumption range is the envelope of the point effects over
-//! the declared parameter range and is never a confidence interval.
+//! interval conditional on the parameter value, reported at every grid point with its
+//! calibration status; calibration annotates it and never withholds it. The assumption range
+//! is the envelope of the point effects over the declared parameter range and is never a
+//! confidence interval.
 //!
 //! # Conclusions and tipping points
 //!

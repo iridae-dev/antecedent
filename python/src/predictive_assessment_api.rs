@@ -575,7 +575,7 @@ impl PredictiveAssessmentHandle {
     }
 
     /// The interval of one predictor's expected score (or of the expected difference to
-    /// `reference`) as JSON, or the typed refusal. Published only inside a measured design.
+    /// `reference`) as JSON with its calibration status, or the typed refusal.
     fn score_interval(
         &self,
         predictor: &str,

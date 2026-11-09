@@ -608,16 +608,19 @@ class ChoiceInferenceSession:
         """Ask for an interval or coverage statement without naming a result.
 
         Raises:
-            ChoiceInferenceRefusal: always ``not_supported``.
+            ChoiceInferenceRefusal: always ``quantity_semantics_mismatch``.
         """
         raise_refusal(self._handle.interval(), ChoiceInferenceRefusal)
 
     def measured_interval(self, request: Request, *, execution: Execution | None = None) -> Any:
-        """The interval of one result of a measured choice cell, bound to attesting coverage.
+        """The interval of one result, annotated with its calibration status.
+
+        The result is sealed and replayed first. A study outside the measured cells still
+        reports its interval, with calibration ``not_measured``.
 
         Raises:
-            ChoiceInferenceRefusal: ``not_supported`` for a study outside the measured cells,
-                or evidence that is absent or no longer attesting.
+            ChoiceInferenceRefusal: a result the contract cannot produce, or a stopping
+                decision, which has no interval (``route_not_supported``).
         """
         execution = resolve_execution(execution)
         from ._measured_inference import MeasuredInference

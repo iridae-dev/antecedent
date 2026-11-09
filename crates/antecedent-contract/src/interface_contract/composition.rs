@@ -6,14 +6,17 @@
 //! between one component's output and another's input) is refused with the
 //! cycle path named: cyclic scientific composition is not supported, and a
 //! feedback loop is never silently unrolled. A calibration declared inherited
-//! is resolved against the upstream producer and refused when the upstream
-//! does not hold it. Inputs that must rest on disjoint evidence are checked
-//! pairwise against the sources their producers declare, so one observation
-//! cannot reach a consumer twice. Without a ledger that comparison is of the
-//! declared source identities; [`check_composition_with_ledger`] decides it
-//! from the evidence ledger's row-level overlap, so two distinct sources that
-//! share observations (a subset, a resample, a derived source) are refused
-//! and a pair whose overlap is not computable is unknown, never disjoint.
+//! is resolved against the upstream producer: it takes the calibration of the
+//! matching upstream output and is carried as `NotMeasured` when the input is
+//! unfed or the upstream output differs; a fed port that inherits without an
+//! interval or posterior operation is refused. Inputs that must rest on
+//! disjoint evidence are checked pairwise against the sources their producers
+//! declare, so one observation cannot reach a consumer twice. Without a ledger
+//! that comparison is of the declared source identities;
+//! [`check_composition_with_ledger`] decides it from the evidence ledger's
+//! row-level overlap, so two distinct sources that share observations (a
+//! subset, a resample, a derived source) are refused and a pair whose overlap
+//! is not computable is unknown, never disjoint.
 //!
 //! The work is linear in the declared sizes (up to ordering), so there is no search to budget
 //! or cancel and no count bound to enforce; [`MAX_COMPOSITION_COMPONENTS`] and

@@ -965,10 +965,10 @@ class SampledCounterfactualTransportEstimate(ScientificResult):
     ) -> MeasuredInference:
         """The 95% delta-method Wald interval, with its calibration status.
 
-        The artifact is replayed from its counts. The interval is reported only
-        for the measured construction (independent units, refused unseen cells,
-        equal table totals, a supported query); anything else raises
-        ``not_supported``. The estimate itself still carries no interval.
+        The artifact is replayed from its counts and the interval is annotated with
+        the calibration status of exactly this construction. A stratified table,
+        tables sharing one dataset, or an estimate without a standard error refuses
+        ``route_not_supported``. The estimate itself carries no interval.
         """
         native = call_native(
             execution, self._native.measure_interval, cancel="cancel", memory="memory_bytes"

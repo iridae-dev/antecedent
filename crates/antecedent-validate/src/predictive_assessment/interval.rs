@@ -14,11 +14,12 @@
 //!   [`SCORE_INTERVAL_MAX_BANDWIDTH_FRACTION`] of the cases inside the bandwidth.
 //!
 //! The interval is published only for a predictor whose laws were verified held out of
-//! the cases (or were never fitted), and only where a current attesting coverage record
-//! measured this construction at this design, score and law family, with the number of
-//! cases inside its measured range. The record is resolved from the shipped coverage
-//! table; nothing a caller declares opens a route. An exact finite-law expected score is
-//! not a sampling quantity and has no interval.
+//! the cases (or were never fitted), with its calibration status: `calibrated` where a
+//! current attesting coverage record measured this construction at this design, score and
+//! law family, with the number of cases inside its measured range, and otherwise the
+//! status that names why not. The record is resolved from the shipped coverage table;
+//! nothing a caller declares sets the status. An exact finite-law expected score is not a
+//! sampling quantity and has no interval.
 //!
 //! Assumptions the interval rests on, stated on every result: cases are independent
 //! (or dependent as declared), their score distribution has a finite variance, the law
