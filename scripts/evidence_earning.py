@@ -468,6 +468,18 @@ def _validated_build(root: Path, nix_build: dict) -> dict:
     return _POLICIES[key]
 
 
+def publish_executed(snapshot: Snapshot, built: dict, coverage: dict[str, set[tuple[int, int]]]) -> str:
+    """Publish an evidence record that ran the Nix-built executable of `built`: bind it to
+    that executable, keep only the items its run executed and what they depend on
+    (`coverage`), and store its manifest. Shared by scientific assertions and calibration
+    measurements; returns the manifest's address."""
+    from nix_artifact_identity import target_binary
+    snapshot.mark_nix_executed(str(target_binary(built["artifact"])))
+    select_items(snapshot, Path(built["artifact"]["output"]) / "compiler-inventory", coverage,
+                 source_root=Path(built["source"]["store_path"]))
+    return snapshot.publish()
+
+
 def select_items(snapshot: Snapshot, directory: Path, coverage: dict[str, set[tuple[int, int]]],
                  *, source_root: Path | None = None) -> None:
     """Replace a Rust assertion's whole sources with the items it depends on.

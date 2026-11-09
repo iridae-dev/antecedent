@@ -358,8 +358,7 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
     """Build every owed target in one audited Nix derivation, then capture and record each."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    from evidence_earning import Snapshot, binding, require_compile_environment, select_items
-    from nix_artifact_identity import target_binary
+    from evidence_earning import Snapshot, binding, publish_executed, require_compile_environment
     from nix_evidence_build import build_committed_targets
     from nix_evidence_capture import CHECKOUT_LOCK, capture_built_target
     from nix_evidence_policy import validate_build
@@ -451,10 +450,7 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
                         continue
                     _clean_head(root, allowed)
                     try:
-                        snapshots[selector].mark_nix_executed(str(target_binary(built["artifact"])))
-                        select_items(snapshots[selector], Path(built["artifact"]["output"]) / "compiler-inventory",
-                                     result["coverage"][selector], source_root=Path(built["source"]["store_path"]))
-                        ref = snapshots[selector].publish()
+                        ref = publish_executed(snapshots[selector], built, result["coverage"][selector])
                     except RuntimeError as error:
                         print(f"FAIL: {selector}: {error}")
                         failed += 1

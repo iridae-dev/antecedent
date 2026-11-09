@@ -89,6 +89,17 @@ def instrumented_run(binary: str, args: list[str], *, cwd: Path, env: dict[str, 
         return 0, output, region_coverage(json.loads(export.stdout)), None
 
 
+def configure(workers: int) -> None:
+    """Set how many runs execute at once, before the first submission."""
+    global CAPTURE_WORKERS
+    with _LOCK:
+        if _PROCESSES is not None or _THREADS is not None:
+            if workers != CAPTURE_WORKERS:
+                raise RuntimeError("the capture queue is already running")
+            return
+        CAPTURE_WORKERS = max(1, int(workers))
+
+
 def submit(function, *args, local: bool = False, **kwargs) -> Future:
     """Queue `function(*args, **kwargs)` behind every earlier submission.
 

@@ -24,7 +24,7 @@ margin to its acceptance floor has to cover.
 
 Without `--record` the probes cover the records that are not current
 (`scripts/calibration_status.py status --owed`) and carry digests. Each group runs through
-`scripts/measure_calibration_groups.sh` exactly as a measurement does (same frozen decision
+the shared calibration runner (`scripts/calibration_runner.py`) exactly as a measurement does (same frozen decision
 environment, so the seeds match), in smoke mode so a short run is never gated,
 with logs in `target/calibration-probe/`. Results go to
 `parity/calibration_probe_attestations.toml`, one row per record and measurement:
@@ -59,7 +59,6 @@ from _repo import load_toml
 
 ATTESTATIONS = ROOT / "parity" / "calibration_probe_attestations.toml"
 PROBE_LOG_DIR = ROOT / "target" / "calibration-probe"
-GATE = ROOT / "scripts" / "measure_calibration_groups.sh"
 
 # `DIGEST_PREFIXES` in crates/antecedent/tests/common/calibration.rs.
 PREFIXES = (10, 32, 100, 320, 1000)
@@ -390,51 +389,11 @@ def tasks_for(probes: list[Probe], groups: list) -> tuple[list[Task], list[str]]
     return list(tasks.values()), unmatched
 
 
-def probe_environment(k: int, threads: int, decision_json: str, total: int, task: Task) -> dict:
-    """The measurement environment (`calibration_groups.run`) at `k` replicates, in
-    smoke mode: the same frozen decision context and seeds, never gated."""
-    env = {
-        name: value
-        for name, value in os.environ.items()
-        if not name.startswith("ANTECEDENT_CALIBRATION_")
-        and name
-        not in {
-            "ANTECEDENT_PARENT_PROTOCOL_VERSION",
-            "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION",
-            "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL",
-            "ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL",
-            "ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE",
-        }
-    }
-    env.update(
-        {
-            "ANTECEDENT_CALIBRATION_DECISION_CONFIG": decision_json,
-            "ANTECEDENT_CALIBRATION_SMOKE": "1",
-            "ANTECEDENT_CALIBRATION_NSIM": str(k),
-            "ANTECEDENT_CALIBRATION_THREADS": str(threads),
-            "ANTECEDENT_CALIBRATION_LOG_DIR": str(PROBE_LOG_DIR),
-            "ANTECEDENT_CALIBRATION_SHARD": f"{task.group.index - 1}/{total}",
-            "ANTECEDENT_CALIBRATION_GRID_POINTS": str(task.point),
-            "RUST_TEST_THREADS": "1",
-        }
-    )
-    return env
-
-
 def dry_run_line(task: Task, total: int, threads: int) -> str:
-    env = {
-        "ANTECEDENT_CALIBRATION_DECISION_CONFIG": "$(frozen family config)",
-        "ANTECEDENT_CALIBRATION_SMOKE": "1",
-        "ANTECEDENT_CALIBRATION_NSIM": str(task.k),
-        "ANTECEDENT_CALIBRATION_THREADS": str(threads),
-        "ANTECEDENT_CALIBRATION_LOG_DIR": str(PROBE_LOG_DIR.relative_to(ROOT)),
-        "ANTECEDENT_CALIBRATION_SHARD": f"{task.group.index - 1}/{total}",
-        "ANTECEDENT_CALIBRATION_GRID_POINTS": str(task.point),
-        "RUST_TEST_THREADS": "1",
-    }
-    prefix = " ".join(f"{name}={value}" for name, value in env.items())
     ids = ", ".join(sorted({str(r["id"]) for r in task.records}))
-    return f"# {task.group.label} [grid point {task.point}] k={task.k}: {ids}\n{prefix} bash scripts/measure_calibration_groups.sh"
+    return (f"# {task.group.label} [grid point {task.point}] k={task.k}: {ids}\n"
+            f"measure group {task.group.index} of {total} at grid point {task.point}: {task.k} smoke "
+            f"replicate(s), {threads} thread(s), frozen decision context")
 
 
 def parse_log(text: str) -> tuple[dict[tuple[str, int], dict[str, str]], str | None]:
@@ -464,36 +423,35 @@ def worktree_dirty() -> bool:
 
 
 def run_tasks(tasks: list[Task], total: int, jobs: int, decision_json: str) -> dict[str, dict]:
-    """Run each task through the gate; `stem -> {status, observed, measured_at}`."""
+    """Run each task as a measurement does (`calibration_runner.execute`) at its `k`
+    replicates in smoke mode: the same frozen decision context and seeds, never gated.
+    `stem -> {status, observed, measured_at}`."""
+    import calibration_groups
+    from calibration_runner import Task as RunTask
+    from calibration_runner import execute
+
     PROBE_LOG_DIR.mkdir(parents=True, exist_ok=True)
     for stale in PROBE_LOG_DIR.glob("*"):
         stale.unlink()
     threads = max(1, (os.cpu_count() or 1) // max(jobs, 1))
     results: dict[str, dict] = {}
-    lock = threading.Lock()
+    by_key = {(task.group.index, task.point): task for task in tasks}
 
-    def one(task: Task) -> None:
-        env = probe_environment(task.k, threads, decision_json, total, task)
-        console = PROBE_LOG_DIR / f"{task.stem}.console.txt"
-        with console.open("w", encoding="utf-8", newline="\n") as out:
-            status = subprocess.run(
-                ["bash", str(GATE)], cwd=ROOT, env=env, stdout=out, stderr=subprocess.STDOUT
-            ).returncode
+    def done(run: RunTask, result: dict) -> None:
+        task = by_key[run.key]
         log = PROBE_LOG_DIR / f"{task.stem}.log"
         observed, measured = (
-            parse_log(log.read_text(encoding="utf-8", errors="ignore"))
-            if log.is_file()
-            else ({}, None)
+            parse_log(log.read_text(encoding="utf-8", errors="ignore")) if log.is_file() else ({}, None)
         )
-        with lock:
-            results[task.stem] = {"status": status, "observed": observed, "measured_at": measured}
-            print(
-                f"  {'ok' if status == 0 else 'FAILED'}: {task.group.label} [p{task.point}] k={task.k}",
-                flush=True,
-            )
+        results[task.stem] = {"status": result["status"], "observed": observed, "measured_at": measured}
+        print(f"  {'ok' if result['status'] == 0 else 'FAILED'}: {task.group.label} [p{task.point}] k={task.k}",
+              flush=True)
 
-    with ThreadPoolExecutor(max_workers=max(jobs, 1)) as pool:
-        list(pool.map(one, tasks))
+    execute(ROOT, [RunTask(task.group.spec, task.point, threads, task.k) for task in tasks],
+            env=calibration_groups._measurement_env(strip_prefix=True), log_dir=PROBE_LOG_DIR,
+            jobs=max(jobs, 1), first_nsim=calibration_groups.FIRST_NSIM,
+            recheck_nsim=calibration_groups.RECHECK_NSIM, smoke=True, decision_context=decision_json,
+            on_done=done)
     return results
 
 
