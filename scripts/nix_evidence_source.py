@@ -20,6 +20,18 @@ def _git(root: Path, *args: str) -> bytes:
                           env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"}).stdout
 
 
+_OUTPUT_HASHES: dict[tuple, str] = {}
+
+
+def _output_hash(path: Path) -> str:
+    """A run output's digest, once per file state: every check rereads every output so far."""
+    info = path.stat()
+    key = (str(path), info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    if key not in _OUTPUT_HASHES:
+        _OUTPUT_HASHES[key] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return _OUTPUT_HASHES[key]
+
+
 def _clean_head(root: Path, allowed_outputs: dict[str, str] | None = None) -> tuple[str, str]:
     """Reject edits except exact, content-verified evidence outputs written by this run."""
     allowed = allowed_outputs or {}
@@ -38,7 +50,7 @@ def _clean_head(root: Path, allowed_outputs: dict[str, str] | None = None) -> tu
         if (not is_output or not isinstance(expected, str)
                 or not re.fullmatch(r"[0-9a-f]{64}", expected)
                 or path.is_symlink() or not path.is_file()
-                or path.resolve() != path or hashlib.sha256(path.read_bytes()).hexdigest() != expected):
+                or path.resolve() != path or _output_hash(path) != expected):
             raise ValueError("source checkout must have no tracked or untracked changes")
     head = _git(root, "rev-parse", "--verify", "HEAD^{commit}").decode().strip()
     algorithm = _git(root, "rev-parse", "--show-object-format").decode().strip()

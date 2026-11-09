@@ -174,12 +174,34 @@ def test_target(crate: str, stem: str, root: Path = REPO_ROOT) -> tuple[str, str
     the suite binary under the module named after the file (`<stem>::`).
     """
     crate_dir = root / "crates" / crate
+    suites = sorted((crate_dir / "tests").glob("suite_*.rs"))
+    # Cached per state of the manifest and the suite files: a status check asks this of
+    # every row, and the manifests of large crates take most of that time to parse.
+    state = tuple((str(path), _stat_state(path)) for path in (crate_dir / "Cargo.toml", *suites))
+    key = (str(crate_dir), stem, state)
+    if key not in _TEST_TARGETS:
+        _TEST_TARGETS[key] = _test_target(crate_dir, stem, suites)
+    return _TEST_TARGETS[key]
+
+
+_TEST_TARGETS: dict[tuple, tuple[str, str]] = {}
+
+
+def _stat_state(path: Path) -> tuple[int, int, int] | None:
+    try:
+        info = path.stat()
+    except OSError:
+        return None
+    return info.st_mtime_ns, info.st_size, info.st_ino
+
+
+def _test_target(crate_dir: Path, stem: str, suites: list[Path]) -> tuple[str, str]:
     manifest = load_toml(crate_dir / "Cargo.toml")
     for entry in manifest.get("test", []):
         if entry.get("path", f"tests/{entry['name']}.rs") == f"tests/{stem}.rs":
             return entry["name"], ""
     include = re.compile(rf'#\[path\s*=\s*"{re.escape(stem)}\.rs"\]\s*mod\s+{re.escape(stem)}\s*;')
-    for suite in sorted((crate_dir / "tests").glob("suite_*.rs")):
+    for suite in suites:
         if include.search(suite.read_text(encoding="utf-8")):
             return suite.stem, f"{stem}::"
     return stem, ""

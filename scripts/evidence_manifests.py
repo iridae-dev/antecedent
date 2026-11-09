@@ -129,7 +129,12 @@ class InvalidManifest(ValueError):
     pass
 
 
+_VALID_PATHS: set[str] = set()
+
+
 def relative_path(value: object) -> str:
+    if isinstance(value, str) and value in _VALID_PATHS:
+        return value
     if not isinstance(value, str) or not value or "\\" in value:
         raise InvalidManifest("invalid repository-relative path")
     path = PurePosixPath(value)
@@ -137,6 +142,7 @@ def relative_path(value: object) -> str:
         raise InvalidManifest("path must be normalized and inside the repository")
     if str(path) != value:
         raise InvalidManifest("path must be canonical")
+    _VALID_PATHS.add(value)
     return value
 
 
@@ -321,7 +327,15 @@ class Checker:
         return self._tracked
 
     def members(self, rel: str) -> list[str]:
-        """Files under a directory: those git does not ignore in a git work tree, else every file."""
+        """Files under a directory: those git does not ignore in a git work tree, else every file.
+
+        A checker reads one state of the tree, so each directory is listed once."""
+        cache = self.__dict__.setdefault("_members", {})
+        if rel not in cache:
+            cache[rel] = self._members_uncached(rel)
+        return list(cache[rel])
+
+    def _members_uncached(self, rel: str) -> list[str]:
         from evidence_fingerprint import SKIP_DIRS
         directory = self.path(rel)
         if not directory.is_dir():

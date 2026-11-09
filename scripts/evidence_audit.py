@@ -172,6 +172,10 @@ def claim_rows(root: Path) -> list[dict]:
     for path in sorted(root.glob("parity/**/*.toml")):
         if path.name == "coverage_records.toml":
             continue
+        # A claim row has an `evidence_kind` key; a file that never names one holds no
+        # claims, and parsing the large registries that do not is most of the cost.
+        if b"evidence_kind" not in path.read_bytes():
+            continue
         data = _repo.load_toml(path)
         for loc, row in tables(data):
             if "evidence_kind" not in row:
