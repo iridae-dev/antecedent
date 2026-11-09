@@ -475,7 +475,12 @@ impl super::Study {
             });
         }
         super::temporal_posterior_response::dbn_posterior_response_supported(q)?;
-        let mut logical = compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
+        let mut logical = self.classified_as_series_input(compile_logical_temporal_response(
+            data,
+            &TemporalDag::empty(),
+            q,
+            false,
+        )?);
         if self
             .graph_posterior
             .as_ref()

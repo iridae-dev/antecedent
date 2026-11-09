@@ -9,6 +9,17 @@ use super::{
 };
 
 impl super::super::Study {
+    /// A plan compiled over a series records event data as `Event`, not `Temporal`.
+    pub(in crate::analysis::execute) fn classified_as_series_input(
+        &self,
+        mut plan: LogicalAnalysisPlan,
+    ) -> LogicalAnalysisPlan {
+        if let DataInput::Event(_) = &self.data {
+            plan.record.data_classification = DataClassification::Event;
+        }
+        plan
+    }
+
     pub(super) fn compile_logical_temporal_effect_dag(
         &self,
         data: &TimeSeriesData,

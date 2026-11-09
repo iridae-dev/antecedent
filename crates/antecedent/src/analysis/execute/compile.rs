@@ -198,15 +198,15 @@ impl super::Study {
             RouteInput::TemporalEffectAdmg { data, query: q, graph } => {
                 self.compile_logical_temporal_effect_admg(data, q, graph, ctx)
             }
-            RouteInput::TemporalResponseDag { data, query: q, graph } => {
-                self.compile_logical_temporal_response_dag(data, q, graph)
-            }
-            RouteInput::TemporalResponseClass { data, query: q } => {
-                self.compile_logical_temporal_response_class(data, q)
-            }
-            RouteInput::TemporalResponseAdmg { data, query: q, graph } => {
-                self.compile_logical_temporal_response_admg(data, q, graph)
-            }
+            RouteInput::TemporalResponseDag { data, query: q, graph } => self
+                .compile_logical_temporal_response_dag(data, q, graph)
+                .map(|plan| self.classified_as_series_input(plan)),
+            RouteInput::TemporalResponseClass { data, query: q } => self
+                .compile_logical_temporal_response_class(data, q)
+                .map(|plan| self.classified_as_series_input(plan)),
+            RouteInput::TemporalResponseAdmg { data, query: q, graph } => self
+                .compile_logical_temporal_response_admg(data, q, graph)
+                .map(|plan| self.classified_as_series_input(plan)),
             RouteInput::MultiEnvTemporalEffect { multi, query: q, graph } => {
                 self.compile_logical_multi_env_temporal_effect(multi, q, graph)
             }
