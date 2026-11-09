@@ -1,0 +1,1 @@
+[{"digest":"286c1f3fc8866f92f32bccf9b2be202e52ee6e8d2071b73339c7e74069656174","file":"81d05ea53fbecbfdf3bb5cce6d15cbee0e02947b65dab8ce0cedfbd7b5be80e7","kind":"rust_items","path":"crates/antecedent-prob/tests/mcmc_arviz_oracle.rs","role":"compile","scopes":[[[],true]],"select":{"full":[1,2]},"table":"d0e8a11b0ddd538f27db0e7e2a1d6fa5c0f2fcfc3453f80f745430646eefd391"}]

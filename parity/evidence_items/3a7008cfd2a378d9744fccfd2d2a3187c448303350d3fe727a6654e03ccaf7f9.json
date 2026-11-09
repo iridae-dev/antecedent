@@ -1,0 +1,1 @@
+["use:super::super::historical_prior::HistoricalPrior;#0","use:super::{ArmEvidence,Error,ParticipantHistory,ParticipantSpec,PosteriorRequest,exact_posterior,};#0","struct:ArmBorrowing#0","struct:PriorDataConflict#0","impl:ParticipantSpec#0","impl:ParticipantSpec#0/fn:borrowing_receipt#0"]
