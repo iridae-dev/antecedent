@@ -327,8 +327,12 @@ class Snapshot:
         if stray:
             raise RuntimeError('untracked files among the evidence inputs; add or ignore them: '
                                + ', '.join(stray[:10]) + (' …' if len(stray) > 10 else ''))
-        inputs = [dict(kind='evidence_file', path=rel, digest=checker.input_digest('evidence_file', rel), role='external')
-                  for rel in file_rels]
+        def bound(rel: str) -> dict:
+            # A Rust source bound whole is bound as code, so a comment edit never owes it.
+            if rel.endswith('.rs') and (root / rel).is_file():
+                return dict(kind='evidence_file', path=rel, digest=checker.rust_text(rel), text='rust', role='external')
+            return dict(kind='evidence_file', path=rel, digest=checker.input_digest('evidence_file', rel), role='external')
+        inputs = [bound(rel) for rel in file_rels]
         for rel in sorted(dirs):
             inputs.append(dict(kind='membership', path=rel, digest=checker.input_digest('membership', rel), role='selection'))
         consulted = sorted(used.declaration_sources)
@@ -389,6 +393,9 @@ class Snapshot:
                 continue
             elif i['kind'] == 'declarations':
                 if declarations_digest(self.root, i['sources']) != i['digest']:
+                    return False
+            elif i['kind'] == 'evidence_file' and i.get('text') == 'rust':
+                if checker.rust_text(i['path']) != i['digest']:
                     return False
             elif checker.input_digest(i['kind'], i.get('path', i.get('name'))) != i['digest']:
                 return False
