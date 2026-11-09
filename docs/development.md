@@ -267,17 +267,19 @@ commit. It then works in four steps:
 1. It asks `scripts/calibration_status.py status` which records are not current;
    probe first, so a record whose digests reproduce is not measured again. `scripts/calibration_groups.py` maps
    those records to the gate groups that measure them.
-2. It builds the selected test binaries once, then runs each group alone through
-   `scripts/measure_calibration_groups.sh`, several at a time; a record-emitting group runs
-   as one job per sample-size grid point
-   (`ANTECEDENT_CALIBRATION_GRID_POINTS=<k>`), so the points of a long group run
-   side by side. The run includes the gate's inline 2000-replicate rechecks, per
+2. It builds the selected test binaries in one Nix derivation, coverage-instrumented,
+   then runs each group's test binary (`parity/calibration_groups.toml` names it) through
+   the shared evidence runner (`scripts/calibration_runner.py`), several at a time; a
+   record-emitting group runs as one job per sample-size grid point, so the points of a
+   long group run side by side. The run includes the gate's inline 2000-replicate rechecks, per
    point. It prints each job's start and its result with elapsed time. The gate's logs go to
    `target/calibration-records/`, where the collector reads them, and earlier
-   logs and consoles move to durable, SHA-scoped run directories under
-   `target/calibration-archives/`. Each group's console
-   output goes to `target/calibration-console/`, and its wall time is appended
-   to `target/calibration-timings.tsv` for post-run review.
+   logs move to durable, SHA-scoped run directories under
+   `target/calibration-archives/`. Beside each log the runner stores the code regions
+   the job executed (`<stem>.coverage.json`) and, once, the Nix build records
+   (`evidence-builds.json`): the collector binds each record to the items its
+   measurement ran. Each job's wall time is appended to
+   `target/calibration-timings.tsv` for post-run review.
 3. It runs `scripts/collect_coverage_records.py --keep-not_measured` (without the
    flag under `--all`). Each record is stamped with the commit it was measured
    at and the fingerprint of its test there. Records the logs do not re-measure
@@ -421,7 +423,7 @@ python3 scripts/calibration_probe.py bounded             # k = smallest stored p
 python3 scripts/calibration_probe.py bounded --record <id>
 ```
 
-Each probe runs the record's group through `scripts/measure_calibration_groups.sh` under
+Each probe runs the record's group through the shared calibration runner under
 the measurement's frozen decision environment, in smoke mode (never gated), on a
 clean commit, with logs in `target/calibration-probe/`. It writes
 `parity/calibration_probe_attestations.toml`, one row per record and
@@ -561,7 +563,7 @@ coverage record.
 |------|------|
 | Unit / property | Algorithm invariants, graph witnesses, numeric edge cases |
 | Conformance | Frozen fixtures vs expected outputs (`conformance/`) |
-| Calibration | Coverage / Type I / null FPR (`measure_calibration_groups.sh`, measured locally by `measure_calibration.sh`) |
+| Calibration | Coverage / Type I / null FPR (`parity/calibration_groups.toml`, measured locally by `measure_calibration.sh`) |
 | Cross-language | Python bindings exercise the same semantics |
 | Criterion benches | Designated hot paths; release gate locally and in CI |
 | Fuzz | Parsers / graph / artifact surfaces under `fuzz/` |

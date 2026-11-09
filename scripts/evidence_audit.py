@@ -36,6 +36,7 @@ from evidence_kinds import (
     KNOWN_TRUTH_KINDS,
     evidence_roles,
     fixture_review_problems,
+    load_fixture,
     inline_reference_problems,
     kind_problems,
     software_only_roles,
@@ -82,7 +83,7 @@ def in_repo(root: Path, rel: str) -> Path | None:
 
 def fixture_report(root: Path, path: Path) -> dict:
     root, path = root.resolve(), path.resolve()
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = load_fixture(root, path)
     oracle = data.get("oracle")
     oracle = oracle if isinstance(oracle, dict) else {}
     references = [

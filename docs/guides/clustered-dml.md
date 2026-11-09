@@ -139,7 +139,7 @@ dyadic unit) and `se_reference_df` equal to the receipt's `reference_df`.
   the route reports its own sandwich standard error rather than ignoring the request.
 - **Calibration.** The calibration harness is wired and runnable:
   `crates/antecedent/tests/cluster_dml_calibration.rs` (`cluster_dml_t_wald_interval`,
-  registered in `scripts/measure_calibration_groups.sh`) scores the facade's published interval over a
+  registered in `parity/calibration_groups.toml`) scores the facade's published interval over a
   sample grid of cluster counts and was measured. The one-way 95% cluster interval
   reports `calibrated` for 300–800 rows at that coordinate. This construction does
   not measure the dyadic `multiway` coordinate;

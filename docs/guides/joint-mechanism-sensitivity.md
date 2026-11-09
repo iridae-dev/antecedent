@@ -198,7 +198,7 @@ cancelled frontier is not exported, because it does not replay.
 
 Record `sensitivity.joint_uncertainty` covers the Rust and Python functions that
 return the endpoint interval. Its coverage records are measured by
-`scripts/measure_calibration_groups.sh` (`run_js`, over the sample-size grid); the
+the calibration gate (`parity/calibration_groups.toml`, over the sample-size grid); the
 interval's calibration status reports whether a record matches the current
 construction. This section states the composition and its measured scope.
 

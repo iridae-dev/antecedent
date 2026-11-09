@@ -2,13 +2,11 @@
 """The calibration gate's groups: which records each measures, which owe a run,
 and running them in parallel on this machine.
 
-`scripts/measure_calibration_groups.sh` owns the groups, their commands and the
-2000-replicate recheck, which runs inline right after a group that asks for it.
-This module never edits or re-implements a group. It reads the group list from
-the gate's dry run and runs each selected group alone through the
-gate (`ANTECEDENT_CALIBRATION_SHARD=<index-1>/<groups>` selects exactly that
-group), so the gate's recheck and its record logs in `target/calibration-records/`
-are the ones `scripts/collect_coverage_records.py` reads.
+`parity/calibration_groups.toml` lists the groups, in gate order, and the test binary
+and exact tests each runs. `scripts/calibration_runner.py` measures a (group, grid
+point) task, with its inline 2000-replicate recheck, through the shared evidence
+runner, and writes the record logs in `target/calibration-records/` that
+`scripts/collect_coverage_records.py` reads.
 
 Which records are not current is decided by `scripts/calibration_status.py`
 (the only status computation); this module maps those records to groups.
@@ -74,7 +72,6 @@ from pathlib import Path
 from _repo import REPO_ROOT as ROOT
 from _repo import ensure_scripts_on_path, load_toml, strict_git_dirty, strict_git_head
 
-GATE = ROOT / "scripts" / "measure_calibration_groups.sh"
 LOG_DIR = ROOT / "target" / "calibration-records"
 ARCHIVE_DIR = ROOT / "target" / "calibration-archives"
 CONSOLE_DIR = ROOT / "target" / "calibration-console"
@@ -151,9 +148,8 @@ class Group:
     index: int  # 1-based position in the gate
     label: str
     long: bool
-    grid: (
-        bool  # measured over the sample-size grid (the gate's `grid_group`, read from its dry run)
-    )
+    grid: bool  # measured over the sample-size grid
+    spec: "object | None" = None  # calibration_runner.GroupSpec: what the group runs
 
     @property
     def head(self) -> str:
@@ -179,21 +175,12 @@ def is_long(label: str) -> bool:
 
 
 def gate_groups() -> list[Group]:
-    env = dict(os.environ, ANTECEDENT_CALIBRATION_DRY_RUN="1")
-    env.pop("ANTECEDENT_CALIBRATION_SHARD", None)
-    env.pop("ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE", None)
-    out = subprocess.run(
-        ["bash", str(GATE)], cwd=ROOT, env=env, capture_output=True, text=True, check=True
-    ).stdout
-    groups = []
-    grid = {int(m.group(1)) for m in re.finditer(r"^grid (\d+)$", out, re.M)}
-    for line in out.splitlines():
-        m = re.fullmatch(r"group (\d+): (.+)", line)
-        if m:
-            index = int(m.group(1))
-            groups.append(Group(index, m.group(2), is_long(m.group(2)), index in grid))
-    if not groups or [g.index for g in groups] != list(range(1, len(groups) + 1)):
-        raise SystemExit("could not read the group list from the gate's dry run")
+    """The gate's groups, in gate order, from `parity/calibration_groups.toml`."""
+    from calibration_runner import load_groups
+    groups = [Group(spec.index, spec.label, is_long(spec.label), spec.grid, spec)
+              for spec in load_groups(ROOT)]
+    if not groups:
+        raise SystemExit("parity/calibration_groups.toml lists no calibration group")
     return groups
 
 
@@ -689,98 +676,31 @@ def print_plan(selection: Selection, groups: list[Group], jobs: int) -> None:
 # --------------------------------------------------------------------------
 
 
-def prebuild(groups: list[Group]) -> int:
-    """Build every selected group's test binary once, serially, so the parallel
-    runs neither wait on cargo's build-directory lock nor count its time."""
-    commands: list[list[str]] = []
-    packages = sorted({g.head for g in groups if _package(g.head)})
-    for package in packages:
-        commands.append(["cargo", "test", "--release", "-p", package, "--lib", "--no-run"])
-    # A suite that declares required features is built with exactly those features,
-    # the way scripts/measure_calibration_groups.sh runs it, so the binary is reused and the
-    # package's other suites are not rebuilt with a different feature set.
-    suites_by_package: dict[tuple[str, tuple[str, ...]], set[str]] = {}
-    for group in groups:
-        owner = _suite_owner(ROOT, group.head)
-        if owner is not None:
-            features = _suite_features(ROOT, owner, group.head)
-            suites_by_package.setdefault((owner, features), set()).add(group.head)
-    for (package, features), suites in sorted(suites_by_package.items()):
-        tests = [arg for suite in sorted(suites) for arg in ("--test", suite)]
-        feature_args = ["--features", ",".join(features)] if features else []
-        commands.append(
-            ["cargo", "test", "--release", "-p", package, *feature_args, *tests, "--no-run"]
-        )
-    from _calibration_build_cache import guarded_release_cache
-
-    with guarded_release_cache(ROOT):
-        for command in commands:
-            print(f"== build: {' '.join(command)}", flush=True)
-            if subprocess.run(command, cwd=ROOT).returncode != 0:
-                return 1
-    return 0
-
-
 def pilot(selection: Selection, total: int, jobs: int) -> int:
     """Time selected groups with smoke replicates, isolated from coverage logs."""
+    from calibration_runner import Task, execute
+
     groups = selection.groups
     if not groups:
         print("nothing to pilot")
         return 0
-    if prebuild(groups) != 0:
-        return 1
     sha = strict_git_head(ROOT)
     shutil.rmtree(PILOT_LOG_DIR, ignore_errors=True)
     PILOT_LOG_DIR.mkdir(parents=True)
     PILOT_TIMINGS.parent.mkdir(parents=True, exist_ok=True)
-    tasks = [(group, point) for group in groups for point in group.points]
+    by_index = {g.index: g for g in groups}
+    tasks = [Task(group.spec, point, 1, PILOT_NSIM) for group in groups for point in group.points]
     lock = threading.Lock()
     failed: list[str] = []
     finished = 0
     started = time.monotonic()
-    base_env = {
-        k: v
-        for k, v in os.environ.items()
-        if not k.startswith("ANTECEDENT_CALIBRATION_")
-        and k
-        not in {
-            "ANTECEDENT_PARENT_PROTOCOL_VERSION",
-            "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION",
-            "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL",
-            "ANTECEDENT_WEIGHTED_CLUSTER_PROTOCOL",
-        }
-    }
-    base_env.update(
-        {
-            "ANTECEDENT_CALIBRATION_SMOKE": "1",
-            "ANTECEDENT_CALIBRATION_NSIM": str(PILOT_NSIM),
-            "ANTECEDENT_CALIBRATION_RECHECK_NSIM": str(PILOT_NSIM + 1),
-            "ANTECEDENT_CALIBRATION_THREADS": "1",
-            "ANTECEDENT_CALIBRATION_LOG_DIR": str(PILOT_LOG_DIR),
-            "RUST_TEST_THREADS": "1",
-        }
-    )
 
-    def one(task: tuple[Group, int | None]) -> None:
+    def done(task: Task, result: dict) -> None:
         nonlocal finished
-        group, point = task
-        label = task_label(group, point)
-        suffix = "" if point is None else f".p{point}"
-        console = PILOT_LOG_DIR / f"{group.safe}{suffix}.console.txt"
-        task_env = {**base_env, "ANTECEDENT_CALIBRATION_SHARD": f"{group.index - 1}/{total}"}
-        if point is not None:
-            task_env["ANTECEDENT_CALIBRATION_GRID_POINTS"] = str(point)
-        begin = time.monotonic()
-        with console.open("w", encoding="utf-8", newline="\n") as out:
-            status = subprocess.run(
-                ["bash", str(GATE)],
-                cwd=ROOT,
-                env=task_env,
-                stdout=out,
-                stderr=subprocess.STDOUT,
-            ).returncode
-        elapsed = time.monotonic() - begin
-        log = PILOT_LOG_DIR / f"{group.safe}{suffix}.log"
+        label = task_label(by_index[task.group.index], task.point)
+        suffix = "" if task.point is None else f".p{task.point}"
+        log = PILOT_LOG_DIR / f"{task.group.safe}{suffix}.log"
+        elapsed = result["seconds"]
         test_seconds = sum(
             float(value)
             for value in re.findall(
@@ -794,16 +714,16 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
         test_seconds = min(elapsed, max(0.01, test_seconds))
         with lock:
             finished += 1
-            if status != 0:
+            if result["status"] != 0:
                 failed.append(label)
             with PILOT_TIMINGS.open("a", encoding="utf-8", newline="\n") as timings:
                 timings.write(
-                    f"{label}\t{elapsed:.2f}\t{status}\t{sha}\t1\t{PILOT_NSIM}"
+                    f"{label}\t{elapsed:.2f}\t{result['status']}\t{sha}\t1\t{PILOT_NSIM}"
                     f"\t{test_seconds:.2f}\n"
                 )
             print(
                 f"[{_clock(time.monotonic() - started)}] pilot {finished}/{len(tasks)}: "
-                f"{label}: {_clock(elapsed)} {'ok' if status == 0 else 'FAILED'}",
+                f"{label}: {_clock(elapsed)} {'ok' if result['status'] == 0 else 'FAILED'}",
                 flush=True,
             )
 
@@ -811,13 +731,9 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
     print(
         f"piloting {len(tasks)} grid job(s) with {PILOT_NSIM} smoke replicates; no coverage records"
     )
-    with ThreadPoolExecutor(max_workers=jobs) as pool:
-        list(pool.map(one, tasks))
-    current = strict_git_head(ROOT)
-    if (
-        current != sha
-        or strict_git_dirty(ROOT)
-    ):
+    execute(ROOT, tasks, env=_measurement_env(strip_prefix=True), log_dir=PILOT_LOG_DIR, jobs=jobs,
+            first_nsim=PILOT_NSIM, recheck_nsim=PILOT_NSIM + 1, smoke=True, on_done=done)
+    if strict_git_head(ROOT) != sha or strict_git_dirty(ROOT):
         PILOT_TIMINGS.unlink(missing_ok=True)
         print("FAIL: HEAD or the working tree changed during the pilot")
         return 1
@@ -860,17 +776,12 @@ def last_durations() -> dict[str, float]:
 
 
 def longest_first(tasks: list[tuple[Group, int | None]]) -> list[tuple[Group, int | None]]:
-    """Order tasks by their last recorded duration, longest first (longest-processing-time
-    scheduling), so a long task does not start late and set the wall time; tasks with no
-    record keep their gate order after the timed ones."""
+    """Order tasks by their last recorded duration, longest first (`evidence_capture`);
+    tasks with no record keep their gate order after the timed ones."""
+    from evidence_capture import longest_first as order
+
     durations = last_durations()
-
-    def key(item: tuple[int, tuple[Group, int | None]]) -> tuple[int, float, int]:
-        position, (group, point) = item
-        seconds = durations.get(task_label(group, point))
-        return (0, -seconds, position) if seconds is not None else (1, 0.0, position)
-
-    return [task for _, task in sorted(enumerate(tasks), key=key)]
+    return order(tasks, lambda task: durations.get(task_label(*task)))
 
 
 # Most worker threads a single long task is given (see tail_threads).
@@ -962,26 +873,13 @@ def measurement_source_sha() -> str:
     return strict_git_head(ROOT)
 
 
-def run(selection: Selection, total: int, jobs: int) -> int:
-    groups = selection.groups
-    if not groups:
-        print("nothing to measure: no record owes a re-measurement")
-        return 0
-    sha = measurement_source_sha()
-    decision_env = formal_decision_environment(groups)
-    archive_logs()
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    CONSOLE_DIR.mkdir(parents=True, exist_ok=True)
-    if prebuild(groups) != 0:
-        print("FAIL: the calibration tests do not build")
-        return 1
-    if measurement_source_sha() != sha:
-        raise SystemExit("measurement source changed during prebuild; raw logs are retained")
-    threads = threads_per_job(jobs)
-    env = {
+def _measurement_env(strip_prefix: bool = False) -> dict[str, str]:
+    """The caller's environment without the gate's own controls: the runner sets them."""
+    return {
         k: v
         for k, v in os.environ.items()
-        if k
+        if not (strip_prefix and k.startswith("ANTECEDENT_CALIBRATION_"))
+        and k
         not in (
             "ANTECEDENT_CALIBRATION_NSIM",
             "ANTECEDENT_CALIBRATION_RECHECK_NSIM",
@@ -994,6 +892,8 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_CALIBRATION_TALLY_OUT",
             "ANTECEDENT_CALIBRATION_LOG_DIR",
             "ANTECEDENT_CALIBRATION_SMOKE",
+            "ANTECEDENT_CALIBRATION_SHARD",
+            "ANTECEDENT_CALIBRATION_SHA",
             "ANTECEDENT_PARENT_PROTOCOL_VERSION",
             "ANTECEDENT_SYNTHESIS_PROTOCOL_VERSION",
             "ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL",
@@ -1003,86 +903,52 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE",
         )
     }
-    env.update(decision_env)
-    # Whole-file groups and substring filters can run several tests. Keep
-    # libtest serial so each job owns only one map_replicates pool at a time.
-    env["RUST_TEST_THREADS"] = "1"
-    env["ANTECEDENT_CALIBRATION_THREADS"] = str(threads)
-    env["ANTECEDENT_CALIBRATION_NSIM"] = str(FIRST_NSIM)
-    env["ANTECEDENT_CALIBRATION_RECHECK_NSIM"] = str(RECHECK_NSIM)
+
+
+def run(selection: Selection, total: int, jobs: int) -> int:
+    """Measure the selected groups: one Nix build of their test binaries, then every
+    (group, grid point) task longest first, `jobs` at a time (scripts/calibration_runner.py)."""
+    import calibration_decision as decision
+    from calibration_runner import Task, execute
+
+    groups = selection.groups
+    if not groups:
+        print("nothing to measure: no record owes a re-measurement")
+        return 0
+    sha = measurement_source_sha()
+    decision_env = formal_decision_environment(groups)
+    archive_logs()
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    threads = threads_per_job(jobs)
     started = time.monotonic()
     lock = threading.Lock()
     done: list[int] = []
-    failed: list[Group] = []
+    failed: list[str] = []
+    ordered = longest_first([(group, point) for group in groups for point in group.points])
+    widened = tail_threads(ordered, jobs, threads)
+    tasks = [Task(group.spec, point, widened.get(task_label(group, point), threads))
+             for group, point in ordered]
 
-    tasks = longest_first([(group, point) for group in groups for point in group.points])
-    widened = tail_threads(tasks, jobs, threads)
-    # The executor caps processes, not the sum of their replicate workers.
-    # Explicit jobs > cores retain the user's requested process concurrency.
-    budget = SimulationBudget(max(CORES, jobs))
-
-    def one(task: tuple[Group, int | None]) -> None:
-        group, point = task
-        label = task_label(group, point)
-        suffix = "" if point is None else f".p{point}"
-        console = CONSOLE_DIR / f"{group.safe}{suffix}.txt"
-        task_threads = widened.get(label, threads)
-        task_env = {
-            **env,
-            "ANTECEDENT_CALIBRATION_SHARD": f"{group.index - 1}/{total}",
-            "ANTECEDENT_CALIBRATION_THREADS": str(task_threads),
-        }
-        if point is not None:
-            task_env["ANTECEDENT_CALIBRATION_GRID_POINTS"] = str(point)
-        begin = time.monotonic()
+    def finished(task: Task, result: dict) -> None:
+        label = task_label(next(g for g in groups if g.index == task.group.index), task.point)
         with lock:
-            print(f"[{_clock(begin - started)}] start group {group.index}: {label}")
-        with console.open("w", encoding="utf-8", newline="\n") as out:
-            status = subprocess.run(
-                ["bash", str(GATE)],
-                cwd=ROOT,
-                env=task_env,
-                stdout=out,
-                stderr=subprocess.STDOUT,
-            ).returncode
-        elapsed = time.monotonic() - begin
-        rechecked = (LOG_DIR / f"{group.safe}{suffix}.recheck.log").exists()
-        with lock:
-            done.append(group.index)
-            if status != 0:
+            done.append(task.group.index)
+            if result["status"] != 0:
                 failed.append(label)
             with TIMINGS.open("a", encoding="utf-8", newline="\n") as timings:
-                timings.write(
-                    f"{label}\t{elapsed:.1f}\t{status}\t{sha}\t{task_threads}\t{FIRST_NSIM}\n"
-                )
-            verdict = "ok" if status == 0 else f"FAILED (see {console.relative_to(ROOT)})"
-            print(
-                f"[{_clock(time.monotonic() - started)}] {len(done)}/{len(tasks)} "
-                f"group {group.index}: {verdict} in {_clock(elapsed)}"
-                + (f" (rechecked at {RECHECK_NSIM} replicates)" if rechecked else "")
-                + f": {label}",
-                flush=True,
-            )
+                timings.write(f"{label}\t{result['seconds']:.1f}\t{result['status']}\t{sha}"
+                              f"\t{task.threads}\t{FIRST_NSIM}\n")
+            verdict = "ok" if result["status"] == 0 else "FAILED: " + "; ".join(result["problems"] or ["see its log"])
+            print(f"[{_clock(time.monotonic() - started)}] {len(done)}/{len(tasks)} group {task.group.index}: "
+                  f"{verdict} in {_clock(result['seconds'])}"
+                  + (f" (rechecked at {RECHECK_NSIM} replicates)" if result["rechecked"] else "")
+                  + f": {label}", flush=True)
 
-    def budgeted_one(task: tuple[Group, int | None]) -> None:
-        group, point = task
-        with budget.claim(widened.get(task_label(group, point), threads)):
-            one(task)
-
-    # last_durations includes measured wall times and falls back to old pilots.
-    # Keep its longest-first schedule even when no pilot exists at this HEAD.
-    ordered = tasks
-    print(
-        f"running {len(tasks)} grid job(s), {jobs} at a time with {threads} thread(s) each; first-pass replicates={FIRST_NSIM}"
-    )
-    with ThreadPoolExecutor(max_workers=jobs) as pool:
-        list(pool.map(budgeted_one, ordered))
-    print(
-        f"measured {len(groups)} group(s) as {len(tasks)} grid job(s) in "
-        f"{_clock(time.monotonic() - started)}"
-    )
-    if measurement_source_sha() != sha:
-        raise SystemExit("measurement source changed during execution; raw logs are retained")
+    print(f"building and running {len(tasks)} grid job(s), {jobs} at a time with {threads} thread(s) each; "
+          f"first-pass replicates={FIRST_NSIM}", flush=True)
+    execute(ROOT, tasks, env=_measurement_env(), log_dir=LOG_DIR, jobs=jobs, first_nsim=FIRST_NSIM,
+            recheck_nsim=RECHECK_NSIM, decision_context=decision_env.get(decision.ENV), on_done=finished)
+    print(f"measured {len(groups)} group(s) as {len(tasks)} grid job(s) in {_clock(time.monotonic() - started)}")
     if failed:
         print(f"FAIL: {len(failed)} grid job(s) failed the calibration gate:")
         for label in sorted(failed):

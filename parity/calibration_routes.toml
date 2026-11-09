@@ -3,7 +3,7 @@
 # `scripts/calibration_status.py` reads a route's calibration from the coverage records its
 # capability record allocates (`coverage_records`). A route whose interval is not one of those
 # records, or whose capability record allocates none, is named here instead: `groups` lists the
-# gate groups (`<test file>: <test filter>`, as `scripts/measure_calibration_groups.sh` labels
+# gate groups (`<test file>: <test filter>`, as `parity/calibration_groups.toml` labels
 # them; a filter is a substring, an empty filter is the whole file) whose coverage records
 # measure it, or `no_interval` says why the route publishes no interval. A route with groups
 # and no record yet is owed: `bash scripts/measure_calibration.sh --owed` runs exactly those

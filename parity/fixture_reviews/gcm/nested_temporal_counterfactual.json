@@ -1,0 +1,88 @@
+{
+  "scope": "One 40-row deterministic mediation model and four counterfactual means.",
+  "independence_basis": "The generator evaluates the stated deterministic structural equations by substitution with rational arithmetic; it imports no Antecedent code and no statistics package. The shared object is the stated model.",
+  "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+  "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+  "limitations": "Deterministic equations with no noise; the shared-noise abduction path of the engine is not exercised by the arithmetic. The structured-error case is context. No uncertainty or calibration.",
+  "sources": [],
+  "artifacts": [
+    {
+      "role": "generator",
+      "path": "conformance/gcm/nested_temporal_counterfactual/reference.py",
+      "sha256": "1e6f508413f1b573fd2dcc3c1f1d219d052f8bd5e788f0090e87acc1ef186dd0"
+    },
+    {
+      "role": "environment_lock",
+      "path": "conformance/gcm/nested_temporal_counterfactual/reference.py.lock",
+      "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+    },
+    {
+      "role": "assertion_source",
+      "path": "crates/antecedent-counterfactual/src/engine.rs",
+      "items": [
+        "const ABDUCTION_STREAM",
+        "const PREDICT_STREAM",
+        "const RANK_PRESERVING_ASSUMPTION",
+        "enum AbductionMissingPolicy",
+        "enum NoiseInferenceKind",
+        "fn abduct",
+        "fn abduct_impl",
+        "fn admit_counterfactual",
+        "fn allows_missing",
+        "fn complete_outcome_mean",
+        "fn counterfactual_refusal",
+        "fn evaluate_column",
+        "fn evaluate_world_into",
+        "fn finite_outcome_count",
+        "fn from",
+        "fn get",
+        "fn n_nodes",
+        "fn n_units",
+        "fn nested_column_frozen_pass_matches_per_unit_reference_bit_for_bit",
+        "fn nested_hard_allows_overlapping_treatment_with_mediator_freeze",
+        "fn nested_hard_fixture_engine",
+        "fn new",
+        "fn outcome_column",
+        "fn outcome_mean",
+        "fn predict",
+        "fn predict_impl",
+        "fn predict_world_stream",
+        "fn resolve_outcomes",
+        "fn retained_nodes",
+        "fn sample_noise_column",
+        "fn shared",
+        "fn slot_of",
+        "fn stored_width",
+        "fn streaming_outcome_mean",
+        "fn try_get",
+        "fn validate_prediction_inputs",
+        "fn values",
+        "struct CompiledCounterfactualPlan",
+        "struct CounterfactualEngine",
+        "struct CounterfactualResult",
+        "struct CounterfactualWorld",
+        "struct ExogenousPosterior",
+        "struct OutcomeMean",
+        "struct PredictMode",
+        "struct WorldEvaluation"
+      ],
+      "sha256": "8ae86598d3652e1526b843c6afab2ec71c1818c6abbe99b19d79edd53cf4f8a3"
+    },
+    {
+      "role": "assertion_source",
+      "path": "crates/antecedent-counterfactual/src/engine_nested.rs",
+      "items": [
+        "fn column_is_finite_constant",
+        "fn nested_column_frozen_mean",
+        "fn nested_counterfactual",
+        "fn nested_counterfactual_with_exo",
+        "fn nested_hard_counterfactual",
+        "fn nested_rows_independent",
+        "struct FrozenOuter",
+        "struct NestedSpec"
+      ],
+      "sha256": "dff8b75ffa026341a88c7b55bd1c3d6e0e17072d94bf8483c669818598be3304"
+    }
+  ],
+  "fixture_payload_sha256": "12a149e5a317291f4aa24c10c1552f057ee386b66d0b844db7c223a789532bb5"
+}

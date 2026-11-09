@@ -63,7 +63,17 @@ NORMALIZATION = "raw-bytes-v1"
 ANALYZER = "compiler-items-v1"
 HEX = re.compile(r"[0-9a-f]{64}\Z")
 KINDS = ("file", "tree", "env", "membership", "evidence_file", "glob", "build_env",
-         "rust_items", "rust_names", "rust_guards")
+         "rust_items", "rust_names", "rust_guards", "declarations")
+DECLARATIONS = "parity/fingerprint_inputs.toml"
+
+
+def declarations_digest(root: Path, sources: list[str]) -> str:
+    """Digest of the `parity/fingerprint_inputs.toml` rows of `sources`, in file order: what
+    a record's dynamic reads were resolved by. Rows of other sources are not its inputs."""
+    path = root / DECLARATIONS
+    rows = _repo.load_toml(path).get("input", []) if path.is_file() else []
+    wanted = set(sources)
+    return digest(canonical([row for row in rows if row.get("source") in wanted]))
 ROLES = ("execution", "compile", "selection", "external", "identity")
 # The build configuration evidence is earned and released under. Earning refuses
 # any other value; lint levels are not configuration and are ignored.
@@ -188,6 +198,10 @@ def validate(manifest: dict, binding: dict) -> None:
                 isinstance(entry.get("dirs"), list) and isinstance(entry.get("spec"), dict)
                 and isinstance(entry.get("tree"), str) and HEX.fullmatch(entry["tree"])):
             raise InvalidManifest("invalid resolution guards")
+        if kind == "declarations" and not (
+                key == DECLARATIONS and isinstance(entry.get("sources"), list)
+                and all(isinstance(s, str) for s in entry["sources"]) and entry["sources"] == sorted(set(entry["sources"]))):
+            raise InvalidManifest("invalid input declarations")
         if kind == "build_env" and key not in BUILD_ENV:
             raise InvalidManifest("unknown build environment input")
         if entry.get("role") not in ROLES:
@@ -211,12 +225,18 @@ def validate_nix_receipt(receipt: object, binding: dict, inputs: list[dict]) -> 
         raise InvalidManifest("Nix build provenance is not yet supported")
     try:
         artifact, source, policy, tools = (receipt[k] for k in ("artifact", "source", "policy", "tools"))
-        if binding.get("kind") != "scientific" or receipt.get("execution") != "exact-binary":
+        if binding.get("kind") not in ("scientific", "calibration", "probe") or receipt.get("execution") != "exact-binary":
             raise ValueError("invalid execution binding")
-        crate, target, _ = binding["key"].split("::", 2)
-        expected = "lib" if artifact["target_kind"] == "lib" else artifact["target_name"]
-        if artifact["crate"] != crate or target != expected or artifact["target_kind"] not in ("lib", "test"):
+        crate = artifact["crate"]
+        if artifact["target_kind"] not in ("lib", "test"):
             raise ValueError("target mismatch")
+        if binding["kind"] == "scientific":
+            # A scientific record names its test target; a calibration record names its
+            # measurement, whose binary the collector binds from the run that emitted it.
+            key_crate, target, _ = binding["key"].split("::", 2)
+            expected = "lib" if artifact["target_kind"] == "lib" else artifact["target_name"]
+            if key_crate != crate or target != expected:
+                raise ValueError("target mismatch")
         # One shared derivation builds every owed target; each artifact names its own executable.
         name = artifact["target_name"] if artifact["target_kind"] == "test" else "lib"
         if (artifact.get("schema") != 2
@@ -474,6 +494,8 @@ class Checker:
                     unchanged = self.items.guards_current(entry)
                 elif kind == "rust_names":
                     unchanged = True
+                elif kind == "declarations":
+                    unchanged = declarations_digest(self.root, entry["sources"]) == entry["digest"]
                 else:
                     unchanged = self.input_digest(kind, key) == entry["digest"]
                 if not unchanged:
@@ -518,6 +540,56 @@ def inventory(root: Path, kind: str = "all") -> list[tuple[dict, object]]:
                 bound = probe_binding(row)
             records.append((bound, row.get("dependency_manifest")))
     return records
+
+
+def _stored(root: Path) -> set[str]:
+    from evidence_items import STORE as ITEMS
+    found = set()
+    for directory in (STORE, INPUT_GROUPS, ITEMS):
+        base = root / directory
+        if base.is_dir():
+            found.update(f"{directory}/{p.name}" for p in base.iterdir()
+                         if p.suffix == ".json" and HEX.fullmatch(p.stem))
+    return found
+
+
+def reachable_evidence(root: Path) -> set[str]:
+    """Stored evidence a record still reaches: its manifest, the manifest's input groups,
+    and the item tables those groups name. Every ledger that cites manifests counts."""
+    from evidence_items import STORE as ITEMS
+    checker = Checker(root)
+    reached: set[str] = set()
+    for _, ref in inventory(root):
+        if not isinstance(ref, str) or not HEX.fullmatch(ref):
+            continue
+        path = root / STORE / f"{ref}.json"
+        if not path.is_file():
+            continue
+        reached.add(f"{STORE}/{ref}.json")
+        try:
+            stored = json.loads(path.read_bytes())
+            reached.update(f"{INPUT_GROUPS}/{g}.json" for g in stored.get("input_groups", [])
+                           if isinstance(g, str) and HEX.fullmatch(g))
+            inputs = checker.load(ref)["inputs"]
+        except (OSError, ValueError, KeyError, TypeError):
+            # An unreadable manifest keeps what it names; its record reports the defect.
+            continue
+        reached.update(f"{ITEMS}/{e['table']}.json" for e in inputs
+                       if e.get("kind") == "rust_items" and isinstance(e.get("table"), str))
+    return reached
+
+
+def unreachable_evidence(root: Path) -> list[str]:
+    """Stored evidence no record reaches: superseded by a later pass or left by a stopped run."""
+    return sorted(_stored(root) - reachable_evidence(root))
+
+
+def prune_evidence(root: Path) -> list[str]:
+    """Delete stored evidence no record reaches. History keeps every superseded file."""
+    removed = unreachable_evidence(root)
+    for rel in removed:
+        (root / rel).unlink()
+    return removed
 
 
 def report(root: Path = ROOT, kind: str = "all") -> dict:

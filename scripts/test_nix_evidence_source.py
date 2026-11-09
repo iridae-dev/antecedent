@@ -38,6 +38,22 @@ class SnapshotTest(unittest.TestCase):
         self.assertEqual(result["commit"], self.git("rev-parse", "HEAD").decode().strip())
         self.assertEqual((self.destination / "sub/source.rs").read_bytes(), (self.root / "sub/source.rs").read_bytes())
 
+    def test_committed_evidence_outputs_stay_out_of_the_build_source(self):
+        outputs = ["parity/scientific_records.toml", "parity/evidence_manifests/a.json",
+                   "parity/evidence_inputs/b.json", "parity/evidence_items/c.json"]
+        for rel in outputs + ["parity/coverage_records.toml"]:
+            (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / rel).write_text("x\n", encoding="utf-8")
+        self.git("add", "parity")
+        self.git("commit", "-qm", "records")
+        result = materialize_committed_source(self.root, self.destination)
+        verify_committed_snapshot(self.root, self.destination, result["commit"])
+        for rel in outputs:
+            self.assertFalse((self.destination / rel).exists(), rel)
+        # Data a test compiles in stays, as do the other committed sources.
+        self.assertTrue((self.destination / "parity/coverage_records.toml").is_file())
+        self.assertTrue((self.destination / "sub/source.rs").is_file())
+
     def test_dirty_or_untracked_source_refuses_without_creating_snapshot(self):
         (self.root / "untracked").write_text("x", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "checkout"):

@@ -1,7 +1,7 @@
 # Pass/fail calibration groups that emit no coverage record (CI Type I error,
 # permutation uniformity, discovery FPR/power, SBC, response calibration).
 #
-# One row per group log `scripts/measure_calibration_groups.sh` wrote and
+# One row per group log the calibration gate (`scripts/calibration_groups.py`) wrote and
 # `scripts/collect_coverage_records.py` accepted: the group ran, passed at least
 # one test and failed none, at `calibration_sha`. Do not edit rows by hand; re-run
 # the collector. `scripts/gate_parity_schema.sh` checks every row.
