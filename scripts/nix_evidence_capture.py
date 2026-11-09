@@ -11,9 +11,9 @@ import subprocess
 import tempfile
 import threading
 import types
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from multiprocessing import get_context
 from pathlib import Path
+
+import evidence_capture
 
 from nix_artifact_identity import recheck_artifact, target_binary
 from nix_evidence_build import build_committed_target
@@ -58,45 +58,14 @@ def diagnose_target(root: Path, rows: list[dict], run=subprocess.run) -> dict:
     return capture_built_target(root, rows, built, run)
 
 
-# Concurrent test processes across every target of a run: half the cores, leaving room
-# for tests that use threads internally and for the earning process itself. Targets are
-# captured concurrently through one process-wide queue, first come first served, so
-# targets finish (and are recorded) in the order they were submitted rather than all
-# progressing at once.
-CAPTURE_WORKERS = max(1, (os.cpu_count() or 2) // 2)
-_POOL: ThreadPoolExecutor | None = None
-_POOL_LOCK = threading.Lock()
-
-
-_PROCESSES: ProcessPoolExecutor | None = None
-
-
-def _capture_pool() -> ThreadPoolExecutor:
-    global _POOL
-    with _POOL_LOCK:
-        if _POOL is None:
-            _POOL = ThreadPoolExecutor(max_workers=CAPTURE_WORKERS, thread_name_prefix="capture")
-        return _POOL
-
-
-def _capture_processes() -> ProcessPoolExecutor:
-    global _PROCESSES
-    with _POOL_LOCK:
-        if _PROCESSES is None:
-            # Spawned, not forked: the parent runs threads.
-            _PROCESSES = ProcessPoolExecutor(max_workers=CAPTURE_WORKERS, mp_context=get_context("spawn"))
-        return _PROCESSES
-
-
-def _capture_in_process(root: Path, binary: str, info: dict, env: dict[str, str], run,
-                        tools: dict[str, str]) -> dict[str, set[int]] | None:
-    """One assertion's capture. Decoding a coverage export is Python work that would hold
-    the interpreter lock the recording thread needs, so a real run does it in a worker
-    process; an injected runner or capture (a test double) runs in this process."""
+def _capture(root: Path, binary: str, info: dict, env: dict[str, str], run,
+             tools: dict[str, str]) -> dict[str, set[int]] | None:
     from scientific_records import capture_one
-    if run is subprocess.run and isinstance(capture_one, types.FunctionType):
-        return _capture_processes().submit(capture_one, root, binary, info, env, llvm_tools=tools).result()
+    if run is subprocess.run:
+        return capture_one(root, binary, info, env, llvm_tools=tools)
     return capture_one(root, binary, info, env, run, llvm_tools=tools)
+
+
 # Held while the checkout is read against its committed snapshot, and by a caller while
 # it writes and allows run outputs: a check never sees a written output not yet allowed.
 CHECKOUT_LOCK = threading.RLock()
@@ -174,10 +143,12 @@ def capture_built_target(root: Path, rows: list[dict], built: dict, run=subproce
         verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
         recheck_artifact(root, artifact)
     try:
-        # Rows are independent test processes: run them concurrently in the queue shared
-        # with other targets. The source and artifact are checked before and after the batch.
-        pool = _capture_pool()
-        futures = [pool.submit(_capture_in_process, root, binary, info, env, run, tools) for info in infos]
+        # Rows are independent test processes, queued behind every earlier submission
+        # (`evidence_capture`). The source and artifact are checked before and after.
+        from scientific_records import capture_one
+        local = run is not subprocess.run or not isinstance(capture_one, types.FunctionType)
+        futures = [evidence_capture.submit(_capture, root, binary, info, env, run, tools, local=local)
+                   for info in infos]
         captured = [future.result() for future in futures]
     finally:
         # Recheck even on a test or coverage failure; no result is returned if

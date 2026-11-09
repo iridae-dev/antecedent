@@ -171,23 +171,7 @@ def all_scientific_rows(root: Path) -> list[dict]:
 
 PASSED_ONE = re.compile(r"test result: ok\. 1 passed")
 
-def region_coverage(export: dict) -> dict[str, set[tuple[int, int]]]:
-    """Resolved source path -> (line, column) of every executed code region, from an llvm-cov export.
-
-    A region is `[line, column, end line, end column, count, file, expanded file, kind]`;
-    kind 0 is code. A function that never ran contributes nothing.
-    """
-    coverage: dict[str, set[tuple[int, int]]] = {}
-    for block in export.get("data", []):
-        for function in block.get("functions", []):
-            if function.get("count", 0) <= 0:
-                continue
-            filenames = function.get("filenames", [])
-            for region in function.get("regions", []):
-                if region[4] > 0 and region[7] == 0:
-                    path = str(Path(filenames[region[5]]).resolve())
-                    coverage.setdefault(path, set()).add((region[0], region[1]))
-    return coverage
+from evidence_capture import region_coverage  # noqa: E402  (shared with calibration)
 
 
 def llvm_tool(name: str) -> str:
@@ -258,37 +242,21 @@ def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=su
 
     Running no test at all is an infrastructure error and raises: a wrong name or a missing
     test must stop the run, not be recorded as one more failure."""
+    from evidence_capture import instrumented_run
     libtest = info.get("libtest") or info["selector"].split("::", 2)[2]
-    with tempfile.TemporaryDirectory(prefix="antecedent-capture-") as tmp:
-        raw, data = Path(tmp) / "run.profraw", Path(tmp) / "run.profdata"
-        done = run(
-            [binary, "--exact", libtest, "--include-ignored", "--test-threads", "1"],
-            cwd=root / "crates" / info["crate"],
-            env={**env, "LLVM_PROFILE_FILE": str(raw)},
-            text=True,
-            capture_output=True,
-        )
-        output = (done.stdout or "") + (done.stderr or "")
-        if re.search(r"^running 0 tests$", output, re.M):
-            raise SelectorError(f"{info['selector']}: the test binary has no test named {libtest}")
-        if done.returncode != 0 or not PASSED_ONE.search(output):
-            print(f"FAIL: {info['selector']}: not captured\n{((done.stdout or '') + (done.stderr or ''))[-400:]}")
-            return None
-        tool = (lambda name: llvm_tools[name]) if llvm_tools is not None else llvm_tool
-        merged = run([tool("llvm-profdata"), "merge", "-sparse", str(raw), "-o", str(data)], text=True, capture_output=True)
-        if merged.returncode != 0:
-            print(f"FAIL: {info['selector']}: profile merge failed\n{merged.stderr[-400:]}")
-            return None
-        export = run(
-            [tool("llvm-cov"), "export", f"-instr-profile={data}", binary],
-            text=True,
-            capture_output=True,
-        )
-        if export.returncode != 0:
-            print(f"FAIL: {info['selector']}: llvm-cov export failed\n{export.stderr[-400:]}")
-            return None
-        data = json.loads(export.stdout)
-        return region_coverage(data)
+    tools = llvm_tools if llvm_tools is not None else {n: llvm_tool(n) for n in ("llvm-profdata", "llvm-cov")}
+    status, output, coverage, problem = instrumented_run(
+        binary, ["--exact", libtest, "--include-ignored", "--test-threads", "1"],
+        cwd=root / "crates" / info["crate"], env=env, tools=tools, run=run)
+    if re.search(r"^running 0 tests$", output, re.M):
+        raise SelectorError(f"{info['selector']}: the test binary has no test named {libtest}")
+    if status != 0 or not PASSED_ONE.search(output):
+        print(f"FAIL: {info['selector']}: not captured\n{output[-400:]}")
+        return None
+    if coverage is None:
+        print(f"FAIL: {info['selector']}: {problem}")
+        return None
+    return coverage
 
 
 def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str = "cargo",
