@@ -1,0 +1,1 @@
+["use:antecedent_core::IdentityDomain;#0","use:serde::Serialize;#0","use:crate::IoError;#0","fn:evidence_digest#0","mod:tests#0","mod:tests#0/use:super::*;#0","mod:tests#0/struct:Wire#0","mod:tests#0/fn:digest#0","mod:tests#0/fn:the_digest_ignores_only_its_own_slot#0"]

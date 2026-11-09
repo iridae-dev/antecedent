@@ -1,0 +1,1 @@
+["use:antecedent_core::KernelPolicy;#0","use:antecedent_kernels::{PosteriorReduceOp,reduce_posterior_draws};#0","use:super::predictive::{PredictiveCheckKind,PredictiveCheckReport,PredictiveNoise};#0","const:TIE_TOLERANCE#0","fn:summarize_check#0","fn:push_mean_and_dispersion#0","fn:summarize_predictive_check#0"]

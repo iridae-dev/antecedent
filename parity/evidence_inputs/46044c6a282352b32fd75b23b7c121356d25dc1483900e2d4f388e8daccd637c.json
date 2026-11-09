@@ -1,0 +1,1 @@
+[{"digest":"e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5","kind":"evidence_file","path":"conformance/bayesian/known_truth_mixtures.json","role":"external"},{"digest":"4f97b2561e9fe7ff99000fc74b1dee184c174db42a3423156767c17ed9c2db74","kind":"membership","path":"conformance/bayesian/known_truth_mixtures","role":"selection"}]

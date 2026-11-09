@@ -1,0 +1,1 @@
+["use:super::{JointPanelColumns,JointPanelError};#0","use:antecedent_core::VariableId;#0","use:antecedent_data::{ColumnView,PanelData,PanelUnit,SamplingRegularity,TableView,TimeSeriesData,};#0","use:std::sync::Arc;#0","struct:PanelCategoricalChannel#0","struct:PanelDummyChannel#0","struct:DummyCodedPanel#0","fn:validate_categorical_channels#0","fn:dummy_code_panel#0"]

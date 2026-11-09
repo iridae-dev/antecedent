@@ -1,0 +1,1 @@
+[{"digest":"a5c8d8882aaf2647a2901d4b622843a863d70f745ca930b079852619b0639efa","file":"7761e069fb0814d5a7d4c2e3e14cc897d662de3446dea0ab19d77815f107d987","kind":"rust_items","path":"crates/antecedent/tests/staged_static_kinds.rs","role":"compile","scopes":[[[],true]],"select":{"full":[7,13]},"table":"dfe3b643d77a14c8c2e241ae2d117946f982301631fb4c6a015f532dc4209069"}]

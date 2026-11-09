@@ -1,0 +1,1 @@
+[{"digest":"60ab87ac31d50dc251db492b828101b798d8c5d47559c32e1d386c2dd332ab05","kind":"evidence_file","path":"conformance/interchange/graph_gml_networkx/README.md","role":"external"},{"digest":"c64d48c08f7227141a4ff77dac35c03b12074e1fe6fdb18b3c389dcd90fd825a","kind":"evidence_file","path":"conformance/interchange/graph_gml_networkx/expected.json","role":"external"}]

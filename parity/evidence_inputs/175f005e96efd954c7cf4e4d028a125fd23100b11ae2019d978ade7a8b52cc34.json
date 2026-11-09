@@ -1,0 +1,1 @@
+[{"digest":"7d3625166385e627293e8b3d3c1a195920f1fd66b92e0d8ff9dcc55a282c2fdc","file":"25da685bce2119425ffb221bf9a82663c1eceda6994169f3fab0841149619cf0","kind":"rust_items","path":"crates/antecedent/tests/gcm.rs","role":"compile","scopes":[[[],true]],"select":{"full":[7,8,9],"inner":[-1]},"table":"42d99a4449571024994e1fedbdf1e90a00670cfc803af782558446cfce0c9f8a"}]

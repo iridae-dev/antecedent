@@ -1,0 +1,1 @@
+["use:antecedent_contract::InferenceBasis;#0","use:antecedent_core::ExecutionContext;#0","use:super::observation_query::{ObservationClaim,ObservationQueryRefusal,ObservationQueryWire,seal_declared_query,};#0","struct:FiniteBayesInput#0","fn:finite_posterior#0","fn:conjugate_posterior#0"]

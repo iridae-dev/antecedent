@@ -1,0 +1,1 @@
+["use:serde::{Deserialize,Serialize};#0","struct:ScoreColumn#0","enum:ScoreTableWireError#0","struct:ScoreTableWire#0","impl:ScoreTableWire#0","impl:ScoreTableWire#0/fn:check#0"]

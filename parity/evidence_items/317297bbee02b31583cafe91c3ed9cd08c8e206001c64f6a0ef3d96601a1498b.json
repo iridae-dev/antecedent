@@ -1,0 +1,1 @@
+["use:crate::IoError;#0","use:crate::identity::digest_wire;#0","use:antecedent_core::{IDENTITY_FORMAT,IdentityDomain,SemanticDigest};#0","use:serde::{Deserialize,Serialize};#0","struct:ClaimIdentityWire#0","impl:ClaimIdentityWire#0","impl:ClaimIdentityWire#0/fn:new#0","fn:claim_digest#0"]

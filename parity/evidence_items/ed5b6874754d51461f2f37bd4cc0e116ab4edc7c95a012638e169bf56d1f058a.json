@@ -1,0 +1,1 @@
+["use:std::sync::Arc;#0","use:antecedent_stats::{DenseLinearAlgebra,FaerBackend,LeastSquaresWorkspace};#0","use:super::super::cv::FitFrame;#0","use:super::{data_rss,residual_sigma};#0","use:crate::compile::MechanismSlot;#0","use:crate::error::ModelError;#0","fn:fit_linear_gaussian#0","fn:fit_linear_gaussian_weighted#0"]

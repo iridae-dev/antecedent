@@ -1,0 +1,1 @@
+[{"digest":"1db3af6ba03879f6f7002675b26bbb2cf17da01beb4eebf056fd2e9ed285d7b0","kind":"evidence_file","path":"crates/antecedent-contract/Cargo.toml","role":"external"},{"digest":"e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5","kind":"evidence_file","path":"crates/antecedent-contract/build.rs","role":"external"}]

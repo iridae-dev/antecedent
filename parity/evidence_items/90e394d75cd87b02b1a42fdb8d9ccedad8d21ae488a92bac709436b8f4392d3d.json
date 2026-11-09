@@ -1,0 +1,1 @@
+["use:antecedent_estimate::matching_posterior_boundary::{MatchingPosteriorRequest,refuse_matching_posterior,};#0","use:crate::error::CausalError;#0","enum:MatchingSetting#0","fn:matching_posterior_refusal#0"]

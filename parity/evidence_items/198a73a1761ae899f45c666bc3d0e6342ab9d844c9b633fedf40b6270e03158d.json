@@ -1,0 +1,1 @@
+["use:std::cell::Cell;#0","struct:StaticWorkCounts#0","macro:thread_local#0","fn:count_static_work#0","enum:StaticWork#0","fn:note_static_work#0"]

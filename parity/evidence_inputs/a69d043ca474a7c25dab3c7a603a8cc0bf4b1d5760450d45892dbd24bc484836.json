@@ -1,0 +1,1 @@
+[{"digest":"7b1e71229fb732fb2502e2bfb38e8c1b1851310e46cd9350189ba7e48512f36e","file":"dc9934be39896c08321afbd84ca2afe1feec5b7144c803a89594c3790cde24a2","kind":"rust_items","path":"crates/antecedent/tests/counterfactual_accepted_known_truth.rs","role":"compile","scopes":[[[],true]],"select":{"full":[5]},"table":"58846dcd29dff303a2ced1894a0d0ea5772a72088d1c8d531a727d30a3c23993"}]

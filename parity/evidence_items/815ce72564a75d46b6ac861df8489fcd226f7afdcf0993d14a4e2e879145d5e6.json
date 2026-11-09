@@ -1,0 +1,1 @@
+["use:serde::{Deserialize,Serialize};#0","use:super::{AnalysisResultWire,UnitEffectsWire};#0","use:crate::replay_tolerance::{ReplayNonFinite,ReplayScale,ReplayTolerance};#0","use:crate::{CausalQueryWire,IoError};#0","const:CONTRAST_MEAN_AGREEMENT#0","struct:OutcomeContrastWire#0","struct:CounterfactualContrastsWire#0","fn:validate#0","fn:validate_outcome_contrasts#0"]

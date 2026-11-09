@@ -1,0 +1,1 @@
+["use:antecedent_core::{CausalQuery,DerivativeScale,ResponseFunctional,TemporalPolicy};#0","use:crate::accepted::{AcceptedGraph,GraphClass,GraphRef};#0","use:super::cell::SupportQuery;#0","fn:query_axis_name#0","fn:query_axis#0","fn:naming_class#0","fn:effective_graph_class#0","fn:matrix_graph_class#0"]

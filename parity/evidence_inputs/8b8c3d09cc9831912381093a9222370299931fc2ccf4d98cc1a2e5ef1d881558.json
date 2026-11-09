@@ -1,0 +1,1 @@
+[{"digest":"cf24020e57d1653b092160a762f3b91f4e66f0604f92a4d99c8c6f63b239985d","kind":"evidence_file","path":"conformance/response/horizon_one_transport/expected.json","role":"external"},{"digest":"70296a679064d84efc0f7c088ab164a3297ca5c1bfc58fb870f972bf362a7f5e","kind":"evidence_file","path":"conformance/response/horizon_one_transport/reference.py","role":"external"}]
