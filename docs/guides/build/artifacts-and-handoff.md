@@ -68,7 +68,7 @@ A replay recomputes the published numbers from the evidence the artifact carries
 
 ### Method provenance travels with the bytes
 
-An exported `analysis_result` artifact also carries an `analysis_result.method_provenance` section: the provenance records behind the identifier and estimator the result executed, each with its sources, documented deviations from the published method, review scope limits, record id and digest. It is descriptive and takes no part in acceptance or replay. Rust consumers decode it; [the artifact format](../../artifacts.md#method-provenance-section) names the functions. To cite a result you hand off, build its citations where it was produced, with `outcome.citations()` or `antecedent.citations.bibliography(...)`; see [cite the methods behind a study](../citing-a-study.md).
+An exported `analysis_result` artifact also carries an `analysis_result.method_provenance` section: the provenance records behind the identifier and estimator the result executed, each with its sources, documented deviations from the published method, review scope limits, record id and digest. It is descriptive and takes no part in acceptance or replay. A Python consumer reads it from the loaded result with `loaded.method_provenance` or `loaded.citations()`; Rust consumers decode it with the functions [the artifact format](../../artifacts.md#method-provenance-section) names. The section is read only when it names the identifier and estimator the contract declares. See [cite the methods behind a study](../citing-a-study.md).
 
 ## Across a process boundary
 

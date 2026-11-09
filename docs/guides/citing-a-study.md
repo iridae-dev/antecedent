@@ -66,7 +66,15 @@ Provenance is descriptive. It changes no number, support status or [calibration 
 
 ## Exported artifacts
 
-Build the bibliography from the results you executed. An exported `analysis_result` artifact with a contract also carries their provenance, in its `analysis_result.method_provenance` section, for Rust consumers. The section is additive, so older readers ignore it. In Rust, `replay_analysis_result` returns it as `method_provenance`, and `decode_method_provenance_section` decodes it from a decoded artifact; both check that it names the identifier and estimator the contract declares. The section records what the producer's table cited at export; it takes no part in acceptance or replay.
+An exported `analysis_result` artifact with a contract carries its provenance in an `analysis_result.method_provenance` section, so a result's citations travel with it. Whoever loads the artifact reads them the same way as on a live result:
+
+```python
+loaded = ant.load(artifact, expected=artifact.expectation)
+for citation in loaded.citations():
+    print(citation.reference)
+```
+
+`loaded.method_provenance` holds the records, and `bibliography(...)` accepts loaded results beside live ones. In Rust, `replay_analysis_result` returns the section as `method_provenance`, and `decode_method_provenance_section` decodes it from a decoded artifact. Every reader checks that the section names the identifier and estimator the contract declares and ignores it otherwise, so a loaded result without a bound section has empty provenance. The section records what the producer's table cited at export; it is additive, so older readers ignore it, and it takes no part in acceptance or replay.
 
 ## Where the table comes from
 

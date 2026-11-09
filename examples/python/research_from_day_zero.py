@@ -570,6 +570,8 @@ assert ledger.sources[-1].effective_observations == plan.units + ranking.best.sa
 artifact = pilot_outcome.export()
 replayed = ant.load(artifact, expected=artifact.expectation)
 assert replayed.inspect().answer == pilot.inspect().answer
+# The citations travel with the bytes: the receiving side reads the same sources and caveats.
+assert replayed.citations() == pilot_outcome.citations()
 follow_artifact = follow_outcome.export()
 assert (
     ant.load(follow_artifact, expected=follow_artifact.expectation).inspect().answer

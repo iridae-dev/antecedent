@@ -297,12 +297,13 @@ from the published method and review scope limits; a route component with no rec
 as unlinked. The section is descriptive and additive: it takes no part in acceptance or replay,
 and readers that do not know it ignore it.
 
-Rust consumers decode it with
-`antecedent_io::method_provenance::decode_method_provenance_section`, which returns
+Python reads it on load: `ant.load(...).method_provenance` and `.citations()` return the
+carried records, empty when the section is absent or not bound to the contract. Rust consumers
+decode it with `antecedent_io::method_provenance::decode_method_provenance_section`, which returns
 an error when the section names a different identifier or estimator than the contract declares.
 `replay_analysis_result` returns it as `AnalysisResultConsumption::method_provenance`, `None`
-when it is absent or not bound to the contract. To cite a result, read its provenance where it
-was produced (`outcome.method_provenance`, `StudyResult::method_provenance()`); see
+when it is absent or not bound to the contract. A live result gives the same records
+(`outcome.method_provenance`, `StudyResult::method_provenance()`); see
 [cite the methods behind a study](guides/citing-a-study.md).
 
 ### Posterior and query payloads for stage consumers
