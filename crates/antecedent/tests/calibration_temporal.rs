@@ -23,7 +23,7 @@
 //! residuals, truth `BETA`), and the Frequentist `PulseEffect` on a `TemporalDag`
 //! whose autoregressive treatment is identified by parent adjustment.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -205,7 +205,7 @@ fn mediation_coverage(test: &'static str, label: &str, kappa: f64, seed_base: u6
 /// Mediator–outcome confounding through `z[t-1] -> w[t-1] -> y`
 /// (`kappa = MED_KAPPA`) that does not confound `t -> y`.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_cpdag_mediation_frequentist_confounded_nominal_coverage() {
     mediation_coverage(
         "temporal_cpdag_mediation_frequentist_confounded_nominal_coverage",
@@ -217,7 +217,7 @@ fn temporal_cpdag_mediation_frequentist_confounded_nominal_coverage() {
 
 /// The same class without mediator–outcome confounding (`kappa = 0`).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage() {
     mediation_coverage(
         "temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage",
@@ -232,7 +232,7 @@ const DEFAULT_PULSE: Scenario = Scenario { label: "iid n=160", rho: 0.0, n: N, s
 
 /// The facade's default Bayesian `PulseEffect` on a `TemporalDag`.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_dag_bayesian_default_nominal_coverage() {
     let key = RecordKey {
         test: "pulse_effect_temporal_dag_bayesian_default_nominal_coverage",
@@ -280,7 +280,7 @@ const AR_PULSE_N: usize = 240;
 /// under its circular-block SE at the Study's default replicates. The accepted
 /// structure is checked to report the same interval on the first replicate.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage() {
     let key = RecordKey {
         test: "pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage",

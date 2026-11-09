@@ -14,7 +14,7 @@
 //! print their measured coverage with `CoverageTally::report`-style lines and
 //! are not gated.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -325,7 +325,7 @@ fn score_scalar_pair(
 /// Kennedy-DR pointwise band: nominal 90% at each of the five grid points,
 /// scored against `m(a) = 1 + 2a`.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_dag_frequentist_pointwise_nominal_90_coverage() {
     // Gated at 90%; the runtime's default 95% band is fitted on the same data
     // and recorded beside it.
@@ -364,7 +364,7 @@ fn response_curve_dag_frequentist_pointwise_nominal_90_coverage() {
 
 /// Overlap-stress probe (ρ = 0.6): same law and band, measured coverage only.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_dag_frequentist_weak_overlap_probe() {
     let mut covered = [0u32; 5];
     let mut scored = 0u32;
@@ -404,7 +404,7 @@ fn response_curve_dag_frequentist_weak_overlap_probe() {
 /// grid truths inside the band" at nominal 90%. Scored as in the Unknown-cell
 /// test: the unit interval against 0.5 (covered) or 2.0 (missed).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_dag_frequentist_simultaneous_nominal_90_coverage() {
     // Gated at 90%; the runtime's default 95% band is fitted on the same data
     // and recorded beside it.
@@ -471,7 +471,7 @@ fn response_curve_dag_frequentist_simultaneous_nominal_90_coverage() {
 /// target is the sample-covariate curve `1 + 2a + 0.8·z̄`. The same band
 /// scored against the population curve `1 + 2a` is printed as a probe.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_dag_bayesian_pointwise_nominal_90_coverage() {
     // Gated at 90%; the runtime's default 95% band is fitted on the same data
     // and recorded beside it.
@@ -519,7 +519,7 @@ fn response_curve_dag_bayesian_pointwise_nominal_90_coverage() {
 /// Additive-GAM g-computation level `E[Y | do(T = 1)] = 3`; its SE includes the
 /// covariate-average influence, so the target is the population level.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_dag_frequentist_nominal_90_coverage() {
     // Gated at 90%; the runtime's default 95% interval is fitted on the same
     // data and recorded beside it.
@@ -552,7 +552,7 @@ fn intervention_response_dag_frequentist_nominal_90_coverage() {
 /// Bayesian level at `do(T = 1)`: sample-covariate target `3 + 0.8·z̄` (gated),
 /// population target `3` (probe).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_dag_bayesian_nominal_90_coverage() {
     // Gated at 90%; the runtime's default 95% interval is fitted on the same
     // data and recorded beside it.
@@ -625,7 +625,7 @@ fn cell_data(n: usize, seed: u64) -> TabularData {
 
 /// `cell.aipw` publishes a 95% normal interval for the requested cell mean.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_cell_aipw_nominal_95_coverage() {
     let graph = dag(4, &[(3, 0), (3, 1), (3, 2), (0, 1), (0, 2), (1, 2)]);
     let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
@@ -762,7 +762,7 @@ fn class_response_cpdag_disagreeing_completions_publish_unbanded_identified_set(
 /// Joint-IF scalar interval of the class-aware level `E[Y | do(t = 1)] = 1`
 /// over two agreeing completions.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn class_response_cpdag_intervention_joint_if_nominal_90_coverage() {
     // Gated at 90%; the runtime's default 95% interval is fitted on the same
     // data and recorded beside it.
@@ -803,7 +803,7 @@ fn class_response_cpdag_intervention_joint_if_nominal_90_coverage() {
 /// Joint-IF pointwise band of the class-aware Kennedy curve `m(a) = a` over two
 /// agreeing completions.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage() {
     // Grid point 0's `a = -1` cell measures 0.883 at 2000 replicates (1767/2000),
     // below the precision floor 0.887; grid point 2's `a = 1` cell measures 0.886
@@ -1000,7 +1000,7 @@ fn mediation_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn mediation_nde_frequentist_nominal_90_coverage() {
     mediation_coverage(
         "mediation_nde_frequentist_nominal_90_coverage",
@@ -1014,7 +1014,7 @@ fn mediation_nde_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn mediation_nie_frequentist_nominal_90_coverage() {
     mediation_coverage(
         "mediation_nie_frequentist_nominal_90_coverage",
@@ -1028,7 +1028,7 @@ fn mediation_nie_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn mediation_nde_bayesian_nominal_90_coverage() {
     mediation_coverage(
         "mediation_nde_bayesian_nominal_90_coverage",
@@ -1043,7 +1043,7 @@ fn mediation_nde_bayesian_nominal_90_coverage() {
 
 /// Product-of-Gaussians posterior `a·b` (the highest-risk Bayesian mediation cell).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn mediation_nie_bayesian_nominal_90_coverage() {
     mediation_coverage(
         "mediation_nie_bayesian_nominal_90_coverage",
@@ -1110,7 +1110,7 @@ fn mediation_contrasts_coverage(test: &'static str, bayesian: bool, base_rows: u
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn mediation_contrasts_frequentist_nominal_95_coverage() {
     mediation_contrasts_coverage(
         "mediation_contrasts_frequentist_nominal_95_coverage",
@@ -1121,7 +1121,7 @@ fn mediation_contrasts_frequentist_nominal_95_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn mediation_contrasts_bayesian_nominal_95_coverage() {
     mediation_contrasts_coverage(
         "mediation_contrasts_bayesian_nominal_95_coverage",
@@ -1188,7 +1188,7 @@ fn mediation_contrasts_bind_separate_records_on_one_dataset() {
 /// node on its graph parents, so `y` is adjusted for `x`; this probe records the
 /// point bias and coverage on that law.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn mediation_confounded_mediator_probe() {
     for (contrast, truth, label) in [
         (MediationContrast::NaturalDirect, 0.4, "nde"),
@@ -1311,7 +1311,7 @@ fn two_path_sample(seed: u64) -> (TabularData, Dag) {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn path_specific_frequentist_nominal_90_coverage() {
     path_coverage(
         "path_specific_frequentist_nominal_90_coverage",
@@ -1324,7 +1324,7 @@ fn path_specific_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn path_specific_bayesian_nominal_90_coverage() {
     path_coverage(
         "path_specific_bayesian_nominal_90_coverage",
@@ -1338,7 +1338,7 @@ fn path_specific_bayesian_nominal_90_coverage() {
 
 /// Edge g-formula: a direct `t -> y` path competes with the path through `m`.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn path_specific_two_path_frequentist_nominal_90_coverage() {
     path_coverage(
         "path_specific_two_path_frequentist_nominal_90_coverage",
@@ -1351,7 +1351,7 @@ fn path_specific_two_path_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn path_specific_two_path_bayesian_nominal_90_coverage() {
     path_coverage(
         "path_specific_two_path_bayesian_nominal_90_coverage",
@@ -1443,7 +1443,7 @@ fn distribution_bayesian(
 /// the atom posterior is bounded at one and left-skewed, so the equal-tailed
 /// quantile interval under-covers the sampling distribution of the atom.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn interventional_distribution_bayesian_near_one_nominal_90_coverage() {
     distribution_bayesian(
         "interventional_distribution_bayesian_near_one_nominal_90_coverage",
@@ -1460,7 +1460,7 @@ fn interventional_distribution_bayesian_near_one_nominal_90_coverage() {
 /// around the sampling distribution of the atom estimate; the near-one cell on
 /// the same DGP and the same path covers 0.887 with mean length 0.039.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn interventional_distribution_bayesian_near_zero_boundary_within_band() {
     distribution_bayesian(
         "interventional_distribution_bayesian_near_zero_boundary_within_band",
@@ -1541,7 +1541,7 @@ fn distribution_frequentist(test: &'static str, base: f64, seed: u64) {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn interventional_distribution_frequentist_near_one_nominal_95_coverage() {
     distribution_frequentist(
         "interventional_distribution_frequentist_near_one_nominal_95_coverage",
@@ -1551,7 +1551,7 @@ fn interventional_distribution_frequentist_near_one_nominal_95_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn interventional_distribution_frequentist_near_zero_nominal_95_coverage() {
     distribution_frequentist(
         "interventional_distribution_frequentist_near_zero_nominal_95_coverage",
@@ -1561,7 +1561,7 @@ fn interventional_distribution_frequentist_near_zero_nominal_95_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn interventional_distribution_frequentist_interior_nominal_95_coverage() {
     distribution_frequentist(
         "interventional_distribution_frequentist_interior_nominal_95_coverage",
@@ -1586,7 +1586,7 @@ const MEAN_ITE_MEASURED: [f64; GRID_POINTS] = [0.900, 0.884, 0.885];
 /// distribution of the plug-in contrast at n = 300. The same interval at the
 /// reported 95% level covers 0.930 on these replicates and is recorded.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn counterfactual_bayesian_mean_ite_boundary_within_band() {
     let key = RecordKey {
         test: "counterfactual_bayesian_mean_ite_boundary_within_band",
@@ -1655,7 +1655,7 @@ fn misspecified_data(n: usize, q: f64, h: f64, seed: u64) -> TabularData {
 /// Measured coverage of the Bayesian gcomp credible interval on the correctly
 /// specified law (gated) and on quadratic / interaction outcomes (probes).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_gcomp_misspecification_probe() {
     let graph = dag(3, &[(2, 0), (2, 1), (0, 1)]);
     let query = AverageEffectQuery::binary_ate(v(0), v(1));

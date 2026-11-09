@@ -21,7 +21,7 @@
 //! govern every honest declaration): it is a plain assertion that such a claim
 //! under-covers, which is why the declaration is a premise.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -26,7 +26,7 @@
 //! exactly (tolerance `1e-12`, two orders above the rounding of four products and sums of
 //! order-one doubles), the value the coverage tests score against.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -161,7 +161,7 @@ fn the_known_value_is_the_importance_weighted_estimate_of_the_balanced_pair() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn off_policy_importance_weighted_wald_interval() {
     let n = grid_n(BASE_TRAJECTORIES);
     let mut tally = CoverageTally::for_record(

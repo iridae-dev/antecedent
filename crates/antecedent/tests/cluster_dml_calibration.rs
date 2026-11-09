@@ -7,7 +7,7 @@
 //! cluster-sandwich standard error with its few-cluster Student-t reference), and the sample
 //! grid varies the number of clusters.
 //!
-//! `cluster_dml_t_wald_interval` is registered in `scripts/measure_calibration_groups.sh` (`run_cd`) and
+//! `cluster_dml_t_wald_interval` is registered in `parity/calibration_groups.toml` and
 //! its coverage is `not_measured`: the coverage record is the only missing piece. A fixed-seed test of the same construction without a record is
 //! `crates/antecedent-estimate/tests/cluster_dml_known_truth.rs`.
 //!

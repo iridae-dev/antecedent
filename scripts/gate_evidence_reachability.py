@@ -216,7 +216,7 @@ for _row in _tomllib.loads((root / "parity/calibration_groups.toml").read_text(e
         _groups.append((_head, _name))
 if not _groups:
     fail.append("parity/calibration_groups.toml lists no calibration group")
-CLAIM = re.compile(r'#\[ignore\s*=\s*"calibration: run via scripts/measure_calibration_groups\.sh"\]')
+CLAIM = re.compile(r'#\[ignore\s*=\s*"calibration: run (?:via|through) scripts/measure_calibration\.sh"\]')
 FN = re.compile(r"\s*(?:pub\s+)?fn\s+([A-Za-z_]\w*)")
 n_claimed = 0
 for p in sorted(root.glob("crates/**/*.rs")):

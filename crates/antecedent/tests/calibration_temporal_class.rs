@@ -9,7 +9,7 @@
 //! quantile for the Bayesian arm (a partial-mass posterior is withheld, which is
 //! why the Bayesian rows require weight `[1.0]`).
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -445,7 +445,7 @@ fn mediation_contrasts_coverage(
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
     coverage(
         "pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
@@ -470,7 +470,7 @@ fn pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
     coverage(
         "pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
@@ -499,7 +499,7 @@ fn pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage() {
     coverage(
         "pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage",
@@ -528,7 +528,7 @@ fn pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
     coverage(
         "pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage",
@@ -557,7 +557,7 @@ fn pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
     coverage(
         "sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
@@ -584,7 +584,7 @@ fn sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
     coverage(
         "sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
@@ -613,7 +613,7 @@ fn sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage() {
     coverage(
         "sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage",
@@ -638,7 +638,7 @@ fn sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage() 
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
     coverage(
         "sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage",
@@ -667,7 +667,7 @@ fn sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
     mediation_contrasts_coverage(
         "temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
@@ -685,7 +685,7 @@ fn temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
     mediation_contrasts_coverage(
         "temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",

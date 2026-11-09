@@ -24,7 +24,7 @@
 //! (`rho = 0.5`) on a `TemporalDag`, scored through the circular-block bootstrap interval the
 //! runtime reports, at 320, 1,280 and 4,160 steps.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build). Wall-clock estimates
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build). Wall-clock estimates
 //! at 2,000 replicates on a 12-core machine are given at each design.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -255,7 +255,7 @@ fn aipw(se_kind: AnalyticSeKind) -> AipwAte {
 
 /// Linear adjustment, classical standard error, 1,000 to 100,000 rows. About 4 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_linear_adjustment_analytic_interval() {
     estimator_coverage(
         "practitioner_linear_adjustment_analytic_interval",
@@ -268,7 +268,7 @@ fn practitioner_linear_adjustment_analytic_interval() {
 
 /// Linear adjustment, HC1 sandwich, heteroskedastic noise. About 4 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_linear_adjustment_hc1_interval() {
     estimator_coverage(
         "practitioner_linear_adjustment_hc1_interval",
@@ -281,7 +281,7 @@ fn practitioner_linear_adjustment_hc1_interval() {
 
 /// Linear adjustment, cluster-robust standard error over 500 clusters. About 5 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_linear_adjustment_cluster_interval() {
     estimator_coverage(
         "practitioner_linear_adjustment_cluster_interval",
@@ -299,7 +299,7 @@ fn practitioner_linear_adjustment_cluster_interval() {
 /// Linear adjustment at the facade default of 199 bootstrap replicates (the bootstrap-SE
 /// interval of an `estimate` call that chose nothing). About 1.5 hours: 199 refits per replicate.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_linear_adjustment_bootstrap_interval() {
     estimator_coverage(
         "practitioner_linear_adjustment_bootstrap_interval",
@@ -332,7 +332,7 @@ fn practitioner_bootstrap_reuses_prepared_solver() {
 
 /// Cross-fitted AIPW, influence-function standard error. About 40 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_aipw_analytic_interval() {
     estimator_coverage(
         "practitioner_aipw_analytic_interval",
@@ -345,7 +345,7 @@ fn practitioner_aipw_analytic_interval() {
 
 /// AIPW, HC1 influence-function variance, heteroskedastic noise. About 40 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_aipw_hc1_interval() {
     estimator_coverage(
         "practitioner_aipw_hc1_interval",
@@ -358,7 +358,7 @@ fn practitioner_aipw_hc1_interval() {
 
 /// AIPW with the cluster-robust influence-function variance over 500 clusters. About 40 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_aipw_cluster_interval() {
     estimator_coverage(
         "practitioner_aipw_cluster_interval",
@@ -378,7 +378,7 @@ fn practitioner_aipw_cluster_interval() {
 /// raised to 1,000 (`LAPLACE_MIN_DRAWS`), so it is this construction at this draw count. About
 /// 30 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_bayesian_laplace_interval() {
     let mut pair = tallies("practitioner_bayesian_laplace_interval", DGP, "posterior_quantile");
     let runs = map_replicates(n_sim(), |rep| {
@@ -435,7 +435,7 @@ fn rank_pair(result: &StudyResult) -> [Option<(f64, f64)>; 2] {
 /// mass is 0.95 at every count where the type-7 interval's is 0.921. Practitioner scale. About
 /// 30 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_bayesian_laplace_64_draw_interval() {
     let mut pair =
         tallies("practitioner_bayesian_laplace_64_draw_interval", DGP, "posterior_quantile");
@@ -458,7 +458,7 @@ fn practitioner_bayesian_laplace_64_draw_interval() {
 /// The same 64-draw construction on the ordinary small-sample grid (250, 500 and 1,000 rows of
 /// `static_dgp::linear_ate_data`, as the default Laplace record). About 3 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn small_sample_bayesian_laplace_64_draw_interval() {
     let mut pair = tallies(
         "small_sample_bayesian_laplace_64_draw_interval",
@@ -530,7 +530,7 @@ fn class_posterior() -> GraphPosterior {
 /// share an empty adjustment) at practitioner scale: independent fair `T` and `Z`,
 /// `Y = 2T + 2Z ± 0.2`, joint influence-function standard error. About 6 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_class_posterior_interval() {
     const CLASS_TRUTH: f64 = 2.0;
     let mut pair = tallies("practitioner_class_posterior_interval", DGP, "analytic_se");
@@ -641,14 +641,14 @@ fn temporal_coverage(test: &'static str, query: &antecedent_core::TemporalEffect
 
 /// Pulse effect at horizon 1 on 320 to 4,160 steps. About 25 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_temporal_pulse_h1_interval() {
     temporal_coverage("practitioner_temporal_pulse_h1_interval", &pulse(1), BETA);
 }
 
 /// Pulse effect at horizon 2 (propagated through an intermediate). About 25 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_temporal_pulse_h2_interval() {
     temporal_coverage(
         "practitioner_temporal_pulse_h2_interval",
@@ -659,7 +659,7 @@ fn practitioner_temporal_pulse_h2_interval() {
 
 /// Single-step sustained effect. About 25 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_temporal_sustained_interval() {
     temporal_coverage("practitioner_temporal_sustained_interval", &single_sustained(), BETA);
 }
@@ -667,7 +667,7 @@ fn practitioner_temporal_sustained_interval() {
 /// Default Bayesian `PulseEffect` on a `TemporalDag` (Laplace, 1,000 draws, prior scale 10) at
 /// 320 to 4,160 steps, iid residuals as `calibration_temporal`'s default design. About 20 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_temporal_bayesian_pulse_interval() {
     let mut pair = tallies(
         "practitioner_temporal_bayesian_pulse_interval",
@@ -711,7 +711,7 @@ const CONTRASTS: [(&str, MediationContrast, f64); 3] = [
 /// its own truth and is judged on its own marginal coverage, never combined into a joint claim.
 /// About 45 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_temporal_mediation_interval() {
     let test = "practitioner_temporal_mediation_interval";
     let dgp = "crates/antecedent/tests/common/driven_dgp.rs::mediation_series";
@@ -811,7 +811,7 @@ fn practitioner_temporal_mediation_interval() {
 /// executions of a replicate share one simulated series and are never combined into a joint
 /// claim. About 40 minutes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn practitioner_temporal_bayesian_mediation_interval() {
     let key = RecordKey {
         test: "practitioner_temporal_bayesian_mediation_interval",

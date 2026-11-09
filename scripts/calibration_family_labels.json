@@ -16,7 +16,7 @@
   "sources": [
     {
       "path": "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
-      "sha256": "46f7f86dda0ba1b057ace0d8e967ac8a0853dd7e8fcb4fbbe624dd5e6eff43fd",
+      "sha256": "56e2cf82306103fdeda2a8716afc989f0681469747179e6f63cd773144f0f87f",
       "labelled_calls": [
         {
           "line": 301,
@@ -45,7 +45,7 @@
     },
     {
       "path": "crates/antecedent-design/tests/sequential_off_policy_interval_calibration.rs",
-      "sha256": "8d823d66d3f7c5e06255ba934dd7292e2274f7c9655fef17a007e1bcd71e01bf",
+      "sha256": "1a481544377737d875183f937e143e9441250aba351218f7daeb27455c05a023",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -58,7 +58,7 @@
     },
     {
       "path": "crates/antecedent-estimate/src/calibration_coverage.rs",
-      "sha256": "1aa5c79ed8c477976b0ac7cd95e968fae4ea4e6033da7dbe99d2b837f33f5242",
+      "sha256": "3a0bee6812bd50b333b130d1a7d7cbd0929a496fd637d0de79fdd5658c26f297",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -253,7 +253,7 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/descriptive_comparison_interval_calibration.rs",
-      "sha256": "d67064eb9fa084c2051d2ea15e423346553068760bde7d8b0eaa1f36d20599f3",
+      "sha256": "1daee03e1963763d6dbeacee0f5dd234425df4fdad605647a30be42161a5e791",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -279,7 +279,7 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/knn_matching_calibration.rs",
-      "sha256": "5f029137dffed2039584352305d194f43e8cedb6fe1b7ba35cda58d576a9e527",
+      "sha256": "6709ed48f43e0508fcc50fa98256f7fd36f59ebb4efce1756f3422100af6e914",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -305,7 +305,7 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/matched_odds_ratio_interval_calibration.rs",
-      "sha256": "ce1ab050228da5e53b51f7b8598b702345780df0bfeb12f55387336e66b8c5d1",
+      "sha256": "d3e6220e879a80fdd1283aad4b416d3907c8be45ce0915ffcffc3f0e42071e78",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -337,7 +337,7 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/nonlinear_mediation_interval_calibration.rs",
-      "sha256": "fdd3dfd6d0241a9ef3171eb9e63f99eb55744549fb487b1705070184ee28a995",
+      "sha256": "5a5d0b015e71e4c74dd020e62e995127096363820f1b790638c91688aadd0728",
       "labelled_calls": [
         {
           "line": 180,
@@ -469,7 +469,7 @@
     },
     {
       "path": "crates/antecedent/tests/batch_retarget_calibration.rs",
-      "sha256": "34d28a01850334e893c990582e22dd8392a4e338cf78b3d412e3d4b8f9c3ec55",
+      "sha256": "31eb0ad00d09184cce1af56b423da702fa7bc39108fc634298e0791b2cc24d3c",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -482,7 +482,7 @@
     },
     {
       "path": "crates/antecedent/tests/bayesian_temporal.rs",
-      "sha256": "40189f3d51754f5fd1484b525a9c897558b75a28d2202786534e22def483366f",
+      "sha256": "9b88fa04613d2f5c452b4e8c63125a73d89962766036d3b348175778a8ed5432",
       "labelled_calls": [
         {
           "line": 516,
@@ -531,7 +531,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_admg.rs",
-      "sha256": "e10cec37b6a34678ee24db12b6cddf88165987670ac6d848680741c09462de8b",
+      "sha256": "6aaef078907157832592d3edceaf002b830ceccab1b6535189589b0657a0155c",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -544,7 +544,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_anomaly_bayesian.rs",
-      "sha256": "13602b23a2660d42ffaaebc0912b6332da57dd648f39e57df6a6e6dfa50b3244",
+      "sha256": "39c756d6c5f8f8c535fc8bc1bcbfac7eaefb78836ff3594f321882e315b14c5f",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -557,7 +557,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_attribution_bayesian.rs",
-      "sha256": "cb252ce2adeeb147f4aa8abb8c1562f31a5fe150d8374bb18fea99c6cc0851a8",
+      "sha256": "5d1f5cd87333b1eef49c5a8361675a59301287556f312b3d6718216ce3985b84",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -570,7 +570,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_backlog.rs",
-      "sha256": "fdca1880767579b9ba440fc10ced5cbbaa43c49d80379774bb29b6c8982a94f3",
+      "sha256": "927095b2772a3b4b18b4dcfe6f809d1ee98e3194f905d4665361578f19db6a54",
       "labelled_calls": [
         {
           "line": 221,
@@ -659,7 +659,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_bayesian_static.rs",
-      "sha256": "b7e52f8c65ea248a2b2d3e489ad7180aa5badf4f92b1968a411c346a6ed02639",
+      "sha256": "742c1409fb08d9375831e82e299827be5d600340e91d7fab78b04e07b1a3d4db",
       "labelled_calls": [
         {
           "line": 100,
@@ -711,7 +711,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_counterfactual.rs",
-      "sha256": "a20b69255bd612db4af1b064d86405b133c909b47cb4137df3919c0622f7667c",
+      "sha256": "011d8f02b490c3fb8321067a74062588949a7ab24e1be1ebab24f5b3ab27b86d",
       "labelled_calls": [
         {
           "line": 180,
@@ -730,7 +730,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_design.rs",
-      "sha256": "1edfe59a5835fd32ca427fb5b11422052b3f7de15ade9c083a6df49cb2e0837f",
+      "sha256": "58bc1478e0a9989a032b499fd5360ebf3a3e9a5f6f53a574abecfdca10718a3e",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -743,7 +743,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_design_bayesian.rs",
-      "sha256": "54c988baa1af56f0d0869ab922cf1cc1fbe7b7c840f978dd68a05829f1160ece",
+      "sha256": "a4ee7bb34783d7dacd0bfaea4276a583df9117eeaba5ffae2760a0cdbe06f15e",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -756,7 +756,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_distribution_admg.rs",
-      "sha256": "38111f98bed467def51b8c4315ca8ad54d91509ea421f89d105e0f954d99d7a4",
+      "sha256": "48019fd0262ccc1587987c66c0491eb93742a3b90441a58f06cd83a604a2f678",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -774,7 +774,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_estimate.rs",
-      "sha256": "5c53d6840f68681bce399fbe0a79bf6015d66223956ab49df945ea29ed01be79",
+      "sha256": "d9ef330c35a0fb38915f6a5f58a6ad2011aa28333703907002a416f67c34d904",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -787,7 +787,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_posterior_draws.rs",
-      "sha256": "446e187090538c13508bcc69aff874ebeb438dc31b3f8d39f964a1e64390e6ae",
+      "sha256": "4b817ccc7ca888eec94bcacbfa04a030f7ea3558f084ada97677f7bb234af191",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -800,7 +800,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_response.rs",
-      "sha256": "7b6eca68b19f154c609c72d4c1d2165340657ff6887ffa94c1aacc4f40901274",
+      "sha256": "26ca1fe0bdc920256db1aa033f02451bb0dcd2eec8f1a0cb949d50f0a388291d",
       "labelled_calls": [
         {
           "line": 724,
@@ -844,7 +844,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_temporal.rs",
-      "sha256": "75fc2edbe510b22bebcbf5386e68470ad1e75af32822afd26068aac0cbe5623e",
+      "sha256": "fe2bedb483ab1c30386c8e14deb69b3d705150437b4f89470bec4590ea0db357",
       "labelled_calls": [
         {
           "line": 60,
@@ -863,7 +863,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_temporal_class.rs",
-      "sha256": "c5ecd7c722e9361f77efe94205642847b9fe98a2b32a529959152c7357ce98ee",
+      "sha256": "d04b2b8f0ae51c18788ad4bc3287d6c34f7793aa8729fc659d733bdded856ad3",
       "labelled_calls": [
         {
           "line": 378,
@@ -892,7 +892,7 @@
     },
     {
       "path": "crates/antecedent/tests/categorical_posterior_calibration.rs",
-      "sha256": "8f1eb81ce02454040f2d10a286522fe34aaa534096b4422a69a6421a136eb5f3",
+      "sha256": "31cb272092082d42b088a16283072560bb3259508f8888e1456b6b45fe52f8fb",
       "labelled_calls": [
         {
           "line": 156,
@@ -911,7 +911,7 @@
     },
     {
       "path": "crates/antecedent/tests/class_posterior_calibration.rs",
-      "sha256": "ec2575374af9ede7eda6b9547bc4623c699ee864874c739bb6bc4b3908448dfc",
+      "sha256": "82f0dc44e4fb90ad7702e698192a3171e58e684865712243fe2f5daa273bc443",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -929,7 +929,7 @@
     },
     {
       "path": "crates/antecedent/tests/cluster_dml_calibration.rs",
-      "sha256": "0341f42bafea5c86950e50c36930026eb2065e479396fce81887e2997497f46c",
+      "sha256": "b76fdec14fd9dffa2d59112767367b5e5e8e03995bce849cd857a59ae8e9ee81",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -942,7 +942,7 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration.rs",
-      "sha256": "799896893379943887e05ea266d36c76d0422dfc4fb4e58d6207bdda7632dc8b",
+      "sha256": "a860de6df3502112d99229059fd4bd5d956385941fabde60dc64d43f1fb82277",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources."
@@ -963,7 +963,7 @@
     },
     {
       "path": "crates/antecedent/tests/cross_world_interval_calibration.rs",
-      "sha256": "ada54225b72e1f028c8712184aea5763ce2f36de5cac70bb25b9bb3a9cefda13",
+      "sha256": "df0101a4d64452c84cc2275d4f649ab0de59d42741a424700f024b474c9ce8f4",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -976,7 +976,7 @@
     },
     {
       "path": "crates/antecedent/tests/derivative_calibration.rs",
-      "sha256": "a18d6753633cd16f2b6f825bbc3151f29976bf933569eccd90220b1abca8b975",
+      "sha256": "0309314b993872fbd67d300b0a799212e84cf4c98011fab20e4d993dff7ab377",
       "labelled_calls": [
         {
           "line": 883,
@@ -1040,7 +1040,7 @@
     },
     {
       "path": "crates/antecedent/tests/discovered_transport_calibration.rs",
-      "sha256": "b69cfb38b4db30d529d60260a476a9ef61c08554cae77c245ac4e2acd2ddd8e5",
+      "sha256": "088a5db1ce47aafc076c6e27cb0f3972b5135792108ec3d2eaed3b001b0e15b6",
       "labelled_calls": [
         {
           "line": 344,
@@ -1079,7 +1079,7 @@
     },
     {
       "path": "crates/antecedent/tests/evidence_synthesis_calibration.rs",
-      "sha256": "47512d50118564e595db5b936c4f50b0dd881534fa5c9abf8c52c8777edd531f",
+      "sha256": "8657f459261b9367e67c7db6d092636bef89ab3a28ebca7a52a4db18f46b4b22",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1092,7 +1092,7 @@
     },
     {
       "path": "crates/antecedent/tests/graph_imputation_interval_calibration.rs",
-      "sha256": "16085202c94e3ea2acd52214d20320b8b46ac29be89d2eeeaf0d658b2fd73999",
+      "sha256": "df4cb23406ac2cb8ce4dfaf598b7ab1e3d6f0604a50816ad8fe89de4e29bdd9b",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1110,7 +1110,7 @@
     },
     {
       "path": "crates/antecedent/tests/joint_law_composed_interval_calibration.rs",
-      "sha256": "829dca1a04ada55ac335d4ff91396b5116f00b8a4d982d9aa63d98ba2177e7c4",
+      "sha256": "a42bc2f5556abdbe8dcac1d140778a30360914ada3983835c60071db0204545a",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1128,7 +1128,7 @@
     },
     {
       "path": "crates/antecedent/tests/joint_sensitivity_calibration.rs",
-      "sha256": "deb43992831046a17639b9b0fd520ed6da9a68ef14f8f3964406814b3312597e",
+      "sha256": "335d4421d765ea42816ca589762d62f6cb6b3ccd0168b4748249c869e3553c6b",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1151,7 +1151,7 @@
     },
     {
       "path": "crates/antecedent/tests/learned_continuous_bootstrap_calibration.rs",
-      "sha256": "beba02cf089a1b6b4df2fcd477f91d3779cb29204dfbf2bfc8e9745010318e3e",
+      "sha256": "e86c9b0fe2db1a4e9fe1fe74c9e58f6c43d9917f2080cb0ea1ba45f6621cefdc",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1164,7 +1164,7 @@
     },
     {
       "path": "crates/antecedent/tests/learned_continuous_calibration.rs",
-      "sha256": "ea9778a4d2f7a4166f06c0f712945413dd402633597ad23baffe1033e3ad3c38",
+      "sha256": "6a7607540d1953dad6c060df4fb78803695006dffb16d442819b549c6852cef9",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1177,7 +1177,7 @@
     },
     {
       "path": "crates/antecedent/tests/mechanism_composition_interval_calibration.rs",
-      "sha256": "d2ce70249b8b27bb490f5d96b80f1aa1c34aca277bad1e70fb25b88240b34ddc",
+      "sha256": "580c5ab12acf535a0f792063fb3a50eb64fc4551a08f4741bb132ff8f7457cef",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1190,7 +1190,7 @@
     },
     {
       "path": "crates/antecedent/tests/missing_outcome_calibration.rs",
-      "sha256": "2f63a258a93d7f7d82011ae7c9cc817c757bdb672cbc03f2d91df0f9b056cd2d",
+      "sha256": "ee9c630d00ec9af36a5dd530e6732ef197de466b8ea09c177a5418673118cec7",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1203,7 +1203,7 @@
     },
     {
       "path": "crates/antecedent/tests/mixture_interval_calibration.rs",
-      "sha256": "ff24cdbe7d0eb066d87a6529cc6effc145aa0611ca204e19ce88ad48ed48dffd",
+      "sha256": "9232ec380b92d98db33811950248eca3693b586c780e95853bad806d12d88588",
       "labelled_calls": [
         {
           "line": 984,
@@ -1382,7 +1382,7 @@
     },
     {
       "path": "crates/antecedent/tests/mnar_interval_calibration.rs",
-      "sha256": "defa2516c6b9350af36fa313c379cb76bb6808fcbc554be99e304a80ca3f66cd",
+      "sha256": "c03292df0d062415cc20beb8f4c8e62508ace70d24179e4a693c56d540f1b87e",
       "labelled_calls": [
         {
           "line": 148,
@@ -1401,7 +1401,7 @@
     },
     {
       "path": "crates/antecedent/tests/multilevel_interval_calibration.rs",
-      "sha256": "eaf3d4f49299a5b10caf8117fc23c72bb8795426e0a28cc5061a1a5f4242c480",
+      "sha256": "2e50e3da38f78417ec2b60e2e557f96b25b50da4a0b74109ef8be5d86d246b9e",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1414,7 +1414,7 @@
     },
     {
       "path": "crates/antecedent/tests/mz_transport_calibration.rs",
-      "sha256": "78f627be9983a45872d45f9bdc9e91c23f3d9874505c8d32d527a5df7217fa4d",
+      "sha256": "c73ff95005bdfcf2815da816f2d4a86cc00a14d8f974273d420f40a03e1bd595",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1432,7 +1432,7 @@
     },
     {
       "path": "crates/antecedent/tests/panel_calibration.rs",
-      "sha256": "52aed037853e246643bca54b247d2a93defe753b62360d1e465f900b7745050d",
+      "sha256": "3513003115dea3d79dc9414f7ec669367a4b4537120a5bbcdedb21752dab880a",
       "labelled_calls": [
         {
           "line": 127,
@@ -1471,7 +1471,7 @@
     },
     {
       "path": "crates/antecedent/tests/practitioner_scale_calibration.rs",
-      "sha256": "3c3d5f0494a0a99d9f487341cf82615790054bceb9778057bb7989192bdcef67",
+      "sha256": "8e53bbc405567f73cf76d66bd68accd2a38aa576d1da0e656103ff5476ffd856",
       "labelled_calls": [
         {
           "line": 721,
@@ -1540,7 +1540,7 @@
     },
     {
       "path": "crates/antecedent/tests/predictive_score_interval_calibration.rs",
-      "sha256": "088f59aa671a9efb8fa409d6e39bc6e530f4a48d80494279a23ae36c4b311445",
+      "sha256": "e55430b1583ec63d975b8b3305dcc87f6c29c433caf43ec94a80ce6b3ad1e966",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1566,7 +1566,7 @@
     },
     {
       "path": "crates/antecedent/tests/randomized_interval_calibration.rs",
-      "sha256": "364eb9bd7eda890fad1a952608da3f659aab5c9cf3c56a01b838b5d8bda2fd42",
+      "sha256": "8162f51ee3dc683ae09eb16e9a5826de8e716c5ddb7c351682ad8efbec163d82",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1614,7 +1614,7 @@
     },
     {
       "path": "crates/antecedent/tests/randomized_quantile_interval_calibration.rs",
-      "sha256": "c969af99226ff2a60796161307ea759f4cc16094390d5f659396f192c3f96602",
+      "sha256": "90ac84e5ce6e5cb7b97daf809ec5ed78c6251aac82e537ddaa9a9af26975f825",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1627,7 +1627,7 @@
     },
     {
       "path": "crates/antecedent/tests/sample_split_effect_calibration.rs",
-      "sha256": "3bce1ede568e489e960c8d6967957caa12a630277678cacd5469c4d6a36e78c4",
+      "sha256": "23eee3cc8c36e0dd018381d32d956ec8de5c07ed845066ab98ea76c112cf011f",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1650,7 +1650,7 @@
     },
     {
       "path": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs",
-      "sha256": "cdd014e8213056ed5d758c1ba81fa42fa9043817274086174cba96799ebd533b",
+      "sha256": "ba953566c89c14a1a7e519b253fef1af4072570c486e527ef32c0b0cce7b5347",
       "labelled_calls": [
         {
           "line": 460,
@@ -1699,7 +1699,7 @@
     },
     {
       "path": "crates/antecedent/tests/sample_split_weighted_effect_calibration.rs",
-      "sha256": "5907da4bb6f761e35dd9519f389836719e2897af3dadff3a85d8e053780d2c18",
+      "sha256": "a387ed699ee9a23d25960ec2adc85fab8bc70c11b8285743a37b4d3fde9fbc3e",
       "labelled_calls": [
         {
           "line": 257,
@@ -1723,7 +1723,7 @@
     },
     {
       "path": "crates/antecedent/tests/scientific_bridge_interval_calibration.rs",
-      "sha256": "309ffd53f480d1095ee89fb18f51143cb2769e694f42b436a9d2b94481fda133",
+      "sha256": "33dbb059b138c9ac3e55ab67b00ea83881e1269add230c7262e8d00d9d64cc41",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1736,7 +1736,7 @@
     },
     {
       "path": "crates/antecedent/tests/smoothed_dose_calibration.rs",
-      "sha256": "0b4f56031ebc7591d2b61d50f47ec19e6b51e76f3019cb648fd25cc5337488b6",
+      "sha256": "67c9ecc49bf0d4effd3f8a8f43c55f5c7a02ba2c20ead198c39b9ce319f16eaa",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1749,7 +1749,7 @@
     },
     {
       "path": "crates/antecedent/tests/static_calibration.rs",
-      "sha256": "f14428b2464f8a17537c14b369bd14b96538440d73cf1f90df181c4a2c8ecf65",
+      "sha256": "da1c0767cf419901c542a4fb8f5ebc0f128d164a3c7bafaebbb4ea21fe33a12c",
       "labelled_calls": [
         {
           "line": 250,
@@ -1908,7 +1908,7 @@
     },
     {
       "path": "crates/antecedent/tests/static_envelope_calibration.rs",
-      "sha256": "93adc87d06202339d12dbcbf45e7d00ddfa1213971a6a66396cb39d6bc7fe736",
+      "sha256": "6a1b4c338184c7acb006ad2eed1806bf1e98304d7c13030b9563926024317796",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1951,7 +1951,7 @@
     },
     {
       "path": "crates/antecedent/tests/static_mixture_calibration.rs",
-      "sha256": "caaae919282cc7a567dc25cbb0f68ff5da0fce212759aea27ffa2a80432c670c",
+      "sha256": "c1ce9a793ddf529d03d6b1ac54f0d52b64b51135f20976e3980dcf6a2dedc6d3",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1979,7 +1979,7 @@
     },
     {
       "path": "crates/antecedent/tests/temporal_class_calibration.rs",
-      "sha256": "63fa07292e868e380924466e496b9ab3f1613b9bed455c59181db590b4d2b013",
+      "sha256": "74a7ce63a71ecec838529ba5ee0179848baee27481c854af4f0c3c68aff916ef",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -2027,7 +2027,7 @@
     },
     {
       "path": "crates/antecedent/tests/temporal_frequentist.rs",
-      "sha256": "9bd3b6dd0ba70afc121ec2639c28e7ba38d3960d7c1426c9e2cbdebfe0a83eed",
+      "sha256": "de2e76fc7757261e4f7ab04b75422555a4fd9e5f36da9120543f80177030383d",
       "labelled_calls": [
         {
           "line": 141,
@@ -2084,7 +2084,7 @@
     },
     {
       "path": "crates/antecedent/tests/temporal_response_calibration.rs",
-      "sha256": "12227cc4e388aadefd3ebf173a375480342762a574a05df0647023bfe2d6e539",
+      "sha256": "df6775c95ef6ddc66cf53f488d38db650df1487aaf852c9b6cf061a13d342d8c",
       "labelled_calls": [
         {
           "line": 261,
@@ -2123,7 +2123,7 @@
     },
     {
       "path": "crates/antecedent/tests/transport_statistical_calibration.rs",
-      "sha256": "fc36b73334f48c5c65063a047901a79ce70c19c96e967dfd069802cfa1afecae",
+      "sha256": "aa3da4f177b53ad768f908922cf76cee9398af07cfbe65dcaa0cb28a16d04fff",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -2136,7 +2136,7 @@
     },
     {
       "path": "crates/antecedent/tests/typed_transported_mechanism_interval_calibration.rs",
-      "sha256": "147a0d13e00f756c0bb9c23cd277a4925c883e57d845e6856b7960bcaee314c7",
+      "sha256": "64ffec67c6b95b025ff9c95931d2ffe936d77d924cb63a0ac924dbfad6ba6f99",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -2149,7 +2149,7 @@
     },
     {
       "path": "crates/antecedent/tests/weighted_interval_calibration.rs",
-      "sha256": "c9a9f37769a2803a7d55bcfb944401176ad918fa5b6ef66facb92cfbcffb14a9",
+      "sha256": "d8039d2acdde2ce2a60823295ffe00acdebad7a5378b3de361506d517dd8698d",
       "labelled_calls": [
         {
           "line": 617,
@@ -2193,7 +2193,7 @@
     },
     {
       "path": "crates/antecedent/tests/z_transport_surrogate_calibration.rs",
-      "sha256": "ee119b9c515ccd9a433b55a3e3c7446e68367ab5ef95cce9c34c539211c03583",
+      "sha256": "0eb1512f52b3382ca266f3efd433bbee66e248f29de6397f9f88e835f0478376",
       "labelled_calls": [],
       "constructor_calls": [
         {

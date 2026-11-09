@@ -29,7 +29,7 @@
 //! Assertion: `CoverageTally::assert`, the harness band around the nominal 0.95 for the first
 //! `n_sim()` replicates, rechecked at 2000 near the edge.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -381,7 +381,7 @@ fn measure(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn composed_linear_gaussian_mechanisms_first_order_interval() {
     measure(
         "composed_linear_gaussian_mechanisms_first_order_interval",
@@ -397,7 +397,7 @@ fn composed_linear_gaussian_mechanisms_first_order_interval() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn transported_linear_gaussian_mechanisms_first_order_interval() {
     measure(
         "transported_linear_gaussian_mechanisms_first_order_interval",

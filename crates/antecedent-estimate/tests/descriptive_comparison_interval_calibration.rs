@@ -20,7 +20,7 @@
 //! normality and a linearization away from the boundary of the scale; nothing is claimed near
 //! a proportion of 0 or 1.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -105,7 +105,7 @@ fn measure(test: &'static str, scale: ReportingScale, functional: &str, truth: f
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn descriptive_risk_difference_delta_method_interval() {
     measure(
         "descriptive_risk_difference_delta_method_interval",
@@ -116,7 +116,7 @@ fn descriptive_risk_difference_delta_method_interval() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn descriptive_log_risk_ratio_delta_method_interval() {
     measure(
         "descriptive_log_risk_ratio_delta_method_interval",

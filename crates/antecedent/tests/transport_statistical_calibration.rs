@@ -1,6 +1,6 @@
 //! Coverage of the T6 empirical-table outer bootstrap against known binary SCMs.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

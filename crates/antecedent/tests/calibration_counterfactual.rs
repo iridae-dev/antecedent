@@ -36,7 +36,7 @@
 //! the per-unit interval is published only at the reported level, so it is
 //! recorded only there.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -321,7 +321,7 @@ fn design(
 /// Interaction design at the consumer's `n = 2500`. The first `b = 0` and the
 /// first `b = 1` unit of each replicate are the designated units.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn counterfactual_interaction_bayesian_unit_and_mean_ite_coverage() {
     let graph = dag(4, &[(0, 1), (0, 3), (1, 3), (2, 3)]);
     design(
@@ -355,7 +355,7 @@ const INTERACTION_MEASURED: Measured =
 /// Spline design at `n = 2500`. Units 0 and 1 of each replicate are the
 /// designated units (each an independent draw of `z`).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage() {
     let graph = dag(3, &[(0, 1), (0, 2), (1, 2)]);
     design(

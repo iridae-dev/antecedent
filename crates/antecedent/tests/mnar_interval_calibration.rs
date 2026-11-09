@@ -132,7 +132,7 @@ fn draw(
 }
 
 #[test]
-#[ignore = "calibration: run through scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run through scripts/measure_calibration.sh"]
 fn mnar_compiled_shift_delta_io_interval() {
     let rows = SIZES.n(BASE_ROWS);
     for shift_band in 0..SHIFT_BANDS {

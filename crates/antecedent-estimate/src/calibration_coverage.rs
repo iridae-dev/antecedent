@@ -1,7 +1,7 @@
 //! SE coverage calibration (measured locally by `scripts/measure_calibration.sh`).
 //!
 //! These tests are `#[ignore]` so every-PR `cargo test` stays fast. Run via
-//! `scripts/measure_calibration_groups.sh`.
+//! `scripts/measure_calibration.sh`.
 //!
 //! The band, the floor, the ceiling, the recheck rule and the normal quantile
 //! are the shared harness's (`crates/antecedent/tests/common/calibration.rs`),
@@ -420,7 +420,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn linear_adjustment_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = LinearAdjustmentAte::default().with_bootstrap_replicates(0);
@@ -440,7 +440,7 @@ fn linear_adjustment_analytic_ci_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn linear_adjustment_hc1_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = LinearAdjustmentAte::default()
@@ -463,7 +463,7 @@ fn linear_adjustment_hc1_ci_coverage() {
 
 /// IPW bootstrap SE (refits the propensity on every resample).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn ipw_hajek_bootstrap_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = PropensityWeighting::new().with_bootstrap_replicates(BOOT_REPS);
@@ -493,7 +493,7 @@ fn ipw_hajek_bootstrap_ci_coverage() {
 
 /// Stacked logistic + weighted-mean sandwich SE (estimated propensity).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn ipw_hajek_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = PropensityWeighting::new().with_bootstrap_replicates(0);
@@ -538,7 +538,7 @@ fn propensity_ipw_conformance_scm(n: usize, rng: &mut CausalRng) -> TabularData 
 /// and `mc_sd` are the direct comparison, and the two-sided band fails a
 /// conservative SE as surely as an anti-conservative one.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn ipw_hajek_analytic_conformance_scm_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = PropensityWeighting::new().with_bootstrap_replicates(0);
@@ -570,7 +570,7 @@ fn ipw_hajek_analytic_conformance_scm_ci_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn aipw_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = AipwAte::new().with_bootstrap_replicates(0);
@@ -688,7 +688,7 @@ fn penalized_aipw_coverage(
 
 /// Ridge-logistic propensity, cross-fitted influence-function SE.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn aipw_ridge_influence_ci_coverage() {
     penalized_aipw_coverage(
         "aipw_ridge_influence_ci_coverage",
@@ -700,7 +700,7 @@ fn aipw_ridge_influence_ci_coverage() {
 
 /// Ridge-logistic propensity, refit bootstrap (penalty selection repeated per replicate).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn aipw_ridge_refit_bootstrap_ci_coverage() {
     penalized_aipw_coverage(
         "aipw_ridge_refit_bootstrap_ci_coverage",
@@ -712,7 +712,7 @@ fn aipw_ridge_refit_bootstrap_ci_coverage() {
 
 /// Lasso-logistic propensity, cross-fitted influence-function SE.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn aipw_lasso_influence_ci_coverage() {
     penalized_aipw_coverage(
         "aipw_lasso_influence_ci_coverage",
@@ -724,7 +724,7 @@ fn aipw_lasso_influence_ci_coverage() {
 
 /// Lasso-logistic propensity, refit bootstrap (penalty and support selection repeated).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn aipw_lasso_refit_bootstrap_ci_coverage() {
     penalized_aipw_coverage(
         "aipw_lasso_refit_bootstrap_ci_coverage",
@@ -821,7 +821,7 @@ fn aipw_residualized_tally(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn aipw_att_hc1_ci_coverage() {
     aipw_residualized_coverage(
         "aipw_att_hc1_ci_coverage",
@@ -849,7 +849,7 @@ const AIPW_ATC_HC1_MEASURED: [f64; 3] = [0.9575, 0.939, 0.9575];
 /// execution of this construction reports the measured under-coverage instead
 /// of `calibrated`.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn aipw_atc_hc1_boundary_within_band() {
     aipw_residualized_tally(
         "aipw_atc_hc1_boundary_within_band",
@@ -864,7 +864,7 @@ fn aipw_atc_hc1_boundary_within_band() {
 
 /// ATE on the residualized branch (HC1 moves it off the cross-fitted score table).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn aipw_ate_hc1_ci_coverage() {
     aipw_residualized_coverage(
         "aipw_ate_hc1_ci_coverage",
@@ -878,7 +878,7 @@ fn aipw_ate_hc1_ci_coverage() {
 
 /// Clustered outcome shocks (60 clusters of 10): the cluster-robust IF SE.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn aipw_att_cluster_ci_coverage() {
     aipw_residualized_coverage(
         "aipw_att_cluster_ci_coverage",
@@ -891,7 +891,7 @@ fn aipw_att_cluster_ci_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn matching_homoskedastic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
         .with_target_population(TargetPopulation::Treated);
@@ -1065,13 +1065,13 @@ fn wald_coverage_on(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn wald_iv_analytic_ci_coverage() {
     wald_coverage("wald_iv_analytic_ci_coverage", "wald_iv", AnalyticSeKind::Homoskedastic, 5);
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn wald_iv_hc1_ci_coverage() {
     wald_coverage("wald_iv_hc1_ci_coverage", "wald_iv_hc1", AnalyticSeKind::Hc1, 15);
 }
@@ -1180,7 +1180,7 @@ fn two_sls_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn iv_2sls_analytic_ci_coverage() {
     two_sls_coverage(
         "iv_2sls_analytic_ci_coverage",
@@ -1192,7 +1192,7 @@ fn iv_2sls_analytic_ci_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn iv_2sls_hc1_heteroskedastic_ci_coverage() {
     two_sls_coverage(
         "iv_2sls_hc1_heteroskedastic_ci_coverage",
@@ -1247,7 +1247,7 @@ fn frontdoor_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, 
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frontdoor_stacked_hc0_ci_coverage() {
     frontdoor_coverage(
         "frontdoor_stacked_hc0_ci_coverage",
@@ -1258,7 +1258,7 @@ fn frontdoor_stacked_hc0_ci_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frontdoor_stacked_hc1_ci_coverage() {
     frontdoor_coverage(
         "frontdoor_stacked_hc1_ci_coverage",
@@ -1352,7 +1352,7 @@ fn frontdoor_functional_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frontdoor_functional_saturated_ci_coverage() {
     frontdoor_functional_coverage(
         "frontdoor_functional_saturated_ci_coverage",
@@ -1364,7 +1364,7 @@ fn frontdoor_functional_saturated_ci_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frontdoor_functional_arm_linear_ci_coverage() {
     frontdoor_functional_coverage(
         "frontdoor_functional_arm_linear_ci_coverage",
@@ -1422,7 +1422,7 @@ fn rd_cutoff_query(cutoff: f64) -> AverageEffectQuery {
 /// Sharp-RD homoskedastic analytic SE (explicit opt-in) on a homoskedastic DGP
 /// (its stated assumption).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn rd_sharp_analytic_ci_coverage() {
     let query = rd_cutoff_query(0.0);
     let est = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
@@ -1477,7 +1477,7 @@ fn rd_curved_heterogeneous_scm(n: usize, seed: u64) -> (TabularData, IdentifiedE
 /// the construction key of `rd_sharp_hc1_heteroskedastic_ci_coverage`, so turning it into
 /// a record needs a rule for two records under one key.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn rd_sharp_hc1_curved_heterogeneous_probe() {
     const CUTOFF_EFFECT: f64 = 2.0;
     let query = rd_cutoff_query(0.0);
@@ -1504,7 +1504,7 @@ fn rd_sharp_hc1_curved_heterogeneous_probe() {
 /// Sharp-RD HC1 SE on a heteroskedastic DGP (gated). The homoskedastic SE on the
 /// same fits is recorded as an out-of-assumption probe (printed, not gated).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
     let query = rd_cutoff_query(0.0);
     let hc1 = SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
@@ -1594,7 +1594,7 @@ fn score_learner_replicate(
 
 /// Cross-fitted DML (AIPW score) analytic SE on [`confounded_scm`].
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn dml_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = DmlAte::new();
@@ -1622,7 +1622,7 @@ fn dml_analytic_ci_coverage() {
 
 /// DR-Learner analytic SE (ATE from the DR score) on [`confounded_scm`].
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn dr_learner_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = DrLearner::new();
@@ -1653,7 +1653,7 @@ fn dr_learner_analytic_ci_coverage() {
 /// Tree count is capped at 40 so a future remesurement stays tractable; the
 /// SE comes from the same orthogonal AIPW score the facade publishes.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn causal_forest_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = CausalForest::new().with_n_trees(40);
@@ -1728,7 +1728,7 @@ fn heterogeneous_treated_confounder_mean() -> f64 {
 /// Weak-IV Anderson–Rubin coverage on [`static_dgp::weak_iv_data`] (first stage 0.15 against
 /// unit-variance noise, so Stock–Yogo `F` sits far below 10).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn wald_iv_weak_first_stage_adversarial_ci_coverage() {
     wald_coverage_on(
         "wald_iv_weak_first_stage_adversarial_ci_coverage",
@@ -1741,7 +1741,7 @@ fn wald_iv_weak_first_stage_adversarial_ci_coverage() {
 
 /// IPW analytic SE under [`static_dgp::weak_overlap_data`].
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn ipw_hajek_weak_overlap_adversarial_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = PropensityWeighting::new().with_bootstrap_replicates(0);
@@ -1773,7 +1773,7 @@ fn ipw_hajek_weak_overlap_adversarial_ci_coverage() {
 /// Sharp-RD HC1 under the curved, heterogeneous design [`rd_curved_heterogeneous_scm`]
 /// (cubic smoothing bias; scored against the cutoff effect).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn rd_sharp_hc1_curved_adversarial_ci_coverage() {
     const CUTOFF_EFFECT: f64 = 2.0;
     let query = rd_cutoff_query(0.0);
@@ -1831,7 +1831,7 @@ fn matching_coverage_on(
 
 /// Matching (homoskedastic SE) under [`static_dgp::heteroskedastic_matching_data`].
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn matching_heteroskedastic_adversarial_ci_coverage() {
     matching_coverage_on(
         "matching_heteroskedastic_adversarial_ci_coverage",
@@ -1849,7 +1849,7 @@ fn matching_heteroskedastic_adversarial_ci_coverage() {
 /// target populations have three different truths and an SE that ignores effect
 /// heterogeneity is wrong for each in its own way.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn matching_heterogeneous_att_ci_coverage() {
     matching_coverage_on(
         "matching_heterogeneous_att_ci_coverage",
@@ -1864,7 +1864,7 @@ fn matching_heterogeneous_att_ci_coverage() {
 
 /// Untreated-population twin of [`matching_heterogeneous_att_ci_coverage`].
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn matching_heterogeneous_atc_ci_coverage() {
     matching_coverage_on(
         "matching_heterogeneous_atc_ci_coverage",
@@ -1879,7 +1879,7 @@ fn matching_heterogeneous_atc_ci_coverage() {
 
 /// All-observed twin of [`matching_heterogeneous_att_ci_coverage`].
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn matching_heterogeneous_ate_ci_coverage() {
     matching_coverage_on(
         "matching_heterogeneous_ate_ci_coverage",
@@ -1912,7 +1912,7 @@ fn frontdoor_curved_mediator_scm(n: usize, seed: u64) -> TabularData {
 /// it targets is not the `do(1)` versus `do(0)` contrast, so its interval is recorded as a
 /// boundary.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frontdoor_stacked_hc1_curved_mediator_ci_coverage() {
     const CURVED_TRUTH: f64 = 3.0;
     let query =

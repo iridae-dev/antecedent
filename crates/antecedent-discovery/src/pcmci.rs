@@ -342,7 +342,7 @@ mod calibration_tests {
     /// lag0 allowed; here `min_lag=1` so family = `n_vars²` · `n_lags`). FDR off so alpha is
     /// the sole threshold. Band: ±4 MC SE of Bernoulli(α) plus floor/ceiling.
     #[test]
-    #[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn pcmci_null_fpr_near_alpha() {
         const N_VARS: usize = 3;
         const N_OBS: usize = 300;
@@ -425,7 +425,7 @@ mod calibration_tests {
 
     /// Light power check: planted X→Y@lag1 recovered often under moderate SNR.
     #[test]
-    #[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn pcmci_planted_lag1_power() {
         const N_SIM: u32 = 30;
         const N_OBS: usize = 250;

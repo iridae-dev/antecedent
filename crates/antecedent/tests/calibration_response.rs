@@ -19,7 +19,7 @@
 //! with disagreeing completions publishes the unbanded identified set, which
 //! has no interval to score.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -302,7 +302,7 @@ const GP_BAYES_CELL: Cell = Cell {
 /// withheld by the runtime, so treating graph dispersion as a sampling band
 /// would measure the wrong object.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_dag_graph_posterior_bayesian_nominal_coverage() {
     let mut tallies = keyed_pair(
         "intervention_response_dag_graph_posterior_bayesian_nominal_coverage",
@@ -360,7 +360,7 @@ const GP_CELL: Cell = Cell {
 /// Joint-IF scalar interval of the frozen-weight graph-posterior aggregate
 /// `E[Y | do(T = 1)]` over two identified atoms that share one estimand.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_dag_graph_posterior_frequentist_nominal_coverage() {
     let mut tallies = keyed_pair(
         "intervention_response_dag_graph_posterior_frequentist_nominal_coverage",
@@ -570,7 +570,7 @@ fn graph_posterior_class_level_coverage(case: &ClassCase, mut tallies: [Coverage
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_cpdag_graph_posterior_bayesian_nominal_coverage() {
     let test = "intervention_response_cpdag_graph_posterior_bayesian_nominal_coverage";
     let case = cpdag_case();
@@ -579,7 +579,7 @@ fn intervention_response_cpdag_graph_posterior_bayesian_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_pag_graph_posterior_bayesian_nominal_coverage() {
     let test = "intervention_response_pag_graph_posterior_bayesian_nominal_coverage";
     let case = pag_case();
@@ -653,7 +653,7 @@ const CPDAG_GP_FREQ_IR_CELL: Cell = Cell {
 const CPDAG_GP_FREQ_IR_TRUTH: f64 = 1.0;
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage() {
     let test = "intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage";
     let mut tallies = keyed_pair(test, CPDAG_GP_FREQ_IR_CELL);
@@ -712,7 +712,7 @@ fn cpdag_gp_freq_curve_truth(a: f64) -> f64 {
 /// [`PRECISION_N_SIM`] replicates. The reported 0.95 band and the facade's own
 /// 0.90 band come from two runs of the same data and seed.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage() {
     let test = "response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage";
     let cell = CPDAG_GP_FREQ_CURVE_CELL;
@@ -897,7 +897,7 @@ fn dag_curve_cell(estimator: &'static str, interval_method: &'static str) -> Cel
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage() {
     graph_posterior_curve_coverage(
         "response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage",
@@ -911,7 +911,7 @@ fn response_curve_dag_graph_posterior_bayesian_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage() {
     graph_posterior_curve_coverage(
         "response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage",
@@ -925,7 +925,7 @@ fn response_curve_dag_graph_posterior_frequentist_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage() {
     let case = cpdag_case();
     graph_posterior_curve_coverage(
@@ -940,7 +940,7 @@ fn response_curve_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_pag_graph_posterior_bayesian_pointwise_nominal_coverage() {
     let case = pag_case();
     graph_posterior_curve_coverage(
@@ -966,7 +966,7 @@ const PAG_GP_FREQ_CELL: Cell = Cell {
 };
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage() {
     graph_posterior_curve_coverage(
         "response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage",
@@ -980,7 +980,7 @@ fn response_curve_pag_graph_posterior_frequentist_pointwise_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_pag_graph_posterior_frequentist_nominal_coverage() {
     let test = "intervention_response_pag_graph_posterior_frequentist_nominal_coverage";
     let cell = Cell { estimator: "response.intervention_gcomp", ..PAG_GP_FREQ_CELL };
@@ -1171,19 +1171,19 @@ fn class_curve_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_cpdag_bayesian_nominal_coverage() {
     class_level_coverage("intervention_response_cpdag_bayesian_nominal_coverage", &cpdag_case());
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_pag_bayesian_nominal_coverage() {
     class_level_coverage("intervention_response_pag_bayesian_nominal_coverage", &pag_case());
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_cpdag_bayesian_pointwise_nominal_coverage() {
     class_curve_coverage(
         "response_curve_cpdag_bayesian_pointwise_nominal_coverage",
@@ -1197,7 +1197,7 @@ fn response_curve_cpdag_bayesian_pointwise_nominal_coverage() {
 const CPDAG_CURVE_MEASURED: [[Option<f64>; 3]; 10] = [[None; 3]; 10];
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_curve_pag_bayesian_pointwise_nominal_coverage() {
     class_curve_coverage(
         "response_curve_pag_bayesian_pointwise_nominal_coverage",
@@ -1272,7 +1272,7 @@ fn run_codetermined(data: TabularData, seed: u64) -> Option<(Study, StudyResult)
 /// `cell.aipw` joint cell mean on the `CoDetermined` closure, the study default
 /// for a same-tier joint intervention.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn intervention_response_codetermined_frequentist_nominal_coverage() {
     let mut tallies = keyed_pair(
         "intervention_response_codetermined_frequentist_nominal_coverage",

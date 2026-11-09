@@ -24,7 +24,7 @@
 //! from its own contract by `bind_reported`), so it can only describe the interval the
 //! route actually publishes.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -97,7 +97,7 @@ fn execute(n: usize, seed: u64) -> Option<(f64, f64, Reported)> {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn randomized_quantile_median_effect_analytic_interval() {
     let n = grid_n(BASE_ROWS);
     let mut tally = CoverageTally::for_record(
