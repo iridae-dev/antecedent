@@ -468,35 +468,112 @@ def _rust_files(checker, dirs: list[str]) -> list[str]:
 
 
 def guard_tree(checker, dirs: list[str]) -> str:
-    return sha(canonical([[rel, checker.input_digest("file", rel)] for rel in _rust_files(checker, dirs)]))
+    # A checker reads one state of the tree: many records share the same directories.
+    cache = checker.__dict__.setdefault("_guard_trees", {})
+    key = tuple(dirs)
+    if key not in cache:
+        cache[key] = sha(canonical([[rel, checker.input_digest("file", rel)] for rel in _rust_files(checker, dirs)]))
+    return cache[key]
 
 
 _FACTS: dict[tuple, dict] = {}
+# Facts are a pure function of a file's bytes: kept across processes, keyed by content.
+_FACTS_VERSION = 1
+_DISK_FACTS: dict[str, dict] | None = None
+_DISK_DIRTY = [False]
+
+
+def _facts_cache_path(root: Path) -> Path:
+    return root / ".cache" / "evidence-items" / f"facts-v{_FACTS_VERSION}.json"
+
+
+def _disk_facts(root: Path) -> dict[str, dict]:
+    global _DISK_FACTS
+    if _DISK_FACTS is None:
+        try:
+            _DISK_FACTS = json.loads(_facts_cache_path(root).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            _DISK_FACTS = {}
+    return _DISK_FACTS
+
+
+def save_facts(root: Path) -> None:
+    """Write the content-keyed facts cache, if this process added to it."""
+    if not _DISK_DIRTY[0] or _DISK_FACTS is None:
+        return
+    path = _facts_cache_path(root)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(_DISK_FACTS, sort_keys=True), encoding="utf-8")
+        temporary.replace(path)
+        _DISK_DIRTY[0] = False
+    except OSError:
+        pass
 
 
 def _facts(root: Path, checker, rel: str) -> dict:
     """A file's inherent items, trait impls, macros and alias names, once per file state."""
-    key = (rel, checker.input_digest("file", rel))
+    digest = checker.input_digest("file", rel)
+    key = (rel, digest)
     if key not in _FACTS:
-        text = (root / rel).read_text(encoding="utf-8", errors="replace")
-        facts = {"aliases": set(re.findall(r"\btype\s+([A-Za-z_][A-Za-z0-9_]*)", text)),
-                 "inherent": [], "impls": [], "macros": [], "unreadable": None}
-        try:
-            file = parse(root / rel)
-        except ParseError:
-            facts["unreadable"] = key[1]
+        stored = _disk_facts(root).get(digest) if isinstance(digest, str) else None
+        if stored is not None:
+            facts = {"aliases": set(stored["aliases"]), "unreadable": stored["unreadable"],
+                     **{k: [tuple(x) for x in stored[k]] for k in ("inherent", "impls", "macros")}}
         else:
-            for node in _walk(file.root):
-                if node.kind == "impl":
-                    trait, head, _ = impl_parts(node.name)
-                    if trait is None:
-                        facts["inherent"].extend((head, c.name, c.locator) for c in node.children)
-                    else:
-                        facts["impls"].append((trait, head, node.locator))
-                elif node.kind == "macro_rules":
-                    facts["macros"].append((node.name, node.locator, sha(file.part(node, "full").encode())))
+            facts = _parse_facts(root, rel, digest)
+            if isinstance(digest, str):
+                _disk_facts(root)[digest] = {**facts, "aliases": sorted(facts["aliases"])}
+                _DISK_DIRTY[0] = True
         _FACTS[key] = facts
     return _FACTS[key]
+
+
+def _parse_facts(root: Path, rel: str, digest) -> dict:
+    text = (root / rel).read_text(encoding="utf-8", errors="replace")
+    facts = {"aliases": set(re.findall(r"\btype\s+([A-Za-z_][A-Za-z0-9_]*)", text)),
+             "inherent": [], "impls": [], "macros": [], "unreadable": None}
+    try:
+        file = parse(root / rel)
+    except ParseError:
+        facts["unreadable"] = digest
+    else:
+        for node in _walk(file.root):
+            if node.kind == "impl":
+                trait, head, _ = impl_parts(node.name)
+                if trait is None:
+                    facts["inherent"].extend((head, c.name, c.locator) for c in node.children)
+                else:
+                    facts["impls"].append((trait, head, node.locator))
+            elif node.kind == "macro_rules":
+                facts["macros"].append((node.name, node.locator, sha(file.part(node, "full").encode())))
+    return facts
+
+
+def _guard_index(root: Path, checker, dirs: list[str]) -> dict:
+    """The facts of every Rust file under `dirs`, indexed by name; once per checker and `dirs`."""
+    cache = checker.__dict__.setdefault("_guard_indexes", {})
+    key = tuple(dirs)
+    if key not in cache:
+        index = {"aliases": {}, "unreadable": [], "inherent": {}, "impls": {}, "macros": {}}
+        for rel in _rust_files(checker, dirs):
+            facts = _facts(root, checker, rel)
+            directory = next((d for d in dirs if rel.startswith(d.rstrip("/") + "/")), ".")
+            index["aliases"].setdefault(directory, set()).update(facts["aliases"])
+            if facts["unreadable"] is not None:
+                index["unreadable"].append([rel, "file", facts["unreadable"]])
+                continue
+            for head, name, locator in facts["inherent"]:
+                index["inherent"].setdefault(name, []).append((rel, head, locator))
+            for trait, head, locator in facts["impls"]:
+                index["impls"].setdefault(trait, []).append((rel, head, locator))
+            for name, locator, digest in facts["macros"]:
+                index["macros"].setdefault(name, []).append([rel, locator, digest])
+        index["any_alias"] = set().union(*index["aliases"].values()) if index["aliases"] else set()
+        cache[key] = index
+        save_facts(root)
+    return cache[key]
 
 
 def guard_results(root: Path, checker, spec: dict, dirs: list[str]) -> list:
@@ -506,37 +583,25 @@ def guard_results(root: Path, checker, spec: dict, dirs: list[str]) -> list:
     macros: dict[str, list] = {m: [] for m in spec["macros"]}
     if not (inherent or impls or macros):
         return [[], [], []]
-    files = {rel: _facts(root, checker, rel) for rel in _rust_files(checker, dirs)}
-    aliases: dict[str, set[str]] = {}
-    for rel, facts in files.items():
-        directory = next((d for d in dirs if rel.startswith(d.rstrip("/") + "/")), ".")
-        aliases.setdefault(directory, set()).update(facts["aliases"])
-    any_alias = set().union(*aliases.values()) if aliases else set()
-    by_method: dict[str, list[tuple]] = {}
+    index = _guard_index(root, checker, dirs)
+    aliases, any_alias = index["aliases"], index["any_alias"]
+    # An unreadable file may hold anything: every guard keeps its bytes.
+    for bucket in (*inherent.values(), *impls.values(), *macros.values()):
+        bucket.extend(index["unreadable"])
     for (method, type_name, directory), bucket in inherent.items():
-        by_method.setdefault(method, []).append((type_name, directory, bucket))
-    by_trait: dict[str, list[tuple]] = {}
+        prefix = directory.rstrip("/") + "/"
+        for rel, head, locator in index["inherent"].get(method, ()):
+            if directory != "." and not rel.startswith(prefix):
+                continue
+            if head == type_name or head == "*" or head in aliases.get(directory, ()):
+                bucket.append([rel, locator])
     for (name, heads, open_), bucket in impls.items():
-        by_trait.setdefault(name, []).append((set(heads), open_, bucket))
-    for rel, facts in sorted(files.items()):
-        if facts["unreadable"] is not None:
-            # An unreadable file may hold anything: keep its bytes.
-            for bucket in (*inherent.values(), *impls.values(), *macros.values()):
-                bucket.append([rel, "file", facts["unreadable"]])
-            continue
-        for head, name, locator in facts["inherent"]:
-            for type_name, directory, bucket in by_method.get(name, ()):
-                if directory != "." and not rel.startswith(directory.rstrip("/") + "/"):
-                    continue
-                if head == type_name or head == "*" or head in aliases.get(directory, ()):
-                    bucket.append([rel, locator])
-        for trait, head, locator in facts["impls"]:
-            for heads, open_, bucket in by_trait.get(trait, ()):
-                if open_ or head in heads or head == "*" or head in any_alias:
-                    bucket.append([rel, locator])
-        for name, locator, digest in facts["macros"]:
-            if name in macros:
-                macros[name].append([rel, locator, digest])
+        wanted = set(heads)
+        for rel, head, locator in index["impls"].get(name, ()):
+            if open_ or head in wanted or head == "*" or head in any_alias:
+                bucket.append([rel, locator])
+    for name, bucket in macros.items():
+        bucket.extend(index["macros"].get(name, ()))
     return [sorted([list(k), sorted(v)] for k, v in inherent.items()),
             sorted([[k[0], list(k[1]), k[2]], sorted(v)] for k, v in impls.items()),
             sorted([k, sorted(v)] for k, v in macros.items())]

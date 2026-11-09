@@ -158,8 +158,10 @@ def withdraw_records(root: Path, items: list[dict]) -> None:
 def all_scientific_rows(root: Path) -> list[dict]:
     import evidence_audit
 
+    # The claim rows alone: the full audit report (fixture, review and link checks) is
+    # not needed to list the assertions, and is most of the cost of building it.
     return evidence_audit.scientific_rows(
-        evidence_audit.build_report(root)["claims"], evidence_audit.registered_scientific_tests(root)
+        evidence_audit.claim_rows(root.resolve()), evidence_audit.registered_scientific_tests(root)
     )
 
 
