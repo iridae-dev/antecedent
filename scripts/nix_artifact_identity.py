@@ -44,6 +44,7 @@ def _nix(*args: str) -> str:
 
 
 _SOURCE_NARS: dict[str, str] = {}
+_STORE_INFO: dict[tuple[str, str], tuple[dict, dict]] = {}
 
 
 def _source_nar(source: str) -> str:
@@ -52,9 +53,22 @@ def _source_nar(source: str) -> str:
     return _SOURCE_NARS[source]
 
 
+_FILE_HASHES: dict[tuple, str] = {}
+
+
 def _file_hash(path: Path) -> str:
     if path.is_symlink() or not path.is_file():
         raise ArtifactIdentityError(f"missing or linked artifact file: {path}")
+    # A test binary is hundreds of megabytes and is checked once per assertion: hash it
+    # once per file state (device, inode, size, modification and change times).
+    info = path.stat()
+    key = (str(path), info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    if key not in _FILE_HASHES:
+        _FILE_HASHES[key] = _hash_bytes(path)
+    return _FILE_HASHES[key]
+
+
+def _hash_bytes(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open('rb') as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b''):
@@ -145,8 +159,13 @@ def inspect_artifact(root: Path, output: str, source: str, crate: str,
     drv = _DERIVATIONS[key]
     _store_path(drv, store, derivation=True)
     try:
-        derivations = json.loads(_nix('nix', '--extra-experimental-features', 'nix-command', 'derivation', 'show', drv))
-        info = json.loads(_nix('nix', '--extra-experimental-features', 'nix-command', 'path-info', '--json', output))
+        # Store derivations and valid outputs are immutable: query each once per process.
+        if (drv, output) not in _STORE_INFO:
+            _STORE_INFO[(drv, output)] = (
+                json.loads(_nix('nix', '--extra-experimental-features', 'nix-command', 'derivation', 'show', drv)),
+                json.loads(_nix('nix', '--extra-experimental-features', 'nix-command', 'path-info', '--json', output)),
+            )
+        derivations, info = _STORE_INFO[(drv, output)]
         definition, metadata = derivations[drv], info[output]
         if definition['outputs']['out']['path'] != output or source not in definition['inputSrcs']:
             raise ArtifactIdentityError('derivation output or source does not match the request')

@@ -455,11 +455,13 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
                                        nix_build=built, allowed_outputs=allowed)
             for row, info in todo
         }
-        _clean_head(root, allowed)
-        withdraw_records(root, [info for _, info in todo])
-        if (root / ledger).is_file():
-            _remember_nix_output(root, allowed, ledger)
         prepared.append((crate, target, todo, built, snapshots))
+    # Every build is validated and every snapshot taken before any pass is withdrawn,
+    # and the ledger is rewritten once rather than once per target.
+    _clean_head(root, allowed)
+    withdraw_records(root, [info for _, _, todo, _, _ in prepared for _, info in todo])
+    if (root / ledger).is_file():
+        _remember_nix_output(root, allowed, ledger)
     # Every target's tests run at once within the shared capture slots, so one slow
     # assertion no longer holds back the targets after it. Results are recorded here as
     # each target completes, under the lock the capture threads' checkout checks take.
