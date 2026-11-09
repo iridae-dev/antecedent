@@ -26,8 +26,10 @@ pkgs.stdenv.mkDerivation {
     cat > "$out/bin/workspace-rustc" <<EOF
     #!${pkgs.bash}/bin/bash
     # A stable prefix keeps file!() and panic locations independent of the
-    # build directory. ANTECEDENT_SOURCE_ROOT is the unpacked source.
-    exec "$out/bin/evidence-driver" "\$@" "--remap-path-prefix=\$ANTECEDENT_SOURCE_ROOT=/antecedent-source"
+    # build directory. ANTECEDENT_SOURCE_ROOT is the unpacked source. The
+    # linker records each object file's path in a linked test binary; Nix
+    # numbers its build directory per build, so that prefix is stripped too.
+    exec "$out/bin/evidence-driver" "\$@" "--remap-path-prefix=\$ANTECEDENT_SOURCE_ROOT=/antecedent-source" "-Clink-arg=-Wl,-oso_prefix,\$TMPDIR/"
     EOF
     chmod 555 "$out/bin/workspace-rustc"
   '';
