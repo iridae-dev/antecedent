@@ -1,0 +1,1 @@
+[{"digest":"7f18bda7b59d9cc4c852edcd4074bccd9d88ca5e06562b5415d092d17dcd3c7c","kind":"declarations","path":"parity/fingerprint_inputs.toml","role":"identity","sources":["crates/antecedent-estimate/src/prepare.rs","crates/antecedent-estimate/src/util/bootstrap/tests.rs","crates/antecedent-identify/src/sid/mixed_source/search/tests.rs"]}]

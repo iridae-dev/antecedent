@@ -1,0 +1,1 @@
+[{"digest":"ea4b9240f17b4a8b9defd52033e404c2297f6264bacc23677097b9dde76a2f6f","kind":"declarations","path":"parity/fingerprint_inputs.toml","role":"identity","sources":["crates/antecedent-discovery/tests/graph_mcmc_oracle.rs","crates/antecedent-discovery/tests/multiplicity_oracle.rs"]}]
