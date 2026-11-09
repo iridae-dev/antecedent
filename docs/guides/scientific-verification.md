@@ -76,12 +76,13 @@ Scientific tests and calibration are **earned on development machines**, rerunni
 | `bash scripts/test.sh calibration --only PATTERN` | Owed work whose group label, record id or test, or route matches `PATTERN`. |
 | `bash scripts/test.sh scientific --all`, `calibration --all` | Rerun everything. Manual; no CI job or release runs them. |
 
-After a run, commit `parity/scientific_records.toml` and the coverage records (and the files the collector regenerates). `python3 scripts/scientific_records.py status` and `python3 scripts/calibration_status.py status` list what is owed without running anything.
+After a run, commit `parity/scientific_records.toml` and the coverage records (and the files the collector regenerates). `python3 scripts/scientific_records.py status` and `python3 scripts/calibration_status.py status` list what is owed without running anything. A run deletes the stored evidence (manifests, input groups, item tables) that no record reaches any more as it finishes; `python3 scripts/scientific_records.py prune` does so on demand. Git history keeps every superseded file.
 
 CI and releases **never execute either lane and never record anything**. They only check that every record is current:
 
 ```bash
-python3 scripts/scientific_records.py status --check   # exit 1 while any scientific record is owed
+python3 scripts/scientific_records.py status --check   # exit 1 while any scientific record is owed,
+                                                      # or stored evidence no record reaches remains
 python3 scripts/calibration_status.py --check          # exit 1 while any calibration record is owed
 ```
 
