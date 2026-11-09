@@ -27,6 +27,7 @@ from evidence_manifests import (
     STORE,
     Checker,
     canonical,
+    declarations_digest,
     digest,
     grouped,
     manifest_id,
@@ -196,7 +197,8 @@ class Snapshot:
             recheck_artifact(root, nix_build['artifact'])
             if _clean_head(root, self.allowed_outputs)[0] != nix_build['source']['commit']:
                 raise RuntimeError('Nix source commit does not match the checkout')
-        files = {root / rel for rel in (INPUT_DECLARATIONS, '.cargo/config.toml', '.cargo/config',
+        # `parity/fingerprint_inputs.toml` is bound by the rows this row consulted (below).
+        files = {root / rel for rel in ('.cargo/config.toml', '.cargo/config',
                                          'scripts/compile_time_environment.py')}
         if nix_build is not None:
             files.update(root / rel for rel in ('flake.lock', 'nix/evidence-target.nix', 'nix/evidence-deps.nix',
@@ -212,6 +214,11 @@ class Snapshot:
         for rel in row.get('fixtures', []):
             if (root / rel).is_dir():
                 dirs.add(rel)
+        # Inputs bound whatever runs: fixed configuration and the row's declared fixtures.
+        # Every other file or directory is an input because some source reads it, and is
+        # dropped when no item the assertion executes reads it (`select_items`).
+        self.required_inputs = set(self.fixed_files) | {
+            path.resolve() for rel in row.get('fixtures', []) for path in (root / rel, root / f'{rel}.json')}
         info = locate(root, row)
         if nix_build is not None:
             artifact = nix_build['artifact']
@@ -291,12 +298,15 @@ class Snapshot:
             if boundaries:  # extra data reads beyond the reviewed registry
                 with fp.tracking() as compile_inputs:
                     _, compile_env = fp.declared([f'{source}: compile-time inputs'])
+                used.declaration_sources |= compile_inputs.declaration_sources
                 files.update(compile_inputs.files)
                 dirs.update(p.relative_to(root).as_posix() for p in compile_inputs.directories)
+                self.required_inputs |= {p.resolve() for p in (*compile_inputs.files, *compile_inputs.directories)}
             for entry in boundaries:
                 for pattern in entry.get('inputs', []):
                     if not any(c in pattern for c in '*?[') and not (root / pattern).is_dir():
                         files.add(root / pattern)
+                        self.required_inputs.add((root / pattern).resolve())
             env_names.update(compile_env)
             wrong = noncanonical_environment(os.environ, compile_env)
             if wrong:
@@ -321,7 +331,12 @@ class Snapshot:
                   for rel in file_rels]
         for rel in sorted(dirs):
             inputs.append(dict(kind='membership', path=rel, digest=checker.input_digest('membership', rel), role='selection'))
+        consulted = sorted(used.declaration_sources)
+        inputs.append(dict(kind='declarations', path=INPUT_DECLARATIONS, sources=consulted,
+                           digest=declarations_digest(root, consulted), role='identity'))
         for declared in fp.declarations():
+            if declared['source'] not in used.declaration_sources:
+                continue
             for pattern in declared.get('inputs', []):
                 if any(c in pattern for c in '*?[') and not any(i.get('kind') == 'glob' and i.get('path') == pattern for i in inputs):
                     inputs.append(dict(kind='glob', path=pattern, digest=checker.input_digest('glob', pattern), role='selection'))
@@ -372,6 +387,9 @@ class Snapshot:
                     return False
             elif i['kind'] == 'rust_names':
                 continue
+            elif i['kind'] == 'declarations':
+                if declarations_digest(self.root, i['sources']) != i['digest']:
+                    return False
             elif checker.input_digest(i['kind'], i.get('path', i.get('name'))) != i['digest']:
                 return False
         return True
@@ -542,11 +560,14 @@ def select_items(snapshot: Snapshot, directory: Path, coverage: dict[str, set[tu
         return False
 
     def unread(entry: dict) -> bool:
-        if entry['kind'] != 'evidence_file':
+        """A data file or directory listing read only by code the assertion never runs:
+        every site that reads it lies outside the selected items, in this crate or in
+        another crate's test code that this target does not even compile."""
+        if entry['kind'] not in ('evidence_file', 'membership'):
             return False
         target = (root / entry['path']).resolve()
-        if (target in snapshot.fixed_files or target.name == 'Cargo.toml'
-                or target.suffix == '.rs' or target not in snapshot.source_consumers):
+        if (target in getattr(snapshot, 'required_inputs', snapshot.fixed_files) or target.name == 'Cargo.toml'
+                or target.suffix == '.rs'):
             return False
         sites = snapshot.data_sites.get(target)
         return bool(sites) and not any(selected(source, position) for source, position in sites)

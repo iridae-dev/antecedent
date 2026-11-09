@@ -63,7 +63,17 @@ NORMALIZATION = "raw-bytes-v1"
 ANALYZER = "compiler-items-v1"
 HEX = re.compile(r"[0-9a-f]{64}\Z")
 KINDS = ("file", "tree", "env", "membership", "evidence_file", "glob", "build_env",
-         "rust_items", "rust_names", "rust_guards")
+         "rust_items", "rust_names", "rust_guards", "declarations")
+DECLARATIONS = "parity/fingerprint_inputs.toml"
+
+
+def declarations_digest(root: Path, sources: list[str]) -> str:
+    """Digest of the `parity/fingerprint_inputs.toml` rows of `sources`, in file order: what
+    a record's dynamic reads were resolved by. Rows of other sources are not its inputs."""
+    path = root / DECLARATIONS
+    rows = _repo.load_toml(path).get("input", []) if path.is_file() else []
+    wanted = set(sources)
+    return digest(canonical([row for row in rows if row.get("source") in wanted]))
 ROLES = ("execution", "compile", "selection", "external", "identity")
 # The build configuration evidence is earned and released under. Earning refuses
 # any other value; lint levels are not configuration and are ignored.
@@ -188,6 +198,10 @@ def validate(manifest: dict, binding: dict) -> None:
                 isinstance(entry.get("dirs"), list) and isinstance(entry.get("spec"), dict)
                 and isinstance(entry.get("tree"), str) and HEX.fullmatch(entry["tree"])):
             raise InvalidManifest("invalid resolution guards")
+        if kind == "declarations" and not (
+                key == DECLARATIONS and isinstance(entry.get("sources"), list)
+                and all(isinstance(s, str) for s in entry["sources"]) and entry["sources"] == sorted(set(entry["sources"]))):
+            raise InvalidManifest("invalid input declarations")
         if kind == "build_env" and key not in BUILD_ENV:
             raise InvalidManifest("unknown build environment input")
         if entry.get("role") not in ROLES:
@@ -480,6 +494,8 @@ class Checker:
                     unchanged = self.items.guards_current(entry)
                 elif kind == "rust_names":
                     unchanged = True
+                elif kind == "declarations":
+                    unchanged = declarations_digest(self.root, entry["sources"]) == entry["digest"]
                 else:
                     unchanged = self.input_digest(kind, key) == entry["digest"]
                 if not unchanged:
