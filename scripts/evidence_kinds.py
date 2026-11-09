@@ -121,7 +121,7 @@ def fixture_kind_problems(root: Path, row: dict) -> list[str]:
     if not path.is_file():
         return [f"missing fixture: {fixture}"]
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = load_fixture(root, path)
     except (OSError, ValueError) as error:
         return [f"invalid fixture {fixture}: {error}"]
     if not isinstance(data, dict):
@@ -145,6 +145,36 @@ def fixture_kind_problems(root: Path, row: dict) -> list[str]:
         row.get("inference"),
         row.get("evidence_fields"),
     )
+
+
+# A fixture's reference review lives beside the fixture data, not in it: tests read the
+# fixture, so a review edited inside it would change every record that reads the
+# fixture. `parity/fixture_reviews/<family>/<name>.json` holds the review of
+# `conformance/<family>/<name>/expected.json`; a fixture not yet moved keeps its
+# review embedded as `oracle.reference_review` (the bind tool moves it on its next rebind).
+REVIEW_DIR = "parity/fixture_reviews"
+
+
+def review_path(root: Path, fixture: Path) -> Path:
+    """Where the review of a `conformance/**/expected.json` fixture is kept."""
+    relative = fixture.resolve().relative_to((root / "conformance").resolve()).parent
+    return root / REVIEW_DIR / f"{relative.as_posix()}.json"
+
+
+def load_fixture(root: Path, fixture: Path) -> dict:
+    """A fixture document with its reference review in place (`oracle.reference_review`),
+    wherever the review is kept. A review kept in both places is refused."""
+    document = json.loads(fixture.read_text(encoding="utf-8"))
+    try:
+        separate = review_path(root, fixture)
+    except ValueError:
+        return document
+    if separate.is_file() and isinstance(document, dict) and isinstance(document.get("oracle"), dict):
+        if "reference_review" in document["oracle"]:
+            raise ValueError(f"{fixture}: reference_review is both embedded and in {REVIEW_DIR}")
+        document["oracle"] = {**document["oracle"],
+                              "reference_review": json.loads(separate.read_text(encoding="utf-8"))}
+    return document
 
 
 def fixture_payload_digest(document: dict) -> str:

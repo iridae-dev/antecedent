@@ -80,8 +80,14 @@ why="reader macro reads its consumer's input.txt"
                 shutil.copyfile(original/'tools/evidence-analyzer'/name,root/'tools/evidence-analyzer'/name)
             (root/'Cargo.toml').write_text('[workspace]\nmembers=["crates/toy"]\nresolver="2"\n', encoding="utf-8")
             (root/'crates/toy/Cargo.toml').write_text('[package]\nname="toy"\nversion="0.1.0"\nedition="2021"\n', encoding="utf-8")
-            source = 'pub fn used()->i32 { 2 }\npub fn unused()->i32 { 7 }\npub const fn konst()->i32 { 3 }\n'
+            source = ('pub fn used()->i32 { 2 }\npub fn unused()->i32 { 7 }\npub const fn konst()->i32 { 3 }\n'
+                      'pub fn notes()->String { std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR"))'
+                      '.join("data").join("notes.txt")).unwrap() }\n'
+                      'pub fn listing()->usize { std::fs::read_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR"))'
+                      '.join("data")).unwrap().count() }\n')
             (root/'crates/toy/src/lib.rs').write_text(source, encoding="utf-8")
+            (root/'crates/toy/data').mkdir()
+            (root/'crates/toy/data/notes.txt').write_text('first\n', encoding="utf-8")
             (root/'crates/toy/tests/check.rs').write_text('#[test] fn check() { assert_eq!(toy::used(), 2); }\n', encoding="utf-8")
             subprocess.run(['cargo','generate-lockfile','--offline'],cwd=root,check=True,capture_output=True)
             row = dict(evidence_test='crates/toy/tests/check.rs',evidence_assertion='check',fixtures=[],roles=['scientific'])
@@ -110,6 +116,21 @@ why="reader macro reads its consumer's input.txt"
                 (root/'crates/toy/src/lib.rs').write_text(source.replace(*edit), encoding="utf-8")
                 owed,current = sr.classify(root,[row])
                 self.assertEqual((len(owed),len(current)),(0,1), edit)
+            (root/'crates/toy/src/lib.rs').write_text(source, encoding="utf-8")
+            # Data and a directory listing read only by functions the assertion never runs
+            # are not its inputs either.
+            manifest = json.loads((root/'parity/evidence_manifests'/f"{record['dependency_manifest']}.json").read_text(encoding="utf-8"))
+            (root/'crates/toy/data/notes.txt').write_text('second\n', encoding="utf-8")
+            (root/'crates/toy/data/added.txt').write_text('new\n', encoding="utf-8")
+            owed,current = sr.classify(root,[row])
+            self.assertEqual((len(owed),len(current)),(0,1), manifest)
+            # A declaration of another source's dynamic reads is not this record's input.
+            (root/'parity').mkdir(exist_ok=True)
+            (root/'parity/fingerprint_inputs.toml').write_text(
+                '[[input]]\nsource = "crates/other/tests/t.rs"\ninputs = ["data/x.txt"]\nenv = []\nwhy = "unrelated"\n',
+                encoding="utf-8")
+            owed,current = sr.classify(root,[row])
+            self.assertEqual((len(owed),len(current)),(0,1))
             (root/'crates/toy/src/lib.rs').write_text(source.replace('{ 2 }','{ 5 }'), encoding="utf-8")
             owed,current = sr.classify(root,[row])
             self.assertEqual((len(owed),len(current)),(1,0))

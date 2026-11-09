@@ -1,0 +1,60 @@
+{
+  "scope": "Shapley efficiency for one changed player over arbitrary payoffs (a property of the allocation rule).",
+  "independence_basis": "The generator enumerates player orders for a one-player game over several payoff values; the proposition is the Shapley efficiency axiom, so it does not depend on the fitted structural models. It imports no Antecedent code and no statistics package.",
+  "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
+  "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
+  "limitations": "This is an axiom-level property, not a validation of the hybrid payoff, the parent-set models or the estimated total change (the test separately bounds |total| above 2 from simulated data). The unidentified-player rule for non-ancestor changes is a design choice that this reference does not derive. No uncertainty or calibration.",
+  "sources": [],
+  "artifacts": [
+    {
+      "role": "generator",
+      "path": "conformance/attribution/structure_change_grid/reference.py",
+      "sha256": "b2c8b12ded1b8d2e5e8f88918b49fec2cc6e17ab317af2332ccd6a4dbb07e1e4"
+    },
+    {
+      "role": "environment_lock",
+      "path": "conformance/attribution/structure_change_grid/reference.py.lock",
+      "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
+    },
+    {
+      "role": "assertion_source",
+      "path": "crates/antecedent-attribution/src/structure_change.rs",
+      "items": [
+        "const STRUCTURE_CACHE_CAP",
+        "fn attributes_parent_set_change_to_y",
+        "fn baseline_law",
+        "fn build_hybrid",
+        "fn change_outside_the_players_is_reported_as_unexplained",
+        "fn compiled_for",
+        "fn default",
+        "fn ensure_fits",
+        "fn hybrid_structure_dag",
+        "fn law_memo",
+        "fn measure",
+        "fn memoized_fits_match_per_coalition_refit",
+        "fn non_ancestor_structural_diff_is_unidentified",
+        "fn parent_sets_differ",
+        "fn parent_swap_fixture",
+        "fn parent_swap_fixture_with_z_shift",
+        "fn rejects_mechanism_components",
+        "fn sample_outcome_law",
+        "fn sampled_structure_counts_follow_the_measure",
+        "fn sorted_parents",
+        "fn structure_change",
+        "fn structure_change_impl",
+        "fn structure_players",
+        "fn validate_shared_layout",
+        "fn value",
+        "struct Case",
+        "struct Comparison",
+        "struct Fixture",
+        "struct StructureChangeOptions",
+        "struct StructureFits",
+        "struct StructureSwapPayoff",
+        "type RefitWeights"
+      ],
+      "sha256": "f92483819465f11161dd6b740bfea15d809475bc18219e18a5d34b8d0698ae8c"
+    }
+  ],
+  "fixture_payload_sha256": "7fb31ec20f0e7552534dd5c83049c38f96f7f899fc209f82b666bdfc8803a0f7"
+}

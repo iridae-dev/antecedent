@@ -138,7 +138,7 @@ dyadic unit) and `se_reference_df` equal to the receipt's `reference_df`.
   `se_kind` is refused with `cluster_interval_not_supported` (`cluster_dml.no_interval_method`):
   the route reports its own sandwich standard error rather than ignoring the request.
 - **Calibration.** `crates/antecedent/tests/cluster_dml_calibration.rs`
-  (`cluster_dml_t_wald_interval`, registered in `scripts/measure_calibration_groups.sh`)
+  (`cluster_dml_t_wald_interval`, registered in `parity/calibration_groups.toml`)
   scores the facade's published interval over a sample grid of cluster counts. A one-way 95%
   cluster interval reports `calibrated` only inside the row range of its coverage record
   (read `result.inspect().calibration`). This construction does not measure the dyadic

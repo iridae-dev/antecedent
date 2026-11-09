@@ -499,28 +499,10 @@ def _phrase(label: str, phrase: str, *, static_graph: bool = False) -> bool:
 
 
 def calibration_groups() -> list[tuple[str, str]]:
-    """Group names from the measurement driver's dry run; no test is executed."""
-    import os
-    import subprocess
+    """(head, test filter) of every gate group, from parity/calibration_groups.toml."""
+    from calibration_runner import load_groups
 
-    env = dict(os.environ, ANTECEDENT_CALIBRATION_DRY_RUN="1")
-    env.pop("ANTECEDENT_CALIBRATION_SHARD", None)
-    env.pop("ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE", None)
-    result = subprocess.run(
-        ["bash", "scripts/measure_calibration_groups.sh"],
-        cwd=ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    groups = []
-    for line in result.stdout.splitlines():
-        prefix, separator, label = line.partition(": ")
-        if separator and prefix.startswith("group "):
-            head, separator, test_filter = label.partition(": ")
-            groups.append((head, test_filter if separator else ""))
-    return groups
+    return [(g.label.partition(": ")[0], g.label.partition(": ")[2]) for g in load_groups(ROOT)]
 
 
 def candidate_groups(key: tuple[str, ...], groups: list[tuple[str, str]]) -> list[str]:

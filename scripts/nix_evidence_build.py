@@ -159,19 +159,30 @@ def _require_in_place(directory: Path, source: str) -> None:
 def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
                             deps_targets: list[tuple[str, str, str]] | None = None,
                             check_reproducible: bool = False,
-                            allowed_outputs: dict[str, str] | None = None) -> dict[tuple[str, str, str], dict]:
+                            allowed_outputs: dict[str, str] | None = None,
+                            features: dict[tuple[str, str, str], list[str]] | None = None,
+                            ) -> dict[tuple[str, str, str], dict]:
     """Build but never run targets from clean HEAD in one derivation; never attestation.
 
-    `targets` are (crate, kind, name) with kind "lib" (name "") or "test". The result
+    `targets` are (crate, kind, name) with kind "lib" (name "") or "test". A target is
+    built with its declared required features, plus any `features` names for it (a
+    calibration target built with a feature its manifest does not require). The result
     maps each target to its own build record: shared source and tools, its own
     artifact identity, executable and compile-time unit graph."""
     root = root.resolve()
     wanted = sorted(set(targets))
     if not wanted:
         raise ValueError("no Rust targets to build")
+    extra = features or {}
+    for target, names in extra.items():
+        if any(not isinstance(f, str) or not _FEATURE.fullmatch(f) for f in names):
+            raise ValueError(f"invalid features for {target}")
+
     def described(selection):
         return [{"crate": crate, "kind": kind, "name": name,
-                 "features": _target_features(root, crate, kind, name)} for crate, kind, name in selection]
+                 "features": sorted(set(_target_features(root, crate, kind, name))
+                                    | set(extra.get((crate, kind, name), ())))}
+                for crate, kind, name in selection]
     build_targets = described(wanted)
     # The dependency build covers every scientific target, not just the owed ones,
     # so it is the same derivation whichever targets a run builds.

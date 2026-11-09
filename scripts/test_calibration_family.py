@@ -13,20 +13,6 @@ import calibration_family as family
 
 
 class FamilyTests(unittest.TestCase):
-    def test_joint_runner_only_on_explicit_live_unsharded_or_shard_zero(self):
-        gate = (Path(__file__).resolve().parent / "measure_calibration_groups.sh").read_text(encoding="utf-8")
-        start = gate.index('if [ -n "${ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE:-}" ]')
-        end = gate.index("# This complete 200-replicate", start)
-        block = gate[start:end]
-        for dry, shard_n, shard_k, expected in [("1", "", "", False), ("", "", "", True),
-                                                  ("", "2", "0", True), ("", "2", "1", False)]:
-            with self.subTest(dry=dry, shard=shard_k):
-                env = dict(os.environ, ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE="candidate",
-                           ANTECEDENT_CALIBRATION_DRY_RUN=dry, SHARD_N=shard_n, SHARD_K=shard_k)
-                script = 'FAILED_COUNT=0; FAILED=""; python3() { echo MOCK_INVOKED; };\n' + block
-                result = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True, check=True)
-                self.assertEqual("MOCK_INVOKED" in result.stdout, expected)
-
     def test_only_full_object_identities_cache_source_reads(self):
         family._immutable_source.cache_clear()
         self.addCleanup(family._immutable_source.cache_clear)
@@ -237,49 +223,6 @@ CoverageTally::for_record(key.with_dgp("a(b)"), level(0.95)).labelled("a\\\"b");
         ):
             family.validate_measurement_selection(hc3, [family.allocations.GROUP])
 
-    def test_actual_gate_dispatch_rejects_foreign_followup_before_any_command(self):
-        groups = json.loads(
-            family.read_source(
-                family.ROOT, family.MANIFEST_PATH, family.allocations.ORIGINAL_SOURCE
-            )
-        )["groups"]
-        config = family.decision.config_for_manifest(
-            {"groups": groups, "validation_domain": family.decision.PAG_CONFIDENCE_SET_DOMAIN}
-        )
-        label, _ = family.followup_allocation(config)
-        gate = (family.ROOT / family.GATE_PATH).read_text(encoding="utf-8")
-        check = "check() {" + gate.split("\ncheck() {", 1)[1].split("\n}\n", 1)[0] + "\n}\n"
-        with tempfile.TemporaryDirectory() as directory:
-            script = "set -e\nGROUP_INDEX=0\nSHARD_N=''\nGRID_POINTS='0 1 2'\nCONFIRM_SUFFIX=''\nFAILED_COUNT=0\n"
-            script += (
-                "grid_group() { return 0; }\nrun_point() { echo DISPATCH; RUN_STATUS=0; }\n" + check
-            )
-            environment = {
-                **os.environ,
-                "ANTECEDENT_CALIBRATION_DRY_RUN": "",
-                family.decision.ENV: family.decision.canonical_json(config),
-                "LOG_DIR": directory,
-            }
-            denied = subprocess.run(
-                ["bash", "-c", script + "check 'foreign: test' true\n"],
-                cwd=family.ROOT,
-                env=environment,
-                text=True,
-                capture_output=True,
-            )
-            self.assertNotEqual(denied.returncode, 0)
-            self.assertIn("allocated group", denied.stderr)
-            self.assertNotIn("DISPATCH", denied.stdout)
-            allowed = subprocess.run(
-                ["bash", "-c", script + f"check '{label}' true\n"],
-                cwd=family.ROOT,
-                env=environment,
-                text=True,
-                capture_output=True,
-            )
-            self.assertEqual(allowed.returncode, 0, allowed.stderr)
-            self.assertEqual(allowed.stdout.count("DISPATCH"), 3)
-
     def test_current_domain_is_resolvable_by_the_immutable_source_reader(self):
         source = (family.ROOT / "scripts/calibration_decision.py").read_bytes()
         with patch.object(family, "read_source", return_value=source):
@@ -376,7 +319,8 @@ CoverageTally::for_record(key.with_dgp("a(b)"), level(0.95)).labelled("a\\\"b");
             for name in ("crates", "scripts", "parity"):
                 (root / name).mkdir()
             (root / family.GATE_PATH).write_text(
-                "printf 'group 1: alpha\\ngroup 2: beta\\ngrid 2\\n'", encoding="utf-8"
+                '[[group]]\nlabel = "alpha"\ngrid = false\n\n[[group]]\nlabel = "beta"\ngrid = true\n',
+                encoding="utf-8",
             )
             (root / family.ACCEPTANCE_PATH).write_text("", encoding="utf-8")
             audit = family.reviewed_label_audit(root)

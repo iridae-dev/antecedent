@@ -36,8 +36,9 @@ Provenance records: `adaptive_inference.dirichlet_choice`, `adaptive_inference.h
 
 Every reported interval carries its calibration status; `measured_interval` reports it with the interval. The coverage designs behind these routes are:
 
-- `crates/antecedent-estimate/tests/choice_interval_calibration.rs`: the record-emitting coverage designs of the pooled share interval and the hierarchical population-share interval, with and without looks.
-- `crates/antecedent/tests/choice_inference_calibration.rs`: prior-predictive expectation checks of probability-best calibration, correctness of the selected option at the stopping threshold, EVSI against realized gain, the procedure law against simulation, and the conflict screen's false-flag rate against its Markov bound of one in ten.
+- `crates/antecedent/tests/choice_inference_calibration.rs` holds `#[ignore]`d prior-predictive expectation checks (probability-best calibration, correctness of the selected option at the stopping threshold, EVSI against realized gain, the procedure law against simulation, and the conflict screen's false-flag rate against its Markov bound of one in ten).
+- `crates/antecedent-estimate/tests/choice_interval_calibration.rs` holds four record-emitting coverage designs (pooled share interval, hierarchical population-share interval, with and without looks).
+- Both are registered in `parity/calibration_groups.toml` and `parity/test_registry.toml`.
 
 A record stays current while its dependency fingerprint is unchanged; otherwise a probe decides whether it still applies.
 

@@ -564,55 +564,6 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             ):
                 self.assertEqual(groups.select([group], False, missing_only=True).groups, expected)
 
-    def test_prebuild_groups_actual_package_targets_and_retains_lib_commands(self) -> None:
-        candidates = self.candidates() + [groups.Group(8, "nested_bayesian: another", False, True)]
-        with patch.object(
-            groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)
-        ) as run:
-            self.assertEqual(groups.prebuild(candidates), 0)
-        commands = [call.args[0] for call in run.call_args_list]
-        self.assertEqual(
-            commands,
-            [
-                ["cargo", "test", "--release", "-p", "antecedent-prob", "--lib", "--no-run"],
-                [
-                    "cargo",
-                    "test",
-                    "--release",
-                    "-p",
-                    "antecedent",
-                    "--test",
-                    "facade_current",
-                    "--test",
-                    "facade_new",
-                    "--no-run",
-                ],
-                [
-                    "cargo",
-                    "test",
-                    "--release",
-                    "-p",
-                    "antecedent-estimate",
-                    "--test",
-                    "nested_fisher",
-                    "--test",
-                    "recovery",
-                    "--no-run",
-                ],
-                [
-                    "cargo",
-                    "test",
-                    "--release",
-                    "-p",
-                    "antecedent-io",
-                    "--test",
-                    "nested_bayesian",
-                    "--no-run",
-                ],
-            ],
-        )
-        self.assertTrue(all(call.kwargs == {"cwd": self.root} for call in run.call_args_list))
-
     def test_explicit_test_target_and_ambiguous_owner(self) -> None:
         self.member(
             "custom",
@@ -630,12 +581,12 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "ambiguous calibration test target"):
             groups._suite_owner(self.root, "nested_bayesian")
 
-    def test_prebuild_failure_stops_before_later_packages(self) -> None:
-        with patch.object(
-            groups.subprocess, "run", return_value=SimpleNamespace(returncode=1)
-        ) as run:
-            self.assertEqual(groups.prebuild(self.candidates()), 1)
-        self.assertEqual(run.call_count, 1)
+
+def _spec(index: int, label: str):
+    from calibration_runner import GroupSpec
+
+    return GroupSpec(index, label, "antecedent", label.partition(": ")[0], (),
+                     (label.partition(": ")[2],), True, False)
 
 
 class EvidenceArchiveTest(unittest.TestCase):
@@ -674,7 +625,7 @@ class EvidenceArchiveTest(unittest.TestCase):
                 self.assertFalse(logs.exists())
 
     def test_explicit_replicate_budget_reaches_only_selected_measurement(self) -> None:
-        group = groups.Group(1, "suite: selected", False, False)
+        group = groups.Group(1, "suite: selected", False, False, _spec(1, "suite: selected"))
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with (
@@ -691,28 +642,22 @@ class EvidenceArchiveTest(unittest.TestCase):
                 patch.object(groups, "RECHECK_NSIM", 20001),
                 patch.object(groups, "last_durations", return_value={}),
                 patch.object(groups, "archive_logs"),
-                patch.object(groups, "prebuild", return_value=0),
-                patch.object(groups.subprocess, "check_output", return_value="a" * 40),
-                patch.object(
-                    groups.subprocess, "run", return_value=SimpleNamespace(returncode=0)
-                ) as run,
+                patch("calibration_runner.execute", return_value={}) as execute,
                 patch.object(groups, "LOG_DIR", root / "records"),
-                patch.object(groups, "CONSOLE_DIR", root / "console"),
                 patch.object(groups, "TIMINGS", root / "times.tsv"),
             ):
                 self.assertEqual(groups.run(groups.Selection([group], 0, {1: "selected"}), 2, 1), 0)
-                self.assertEqual(run.call_count, 1)
-                env = run.call_args.kwargs["env"]
-                self.assertEqual(env["ANTECEDENT_CALIBRATION_NSIM"], "20000")
-                self.assertEqual(env["ANTECEDENT_CALIBRATION_RECHECK_NSIM"], "20001")
-                self.assertEqual(env["ANTECEDENT_CALIBRATION_SHARD"], "0/2")
-                self.assertEqual(env["RUST_TEST_THREADS"], "1")
-                self.assertNotIn("ANTECEDENT_PARENT_PROTOCOL_VERSION", env)
-                self.assertNotIn("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL", env)
+                self.assertEqual(execute.call_count, 1)
+                tasks = execute.call_args.args[1]
+                self.assertEqual([(t.group.index, t.point) for t in tasks], [(1, None)])
+                kwargs = execute.call_args.kwargs
+                self.assertEqual((kwargs["first_nsim"], kwargs["recheck_nsim"]), (20000, 20001))
+                self.assertNotIn("ANTECEDENT_PARENT_PROTOCOL_VERSION", kwargs["env"])
+                self.assertNotIn("ANTECEDENT_WEIGHTED_SPLIT_PROTOCOL", kwargs["env"])
 
     def test_run_preserves_historical_longest_first_without_current_pilot(self) -> None:
-        short = groups.Group(1, "suite: short", False, False)
-        long = groups.Group(2, "suite: long", False, False)
+        short = groups.Group(1, "suite: short", False, False, _spec(1, "suite: short"))
+        long = groups.Group(2, "suite: long", False, False, _spec(2, "suite: long"))
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with (
@@ -723,17 +668,13 @@ class EvidenceArchiveTest(unittest.TestCase):
                 ),
                 patch.object(groups, "pilot_timings", return_value={}),
                 patch.object(groups, "archive_logs"),
-                patch.object(groups, "prebuild", return_value=0),
-                patch.object(groups.subprocess, "check_output", return_value="a" * 40),
+                patch("calibration_runner.execute", return_value={}) as execute,
                 patch.object(groups, "LOG_DIR", root / "records"),
-                patch.object(groups, "CONSOLE_DIR", root / "console"),
-                patch.object(groups, "ThreadPoolExecutor") as executor,
             ):
-                executor.return_value.__enter__.return_value.map.return_value = []
                 selection = groups.Selection([short, long], 0, {1: "missing", 2: "missing"})
                 self.assertEqual(groups.run(selection, 2, 2), 0)
-                scheduled = executor.return_value.__enter__.return_value.map.call_args.args[1]
-                self.assertEqual(scheduled, [(long, None), (short, None)])
+                scheduled = [(t.group.index, t.point) for t in execute.call_args.args[1]]
+                self.assertEqual(scheduled, [(2, None), (1, None)])
 
 
 class FormalDecisionEnvironmentTest(unittest.TestCase):
@@ -756,7 +697,7 @@ class FormalDecisionEnvironmentTest(unittest.TestCase):
             patch.object(groups, "measurement_source_sha", return_value="a" * 40),
             patch.object(family, "current_config", return_value=config),
             patch.object(groups, "archive_logs") as archive,
-            patch.object(groups, "prebuild") as build,
+            patch("calibration_runner.execute") as build,
             self.assertRaisesRegex(ValueError, "allocated group"),
         ):
             groups.run(groups.Selection([foreign], 0, {1: "selected"}), len(roster), 1)

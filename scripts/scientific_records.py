@@ -171,23 +171,7 @@ def all_scientific_rows(root: Path) -> list[dict]:
 
 PASSED_ONE = re.compile(r"test result: ok\. 1 passed")
 
-def region_coverage(export: dict) -> dict[str, set[tuple[int, int]]]:
-    """Resolved source path -> (line, column) of every executed code region, from an llvm-cov export.
-
-    A region is `[line, column, end line, end column, count, file, expanded file, kind]`;
-    kind 0 is code. A function that never ran contributes nothing.
-    """
-    coverage: dict[str, set[tuple[int, int]]] = {}
-    for block in export.get("data", []):
-        for function in block.get("functions", []):
-            if function.get("count", 0) <= 0:
-                continue
-            filenames = function.get("filenames", [])
-            for region in function.get("regions", []):
-                if region[4] > 0 and region[7] == 0:
-                    path = str(Path(filenames[region[5]]).resolve())
-                    coverage.setdefault(path, set()).add((region[0], region[1]))
-    return coverage
+from evidence_capture import region_coverage  # noqa: E402  (shared with calibration)
 
 
 def llvm_tool(name: str) -> str:
@@ -258,37 +242,21 @@ def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=su
 
     Running no test at all is an infrastructure error and raises: a wrong name or a missing
     test must stop the run, not be recorded as one more failure."""
+    from evidence_capture import instrumented_run
     libtest = info.get("libtest") or info["selector"].split("::", 2)[2]
-    with tempfile.TemporaryDirectory(prefix="antecedent-capture-") as tmp:
-        raw, data = Path(tmp) / "run.profraw", Path(tmp) / "run.profdata"
-        done = run(
-            [binary, "--exact", libtest, "--include-ignored", "--test-threads", "1"],
-            cwd=root / "crates" / info["crate"],
-            env={**env, "LLVM_PROFILE_FILE": str(raw)},
-            text=True,
-            capture_output=True,
-        )
-        output = (done.stdout or "") + (done.stderr or "")
-        if re.search(r"^running 0 tests$", output, re.M):
-            raise SelectorError(f"{info['selector']}: the test binary has no test named {libtest}")
-        if done.returncode != 0 or not PASSED_ONE.search(output):
-            print(f"FAIL: {info['selector']}: not captured\n{((done.stdout or '') + (done.stderr or ''))[-400:]}")
-            return None
-        tool = (lambda name: llvm_tools[name]) if llvm_tools is not None else llvm_tool
-        merged = run([tool("llvm-profdata"), "merge", "-sparse", str(raw), "-o", str(data)], text=True, capture_output=True)
-        if merged.returncode != 0:
-            print(f"FAIL: {info['selector']}: profile merge failed\n{merged.stderr[-400:]}")
-            return None
-        export = run(
-            [tool("llvm-cov"), "export", f"-instr-profile={data}", binary],
-            text=True,
-            capture_output=True,
-        )
-        if export.returncode != 0:
-            print(f"FAIL: {info['selector']}: llvm-cov export failed\n{export.stderr[-400:]}")
-            return None
-        data = json.loads(export.stdout)
-        return region_coverage(data)
+    tools = llvm_tools if llvm_tools is not None else {n: llvm_tool(n) for n in ("llvm-profdata", "llvm-cov")}
+    status, output, coverage, problem = instrumented_run(
+        binary, ["--exact", libtest, "--include-ignored", "--test-threads", "1"],
+        cwd=root / "crates" / info["crate"], env=env, tools=tools, run=run)
+    if re.search(r"^running 0 tests$", output, re.M):
+        raise SelectorError(f"{info['selector']}: the test binary has no test named {libtest}")
+    if status != 0 or not PASSED_ONE.search(output):
+        print(f"FAIL: {info['selector']}: not captured\n{output[-400:]}")
+        return None
+    if coverage is None:
+        print(f"FAIL: {info['selector']}: {problem}")
+        return None
+    return coverage
 
 
 def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str = "cargo",
@@ -390,8 +358,7 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
     """Build every owed target in one audited Nix derivation, then capture and record each."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    from evidence_earning import Snapshot, binding, require_compile_environment, select_items
-    from nix_artifact_identity import target_binary
+    from evidence_earning import Snapshot, binding, publish_executed, require_compile_environment
     from nix_evidence_build import build_committed_targets
     from nix_evidence_capture import CHECKOUT_LOCK, capture_built_target
     from nix_evidence_policy import validate_build
@@ -462,6 +429,15 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
     withdraw_records(root, [info for _, _, todo, _, _ in prepared for _, info in todo])
     if (root / ledger).is_file():
         _remember_nix_output(root, allowed, ledger)
+    # Longest first, by the last recorded wall times: targets by their slowest assertion,
+    # assertions within a target by their own, so a long one never starts last.
+    from evidence_capture import last_durations, longest_first
+    from nix_evidence_capture import SCIENTIFIC_TIMINGS
+    seconds = last_durations(root / SCIENTIFIC_TIMINGS)
+    prepared = [(crate, target, longest_first(todo, lambda pair: seconds.get(pair[1]["selector"])), built, snapshots)
+                for crate, target, todo, built, snapshots in prepared]
+    prepared = longest_first(prepared, lambda item: max(
+        (seconds[info["selector"]] for _, info in item[2] if info["selector"] in seconds), default=None))
     # Every target's tests run at once within the shared capture slots, so one slow
     # assertion no longer holds back the targets after it. Results are recorded here as
     # each target completes, under the lock the capture threads' checkout checks take.
@@ -483,10 +459,7 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
                         continue
                     _clean_head(root, allowed)
                     try:
-                        snapshots[selector].mark_nix_executed(str(target_binary(built["artifact"])))
-                        select_items(snapshots[selector], Path(built["artifact"]["output"]) / "compiler-inventory",
-                                     result["coverage"][selector], source_root=Path(built["source"]["store_path"]))
-                        ref = snapshots[selector].publish()
+                        ref = publish_executed(snapshots[selector], built, result["coverage"][selector])
                     except RuntimeError as error:
                         print(f"FAIL: {selector}: {error}")
                         failed += 1
@@ -536,7 +509,20 @@ def cmd_status(root: Path, args: argparse.Namespace) -> int:
             unresolved.append(str(error))
     for problem in unresolved:
         print(f"FAIL: {problem}")
-    return int(bool(unresolved) or (args.check and bool(owed)))
+    # Evidence no record reaches is never committed: a run prunes it as it finishes.
+    from evidence_manifests import unreachable_evidence
+    orphans = unreachable_evidence(root)
+    if orphans:
+        print(f"FAIL: {len(orphans)} stored evidence file(s) no record reaches; "
+              "run `python3 scripts/scientific_records.py prune`")
+    return int(bool(unresolved) or (args.check and bool(owed or orphans)))
+
+
+def cmd_prune(root: Path, args: argparse.Namespace) -> int:
+    from evidence_manifests import prune_evidence
+    removed = prune_evidence(root)
+    print(f"scientific records: pruned {len(removed)} stored evidence file(s) no record reaches")
+    return 0
 
 
 def matches_only(item: dict, patterns: list[str]) -> bool:
@@ -575,15 +561,18 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
                        check_reproducible=bool(getattr(args, "check_reproducible", False)))
     recorded, status = len(run_items) - failed, int(bool(failed))
     print(f"scientific records: recorded {recorded} pass(es); {len(run_items) - recorded} not recorded")
+    # Withdrawn passes leave their evidence behind; nothing reaches it any more.
+    cmd_prune(root, args)
     return status
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("prune", help="delete stored evidence no record reaches (a run does this as it finishes)")
     status = sub.add_parser("status")
     status.add_argument(
-        "--check", action="store_true", help="exit 1 when any assertion is owed; executes nothing"
+        "--check", action="store_true", help="exit 1 when any assertion is owed or stored evidence is unreachable; executes nothing"
     )
     run = sub.add_parser("run")
     run.add_argument("--all", action="store_true", help="rerun and re-record every assertion (manual)")
@@ -603,7 +592,7 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        return {"status": cmd_status, "run": cmd_run}[args.command](REPO_ROOT, args)
+        return {"status": cmd_status, "run": cmd_run, "prune": cmd_prune}[args.command](REPO_ROOT, args)
     except UnresolvedInput as problem:
         # An input the fingerprint cannot account for owes its record; it is never silently current.
         print(f"FAIL: a scientific assertion has an undeclared input: {problem}")

@@ -245,7 +245,7 @@ python3 scripts/calibration_status.py --check
 bash scripts/gate_release.sh
 ```
 
-`scripts/measure_calibration_groups.sh` is the statistical calibration suite (SE
+`scripts/measure_calibration.sh` measures the statistical calibration suite (SE
 coverage, CI Type I / permutation uniformity, discovery null FPR). It never runs
 in CI, but CI fails while any coverage record is owed
 (`python3 scripts/calibration_status.py --check`); calibration status never

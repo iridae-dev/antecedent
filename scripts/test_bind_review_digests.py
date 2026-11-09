@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """Tests for binding reviewed artifact digests in both TOML layouts."""
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
+import bind_review_digests as bind
+import evidence_kinds
 from bind_review_digests import bind_artifact_digest
 
 
@@ -30,6 +36,45 @@ class BindArtifactDigest(unittest.TestCase):
         for text in ("", entry + "\n" + entry):
             with self.assertRaises(SystemExit):
                 bind_artifact_digest(text, "src/example.rs", "b" * 64)
+
+
+class FixtureReviews(unittest.TestCase):
+    def test_a_rebind_moves_the_review_out_of_the_fixture_tests_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            fixture = root / "conformance/family/case/expected.json"
+            fixture.parent.mkdir(parents=True)
+            (root / "conformance/family/case/reference.py").write_text("print(1)\n")
+            review = {"artifacts": [{"path": "conformance/family/case/reference.py", "role": "generator",
+                                     "sha256": "0" * 64}], "fixture_payload_sha256": "0" * 64}
+            data = {"case": {"x": 1}, "oracle": {"kind": "enumeration", "reference_review": review}}
+            fixture.write_text(json.dumps(data, indent=2) + "\n")
+            with patch.object(bind, "REPO_ROOT", root):
+                bind.bind_fixture(fixture)
+            stored = json.loads(fixture.read_text())
+            self.assertNotIn("reference_review", stored["oracle"])
+            self.assertEqual(stored["case"], {"x": 1})
+            moved = json.loads((root / "parity/fixture_reviews/family/case.json").read_text())
+            self.assertEqual(moved["fixture_payload_sha256"], evidence_kinds.fixture_payload_digest(stored))
+            self.assertNotEqual(moved["artifacts"][0]["sha256"], "0" * 64)
+            loaded = evidence_kinds.load_fixture(root, fixture)
+            self.assertEqual(loaded["oracle"]["reference_review"], moved)
+            # Rebinding again leaves the fixture's bytes alone.
+            before = fixture.read_bytes()
+            with patch.object(bind, "REPO_ROOT", root):
+                bind.bind_fixture(fixture)
+            self.assertEqual(fixture.read_bytes(), before)
+
+    def test_a_review_kept_in_both_places_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            fixture = root / "conformance/family/case/expected.json"
+            fixture.parent.mkdir(parents=True)
+            fixture.write_text(json.dumps({"oracle": {"reference_review": {}}}))
+            (root / "parity/fixture_reviews/family").mkdir(parents=True)
+            (root / "parity/fixture_reviews/family/case.json").write_text("{}")
+            with self.assertRaisesRegex(ValueError, "both embedded"):
+                evidence_kinds.load_fixture(root, fixture)
 
 
 if __name__ == "__main__":

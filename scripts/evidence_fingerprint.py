@@ -638,6 +638,9 @@ def scan_rust_text(
             read_as_data(site, expand(target))
             if target.is_dir():
                 out.directories.add(target)
+                # The listing is read here too: its membership is dropped with its files
+                # when no executed item reads it.
+                out.sites.add((path, site, target))
             found = True
         return found
 
@@ -883,12 +886,15 @@ class Usage:
     directories: set[Path] = field(default_factory=set)
     data_files: set[Path] = field(default_factory=set)
     test_data_files: set[tuple[Path, Path]] = field(default_factory=set)
+    # Sources whose `parity/fingerprint_inputs.toml` rows were consulted.
+    declaration_sources: set[str] = field(default_factory=set)
 
     def merge(self, other: Usage) -> None:
         self.files |= other.files
         self.directories |= other.directories
         self.data_files |= other.data_files
         self.test_data_files |= other.test_data_files
+        self.declaration_sources |= other.declaration_sources
 
     def data_reads(self, test_crate: Path | None) -> set[Path]:
         """Files read as data by code compiled when `test_crate`'s unit tests (if any) are built."""
@@ -1101,9 +1107,11 @@ class Fingerprinter:
         for row in self.declarations():
             by_source.setdefault(row["source"], []).append(row)
         used: list[dict] = []
+        consulted = set()
         for site in sorted(set(dynamic)):
             m = re.match(r"([^:]+?)(?::(\d+))?: ", site)
             source = m.group(1) if m else site
+            consulted.add(source)
             if source not in by_source:
                 raise UnresolvedInput(
                     f"{site}: dynamic input is not declared; add a row for {source} to {INPUT_DECLARATIONS}"
@@ -1123,6 +1131,8 @@ class Fingerprinter:
                     files.update(expand(hit))
                     if hit.is_dir():
                         self._use(Usage(directories={hit}))
+        # A record binds the rows of the sources it consulted, not the whole registry.
+        self._use(Usage(declaration_sources=consulted))
         rows_json = json.dumps(
             [{k: row.get(k) for k in ("source", "inputs", "env", "why")} for row in used], sort_keys=True
         )

@@ -1355,20 +1355,10 @@ class CalibrationBoundary(unittest.TestCase):
                 self.assertEqual(
                     row["calibration_evidence"]["status"], "registered_not_measured"
                 )
-        result = subprocess.run(
-            ["bash", str(root / "scripts/measure_calibration_groups.sh")],
-            cwd=root,
-            env={
-                **os.environ,
-                "ANTECEDENT_CALIBRATION_DRY_RUN": "1",
-                "ANTECEDENT_JOINT_RESPONSE_STABLE_CANDIDATE": "",
-            },
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("learner_ate_known_truth: coverage", result.stdout)
+        import calibration_runner
+
+        labels = {g.label for g in calibration_runner.load_groups(root)}
+        self.assertIn("learner_ate_known_truth: coverage", labels)
 
 
 class ScenarioMatrix(unittest.TestCase):

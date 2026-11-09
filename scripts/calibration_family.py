@@ -25,9 +25,10 @@ from _rust_source import lex
 
 MANIFEST_PATH = "scripts/calibration_family_manifest.json"
 AUDIT_PATH = "scripts/calibration_family_labels.json"
-GATE_PATH = "scripts/measure_calibration_groups.sh"
-# Commits that measured a record before the driver took its present name hold it here.
-EARLIER_GATE_PATH = "scripts/gate_calibration.sh"
+# The gate's group table; a commit from before it held the groups in a shell driver,
+# under one of the earlier names (newest first).
+GATE_PATH = "parity/calibration_groups.toml"
+EARLIER_GATE_PATHS = ("scripts/measure_calibration_groups.sh", "scripts/gate_calibration.sh")
 ACCEPTANCE_PATH = "parity/acceptance_manifest.toml"
 SCHEMA = "source_fixed_calibration_family.v1"
 
@@ -195,10 +196,12 @@ def _immutable_source(root: Path, path: str, sha: str) -> bytes:
 
 def read_source(root: Path, path: str, sha: str | None = None) -> bytes:
     if sha and path == GATE_PATH:
-        try:
-            return _read_source_at(root, path, sha)
-        except subprocess.CalledProcessError:
-            return _read_source_at(root, EARLIER_GATE_PATH, sha)
+        for candidate in (path, *EARLIER_GATE_PATHS):
+            try:
+                return _read_source_at(root, candidate, sha)
+            except subprocess.CalledProcessError:
+                if candidate == EARLIER_GATE_PATHS[-1]:
+                    raise
     return _read_source_at(root, path, sha)
 
 
@@ -298,13 +301,19 @@ def validate_label_audit(audit: dict, root: Path = ROOT, sha: str | None = None)
 
 
 def gate_roster(gate: bytes, acceptance: bytes) -> list[dict]:
-    # Execute only the gate's existing dry-run path in a scratch source tree.
+    """The complete roster: the group table's rows, or an earlier shell driver's dry run."""
+    if not gate.startswith(b"#!"):
+        import tomllib
+        rows = tomllib.loads(gate.decode("utf-8"))["group"]
+        groups = [{"index": i, "label": r["label"], "grid": bool(r["grid"])} for i, r in enumerate(rows, start=1)]
+        return _complete_roster(groups)
+    # Execute only the earlier driver's dry-run path in a scratch source tree.
     # This obtains the complete roster even when the caller selected a shard.
     with tempfile.TemporaryDirectory(prefix="calibration-family-") as directory:
         root = Path(directory)
         (root / "scripts").mkdir()
         (root / "parity").mkdir()
-        (root / GATE_PATH).write_bytes(gate)
+        (root / EARLIER_GATE_PATHS[0]).write_bytes(gate)
         (root / ACCEPTANCE_PATH).write_bytes(acceptance)
         env = {
             key: value
@@ -317,7 +326,7 @@ def gate_roster(gate: bytes, acceptance: bytes) -> list[dict]:
             ANTECEDENT_CALIBRATION_RECHECK_NSIM="2000",
         )
         result = subprocess.run(
-            ["bash", str(root / GATE_PATH)],
+            ["bash", str(root / EARLIER_GATE_PATHS[0])],
             cwd=root,
             env=env,
             text=True,
@@ -329,13 +338,17 @@ def gate_roster(gate: bytes, acceptance: bytes) -> list[dict]:
         {"index": int(m.group(1)), "label": m.group(2), "grid": int(m.group(1)) in grid}
         for m in re.finditer(r"^group (\d+): (.+)$", result.stdout, re.MULTILINE)
     ]
+    return _complete_roster(groups)
+
+
+def _complete_roster(groups: list[dict]) -> list[dict]:
     if (
         not groups
         or [g["index"] for g in groups] != list(range(1, len(groups) + 1))
         or len({g["label"] for g in groups}) != len(groups)
         or len({g["label"].translate(str.maketrans(" /:", "___")) for g in groups}) != len(groups)
     ):
-        raise ValueError("gate dry run did not give a complete unique source roster")
+        raise ValueError("the gate did not give a complete unique source roster")
     return groups
 
 

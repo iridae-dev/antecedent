@@ -1,11 +1,11 @@
-"""Named calibration groups dispatch exact, source-backed libtest identities."""
-import re
+"""Calibration groups name exact, source-backed libtest identities."""
 import unittest
 
 from _repo import REPO_ROOT, ensure_scripts_on_path
 
 ensure_scripts_on_path()
-from test_evidence import (  # noqa: E402 -- local helper path is installed immediately above
+import calibration_runner as runner  # noqa: E402 -- local helper path is installed immediately above
+from test_evidence import (  # noqa: E402
     libtest_name,
     rust_items,
     target_files,
@@ -13,38 +13,35 @@ from test_evidence import (  # noqa: E402 -- local helper path is installed imme
 
 
 class CalibrationExactFilters(unittest.TestCase):
+    groups = runner.load_groups(REPO_ROOT)
+
     def test_library_groups_name_the_exact_registered_test(self):
-        text = (REPO_ROOT / "scripts/measure_calibration_groups.sh").read_text(encoding="utf-8").replace("\\\n", " ")
-        helper = re.search(r"(?ms)^run_ignored\(\) \{(.*?)^\}", text).group(1)
-        self.assertRegex(helper, r'--lib "\$exact" -- --ignored --exact')
-        calls = re.findall(r"(?m)^run_ignored\s+(antecedent(?:-[\w]+)?)\s+([\w:]+)\s+([\w:]+)\s*$", text)
-        self.assertTrue(calls)
+        library = [g for g in self.groups if g.target == "lib"]
+        self.assertTrue(library)
         cache = {}
-        for package, label, exact in calls:
-            with self.subTest(package=package, label=label):
-                lib = (REPO_ROOT / "crates" / package / "src/lib.rs").resolve()
-                if package not in cache:
+        for group in library:
+            with self.subTest(group=group.label):
+                lib = (REPO_ROOT / "crates" / group.package / "src/lib.rs").resolve()
+                if group.package not in cache:
                     names = set()
                     for path in target_files(lib, lib.parent.parent):
                         for item in rust_items(path)[1]:
                             if item.kind == "fn" and any("test" in attr for attr in item.attrs):
                                 names.add(libtest_name(path, item.name, lib))
-                    cache[package] = names
-                self.assertTrue(exact in cache[package], f"missing exact libtest identity: {package}::{exact}")
-                self.assertTrue(exact == label or exact.endswith("::" + label))
+                    cache[group.package] = names
+                for exact in group.tests:
+                    self.assertIn(exact, cache[group.package], f"missing exact libtest identity: {group.package}::{exact}")
 
     def test_block_length_group_has_two_exact_identities(self):
-        text = (REPO_ROOT / "scripts/measure_calibration_groups.sh").read_text(encoding="utf-8").replace("\\\n", " ")
-        group = next(line for line in text.splitlines() if line.startswith('check "antecedent: analysis::execute::block_length_tests::shared_block_length_sensitivity"'))
-        self.assertIn("-- --ignored --exact", group)
-        for suffix in ("iid_n160", "ar1_rho05_n160"):
-            self.assertIn("analysis::execute::block_length_tests::shared_block_length_sensitivity_" + suffix, group)
+        group = next(g for g in self.groups
+                     if g.label == "antecedent: analysis::execute::block_length_tests::shared_block_length_sensitivity")
+        self.assertEqual(group.tests, tuple(
+            "analysis::execute::block_length_tests::shared_block_length_sensitivity_" + s
+            for s in ("iid_n160", "ar1_rho05_n160")))
 
-    def test_integration_helpers_use_exact_filters(self):
-        text = (REPO_ROOT / "scripts/measure_calibration_groups.sh").read_text(encoding="utf-8").replace("\\\n", " ")
-        for name in ("run_static_mixture_test", "run_ignored_bayes_temporal"):
-            body = re.search(r"(?ms)^" + name + r"\(\) \{(.*?)^\}", text).group(1)
-            self.assertRegex(body, r'"\$filter"\s+--\s+--ignored\s+--exact')
+    def test_only_whole_file_groups_name_no_exact_test(self):
+        whole = {g.target for g in self.groups if g.tests is None}
+        self.assertEqual(whole, {"temporal_response_calibration", "panel_calibration"})
 
 
 if __name__ == "__main__":

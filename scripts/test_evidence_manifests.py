@@ -175,6 +175,30 @@ class ManifestTests(unittest.TestCase):
         self.write('src/a.rs', source.replace('fn used', '#[cfg(any())]\nfn used'))
         self.assertFalse(self.check(manifest)['current'])
 
+    def test_prune_keeps_what_a_record_reaches_and_deletes_the_rest(self):
+        import evidence_items as ei
+        source = 'fn used() -> i32 { 1 }\n'
+        self.write('src/a.rs', source)
+        kept = self.manifest()
+        kept['inputs'] = self.item_entries('src/a.rs', [source.index('{ 1 }')])
+        kept_ref = self.store(kept)
+        # A withdrawn pass: its manifest, group and table are reached by no record.
+        earlier = 'fn other() {}\n' + source
+        self.write('src/a.rs', earlier)
+        old = self.manifest()
+        old['inputs'] = self.item_entries('src/a.rs', [earlier.index('{ 1 }')])
+        self.write('src/a.rs', source)
+        old_ref = self.store(old)
+        self.write('parity/scientific_records.toml',
+                   f'[[record]]\ntest = "crate::test"\nfingerprint = "old"\ndependency_manifest = "{kept_ref}"\n')
+        orphans = em.unreachable_evidence(self.root)
+        self.assertIn(f"{em.STORE}/{old_ref}.json", orphans)
+        self.assertNotIn(f"{em.STORE}/{kept_ref}.json", orphans)
+        self.assertTrue(any(o.startswith(ei.STORE + "/") for o in orphans))
+        self.assertEqual(em.prune_evidence(self.root), orphans)
+        self.assertEqual(em.unreachable_evidence(self.root), [])
+        self.assertTrue(em.Checker(self.root, {}).check(self.binding, kept_ref)['current'])
+
     def test_item_inputs_owe_a_vanished_item_or_missing_table(self):
         source = 'fn used() -> i32 { 1 }\n'
         self.write('src/a.rs', source)

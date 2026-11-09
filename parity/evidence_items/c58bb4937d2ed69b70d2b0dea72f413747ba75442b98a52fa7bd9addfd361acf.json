@@ -1,0 +1,1 @@
+["use:super::{CandidateDesign,DesignError,PreposteriorAnalysis,ScoreEvaluation};#0","use:antecedent_core::CausalRng;#0","struct:DecisionScoring#0","impl:<'a,O>DecisionScoring<'a,O>#0","impl:<'a,O>DecisionScoring<'a,O>#0/fn:new#0","impl:<'a,O>DecisionScoring<'a,O>#0/fn:evaluation#0","impl:<'a,O>DecisionScoring<'a,O>#0/fn:score#0"]
