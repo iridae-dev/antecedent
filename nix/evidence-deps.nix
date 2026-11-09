@@ -3,8 +3,8 @@
 # `depsSrc` holds only the workspace manifests, Cargo.lock, the Cargo configuration
 # and a stub for every workspace target (`nix_evidence_deps.py` derives it from the
 # committed tree), so this output stays the same across commits that change no
-# manifest. Each target runs the same `cargo test --no-run` invocation as the
-# evidence build, with the same flags, so the evidence build finds every
+# manifest. Each target group runs the same `cargo test --no-run` invocation as
+# the evidence build, with the same flags, so the evidence build finds every
 # third-party unit fresh and recompiles only workspace crates.
 { depsSrc, depsTargetsJson }:
 let
@@ -26,7 +26,7 @@ pkgs.stdenv.mkDerivation {
   dontFixup = true;
   buildPhase = ''
     ${common.environment vendor}
-    ${pkgs.lib.concatMapStrings (t: common.build t "$TMPDIR/messages") targets}
+    ${pkgs.lib.concatMapStrings (g: common.build g "$TMPDIR/messages") (common.groups targets)}
   '';
   installPhase = ''
     # Drop every workspace unit. Store files all carry the same timestamp, so a

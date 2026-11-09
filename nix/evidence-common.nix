@@ -8,9 +8,16 @@ let
   targetArgs = t: if t.kind == "lib" then [ "--lib" ] else [ "--test" t.name ];
   featureArgs = t: if t.features == [] then [] else [ "--features" (builtins.concatStringsSep "," t.features) ];
   dir = t: "targets/${t.crate}/${t.kind}/${if t.kind == "lib" then "lib" else t.name}";
+  # Targets of one package with one feature set resolve to the same units whether
+  # built alone or together, so each such group is one Cargo invocation, which
+  # compiles and links its test binaries in parallel. Different feature sets are
+  # never combined: one invocation would unify them.
+  featuresKey = t: if t.features == [] then "-" else builtins.concatStringsSep "," t.features;
+  groupDir = t: "groups/${t.crate}/${featuresKey t}";
+  groups = targets: builtins.attrValues (builtins.groupBy (t: "${t.crate} ${featuresKey t}") targets);
 in
 {
-  inherit rust dir targetArgs featureArgs;
+  inherit rust dir targetArgs featureArgs groupDir groups;
   # Cargo from nixpkgs uses store-provided curl/OpenSSL rather than the host
   # LibreSSL used by the upstream Cargo binary. The compiler remains pinned to
   # the separately verified official toolchain pinned in evidence-toolchain.nix.
@@ -53,11 +60,11 @@ in
     offline = true
     EOF
   '';
-  # One target's own test build, exactly as it would run alone.
-  build = t: messages: ''
-    mkdir -p "${messages}/${dir t}"
-    ${pkgs.cargo}/bin/cargo ${lib.escapeShellArgs ([ "test" "--locked" "--offline" "--no-run" "--message-format=json" "-p" t.crate ] ++ targetArgs t ++ featureArgs t)} > "${messages}/${dir t}/cargo-messages.jsonl" || {
-      cat "${messages}/${dir t}/cargo-messages.jsonl" >&2
+  # One group's test build: the same units as each target's build alone.
+  build = g: messages: let t = builtins.head g; in ''
+    mkdir -p "${messages}/${groupDir t}"
+    ${pkgs.cargo}/bin/cargo ${lib.escapeShellArgs ([ "test" "--locked" "--offline" "--no-run" "--message-format=json" "-p" t.crate ] ++ builtins.concatMap targetArgs g ++ featureArgs t)} > "${messages}/${groupDir t}/cargo-messages.jsonl" || {
+      cat "${messages}/${groupDir t}/cargo-messages.jsonl" >&2
       exit 1
     }
   '';

@@ -17,11 +17,13 @@ current, so CI only checks that records are up to date.
 - `nix_evidence_source.py` copies the committed tree, imports it into the store
   and compares NAR hashes; the checkout must stay clean except for this run's
   own content-verified ledger and manifests.
-- `evidence-target.nix` builds every owed target in one derivation. Each target
-  runs its own `cargo test --no-run`, exactly as it would alone, in sequence over
-  one shared target directory, so dependencies compile once per feature set; a
-  single Cargo invocation over several targets would unify their features and is
-  never used. Each target keeps its own executable, metadata and unit graph under
+- `evidence-target.nix` builds every owed target in one derivation, over one
+  shared target directory, so dependencies compile once per feature set. Targets
+  of one package with one feature set resolve to the same units built alone or
+  together, so each such group is one `cargo test --no-run`, which links its
+  binaries in parallel; targets with different feature sets are never combined,
+  since one invocation would unify them. Each target keeps its own executable,
+  metadata and unit graph (from its own invocation) under
   `targets/<crate>/<kind>/<name>`.
 - The build uses a private scratch tree, the pinned `rustc`,
   a stable `--remap-path-prefix` (so `file!()` and panic locations do not depend

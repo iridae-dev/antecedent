@@ -3,10 +3,12 @@
 # commit; this expression does not attest that source identity or that the Nix
 # daemon actually used a sandbox.
 #
-# Each target runs its own `cargo test --no-run` invocation, exactly as it would
-# alone, in sequence over one shared target directory: Cargo reuses every unit whose
-# fingerprint matches, so dependencies compile once per distinct feature set. A
-# single invocation over several targets would unify their features and is never used.
+# Each target's metadata and unit graph come from its own invocation, exactly as
+# it would build alone. The build runs one `cargo test --no-run` per package and
+# feature set (`evidence-common.nix`), in sequence over one shared target
+# directory: Cargo reuses every unit whose fingerprint matches, so dependencies
+# compile once per distinct feature set, and a group's binaries link in parallel.
+# Targets with different feature sets are never built by one invocation.
 { src, targetsJson, depsSrc, depsTargetsJson }:
 let
   lock = builtins.fromJSON (builtins.readFile ../flake.lock);
@@ -35,7 +37,6 @@ let
     # Cargo's unit graph is unstable metadata: enable its flag only in this
     # subprocess. The test build itself never sees RUSTC_BOOTSTRAP.
     RUSTC_BOOTSTRAP=1 ${pkgs.cargo}/bin/cargo -Z unstable-options ${lib.escapeShellArgs ([ "test" "--unit-graph" "--locked" "--offline" "--no-run" "-p" t.crate ] ++ common.targetArgs t ++ common.featureArgs t)} > "$TMPDIR/${dir t}/cargo-unit-graph.json"
-    ${common.build t "$TMPDIR"}
   '';
 in
 assert builtins.isList targets && targets != [];
@@ -72,6 +73,7 @@ pkgs.stdenv.mkDerivation {
     export RUSTC_WORKSPACE_WRAPPER="${driver}/bin/workspace-rustc" ANTECEDENT_SOURCE_ROOT="$PWD"
     export ANTECEDENT_ANALYZER_OUTPUT="$TMPDIR/compiler-inventory"
     ${lib.concatMapStrings step targets}
+    ${lib.concatMapStrings (g: common.build g "$TMPDIR") (common.groups targets)}
   '';
   installPhase = ''
     mkdir -p "$out/bin"
@@ -94,12 +96,19 @@ pkgs.stdenv.mkDerivation {
         rel = f"targets/{target['crate']}/{target['kind']}/{target['name'] or 'lib'}"
         built, dest = pathlib.Path(temporary) / rel, pathlib.Path(out) / rel
         (dest / "bin").mkdir(parents=True)
+        group = pathlib.Path(temporary) / "groups" / target["crate"] / (",".join(target["features"]) or "-")
         executables = []
-        for line in open(built / "cargo-messages.jsonl", encoding="utf-8"):
+        for line in open(group / "cargo-messages.jsonl", encoding="utf-8"):
             message = json.loads(line)
-            if (message.get("reason") == "compiler-artifact"
-                    and message.get("profile", {}).get("test") is True
-                    and message.get("executable")):
+            # Only the selected package builds with the test profile; its lib
+            # unit-test binary and each `--test` binary are told apart by kind.
+            kinds = message.get("target", {}).get("kind", [])
+            if target["kind"] == "test":
+                ours = kinds == ["test"] and message["target"].get("name") == target["name"]
+            else:
+                ours = not {"test", "bench", "example", "bin"} & set(kinds)
+            if (message.get("reason") == "compiler-artifact" and ours
+                    and message.get("profile", {}).get("test") is True and message.get("executable")):
                 executables.append(message["executable"])
         if len(executables) != 1:
             raise SystemExit(f"{rel}: expected one test executable, found {len(executables)}")
