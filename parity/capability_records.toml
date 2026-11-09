@@ -1026,8 +1026,7 @@ surface_internal = [{ name = "smoothed_dose_bootstrap_unit_rows", why = "Doc-hid
   { name = "smoothed_dose_memory_cap", why = "The memory cap in force (the mandatory cap lowered by a context hard limit), shared with the antecedent-io consumer; a pure read of the context." },
   { name = "smoothed_dose_replicate", why = "Builds one bootstrap replicate's rows and point-run fold labels for the calibration-internal bootstrap and its fold-reuse test; compiled only under the calibration-internal feature." },
   { name = "smoothed_dose_interval_internal", why = "Joint outer bootstrap behind the unsupported interval route; compiled only under the calibration-internal feature for the coverage harness and the thread-budget test, and no public route reaches it." },
-  { name = "SmoothedDoseIntervalRun", why = "Return type of the calibration-internal bootstrap; compiled only under the calibration-internal feature." },
-]
+  { name = "SmoothedDoseIntervalRun", why = "Return type of the calibration-internal bootstrap; compiled only under the calibration-internal feature." }, { name = "estimate_smoothed_dose_with_factories", why = "Doc-hidden entry taking caller-supplied learner factories, whose learners the library cannot verify; the supported route is estimate_smoothed_dose with the library learners, which does not call it. Must stay pub: antecedent::estimate re-exports it for callers who supply their own learners." }]
 bounds = { max_grid_points = 16, quadrature_nodes = "16 or 32 per window piece, doubling check at 32 or 64", max_folds = 20, min_bootstrap = 2, max_bootstrap = 2000, max_rows = 200000, max_features = 256, max_basis_degree = 3, max_knots = 8, max_workspace_bytes = 536870912, cancellation = true }
 refusals = [
   { detail = "dose_response.invalid_declared_rows", remedy = "Supply a matching supported row declaration and valid lag." },
@@ -1907,7 +1906,7 @@ refusals = [
   { detail = "joint_cells.derived_not_a_joint_cell" },
   { detail = "joint_cells.derived_unknown_column" },
 ]
-surface_internal = [{ name = "_penalty_grid_max_items", why = "Private Python bridge exposing the context-free penalty-grid bound; not a joint-cells route." }]
+surface_internal = [{ name = "_penalty_grid_max_items", why = "Private Python bridge exposing the context-free penalty-grid bound; not a joint-cells route." }, { name = "fit_factorized_joint_cells_with_factories", why = "Doc-hidden entry taking caller-supplied learner factories, whose learners the library cannot verify; the supported route is fit_factorized_joint_cells with the library learners, which does not call it. Must stay pub: antecedent::estimate re-exports it for callers who supply their own learners." }]
 routes = [
   { name = "antecedent_estimate.fit_factorized_joint_cells", stage = "evaluate", status = "supported", claim = "point_only", covers = ["orderings_for"] },
   { name = "antecedent_estimate.declared_joint_nuisance", stage = "evaluate", status = "supported", claim = "point_only" },

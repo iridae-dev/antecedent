@@ -494,6 +494,75 @@ def code_of(path: Path, in_crate: bool) -> str:
     return raw(path) if path.suffix == ".py" else nontest_rust(path, in_crate=in_crate)
 
 
+_USE = re.compile(r"\buse\s+(super|crate)((?:::[A-Za-z_]\w*)*)::(?:\{([^}]*)\}|([A-Za-z_]\w*)(?:\s+as\s+([A-Za-z_]\w*))?)\s*;")
+_SUPER_CALL = re.compile(r"\bsuper::([A-Za-z_]\w*)\s*\(")
+
+
+def _crate_src(path: Path) -> Path | None:
+    for parent in path.parents:
+        if parent.name == "src" and (parent / "lib.rs").is_file() or (parent / "main.rs").is_file() and parent.name == "src":
+            return parent
+    return None
+
+
+def _module_files(src: Path, segments: list[str]) -> list[Path]:
+    """Files that may define module `segments` of the crate rooted at `src`."""
+    if not segments:
+        return [p for p in (src / "lib.rs", src / "main.rs") if p.is_file()]
+    base = src.joinpath(*segments)
+    return [p for p in (base.with_suffix(".rs"), base / "mod.rs") if p.is_file()]
+
+
+def _module_of(src: Path, path: Path) -> list[str]:
+    parts = list(path.relative_to(src).with_suffix("").parts)
+    if parts[-1] in ("mod", "lib", "main"):
+        parts = parts[:-1]
+    return parts
+
+
+def helper_bodies(path: Path) -> list[str]:
+    """Bodies of the functions this file imports (`use super::..`, `use crate::..`, with
+    `as`) or calls as `super::name(`: where a detail's reason code may be set by a helper
+    defined in another file. Only the named function's own body is returned."""
+    src = _crate_src(path)
+    if src is None or path.suffix != ".rs":
+        return []
+    text = raw(path)
+    module = _module_of(src, path)
+    wanted: list[tuple[list[str], str]] = []
+    for m in _USE.finditer(text):
+        kind, rest, group, single, _alias = m.groups()
+        prefix = (module[:-1] if kind == "super" else []) + [s for s in rest.split("::") if s]
+        names = [single] if single else [n.strip().split(" as ")[0].strip() for n in (group or "").split(",")]
+        wanted += [(prefix, n) for n in names if n and n != "self"]
+    wanted += [(module[:-1], m.group(1)) for m in _SUPER_CALL.finditer(text)]
+    def defined(segments: list[str], name: str, depth: int = 0) -> list[str]:
+        found = []
+        for file in _module_files(src, segments):
+            for item in rust_items(file)[1]:
+                if item.kind == "fn" and item.name == name:
+                    found.append(raw(file)[item.start:item.body[1]])
+            if found or depth:
+                continue
+            # One re-export level: `use child::*;` or `use child::{.., name, ..};` in the
+            # module that names the helper.
+            for m in re.finditer(r"\buse\s+(?:self::)?([A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)::(\*|\{[^}]*\}|[A-Za-z_]\w*)\s*;",
+                                 raw(file)):
+                path, tail = m.group(1).split("::"), m.group(2)
+                if path[0] in ("crate", "super"):
+                    continue
+                names = {n.strip().split(" as ")[0] for n in tail.strip("{}").split(",")}
+                if tail == "*" or name in names:
+                    found += defined(segments + path, name, depth + 1)
+        return found
+
+    bodies = []
+    for prefix, name in wanted:
+        for candidate in (prefix, prefix[:-1]) if prefix else (prefix,):
+            bodies += defined(candidate, name)
+    return bodies
+
+
 def scan_details(namespaces: set[str]):
     """Refusal-detail literals of the non-test source corpus (see capability_source)."""
     return scan_refusal_details(namespaces, source_files(), raw, rel)
@@ -808,7 +877,9 @@ for rec in records:
                     r"(?<![A-Za-z0-9_])(?:" + "|".join(map(re.escape, spellings)) + r")(?![A-Za-z0-9_])"
                 )
                 check_files = unknown_files if code in proven_codes else files
-                if not any(named.search(code_of(p, c)) for p, c in check_files.items()):
+                # The code may be set by a helper the emitting file imports from another file.
+                if not any(named.search(code_of(p, c)) or any(named.search(body) for body in helper_bodies(p))
+                           for p, c in check_files.items()):
                     fail(
                         "refusal_pair_code",
                         f"{rid}: refusal ({code}, {detail}): no non-test file that emits {detail} "

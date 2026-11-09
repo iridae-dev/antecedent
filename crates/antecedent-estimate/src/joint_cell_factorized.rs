@@ -1205,6 +1205,7 @@ pub fn fit_factorized_joint_cells(
     clippy::too_many_arguments,
     reason = "the checked joint query and two factories are independent inputs"
 )]
+#[doc(hidden)]
 pub fn fit_factorized_joint_cells_with_factories(
     data: &TabularData,
     treatments: &[VariableId],
