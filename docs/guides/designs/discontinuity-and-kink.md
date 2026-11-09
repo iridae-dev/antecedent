@@ -17,7 +17,7 @@ result = ant.analyze(data, query=ant.quasi.SharpRegressionDiscontinuity(
     "outcome", "treatment", "running", cutoff=0.0, bandwidth=1.5))
 ```
 
-The effect is the local jump at the cutoff, reported as a `local_at_cutoff` target. `se` chooses the heteroskedasticity-robust standard error (`hc1` by default, or `hc0`, `hc2`, `hc3`, `homoskedastic`). When the bandwidth window holds four rows or fewer the fit is saturated (the jump interpolates the rows exactly, with no residual degrees of freedom), so the analytic standard error is withheld (NaN) instead of publishing a rounding-sized value; widen the bandwidth.
+The effect is the local jump at the cutoff, reported as a `local_at_cutoff` target. `se` chooses the analytic standard error: heteroskedasticity-robust `hc1` (the default), `hc0`, `hc2` or `hc3`, or the classical `homoskedastic` formula. When the bandwidth window holds four rows or fewer the fit is saturated (the jump interpolates the rows exactly, with no residual degrees of freedom), so the analytic standard error is withheld (NaN) instead of publishing a rounding-sized value; widen the bandwidth.
 
 ## Fuzzy design and regression kink
 
@@ -27,16 +27,16 @@ The effect is the local jump at the cutoff, reported as a `local_at_cutoff` targ
 from antecedent.quasi import FuzzyRegressionDiscontinuity, RegressionKink
 
 query = FuzzyRegressionDiscontinuity("outcome", "treatment", "running", cutoff=0.0, bandwidth=1.5)
-result = antecedent.analyze(data, query=query)
+result = ant.analyze(data, query=query)
 ```
 
-Both fit local quadratics with triangular kernel weights on either side of the cutoff. The point estimate is bias-corrected with the estimated cubic term from the same bandwidth. The result's `local_polynomial_ratio` section reports the point estimate, the reduced form, the first stage, the cutoff, the bandwidth, the contrast type, local sample counts and descriptive HC0 standard errors for the ratio and both components.
+Both fit local quadratics with triangular kernel weights on either side of the cutoff. The point estimate is bias-corrected from the same bandwidth, with an estimated cubic term for a jump and a quartic term for a kink. The result's `local_polynomial_ratio` section reports the point estimate, the reduced form, the first stage, the cutoff, the bandwidth, the contrast type, local sample counts, HC0 standard errors for the ratio and both components, and the ratio's interval (`ci_lower`, `ci_upper`).
 
 Read it this way:
 
-- The ratio's uncertainty is labelled `rbc_point_with_unvalidated_hc0_standard_error_no_interval`. No confidence interval is published, and a saved artifact rejects fabricated interval fields or design metadata that disagrees with the query.
+- The ratio's uncertainty is labelled `rbc_hc0_delta_normal_fixed_bandwidth`: a pointwise 95% normal interval from the HC0 delta-method standard error at the declared bandwidth. The interval is withheld when that standard error is not positive and finite, and a saved artifact rejects interval fields or design metadata that disagree with the query.
 - The local counts show sample size near the cutoff only. They do not establish continuity, absence of manipulation or adequate effective support.
-- The result stays an unsupported point utility, outside the graphless support matrix. There is no weak-instrument-robust inference.
+- `support_status` is `supported` when the fit meets its row in the [graphless support matrix](../../graphless-support-matrix.md) (enough local observations on each side and a published interval). There is no weak-instrument-robust inference; a weak first stage is refused instead (below).
 
 ### Refusals
 
@@ -51,7 +51,7 @@ The route refuses singular local fits, too few positive-kernel observations on e
 | `balance_covariates=(...)` | Reports each covariate's jump at the cutoff. A diagnostic only. |
 | `temporal_replicates=B` | Declares that the running variable is calendar time. The interval comes from a within-side moving-block bootstrap that refits the whole ratio. |
 
-Any of these options returns the answer on `result.quasi_rollout` with an unsupported interval whose calibration is `not_measured`. Under Bayesian inference the local ratio reads a selected window, and a calendar-time running variable uses a within-side block Bayesian bootstrap: flat-Dirichlet weights on consecutive time blocks, with the whole ratio refit per draw.
+Any of these options returns the answer on `result.quasi_rollout`, outside the support matrix rows above: its interval is marked unsupported and carries its calibration status (`result.inspect().calibration`). Under Bayesian inference the local ratio reads a selected window, and a calendar-time running variable uses a within-side block Bayesian bootstrap: flat-Dirichlet weights on consecutive time blocks, with the whole ratio refit per draw.
 
 ## Assumptions you declare
 

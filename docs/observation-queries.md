@@ -11,8 +11,8 @@ construct it measures, and what is closed.
 All values here are exact given a declared model, or a labelled point value of
 a fitted one. Parameter uncertainty is returned as aligned posterior draws whose
 spread is labelled `uncalibrated_spread`. Nothing on this page is a calibrated
-interval: an interval of redrawn parameters is supported only by a currently
-attesting coverage record, and none is measured.
+interval: an interval of redrawn parameters is returned only when a coverage
+record currently attests it, and is refused otherwise.
 
 ## Boundary
 
@@ -76,7 +76,7 @@ conditioned on the recorded values `z`. On the confounded fixture:
 | --- | --- |
 | `P(Y = 1 | do(S = 1), Z = 1)` | 0.9 |
 | `P(Z = 1 | do(S = 1), Y = 1)` | 0.75 |
-| `P(Z = 1 | S = 1, Y = 1)` (observed, not set) | 0.36 / 0.39 |
+| `P(Z = 1 | S = 1, Y = 1)` (observed, not set) | 0.36 / 0.39 = 0.92 |
 
 Recorded ancestors of the intervention are unchanged by it; a recorded
 descendant of the intervention is informative about the causes of the outcome
@@ -211,12 +211,12 @@ is labelled `uncalibrated_spread`. An interval is returned by
 `ObservationClaim::parameter_interval` only through the composed-interval gate:
 the composed coordinate and the construction must resolve to a currently
 attesting coverage record, and otherwise the interval is refused
-(`not_supported`). No such record is measured.
+(`not_supported`).
 
 The Dirichlet redraw agrees with the count-fitted posterior quantiles
 (`antecedent.analysis.count_fitted_observation`, below) on the same counts; that
-route remains the one with a measured interval for a single conditional
-probability.
+route is the one whose interval for a single conditional probability rests on a
+coverage record.
 
 ## What a value means
 
@@ -278,7 +278,7 @@ uncertainty and is not redrawn.
 - `antecedent_io_core::observation_query_artifact`: the `observation_query_v1`
   artifact and the general queries (below).
 - `antecedent::analysis::observation_query`, `observation_posterior` and
-  `observation_evidence`: the facade. `PreparedMechanismComposition` gains
+  `observation_evidence`: the facade. `PreparedMechanismComposition` has
   `observe`, `observe_continuous`, `observe_with_parameter_uncertainty`,
   `condition_on`, `intervene_on`, `condition_versus_intervene` and
   `threshold_crossing`; declared-model queries are free functions.
@@ -295,7 +295,7 @@ uncertainty and is not redrawn.
 replays an artifact against a retained identity. Slots are `Recorded`, `Assigned`,
 `Hypothetical` and `Measured` (a recorded indicator value with its
 `measurement_models.MeasurementModel`). Every claim is an `ObservationClaim` with its
-`identity`, `operation`, `inference_basis` and sealed `artifact`; `interval()` and
+`identity`, `operation`, `inference_basis` and sealed artifact (`export()`); `interval()` and
 `calibrated_probability()` raise `not_supported`, as does `parameter_interval()` without a
 currently attesting coverage record; `gaussian` and `parameter_draws` carry the typed values. Every refusal is an
 `ObservationQueryRefusal` with a registered `reason_code`, an `observation_query.*` `detail`,

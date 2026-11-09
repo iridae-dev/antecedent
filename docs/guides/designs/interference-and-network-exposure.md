@@ -40,9 +40,9 @@ It returns three Horvitz-Thompson and Hajek contrasts:
 | Spillover | High versus low neighbor exposure, among untreated units |
 | Total | Treated with high neighbor exposure versus untreated with low neighbor exposure |
 
-Marginal exposure probabilities are enumerated exactly over the declared cluster allocations and the within-cluster Bernoulli assignments. To bound cost, the kernel refuses more than 30 clusters, more than 50,000 cluster allocations, or a unit with more than 16 incoming neighbors.
+Marginal exposure probabilities are computed exactly over the declared cluster allocations and the within-cluster Bernoulli assignments. When a unit's neighbor-exposure distribution has more distinct values than the calculation's state budget, it refuses rather than approximates.
 
-Each contrast reports observed unit and cluster support and a covariance-free Young variance bound that covers dependence from both randomization stages. That bound is not a confidence interval and carries no coverage claim. This direct utility is separate from the supported neighbor-count Bernoulli `analyze` cell in the [graphless support matrix](../../graphless-support-matrix.md) and does not change its status.
+Each contrast reports observed unit and cluster support and a covariance-free Young variance bound that covers dependence from both randomization stages. That bound is not a confidence interval and carries no coverage claim. For an interval, ask `analyze` for one contrast at a time with an `interference.InterferenceQuery` whose assignment is the `SaturationDesign`: it reports a pointwise 95% cluster interval when each saturation arm has at least 24 clusters and each requested exposure level is observed in at least eight clusters (the `two_stage_saturation` row of the [graphless support matrix](../../graphless-support-matrix.md)).
 
 ## Observed assignment on a network
 
@@ -54,7 +54,7 @@ from antecedent import interference
 estimate = interference.estimate_observational_network_exposure(...)
 ```
 
-The call takes a fixed network, an observed binary treatment, two requested own-treatment and neighbor exposure levels, and exposure probabilities you provide. The probabilities may be declared `known` or `externally_estimated`; Antecedent does not fit the exposure model. `ObservedExposureDesign` carries them with the provenance and your `assume_network_exchangeability=True` declaration, and Antecedent refuses the design without that declaration.
+The call takes a fixed network, an observed binary treatment, two requested own-treatment and neighbor exposure levels, and exposure probabilities you provide. The probabilities may be declared `known` or `externally_estimated`; Antecedent does not fit the exposure model. On the `analyze` path, `ObservedExposureDesign` carries them with the provenance and your `assume_network_exchangeability=True` declaration, and Antecedent refuses the design without that declaration.
 
 The kernel checks that edges stay in the declared partition, that the probabilities are positive and that both requested exposure levels are observed, and reports unit and cluster support. The result is a Horvitz-Thompson and a Hajek point contrast plus a cluster sandwich variance for the Horvitz-Thompson contrast.
 
@@ -72,7 +72,7 @@ An observed-network estimate identifies a causal exposure contrast only if you d
 - consistency and positivity of the exposure levels,
 - partial interference: no spillover between clusters.
 
-A randomized saturation design replaces the confounding claim with the randomization, and keeps the other four conditions. In both cases Antecedent reports support and cannot test any of the conditions. Both routes remain outside the graphless support matrix supports.
+A randomized saturation design replaces the confounding claim with the randomization, and keeps the other four conditions. In both cases Antecedent reports support and cannot test any of the conditions. The two direct utilities are point utilities outside the graphless support matrix; the `analyze` intervals described above are pointwise and hold these conditions as declared.
 
 ## Related
 

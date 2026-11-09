@@ -2,9 +2,9 @@
 
 Estimate what a decision at one period did to a later outcome, or what a whole treatment path would have produced, from tables with one row per unit and period. You can analyse micro-randomized or sequentially randomized trials (the excursion effect of one decision), observational decision data (modelling the decision on measured history), static regimes on a continuous outcome, and survival under always-treat versus never-treat.
 
-`CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design` (Python) read the table. Where the experimenter recorded the assignment law, the recorded law identifies the target by design. Regime survival, the observational excursion and the observational regime contrast read observational data under declared sequential exchangeability. Every route here executes and is **unsupported**: no coverage record exists,
-every interval and posterior carries `calibration = "not_measured"`, and no support-matrix cell
-is implied.
+`CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design` (Python) read the table. Where the experimenter recorded the assignment law, the recorded law identifies the target by design. Regime survival, the observational excursion and the observational regime contrast read observational data under declared sequential exchangeability. No route here has a row in
+the support matrix: each executes as an **unsupported** structured answer, and every interval
+and posterior carries its calibration status in `TemporalDesignEstimate.calibration`.
 
 ## Typed queries
 
@@ -12,6 +12,7 @@ is implied.
 designs as typed queries that name columns of the table:
 
 ```python
+import antecedent
 from antecedent.temporal_designs import TwoArmExcursion
 
 result = antecedent.analyze(
@@ -26,8 +27,8 @@ result.value.temporal_design  # TemporalDesignEstimate
 `misclassification=OutcomeMisclassification(...)` where the design reads them. The answer is
 structured (`unsupported_temporal_design_<uncertainty>`), and `load(result.export())`
 reads back an equal `temporal_design`. `TemporalDesignEstimate.bootstrap_standard_error` is the
-whole-procedure bootstrap standard deviation (frequentist regime survival and the quantile
-functional); `posterior_standard_deviation` is set for a Bayesian result. A rebound table must
+whole-procedure bootstrap standard deviation (set when the route resampled with `bootstrap=`);
+`posterior_standard_deviation` is set for a Bayesian result. A rebound table must
 repeat the units, periods and recorded assignment law.
 
 ## The excursion target
@@ -103,7 +104,7 @@ exchangeability given `history`, positivity of both arms given it (a fitted prob
 units. The history is declared, not checked, and a single-decision excursion with a known law
 does not substitute for it: this route is the one that corrects confounding of the decision.
 The nuisance fit is inside every interval, so the interval carries the cost of estimating the
-assignment law; coverage has not been measured.
+assignment law; read its calibration status before relying on coverage.
 
 ## Whole static regimes on a continuous outcome
 
@@ -136,7 +137,7 @@ of the next and is consistent when either the outcome regressions or the treatme
 right. Every nuisance model is inside the interval: the frequentist interval refits all of them
 in each unit-bootstrap replicate, and the Bayesian posterior refits them under Dirichlet unit
 weights (a Gaussian coefficient prior on the treatment models) in each draw. The prior supplies
-no identifying premise, and coverage has not been measured.
+no identifying premise.
 
 ## Regime survival
 
@@ -145,8 +146,8 @@ treatment, then censoring during the period (`censored = 1`, event unobserved) o
 The target is `S_1(K) - S_0(K)`. Sequential exchangeability of treatment and censoring given
 the measured history, positivity of both regimes (the floor `min_probability`) and consistency
 are declared, not checked. The frequentist interval refits the pooled logistic treatment and
-censoring models in every subject-bootstrap replicate, so the nuisance fits are inside it;
-coverage has not been measured. The Bayesian posterior factorizes the trajectory likelihood
+censoring models in every subject-bootstrap replicate, so the nuisance fits are inside it.
+The Bayesian posterior factorizes the trajectory likelihood
 into a conjugate Gaussian confounder transition and Laplace pooled-logistic treatment,
 censoring and hazard laws, and evaluates the parametric g-formula per draw with common random
 numbers across regimes; the treatment and censoring posteriors report the share of draws below
@@ -154,7 +155,7 @@ the positivity floor.
 
 ## Check whether a mechanism changed, and roll fitted dynamics forward
 
-Two standalone queries read the fitted dynamics of a series with lagged edges, without a typed design. Both are unsupported and report no calibrated coverage; read them as model-conditional diagnostics and projections. They live in `antecedent.temporal_model` and take column names, the columns, and the lagged edges `(cause, lag, effect, 0)`.
+Two standalone queries read the fitted dynamics of a series with lagged edges, without a typed design. Neither has a row in the support matrix; read them as model-conditional diagnostics and projections. They live in `antecedent.temporal_model` and take column names, the columns, and the lagged edges `(cause, lag, effect, 0)`.
 
 `detect_mechanism_change` asks whether the mechanism of a target changed between two row ranges of one series. The simulated series below shifts the intercept of `y` by 5.0 halfway through, so the answer is known.
 

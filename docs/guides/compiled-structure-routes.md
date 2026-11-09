@@ -2,7 +2,7 @@
 
 Ask a structural question (what graph do these data support, which node explains this change, what would this model generate) and get the answer in the same form as any other study: a program with a stable identity, a prepared handle, and a result stamped with that identity. The contract and claim can be read off it like any other study, and a discovered structure can flow into a downstream study only through the review gate described below.
 
-These routes run and report what they ran. They are not cells of the [support matrix](../support-matrix.md): no coverage measurement stands behind them, so a result states the method and its declared inference and nothing about calibration.
+These routes run and report what they ran. They are not cells of the [support matrix](../support-matrix.md) and make no coverage claim: a result states the method and its declared inference.
 
 ## The three query kinds
 
@@ -117,8 +117,8 @@ search that produced its graph.
 ## Callbacks in simulation programs
 
 A simulation program can hold batch callbacks (`antecedent.intervention_callbacks`). They
-run in the process exactly as before. The route's contract records a recoverable callback
-(declared from source) by its verified recovery record. It records an in-process function
+run in the process. The route's contract records a recoverable callback
+(declared from source) by its recovery record. It records an in-process function
 by the canonical digest of the whole query, which covers each callback's name, inputs,
 output, pinned dependencies and implementation kind. Running locally is allowed.
 Decoding such a record back into a query, which is what export or replay does, is
@@ -127,7 +127,7 @@ declare the callback from self-contained source.
 
 ## Related behaviour
 
-- `PreparedPolicy` still compiles and supports a program once against a fitted model
+- `PreparedPolicy` compiles and supports a program once against a fitted model
   (`support`, `rebind`, the compilation counters). Its `value`, `sample` and
   `counterfactual` run the compiled simulation routes. `policy_support` is a support
   check and computes no answer.

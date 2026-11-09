@@ -68,7 +68,7 @@ scale `V0` per coefficient in `β | σ² ~ N(mean, σ² · V0)`. A prior set may
 `PriorSpec::CoefficientCorrelation` (a positive-definite correlation matrix
 `R`); `V0` is then dense, `V0 = D^{1/2} R D^{1/2}` with `D = diag(variance)`,
 and every backend (conjugate known-σ² and Normal–Inv-Gamma, Laplace, HMC, GLM)
-uses the full prior precision `V0⁻¹`. Without it `V0` is diagonal, as before.
+uses the full prior precision `V0⁻¹`. Without it `V0` is diagonal.
 Absolute prior variance of coefficient `i` is `σ² · V0[i]` — use
 `GaussianCoefficientPrior::absolute_variance` / `from_absolute_variance` at the
 boundary; do not write absolute SD² into `V0`.
@@ -85,17 +85,17 @@ says "dense V0". For a known-σ² conjugate Gaussian source, fitting batch B und
 the prior hydrated from batch A reproduces the pooled A ∪ B posterior up to
 the Monte Carlo error of the draws the moments are estimated from (exactly,
 given the analytic moments). On a confounded two-batch example the dense
-sequential effect SD matches the pooled one to 0.01% at 40 000 draws, while the
-old diagonal hydration was 11% too narrow. With an unknown σ² the coefficient
+sequential effect SD matches the pooled one to 0.01% at 40 000 draws, while a
+diagonal hydration of the same source is 11% too narrow. With an unknown σ² the coefficient
 block is transferred but the residual-variance posterior is not (the target
 keeps its own Inv-Gamma prior), so sequential and pooled agree closely but not
 exactly.
 
-An explicit `NamedParameters` map now also carries the source correlation when
+An explicit `NamedParameters` map also carries the source correlation when
 it is a complete one-to-one map of named coefficient columns. The covariance
 is permuted into target coefficient order; duplicate source or target names
-refuse. This preserves the existing dense hydration path under a changed column
-order, but does not support general posterior transfer or a new interval.
+refuse. This keeps dense hydration under a changed column order; it is not a
+general posterior transfer and adds no interval.
 
 Three cases stay **diagonal** and drop posterior correlation between
 coefficients:
@@ -128,7 +128,7 @@ The `V0` conversion needs the source's σ². A Gaussian posterior with an unknow
 its fixed σ² as a constant `residual_variance` quantity, so
 hydration converts with the source's σ². A source with no residual-variance
 quantity (a GLM, a summary built without one, or a known-σ² artifact written
-without it) keeps the earlier behaviour rather than being refused: the hydrated
+without it) is not refused: the hydrated
 prior keeps the **absolute** SD² and marks it
 (`absolute_coefficient_scale:<indices>` in the prior's restrictions). A Gaussian
 target fit then plugs in its own residual variance, `V0 = SD² / σ̂²` with the
@@ -149,7 +149,7 @@ they produce. On such a target:
   (same lags, same covariates, same order);
 - effect-functional transfer requires the source to carry the target's
   treatment coefficient (same variable at the same lag);
-- a source artifact without coefficient names (written by an older writer) is refused;
+- a source artifact without coefficient names is refused;
 - an explicit `NamedParameters` mapping is the declared bridge between
   different lags and is always honoured (names are validated at hydrate).
 
@@ -161,7 +161,7 @@ The catalog offers an additional, **opt-in** check:
 `EstimandFingerprint.temporal` (`TemporalCoordinates`: treatment lags,
 horizon, optional coefficient names). When the *target* fingerprint carries
 temporal coordinates, `compatible_with` rejects a source whose metadata has
-none (`temporal_coordinates_missing`, the case for older metadata) or
+none (`temporal_coordinates_missing`) or
 different ones (`temporal_coordinates_mismatch`) unless the source declares a
 `NamedParameters` mapping. Nothing in the library populates these
 coordinates: analyses do not attach them to the posteriors they produce, and
@@ -169,7 +169,7 @@ the Python prior-bank API (`PriorSourceMeta` dicts, `compatible_with`) cannot
 set them. Rust callers that bank temporal posteriors must attach them with
 `EstimandFingerprint::with_temporal` on both the source metadata and the
 target; otherwise the catalog applies no lag check. Metadata without the
-field still decodes.
+field decodes.
 
 `compose_external_priors(...)` / `Bayesian(prior_from=<composed prior>)`
 performs **no** lag check: its sources are already-mapped coefficient priors
@@ -256,19 +256,8 @@ reach for the one that matches what you actually know:
   what you actually know is a target mean and how much you want the prior
   to weigh (in sample-size terms), not a variance.
 
-An earlier version of this module offered a single
-`from_moments(mean, variance, target_ess)`: moment-match to `(mean,
-variance)`, then discard that match and rescale to `target_ess` instead.
-`variance` never affected the output under that signature — it was checked
-for validity and then thrown away — which both misnamed the function (it
-built from `(mean, target_ess)`, not from moments) and made the Beta variant
-reject satisfiable requests, since the variance support check ran against a
-value the rescale would immediately discard. The two-constructor split
-above replaces that signature; there is no `target_ess` parameter anywhere
-in the current API.
-
 These are **standalone converters, not `PriorSpec` variants** — no backend
-in this crate can consume a Beta or Gamma prior today (all four take a
+in this crate consumes a Beta or Gamma prior (all four take a
 Gaussian coefficient design-matrix prior), so adding a `PriorSpec::Beta` /
 `::Gamma` would create a type the library accepts but nothing can use.
 Callers get plain hyperparameter structs to hand to their own conjugate

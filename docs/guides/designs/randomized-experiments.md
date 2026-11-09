@@ -46,7 +46,7 @@ updated = antecedent.estimate(antecedent.rebind(result.study, data={"revenue": f
 
 - `fit.effect` is the intention-to-treat contrast: the effect of being assigned, whether or not the unit complied.
 - `fit.uncertainty` names the variance construction and `fit.interval_95` is present only when the design meets that construction's support rule. When it does not, you get the point estimate and a labelled variance, and the diagnostic names the rule that was not met.
-- `fit.support_status` says whether the interval is among the executing support evidence listed in the [graphless support matrix](../../graphless-support-matrix.md). A result can execute and be useful while remaining outside that matrix; the status stays attached.
+- `fit.support_status` says whether the design and its interval meet a row of the [graphless support matrix](../../graphless-support-matrix.md). A result outside the matrix still executes, with that status attached.
 - `result.value.calibration` reports whether a matching coverage measurement applies to the interval; see [Uncertainty](../../concepts/uncertainty.md).
 
 ## Choose the assignment design

@@ -21,6 +21,7 @@ counterfactual and its factual world see the same noise.
 
 ```python
 from antecedent.cyclic import Equation, EquilibriumModel, Set, World
+from antecedent.outcomes import require_success
 
 feedback = EquilibriumModel(
     (
