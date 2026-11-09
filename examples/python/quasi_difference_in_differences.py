@@ -4,11 +4,12 @@
 `antecedent.quasi` carries quasi-experimental designs. `estimate_did` is the
 2x2 repeated-cross-section point utility; `PanelDifferenceInDifferences` runs
 through the retained `analyze` study path and reports a subject-clustered
-standard error. Both are point utilities off the geometric support-matrix axis;
-identification rests on the declared parallel-trends assumption.
+standard error. The graphless support matrix lists when a difference-in-differences
+interval is supported, and these tiny fixtures are far below its cluster minimums.
+Identification rests on the declared parallel-trends assumption, which two periods cannot test.
 
-The fixtures are constructed with a known treatment effect of 4. Install with
-`python -m pip install antecedent`; see examples/README.md."""
+The fixtures are constructed with a known treatment effect of 4, and both estimates must equal
+it exactly. Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 

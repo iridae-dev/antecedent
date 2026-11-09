@@ -15,9 +15,9 @@ designs are simulated from declared mechanisms with known truths, each analyzed 
    with no first stage is refused.
 
 Assertions compare each headline number with the simulation's parameter within a stated
-tolerance (several standard errors) or with a closed form computed here. Standard errors of the
-CUPED, ANCOVA-style and switchback utilities are not calibrated coverage claims; the printed
-calibration and support fields say what each result does and does not carry. The exact test
+tolerance (several standard errors) or with a closed form computed here. The printed
+calibration and support fields say what each result does and does not carry; a tolerance in
+standard errors is a check on this seeded simulation, not a coverage claim. The exact test
 covers the sharp null of no effect for any unit and says nothing about effect size, and no result
 here speaks to a design other than the one declared.
 """

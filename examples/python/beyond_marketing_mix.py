@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """One marketing investigation: response, allocation, evidence, decision and next study.
 
-Run offline with the 3.0 Python extension. All business units and prices are synthetic.
+Run offline with the Antecedent Python extension. All business units and prices are synthetic.
 Generating parameters stay outside the estimator declaration. The small Monte Carlo run
 illustrates the workflow; read its diagnostics before using its posterior scientifically.
 """

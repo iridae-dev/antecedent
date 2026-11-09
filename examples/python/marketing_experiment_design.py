@@ -6,7 +6,7 @@ Ranking evidence-gathering actions by identification gain.
 A B2B growth team wants to estimate the causal effect of personalised outbound
 outreach on qualified sales pipeline.
 
-Its current CRM data are observational. The main uncertainty is whether not_measured
+Its current CRM data are observational. The main uncertainty is whether unmeasured
 account purchase intent drives both:
 
 - which accounts receive personalised outreach; and
@@ -24,7 +24,9 @@ probability that the outreach effect is identifiable. It then applies a £40,000
 budget constraint and simulates the recommended action.
 
 The scenario and data are synthetic, but they represent a realistic revenue-operations
-decision. The causal truth is known so the result can be checked.
+decision. The causal truth is known so the result can be checked: the script prints the
+adjusted estimate beside the simulated effect rather than asserting it. The planning
+assumptions about what each action resolves are declared, not inferred.
 """
 
 from __future__ import annotations
@@ -640,7 +642,7 @@ plt.show()
 # %% [markdown]
 # ## 10. Extensions
 #
-# Useful next versions of this analysis could:
+# Useful extensions of this analysis could:
 #
 # - rank by expected graph-entropy reduction rather than identification probability;
 # - rank by expected effect-width reduction after identification is established;

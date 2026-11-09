@@ -2,6 +2,8 @@
 
 Uses a temporary synthetic CSV; replace its path with your own reviewed table.
 Requires pandas in addition to Antecedent. Does not impute or drop observations.
+The synthetic effect is 2, and the script checks the estimate lies within 0.3 of it. On your
+own table the effect holds only under the graph you declare; the script does not test it.
 """
 
 from pathlib import Path

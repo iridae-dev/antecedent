@@ -1,4 +1,10 @@
-"""Complementary sources plus a grid. Same verbs as the single-source examples."""
+"""Transport a response curve from two complementary sources.
+
+One source experiments on ``x`` and measures ``z``; the other experiments on ``z`` and measures
+``y``. Together they identify the target curve by chaining the supplied exact laws:
+``0.8 * 0.1 + 0.2 * 0.9 = 0.26`` at ``x = 0`` and ``0.74`` at ``x = 1``, which the script checks.
+With only the second source's laws, some grid points are not supported. Exact laws carry no
+sampling uncertainty, so no interval is inferred. Same verbs as the single-source examples."""
 
 import antecedent as ant
 

@@ -2,6 +2,10 @@
 
 The invariance premise is declared, not learned from these target counts. Its
 uncertainty is not silently absorbed into a confidence interval.
+
+With 520 of 1,000 target records positive, sensitivity 0.9 and specificity 0.8, the corrected
+prevalence is (0.52 + 0.8 - 1) / (0.9 + 0.8 - 1); the script checks it and its delta-method
+standard error against those closed forms. The standard error is labelled uncalibrated.
 """
 
 import math

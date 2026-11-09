@@ -2,7 +2,10 @@
 
 The simulated treatment increases the outcome by 2. After estimating it,
 we change the data so the effect is 3 and run the same study again.
-See docs/python-workflow.md for installation and a step-by-step explanation."""
+The script checks that the rebound branch moves by exactly that 1 while the original result
+stays fixed, and that a saved result loads intact. Loading recomputes nothing, and the effect
+is a fixture truth of the simulated mechanism, not a claim about real data.
+See docs/start/first-analysis.md for installation and a step-by-step explanation."""
 
 from __future__ import annotations
 
@@ -44,8 +47,8 @@ print("Calibration:", result.value.calibration.status, result.value.calibration.
 json.dumps(report, allow_nan=False)
 
 # The default analysis carries refutation reports. Loading checks the artifact is intact and
-# keeps the recorded answer. The reports have no checked replay, so a replay names the missing
-# one instead of reporting the result as replayed.
+# keeps the recorded answer. Replay cannot recompute the refutation reports, so it lists them
+# as not replayable instead of reporting the result as replayed.
 assert loaded.acceptance.status == "loaded"
 assert loaded.answer.kind == result.answer.kind
 audited = loaded.replay()

@@ -81,7 +81,7 @@ print(bundle.explain())
 # Export: the bytes travel; the identity is retained separately (a message, a ledger, a ticket).
 data, identity = bundle.export(), bundle.identity
 
-# Consume under the retained identity. Nothing is trusted from the bytes alone.
+# Consume under the retained identity; the bytes alone do not establish what they are.
 consumed = require_success(cb.consume_bundle(data, expected_identity=identity))
 consumed.require_verified()
 print(consumed.explain())

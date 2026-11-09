@@ -5,7 +5,7 @@ Question: a transported effect rests on a source study whose outcome model and s
 distribution might deviate a little from the truth in the target. The joint mechanism sensitivity
 analysis bounds the effect over a declared box of such deviations. That range is computed from
 a sample, so how far could sampling noise move it, and can a second party check that number
-without trusting the first?
+from the bytes alone?
 
 Data: a small simulated binary transport problem with a counted source law (n = 80) built in the
 script. The numbers are properties of that declared model.

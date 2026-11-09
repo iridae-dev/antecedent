@@ -6,6 +6,10 @@ undirected and get an answer that preserves that uncertainty. Then we supply
 its direction and pass the resulting adjustment set to an EconML handoff.
 The graph object remains a Cpdag in both cases.
 
+The fixture is noise-free with effect 2; the two completions of the open edge disagree, so
+the partial answer carries no point. The orientation is a reviewer's declaration, not learned
+from the data.
+
 Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations

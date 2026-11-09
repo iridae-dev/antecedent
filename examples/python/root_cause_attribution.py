@@ -22,9 +22,9 @@ anomaly scores per node and row, not a per-node Shapley split of one row, so the
 is read from where along the graph the row stops looking ordinary.
 
 What this does NOT claim. The attributions assume the declared graph and mechanisms fitted
-from the data; they are not tests of that graph. The bootstrap standard error is
-uncalibrated and unsupported (see ``antecedent.attribution``), so it is a spread, not a
-coverage claim.
+from the data; they are not tests of that graph. The bootstrap standard error is a spread
+over mechanism refits (see ``antecedent.attribution``), not a coverage claim; the script
+prints the calibration status the result reports.
 """
 
 from __future__ import annotations

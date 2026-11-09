@@ -110,8 +110,8 @@ def main():
     assert replayed["value"] == response["value"]
 
     # The same claim served with the default refutation reports loads intact and keeps its
-    # answer, bound to the retained identity. Their reports have no checked replay, so a
-    # replay names that and the host relays the claim as partial.
+    # answer, bound to the retained identity. Replay cannot recompute the refutation reports,
+    # so it lists them as not replayable and the host relays the claim as partial.
     reported, reported_artifact = serve(data, graph, query)
     loaded_reported = accept(reported_artifact.data, reported_artifact.expectation)
     print("loaded with refutation reports:", loaded_reported["status"])
@@ -135,9 +135,9 @@ def main():
     assert refusal["family"] == "unsupported"
     assert refusal["reason_code"] in host.refusal_codes()
 
-    # Altered bytes are refused; they are never a claim.
+    # Bytes that are not an artifact are refused; they are never a claim.
     altered = accept(b"not an artifact", artifact.expectation)
-    print("altered bytes:", altered["family"])
+    print("malformed bytes:", altered["family"])
     assert altered["status"] == "unsupported"
     assert altered["family"] in {family.code for family in host.error_families()}
 

@@ -5,6 +5,11 @@ When inventory is limited, recorded sales are ``min(demand, inventory)``. A pric
 sales is therefore not automatically a price response for demand. This example makes the
 observation mechanism and its identifying assumption explicit, estimates the supported Cox IPCW
 demand curve, and keeps a true remaining refusal rather than substituting the observed proxy.
+
+Simulated demand falls by 8 units per unit of price before its floor at zero. The script
+prints the demand curve rather than checking it against that slope, and asserts that the
+observation-adjusted demand derivative is refused. Independent censoring is declared, not
+tested.
 """
 
 from __future__ import annotations

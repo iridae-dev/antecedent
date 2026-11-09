@@ -19,7 +19,7 @@ bound at the true hidden-bias odds ratio is checked against a sound design and a
 confounded null.
 
 What it does NOT claim. Passing a refuter is not evidence of no unmeasured confounding.
-Every number here is a diagnostic with calibration ``not_measured``; the bounds say what a
+Every number here is a diagnostic, not an interval with coverage; the bounds say what a
 confounder of a stated strength would do, not that one of that strength exists.
 """
 

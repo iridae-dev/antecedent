@@ -1,6 +1,8 @@
 """Write scientific bytes and a separately retainable expected identity.
 
 With no arguments, runs in a temporary directory. Use --output to retain files.
+The simulated effect is 2. Saving binds the bytes to a scientific identity; it does not
+establish that the declared graph or the effect holds in the real world.
 """
 
 import argparse

@@ -6,7 +6,9 @@ causal directions as an AcceptedGraph. In a real analysis, those directions
 would need justification from subject-matter knowledge or other evidence.
 
 Keeping result.study lets us estimate again or rebind new data without
-repeating discovery. The counter below checks that discovery is not re-run.
+repeating discovery. The counter below checks that discovery is not re-run, and the
+first estimate is checked within 0.75 of the simulated effect 2. Accepting a graph
+does not make discovery certain.
 Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
@@ -48,7 +50,7 @@ def main() -> None:
         discovery_calls["n"] += 1
         return real_discover(*args, **kwargs)
 
-    # Spy on both entry points into PC discovery, so "estimate clicks never
+    # Spy on both entry points into PC discovery, so "later estimates never
     # rediscover" is a claim this can actually check.
     antecedent.discovery.PC.run = counted_run  # type: ignore[method-assign]
     antecedent.discovery.discover = counted_discover  # type: ignore[assignment]
@@ -64,8 +66,9 @@ def main() -> None:
     assert discovered >= 1
     assert isinstance(evidence.graph, (antecedent.Dag, antecedent.Cpdag))
 
-    # Spreadsheet review: accept a fully oriented DAG for estimate clicks.
-    # (Incomplete CPDAG marks stay on the evidence handle until explicit rediscover.)
+    # Review: accept a fully oriented DAG for the later estimates.
+    # (Edges discovery left unoriented stay on the evidence handle; the directions here are
+    # the reviewer's.)
     accepted = antecedent.AcceptedGraph.from_graph(
         [("z", "t"), ("z", "y"), ("t", "y")],
         algorithm_id=evidence.algorithm_id,
@@ -97,7 +100,7 @@ def main() -> None:
     assert math.isfinite(first_ate) and abs(first_ate - 2.0) < 0.75
     assert math.isfinite(second_ate) and math.isfinite(third_ate)
 
-    # Durable hold for the next session.
+    # Save the accepted graph for the next session.
     restored = antecedent.AcceptedGraph.from_json(accepted.to_json())
     assert restored.version == accepted.version
 

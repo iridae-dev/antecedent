@@ -150,7 +150,7 @@ def main() -> None:
         prior_sources=sources,
         target_population=tags_t["population"],
     )
-    # Clear offline conflict for fit; α' already applied.
+    # The conflict policy has already discounted the weights (α'); drop it before the fit.
     prior_for_fit = dataclasses.replace(composed, conflict=None)
 
     target = require_success(

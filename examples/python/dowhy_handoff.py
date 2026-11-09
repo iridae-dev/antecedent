@@ -7,7 +7,7 @@ propensity weighting. When ``dowhy`` is installed, the same graph DOT is
 handed to DoWhy (and a DoWhy DOT is imported back into Antecedent).
 
 ``dowhy`` is optional. Without it, the Antecedent half still runs and asserts
-the adjustment set and effect sign. See docs/interop_dowhy.md.
+the adjustment set and an effect within 0.5 of 2. See docs/interop_dowhy.md.
 Install with `python -m pip install antecedent`; optionally `pip install dowhy`.
 """
 

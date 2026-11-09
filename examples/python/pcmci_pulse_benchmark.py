@@ -13,7 +13,8 @@ Expected edge recovery (Exact): lagged parent ``(x, 1) → (y, 0)``.
 Expected pulse (treatment ``x`` → outcome ``y``, treatment_lag=1,
 horizon_steps=1): ≈ 0.8 within absolute tolerance 0.15.
 
-Black-box only: Antecedent's PCMCI path; do not vendor or translate Tigramite.
+The run uses Antecedent's own PCMCI implementation; Tigramite is a reference, not a
+dependency. Recovering this one parent does not show discovery is reliable on other data.
 Install with `python -m pip install antecedent`; see examples/README.md.
 """
 
@@ -24,7 +25,7 @@ import numpy as np
 
 TRUE_PARENTS = {("x", 1, "y", 0)}
 TRUE_PULSE = 0.8
-# Documented bound for this benchmark narrative (not a statistical CI).
+# A fixed tolerance for this example, not a statistical interval.
 PULSE_TOL = 0.15
 
 

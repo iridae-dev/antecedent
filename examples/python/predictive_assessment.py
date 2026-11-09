@@ -18,7 +18,7 @@ later period scores worse than the held-out cases of the training period. The PI
 drift of the shifted feature is large and that of the control feature is near zero.
 
 What it does NOT claim. A score is not causal validity, and the drift value has no
-significance level: it is a labelled diagnostic with calibration ``not_measured``.
+significance level: it is a labelled diagnostic, not a test.
 """
 
 from __future__ import annotations

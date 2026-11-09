@@ -14,10 +14,12 @@ effect, and every cohort-by-event-time contrast of the staggered event study aga
 effect (and the pre-adoption leads against zero), each within a stated tolerance. Two designs
 are refused with their reasons.
 
-Every result here is an unsupported point utility; identification rests on assumptions the
-data cannot confirm (no anticipation, comparable donors or parallel trends, no interference).
-A close pre-adoption fit or flat leads do not verify them, and nothing here claims coverage of
-any interval."""
+Synthetic control and synthetic difference-in-differences report points only. The event study
+publishes a pointwise 95% interval for each post-adoption cell, each with its calibration
+status; they are pointwise intervals, not a simultaneous band, and the script does not assert
+them. Identification rests on assumptions the data cannot confirm (no anticipation, comparable
+donors or parallel trends, no interference); a close pre-adoption fit or flat leads do not
+establish them."""
 
 from __future__ import annotations
 

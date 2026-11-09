@@ -16,16 +16,16 @@ pays 0. A study's signal is a binomial count with its declared sample size. The 
 information is computed here by hand and compared with the plan.
 
 The assertions check: the unadjusted data are refused as not identified, and the naive
-difference is far from 2; a study that measures ``z`` is verified sufficient and a study that
-adds rows of ``t`` and ``y`` is not; without a value model the best verified option is the
+difference is far from 2; a study that measures ``z`` is classified ``verified_sufficient`` and
+a study that adds rows of ``t`` and ``y`` is not; without a value model the best such option is the
 cheapest one; with one, the plan's expected value of sample information equals the hand
 computation, the best option equals the hand-computed maximum of value minus cost, and a dearer
 cost map reverses the order; the plan replays from its bytes; after collecting ``z`` the
 adjusted estimate is near 2; and the structural ordering equals a hand sort.
 
 What this does not claim: a plan is hypothetical identification, not an estimate. It does not
-establish that the graph is true, its ordering is point-only with calibration not measured,
-and the value model is a declared stand-in, not something learned from the registry.
+establish that the graph is true, its ordering is point-only with no coverage claim, and the
+value model is a declared stand-in, not something learned from the registry.
 """
 
 from __future__ import annotations
