@@ -9,7 +9,6 @@ consumer that holds nothing but bytes recomputes the decision.
 
 Everything is point-only. No interval, posterior decision or ranking guarantee
 is produced, and each request for one is refused with `not_supported`.
-Calibration is not_measured.
 
 Files: the declared inputs, hand-derived values and expected refusals are
 `conformance/composition/release_boundary/expected.json` (read by both test
@@ -104,8 +103,9 @@ The fixture reports these instead of reaching into internals.
 
 ## Closed
 
-No interval for the corrected prevalence, the pooled effect, the composed
-claim or the decision is produced. The calibration design for any such
-interval is the whole method (measurement correction, pooling, composition,
-decision) at the composed coordinate; none is measured here. A request is
-refused with `not_supported` and the remedy of the owning route.
+The fixture produces no interval for the corrected prevalence, the pooled
+effect, the composed claim or the decision. An interval for the composed claim
+or the decision would need an independent check of the whole method
+(measurement correction, pooling, composition, decision) at the composed
+coordinate. A request is refused with `not_supported` and the remedy of the
+owning route.

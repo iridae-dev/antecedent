@@ -7,7 +7,7 @@ provider and from interval support. The support registry and
 | Query and graph | Evidence premise | Identification | Execution | Uncertainty |
 | --- | --- | --- | --- | --- |
 | Classical single-source transport on the already supported selection ADMG contract | Complete source experimental family and catalog-bound target law | Supported within the classical theorem contract | Exact and finite empirical providers | Only separately recorded bootstrap cells |
-| Registered four-variable surrogate graph: W→Z→X→Y, W→Y, W↔Y, Z↔Y, Z↔X | One named source and one target; a bound joint `do(Z=z)` margin covering W, X, Y at the cited value | Checked `Σ_w P_s(y\|w,x,do(z)) P_s(w\|do(z))`; the complete experimental family is not needed for this positive formula | Rust and Python exact or empirical preparation, point estimation, refresh, and independent versioned artifact consumption; numerical SCM truth checked | Exact laws stay point-only. Empirical counts publish an equal-tail percentile bootstrap whose reason is `estimator_grid_not_measured` |
+| Registered four-variable surrogate graph: W→Z→X→Y, W→Y, W↔Y, Z↔Y, Z↔X | One named source and one target; a bound joint `do(Z=z)` margin covering W, X, Y at the cited value | Checked `Σ_w P_s(y\|w,x,do(z)) P_s(w\|do(z))`; the complete experimental family is not needed for this positive formula | Rust and Python exact or empirical preparation, point estimation, refresh, and independent versioned artifact consumption; numerical SCM truth checked | Exact laws stay point-only. Empirical counts publish an equal-tail percentile bootstrap with its calibration status |
 | Direct source exchange for a joint intervention on up to four controllable variables, on a finite discrete diagram of any number of observed variables | Concrete joint intervention values and the outcome margin those values require. Population selection must be separated from the outcomes after intervention. Unused controllable coordinates are not additional experiments | Checked direct source exchange | Exact point execution. A seven-node diagram with three controllables matches an independent copy-treatment SCM | `no_interval_reported` |
 | Other finite discrete single-source z-transport diagrams of any number of observed and up to four controllable variables | A positive decision binds only the joints the checked formula cites. A line-11 obstruction is a fact about the graph and the declared controllable set; the experiment power set is not required | Catalog-bound TRz recursion yields a checked positive formula, including an admissible selection diagram, or a replayable line-11 obstruction. A missing cited factor, an unassigned line-10 controllable, unsupported inputs, and exhausted computation stay distinct. The guarantee is sound and incomplete | Positive formulas execute after every cited factor binds. The registered surrogate, a selection diagram on a non-outcome, an extended surrogate graph, and a two-exchange graph have exact truth fixtures. Outcome-kernel sensitivity remains the registered surrogate shape | Exact laws stay point-only. Empirical cited tables publish a nominal percentile interval |
 | Inspection for checked z-transport outcomes | The same graph, query, limits, and catalog used for the decision | Identified formulas expose the checked proof graph and each required population/joint margin with its precise binding failure; proven obstructions carry replay-checked certificates. Unsupported and exhausted outcomes remain typed refusals, never fabricated proof graphs | Failure snapshots round-trip and are rechecked against current identification; proposal replay independently rebinds the hypothetical proof | No uncertainty claim is implied by inspection |
@@ -32,31 +32,31 @@ outcomes m-separate into two groups given the treatments. A single connected
 c-factor whose outcomes stay m-connected given the treatments would need a
 fabricated joint over both sources' interventions and stays closed under
 `z_transport.multi_source_combination_not_searched`, as do more than two
-sources. Missing cited factors, unsupported input, and exhausted search never
+sources on this route (the mz-transportability record below takes two to four). Missing cited factors, unsupported input, and exhausted search never
 become nonidentification proofs.
 
 The scoped route has a separate versioned artifact whose consumer rechecks the
 proof, catalog, laws, provider snapshots, and point result. An empirical
-interval is a nominal percentile bootstrap with reason
-`estimator_grid_not_measured`. A Bayesian posterior interval
+interval is a nominal percentile bootstrap. A Bayesian posterior interval
 (`estimator="empirical_support_bayesian_bootstrap"` or `"state_space_dirichlet"`)
 is supported on the same cited empirical tables as an equal-tail posterior
-interval around the plug-in point, also with reason `estimator_grid_not_measured`
-and no coverage record. Calibrated coverage remains closed. Cross-source
+interval around the plug-in point. Each interval carries its calibration status;
+its reason is `estimator_grid_not_measured` when no coverage record measured the
+construction. Cross-source
 combination is supported for the two complementary factorizations above; a
 fabricated joint over both sources' interventions stays closed.
 
-## Cells closed until capability
+## Capability records
 
-These rows are frozen in `parity/capability_records.toml` and refused until
-`scripts/gate_capability_records.sh` accepts their evidence. A row marked supported has
-been supported and has supported stage rows in `parity/transport_stages.toml`;
-no row here changes any cell above.
+These rows are records in `parity/capability_records.toml`; each record's
+support rests on the evidence that `scripts/gate_capability_records.sh` checks,
+and its stage rows are in `parity/transport_stages.toml`. No row here changes
+any cell above.
 
 | Cell | Evidence premise | Identification | Execution | Uncertainty |
 | --- | --- | --- | --- | --- |
-| Multi-source limited experiments (mz-transportability), up to four sources | Per-source joint-regime laws; target observational joint | Closed (`not_supported`); planned sound and incomplete within declared bounds | Closed | Closed; planned calibrated joint bootstrap, withheld when dependence is unknown |
-| Finite supplied graph/selection scenarios (supported) | One catalog bound independently per scenario; exact or empirical plug-in laws | Each fixed selection-ADMG scenario decided by the supported classical catalog route; only a verified s-hedge is a per-scenario impossibility claim; up to 64 scenarios over any number of shared variables | Every scenario retained with its status; structural envelope over identified scenarios; declared-weight report without renormalization; checked artifact replay | Structural envelope only, not a confidence interval; cross-scenario inference refuses (`scenario_aggregate_not_supported`); CPDAG/PAG input refuses |
-| Learned continuous-outcome trial transport and estimator menu | Binary randomized source, continuous outcome, IID nested cohort or independent samples | Supported direct/baseline standardization certificate | Supported cross-fitted AIPW point | Pointwise analytic influence interval supported after six measured coverage coordinates; percentile bootstrap closed after failed grid |
-| Two-step discrete temporal sequence | Unrolled finite discrete joints per window | Closed; planned sID on the two-slice unrolling | Closed | Point-only; temporal intervals stay refused  |
-| Bounded mixed-source proof search | Upgraded catalog descriptors per distribution | Closed; planned sound, incomplete bounded search | Closed | Point-only |
+| Multi-source limited experiments (mz-transportability, `transport.multi_source_limited_experiment`), two to four sources | Per-source joint-regime experimental laws with their jointly measured margins (`do(A,B)` is never inferred from separate `do(A)` and `do(B)`); target observational joint | TR^mz search, sound and incomplete within the declared search bounds; a checked obstruction is replay-verified; a missing joint regime or a fabricated joint refuses | Exact finite-law evaluation; counted laws through the same checked formula; versioned artifact recomputed by every consumer | Exact laws are point-only. Counted laws report a nominal pointwise joint percentile-bootstrap interval with its calibration status; undeclared or unsupported sampling dependence reports the point without an interval |
+| Finite supplied graph/selection scenarios (`transport.finite_scenario_envelope`) | One catalog bound independently per scenario; exact or empirical plug-in laws | Each fixed selection-ADMG scenario decided by the supported classical catalog route; only a verified s-hedge is a per-scenario impossibility claim; up to 64 scenarios in Python over any number of shared variables | Every scenario retained with its status; structural envelope over identified scenarios; declared-weight report without renormalization; checked artifact replay | Structural envelope only, not a confidence interval; cross-scenario inference refuses (`scenario_aggregate_not_supported`); CPDAG/PAG input refuses |
+| Learned continuous-outcome trial transport and estimator menu (`transport.learned_continuous_trial`) | Binary randomized source, continuous outcome, IID nested cohort or independent samples | Direct or baseline-standardization certificate | Cross-fitted augmented inverse-odds (AIPW) point | Pointwise analytic influence interval, reported with its calibration status; the percentile bootstrap refuses (`learned_transport.bootstrap_not_supported`) |
+| Two-step discrete temporal sequence (`transport.two_step_temporal`) | Finite discrete exact laws over the two-slice unrolled coordinates: the target observational joint and the source regimes the derivation cites | Classical sID on the explicit two-slice unrolling, identifying `do(A1=a1, A2=a2)` as one joint intervention | Exact finite evaluation of the identified history-aware functional | Point-only; an interval request refuses (`temporal_transport.interval_requested`) |
+| Bounded mixed-source proof search (`identify.mixed_source_proof_search`) | Upgraded catalog descriptors per distribution; separate marginals are never a leaf | Bounded do-calculus and probability-rule search over the supplied distributions, each candidate replayed by an independent proof checker; sound and incomplete | Exact laws only | Point-only; no interval and no counted-law plug-in |

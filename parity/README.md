@@ -7,7 +7,7 @@ and [docs/development.md](../docs/development.md).
 follows these evidence distinctions through AIPW and arrow-strength examples,
 from independent references to executing assertions and calibration requirements.
 
-**Inventories** (status: `pending` | `in_progress` | `done`):
+**Inventories** (status: `pending` | `done`):
 
 - [estimate.toml](estimate.toml) — identify / estimate / refute
 - [discovery.toml](discovery.toml) — temporal discovery / CI / graphs / effects
@@ -18,7 +18,7 @@ from independent references to executing assertions and calibration requirements
 - [attribution.toml](attribution.toml) — Attribution
 - [design_state.toml](design_state.toml) — Design / incremental-state
 - [release.toml](release.toml) — Release-prep / parity-closure
-- [response.toml](response.toml) — 0.5.0 response / observation / transport / interference
+- [response.toml](response.toml) — response / observation / transport / interference
 - [scenario_matrix.toml](scenario_matrix.toml) — curated cells of the method-family scenario matrix (categorical, dependence, degeneracy, unsupported inputs, held-out regimes, weights/missingness); `scripts/scenario_matrix.py` joins them with `counterparts.toml` and `missing_policy_support.toml`, and `scripts/evidence_audit.py report` lists the gaps (not an inventory)
 - [compiler.toml](compiler.toml) — inspect / claim / reuse / handoff compositions (not analysis-matrix cells)
 
@@ -78,7 +78,7 @@ Each `[[capabilities]]` row uses:
 | Field | Required | Values |
 |-------|----------|--------|
 | `id` | yes | Dotted capability id, unique within the manifest |
-| `status` | yes | `pending` \| `in_progress` \| `done` |
+| `status` | yes | `pending` \| `done` |
 | `group` | see below | Grouping key |
 | `description` | see below | One-line capability description |
 | `owner` | see below | Owning domain |
@@ -93,7 +93,7 @@ Each `[[capabilities]]` row uses:
 | `limitations` | no | What the evidence does **not** demonstrate |
 | `known_truth_reference` | inline analytic/enumerated truth | Origin `kind`, exact `source` (`path::assertion`), `proposition`, `tolerance` and `limitations`; source identity is checked, independence still requires review |
 | `evidence_activity` | no | `statistical_smoke` distinguishes an ordinary stochastic check from scientific conformance and measured calibration |
-| `calibration_evidence` | no | Explicit measurement test/assertion, group, phase and pending status; ordinary point conformance cannot stand in for this measurement |
+| `calibration_evidence` | no | Explicit measurement test/assertion, group, phase and status; ordinary point conformance cannot stand in for this measurement |
 
 **`evidence_kind`** states exactly what proposition the row's evidence
 demonstrates, so wording in `notes` cannot outrun it. Required on every `done`
@@ -116,8 +116,7 @@ required. The gate also requires a matching project/version record under
 conformance test that names the fixture. It enforces the fixture-authoritative
 rule too: the named project must literally appear in the frozen fixture. A
 clean-room enumeration is `internal_known_truth` no matter what the row's prose
-says — the 2026-08 audit found fourteen ledger rows that had drifted the other
-way.
+says.
 
 Supported support-matrix rows use a stricter truth condition. Every row names the
 executing test function that carries its evidence, and that function itself
@@ -220,11 +219,11 @@ proof that tests ran or that citations/algorithms are scientifically sufficient.
 `python3 scripts/verify_provenance_citations.py --check` checks DOI/title identity
 offline against retained Crossref/DataCite metadata; `--fetch` explicitly refreshes
 unresolved public metadata. Exact theorem/algorithm correspondence is a separate
-review. Measurement still belongs to the frozen-candidate calibration workflow.
+review. Coverage measurement is the separate calibration workflow, run on
+development machines (`docs/development.md`).
 
 Permanent product contracts are marked `done` with an inline note. There is no
-waiver / deviation status. Required chapters are closed in the inventories
-below.
+waiver / deviation status.
 
 Do not mark a capability `done` without conformance fixtures under
 `conformance/` **or** a named calibration/unit harness recorded in the
@@ -242,13 +241,15 @@ bash scripts/gate_gcm_conformance.sh
 bash scripts/gate_upstream_names.sh
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
-bash scripts/measure_calibration_groups.sh
+python3 scripts/calibration_status.py --check
 bash scripts/gate_release.sh
 ```
 
-`measure_calibration_groups.sh` is the statistical calibration suite (SE coverage, CI
-Type I / permutation uniformity, discovery null FPR). It never runs in CI and
-CI never fails on calibration state. A change to statistical code is measured on
+`scripts/measure_calibration_groups.sh` is the statistical calibration suite (SE
+coverage, CI Type I / permutation uniformity, discovery null FPR). It never runs
+in CI, but CI fails while any coverage record is owed
+(`python3 scripts/calibration_status.py --check`); calibration status never
+changes support. A change to statistical code is measured on
 a development machine with `bash scripts/measure_calibration.sh`, which runs only
 the groups behind records that are not current and collects them. A record is
 current while the dependency fingerprint of its test (`scripts/evidence_fingerprint.py`,
@@ -264,12 +265,12 @@ DAG-only-reject conformance; static FCI/RFCI `done`. Permanent: PAG-native
 ID is generalized adjustment only; full ID/IDC needs MAG/ADMG completion.
 
 Context: J/RPCMCI, effects, conditional ATE gated by `check_parity_inventories.py`.
-RPCMCI uses caller-supplied regime labels; unsupervised regime search is OOS.
+RPCMCI uses caller-supplied regime labels; unsupervised regime search is out of scope.
 
 Release: artifact format freeze, wheel matrix, conformance docs, hot-path
 baselines, security review (`release.toml`, ADR 0017). Package version is
 whatever `[workspace.package].version` in `Cargo.toml` says — do not restate it
-here; a hardcoded copy in this file sat five minor releases behind for months.
+here.
 
 Capability: `capability_records.toml` states each capability outside the matrix
 (a supported unit; `scripts/gate_support.py` counts it once; theorem, graph class,
@@ -285,12 +286,15 @@ routes stays refused in release builds; planned fixture ids do not count as
 executed evidence. `inference_claim` is `none`, `point_only`, `interval`,
 `assumption_range` or `structural_envelope`. Calibration is an annotation, not a
 gate: listed coverage-record ids must exist, but support never waits on a
-measurement. `gate_capability_records.sh` enforces this
+measurement. `gate_capability_records.sh` enforces this by reading source
 (`check_capability_records.py` resolves every cited test, then
-`run_evidence_rows.py` executes each one and requires it to pass: exactly one
-Rust test, at least one collected Python test, none failing). Every new bounded
+`run_evidence_rows.py --static` resolves each cited Rust test to its exact,
+non-ignored test and each Python test to its exact node); it executes nothing. The cited tests run in the
+engineering lane (CI and locally) or, for scientific assertions, in the scientific
+lane on development machines; CI's `cited-tests` shards check that each one
+compiles and is not ignored. Every new bounded
 search runs under `antecedent_core::SearchBudget` (operation and depth limits,
 plus the context's cancellation and hard memory limit on every charge), charged
 inside a loop or recursion that live code reaches, and a supported search's
 budget fixture must exercise it. The capability and release gates validate the
-registry and each CI evidence shard checks it before running its cited tests.
+registry.

@@ -66,7 +66,7 @@ It does not claim:
   replay shows they follow from those premises. Neither authenticates the supplied laws, and a
   producer who changes the laws consistently produces bytes that replay.
 
-Measured coverage exists only for named zero-box and positive-box designs. Outside those, the
+Coverage records measure only the named zero-box and positive-box designs. Outside those, the
 calibration status says so. Combining this interval with missing-not-at-random or marginal
 sensitivity models is not covered.
 

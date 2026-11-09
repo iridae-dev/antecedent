@@ -104,7 +104,7 @@ laws and checked transport authority. `StudyBuilder::exact_transport` prepares
 that specialization. This keeps sampled `EffectEstimate` uncertainty out of
 exact results without inventing a second lifecycle. Python's common `prepare`,
 `PreparedAnalysis`, inspection/transformation interfaces and `load` dispatch to
-the corresponding native state. The legacy trial-IPW route remains unchanged.
+the corresponding native state. The trial-IPW route is a separate route.
 
 Eight identity layers distinguish target, observation, inference binding,
 identification, identification product, program, snapshot and execution.
@@ -120,7 +120,7 @@ invalidation contract. Compatible snapshot replacement retains identification
 and invalidates execution claims. Structural/evidence changes require another
 preparation. Explicit refresh constructs and executes a candidate before
 publishing it, so failure preserves the previous valid state. Stale request or
-result identities are rejected. On the restricted (z-transport) day-1 route
+result identities are rejected. On the restricted (z-transport) route
 the prepared study keeps one native handle per target assignment; a refreshed
 snapshot with the same catalog binding rebinds those handles natively, and a
 snapshot whose identity changes the binding rebuilds laws and catalog together
@@ -138,16 +138,16 @@ scientific-validity checks, not authentication of who supplied a law.
 `examples/python/transport_exact.py` is a tested source-snapshot walkthrough:
 identify → inspect → prepare → estimate → replace → refresh → export → load.
 
-## Statistical tables (T6)
+## Statistical tables
 
-Exact supplied tables remain T4: no sampling uncertainty. Empirical tables are
-T6.1: one complete-observation frequency joint per `(population, regime, intervention
+Exact supplied tables have no sampling uncertainty. An empirical table is one
+complete-observation frequency joint per `(population, regime, intervention
 world)` on catalog-declared finite domains. Several certified leaves from the
 same regime project that joint. Empty empirical conditioners are
 `sampling_zero`, never a hidden `0/0 = 0`. Dirichlet smoothing and learners
-are named later choices; they are not the default.
+are separately named estimators; they are not the default.
 
-T6.2 is a joint IID outer bootstrap on the same prepared handle
+The interval is a joint IID outer bootstrap on the same prepared handle
 (`StatisticalPreparedState`). Independent studies share one dataset replicate
 across every leaf and treatment-grid point. The grid is evaluated within one
 outer resampling transaction; original replicate IDs align contrasts. Unknown, linked-unit, and clustered
@@ -162,15 +162,16 @@ consume. Consume recomputes the point from embedded fitted joints and does not
 re-bootstrap. Version-2 statistical artifacts verify all identity layers,
 replicate accounting, atom and mean percentile intervals, support and reasoning.
 Raw sample rows are not embedded; re-estimation requires an explicit refresh
-with samples. Earlier T6 artifacts lack these checks and must be regenerated.
+with samples. Earlier statistical artifact versions lack these checks and must be regenerated.
 
 Missing observations require an explicit missingness model, which the current
 empirical provider does not supply. There is no implicit complete-case deletion.
-Nominal pointwise uncertainty is separate from an execution-specific calibration
-binding; unbound executions report that status explicitly.
+Nominal pointwise uncertainty is separate from the execution-specific calibration
+status, which every interval reports.
 
 ## Complementary sources and retained grids
 
-The single-source theorem scope above remains unchanged. The shared engine now
-also has an explicitly scoped [multi-source and retained-grid path](transport-meta-grid.md).
-Historical payloads retain their original identities and scientific meanings.
+The shared engine also runs an explicitly scoped
+[multi-source and retained-grid path](transport-meta-grid.md); the single-source
+theorem scope above does not extend to it. Historical payloads retain their
+original identities and scientific meanings.

@@ -78,10 +78,11 @@ Bayesian discovery may use `antecedent-prob` without pulling `antecedent-model`.
 
 `scripts/check_architecture.py` checks these production ownership boundaries
 transitively, including renamed workspace dependencies, optional features,
-build dependencies and platform-specific edges. It runs in CI and the release
-inventory gate. Development dependencies may test independent consumers without
+build dependencies and platform-specific edges. It runs in the static tier of
+`scripts/gate_release.sh`, in CI and locally. Development dependencies may test independent consumers without
 becoming production dependencies. Its negative controls run with
-`python3 scripts/test_check_architecture.py`.
+`python3 scripts/test_check_architecture.py`. The [compiler crate graph](compiler-crate-graph.md)
+lists every edge.
 
 Prepared functional operations retain their checked causal program separately
 from the data-bound empirical provider. Rebinding new data reuses that program;

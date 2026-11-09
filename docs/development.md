@@ -17,21 +17,22 @@ python scripts/build_python_api_docs.py site/python
 mkdocs serve
 ```
 
-Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest excludes branch audits and one-off measurements while retaining evidence source paths. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/v2.4.0/docs/README.md) for editorial conventions.
+Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest (`scripts/docs_publication.toml`) keeps evidence-linked sources at their paths and out of the published site. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/main/docs/README.md) for editorial conventions.
 
 
 Product name: **Antecedent**. Python distribution/import: `antecedent`. Rust
-day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
+facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 `antecedent-*` on crates.io.
 
 ## CI vs local gates
 
-For optimized local test commands, measured bottlenecks and the CI build
+For optimized local test commands, test scheduling and the CI build
 strategy, see [test performance](guides/test-performance.md).
 
-GitHub Actions CI (`ci.yml`) runs the gate in tiers. Each CI job is one section of
-`scripts/gate_release.sh`, so a local run and CI cannot drift; cheap checks come first and the
-record-currency job last. CI executes no scientific assertion and no calibration measurement:
+GitHub Actions CI (`ci.yml`) runs the gate in tiers. The gate jobs run sections of
+`scripts/gate_release.sh`, and the engineering jobs run the selections of its `engineering`,
+`development` and `python-lint` sections; cheap checks come first and the record-currency job last.
+CI executes no scientific assertion and no calibration measurement:
 
 0. **`static`** — source reading only, no build and no test: DCO, rustfmt, lint allows, test
    targets, crate ownership, the test registry and lane filters, parity inventories, provenance,
@@ -66,7 +67,9 @@ Running `scripts/gate_release.sh` without `--section` executes tiers 0 to 3 loca
 **Scientific tests and statistical calibration are earned on a development machine, never on
 GitHub.** CI only checks that the committed records are current. See [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records) for the
 model and every lane command. Criterion benchmark smokes check
-execution, not timing regressions. `cargo deny` runs inside `gate_release.sh` only when `cargo-deny`
+execution, not timing regressions; a pull request labelled `perf` also runs `bench-regression`,
+which benchmarks six hot paths at the base and the head commit in one job and compares them
+(`scripts/bench_regression.py`). `cargo deny` runs inside `gate_release.sh` only when `cargo-deny`
 is on PATH, which it is not in CI's `benches` job (the `deny` job owns it there).
 
 ## Gates (local)
@@ -327,12 +330,12 @@ explicit review of every reference, seed stream and cumulative risk allocation.
 
 A method revision informed by earlier results needs a new independent validation
 domain and an unused cumulative hypothesis slot before new outcomes are observed.
-`parity/calibration_decision_allocations.json` retains the original risk budget and
-spent HC1 slot while reserving a separate HC3 construction under
-`release_2_4_1_weighted_hc3_validation_v1`. The new family manifest binds this receipt's
-hash. HC3 was selected after the older results; it was not present in the initial
-source roster. Its independent validation consumes another slot within the original
-256-cell allowance. Changing the domain never supplies another family alpha or
+`parity/calibration_decision_allocations.json` records the risk budget and every spent
+or reserved slot; for example, it keeps the spent HC1 slot and reserves the HC3
+construction, chosen after the HC1 results were seen, under its own domain
+`release_2_4_1_weighted_hc3_validation_v1`. The family manifest binds that file's
+hash, and the HC3 validation consumes another slot within the same 256-cell
+allowance. Changing the domain never supplies another family alpha or
 recycles an earlier slot. Unknown slot reuse and changed constructions fail closed.
 
 This controls false rejections of coverage compatibility for that frozen validation
@@ -385,9 +388,9 @@ collector. The next `--dry-run` projects the 400-replicate pass and expected
 Only the test runner's simulation time scales with replicate count; Cargo and
 gate startup are charged once per job. The projection is approximate: convergence
 does not scale perfectly with replicates, and a changed coverage rate changes the recheck
-count. Without a pilot at HEAD, `--dry-run` gives no duration estimate. An old
-forecast that summed wall times of suites competing on the same CPU substantially
-overstated the full-pass time. The measurement runs the longest previously measured grid
+count. Without a pilot at HEAD, `--dry-run` gives no duration estimate. The wall-clock
+projection is the larger of the total work spread over the cores and the longest single
+task; it never sums the wall times of jobs that shared CPUs. The measurement runs the longest previously measured grid
 jobs first (falling back to pilot timings) to reduce the final straggler. A change
 costs only the groups behind the records it owes.
 
@@ -439,6 +442,8 @@ covers its measurement and the row's manifest still matches the tree.
 Commit the attestation file with the change it attests; re-measuring a record
 drops its rows.
 
+### Capability inventory status
+
 Mark a `parity/*.toml` capability `done` only with conformance under `conformance/`
 **or** a named harness in the gate script, plus a recorded reference-generation
 command when black-box comparison applies.
@@ -448,9 +453,9 @@ Statuses: `pending` | `done`.
 ## Release candidates
 
 The independent [practitioner acceptance suite](practitioner-acceptance.md)
-is an additional cut requirement for each release. Run its Python and Rust jobs and both scale
-sizes against the candidate, and close its leftover ledger. It remains outside
-`gate_release.sh`; passing the commands below alone does not discharge S.
+is an additional requirement for each release. Run its Python and Rust jobs at both scale
+sizes against the candidate, and close every entry in its leftover ledger. It stays outside
+`gate_release.sh`, so passing the commands below does not replace it.
 
 `gate_release.sh` is the pull-request gate; a release is cut with
 `scripts/gate_release_candidate.sh` (which `scripts/tag_release.sh` runs before
@@ -591,7 +596,7 @@ on the default path.”
 Always on: `faer`, portable kernels, `ExecutionContext` parallelism (`rayon`
 rejected).
 
-Present today (examples): `antecedent-data/arrow`, `antecedent-model/gaussian-process`,
+Optional features include `antecedent-data/arrow`, `antecedent-model/gaussian-process`,
 `antecedent-learn/ml-gbdt`, `ml-forest`, `ml-neural`. A feature that gates no code is not
 declared (the HMC backend is always compiled), and there is no `simd-runtime`
 feature, so `KernelPolicy::allow_arch_simd` always selects the portable kernels.
@@ -633,11 +638,12 @@ bash scripts/set_version.sh X.Y.Z
 ```
 
 `set_version.sh` also updates path-dependency pins under `crates/*/Cargo.toml`,
-the Python fallback `__version__`, and the local package entry in
-`python/uv.lock`, and freezes the previous cut's supported-cell block in
-`docs/release-notes/` so a later matrix regen cannot overwrite it. Refresh
-`Cargo.lock` with `cargo update -p antecedent` (or a workspace check) before
-committing. The generator rewrites live supported-cell markers only in
+the Python fallback `__version__`, the local package entry in `python/uv.lock`,
+`CITATION.cff` and the generated release snippets (the supported-versions table in
+`SECURITY.md`, install pins), refreshes `Cargo.lock` offline, and freezes the previous
+cut's supported-cell block in `docs/release-notes/` so a later matrix regen cannot
+overwrite it. `bash scripts/set_version.sh --check X.Y.Z` writes nothing and fails when
+the tree is not at that version. The generator rewrites live supported-cell markers only in
 `docs/release-notes/vX.Y.Z.md` for the current workspace version.
 
 ## Releases
@@ -658,15 +664,14 @@ Before merging the release PR:
    examples, formulas, assumptions, refusal reasons, artifact formats, and
    Python/Rust agreement. Remove temporary cut notes and provisional wording.
 2. Run the relevant tests, formatters, linters, and documentation checks locally.
-   Open a PR and require the CI jobs on the committed HEAD, including the
+   Open a PR and require the CI jobs on the committed HEAD, including
    every job in `parity/release.toml` `required_jobs` (`static`, `scientific`,
    `python-lint`, `python-wheels` and the rest). The pull-request gate runs in CI; a local full run
    is optional.
 3. For an actual release cut, run
-   `CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh`. It prints the
-   coverage records that are not current for HEAD (`calibration_status.py`);
-   measure or probe them before the cut so the release labels them `calibrated`.
-   They do not fail the gate.
+   `CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh`. Like CI, it fails while
+   any scientific or calibration record is owed and re-runs neither lane; earn owed
+   records on a development machine (`bash scripts/test.sh`) and commit them first.
 4. Run `cargo deny check` with a freshly fetched advisory database. A cached
    offline audit is useful evidence, but does not establish current advisory status.
 5. Run `bash scripts/publish_crates.sh --dry-run`. Inspect any fallback to
@@ -685,8 +690,7 @@ is optional: when it is present, `target_version` names the release notes
 absent, X.Y.Z is the workspace package version in `Cargo.toml` and the missing
 file is not an error. Those notes must be current, the supported-versions table
 in `SECURITY.md` and the version in `CITATION.cff` must name that version, and
-release-status text must match the cut. Coverage records that are not current
-for HEAD are listed by the candidate gate. Tag only the approved, clean commit after these checks pass.
+release-status text must match the cut. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 
 Tagged releases drive docs and artifact publishing (GitHub Release assets and
@@ -696,11 +700,9 @@ from that run before any publishing job starts; it does not rebuild the wheels.
 
 ```bash
 # Optional: bump and commit on main first (X.Y.Z is the version being cut)
-bash scripts/set_version.sh X.Y.Z
-cargo update -p antecedent
-git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
-  python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
-  CHANGELOG.md CITATION.cff docs/release-notes/
+bash scripts/set_version.sh X.Y.Z    # also refreshes Cargo.lock
+git add -u                           # every tracked file the bump and changelog changed
+git add docs/release-notes/          # the release notes for X.Y.Z
 git commit -s -m "chore: bump version to X.Y.Z"
 
 # Tag current (or just-bumped) version and push
@@ -713,8 +715,8 @@ reuses the 16 wheels built and fully tested by the green `main` CI run on the
 exact tag commit, then publishes to public PyPI and the GitHub Release as
 **independent jobs**. It builds the docs bundle from that run's Python 3.12
 Linux wheel. Trusted publishing (`id-token: write`) must not
-wait on GitHub asset uploads: a unicorn on `uploads.github.com` skipped PyPI
-for 1.10.0 while crates.io succeeded. Release assets are
+wait on GitHub asset uploads, so an outage of `uploads.github.com` cannot block
+PyPI. Release assets are
 uploaded one file at a time with retries. A manual retry may supply
 `reuse_run_id`, but that run must be a successful `main` push CI run on the
 exact tag commit and contain the complete wheel matrix.
@@ -749,18 +751,5 @@ publish the crates as part of the same tagged release as the wheels: every crate
 dry-run before PyPI is touched, and the upload runs after PyPI succeeded, in the
 `release` environment. Set repository secret `CRATES_IO_TOKEN`.
 
-Checklist before the first public crate release:
-
-1. `cargo test --workspace` green; run `bash scripts/gate_release.sh` locally before the cut.
-2. `bash scripts/publish_crates.sh --dry-run` succeeds.
-3. Root `CHANGELOG.md` has notes for the version.
-4. Tag `vX.Y.Z` (or dispatch the workflow) with `CRATES_IO_TOKEN` configured.
-5. Confirm `cargo add antecedent` resolves on crates.io / docs.rs.
-
-## Repo create checklist
-
-1. Create a GitHub repository and push this tree.
-2. Enable Actions.
-3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
-4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `vX.Y.Z` for the version being cut (or bump first) to cut wheels + PyPI (+ crates.io with token).
+After the tagged release publishes, confirm that `cargo add antecedent` resolves the
+new version on crates.io and that docs.rs built it.

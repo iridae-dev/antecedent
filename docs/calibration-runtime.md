@@ -2,21 +2,18 @@
 
 For calibration's role in the wider evidence system, read [How Antecedent checks its scientific methods](guides/scientific-verification.md#measure-uncertainty-as-a-complete-procedure). This page explains how measurements and their supporting artifacts are retained and reused.
 
-The full calibration run at `c30e10304f4bd85a01ad81dd133a360ddc95c2f1`
-spent 6 h 34 min in its parallel measurement phase, excluding the release build.
-Its 2,137 grid jobs consumed about 38.8 summed job-hours. There were 282
-precision rechecks, accounting for approximately 35% of measured simulation
-time. These are execution costs, not 2,137 independent statistical tests: jobs
-can emit multiple levels or share the same simulated outcomes.
+A full calibration run spends hours in its parallel measurement phase, and
+precision rechecks can take a large share of the simulation time. Grid jobs are
+units of execution cost, not independent statistical tests: a job can emit
+several levels or share the same simulated outcomes.
 
-The longest job was the largest practitioner linear-adjustment bootstrap grid
-point: 3 h 24 min at one simulation worker. It eventually passed. A scheduling
-bug discarded the historical longest-first ordering when the measured commit
-had no smoke pilot, so this job started more than three hours into the run.
-The runner now retains historical longest-first ordering without requiring a
-pilot at HEAD, and its tail policy can allocate additional workers to unusually
-long jobs within the global worker budget. Earlier smoke timings are scheduling
-estimates only; they never count as calibration evidence.
+A few long grid jobs, such as the largest practitioner linear-adjustment
+bootstrap grid points, set the wall time of a run. The runner therefore starts
+the longest jobs first, ordered by their most recent recorded wall times and
+falling back to smoke-pilot timings, so no pilot at HEAD is required, and its
+tail policy can allocate additional workers to unusually long jobs within the
+global worker budget. Pilot and earlier smoke timings are scheduling estimates
+only; they never count as calibration evidence.
 
 ## Preserve completed work
 
@@ -86,7 +83,7 @@ tree's. Calibration status never changes support or refuses a route, but CI fail
 ## Budget compilation, simulation and collection separately
 
 Batch source changes before a coalesced release prebuild. The embedded coverage
-snapshot is about 2.5 MB; changing it invalidates `antecedent-io-core` and
+snapshot is several megabytes; changing it invalidates `antecedent-io-core` and
 downstream compilation. That dependency explains invalidation, but does not by
 itself measure how much compilation time the snapshot causes. Compile time must
 be reported separately from numerical wall time. Use a necessary build's Cargo
@@ -101,13 +98,11 @@ alone does not prevent oversubscription.
 
 When two same-version checkouts share a Cargo target directory, a successful
 `--no-run` alone does not prove that the executable matches the second checkout.
-An observed switch between two checkouts reused the first checkout's binary in 0.14 seconds even though the
-ranking test source differed: the second checkout's older file timestamps made
-Cargo call every local artifact fresh. This was caught before any simulation.
-The rejected binary and source receipts were retained; only source-file timestamps
-were invalidated, leaving source bytes and Git identities unchanged.
+If the second checkout's source files carry older timestamps, Cargo can call every
+local artifact fresh and reuse the first checkout's binary even though a test
+source differs.
 
-The calibration prebuild now serializes cooperating builds and fingerprints Cargo
+The calibration prebuild serializes cooperating builds and fingerprints Cargo
 metadata plus crate sources and assets. It advances timestamps only for changed
 inputs before invoking Cargo, so older copied timestamps cannot hide different
 source bytes. A cache with no source receipt is invalidated once; an unchanged
@@ -128,20 +123,16 @@ archived measurement binaries and provenance receipts. Do not run `cargo clean`
 against an active measurement target. Once an isolated checkout has finished its
 measurements and probe obligations, retire its compiler cache. Compare available
 disk space before and after cleanup: APFS clones and shared blocks can make the
-recovered space much smaller than the sum of directory sizes. For future
+recovered space much smaller than the sum of directory sizes. For
 one-shot debug builds, `CARGO_INCREMENTAL=0` avoids accumulating incremental
 state at the cost of slower subsequent compilation; set it before building,
 rather than changing the configuration of a running build.
 
-Collection can also become the bottleneck: repeated dependency-graph scans for
-individual completed groups delayed reporting and harvesting in an earlier
-targeted run. The frozen targeted controller therefore dispatches numerical work
-independently from a single asynchronous collector, publishing batches of whole
-passing groups approximately every minute or three completed groups. Raw logs
-are durable immediately. This batching policy belongs to that targeted
-controller; the ordinary wrapper still collects after its numerical run.
+Collection can also become the bottleneck when dependency-graph scans repeat for
+each completed group. The wrapper collects once, after its numerical run; raw
+logs are durable as soon as each job writes them.
 
-The runtime changes preserve nominal coverage targets, reporting floors,
+Scheduling and reuse preserve nominal coverage targets, reporting floors,
 usefulness limits and minimum scored replicate requirements. The separately
 versioned suite-wide coverage decision protocol controls Monte Carlo false
 rejections over a source-fixed family and registered looks. It neither turns a

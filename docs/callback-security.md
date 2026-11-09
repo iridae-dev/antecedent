@@ -32,7 +32,7 @@ not sandbox it. Supplying a provider is the caller's act of trust.
   implementation of `ProviderCallback` to `CallbackSession::execute` or
   `resume`; the library then checks its identity equals the declared object and
   refuses otherwise. The artifact cannot supply, select or trigger a provider.
-* Python is not involved in this phase: no callable is deserialized, and
+* Python is not involved in decoding: no callable is deserialized, and
   `callback_result_v1` has no field that could carry one.
 * Test encoding: `crates/antecedent-io-core/tests/callback_result_artifact.rs`
   (`resealed_semantic_edits_are_refused_by_recomputed_identities`,
@@ -45,16 +45,17 @@ not sandbox it. Supplying a provider is the caller's act of trust.
   unavailable stage, and that a differently versioned provider is refused with
   zero invocations).
 
-## Deserialization entry points added
+## Deserialization entry points
 
 Every entry point is length-bounded before use and schema-checked after
-decoding. There is no new JSON, no new text parser and no new foreign format.
+decoding. They read only the checksummed container and CBOR: no JSON, text
+parser or foreign format is involved.
 
 | Entry point | What it reads | Bounds applied before the payload is interpreted | Checks after decode |
 | --- | --- | --- | --- |
 | `CallbackResultArtifact::from_bytes`, `::inspect`, `::from_meta` (facade: `consume_callback_result`, `inspect_callback_result`, `CallbackSession::resume`) | `callback_result_v1` container: section `callback_result_meta` (CBOR) and `callback_result_values` (bytes) | Total bytes at most 24 MiB (`MAX_CALLBACK_RESULT_ARTIFACT_BYTES`); the container checks the declared uncompressed sections against it; exactly two sections with fixed ids; `values` length a multiple of 8 and at most 1,000,001 words (8 MB) | Version and feature marker; no required features; unknown fields refused by `deny_unknown_fields`; every collection bound below; declaration validated (`CallbackDeclaration::validate`); stored contract equals the declaration's own projection; query validated; output re-validated by `validate_output` against the declared support; declaration, request, output and artifact identities recomputed; a stored `native_supported` trust refused |
-| `contract_from_wire` (existing, reused for the embedded interface contract) | `ContractWire` inside the meta map | At most 256 produced and 256 consumed ports; at most 1024 items per port set; at most 8 operations; sorted and distinct names | Quantity, support and uncertainty vocabularies; identity recomputed |
-| `ScientificQuantityWire` → `ScientificQuantity` (existing, reused for the update observation) | One quantity | Quantity validation | Role vocabulary; non-blank coordinates; canonical conditioning |
+| `contract_from_wire` (shared with interface contracts; reads the embedded interface contract) | `ContractWire` inside the meta map | At most 256 produced and 256 consumed ports; at most 1024 items per port set; at most 8 operations; sorted and distinct names | Quantity, support and uncertainty vocabularies; identity recomputed |
+| `ScientificQuantityWire` → `ScientificQuantity` (shared; reads the update observation) | One quantity | Quantity validation | Role vocabulary; non-blank coordinates; canonical conditioning |
 
 Collection bounds enforced on the decoded declaration and request (constants in
 `antecedent_contract::callback_protocol`, `antecedent_io_core::callback_result_artifact`):
@@ -138,7 +139,7 @@ item: trailing bytes are refused.
 * **Cancellation** is a `CallbackToken` handed to the callable, which may poll
   it; Rust observes it after the call. A hung callable is not interrupted: run
   it in a process you can terminate.
-* **Deserialization added:** `callback_result_consume` and
+* **Deserialization:** `callback_result_consume` and
   `callback_result_inspect` call the same `CallbackResultArtifact` entry points
-  listed above; no new binary or text format is read. Python reads the returned
+  listed above; no other binary or text format is read. Python reads the returned
   JSON with `json.loads` only.

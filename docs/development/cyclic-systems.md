@@ -1,11 +1,10 @@
-# General cyclic systems for 3.0
+# General cyclic systems
 
 This page records the mathematical scope of the general cyclic-system families.
 For a practitioner walk-through start with the [cyclic systems guide](../guides/cyclic-systems.md).
-Calibration and attestation are separate topics: every family is complete under
-the standalone implementation gate, with the scopes below, and its statistical
-outputs remain calibration-not_measured. The tracked roadmap and release-scope
-registry record the commitment.
+Calibration is a separate topic: the standalone implementation gate below checks
+every family within the scopes stated here, and each statistical output carries
+its own calibration status.
 
 ## Executing workflows
 
@@ -176,7 +175,7 @@ the derived coordinates and diagnostics.
 Use `evidence.decide_means(contract)` with the existing affine expected-utility
 contract, `evidence.joint_law()` with existing aligned-distribution composition,
 or `evidence.decide_enclosures(contract)` for conservative set decisions. These
-paths preserve model-conditional scope and not_measured calibration status.
+paths preserve the model-conditional scope and the calibration status of their inputs.
 Bootstrap samples, numerical roots, unresolved/undefined mass and a joint
 selection law have distinct meanings. Roots acquire no implicit weights;
 unresolved boxes remain in robust utility bounds; impossible posterior evidence
@@ -218,8 +217,11 @@ retained `expected-identity.json` and a manifest:
 | `recovered-asymptotic-normal`, `recovered-bootstrap` | linear laws recovered from seeded simulated clamp experiments, with their draw origins |
 | `recovered-unresolved-direction` | a clamp design that never clamps B: the row into A stays unresolved in every draw and its mass is withheld |
 | `dynamic-inference-ou` | a stationary OU fit with a seeded bootstrap sampling law of its stationary mean |
-| `ou-trajectory-fit` | a continuous-time OU fit from irregular, partially observed trajectories under known intervention schedules, with fitting, identification and numerical evidence kept apart and delta-method predictions of held-out interventions |
 | `previous-record-format` | the version-one record, which keeps replaying and carries no contract |
+
+The continuous-time OU fit from irregular, partially observed trajectories is checked
+separately, against an independent exact-discretization reference
+(`conformance/gcm/ou_trajectory_likelihood/`, `python/tests/test_ou_trajectory.py`).
 
 `cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_` writes
 them deterministically from a fixed xorshift stream and request seeds; the same
@@ -252,10 +254,10 @@ the next attempt. Python passes the declaration through.
 
 ## Implementation acceptance
 
-The integrated acceptance run passed 263 Rust component tests, 33 installed-wheel
-Python workflow tests and a fresh-process CPU replay of the retained first
-integration milestone. The API, provenance, Python surface and targeted Clippy
-checks also passed.
+Implementation acceptance consists of the registered Rust component tests, the
+installed-wheel Python workflow tests and a fresh-process CPU replay of the
+retained integration fixture (`parity/cyclic/general-equilibrium/`), alongside the
+API, provenance and Python surface checks.
 
 The acceptance inventory covers the ten cyclic-system families independently.
 Checked functional consumers evaluate finite observational laws and continuous
@@ -317,7 +319,7 @@ draw is silently discarded or renormalized.
 
 Metrics, stopping diagnostics, failed approaches and portable continuation
 protocols live in `parity/cyclic/paper-experiments/`. Each selected fit was refitted
-and replayed in a fresh CPU process. The retained first-milestone fixture separately
+and replayed in a fresh CPU process. The retained integration fixture separately
 covers nonlinear fitting, joint interventions and shared-noise counterfactuals.
 Calibration and attestation are outside this implementation gate.
 
@@ -335,5 +337,5 @@ in `provenance/cyclic.general_systems.toml`.
 - Rohbeck et al., PMLR 236 (2024): stochastic stationary-dynamics research lane.
 - Mooij, PMLR 337 / arXiv:2608.19831v1 (2026), Definitions 3/5/13/33 and Lemma 42.
 
-Statistical outputs remain explicitly calibration-not_measured. This standing is
-separate from the engineering and scientific-correctness acceptance above.
+Each statistical output carries its calibration status. Calibration is separate
+from the engineering and scientific-correctness acceptance above.
