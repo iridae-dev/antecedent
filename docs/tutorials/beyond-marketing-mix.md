@@ -22,13 +22,13 @@ Compare constant spending programs over the next 24 weeks. The outcome is the **
 
 Geographic variation here means different fitted market intercepts. The example does not estimate a separate channel coefficient for every market. The demand indicator is observed; no hidden confounder is simulated. Even with that convenient setup, this panel declaration supplies no accepted identification proof for a complete spending program.
 
-Run the maintained example from a checkout with the 3.0 Python extension installed:
+Run the maintained example from a checkout with the Python extension installed:
 
 ```bash
 python examples/python/beyond_marketing_mix.py
 ```
 
-It generates its own observations, needs no additional dependencies or credentials, and runs offline. It prints the compiled question, fitted diagnostics and final decision and study ranking. Sampling and artifact verification make this a longer example than the introductory joint-intervention tutorial; the catalog gives the measured local runtime and a planning allowance (about 20 seconds locally; allow up to one minute).
+It generates its own observations, needs no additional dependencies or credentials, and runs offline. It prints the compiled question, fitted diagnostics and final decision and study ranking. Sampling, export and replay make this a longer example than the introductory joint-intervention tutorial; the catalog gives the measured local runtime and a planning allowance (about 20 seconds locally; allow up to one minute).
 
 ## 1. Fit a marketing response
 
@@ -186,7 +186,7 @@ An interaction study or a study in other markets would need its own supported es
 
 The example exports the fitted panel and experimental update, checks the update against its current ledger, then withdraws the experimental source. Current use of the dependent decision refuses. The original panel artifact still replays its stored numerical result with `grants_current_authority=False`.
 
-That is the scope of the Python demonstration. It verifies the exported update while evidence is current and historically replays the original panel fit. It does not claim standalone historical replay of the exported panel update or an exported decision through a Python helper for a different design family. The [replay tutorial](replay-and-current-decisions.md) demonstrates a separate mixed-evidence workflow with a decision artifact.
+That is the scope of the Python demonstration. It checks the exported update against the current ledger (`verify_current`) and replays the original panel fit historically. It does not claim standalone historical replay of the exported panel update or an exported decision through a Python helper for a different design family. The [replay tutorial](replay-and-current-decisions.md) demonstrates a separate mixed-evidence workflow with a decision artifact.
 
 The final reuse receipt is `fits_performed == 1`. Program changes, experimental conditioning, utility changes and further-study ranking have built on the retained fit. Historical reproducibility and current permission to use evidence remain separate questions.
 
@@ -194,6 +194,6 @@ The final reuse receipt is `fits_performed == 1`. Program changes, experimental 
 
 ## What this established
 
-A marketing response model supported a spending proposal with carryover, saturation, interaction and geographic variation. Inspecting its identification requirements exposed what the observational fit did not establish. A mapped experimental summary changed the retained law, a stated business utility determined an action, and that same decision supplied the objective for ranking further evidence.
+A marketing response model supported a spending proposal with carryover, saturation, interaction and geographic variation. Inspecting its identification requirements exposed what the observational fit did not establish. A mapped experimental summary changed the retained law, a stated business utility determined an action, and that same decision supplied the objective for ranking further evidence. None of this identified the effect of a whole spending program: the selected allocation remains a model-conditional proposal until a design such as whole-program randomization supplies that evidence.
 
 The investigation continued from marketing mix analysis into causal evidence and scientific decisions while retaining the qualifications of each result. The next question is: *what evidence would most improve tomorrow's decision?*

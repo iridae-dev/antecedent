@@ -152,9 +152,9 @@ application = CallbackProgram(
 )
 ```
 
-The callback receives arrays for its declared inputs and returns one value per row. Antecedent validates the dependencies and output before the values enter the causal execution. The example checks numerical equality with the expression, refuses an undeclared inventory read, and refuses an output with the wrong length.
+The callback receives arrays for its declared inputs and returns one value per row. Antecedent validates the dependencies and output before the values enter the causal execution. The example checks numerical equality with the expression, refuses a read of a variable the model does not have (`policy_dependency_unavailable`), and refuses an output with the wrong length (`policy_callback_output_invalid`).
 
-An ordinary Python function is a runtime binding. Exporting it refuses with `policy_callback_not_portable`. For verified recovery, declare a self-contained function with `InterventionCallback.from_source`. Its record fixes the source digest, entry point, inputs and dependency versions. The consumer supplies source text; `recover_callback` checks it against the record before the restored policy runs. Edited source refuses with `policy_callback_unrecoverable`.
+An ordinary Python function is a runtime binding. Exporting it refuses with `policy_callback_not_portable`. For recovery from source, declare a self-contained function with `InterventionCallback.from_source`. Its record fixes the source digest, entry point, inputs and dependency versions. The consumer supplies source text; `recover_callback` checks it against the record before the restored policy runs. Edited source refuses with `policy_callback_unrecoverable`.
 
 This callback demonstration uses the single-period conditional rule. The history-dependent rollout above uses closed-form expressions throughout. The example does not assume a temporal callback interface where this public route provides none. For output declarations, source restrictions and dependency pins, see the [batch callback guide](../guides/intervention-programs.md#batch-callbacks).
 
@@ -193,6 +193,6 @@ The temporal comparison additionally depends on the declared stock-flow equation
 python examples/python/programmable_policies.py
 ```
 
-The script is self-contained, runs offline, and needs no dependencies beyond Antecedent and NumPy. All reported numerical results above come from its synthetic fixture. The complete program also exercises missing history, circular dependencies, callback output validation, identity mismatch and verified recovery.
+The script is self-contained, runs offline, and needs no dependencies beyond Antecedent and NumPy. All reported numerical results above come from its synthetic fixture. The complete program also exercises missing history, circular dependencies, callback output validation, identity mismatch and callback recovery from source.
 
 <!-- example: examples/python/programmable_policies.py -->

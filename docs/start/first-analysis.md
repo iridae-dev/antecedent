@@ -165,6 +165,7 @@ This is an excerpt; read the [complete source](https://github.com/iridae-dev/ant
 ## Next steps
 
 - [Reading a result](reading-a-result.md) explains each field of the claim.
+- [Cite the methods behind a study](../guides/citing-a-study.md) when you write it up.
 - [Choose an example](../examples.md) for weighting, discovery or temporal effects.
 - [Inspect before estimating](../python-options.md#prepare-explicitly-when-useful) and [configure populations, likelihoods and overlap](../python-options.md).
 - [Browse the Python API](../python-api.md), or begin a [tutorial](../tutorials/observational-study.md).

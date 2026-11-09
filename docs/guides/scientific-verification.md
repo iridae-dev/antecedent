@@ -95,9 +95,9 @@ An estimand is the quantity a scientific question asks for: an average effect in
 
 | Evidence | The question it answers | Where to inspect it |
 | --- | --- | --- |
-| Method provenance | Which method is implemented, under which assumptions and deviations? | [Algorithm provenance](https://github.com/iridae-dev/antecedent/blob/main/provenance/README.md) |
+| Method provenance | Which method is implemented, under which assumptions and deviations? | [Algorithm provenance](https://github.com/iridae-dev/antecedent/blob/main/provenance/README.md), and `result.method_provenance` on each result |
 | Independent numerical checks | Does a named calculation agree with a reference derived separately? | [Evidence and oracle rules](https://github.com/iridae-dev/antecedent/blob/main/parity/README.md) |
-| Supported | Which combination of question, structure, inference and estimator has provenance and independent scientific checks, so it runs? | [Support matrix](../support-matrix.md) |
+| Supported | Which combination of question, structure, inference and estimator has provenance and a currently passing independent scientific check, so it runs? | [Support matrix](../support-matrix.md) |
 | Calibration status (annotation) | How did the uncertainty procedure behave across repeated simulated datasets in a measured setting? | [Coverage records](../development.md#coverage-records) |
 
 These checks have different scopes. Agreement on a coefficient does not establish an entire workflow's interval coverage. A supported average effect does not automatically support a derivative or a decision built from it. The evidence needs to follow the operation that produces the claim.
@@ -197,8 +197,8 @@ Antecedent retains measurement records with their settings and source revision. 
 
 A result reports identification, support, uncertainty, assumptions and calibration separately. [Results are claims](../concepts/results-are-claims.md) explains those fields, and [reading a result](../start/reading-a-result.md) shows how to inspect them.
 
-The result carries the pieces of the model above: whether its route is supported (and, in a development build, `would_refuse`), its identification, and the calibration status of each interval.
+The result carries the pieces of the model above: whether its route is supported (and, in a development build, `would_refuse`), its identification, the calibration status of each interval, and the provenance records behind its route (`result.method_provenance`; see [citing a study](citing-a-study.md)).
 
-Export and replay checks preserve specified identities, calculations and interpretation for supported consumers. Artifact acceptance establishes the checks reported by that consumer. Scientific assumptions about the real system remain the researcher's responsibility.
+Loading an exported result checks that the artifact is intact and recomputes nothing. Opt-in replay recomputes the published numbers and reports any part that is not intact, not replayable or a mismatch. Neither checks the scientific assumptions about the real system; those remain the researcher's responsibility.
 
 To assess a capability, follow the target through its method record, the independent calculation, the executing assertion and the applicable measurement. Each link should state what it establishes and leave its limits visible to the next person or program using the answer.

@@ -34,11 +34,11 @@ Group, season and covariate terms are the same in both programs and cancel. This
 Each world pairs a name with a full schedule: a level for every channel in every week, and the history and future context of each group. Preparation compiles the question without fitting anything.
 
 ```python
-prepared = prepare(rows, draws=100)
+prepared = prepare(rows, draws=100, fitted=True)
 assert prepared.inspect()["fits_performed"] == 0
 ```
 
-In the example, `prepare` passes the two interaction channels, the two worlds the question compares (the baseline and the joint program) and the contrast as `functional={"terms": [(1, 1.0), (0, -1.0)], "reference": 0}`: world 1 minus world 0. A contrast names exactly the worlds it compares; Antecedent refuses a contrast whose formula leaves a declared world out. The design checks below declare all four programs (the baseline, A alone, B alone and the joint program), because the whole-program design has one arm per program.
+With `fitted=True`, the example's `prepare` passes the two interaction channels, the two worlds the question compares (the baseline and the joint program) and the contrast as `functional={"terms": [(1, 1.0), (0, -1.0)], "reference": 0}`: world 1 minus world 0. A contrast names exactly the worlds it compares; Antecedent refuses a contrast whose formula leaves a declared world out. The design checks below declare all four programs (the baseline, A alone, B alone and the joint program), because the whole-program design has one arm per program.
 
 ## Run: one fit, one shared uncertainty
 
@@ -108,7 +108,7 @@ assert randomized["identified"] is True
 
 With the whole-program assignment declared, the programs are identified, provided `exogenous_context=True` declares the covariate and season paths exogenous to the programs (in this fixture they are generated independently of the whole-program assignment). Leave that declaration out and the attempt is rejected again. This inspection fits nothing: identification comes from the design and the declarations, not from the fit.
 
-What identification does not do is fix the fit's uncertainty. With one group per program there is no replication, so the example does not fit that dataset, and numerical results from any fit stay model-conditional with calibration not_measured.
+What identification does not do is fix the fit's uncertainty. With one group per program there is no replication, so the example does not fit that dataset, and numerical results from any fit stay model-conditional; read their calibration status rather than assuming coverage.
 
 ## Continue with the result
 
@@ -134,7 +134,7 @@ The script reads the fixture from a repository checkout. Run it from the reposit
 
 ## What this established, and what comes next
 
-Under the declared mechanism and one shared fit, the joint program's 24-week effect over the baseline was estimated with uncertainty that carries the dependence between the programs' estimated responses, and the example checks the known 4 against it. That estimate is conditional on the fitted mechanism. Weekly randomization did not identify the whole program, and whole-program randomization with a declared exogenous context would.
+Under the declared mechanism and one shared fit, the joint program's 24-week effect over the baseline was estimated with uncertainty that carries the dependence between the programs' estimated responses, and the example checks the known 4 against it. That estimate is conditional on the fitted mechanism, and its interval is nominal, not demonstrated coverage. Weekly randomization did not identify the whole program, and whole-program randomization with a declared exogenous context would.
 
 The next question is which data would earn the identified status for the program you care about: assigning whole programs, with replication, rather than assigning each week. That decision and its cost belong in the study design before the fit.
 

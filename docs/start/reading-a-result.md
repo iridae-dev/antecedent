@@ -2,7 +2,7 @@
 
 A result is a claim: an answer together with what it was asked, what it assumed, what evidence supported it and where it stops. This page shows where each part lives on the `Outcome` that `ant.estimate` and `ant.analyze` return. The examples continue [your first analysis](first-analysis.md), whose data are simulated with a known effect of 2.
 
-Read in this order: the kind of answer, identification, uncertainty, calibration status, support status, diagnostics, then the limits. The condition under which each is true is a property of that part, not of the whole result.
+Read in this order: the kind of answer, identification, uncertainty, calibration status, support status, diagnostics, the methods behind the route, then the limits. The condition under which each is true is a property of that part, not of the whole result.
 
 ## The answer
 
@@ -12,12 +12,16 @@ Start with `result.answer.kind` before extracting a number.
 |---|---|---|
 | `point` | One scalar estimate | `answer.value` |
 | `bounds` | A range of effects allowed by the identified structures | `answer.bounds` |
-| `partial` | An answer limited by incomplete identification | `answer.detail`, any `answer.bounds`, and `result.envelope` |
-| `response` | A curve, surface or derivative | `result.response` / `result.estimate` |
-| `structured` | Several related results, such as temporal mediation | The query's fields, such as `result.mediation_grid` |
+| `partial` | An answer limited by incomplete identification | `answer.detail`, any `answer.bounds`, and `result.value.envelope` |
+| `response` | A curve, surface or derivative | `result.response` / `result.value.estimate` |
+| `structured` | Several related results, such as temporal mediation | The query's fields, such as `result.value.mediation_grid` |
+| `policy_value` | The value of a policy or intervention program | `answer.value` or `answer.structured` |
+| `distribution` | A distribution over outcomes rather than one number | `result.distribution` |
+| `associational` | A labelled description of the observed data, never a causal effect | `result.value.association` |
 | `unavailable` | No usable claim | `answer.detail` |
+| `refused` | A typed refusal | `result.refusal` |
 
-`result` is an `Outcome`. The specialized result a query produces is `result.value`, and its family-specific fields are read there. `answer`, `inspect()`, `uncertainty`, `support`, `assumptions`, `diagnostics`, `provenance`, `identities`, `export()` and `study` are read on the outcome itself. Bounds describe what the assumptions determine; they are not a confidence interval. A `partial` answer does not supply an unrestricted scalar or curve.
+`result` is an `Outcome`. The specialized result a query produces is `result.value`, and its family-specific fields are read there. `answer`, `inspect()`, `uncertainty`, `support`, `assumptions`, `diagnostics`, `provenance`, `method_provenance`, `citations()`, `identities`, `export()` and `study` are read on the outcome itself. Bounds describe what the assumptions determine; they are not a confidence interval. A `partial` answer does not supply an unrestricted scalar or curve.
 
 ## Identification
 
@@ -59,19 +63,23 @@ for binding in result.value.interval_bindings:
 | `measured_below_nominal` | The governing record is a boundary record: it measured coverage below nominal at this sample size (`observed_coverage` carries it) |
 | `not_measured` | No coverage record measured this construction, level or identification, or no interval was reported; read the reason code |
 
-An implemented interval, an identified effect or a passing diagnostic does not establish calibration. Calibration is recorded per method and scope, so when the status is not `calibrated`, read the reason code. [Assurance](../concepts/assurance.md) describes what a coverage record holds.
+An implemented interval, an identified effect or a passing diagnostic does not establish calibration. Calibration is recorded per method and scope, so when the status is not `calibrated`, read the reason code in `calibration.reason`. [Assurance](../concepts/assurance.md) describes what a coverage record holds.
 
 ## Support status
 
-`result.support` records the empirical support for the answer, for example overlap or sample size for the target population. A route is supported when a named combination of question, structure, evidence, inference and estimator has provenance and independent scientific checks. A route that is not supported refuses in release builds; a development build runs it and reports `would_refuse` beside the result. The calibration status of an interval (`calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`) is an annotation, not a condition for running. Successful execution does not upgrade the scientific claim. Look a combination up in [support lookup](../support-lookup.md).
+`result.support` records the empirical support for the answer, for example overlap or sample size for the target population. A route is supported when a named combination of question, structure, evidence, inference and estimator has provenance and an independent scientific check that currently passes. A route that is not supported refuses in release builds with `not_supported` and names the missing evidence; a development build runs it and reports `would_refuse` beside the result. The calibration status of an interval (`calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`) is an annotation, not a condition for running. Successful execution does not upgrade the scientific claim. Look a combination up in [support lookup](../support-lookup.md).
 
 ## Diagnostics
 
 `result.diagnostics` assesses the data and the estimator's fit: balance, overlap, residual checks and similar. Diagnostics can show a problem. A passing diagnostic does not prove the causal model.
 
+## Methods and citations
+
+`result.method_provenance` names the provenance records behind the route the result executed: the identification strategy and the estimator the plan resolved. Each record lists its published sources, the documented deviations from the published method, what its method review did not cover, and its record id and digest. `result.citations()` lists those sources once each, with the caveats of the records that cite them. A refusal executed no route, so its provenance is empty. Provenance is descriptive: it changes no number, support status or calibration annotation. `result.provenance` is a different thing, the execution's own provenance graph. To cite the methods of a whole study, see [citing a study](../guides/citing-a-study.md).
+
 ## Limits
 
-A result also records what it does not establish. Read the assumptions that remain active, the intervals that are not calibrated, and any `partial` or `bounds` answer. An exported result preserves its contract; the loaded `acceptance` states which identity or replay checks were accepted, not whether the causal assumptions are true. See [results are claims](../concepts/results-are-claims.md).
+A result also records what it does not establish. Read the assumptions that remain active, the intervals that are not calibrated, and any `partial` or `bounds` answer. An exported result preserves its contract. On load, `acceptance` reports whether the artifact is intact and, when replay was requested, what was recomputed and whether it agrees; it does not say whether the causal assumptions are true. See [results are claims](../concepts/results-are-claims.md).
 
 ## Refusals and raised errors
 

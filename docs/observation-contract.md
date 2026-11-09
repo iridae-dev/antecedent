@@ -8,15 +8,15 @@ imply independence.
 
 | ObservationSpec | ObservationAssumption | Estimation | Consuming fixture |
 |---|---|---|---|
-| Complete | None | Complete-data response | Existing response conformance |
+| Complete | None | Complete-data response | Complete-data response conformance |
 | Selected | OutcomeIndependentGiven(Z), including treatment and every causal adjustment variable | Cross-fitted logistic observation propensity and linear outcome AIPW | `conformance/response/observation_pairs/selected.json` |
 | RightCensored | IndependentGiven([]) | Marginal Kaplan–Meier IPCW | `conformance/response/observation_pairs/right_km.json` |
 | LeftCensored | IndependentGiven([]) | Marginal KM IPCW after sign reversal | `conformance/response/observation_pairs/left_km.json` |
 | RightCensored | IndependentGiven(Z), nonempty and including treatment and every causal adjustment variable | Cox IPCW | `conformance/response/conditional_ipcw/response_truth.json`, right test |
 | LeftCensored | IndependentGiven(Z), same requirement | Cox IPCW after sign reversal | Same conditional fixture, left test |
 
-The historical `OutcomeIndependentGiven([])` marginal censoring alias remains
-accepted. Selected IPW remains an explicit lower-level correction option; AIPW
+For censored outcomes, `OutcomeIndependentGiven([])` is also accepted as the
+marginal censoring assumption. Selected IPW remains an explicit lower-level correction option; AIPW
 is the default supported response primitive. Unselected AIPW rows receive the
 outcome-regression prediction `m(X)`, not a Horvitz–Thompson zero. Its double
 robustness requires a correct observation-propensity or outcome nuisance model,
@@ -34,7 +34,7 @@ offset by the upweighted observed rows. Dropping them would be complete-case
 analysis. Left censoring reverses the
 recorded outcome and censoring time before this computation. Neither weights nor
 hazards are silently clipped: observed-row survival below the declared floor
-refuses. Existing floor diagnostics remain available. Singular or nonconvergent
+refuses. Floor diagnostics are reported. Singular or nonconvergent
 Cox fits refuse, with no marginal fallback.
 
 The oracle is executing R `survival` 3.8.6: `coxph(..., ties="breslow")` and
@@ -50,7 +50,7 @@ cargo test -p antecedent-stats cox_ipcw
 cargo test -p antecedent --test conditional_ipcw
 ```
 
-Marginal delayed entry retains its existing contract. Conditional delayed entry,
+Marginal delayed entry has its own contract. Conditional delayed entry,
 interval-censored/truncated response MLE, and joint observation/curve intervals
 remain unavailable. Observation-adjusted results omit uncertainty rather than
 reuse complete-data intervals. These cells do not extend to derivatives,
@@ -72,8 +72,8 @@ The same pairs ride Frequentist `TemporalDag` `ResponseCurve` /
 | RightCensored | IndependentGiven(Z), nonempty and including treatment and every causal adjustment process | Cox IPCW, Z lag-aligned at the policy treatment offset | same |
 | LeftCensored | IndependentGiven(Z), same requirement | Cox IPCW after sign reversal, same lag alignment | same |
 
-The historical empty `OutcomeIndependentGiven([])` marginal-censoring alias
-remains accepted. Containment uses contemporaneous process ids (unfolded
+For censored pairs, an empty `OutcomeIndependentGiven([])` is also accepted as
+the marginal censoring assumption. Containment uses contemporaneous process ids (unfolded
 adjustment nodes map back through the temporal indexer). Nonempty Z is never
 the contemporaneous column: the Cox/AIPW design uses Z at
 `TemporalResponseSpec::treatment_offset()` (typically −1).
@@ -85,21 +85,20 @@ Set/Shift responses, and the outcome mechanism's parents for Sequence overlays
 (for example the treatment at lags 1 and 2 when the outcome depends on both).
 The selection propensity keeps the declared Z at the policy offset. With the
 declared Z alone, a downstream regressor outside it (the treatment at a second
-lag, or at the horizon-2 lag of a curve) left the pseudo-outcome residual
-correlated with that regressor. The downstream fit then relied on the selection
-model alone and was first-order sensitive to its estimation error: it was not
-orthogonal in the estimated propensity, and the iid two-step Sequence band
-covered 0.983 of a nominal 0.95. With the design columns in the outcome model,
+lag, or at the horizon-2 lag of a curve) would leave the pseudo-outcome residual
+correlated with that regressor. The downstream fit would then rely on the
+selection model alone and be first-order sensitive to its estimation error: it
+would not be orthogonal in the estimated propensity. With the design columns in the outcome model,
 `E[Y* | design] = E[Y | design, R = 1]` whatever the fitted propensity. That
 equals the latent regression when selection is ignorable given the design
 columns. The declared independence carries over to the design columns unless an
-extra column is a collider on a path between selection and outcome. The previous
-declared-Z-only nuisance needed that condition as well, plus selection that does
+extra column is a collider on a path between selection and outcome. A
+declared-Z-only nuisance would need that condition as well, plus selection that does
 not depend on the extra columns. Rows whose extra regressors would fall before the
 series start keep the declared-Z outcome model.
 
-Until a pair is supported, `compile_logical_temporal_response` refuses
-non-`Complete` with `temporal response observation pair is not supported`.
+A temporal observation pair outside this table refuses with
+`temporal response observation pair is not supported`.
 Delayed entry, interval/truncation, cheap/full, and `TemporalCpdag` / `TemporalPag` observation rides stay refused. Bayesian temporal response uses the separate observed-data likelihood contract below.
 When bootstrap replicates are requested, observation-adjusted temporal curves,
 single Set/Shift responses, and Sequence overlays report outer circular-block

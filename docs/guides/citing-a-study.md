@@ -1,6 +1,6 @@
 # Cite the methods behind a study
 
-When you write up a study, cite the methods that produced each number and say where the implementation departs from the published method. Every Antecedent result carries that information. It names the provenance records behind the route it ran: one for the identification strategy, one for the estimator, and one for the capability on capability-specific routes. Each record gives the published sources, the documented deviations from the published method, what its review did not cover, and the record id and digest.
+When you write up a study, cite the methods that produced each number and say where the implementation departs from the published method. Every executed Antecedent result carries that information. It names the provenance records behind the route it ran: one for the identification strategy and one for the estimator. Capability-specific routes have their own records, read with `antecedent.citations.capability_provenance(capability_id)`. Each record gives the published sources, the documented deviations from the published method, what its review did not cover, and the record id and digest.
 
 This page shows how to read that information from a result, how to build one de-duplicated bibliography for a whole study, and what to put in your methods section.
 
@@ -66,7 +66,7 @@ Provenance is descriptive. It changes no number, support status or [calibration 
 
 ## Exported artifacts
 
-An exported `analysis_result` artifact with a contract carries the same provenance in its `analysis_result.method_provenance` section. The section is additive, so older readers ignore it. A consumer decodes it with `decode_method_provenance_section`, which checks that it names the identifier and estimator the contract declares. `load_analysis_result` and `replay_analysis_result` return it as `method_provenance`. The section records what the producer's table cited at export; it takes no part in acceptance.
+Build the bibliography from the results you executed. An exported `analysis_result` artifact with a contract also carries their provenance, in its `analysis_result.method_provenance` section, for Rust consumers. The section is additive, so older readers ignore it. In Rust, `replay_analysis_result` returns it as `method_provenance`, and `decode_method_provenance_section` decodes it from a decoded artifact; both check that it names the identifier and estimator the contract declares. The section records what the producer's table cited at export; it takes no part in acceptance or replay.
 
 ## Where the table comes from
 

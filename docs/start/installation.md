@@ -15,7 +15,7 @@ python -c "import sys, antecedent; print(sys.executable); print(antecedent.__ver
 
 The wheel matrix covers CPython 3.11–3.14 on Linux x86_64 and aarch64 (manylinux), macOS arm64, and Windows x86_64. Other platforms may require a source build. NumPy and Pydantic are installed as dependencies. The default numerical backend needs no system BLAS installation. The wheel includes the CPU-native neural nuisance learner; no separate extra is needed.
 
-To keep an environment on the 3.0 line, install `"antecedent>=3.0"`.
+To keep an environment on the 3.0 line, install `"antecedent>=3.0,<3.1"`.
 
 For notebooks, install `pandas matplotlib ipykernel jupyterlab` in that environment, run `python -m ipykernel install --user --name antecedent`, and select that kernel. After upgrading an imported native extension, restart the kernel. [Choose an example](../examples.md) for its additional dependencies.
 
@@ -28,7 +28,7 @@ cargo add antecedent
 cargo doc -p antecedent --open
 ```
 
-The facade's default feature set is empty. Enable `ml-gbdt`, `ml-forest`, `ml-full` (both tree backends), or `ml-neural` when the corresponding learner is needed. For example, `cargo add antecedent --features ml-forest`. Optional features enable backends; they do not grant new scientific claims. See the [capability inventory](../capabilities.md) for the learners each feature provides.
+The facade's default features add only Parquet and Arrow IPC table files (`file-source`). Enable `ml-gbdt`, `ml-forest`, `ml-full` (both tree backends), or `ml-neural` when the corresponding learner is needed; `ml-neural-wgpu` adds the opt-in WGPU backend for the neural learner. For example, `cargo add antecedent --features ml-forest`. Optional features enable backends; they do not grant new scientific claims. See the [capability inventory](../capabilities.md) for the learners each feature provides.
 
 The [published Rust reference](https://docs.rs/antecedent/) describes the published crate. `cargo doc` on a checkout is the reference for the source you are running.
 

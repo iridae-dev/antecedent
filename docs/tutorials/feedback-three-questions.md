@@ -174,6 +174,6 @@ cargo run -p antecedent --example feedback_three_questions
 
 ## What this established, and what comes next
 
-In the stated feedback model, the passive slope is about 0.776, clamping A from 0 to 1 changes the mean of B by 0.5, and a unit mean shock to `U_A` changes it by 0.625. The three differ because the interventions differ, not because of any estimation error: nothing was estimated. A clamp that leaves a loop with no equilibrium is retained as failed mass with a named next attempt.
+In the stated feedback model, the passive slope is about 0.776, clamping A from 0 to 1 changes the mean of B by 0.5, and a unit mean shock to `U_A` changes it by 0.625. The three differ because the interventions differ, not because of any estimation error: nothing was estimated. A clamp that leaves a loop with no equilibrium is retained as failed mass with a named next attempt. None of this says that the equations describe a real system: every number is a consequence of the declared model.
 
 The next question is where the equations come from. Experiments that clamp one variable at a time can identify each direction of a linear loop under a declared recipe, with fit uncertainty that is a statement about the fitted law and not about the world. The [cyclic systems guide](../guides/cyclic-systems.md) shows that route.
