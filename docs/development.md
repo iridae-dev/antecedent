@@ -350,7 +350,7 @@ complete passed entry in `parity/calibration_gates.toml`, irrespective of status
 The collector uses `--keep-existing`: it preserves every old record, its original SHA,
 and earlier gate evidence, and refuses collisions with existing record IDs.
 For incremental evidence-only batches, `--no-cells --defer-generated` also leaves
-supported support metadata and generated assets for the final combined harvest.
+support metadata and generated assets for the final combined harvest.
 Raw-log validation and whole-group completeness still apply.
 `--group` restricts the selected set by a quoted full-label glob; repeat it for multiple
 groups. A filter matching nothing fails before measurement. To remeasure a numerically changed construction already in the registry, select its

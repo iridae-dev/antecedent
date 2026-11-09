@@ -50,7 +50,7 @@ The Python surface is documented by task in these guides:
 - [Sensitivity and robustness](sensitivity-and-robustness.md): `mnar_sensitivity.mnar_ate_sensitivity`, `msm_sensitivity.msm_ate_sensitivity`, `sensitivity_decision`, `decision_robust` and `mechanism_discrepancy.diagnose_mechanism_discrepancy`.
 - [Transport and counterfactuals](transport-counterfactuals.md): the affine-additive transported path-specific effect, `MechanismSelection`, the scenario invariance report and the source-bound learned joint measured adapter.
 - [Prepared recalculation](recalculation-capabilities.md): checked family sessions, selective recalculation, bounded external mean callbacks, frozen scores and portable resume.
-- [Transported decisions and measurement](guides/transported-decisions-and-measurement.md) and [inverse queries and decisions](guides/inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources): `transported_response` (`TransportedResponse`, `TransportDeclaration`, `evaluate_transported`) and `inverse_sources` (`composed_forward_source`, `cohort_forward_source`, `transported_forward_source`, `observational_scenarios`).
+- [Transported decisions and measurement](guides/transported-decisions-and-measurement.md) and [inverse queries and decisions](guides/inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources): `transported_response` (`TransportedResponse`, `TransportDeclaration`, `evaluate_transported`) and `inverse_sources` (`derive_composed_source`, `cohort_forward_source`, `transported_forward_source`, `observational_scenarios`).
 - [Assumption range and revalidation](guides/assumption-range-and-revalidation.md): `transport.sensitivity.transport_sensitivity`, `transport.revalidation` (`TransportScene`, `revalidate`, `TransportClaimState`).
 - [Provider-sourced transport](guides/transported-decisions-and-measurement.md): `transport_handoff.hand_to_callback` and `consume_for_callback`.
 - [Finite-SCM discretization](cross-world-execution.md#discretize-a-gaussian-composition-into-a-finite-model): `discretized_composition.discretize`, `PreparedMechanismComposition.discretize`, `consume_discretized_composition`.
@@ -61,15 +61,17 @@ The Python surface is documented by task in these guides:
 
 ## Every public module
 
-Each module below is importable as `antecedent.<name>` without a separate import. The last column is the page that covers it by task.
+Each module below is reachable as `antecedent.<name>` after `import antecedent`, except `cohort_pushdown`, `finite_discrete`, `horizon_composition`, `host`, `mixed_decision`, `mnar_fixed_shift`, `recipe_glm` and `temporal_model`, which need `import antecedent.<name>`. The last column is the page that covers it by task.
 
 | Module | What it does | Guide |
 | --- | --- | --- |
 | `accepted_graph` | Versioned accepted-graph session handle for artifact-first interactive UX | [selective-discovery.md](selective-discovery.md) |
 | `adaptive_inference` | Inference from adaptive experiments | [adaptive-inference.md](adaptive-inference.md) |
+| `adaptive_policy` | Optimise bounded history-dependent intervention policies | [adaptive-policies.md](adaptive-policies.md) |
 | `artifacts` | Durable format-0.5 artifacts for causal queries and results | [artifacts.md](artifacts.md) |
 | `attribution` | Attribution helpers | [guides/intrinsic-influence.md](guides/intrinsic-influence.md) |
 | `categorical_treatment` | Categorical treatments: ordered and unordered regimes with a declared reference | [guides/treatment-levels.md](guides/treatment-levels.md) |
+| `citations` | Cite the methods behind a result: sources, caveats and the provenance records they come from | [guides/citing-a-study.md](guides/citing-a-study.md) |
 | `cohort_decision` | A retained fitted effect model decides for a declared cohort | [decision-reliability.md](decision-reliability.md) |
 | `cohort_pushdown` | Cohort-checked column projection and filter pushdown over a table or a table file | [guides/large-tables.md](guides/large-tables.md) |
 | `compact_export` | Compact runtime export of a fitted linear-in-coefficients effect model  | [guides/build/artifacts-and-handoff.md](guides/build/artifacts-and-handoff.md) |
@@ -81,6 +83,7 @@ Each module below is importable as `antecedent.<name>` without a separate import
 | `cross_world_execution` | General cross-world selective execution over a fully declared finite SCM | [cross-world-execution.md](cross-world-execution.md) |
 | `cross_world` | Path-specific edge interventions on a fixed Markovian DAG | [guides/transport-scope.md](guides/transport-scope.md) |
 | `cyclic` | Nonlinear cyclic equilibrium SCMs with retained Rust execution and replay | [tutorials/feedback-three-questions.md](tutorials/feedback-three-questions.md) |
+| `data_diagnostics` | Fit-free advisory data diagnostics, evaluated by the Rust engine | [guides/data-diagnostics.md](guides/data-diagnostics.md) |
 | `data` | Owned immutable data constructors and explicit conversion probes | [start/first-analysis.md](start/first-analysis.md) |
 | `decision_reliability` | Reliability of sampled and adaptively selected decisions | [decision-reliability.md](decision-reliability.md) |
 | `decision_robust` | Admissibility rules and robustness for decisions under structural uncertainty | [sensitivity-and-robustness.md](sensitivity-and-robustness.md) |
@@ -105,10 +108,12 @@ Each module below is importable as `antecedent.<name>` without a separate import
 | `experiment` | First-class randomized experiment designs and intention-to-treat queries | [guides/designs/randomized-experiments.md](guides/designs/randomized-experiments.md) |
 | `extensibility` | Typing Protocols for slow-path Python callbacks | [guides/build/scientific-interfaces.md](guides/build/scientific-interfaces.md) |
 | `external` | Bind a foreign scientific result to an identified causal contract | [guides/build/scientific-interfaces.md](guides/build/scientific-interfaces.md) |
+| `external_learners` | Explicit provider-backed nuisance learner fit and predict operations | [guides/external-learners-and-forecasts.md](guides/external-learners-and-forecasts.md) |
 | `external_mechanisms` | Registered external cyclic mechanisms: portable fit, artifact and trusted-resolver replay | [external-cyclic-mechanisms.md](external-cyclic-mechanisms.md) |
 | `factorial` | Native-backed utilities for two-factor randomized 2×2 experiments | [guides/designs/randomized-experiments.md](guides/designs/randomized-experiments.md) |
-| `fallback` | The opt-in descriptive fallback: what can be said, and what evidence would help, when the | [guides/fallback.md](guides/fallback.md) |
+| `fallback` | The opt-in descriptive fallback: what can be said, and what evidence would help, when a causal question is refused for want of identification | [guides/fallback.md](guides/fallback.md) |
 | `finite_discrete` | The adjustment contrast of a finite-discrete frequency table with its posterior draws | [guides/build/scientific-interfaces.md](guides/build/scientific-interfaces.md) |
+| `forecasting` | Execute a registered external forecast at one information origin | [guides/external-learners-and-forecasts.md](guides/external-learners-and-forecasts.md) |
 | `functional_source` | Original finite-law functional requests and independently replayed derivation | [composition.md](composition.md) |
 | `gcm` | Discover-then-fit GCM composition helpers | [guides/gcm-estimands.md](guides/gcm-estimands.md) |
 | `graph_falsification` | Graph permutation falsification: a DAG against data, with no fitted mechanisms | [guides/graph-falsification.md](guides/graph-falsification.md) |
@@ -140,6 +145,7 @@ Each module below is importable as `antecedent.<name>` without a separate import
 | `missing` | Declared handling of missing values | [guides/missing-data.md](guides/missing-data.md) |
 | `mixed_decision` | One decision from a cluster trial, a temporal period effect, a cost model and an uncertain bridge | [guides/mixed-decisions.md](guides/mixed-decisions.md) |
 | `model` | Interventional sampling helpers, plus one associational convenience predictor | [observation-queries.md](observation-queries.md) |
+| `mnar_fixed_shift` | Compiler-retained declared-shift MNAR candidate whose interval carries its calibration status | [sensitivity-and-robustness.md](sensitivity-and-robustness.md) |
 | `mnar_sensitivity` | Missing-not-at-random departure grid: effect as a function of a bounded parameter, tipping points, decision changes | [sensitivity-and-robustness.md](sensitivity-and-robustness.md) |
 | `msm_sensitivity` | Marginal sensitivity model (MSM) bounds, tipping point and sensitivity artifact | [sensitivity-and-robustness.md](sensitivity-and-robustness.md) |
 | `multi_level_treatment` | Observational contrasts between levels of a multi-level treatment | [guides/treatment-levels.md](guides/treatment-levels.md) |
@@ -201,6 +207,7 @@ Each module below is importable as `antecedent.<name>` without a separate import
 | `transported_constructors` | Typed constructors of a transported response from the library transport routes | [guides/transported-decisions-and-measurement.md](guides/transported-decisions-and-measurement.md) |
 | `transported_counterfactual` | The transported static path-specific counterfactual, narrow class | [transport-counterfactuals.md](transport-counterfactuals.md) |
 | `transported_response` | Transported responses: a value carried to a target population, and the decision made on one | [guides/transported-decisions-and-measurement.md](guides/transported-decisions-and-measurement.md) |
+| `typed_mechanism_transport` | Transport of fitted nonlinear and non-Gaussian mechanisms into a target population | [guides/mechanism-and-synthesis-transport.md](guides/mechanism-and-synthesis-transport.md) |
 | `validation` | Validation: discovery stability, target-native refutation and sensitivity ranges | [guides/target-native-validation.md](guides/target-native-validation.md) |
 | `vector_treatment` | Joint vector-treatment coefficients | [guides/treatment-levels.md](guides/treatment-levels.md) |
 

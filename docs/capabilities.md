@@ -2,7 +2,7 @@
 
 This is a readable inventory of what exists in Antecedent, not the product's
 mental model or a promise that every combination can run. Read
-[assurance](concepts/assurance.md#capability-supported-support-and-scientific-validity) for the distinction between capability,
+[assurance](concepts/assurance.md#capability-support-and-scientific-validity) for the distinction between capability,
 supported execution, and real-world scientific validity. The parity manifests
 are the maintained implementation inventory; the [support matrix](support-matrix.md)
 is the public **support** for analysis cells. Support is one count of supported
@@ -30,7 +30,8 @@ The [notebook-to-system journey](guides/notebook-to-system.md) connects retained
 identification, staged execution and durable consumption. Studies expose
 `identification` and `inspect()` before execution; each `ant.estimate(study)` returns its own immutable `Outcome`, and a changed design needs a new `ant.prepare(...)`;
 all named design rebinding paths protect the prepared assignment and ID bindings.
-Results support deferred refutation against their retained execution snapshot.
+Results support deferred refutation against their retained execution snapshot
+(`outcome.study.refute(suite=...)`).
 
 Scientific read models share immutable nested records, JSON-safe independent
 `to_dict()` exports and typed inspection. Adaptive methods return named payloads;
@@ -100,11 +101,12 @@ publish the product-posterior envelope quantile (completion posteriors from
 distinct `StreamDomain` RNG streams) at Imbens–Manski tails; both are flagged
 `truncated` over a capped
 completion enumeration. Temporal PAG results retain MAG
-completions and disclose finite-window audit caps. Those families are not supported on every
-coordinate: TemporalPag
-mediation, partial-graph derivatives, graph-posterior / nested counterfactuals,
-and cheap/full counterfactual validation remain refused. Importability is not
-support. The [support matrix](support-matrix.md) is the public support.
+completions and disclose finite-window audit caps. Not every meaningful
+coordinate is supported: cheap/full validation of `ChangeAttribution`,
+cheap/full `Counterfactual` on a `Pag` or over PAG posterior atoms, and full
+validation of a `NestedCounterfactualEffect` over DAG posterior atoms refuse
+with a named reason. Importability is not support. The
+[support matrix](support-matrix.md) is the public support.
 
 The two-arm randomized survival utilities cover Kaplan–Meier curves/RMST,
 Aalen–Johansen cumulative incidence, delayed entry under the marginal
@@ -274,12 +276,12 @@ Graph operations:
 
 Static and temporal graphs have separate semantics. A static graph is not
 interpreted as temporal by default. `AverageEffect` on a supplied `Cpdag` is
-supported (explicit/accepted, Frequentist and Bayesian) via a MEC envelope;
-runtime class stays `Cpdag`. Completing the graph yourself is still the `Dag`
+supported via a MEC envelope;
+runtime class stays `Cpdag`. Completing the graph yourself is the `Dag`
 cell. Pulse and single-step Sustained on incomplete `TemporalCpdag` /
-`TemporalPag` are supported (explicit/accepted, Frequentist) via a completion
-envelope, and the Bayesian counterparts are supported as well. A fully oriented
-supplied class stays that class. Completing those graphs yourself is still the
+`TemporalPag` are supported, Frequentist and Bayesian, via a completion
+envelope. A fully oriented
+supplied class stays that class. Completing those graphs yourself is the
 `TemporalDag` coordinate.
 
 Graph interchange is available through NetworkX, DOT, JSON, GML, and versioned
@@ -315,26 +317,26 @@ Runnable example: [`examples/python/temporal_discovery.py`](https://github.com/i
 * DBN posterior.
 
 Selected posterior graph samples can be propagated into supported Bayesian
-or Frequentist effect envelopes. Static graph-posterior analysis covers
-`AverageEffect` on DAG, CPDAG, and PAG atoms (CPDAG/PAG at validation none)
-and `ResponseCurve` / one-coordinate `InterventionResponse` with DAG atoms.
-CPDAG/PAG posterior atoms are evaluated with the existing class ATE envelope
-and combined by `StructuralAggregationPolicy`: a weighted mean only when
-estimands agree, otherwise an identified set or `GraphDependent` result.
+or Frequentist effect envelopes. Static graph-posterior analysis runs over DAG,
+CPDAG, PAG and ADMG atoms; the [support matrix](support-matrix.md) lists the
+supported graph-posterior cells of each query. For `AverageEffect`, CPDAG/PAG
+posterior atoms are evaluated with the class ATE envelope and combined by
+`StructuralAggregationPolicy`: a weighted mean only when estimands agree,
+otherwise an identified set or `GraphDependent` result.
 Completion enumeration is not posterior probability; unidentified mass is
 retained. A Frequentist multi-atom aggregate publishes a joint-IF SE only for
 a scalar (one-coordinate `InterventionResponse`) when atom influences align on
 the shared rows; a multi-atom curve, or unaligned influences, withholds
-uncertainty with `estimate.response.graph_posterior.uncertainty_withheld`. The
-interval is not coverage-calibrated. Failed estimation mass is unevaluable, not
-unidentified, and makes the result `GraphDependent`. Temporal
-graph-posterior analysis covers pulse, single- or multi-step sustained
-effects, single-horizon Frequentist or Bayesian temporal mediation, and
-supported TemporalDag / TemporalCpdag / TemporalPag `ResponseCurve` /
-`InterventionResponse` cells (see the [support matrix](support-matrix.md)).
+uncertainty with `estimate.response.graph_posterior.no_uncertainty_method`. The
+interval reports its calibration status in `result.inspect().calibration`.
+Failed estimation mass is unevaluable, not unidentified, and makes the result
+`GraphDependent`. Temporal graph-posterior analysis covers pulse, single- or
+multi-step sustained effects, single-horizon Frequentist or Bayesian temporal
+mediation, and supported TemporalDag / TemporalCpdag / TemporalPag /
+TemporalAdmg `ResponseCurve` / `InterventionResponse` cells (see the
+[support matrix](support-matrix.md)).
 ADMG graph-posterior AverageEffect identifies each atom with `general.id` and
-estimates `functional.effect`. TemporalPag graph-posterior mediation stays
-refused.
+estimates `functional.effect`.
 
 Panel Pulse/Sustained on an explicit or accepted `TemporalDag` can prepare and
 refresh. Every panel route requires one time-index regularity across units, so
@@ -372,10 +374,10 @@ multi-step Sustained refuses a discovery/estimation split and a transferred
 prior. Units are not stacked onto the series class owner; a temporal class is
 not completed onto the DAG executor.
 
-Unconditional finite-discrete `InterventionalDistribution` on an explicit or
-accepted ADMG is supported at validation `none` via general ID (bidirected
-edges stay). Python `analyze`/`prepare` reach these cells. Cheap/full and
-IDC conditionals remain refused.
+Unconditional finite-discrete `InterventionalDistribution` on an ADMG is
+supported via general ID (bidirected
+edges stay). Python `analyze`/`prepare` reach these cells. IDC conditionals
+are refused.
 
 ### Conditional independence tests
 
@@ -481,7 +483,7 @@ catalog search is sound and incomplete.
 ### Frequentist
 
 * a declared clustered panel or dependent time series is read by the average-effect estimators listed here and refused, with a next attempt, by every route whose error or resample treats rows as independent: natural-direct mediation and survival bootstraps, the sharp and fuzzy discontinuity estimators, the policy value, the continuous-dose response, the static structure searches, the conditional effect, average derivative and intervention response, and the Bayesian static routes;
-* linear and generalized-linear outcome regression (a discrete treatment with levels beyond the contrasted pair is refused by name unless the restriction to the two levels is declared, which only the Rust estimators expose; a clustered panel or dependent series declared with the bootstrap off requires the matching cluster or Newey-West error, and the equivalence-class (CPDAG) average-effect route applies a declared cluster or Newey-West error instead of the plain HC1 value);
+* linear and generalized-linear outcome regression (a discrete treatment with levels beyond the contrasted pair is refused by name unless the restriction to the two levels is declared (`other_levels="exclude_undeclared"`); a clustered panel or dependent series declared with the bootstrap off requires the matching cluster or Newey-West error, and the equivalence-class (CPDAG) average-effect route applies a declared cluster or Newey-West error instead of the plain HC1 value);
 * g-computation;
 * inverse probability weighting;
 * propensity matching (every donor tied at the nearest propensity is a match and the tied outcomes are averaged, so a discrete confounder's saturated table gives the stratified contrast whatever the row order);
@@ -520,19 +522,16 @@ uncertainty kind as separate axes. Pointwise and simultaneous bands are not alia
 and truncation remain Gaussian-likelihood stages, not a causal-response MLE.
 One-shot `discovery=` on response queries fails closed; discover and accept
 the structure before estimating a response.
-The list above is inventory. Derivative cells are supported on explicit or
-accepted DAGs under Frequentist and Bayesian inference at validation `none`;
-partial-graph derivatives remain refused. `ResponseCurve` and `InterventionResponse` are
-supported on `Dag`, `Admg`, `Cpdag`, `Pag`, `TemporalDag`, `TemporalCpdag`, and
-`TemporalPag` under Frequentist
-and Bayesian inference with validation `none` (class graphs via the completion
+The list above is inventory. Derivative cells are supported on every static and
+temporal graph class under Frequentist and Bayesian inference.
+`ResponseCurve` and `InterventionResponse` are
+supported on `Dag`, `Admg`, `Cpdag`, `Pag`, `TemporalDag`, `TemporalCpdag`,
+`TemporalPag` and `TemporalAdmg` under Frequentist
+and Bayesian inference (class graphs via the completion
 envelope: generalized adjustment per completion, then, for `Pag`, the sound but
 incomplete visibility-aware ID described under identification; see the
 [support matrix](support-matrix.md)). That is not PAG-native (IDP) response
-identification. Graph-posterior
-`ResponseCurve` cheap/full on `Admg` / `Cpdag` / `Pag`, and Bayesian
-graph-posterior `InterventionResponse` cheap/full on `Cpdag` / `Pag`, stay
-refused. Bayesian responses require the documented Gaussian additive models and
+identification. Bayesian responses require the documented Gaussian additive models and
 AllObserved population, with pointwise posterior intervals. Static Bayesian
 response uses complete observations; temporal Bayesian response also supports
 the five supported observation pairs through its observed-data SEM backend.
@@ -540,7 +539,8 @@ Supported Bayesian `Cpdag` / `Pag` cells keep per-completion posteriors unmixed
 and publish the completion identified set when completions disagree. Frequentist
 TemporalCpdag/Pag cells retain completion identified sets; DAG-posterior cells
 retain atom probabilities and unidentified mass.
-`ConditionalEffect` is supported on `Dag`, `Cpdag`, and `Pag`. The public
+`ConditionalEffect` is supported on `Dag`, `Admg`, `Cpdag`, `Pag` and
+`TemporalAdmg`. The public
 support is that matrix, not this page. The frequentist interaction regression
 (`conditional.linear.adjustment`) fits one modifier or a modifier set; its
 calibration record covers the one-modifier coordinate only, so a result for a
@@ -585,11 +585,12 @@ at runtime:
   the graph must make the running variable the treatment's only parent, and the
   estimator compares the treatment column with `T = 1{R ≥ c}` on every complete
   row and refuses (`rd_assignment_not_sharp`) on any violation, so imperfect
-  compliance is not reported as a treatment effect (fuzzy RD is not
-  implemented). Continuity of the potential-outcome regressions at the cutoff
-  and no manipulation of the running variable are recorded as assumptions and
-  are not tested. The estimator uses a caller-supplied bandwidth with a
-  uniform kernel and reports a conventional, not bias-corrected, interval; its
+  compliance is not reported as a treatment effect (fuzzy RD is the separate
+  `quasi.FuzzyRegressionDiscontinuity` route). Continuity of the
+  potential-outcome regressions at the cutoff and no manipulation of the
+  running variable are recorded as assumptions and are not tested. The
+  estimator uses a caller-supplied bandwidth with a uniform kernel and
+  reports a conventional, not bias-corrected, interval; its
   default SE is the HC1 residual sandwich, and the homoskedastic SE is an
   explicit opt-in (`RdConfig::with_se_kind`). There
   is no data-driven bandwidth selector and no Calonico–Cattaneo–Titiunik robust
@@ -774,19 +775,20 @@ invariant rather than the support.
 
 Conditional effects, temporal mediation and DBN-posterior pulse/sustained effects support query-native `cheap` and `full` validation. Multi-step Sustained refuters re-estimate the complete sequential model. Bayesian checks retain each child mechanism for PPC; full prior sensitivity refits the composed effect. Single-regression sensitivity formulas are inapplicable to composed effects, while sequential unobserved-confounder perturbations remain available. Composed mediation and
 multi-step sustained posteriors support conjugate and Laplace backends; HMC
-composition remains refused. Per-cell evidence is in the [support matrix](support-matrix.md).
+composition is refused. Per-cell evidence is in the [support matrix](support-matrix.md).
 
 ## Observation, transport, and interference
 
 They change what identifies the estimand and are not hidden behind an
 ordinary `target_population` flag: their design facts are explicit fields of
-their queries. `TransportQuery` × `Admg` × explicit × Frequentist (Direct /
-S-admissible sID plus binary trial-to-target IPW) and `InterferenceQuery` ×
-`Dag` × explicit × Frequentist (NeighborCount under Bernoulli assignment,
-HT/Hájek, Young variance) run on `analyze` and the Rust `Study` API at
-validation `none`, and retain a study like every other supported cell. On the
-GCM path, `AnomalyAttribution` / `ChangeAttribution` × `Dag` × explicit ×
-Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
+their queries. `TransportQuery` (Direct / S-admissible sID plus binary
+trial-to-target IPW, Frequentist or Bayesian) and `InterferenceQuery`
+(NeighborCount under Bernoulli assignment: HT/Hájek with the Young variance, or
+a conjugate Gaussian finite-network posterior) run on `Dag`, `Admg`, `Cpdag`,
+`Pag` and `TemporalAdmg` through `analyze` and the Rust `Study` API, and retain
+a study like every other supported cell. On the GCM path, `AnomalyAttribution`
+and `ChangeAttribution` run on every static and temporal graph class (see
+[Attribution and diagnostics](#attribution-and-diagnostics)).
 
 * **Observation** (`antecedent.observation`): complete, right/left/interval-
   censored, truncated, and selected mechanisms. Assumptions are declared
@@ -796,7 +798,7 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   `antecedent.transport.advanced`): single-source selection
   diagrams, the `identify` stage, and `advanced.TransportQuery`, whose trial-to-target
   IPW reports separate selection and treatment overlap diagnostics
-  (`result.transport_overlap`). `transport.advanced.estimate_trial_effect` remains an
+  (`result.transport_overlap`). `transport.advanced.estimate_trial_effect` is an
   unsupported IPW/AIPW utility that returns bare numbers. Distinct from Bayesian prior/evidence transfer in
   `antecedent.priors`.
 * **Randomized interference** (`antecedent.interference`): assignment design,
@@ -873,7 +875,7 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   design-specific support gates and every claimed pointwise interval pass.
   Sparse and degenerate results remain outside the support matrix; no simultaneous coverage is
   supported.
-  Bernoulli ANCOVA now reports a pointwise HC0 interval with one or two
+  Bernoulli ANCOVA reports a pointwise HC0 interval with one or two
   pre-assignment covariates, a common assignment probability from 0.2 through
   0.8, and 30 observed and 40 expected rows in each arm (the row count times the
   probability, and times one minus it). Fixed CUPED reports a pointwise score
@@ -890,8 +892,9 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   2016), conditional on the realized arm sizes. It needs 100 rows, at least two
   in each arm and positive variance, carries its own uncertainty label and
   standard-error kind (`hc2`), is never graphless-supported, and reports calibration
-  `not_measured` while no coverage record of a 20-of-300 smaller arm covers the
-  execution. The Bernoulli score and fixed CUPED intervals keep the arm rule.
+  `not_measured` when no coverage record covers its execution (for example a
+  20-of-300 smaller arm). The Bernoulli score and fixed CUPED intervals keep
+  the arm rule.
   Complete-randomization Neyman keeps its own construction and 30-unit-per-arm
   rule; contrasts among three or more actions and the receipt-adjusted contrasts
   keep their 400-row rule. Three or more ANCOVA covariates, sparse allocations, and
@@ -940,7 +943,7 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   receive the exact multi-arm graphless support when every contrast qualifies.
   Multi-arm combinations with CUPED, ANCOVA,
   receipt adjustment, or exact Fisher inference refuse.
-  `ComplierEffect` through `analyze(data, query=...).randomized_effect`
+  `ComplierEffect` through `analyze(data, query=...).value.randomized_effect`
   provides a randomized
   noncompliance ITT and Wald CACE/LATE point estimate with an
   influence-function variance;
@@ -957,7 +960,7 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   above. ANCOVA refuses non-Bernoulli
   designs, fixed CUPED or receipt adjustment on the same query, duplicate or
   collinear covariates, and non-finite values. The direct utilities likewise
-  have no new support-matrix supports or calibrated interval claims. The native
+  have no support-matrix supports or calibrated interval claims. The native
   `factorial.estimate` utility handles independent-Bernoulli 2×2 factors and
   returns cell means, main effects, interaction, and variance upper bounds;
   block and multi-arm factorial designs remain gaps. The direct
@@ -1004,8 +1007,9 @@ multi_result = ant.analyze(
 contrasts = multi_result.value.randomized_effect.multi_arm_contrasts
 ```
 
-Multi-source meta-transport and cyclic/equilibrium models remain outside the
-current contract. Observational network exposure has a retained pointwise
+Multi-source meta-transport ([transport scope](guides/transport-scope.md)) and
+cyclic/equilibrium models ([cyclic systems](guides/cyclic-systems.md)) are not
+analysis-matrix cells. Observational network exposure has a retained pointwise
 cluster interval only for known fixed propensities and measured cluster support;
 externally fitted propensities remain point-only, and the route is outside the support matrix.
 
@@ -1030,7 +1034,7 @@ measurement](guides/transported-decisions-and-measurement.md),
   refused, an interval is `not_supported`, and the default support policy
   refuses the extrapolative label until the policy names it.
 * **Forward sources of an inverse query** (`antecedent.inverse_sources`):
-  `composed_forward_source`, `cohort_forward_source`,
+  `derive_composed_source`, `cohort_forward_source`,
   `transported_forward_source`, each adapted with its own refusals and its origin
   carried into the sealed artifact; `observational_scenarios` is associational
   and ranks no action. A consumer that does not accept a transported input
@@ -1056,9 +1060,11 @@ measurement](guides/transported-decisions-and-measurement.md),
   uncalibrated spread of the finite cross-world row under a declared unit
   sampling, verified against its execution.
 
-Policy, adaptive-trial, period-shift, synthesis, surrogate-bridge, mechanism and
-discovered-structure transport are library and facade routes without a Python
-entry; the [limits page](user-facing-limits.md) states what each does not do.
+Policy, adaptive-trial, period-shift, synthesis and surrogate-bridge transport
+build a transported response through `antecedent.transported_constructors`;
+mechanism transport is `antecedent.typed_mechanism_transport` and
+discovered-structure transport `antecedent.transport.discovered`. The
+[limits page](user-facing-limits.md) states what each does not do.
 
 ## Treatment policy evaluation
 
@@ -1075,8 +1081,8 @@ score bins; it does not fit or verify cross-fitted CATE scores. These are
 point utilities and do not add supported support-matrix cells. The same module
 provides fixed multi-action recommendations with randomized
 Horvitz–Thompson evaluation, per-action capacity, availability, cost, and
-  budget checks. It requires known positive action probabilities and does not
-  validate the held-out split.
+budget checks. It requires known positive action probabilities and does not
+validate the held-out split.
 
 `antecedent.policy.PolicyValue` runs a fixed binary policy through retained
 `prepare` / `analyze` using each evaluation subject's outcome, known
@@ -1119,8 +1125,7 @@ paired standard errors, selected index, and interval endpoints, and rejects
 fabricated bounds. In 2,000 known-truth allocations, the interval covered the
 class regret in 1,974 draws at treatment probability 0.2 and 1,980 at 0.5.
 The result is explicitly off the graphless supported matrix; training
-independence and randomization remain caller-declared. The fresh-wheel public
-policy suite passes 15/15, including retained evaluation and artifact loading.
+independence and randomization remain caller-declared.
 `MultiActionPolicyValue(..., baseline_groups=...)` also retains pre-treatment
 group labels and reports each action-versus-control contrast within each group
 as a multi-action CATE. Every group needs observed control and each action,
@@ -1206,8 +1211,8 @@ p-value or interval. Both are marked `unsupported_point_utility` and add no
 support-matrix support.
 Staggered adoption and synthetic-panel designs also run through the retained
 `prepare` / `analyze` flow. Fuzzy regression discontinuity and regression kink
-now use that flow as fixed-bandwidth, graphless local ratio queries, alongside
-their existing direct utilities. The retained point is bias corrected by the
+use that flow as fixed-bandwidth, graphless local ratio queries, alongside
+their direct utilities. The retained point is bias corrected by the
 same native kernel and reports the declared cutoff, bandwidth, contrast type,
 local counts, first stage, and HC0 standard errors for the ratio and component
 contrasts. The retained result publishes a pointwise 95% normal interval when
@@ -1218,10 +1223,10 @@ known-truth repeated sampling covered 1,898/2,000 fuzzy-jump draws and
 1,906/2,000 kink draws, including a quartic-trend kink fixture. When the
 weak-stage screen passes and both windows keep their bias-correction pilot
 support (at least five local observations per side for the fuzzy jump, six for
-the kink), the published ratio interval now carries an exact graphless support
+the kink), the published ratio interval carries an exact graphless support
 (`local_polynomial_ratio` / `fuzzy_jump` and `regression_kink`, pointwise 95%
 normal) recorded in the graphless support matrix and bound into the artifact.
-These routes still remain outside the geometric support matrix, and the support
+These routes are outside the geometric support matrix, and the support
 is pointwise for the local complier ratio only; weak first stages,
 undersupported windows, and arbitrary bandwidth or manipulation-robustness
 selection do not inherit it and stay outside the support matrix point-only.
@@ -1260,7 +1265,7 @@ adoption contrast also binds its SE and interval to the scalar result.
 Pre-adoption contrasts have no interval; thin clusters remain point-only.
 The intervals are not a simultaneous event-study band or a pretrend test.
 Two 2,000-draw calibrations cover independent and shared-cluster shocks at
-the 24-per-group boundary; native artifact and public Python checks pass.
+the 24-per-group boundary, alongside native artifact and public Python checks.
 
 `antecedent.quasi.SyntheticControl` and
 `SyntheticDifferenceInDifferences` use the same graphless, row-aligned
@@ -1340,7 +1345,7 @@ on that declaration and excludes uncertainty from fitting an outcome model;
 fitted predictions remain point-only. A 2,000-study known-truth fixture covered
 the regime value in 1,897 studies, and a separate 2,000-replicate known-truth
 coverage test at 400 subjects confirms nominal coverage of the population
-regime value under the support gate. This two-period fixed-known-Q route now
+regime value under the support gate. This two-period fixed-known-Q route
 carries the exact graphless support-matrix support
 (`graphless:longitudinal_regime/known_sequential_randomized_two_period/fixed_known_q_g_formula_scores/conditional_q_pointwise_95_normal_interval`)
 when the interval publishes; longer horizons, any fitted-Q uncertainty, and the
@@ -1363,8 +1368,8 @@ Below those floors the value is point-only with a specific reason. Two
 0.9521 after applying the support gate; one used fixed Q and the other fit
 Q on subject-excluded folds. Antecedent checks prediction-fold IDs and keeps
 the declaration in the query artifact, but cannot inspect model training.
-This conditional interval remains outside the geometric support-matrix axes,
-but the two-period subject-excluded-fold route now carries an exact graphless
+This conditional interval is outside the geometric support-matrix axes,
+but the two-period subject-excluded-fold route carries an exact graphless
 support-matrix support
 (`graphless:longitudinal_regime/known_sequential_randomized_two_period/subject_excluded_q_sequential_dr_scores/conditional_q_pointwise_95_normal_interval`).
 The same retained interval is also available for a three-period randomized
@@ -1386,8 +1391,8 @@ subjects, 50 observed matching histories, 50 effective matching histories,
 and a positive score standard error. Below those floors it gives a specific
 interval refusal. A 2,000-replicate randomized two-period calibration with
 independent censoring checks coverage at the reported level. This route
-remains outside the current support-matrix axes; the direct
-`evaluate_regime_value` utility still returns a point value.
+is outside the support-matrix axes; the direct
+`evaluate_regime_value` utility returns a point value.
 
 `antecedent.regimes.evaluate_regime_value` evaluates a prespecified static or
 history-adaptive binary regime from subject-level treatment histories. It uses
@@ -1546,9 +1551,9 @@ The scientific truth and independence of the reference cases remain the
 caller's responsibility. Verification covers those cases and does not grant
 native support or interval calibration. Every provider execution also passes
 its estimate, shape, uncertainty semantics, trust, and provenance through a
-fixed native Rust envelope. `ProviderAnalysisResult.export_host()` exports this
-checksummed host envelope; `export()` continues to return the provider's
-original opaque artifact byte for byte, including existing EconML receipts.
+fixed native Rust envelope. `ProviderAnalysisResult.export(quantity="host")`
+exports this checksummed host envelope; `export()` returns the provider's
+original opaque artifact byte for byte, including EconML receipts.
 Opening a verified host envelope requires the host's matching spec, exact
 request, and fixture-evidence digests. The envelope validates the declared
 claims and artifact integrity; it does not establish the scientific truth of
@@ -1577,8 +1582,8 @@ receipt = providers.verify(
 `AdjustmentHandoff.attach` (alias `EconMLSpec.attach`) accepts a caller-fitted estimate and creates an artifact
 binding its payload digest to the declared learner/configuration and available
 identification and data-snapshot identities. A labelled effect is also bound
-through `external.bind`: the identified contract, the learner as a provider with
-its declared `learner_version`, `support` labels, and the lineage are
+through `external.ExternalSpec.bind`: the identified contract, the learner as
+a provider with its declared `learner_version`, `support` labels, and the lineage are
 `ExternalEstimate.claim`, and a mismatch refuses with the same structured
 refusal as any foreign response. `label="ate"` binds a scalar as one
 coordinate; `label="cate"` binds a row-level effect array (one value per row of
@@ -1594,8 +1599,6 @@ can become verified extensions only after the host runs independent fixtures;
 that bounded verification still does not calibrate intervals.
 
 ## Interventions and counterfactuals
-
-Antecedent includes a structural causal model layer.
 
 Antecedent includes a structural causal model layer.
 
@@ -1639,7 +1642,11 @@ carry none, by design: a unit ITE is not identified from data, it depends jointl
 on every fitted path mechanism and on disturbances abducted with those same
 parameters, and mechanism families are selected on the same data, so a
 delta-method interval would ignore selection (diagnostic
-`gcm.counterfactual.uncertainty_unavailable`). A pointwise interval for the
+`gcm.counterfactual.uncertainty_unavailable`). With bootstrap replicates
+requested, a Frequentist counterfactual publishes a mechanism-refit bootstrap
+standard error for the average of the unit effects (diagnostic
+`gcm.frequentist_bootstrap`): each replicate resamples independent subjects and
+refits every mechanism. A pointwise interval for the
 conditional average effect tau(x), a different estimand, is
 [`DrLearner::fit_pointwise_profiles`](guides/heterogeneous-effects-and-policies.md#pointwise-cate-at-a-covariate-profile) (uncalibrated).
 The public support is the [support matrix](support-matrix.md).
@@ -1659,11 +1666,14 @@ Antecedent can analyze:
 * feature relevance;
 * root-cause rankings.
 
-`AnomalyAttribution` and `ChangeAttribution` on an explicit Dag
-at Frequentist validation `none` run on `analyze` and the Rust `Study` API.
-Mechanism-change,
-unit-change, cheap/full, Bayesian, accepted, and graph-posterior stay
-refused. The public support is the [support matrix](support-matrix.md).
+`AnomalyAttribution` (every structure, inference and validation) and
+`ChangeAttribution` (validation `none`) run on `analyze` and the Rust `Study`
+API on every static and temporal graph class. With bootstrap replicates, the
+Frequentist routes publish a mechanism-refit bootstrap standard error
+(`gcm.frequentist_bootstrap`). Cheap/full validation of a change attribution is
+refused: a within-population resample cannot tell a sound allocation from an
+unsound one. Mechanism-change and unit-change queries are not matrix cells.
+The public support is the [support matrix](support-matrix.md).
 
 Implemented techniques:
 
@@ -1766,7 +1776,7 @@ different strength of statement, and only one of them is permanent:
   run cleanly on a different dataset against the same supported cell. Callers
   that only read `result.refutations` cannot see this skip — the produced
   `RefutationReport`s and the skips are two disjoint outcomes, and
-  `result.refutations` carries only the former. Every execute path now emits
+  `result.refutations` carries only the former. Every execute path emits
   one `refute.validator.not_applicable` diagnostic per skipped validator into
   `result.diagnostics`, naming the validator and the reason, so the skip is
   visible instead of silently dropped. Its message states explicitly that
@@ -1838,10 +1848,10 @@ posteriors freeze each weighted atom's
 identified/unidentified status, result, and estimand; temporal DBN posteriors
 also freeze each identified atom's finite-unfolding indexer. Unidentified
 atoms remain unidentified and keep their original weight. Temporal response
-and mediation paths retain their existing query-native caches. This is an
+and mediation paths retain their query-native caches. This is an
 execution property, not support: refused coordinates remain refused.
 
-The sharp-RD estimator remains the deliberate identify-per-click exception.
+The sharp-RD estimator is the deliberate identify-per-click exception.
 Progress sinks receive an `identify.compute` label exactly when identification
 is computed, so a prepared click's reuse is observable rather than merely
 flagged. Prepared graph and query identity are immutable; a changed graph or query
@@ -1864,8 +1874,8 @@ Python interfaces support NumPy, pandas, and Arrow CDI. Rust uses `TableView`.
 ## Artifacts
 
 Durable artifact format **0.5** is current; it includes the optional
-identified-set interval on structural-mixture analysis results. Format 0.4 was
-the first frozen wire format, and 0.4 artifacts migrate unchanged. Versioned artifacts
+identified-set interval on structural-mixture analysis results. Format 0.4
+artifacts migrate unchanged. Versioned artifacts
 include:
 
 * graphs;

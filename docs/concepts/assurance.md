@@ -22,7 +22,7 @@ These are different kinds of evidence. They do not combine into a single "valida
 
 The same words are used across the documentation, with the meanings in [results are claims](results-are-claims.md#the-standing-vocabulary): implemented, executes, identified, model conditional, supported, independently checked, calibrated, loaded, replayed, current authority, numerically certified. Avoid reading "verified" or "validated" without asking what was checked, by what, and under which conditions.
 
-## Capability, supported support and scientific validity
+## Capability, support and scientific validity
 
 Three propositions stay separate.
 

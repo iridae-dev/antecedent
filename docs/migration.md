@@ -29,12 +29,12 @@ The default seed is now 1; earlier operations that defaulted to 0 reproduce thei
 
 | 2.4 | 3.0 |
 | --- | --- |
-| `PreparedAnalysis.prepare(...)` | `ant.prepare(...)`; the mutable class is private. |
+| `PreparedAnalysis.prepare(...)` | `ant.prepare(...)`, which returns an immutable `PreparedAnalysis`; the mutable engine is private. |
 | `study.estimate(new_data)` / `study.refresh(new_data)` | `ant.estimate(ant.rebind(study, data=new_data))`. `ant.estimate(study)` takes no data. |
 | Replace the query through a mutable method | `ant.reconfigure(study, query=...)` for declarations; `ant.rebind` for observations. |
 | `study.reprepare(data)` after a refused design change | `ant.prepare(data, ...)` with the new design. `ant.rebind` refuses a changed frozen design and names this remedy. |
 | `study.inspect_plan()`, `study.last_result` | `study.inspect()` before execution; retain each `Outcome` and inspect it. `outcome.study` is the completed preparation. |
-| `result.refute(data, ...)` / `study.refute(data, ...)` | `result.refute(suite=...)` or `study.refute(suite=...)`; neither takes replacement data. |
+| `result.refute(data, ...)` / `study.refute(data, ...)` | `study.refute(suite=...)`, or `outcome.study.refute(suite=...)` on the completed preparation; it takes no replacement data and runs under the study's `Execution`. |
 | Discovery run implicitly by `analyze(..., discovery=PC(...))` | `accepted = ant.discovery.discover(data, method=PC(...), accept_discovered=True)`, then `ant.prepare(data, graph=accepted, ...)`. |
 | `identify.estimate(stage, data)` | `stage.prepare(data, inference=..., execution=...)`, then `ant.estimate(...)`. |
 
@@ -125,9 +125,9 @@ loaded = ant.load(bytes(artifact), expected=artifact.expectation)
 print(loaded.acceptance)
 ```
 
-Keep `artifact.expectation` on the producing side and pass it as `expected=`; an expectation read from the incoming container is not independent evidence of what you expected. Loading runs the format's independent native consumer. For an analysis result it checks that the artifact is intact and recomputes nothing; a result you just produced needs no replay. For one that came from outside your own authoring, call `loaded.replay()` or pass `ant.load(..., replay=True)` to recompute its published numbers. A loaded value has no live study or data (`loaded.study is None`); read `loaded.acceptance` for intactness, replay, identity binding and resume standing. `acceptance.status` is `loaded`, `replayed` or `unavailable`; before 3.0 the same standing was spelled `verified` or `sealed`, and `acceptance.verified`, `acceptance.sealed` and `acceptance.unresolved` are gone. A replay that does not reach `replayed` lists `acceptance.not_replayable` (evidence the artifact does not carry) apart from `acceptance.mismatches` (parts that were recomputed and differ). `artifacts.accept(data)` returns `intact` and `integrity`; with `replay=True` it adds `replayed`, `not_replayable` and `mismatches` in place of `accepts_as_verified_program` and `unresolved`. An artifact whose body carries refutation reports used to load with no answer; it now keeps its answer and its replay names the refutation replay as not replayable. An outcome with several possible exports needs an explicit `quantity=`.
+Keep `artifact.expectation` on the producing side and pass it as `expected=`; an expectation read from the incoming container is not independent evidence of what you expected. Loading runs the format's independent native consumer. For an analysis result it checks that the artifact is intact and recomputes nothing; a result you just produced needs no replay. For one that came from outside your own authoring, call `loaded.replay()` or pass `ant.load(..., replay=True)` to recompute its published numbers. A loaded value has no live study or data (`loaded.study is None`); read `loaded.acceptance` for intactness, replay, identity binding and resume standing. `acceptance.status` is `loaded`, `replayed` or `unavailable`; before 3.0 the same standing was spelled `verified` or `sealed`. On an analysis result, `acceptance.verified`, `acceptance.sealed`, `acceptance.replayable` and `acceptance.unresolved` are gone; other artifact families read `acceptance.replayed` in place of `acceptance.verified`. A replay that does not reach `replayed` lists `acceptance.not_replayable` (evidence the artifact does not carry) apart from `acceptance.mismatches` (parts that were recomputed and differ). `artifacts.accept(data)` returns `intact` and `integrity`; with `replay=True` it adds `replayed`, `not_replayable` and `mismatches` in place of `accepts_as_verified_program` and `unresolved`. An artifact whose body carries refutation reports used to load with no answer; it now keeps its answer and its replay names the refutation replay as not replayable. An outcome with several possible exports needs an explicit `quantity=`.
 
-Policy-program artifacts keep their encoding and need the original ordered variable names at load: `LoadContext(supplied_sources={"names": names})`.
+Policy-program artifacts keep their encoding and need the original ordered variable names at load: `ant.load(data, context=ant.artifacts.LoadContext(supplied_sources={"names": names}))`.
 
 Select a posterior after execution, without another fit:
 
@@ -144,7 +144,7 @@ posterior_record = ant.load(posterior_artifact, expected=posterior_artifact.expe
 ate_record = posterior_record.value.quantity("ate")
 ```
 
-The sealed record holds summaries and any retained draws, with no live study or training data. It binds the encoding digest and grants no replay.
+The loaded record holds summaries and any retained draws, with no live study or training data. It binds the encoding digest; it has no replay (`acceptance.replayable` is false), so loading it recomputes nothing.
 
 ## Retarget a completed study to another population
 
@@ -228,7 +228,7 @@ This fully specified system has `B = 0.5 A`, so fixing `A` at 2 gives a mean of 
 
 ## Application-owned execution policy and transport
 
-Cancellation tokens, memory limits and progress callbacks come from your application, so these blocks are fragments that need your own `data`, `query` and `cancellation_token`:
+Cancellation tokens, memory limits and progress callbacks come from your application, so these blocks are fragments that need your own `data`, `query` and `cancellation_token` (and, for transport, your `identification` and `catalog`):
 
 ```python
 execution = ant.Execution(
@@ -242,6 +242,8 @@ study = ant.prepare(data, query=query, execution=execution)
 Transport follows the same split. `TransportControls` and `controls=` are removed; `Execution` carries physical policy, while formula-operation, recursion-depth and support-enumeration bounds stay declarations on the query:
 
 ```python
+from antecedent import transport
+
 query = transport.advanced.ExactTransportQuery(
     identification, catalog, {"x": 1.0},
     evaluation=transport.TransportEvaluation(
@@ -259,9 +261,9 @@ query = transport.advanced.ExactTransportQuery(
 | `advanced.prepare_trial(...)` | `ant.prepare(trial_data, query=trial_query, provider=transport.TrialAipw(...), inference=transport.TransportInference(...), execution=...)` |
 | Loose `cancel=`, `memory_bytes=`, `threads=`, `seed=` on `identify_*`, `consume_*`, planning and pilot entries | `execution=ant.Execution(...)` |
 
-Exhausting an evaluation bound is a typed evaluator failure and never publishes a silently truncated answer. `Execution(on_stage=...)` and `Execution(threads=...)` are refused with `option_not_applicable` on transport engines, because they stream no stages and run no worker pool; they are never dropped silently. The sampling seed of pilot and covariance entries was 0; pass `Execution(seed=0)` to reproduce an old draw.
+The three query types are in `antecedent.transport.advanced`; `TransportEvaluation`, `TransportInference` and `TrialAipw` are in `antecedent.transport`. Exhausting an evaluation bound is a typed evaluator failure and never publishes a silently truncated answer. `Execution(on_stage=...)` and `Execution(threads=...)` are refused with `option_not_applicable` on transport engines, because they stream no stages and run no worker pool; they are never dropped silently. The sampling seed of pilot and covariance entries was 0; pass `Execution(seed=0)` to reproduce an old draw.
 
-The treatment-model nuisance score posterior is now an explicit fitting operation on the prepared study (`nuisance_scores.treatment_score_posterior`). Preparation and inspection do not fit it, and its seed comes from `Execution`.
+The treatment-model nuisance score posterior is now an explicit fitting operation on the prepared study (`study.treatment_score_posterior(...)`, or `nuisance_scores.treatment_score_posterior(study, ...)`). Preparation and inspection do not fit it, and its seed comes from `Execution`.
 
 ## Rust
 
@@ -294,7 +296,7 @@ These corrections change a number you got before, or replace a silently wrong an
 | Area | Before | Now |
 | --- | --- | --- |
 | Table weights on static routes | A weighted table was answered unweighted on conditional-effect, mediation, counterfactual, curve, derivative, intervention-response, dose, regression-discontinuity, temporal-design, synthetic-control and survival routes. | Refused (`option_not_applicable`, `sampling_weights.route_unsupported`), as are weights declared on an estimator the route does not run. Declare the weights on an average-effect estimator, or drop them. A multi-step sustained temporal window (frequentist) now reads weights. See [sampling weights](guides/sampling-weights.md). |
-| Treatment with undeclared extra levels | Linear and GLM adjustment and instrumental fits read `0/1/2` as a dose (a slope, not the contrast of two levels). | Refused as `treatment_level_undeclared`. Rust regressions can declare `OtherLevels::ExcludeUndeclared`; Python `LinearAdjustment`, `GlmAdjustment` and the instrumental estimators have no such argument, so recode the treatment. See [treatment levels](guides/treatment-levels.md). |
+| Treatment with undeclared extra levels | Linear and GLM adjustment and instrumental fits read `0/1/2` as a dose (a slope, not the contrast of two levels). | Refused as `treatment_level_undeclared`. To keep only the rows at the two contrasted levels, declare `OtherLevels::ExcludeUndeclared` on the Rust regressions or `other_levels="exclude_undeclared"` on Python `LinearAdjustment` and `GlmAdjustment`; the instrumental estimators have no such option, so recode the treatment. See [treatment levels](guides/treatment-levels.md). |
 | Declared dependence | The equivalence-class average-effect route used the plain HC1 error; a study-level `sampling_design="clustered_panel"` or `"dependent_time_series"` with the bootstrap off was recorded but not read. | The route applies a declared cluster or Newey-West error. With the bootstrap off, the design is honoured only where the estimator's standard error reads it (cluster, multiway or panel-HAC; Newey-West or panel-HAC); otherwise, and for matching and instrumental estimators, it is refused. |
 | Declared dependence on routes that cannot read it | The natural-direct mediation bootstrap, the randomized-survival subject bootstrap, the sharp regression-discontinuity estimator (with or without a bootstrap), the fuzzy local-polynomial ratio, the policy value, the continuous-dose response, the static structure searches and the Bayesian static routes returned the independent-rows number (a row bootstrap or an independent-rows error or posterior) under a declared `clustered_panel` or `dependent_time_series`. | Refused with `option_not_applicable` and a next attempt. Declare independent subject trajectories if the rows are independent, or use an average-effect estimator with a cluster or Newey-West error. A policy value or sharp-discontinuity table that carries observation weights is also refused (`sampling_weights.route_unsupported`). |
 | Conditional effect of a multi-level treatment | A conditional effect between two levels of a `0/1/2` treatment returned the dose slope (2 against a contrast of 1). | Refused as `treatment_level_undeclared`, naming the observed levels; recode the treatment to the two contrasted levels. |
@@ -325,7 +327,7 @@ The container format is unchanged, and readers that migrate container sources 0.
 | Decision export | 2.4.x | Version 2 envelope; `load_decision` needs current authority. | Re-export from the live workflow. Older joint-law artifacts still replay historically. |
 | Reduced retention (summary-only, disk-backed) | 2.4.x | Row reconstruction, refit from retained rows, exact row eviction, in-place column insert and in-place weight or mask update are refused. The refusal reads `{mode} cannot serve {operation}`. | Reload the rows or the disk artifact and run the operation on resident state. |
 | Previous route records | 2.4.x | A record is carried onto a current method, kept as a refusal, or retired. | `antecedent.release_migration.consume_previous_route_records` reads a previous-release route artifact and returns one outcome or error per record. |
-| Refusal reasons | 2.4.x | Support refusals are renamed: `cell_not_licensed` is `not_supported`; every `*_not_licensed` code is `*_not_supported` (bridge mapping, cluster interval, construction, data modality, dyadic dependence, ML nuisance, nuisance fallback, penalized interval, policy route, rank drop, scenario aggregate, selection inference); `claim_license_withdrawn` is `claim_support_withdrawn`. `interface_contract_calibration_not_held` is removed: a calibration status no longer refuses at run time. Other reasons are unchanged. | Match the new codes. A `not_supported` refusal lists the evidence the route is missing. |
+| Refusal reasons | 2.4.x | Support refusals are renamed: `cell_not_licensed` is `not_supported`; every `*_not_licensed` code is `*_not_supported` (bridge mapping, cluster interval, composition dependence route, construction, data modality, dyadic dependence, ML nuisance, nuisance fallback, penalized interval, policy route, rank drop, scenario aggregate, selection inference); `claim_license_withdrawn` is `claim_support_withdrawn`. `interface_contract_calibration_not_held` is removed: a calibration status no longer refuses at run time. Other reasons are unchanged. | Match the new codes. A `not_supported` refusal lists the evidence the route is missing. |
 | Predictive assessment | 2.4.x | Version 2 stores each observation key's provenance beside its digest. A version 1 artifact still reads when its overlap can be checked without that provenance; a stored version 1 held-out verification is refused. | Reseal from the original typed observation identities to write version 2. |
 | GES search configuration | 2.4.x | The identity binds the Insert-Delete schedule. | Rerun the search. |
 | Mechanism plans | 2.4.x | Plan identities use encoding version 2 and bind every output and parent coordinate. A stored raw hash cannot be classified by version. | Recompile the retained declarations, and reissue transport receipts from retained premises. |

@@ -137,27 +137,28 @@ Some important distinctions when choosing a workflow:
 - Static DAG graph-posterior paths include average effects, conditional effects,
   response curves, and one-coordinate intervention responses. Each has its own
   inference and validation restrictions.
-- Temporal graph-posterior paths include Pulse and Sustained effects under
-  both inference modes, and temporal mediation on `TemporalDag` and
-  `TemporalCpdag` under both inference modes at validation
-  `none`/`cheap`/`full`. `TemporalPag` mediation is not supported.
+- Temporal graph-posterior paths include Pulse and Sustained effects and
+  temporal mediation on `TemporalDag`, `TemporalCpdag`, `TemporalPag` and
+  `TemporalAdmg` under both inference modes at validation
+  `none`/`cheap`/`full`.
 - Frequentist and Bayesian envelopes on incomplete `TemporalCpdag` and
   `TemporalPag` graphs are supported for supported queries. A caller-supplied
   `ClassPrior` can provide mixture weights; enumerating completions alone does
   not assign probabilities.
-- Derivatives on explicit or accepted DAGs support Frequentist and Bayesian
-  inference at validation `none`. Partial-graph derivatives remain refused.
+- Derivatives run on `Dag`, `Cpdag`, `Pag` and `Admg` structures (explicit,
+  accepted or a graph posterior) under both inference modes; a class answers
+  through its identified completions.
 - ADMG interventional distributions run through Python `analyze`/`prepare` and
-  Rust `Study` at validation `none`.
-- Supported anomaly/change attribution paths run through Python `analyze`/`prepare`
-  and Rust `Study` at validation `none`.
+  Rust `Study`.
+- Supported anomaly and change attribution paths run through Python `analyze`/`prepare`
+  and Rust `Study`; change attribution runs at validation `none` only.
 - Supported transport and interference queries run through both Python `analyze`
   and Rust `Study`, with their explicit design assumptions.
 
 `ResponseCurve` and `InterventionResponse` are supported on temporal DAG,
 `TemporalCpdag` and `TemporalPag` graph-posterior cells (see the matrix for
-the validation levels each admits). ADMG graph-posterior AverageEffect at validation `none` identifies each atom with `general.id` and
-estimates `functional.effect`; cheap/full stay closed. These are different
+the validation levels each admits). ADMG graph-posterior AverageEffect identifies each atom with `general.id` and
+estimates `functional.effect`. These are different
 requests from incomplete-class envelopes and from CPDAG/PAG graph-posterior
 AverageEffect, which evaluates each atom with the class ATE envelope and
 combines only under a shared estimand. Unidentified structural mass stays
@@ -218,7 +219,7 @@ not installed). The overlap and the differences are stated on the
 ### EconML
 
 EconML focuses on machine-learning estimators for heterogeneous treatment
-effects and policy-oriented workflows. Antecedent now ships native
+effects and policy-oriented workflows. Antecedent ships native
 cross-fitted DML (`estimators.DML`, AIPW or Robinson PLR) and a DR-Learner
 CATE path (`estimators.DRLearner`) and a native honest causal forest
 (`estimators.CausalForest`). DR-Learner reports the marginal ATE and its IID
@@ -231,7 +232,7 @@ adaptive-neighbourhood variability, so it is not a pointwise standard error and
 `cate ± 1.96·cate_leaf_dispersion` is not a confidence band; forest CATE
 predictions carry no pointwise intervals. Robinson PLR
 requires a constant conditional effect to interpret its slope as the ATE.
-The initial known-truth fixture in `conformance/estimate/learner_ate/fixture.json`
+The known-truth fixture in `conformance/estimate/learner_ate/fixture.json`
 covers a binary-treatment linear SCM at one sample size; it does not support
 nonlinear-provider or CATE interval calibration. Read each result's calibration status and matching coverage record;
 coverage for a marginal ATE does not support pointwise CATE intervals.
@@ -286,7 +287,7 @@ downstream analysis is supported, not applicable, or refused.
 
 The following are current product boundaries or explicit matrix refusals:
 
-- no 12-estimator EconML clone (native DML, DRLearner, and honest causal-forest CATE; the EconML adapter still emits a set, not a learner);
+- no 12-estimator EconML clone (native DML, DRLearner, and honest causal-forest CATE; the EconML adapter emits a set, not a learner);
 - no plotting module;
 - no R, Julia, or JavaScript bindings;
 - no complete PAG-native ID/IDC;
@@ -296,7 +297,6 @@ The following are current product boundaries or explicit matrix refusals:
   non-transportability proof;
 - for incomplete-class response uncertainty, use the query-specific contracts in
   [causal responses](causal-responses.md);
-- no partial-graph derivative cells;
 - no exact DAG pseudo-posterior enumeration beyond six nodes;
 - no automatic estimator choice and no prior that can rescue identification.
 
