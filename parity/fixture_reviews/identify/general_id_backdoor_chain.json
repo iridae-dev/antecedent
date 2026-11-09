@@ -1,0 +1,143 @@
+{
+  "scope": "Exact nonparametric ATE identification status, graph and backdoor adjustment by z for one declared graph; complete printed DoWhy output is regenerated without numerical estimation.",
+  "independence_basis": "Repository-authored public black-box CausalModel.identify_effect calls import no Antecedent implementation or test helpers. Inputs are the declared graph and explicit observed variable names. Two dummy rows provide a schema only; no data values enter graph identification. Product assertions require an estimand expression rather than the always-present method heading.",
+  "historical_exposure": "Original generation environment and harness were deleted; historical author exposure cannot be established. Current review inspected product assertions and official DoWhy public API documentation. No upstream implementation or test source was consulted or copied.",
+  "redistribution": "Only repository-authored harness, frozen graph/output and dependency lock are retained under MIT OR Apache-2.0. DoWhy and transitive packages remain isolated tooling; their sources/tests are not copied into the product or ordinary CI.",
+  "limitations": "A single small graph does not establish completeness, all ADMG structures, positivity, effect estimation, uncertainty, weighted/missing-data handling or calibration. Front-door identification status is distinct from the separate product enumerated-SCM intervention-value assertion. Exact rendering is pinned by the full lock; other environments need a reviewed comparison rather than silently accepting changed output. Product-side DOT preparation uses the repository latent projection; the independent DoWhy call does not. The current simple latent-common-cause projection is exercised by oracle_dot unit assertions; no general projection-correctness review is claimed.",
+  "artifacts": [
+    {
+      "role": "generator",
+      "path": "conformance/identify/general_id_backdoor_chain/reference.py",
+      "sha256": "1e83bf079cd996ec7fea9d3ccdcbe3ed27d74a0a1da50b4296cf2d397a21229c"
+    },
+    {
+      "role": "environment_lock",
+      "path": "conformance/identify/general_id_backdoor_chain/reference.py.lock",
+      "sha256": "7df06543d21ad58486613ff53d23bb8aacf1f11e43c8159bae900a80ec6ec35b"
+    },
+    {
+      "role": "assertion_source",
+      "path": "crates/antecedent-identify/src/id.rs",
+      "items": [
+        "enum DistCtx",
+        "enum Factor",
+        "enum IdOutcome",
+        "fn enter",
+        "fn expectation_contrast",
+        "fn get",
+        "fn identify_ate",
+        "fn identify_ate_impl",
+        "fn insert",
+        "fn intervention_value",
+        "fn leave",
+        "fn len",
+        "fn new",
+        "fn not_identified_with_hedge",
+        "fn prepare_dag",
+        "fn subproblem_hash",
+        "fn admitted",
+        "fn var",
+        "fn with_causal_markov",
+        "struct IdIdentifier",
+        "struct IdMemo",
+        "struct IdMeter",
+        "struct IdQuery",
+        "struct IdRun",
+        "struct Law",
+        "struct SubproblemKey",
+        "type Assign"
+      ],
+      "sha256": "19f9e65ec67be68b722ce3921bacf7e98b4f11f0ee02985433f83d8d0bb1719d"
+    },
+    {
+      "role": "assertion_source",
+      "path": "crates/antecedent-identify/src/id/expression.rs",
+      "items": [
+        "fn c_component_expression",
+        "fn conditionals",
+        "fn dist_marginal",
+        "fn emit",
+        "fn intern_nodes",
+        "fn intervention_for_factor",
+        "fn marginalize",
+        "fn markov_product",
+        "fn observational_marginal",
+        "fn product_of",
+        "fn q_component_product",
+        "fn sum_out_if_any"
+      ],
+      "sha256": "6a025af0a0c2cbe983e1178b8e30031345578345f88a1f719595cc3424e557a1"
+    },
+    {
+      "role": "assertion_source",
+      "path": "crates/antecedent-identify/src/id/recursion.rs",
+      "items": [
+        "fn id_body",
+        "fn id_lines_5_to_7",
+        "fn id_recurse",
+        "fn id_recurse_shared",
+        "fn marginal_conditionals"
+      ],
+      "sha256": "4fcd9ab6713df50c603b87fe21dd6cdff1bfe1c9bf83af0cd3716ac25df4793b"
+    },
+    {
+      "role": "assertion_source",
+      "path": "crates/antecedent-identify/src/id/tests.rs",
+      "items": [
+        "fn backdoor_chain_identified"
+      ],
+      "sha256": "d3c8f7ef10b116398157649a2e3254e0ca0d7f5b718ddc7aaafdb648d93c4f98"
+    },
+    {
+      "role": "assertion_source",
+      "path": "crates/antecedent-identify/src/backdoor.rs",
+      "items": [
+        "const BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE",
+        "fn charge_examination",
+        "fn confounding_requires_z",
+        "fn dag",
+        "fn declared_assumptions",
+        "fn default",
+        "fn dense_costs",
+        "fn dense_first_wins",
+        "fn descendants_of",
+        "fn enumerate",
+        "fn exceeds_lag",
+        "fn graph",
+        "fn identify",
+        "fn identify_ate",
+        "fn is_backdoor_adjustment",
+        "fn is_mandatory_fork_set",
+        "fn lag_exceeds",
+        "fn new",
+        "fn node_map",
+        "fn order_by_cost",
+        "fn outcome",
+        "fn prepare",
+        "fn prepare_with_assumptions",
+        "fn remove_outgoing",
+        "fn remove_outgoing_set",
+        "fn screen",
+        "fn screen_ancestor_candidates",
+        "fn total_cost",
+        "fn validate",
+        "fn validate_costs",
+        "fn with_assumptions",
+        "fn wrap",
+        "struct AdjustmentProblem",
+        "struct AdjustmentSearchConfig",
+        "struct BackdoorIdentifier",
+        "struct PreparedIdentificationGraph",
+        "struct Screening",
+        "struct SearchOutcome"
+      ],
+      "sha256": "71506334cca3929360759a633ec44084f15062d2d021fb88b2f8265cf88ae0a3"
+    },
+    {
+      "role": "comparison_helper",
+      "path": "crates/antecedent-identify/src/oracle_dot.rs",
+      "sha256": "a3932fd7f9f34173c58139600239151663601408300b8896213fbc45c5ab33e3"
+    }
+  ],
+  "fixture_payload_sha256": "1aab1ca609fb98c369016fdfe20c897ffccc5e9b063ced0cfa9142c627b183c8"
+}
