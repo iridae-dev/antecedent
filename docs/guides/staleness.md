@@ -79,9 +79,9 @@ failures raise typed errors. A report recommending `refuse` is an accepted asses
 that the plan does not apply; it does not pretend to estimate a causal effect.
 
 A loaded baseline contains its sealed diagnostic summary and bounded subsample;
-it reconstructs no live study or complete dataset. Its acceptance verifies the native
-summary seal and declared identity expectations, and explicitly excludes replay of the
-unavailable original observations. `export()` returns the typed artifact and
+it reconstructs no live study or complete dataset. Its acceptance checks the native
+summary seal and declared identity expectations; the original observations are not
+carried, so they are not replayed. `export()` returns the typed artifact and
 `bytes(artifact)` explicitly materializes its encoding.
 
 `report.evaluations` holds every diagnostic that was run, exceeded or not;

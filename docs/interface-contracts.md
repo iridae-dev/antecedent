@@ -114,7 +114,7 @@ tables or the consumer's tables drift from the implementation.
 |---|---|
 | a connection with a cycle | `interface_contract_cyclic_composition`, with the path |
 | a mean offered where a law is required, a sampling interval for a posterior | `interface_contract_operation_unavailable`, `interface_contract_uncertainty_mismatch` |
-| an interval or posterior for a composed quantity | not supported: no whole-method coverage has been measured at a composed coordinate, and a component interval does not cover a composition |
+| an interval or posterior for a composed quantity | not supported without a whole-method coverage record at the composed coordinate; a component interval does not cover a composition |
 
 The contract states declarations. It does not verify that a declared
 population is the one the data came from, that a declared calibration record

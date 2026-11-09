@@ -7,9 +7,9 @@ be reused, and what it cannot claim. The declaration is an instance of the one
 interface-contract schema and bridges to the one provider contract
 (`CausalProviderSpec` / `ProviderRegistry` rules in
 [connect scientific components](guides/build/scientific-interfaces.md)); there is no second format and no
-second registry. The earlier bounded mean callback (`recalc_external`) is
-unchanged and remains the route for a foreign mean that must follow a changing
-dependency under the shared recalculation planner.
+second registry. The bounded mean callback (`recalc_external`) is the route
+for a foreign mean that must follow a changing dependency under the shared
+recalculation planner.
 
 ## The protocol
 
@@ -107,7 +107,7 @@ Attestation is rechecked where a result is used. A loaded artifact's trust is
 the producer's claim: the standing a consumer sees is recomputed from the
 declaration it holds now, a declared verification counts only against the
 receipt supplied at that call (`verification_holds`), and a reused stored result
-takes the standing of the current declaration, not the stored one. An old
+takes the standing of the current declaration, not the stored one. A stored
 result is preserved and inspectable; it is not revived by a cache or by
 restamping its identities.
 
@@ -145,7 +145,7 @@ rebuilds and re-validates every part and recomputes the declaration, request,
 output and artifact identities; a retained identity binds it. A stored native
 trust level is refused, not downgraded.
 
-`CallbackSession::resume` imports the historical result (always inspectable)
+`CallbackSession::resume` imports the stored result (always inspectable)
 and then, with a supplied provider that is the declared object, answers the
 request by reuse or recomputation under the replay contract. With no provider
 the stage is recorded `unavailable` with `callback_provider_unavailable`; with a
@@ -183,4 +183,4 @@ to the receiving session, even when another session has the same index.
 independently retainable identity expectation and immutable metadata.
 `ant.load(bytes(artifact), expected=artifact.expectation)` consumes without running any provider. Transfer
 to another live session uses explicit `session.resume(...)` with that expectation;
-provider replacement still follows the existing declaration and replay contract.
+provider replacement follows the declaration and replay contract.

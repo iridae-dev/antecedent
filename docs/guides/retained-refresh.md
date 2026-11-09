@@ -1,6 +1,6 @@
 # Keep results current: retained refresh and state publication
 
-Two pieces keep a long-lived analysis honest as data change. A **retained refresh** keeps the
+Two pieces keep a long-lived analysis current as data change. A **retained refresh** keeps the
 least-squares, scatter or conjugate summary a prepared study's estimator rests on, and updates it
 as rows arrive, leave or change weight, checking every change against a fresh reconstruction.
 **State publication** records which results a data or premise event made stale and accepts a
@@ -101,7 +101,7 @@ published back only with the identities of the study that recomputed it:
 ```python
 from antecedent.state import CausalState, publish_recomputed_results
 
-state = CausalState(1 << 20)
+state = CausalState(ant.Execution(cache=ant.CachePolicy.bounded(1 << 20)))  # result-cache budget
 state.append_data(["x"], [np.arange(8, dtype=np.float64)])
 _, query = state.register_average_effect(0, 1)
 print(state.stale_queries() == [query])

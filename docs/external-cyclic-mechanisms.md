@@ -10,7 +10,7 @@ supply one, and they differ in what an artifact may claim.
 | Independent replay | Impossible | Possible with a caller-supplied trusted resolver, after verification |
 | Standing | Numerical only | `verified_external`; never `native` |
 
-The process-local path ([`LocalCyclicModel`](guides/cyclic-systems.md)) is unchanged.
+The process-local path is [`LocalCyclicModel`](guides/cyclic-systems.md).
 
 ## What is recorded
 
@@ -81,7 +81,7 @@ covariance and mechanism family.
 * **Equilibrium.** `ResolvedFeedbackSystem::solve` takes the same `SolvePolicy` as the built-in
   solver and applies its budgets (Jacobian nonzeros, block size, memory, factor fill, total
   iterations, wall clock), resource admission, cancellation and sparse-LU Newton, and fills the
-  same `SolveEvidence` fields, using the verified mechanisms' derivatives. Existence and uniqueness are marked only when the declared
+  same `SolveEvidence` fields, using the resolved mechanisms' derivatives. Existence and uniqueness are marked only when the declared
   Lipschitz bounds give a block infinity-norm contraction below one; otherwise the root is
   numerical. The certificate is as trustworthy as the declaration, and the evidence says it
   is declared (`lipschitz_basis: declared`).

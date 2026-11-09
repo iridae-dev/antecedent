@@ -74,9 +74,9 @@ Read these refusals by family:
 | `interface_contract_uncertainty_mismatch` | The required uncertainty meaning is missing, of another paradigm or another object, such as a sampling interval where a posterior is needed. |
 | `interface_contract_invalid` | The declaration is malformed. |
 
-An accepted connection carries the producer's label and evidence unchanged. **A connection never raises a label**: a point-only producer stays point-only, a not_measured interval stays not_measured, and a consumer that relies on measured calibration is refused instead of being served a not_measured interval.
+An accepted connection carries the producer's label and evidence unchanged. **A connection never raises a label**: a point-only producer stays point-only, a not_measured interval stays not_measured, and a consumer that relies on measured calibration is served all the same, with the connection stating that the interval is not_measured.
 
-`check_composition(components, connections)` checks a whole set before any execution. It refuses unknown or duplicated components and ports, a consumed port fed twice, a feedback cycle (reported with its path, as `interface_contract_cyclic_composition`), calibration declared `inherited` whose upstream does not hold a measured record, and two inputs required to be disjoint that share an evidence source. Cyclic scientific composition is not supported, and a loop is never unrolled or iterated. The check is bounded at 1024 components and 8192 connections.
+`check_composition(components, connections)` checks a whole set before any execution. It refuses unknown or duplicated components and ports, a consumed port fed twice, a feedback cycle (reported with its path, as `interface_contract_cyclic_composition`) and two inputs required to be disjoint that share an evidence source. Calibration declared `inherited` is resolved against its upstream producer and carried as not_measured when the upstream does not hold a measured record. Cyclic scientific composition is not supported, and a loop is never unrolled or iterated. The check is bounded at 1024 components and 8192 connections.
 
 A contract has one canonical, versioned identity independent of port declaration order, and it exports as a checksummed artifact that a consumer re-validates and checks against an identity it retained independently. The full field-by-field reference, the specification and its second reference consumer are in [scientific interface contracts](../../interface-contracts.md).
 
@@ -244,7 +244,7 @@ A `MechanismWrapper` whose noise cannot be recovered from an observation declare
 | --- | --- |
 | A connection with a feedback cycle | Refused, with the cycle path. |
 | A mean offered where a law is required, or a sampling interval for a posterior | Refused as an unavailable operation or an uncertainty mismatch. |
-| An interval or posterior for a composed quantity | Not supported. No whole-method coverage has been measured at a composed coordinate, and a component interval does not cover a composition. |
+| An interval or posterior for a composed quantity | Not supported without a whole-method coverage record at the composed coordinate; a component interval does not cover a composition. |
 | A native-supported label on an outside result | Refused. |
 
 To carry a bound or composed result between services, export it and accept it with the rules in [save, hand off and accept results](artifacts-and-handoff.md). To use a library's estimator beside Antecedent's identification, see [work with other causal libraries](interoperability.md).

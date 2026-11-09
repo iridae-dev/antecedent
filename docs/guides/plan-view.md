@@ -1,7 +1,7 @@
 # Inspect a plan and read a report
 
-Before anything is estimated you can inspect the program a study compiles to, and afterwards render the records as a readable report. A plan view shows every layer of the program a study compiles to before
-anything is estimated. It covers one study under any route: an average effect
+Before anything is estimated you can inspect the program a study compiles to, and afterwards render the records as a readable report. A plan view shows every layer of that program.
+It covers one study under any route: an average effect
 on a DAG, a temporal response, a randomized trial, a structure search, a
 mixture over a graph posterior, a cyclic family or a standalone experiment
 plan. The view names the route and the family that lowered it. It shows the
@@ -12,7 +12,7 @@ Reading a view does not identify, fit, scan rows, enumerate graphs, simulate or
 lease from an admission pool. It reads what compile retained, or what
 preparation installed.
 
-## Three stages
+## Stages
 
 | Call | What runs | What the view shows |
 | --- | --- | --- |
@@ -96,7 +96,7 @@ match prepared.retained_operation() {
 prepared = ant.prepare(data, graph=edges, query=ant.AverageEffect("t", "y"))
 view = prepared.plan_view()           # ProgramPlanView; nothing executes
 view.identification.status            # "nonparametrically_identified"
-view.identification.retained[0]["estimands"][0]["adjustment_set"]   # ["z"]
+view.identification.retained[0]["estimands"][0]["adjustment_set"]   # ("z",)
 view.physical.quoted_width            # encoded design columns, or None
 view.operation["kind"]                # the sealed operation preparation retained
 view.to_dict()                        # the JSON-safe whole
@@ -150,8 +150,8 @@ report on; the Rust contract-only report covers it.
 | Identities | The domain-separated digests of the contract. |
 
 A status is reported as the records carry it. A route that runs in a development build without evidence says so (`would_refuse`), and a
-calibration slot that is not `calibrated` says that the reported uncertainty has no matching
-coverage record. The report grants no support and upgrades no status.
+calibration slot that is not `calibrated` states its status (`outside_measured_scope`,
+`measured_below_nominal` or `not_measured`). The report grants no support and upgrades no status.
 
 ### Escaping
 
