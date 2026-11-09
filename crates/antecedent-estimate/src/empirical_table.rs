@@ -294,11 +294,11 @@ fn draw_transport_law(
 pub enum EmpiricalTableEstimator {
     /// Frequencies from fully observed samples, no pseudocounts.
     Plugin,
-    /// Named Dirichlet / pseudocount smoother. Not supported in T6.1.
+    /// Named Dirichlet / pseudocount smoother.
     Dirichlet,
-    /// Bayesian bootstrap law on the empirical row support. Not yet support supported.
+    /// Bayesian bootstrap law on the empirical row support.
     EmpiricalSupportBayesianBootstrap,
-    /// Full declared-state-space Dirichlet posterior. Not yet support supported.
+    /// Full declared-state-space Dirichlet posterior.
     StateSpaceDirichlet,
     /// Model-based finite categorical joint; independently uncalibrated.
     Learned(crate::LearnerSpec),
