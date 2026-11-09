@@ -1,0 +1,1 @@
+["use:std::cell::RefCell;#0","struct:OrientationWork#0","macro:thread_local#0","fn:record_round#0","fn:record_fixed_point#0","fn:observe_orientation#0","struct:WorkUnits#0","impl:WorkUnits#0","impl:WorkUnits#0/fn:is_pure_reuse#0","mod:tests#0","mod:tests#0/use:super::*;#0","mod:tests#0/fn:observer_counts_only_inside_its_scope_and_nests#0"]

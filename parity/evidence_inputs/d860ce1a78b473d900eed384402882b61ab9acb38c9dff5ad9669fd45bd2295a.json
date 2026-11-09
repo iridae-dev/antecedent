@@ -1,0 +1,1 @@
+[{"digest":"41540b29d4c806b72c842264a144f53b34402b6cee46a9197f1c8b970121ca5f","file":"05fdf12d9ae976159ffa25a2c25d1403b1f0805003db27ba9661fc498f253b07","kind":"rust_items","path":"crates/antecedent-learn/tests/bayesian_basis.rs","role":"compile","scopes":[[[],true]],"select":{"full":[3,4],"inner":[-1]},"table":"54223dc5c76f285cb08ccb9b8fd62b323a844b472be5519b10d0fd9963673948"}]
