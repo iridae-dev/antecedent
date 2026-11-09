@@ -66,10 +66,12 @@ def _safe_path(name: str) -> PurePosixPath:
     return path
 
 
-# Scientific evidence a run writes: never compiled into any target (no include reads
-# them), so they are left out of the build source. Committing a run's records then
-# leaves the next build's source, and its cached derivation, unchanged.
-RUN_OUTPUT_DIRS = ("parity/evidence_manifests/", "parity/evidence_inputs/", "parity/evidence_items/")
+# Paths no target compiles (no include, build script or recipe reads them), left out of
+# the build source: the scientific evidence a run writes, and the earning scripts. A
+# record commit or a script fix then leaves the next build's source, and its cached
+# derivation, unchanged. Tests that read these at run time read the checkout.
+RUN_OUTPUT_DIRS = ("parity/evidence_manifests/", "parity/evidence_inputs/", "parity/evidence_items/",
+                   "scripts/")
 RUN_OUTPUT_FILES = ("parity/scientific_records.toml",)
 
 

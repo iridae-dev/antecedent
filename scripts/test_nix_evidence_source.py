@@ -40,11 +40,11 @@ class SnapshotTest(unittest.TestCase):
 
     def test_committed_evidence_outputs_stay_out_of_the_build_source(self):
         outputs = ["parity/scientific_records.toml", "parity/evidence_manifests/a.json",
-                   "parity/evidence_inputs/b.json", "parity/evidence_items/c.json"]
+                   "parity/evidence_inputs/b.json", "parity/evidence_items/c.json", "scripts/earn.py"]
         for rel in outputs + ["parity/coverage_records.toml"]:
             (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
             (self.root / rel).write_text("x\n", encoding="utf-8")
-        self.git("add", "parity")
+        self.git("add", "parity", "scripts")
         self.git("commit", "-qm", "records")
         result = materialize_committed_source(self.root, self.destination)
         verify_committed_snapshot(self.root, self.destination, result["commit"])
