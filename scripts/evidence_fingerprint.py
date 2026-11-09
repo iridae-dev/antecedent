@@ -50,6 +50,7 @@ with it. Nothing here reads a ledger or runs a test.
 from __future__ import annotations
 
 import ast
+import functools
 import hashlib
 import json
 import os
@@ -128,6 +129,7 @@ def _sha(*parts: str | bytes) -> str:
     return h.hexdigest()
 
 
+@functools.lru_cache(maxsize=None)
 def normalized_rust(text: str) -> str:
     """Comments blanked, literals kept, trailing blanks and empty lines dropped."""
     import _rust_source

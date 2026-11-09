@@ -17,6 +17,7 @@ prints each record's status and reasons, the input-to-record index and timings.
 from __future__ import annotations
 
 import argparse
+import functools
 import hashlib
 import json
 import os
@@ -90,6 +91,7 @@ LINT_FLAG = re.compile(r"-[DWAF]\S+|--(?:deny|warn|allow|forbid|force-warn)=\S+"
 LINT_OPTION = {"-D", "-W", "-A", "-F", "--deny", "--warn", "--allow", "--forbid", "--force-warn"}
 
 
+@functools.lru_cache(maxsize=None)
 def rust_text_digest(text: str) -> str:
     """Digest of a Rust source as code: comments (doc comments included) blanked, literals
     kept, blank lines dropped. A comment or layout edit leaves it unchanged."""
