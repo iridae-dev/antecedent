@@ -128,3 +128,34 @@ def _picklable(value) -> bool:
     if isinstance(value, dict):
         return all(_picklable(k) and _picklable(v) for k, v in value.items())
     return False
+
+
+def longest_first(items: list, seconds) -> list:
+    """Order work by its last recorded duration, longest first (longest-processing-time
+    scheduling), so a long unit does not start late and set the wall time; units with no
+    recorded duration (`seconds(item)` is None) keep their order after the timed ones."""
+    def key(entry):
+        position, item = entry
+        value = seconds(item)
+        return (0, -value, position) if value is not None else (1, 0.0, position)
+    return [item for _, item in sorted(enumerate(items), key=key)]
+
+
+def record_duration(path: Path, label: str, seconds: float) -> None:
+    """Append one unit's wall time (`label<TAB>seconds`); a single short append is atomic."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8", newline="\n") as out:
+        out.write(f"{label}\t{seconds:.1f}\n")
+
+
+def last_durations(path: Path) -> dict[str, float]:
+    """The most recent recorded wall time of each label."""
+    out: dict[str, float] = {}
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            parts = line.split("\t")
+            try:
+                out[parts[0]] = float(parts[1])
+            except (IndexError, ValueError):
+                continue
+    return out

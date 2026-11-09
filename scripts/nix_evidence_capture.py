@@ -58,11 +58,20 @@ def diagnose_target(root: Path, rows: list[dict], run=subprocess.run) -> dict:
     return capture_built_target(root, rows, built, run)
 
 
+SCIENTIFIC_TIMINGS = Path("target") / "scientific-timings.tsv"
+
+
 def _capture(root: Path, binary: str, info: dict, env: dict[str, str], run,
              tools: dict[str, str]) -> dict[str, set[int]] | None:
+    import time
+
     from scientific_records import capture_one
+    begin = time.monotonic()
     if run is subprocess.run:
-        return capture_one(root, binary, info, env, llvm_tools=tools)
+        result = capture_one(root, binary, info, env, llvm_tools=tools)
+        # Wall times order later runs longest first (`evidence_capture.longest_first`).
+        evidence_capture.record_duration(root / SCIENTIFIC_TIMINGS, info["selector"], time.monotonic() - begin)
+        return result
     return capture_one(root, binary, info, env, run, llvm_tools=tools)
 
 

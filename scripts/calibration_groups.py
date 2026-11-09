@@ -776,17 +776,12 @@ def last_durations() -> dict[str, float]:
 
 
 def longest_first(tasks: list[tuple[Group, int | None]]) -> list[tuple[Group, int | None]]:
-    """Order tasks by their last recorded duration, longest first (longest-processing-time
-    scheduling), so a long task does not start late and set the wall time; tasks with no
-    record keep their gate order after the timed ones."""
+    """Order tasks by their last recorded duration, longest first (`evidence_capture`);
+    tasks with no record keep their gate order after the timed ones."""
+    from evidence_capture import longest_first as order
+
     durations = last_durations()
-
-    def key(item: tuple[int, tuple[Group, int | None]]) -> tuple[int, float, int]:
-        position, (group, point) = item
-        seconds = durations.get(task_label(group, point))
-        return (0, -seconds, position) if seconds is not None else (1, 0.0, position)
-
-    return [task for _, task in sorted(enumerate(tasks), key=key)]
+    return order(tasks, lambda task: durations.get(task_label(*task)))
 
 
 # Most worker threads a single long task is given (see tail_threads).

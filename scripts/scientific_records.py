@@ -429,6 +429,15 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
     withdraw_records(root, [info for _, _, todo, _, _ in prepared for _, info in todo])
     if (root / ledger).is_file():
         _remember_nix_output(root, allowed, ledger)
+    # Longest first, by the last recorded wall times: targets by their slowest assertion,
+    # assertions within a target by their own, so a long one never starts last.
+    from evidence_capture import last_durations, longest_first
+    from nix_evidence_capture import SCIENTIFIC_TIMINGS
+    seconds = last_durations(root / SCIENTIFIC_TIMINGS)
+    prepared = [(crate, target, longest_first(todo, lambda pair: seconds.get(pair[1]["selector"])), built, snapshots)
+                for crate, target, todo, built, snapshots in prepared]
+    prepared = longest_first(prepared, lambda item: max(
+        (seconds[info["selector"]] for _, info in item[2] if info["selector"] in seconds), default=None))
     # Every target's tests run at once within the shared capture slots, so one slow
     # assertion no longer holds back the targets after it. Results are recorded here as
     # each target completes, under the lock the capture threads' checkout checks take.
