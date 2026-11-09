@@ -211,12 +211,18 @@ def validate_nix_receipt(receipt: object, binding: dict, inputs: list[dict]) -> 
         raise InvalidManifest("Nix build provenance is not yet supported")
     try:
         artifact, source, policy, tools = (receipt[k] for k in ("artifact", "source", "policy", "tools"))
-        if binding.get("kind") != "scientific" or receipt.get("execution") != "exact-binary":
+        if binding.get("kind") not in ("scientific", "calibration", "probe") or receipt.get("execution") != "exact-binary":
             raise ValueError("invalid execution binding")
-        crate, target, _ = binding["key"].split("::", 2)
-        expected = "lib" if artifact["target_kind"] == "lib" else artifact["target_name"]
-        if artifact["crate"] != crate or target != expected or artifact["target_kind"] not in ("lib", "test"):
+        crate = artifact["crate"]
+        if artifact["target_kind"] not in ("lib", "test"):
             raise ValueError("target mismatch")
+        if binding["kind"] == "scientific":
+            # A scientific record names its test target; a calibration record names its
+            # measurement, whose binary the collector binds from the run that emitted it.
+            key_crate, target, _ = binding["key"].split("::", 2)
+            expected = "lib" if artifact["target_kind"] == "lib" else artifact["target_name"]
+            if key_crate != crate or target != expected:
+                raise ValueError("target mismatch")
         # One shared derivation builds every owed target; each artifact names its own executable.
         name = artifact["target_name"] if artifact["target_kind"] == "test" else "lib"
         if (artifact.get("schema") != 2
