@@ -66,6 +66,19 @@ def _safe_path(name: str) -> PurePosixPath:
     return path
 
 
+# Scientific evidence a run writes: never compiled into any target (no include reads
+# them), so they are left out of the build source. Committing a run's records then
+# leaves the next build's source, and its cached derivation, unchanged.
+RUN_OUTPUT_DIRS = ("parity/evidence_manifests/", "parity/evidence_inputs/", "parity/evidence_items/")
+RUN_OUTPUT_FILES = ("parity/scientific_records.toml",)
+
+
+def build_input(name: str) -> bool:
+    """Whether a committed path belongs in the build source."""
+    return name not in RUN_OUTPUT_FILES and not name.startswith(RUN_OUTPUT_DIRS) \
+        and name.rstrip("/") + "/" not in RUN_OUTPUT_DIRS
+
+
 def _expected_tree(root: Path, head: str) -> dict[str, tuple[str, str]]:
     expected: dict[str, tuple[str, str]] = {}
     for entry in _git(root, "ls-tree", "-r", "-z", "--full-tree", head).split(b"\0"):
@@ -77,7 +90,8 @@ def _expected_tree(root: Path, head: str) -> dict[str, tuple[str, str]]:
         _safe_path(name)
         if kind != "blob" or mode not in ("100644", "100755"):
             raise ValueError(f"unsupported source tree entry: {name}")
-        expected[name] = (mode, oid)
+        if build_input(name):
+            expected[name] = (mode, oid)
     return expected
 
 
@@ -200,6 +214,8 @@ def _extract_archive(tar: tarfile.TarFile, destination: Path,
     for member in tar:
         name = member.name.rstrip("/") if member.isdir() else member.name
         path = _safe_path(name)
+        if not build_input(name):
+            continue
         if member.isdir():
             (destination / path).mkdir(parents=True, exist_ok=True)
             continue
