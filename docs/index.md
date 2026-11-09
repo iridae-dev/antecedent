@@ -16,7 +16,7 @@ Then prepare, inspect and estimate an effect in simulated data where the true an
 
 ## Choose your path
 
-**Research and scientific decision-making.** Ask a causal question, inspect the assumptions and evidence it needs, and carry the answer into the next comparison, decision or study. Begin with [how to read a result](start/reading-a-result.md), then the [observational study tutorial](tutorials/observational-study.md).
+**Research and scientific decision-making.** Ask a causal question, inspect the assumptions and evidence it needs, and carry the answer into the next comparison, decision or study. Begin with [how to read a result](start/reading-a-result.md), then the [observational study tutorial](tutorials/observational-study.md). When you write up a study, [cite the methods behind it](guides/citing-a-study.md): every result names the published sources its route implemented and where the implementation departs from them.
 
 **Building software and agents.** Embed causal workflows with inspectable plans and machine-readable assumptions, uncertainty and limits. Your application supplies planning, permissions and the policy for using an answer. Begin with the [application component tutorial](tutorials/application-component.md) and [embedding](guides/build/embedding.md).
 
@@ -31,11 +31,12 @@ Each tutorial follows one scientific task and pairs with a maintained example.
 | Start with a marketing mix model, compare spending programs, incorporate experimental evidence, make a decision and rank the next studies | [Beyond the marketing mix](tutorials/beyond-marketing-mix.md) |
 | Combine historical humans, synthetic users and a small pilot to decide whether to launch or investigate | [The smallest defensible test](tutorials/synthetic-users-launch.md) |
 | Write conditional and history-dependent pricing and inventory policies, then replay the same stores | [Programmable causal policies](tutorials/programmable-policies.md) |
-| Plan an HCI study, choose follow-up research and check the claims in the paper | [From day zero to publication](tutorials/research-from-day-zero.md) |
+| Plan an HCI study, choose follow-up research, check the claims in the paper and cite the methods behind them | [From day zero to publication](tutorials/research-from-day-zero.md) |
 | Update a response from an experiment and choose the next study | [From an experiment to the next study](tutorials/experiment-to-next-study.md) |
 | Change a utility, export a decision, withdraw a source | [Replay and current decisions](tutorials/replay-and-current-decisions.md) |
 | Decide when a result is suggestive but not significant | [Decide under uncertainty](tutorials/decide-under-uncertainty.md) |
 | Analyze a real public dataset end to end | [An observational study](tutorials/observational-study.md) |
+| Follow a refusal when the comparison group does not overlap, and see how far the answer moves | [When overlap fails](tutorials/when-overlap-fails.md) |
 | Use Antecedent as a component of an application | [Application component](tutorials/application-component.md) |
 
 ## Guides
