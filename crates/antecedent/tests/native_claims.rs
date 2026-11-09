@@ -304,12 +304,20 @@ fn native_aligned_law_functionals_match_finite_arithmetic() {
     let claim =
         NativeResponseClaim::from_response(&joint_response(), &schema(), &context()).unwrap();
     let mut contract = contract(DecisionCriterion::Quantile { p: 0.5 });
-    contract.actions = vec![DecisionAction {
-        id: "P".into(),
-        kind: ActionKind::Intervention,
-        inputs: vec![quantity("1"), quantity("2")],
-        utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1)),
-    }];
+    contract.actions = vec![
+        DecisionAction {
+            id: "P".into(),
+            kind: ActionKind::Intervention,
+            inputs: vec![quantity("1"), quantity("2")],
+            utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1)),
+        },
+        DecisionAction {
+            id: "Q".into(),
+            kind: ActionKind::Intervention,
+            inputs: vec![quantity("1")],
+            utility: UtilityExpr::Input(0),
+        },
+    ];
     let requirement = contract.source_requirement().unwrap().unwrap();
     let input = claim.into_decision_source(&requirement).unwrap();
     let NativeDecisionSource::JointLaw(artifact) = &input.source else {

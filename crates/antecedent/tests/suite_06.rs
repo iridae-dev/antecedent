@@ -8,6 +8,9 @@ mod adaptive_policy_model_source;
 #[path = "per_population_discovery_facade.rs"]
 mod per_population_discovery_facade;
 #[cfg(feature = "calibration-internal")]
+#[path = "cross_world_edge_contrast.rs"]
+mod cross_world_edge_contrast;
+#[cfg(feature = "calibration-internal")]
 #[path = "policy_python_parity.rs"]
 mod policy_python_parity;
 #[path = "policy_value_route.rs"]

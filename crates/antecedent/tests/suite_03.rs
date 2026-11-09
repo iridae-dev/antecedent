@@ -55,9 +55,6 @@ mod count_fitted_observation_facade;
 mod counterfactual_id_lifecycle;
 #[path = "cpdag_ate_numeric_pins.rs"]
 mod cpdag_ate_numeric_pins;
-#[cfg(feature = "calibration-internal")]
-#[path = "cross_world_edge_contrast.rs"]
-mod cross_world_edge_contrast;
 #[path = "cross_world_execution_facade.rs"]
 mod cross_world_execution_facade;
 #[path = "dag_path_specific_functional_effect_route_evidence.rs"]
