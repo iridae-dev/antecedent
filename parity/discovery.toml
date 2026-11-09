@@ -99,7 +99,7 @@ evidence_test = "crates/antecedent-stats/src/ci/calibration.rs"
 evidence_assertion = "multivariate_block_calibration_smoke"
 known_truth_reference = { kind = "closed_form", source = "crates/antecedent-stats/src/ci/calibration.rs::multivariate_block_calibration_smoke", proposition = "Independent Gaussian blocks form the declared null at alpha=0.05; the alternative shares dependence.", tolerance = "150 trials at n=150, blocks 2 by 2: null rejection fraction < 0.16 and power > 0.80", limitations = "Loose stochastic regression bound, not a claim of nominal type-I calibration." }
 evidence_activity = "statistical_smoke"
-limitations = "Type-I calibration gate is #[ignore]d and runs locally via measure_calibration_groups.sh, not in CI."
+limitations = "Type-I calibration gate is #[ignore]d and runs locally via scripts/measure_calibration.sh, not in CI."
 owner = "ci"
 notes = "Block residualization; significance via Bartlett chi-square on Wilks' Lambda over all canonical correlations (BlockShuffle recomputes Lambda per replicate). Scalar blocks reduce to ParCorr. Type I calibration: ci::calibration::multivariate_block_calibration_gate."
 
@@ -480,7 +480,7 @@ known_truth_reference = { kind = "closed_form", source = "crates/antecedent-vali
 evidence_activity = "statistical_smoke"
 limitations = "Seed-fixed check of 40 simulations x 200 rows x 3 variables with a widened band (band_tol 4.0); it detects gross miscalibration, not tight nominal coverage."
 owner = "discovery"
-notes = "antecedent-validate SyntheticNullCalibration; local gate via measure_calibration_groups.sh"
+notes = "antecedent-validate SyntheticNullCalibration; local gate via scripts/measure_calibration.sh"
 
 [[capabilities]]
 id = "discovery.validate.false_positive_permute_phase"

@@ -2,13 +2,11 @@
 """The calibration gate's groups: which records each measures, which owe a run,
 and running them in parallel on this machine.
 
-`scripts/measure_calibration_groups.sh` owns the groups, their commands and the
-2000-replicate recheck, which runs inline right after a group that asks for it.
-This module never edits or re-implements a group. It reads the group list from
-the gate's dry run and runs each selected group alone through the
-gate (`ANTECEDENT_CALIBRATION_SHARD=<index-1>/<groups>` selects exactly that
-group), so the gate's recheck and its record logs in `target/calibration-records/`
-are the ones `scripts/collect_coverage_records.py` reads.
+`parity/calibration_groups.toml` lists the groups, in gate order, and the test binary
+and exact tests each runs. `scripts/calibration_runner.py` measures a (group, grid
+point) task, with its inline 2000-replicate recheck, through the shared evidence
+runner, and writes the record logs in `target/calibration-records/` that
+`scripts/collect_coverage_records.py` reads.
 
 Which records are not current is decided by `scripts/calibration_status.py`
 (the only status computation); this module maps those records to groups.

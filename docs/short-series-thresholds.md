@@ -118,7 +118,7 @@ The failure line 0.855 is the lower edge of the calibration gate's
    points, [0.855, 0.945]; at 95%, [0.917, 0.983].
 2. **Recheck.** A cell that passes the band at fewer than 1000 replicates but
    measures more than 2 points under its level prints a `calibration-recheck`
-   line, and `scripts/measure_calibration_groups.sh` re-runs that group at 2000
+   line, and the calibration runner (`scripts/calibration_runner.py`) re-runs that group at 2000
    replicates (`ANTECEDENT_CALIBRATION_NSIM=2000`); the re-run's verdict
    stands. Under exactly nominal coverage about 9% of 90% cells and 4% of 95%
    cells are rechecked.

@@ -231,6 +231,11 @@ def execute(root: Path, tasks: list[Task], *, env: dict[str, str], log_dir: Path
     root = root.resolve()
     if not tasks:
         return {}
+    if not smoke:
+        # A formal measurement carries the complete frozen decision context, whoever calls.
+        import calibration_family
+        from calibration_preflight import validate_inherited
+        validate_inherited(decision_context, calibration_family.current_config(root))
     sha, _ = _clean_head(root)
     targets = sorted({t.group.build_target for t in tasks})
     features = {t.group.build_target: list(t.group.features) for t in tasks if t.group.features}

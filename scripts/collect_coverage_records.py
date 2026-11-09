@@ -6,7 +6,7 @@ One command after a calibration run:
     python3 scripts/collect_coverage_records.py
 
 It reads `target/calibration-records/*.log` (written by
-`scripts/measure_calibration_groups.sh`), writes `parity/coverage_records.toml` stamped
+`scripts/calibration_groups.py run`), writes `parity/coverage_records.toml` stamped
 with the SHA of the commit the logs were measured at, rewrites the
 `calibration` / `calibration_reason` pair for each already-bound supported support
 cell using only its existing record IDs, refreshes estimator rows, and regenerates
@@ -77,7 +77,7 @@ registry. Smoke lines measure nothing: every other invocation refuses them, and
 
 Every log must show a passing `test result: ok. N passed` with N >= 1 and no
 failure, and end with the `calibration-measured-at <sha>` line the gate wrote
-(scripts/measure_calibration_groups.sh); all logs must agree on that sha and it must equal
+(scripts/calibration_runner.py); all logs must agree on that sha and it must equal
 the stamped one. A run whose groups failed, matched no test, or was measured at
 another commit than the one being stamped is refused. Without `--keep-not_measured`
 the registry is exactly the logs, and the collector refuses to drop a record id
@@ -292,7 +292,7 @@ RECHECKED_TEST = re.compile(r"^calibration-rechecked-test (\S+)$", re.M)
 def rechecked_tests(recheck_log: Path) -> set[str] | None:
     """The test functions a recheck log re-ran, when the gate re-ran only some
     of a group's tests (`calibration-rechecked-test` lines, written by
-    scripts/measure_calibration_groups.sh); `None` when it re-ran the whole group."""
+    scripts/calibration_runner.py); `None` when it re-ran the whole group."""
     found = RECHECKED_TEST.findall(read_text(recheck_log, errors="ignore"))
     return {name.rpartition("::")[2] for name in found} or None
 
@@ -356,7 +356,7 @@ def record_lines(
             if "grid_point" not in payload:
                 raise SystemExit(
                     f"{log.name}: record {rid} carries no grid_point; it was measured before "
-                    "the sample-size grid, so re-measure it with scripts/measure_calibration_groups.sh"
+                    "the sample-size grid, so re-measure it with scripts/measure_calibration.sh"
                 )
             validate_point_decision(payload)
             point = int(payload["grid_point"])
@@ -699,7 +699,7 @@ def check_logs(logs: list[Path], sha: str) -> None:
 GATES_HEADER = """# Pass/fail calibration groups that emit no coverage record (CI Type I error,
 # permutation uniformity, discovery FPR/power, SBC, response calibration).
 #
-# One row per group log `scripts/measure_calibration_groups.sh` wrote and
+# One row per group log the calibration gate (`scripts/calibration_groups.py`) wrote and
 # `scripts/collect_coverage_records.py` accepted: the group ran, passed at least
 # one test and failed none, at `calibration_sha`. Do not edit rows by hand; re-run
 # the collector. `scripts/gate_parity_schema.sh` checks every row.
@@ -842,7 +842,7 @@ def load_records(
     allow_empty: bool = False,
 ) -> dict[str, dict]:
     if not log_dir.is_dir():
-        raise SystemExit(f"missing {log_dir}: run scripts/measure_calibration_groups.sh first")
+        raise SystemExit(f"missing {log_dir}: run scripts/measure_calibration.sh first")
     logs = sorted(log_dir.glob("*.log")) if selected_logs is None else selected_logs
     if not logs and allow_empty:
         return {}

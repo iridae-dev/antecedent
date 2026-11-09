@@ -201,24 +201,20 @@ for _fixture, _cited_by in sorted(_kt_cited.items()):
         )
 
 # ------------------------------------ 6. calibration tests are run by the gate
-# A test whose `#[ignore]` reason says it runs via scripts/measure_calibration_groups.sh must
-# be selected by a group of that gate (its dry-run list): a whole-file group of
-# its suite, or a cargo filter contained in its name. An orphan is silently never
-# measured while the diagnostics and registries describe the coverage in the
-# present tense.
-_gate_env = dict(os.environ, ANTECEDENT_CALIBRATION_DRY_RUN="1")
-_gate_env.pop("ANTECEDENT_CALIBRATION_SHARD", None)
-_dry = subprocess.run(
-    ["bash", "scripts/measure_calibration_groups.sh"], env=_gate_env, capture_output=True, text=True
-)
+# A test whose `#[ignore]` reason says it is a calibration measurement must be selected
+# by a group of the gate (parity/calibration_groups.toml): a whole-file group of its
+# suite, or an exact test name of a group. An orphan is silently never measured while
+# the diagnostics and registries describe the coverage in the present tense.
+import tomllib as _tomllib
+
 _groups = []
-for _line in _dry.stdout.splitlines():
-    _m = re.fullmatch(r"group \d+: (.+)", _line)
-    if _m:
-        _head, _, _filt = _m.group(1).partition(": ")
-        _groups.append((_head, _filt))
-if _dry.returncode != 0 or not _groups:
-    fail.append("scripts/measure_calibration_groups.sh dry run listed no groups")
+for _row in _tomllib.loads((root / "parity/calibration_groups.toml").read_text(encoding="utf-8"))["group"]:
+    # The file a group runs: its test target, or for a library group its package.
+    _head = _row["package"] if _row["target"] == "lib" else _row["target"]
+    for _name in _row.get("tests") or [""]:
+        _groups.append((_head, _name))
+if not _groups:
+    fail.append("parity/calibration_groups.toml lists no calibration group")
 CLAIM = re.compile(r'#\[ignore\s*=\s*"calibration: run via scripts/measure_calibration_groups\.sh"\]')
 FN = re.compile(r"\s*(?:pub\s+)?fn\s+([A-Za-z_]\w*)")
 n_claimed = 0
@@ -248,8 +244,8 @@ for p in sorted(root.glob("crates/**/*.rs")):
                 break
         if not covered:
             fail.append(
-                f"{p}:{i + 1} `{fn}` claims to run via scripts/measure_calibration_groups.sh but "
-                "no group of that gate selects it — add it to the gate, or change its "
+                f"{p}:{i + 1} `{fn}` claims to be a calibration measurement but no group of "
+                "parity/calibration_groups.toml selects it — add it to the table, or change its "
                 "#[ignore] reason to say what it really is"
             )
 

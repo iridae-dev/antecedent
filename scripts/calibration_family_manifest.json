@@ -19,7 +19,7 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "d4345f5327d3a4aafb071a075f8e971ecdb06b24a5372cf6a916fcf36d8fa8ea",
+  "gate_sha256": "9184cf0ff7a998ce42b3c57084d798516fc319a6de91821a509e064817a71840",
   "acceptance_sha256": "aa465bdbab5e3505c2f35899bccd67ad7aa6bbecbf5e3bf7eba0b5557cd3c13b",
   "label_audit_sha256": "694d901a7764243ee551c3ea71d03b03b24cb567978d8c56e2552efa03d035e5",
   "groups": [
