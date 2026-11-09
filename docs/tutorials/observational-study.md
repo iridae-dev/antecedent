@@ -38,7 +38,7 @@ Of the 1,629 people, 63 have no 1982 weight. Antecedent does not drop them silen
 
 The unadjusted difference in mean weight change, quitters minus others, is 2.54 kg. Propensity weighting reweights the sample so the covariates of quitters and non-quitters match, and gives an average effect of quitting of 3.44 kg with a bootstrap standard error of about 0.52.
 
-Read the overlap diagnostics before the number. The smallest estimated propensity is about 0.05 and the effective sample size is about 1,013 of 1,566 rows, so weights are moderate and no row stands in for a large share of the sample. That is the contrast with [the NSW comparison](when-overlap-fails.md), where propensities reached 1e-9 and Antecedent refused without a declared overlap policy. Here the comparison is supported by the data. Also read `result.inspect().calibration`: the interval's calibration status is reported with the result rather than assumed.
+Read the overlap diagnostics before the number. The smallest estimated propensity is about 0.05 and the effective sample size is about 1,013 of 1,566 rows, so weights are moderate and no row stands in for a large share of the sample. That is the contrast with [the NSW comparison](when-overlap-fails.md), where propensities reached 1e-9 and Antecedent refused without a declared overlap policy. Here the data cover both groups. Also read `result.inspect().calibration`: the interval's calibration status is reported with the result rather than assumed.
 
 ## Check the answer with other estimators
 
@@ -50,7 +50,7 @@ Reconfigure the same study with `target_population=population.Treated()`. The qu
 
 ## Sensitivity: how strong would an unmeasured confounder need to be?
 
-The E-value converts the estimate and its standard error into the minimum strength of association, with both quitting and weight change, that an unmeasured confounder would need to explain the estimate away. It reads the effect on a standardized scale, dividing by the outcome standard deviation. A large E-value says the conclusion is hard to overturn with one confounder; it cannot say whether such a confounder exists.
+The E-value converts the estimate and its standard error into the minimum strength of association, with both quitting and weight change, that an unmeasured confounder would need to explain the estimate away. It reads the effect on a standardized scale, dividing by the outcome standard deviation among those who did not quit. A large E-value says the conclusion is hard to overturn with one confounder; it cannot say whether such a confounder exists.
 
 ## Compare with the published analysis, carefully
 
@@ -62,11 +62,11 @@ Hernán and Robins report an effect of about 3.4 kg (95% CI about 2.4 to 4.5) by
 
 Two assumptions carry this answer, and the data cannot check either by themselves.
 
-- **No unmeasured confounding.** Whether someone quits may depend on motivation, health scares or diet, none of which is a column. Adding more estimators does not touch this. What would help is a measured proxy for such a cause, a design that assigns quitting, or an analysis that declares a bound on how large the confounding could be, which is what the E-value expresses.
+- **No unmeasured confounding.** Whether someone quits may depend on motivation, health scares or diet, none of which is a column. Adding more estimators does not touch this. What would help is a measured proxy for such a cause, a design that assigns quitting, or a sensitivity analysis such as the E-value, which states how strong such confounding would need to be.
 - **Complete-case missingness.** Multiple imputation fills in the 63 missing outcomes from the declared model and gives 3.43 kg, close to the complete-case value. That agreement shows the answer does not move much between two ways of handling the missing rows. It does not show that the missing outcomes are ignorable.
 
 ## What this established
 
-Antecedent identified the average effect of quitting under the declared graph and estimated it at about 3.4 kg (standard error about 0.5) on the 1,566 people with a recorded outcome. Overlap was good, other estimators and an imputation check gave similar values, and the effect among those who quit was a stated, slightly different quantity.
+Antecedent identified the average effect of quitting under the declared graph and estimated it at about 3.4 kg (standard error about 0.5) on the 1,566 people with a recorded outcome. Overlap was good, other estimators and an imputation check gave similar values, and the effect among those who quit was a stated, slightly different quantity. None of this established that the graph is right or that the missing outcomes are ignorable.
 
 The next question is whether the assumptions hold. For that you need evidence the data here do not contain: measured proxies for the unmeasured causes, a follow-up model for who drops out, or an experiment. For an analysis where overlap fails and the answer has to change shape, see [when the comparison group does not overlap](when-overlap-fails.md). For reading the claim and its status, see [reading a result](../start/reading-a-result.md).

@@ -18,7 +18,7 @@ The rule that keeps a handoff honest: whatever crosses the boundary keeps the st
 Antecedent identifies the adjustment set and estimates the effect. You then fit the learner and own that fit. The handoff supplies the identified columns, so the learner never chooses the adjustment set.
 
 ```python
-import antecedent as _ant_api
+import antecedent as ant
 from antecedent import AverageEffect, Dag, analyze, identify
 from antecedent.handoff import econml
 
@@ -33,8 +33,8 @@ result = analyze(
     graph=graph,
     query=query,
     refute=False,
-    inference=_ant_api.Frequentist(bootstrap=0),
-    execution=_ant_api.Execution(seed=11),
+    inference=ant.Frequentist(bootstrap=0),
+    execution=ant.Execution(seed=11),
 )
 spec = econml(result.value)
 assert spec.confounders == ("z",)

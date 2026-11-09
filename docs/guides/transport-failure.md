@@ -15,7 +15,7 @@ A transport question can fail to produce a number for six different reasons, and
 
 Every transport binding reports `identification_status` with one of five values: `identified`, `proven_non_transportable`, `missing_evidence`, `not_certified` and `budget_cancel`. In Python it is a property of each stage and identification, a key of each `decision()` and scenario row, and `certificate["identification_status"]` on `ant.identify`. In Rust it is `identification_status()` on each decision type. `ident.status` is the general identification status (`NotIdentified` for every refusal here); the transport kind is `identification_status`.
 
-Some serialized and public fields still carry a narrower spelling. Each maps to one canonical value:
+Some serialized and public fields carry a narrower spelling. Each maps to one canonical value:
 
 | Spelling in a field | Where | Canonical |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ Some serialized and public fields still carry a narrower spelling. Each maps to 
 | `combined_identified` | a two-source z decision's `outcome` | `identified` |
 | `named_route` | a mixed-source stage's `outcome` (another theorem-scoped route identifies it) | `identified` |
 
-`antecedent.transport.advanced.identification_status(value)` reads any of these, whether a string, a stage or a decision mapping, as its canonical value. Reason codes such as `transport_budget_cancel` and `transport_not_certified` are unchanged.
+`antecedent.transport.advanced.identification_status(value)` reads any of these, whether a string, a stage or a decision mapping, as its canonical value. Reason codes such as `transport_budget_cancel` and `transport_not_certified` keep their own spelling.
 
 ## Not certified
 
@@ -41,7 +41,7 @@ To go further, declare more structure (a smaller selection set, a source that ca
 
 ## Theorem-scoped impossibility
 
-A checked s-hedge makes the outcome `proven_non_transportable`: no formula exists from the declared evidence. The result is scoped to the declared experimental information, so adding evidence can change it. In `transport_meta_grid.py`, removing one complementary source leaves a scoped obstruction (`transport_negative_witness`, `transport_complementary_sources`), while both sources together identify the effect.
+A checked s-hedge makes the outcome `proven_non_transportable`: no formula exists from the declared evidence. The result is scoped to the declared experimental information, so adding evidence can change it. In the two-source setting of `transport_meta_grid.py`, either source alone is a scoped obstruction (`proven_non_transportable`), while both sources together identify the effect.
 
 ## Missing evidence
 

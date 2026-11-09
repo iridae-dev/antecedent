@@ -2,7 +2,7 @@
 
 Analyze data from an experiment whose assignment adapts to outcomes, that is looked at before it ends, or that stops on a rule. You can read a Bayesian posterior, a decision-theoretic stopping rule, an adaptively weighted estimate, a group-sequential boundary or an anytime-valid confidence sequence, each as its own named paradigm.
 
-The final sample of such an experiment is never analysed as if the design had been fixed: an analysis that presumes a fixed design is refused for adaptive data (`adaptive_design_ignored`). Every route below is point-only, and an unqualified interval request is refused (`quantity_semantics_mismatch`) because an interval belongs to one named result. `measured_interval` reports the interval of one named result for every procedure with a construction; the procedure cells listed under [Intervals that can be offered](#intervals-that-can-be-offered) are those whose whole-procedure coverage was measured, and any other procedure still reports its interval annotated `not_measured` or `outside_measured_scope`.
+The final sample of such an experiment is never analysed as if the design had been fixed: an analysis that presumes a fixed design is refused for adaptive data (`adaptive_design_ignored`). Every route below is point-only, and an unqualified interval request is refused (`quantity_semantics_mismatch`) because an interval belongs to one named result. `measured_interval` reports the interval of one named result for every procedure with a construction, annotated with its calibration status; the procedure cells listed under [Intervals that can be offered](#intervals-that-can-be-offered) are those a whole-procedure coverage record measures.
 
 ## The retained analysis contract
 
@@ -38,10 +38,10 @@ Each paradigm is a separate route; the result names its paradigm.
 | --- | --- | --- | --- |
 | Bayesian posterior | Beta-Bernoulli posterior, probability each arm is best, posterior expected loss | exact posterior under the declared prior; the same under any assignment that depends only on observed history and independent randomization (likelihood principle; the premise is stated) | frequentist coverage of a credible interval under adaptive sampling and stopping |
 | decision-theoretic stopping | posterior expected-loss rule | stop or continue as a function of the history | error rates or regret of the rule |
-| frequentist fixed-sample | none for adaptive data | refused; authorized only for a design fixed in advance, executed by the existing randomized route | |
-| frequentist adaptive weighting | augmented inverse-probability scores, predictable outcome model and weights (Hadad et al. 2021) | point estimate with a martingale plug-in variance, uncalibrated | an interval |
+| frequentist fixed-sample | none for adaptive data | refused; authorized only for a design fixed in advance, executed by the randomized route | |
+| frequentist adaptive weighting | augmented inverse-probability scores, predictable outcome model and weights (Hadad et al. 2021) | point estimate with a martingale plug-in variance | an interval |
 | frequentist group sequential | Lan-DeMets alpha spending by recursive integration (fixed randomization) | boundaries and first crossing | adjusted estimates or intervals after stopping; adaptive assignment |
-| anytime-valid frequentist | normal-mixture Hoeffding confidence sequence for bounded outcomes (the participant-level family reads the variance-adaptive predictable plug-in empirical Bernstein sequence instead) | time-uniform sequence under the stack-of-rewards premise, uncalibrated as a whole procedure | a measured coverage of the adaptive procedure |
+| anytime-valid frequentist | normal-mixture Hoeffding confidence sequence for bounded outcomes (the participant-level family reads the variance-adaptive predictable plug-in empirical Bernstein sequence instead) | time-uniform sequence under the stack-of-rewards premise | a measured coverage of the adaptive procedure |
 
 ## The procedure matrix
 
@@ -49,7 +49,7 @@ Assignment policy x outcome structure x monitoring strategy x stopping rule
 gives 600 cells, every one listed in `parity/adaptive_procedures.toml` and
 classified by `procedure_status`:
 
-* **supported** (7): an estimator and uncertainty method exist, per paradigm:
+* **supported** (12): an estimator and uncertainty method exist, per paradigm:
   Thompson (Beta-Bernoulli) with fixed looks and an efficacy rule (posterior,
   confidence sequence); Thompson with a decision-theoretic rule (posterior,
   stopping decision); Thompson allocation of participants with repeated binary
@@ -60,15 +60,19 @@ classified by `procedure_status`:
   measures and a final analysis (adaptive weighting on subject means); fixed
   randomization with group-sequential monitoring (boundaries); fixed
   randomization with one final analysis (fixed-sample, executed elsewhere);
-* **incoherent** (144; stored as `incoherent`): the combination
+  a categorical choice read at the end or at fixed looks with an efficacy or
+  decision-theoretic rule, and a repeated choice read at the end or at fixed
+  looks with a decision-theoretic rule (posterior, plus the stopping decision
+  under a decision-theoretic rule; see [choice evidence](choice-evidence.md));
+* **incoherent** (360; stored as `incoherent`): the combination
   describes no procedure, for example a stopping rule with no interim
   analysis to act on. It refuses `route_not_supported` with
   `adaptive_inference.cell_incoherent`;
-* **pairing not delivered** (17; stored as `pairing_not_supported`): every component
+* **pairing not delivered** (20; stored as `pairing_not_supported`): every component
   is delivered but their pairing has no method. A guarantee for two components
   never supports their pairing. It refuses `route_not_supported` with
   `adaptive_inference.pairing_not_supported`;
-* **no method yet** (192; stored as `not_delivered`), each with an owning
+* **not delivered** (208; stored as `not_delivered`), each with an owning
   module, refusing `route_not_supported` with
   `adaptive_inference.cell_not_delivered`: upper-confidence-bound, contextual
   and batched assignment, hierarchical clustered outcomes, continuous
@@ -233,8 +237,9 @@ procedure, and a contract records it as `predictable_plug_in_empirical_bernstein
 declared and validated, and only the Hoeffding sequence reads it. This is a
 finite-time theorem under its
 premise, not a measured coverage of the whole procedure: every number is
-`derived_not_measured`, and its calibration status stays `not_measured` until a
-coverage record exists. `simulate_participant_procedure` runs the whole procedure end to
+`derived_not_measured`, and its calibration status is `not_measured` unless a
+coverage record covers it. `simulate_participant_procedure` (Python:
+`ParticipantProcedure.simulate`) runs the whole procedure end to
 end and records, per replicate, how it ended and whether the sequences covered
 the truth at every look and at the end; it is the entry point a calibration
 design calls.
@@ -265,7 +270,8 @@ availability and the decision rule), and
 procedure section in `adaptive_monitoring_contract_v1`: the priors with every
 source, discount and effective sample size, the correlation and responses, the
 floor, the decisions and the reading (prior update, posterior claim, decision and
-anytime-valid claim) at every performed look. A consumer rebuilds the declared
+anytime-valid claim) at every performed look (Python:
+`session.export(paradigm=..., procedure=procedure)`). A consumer rebuilds the declared
 procedure through its own checks, recomputes each batch's allocation from the
 completed participants and the declared priors and compares it with the retained
 probabilities (`adaptive_inference.assignment_not_replayed`), replays the
@@ -281,11 +287,11 @@ measurements (`adaptive_inference.measurements_invalid`).
 
 ## Simulate the whole procedure before you run it
 
-`simulate_participant_procedure` runs the whole participant-level loop in every replicate: recruitment in batches with follow-up delay, Thompson allocation with an exploration floor from the exact posterior of the completed participants, correlated beta-binomial responses, the posterior update, the expected-loss stopping rule, the choice of an arm, and the anytime-valid reading at every look. Each replicate's retained history is read back under the declared procedure, so the scored numbers are the ones a consumer of the sealed contract recomputes.
+`simulate_participant_procedure` (Python: `ParticipantProcedure.simulate`) runs the whole participant-level loop in every replicate: recruitment in batches with follow-up delay, Thompson allocation with an exploration floor from the exact posterior of the completed participants, correlated beta-binomial responses, the posterior update, the expected-loss stopping rule, the choice of an arm, and the anytime-valid reading at every look. Each replicate's retained history is read back under the declared procedure, so the scored numbers are the ones a consumer of the sealed contract recomputes.
 
 Per replicate it records how the run ended, whether the sequences covered the truth at every look and at the end, the false-superiority rate (a treatment comparison whose lower bound exceeds zero at any look), the selection-error and best-arm rates, regret, the stopping look, and the participants enrolled and completed. Use it to see, under a truth you choose, how early the rule stops on average, how wide the sequences are at the stop, and how sensitive the procedure is to a wrong correlation or a misleading historical prior.
 
-These are properties of the simulation under the stated truth. They are not a coverage claim for another design, and the claim stays `derived_not_measured` while no coverage record exists.
+These are properties of the simulation under the stated truth. They are not a coverage claim for another design, and the claim is `derived_not_measured` unless a coverage record covers it.
 
 ## Artifacts
 
@@ -319,14 +325,14 @@ contract; any element may be `None` and is then refused by name),
 `AdaptiveInferenceSession.prepare`, `analyze` (also `analyse`) with one request class per paradigm
 (`BayesianPosterior`, `PosteriorStopping`, `AdaptiveWeighting`, `ConfidenceSequence`,
 `GroupSequential`), `fixed_sample` (always refused for adaptive data), `interval`
-(always refused, `quantity_semantics_mismatch`; use `measured_interval`), `interim_evidence`, `export_contract`, `export_result`,
+(always refused, `quantity_semantics_mismatch`; use `measured_interval`), `interim_evidence`, `export`,
 `consume_adaptive_monitoring_contract_artifact`,
 `consume_adaptive_inference_result_artifact` and `procedure_matrix()`. The
 participant-level family is `ParticipantDeclaration` (with `ArmPrior`,
 `HistoricalPrior`, `ParticipantDecisions`, `FutilityRule`, `AnytimeSettings`),
-`ParticipantProcedure.declare`, `simulate` (with a work receipt and an optional
-`memory_bytes` budget), `simulate_history`, `read_history`, `amend_borrowing` and
-`prepare_session`, and `AdaptiveInferenceSession.export_contract_with_procedure`.
+`ParticipantProcedure.declare`, `simulate` (with a work receipt, admitted against the
+memory limit of the `Execution`), `simulate_history`, `read_history`, `amend_borrowing` and
+`prepare_session`, and `AdaptiveInferenceSession.export(paradigm=..., procedure=...)`.
 
 ### Named Python readings
 
@@ -337,12 +343,12 @@ exposes `best_arm`, `probability_best`, `expected_loss` and `stop`. Adaptive wei
 exposes `estimate`, `variance`, `units`, `effective_units` and `max_weight_share`.
 Confidence-sequence payloads name the arm readings and contrast bounds. Group-sequential
 payloads name each look's `critical`, `statistic` and `spent`, with `stopped_at=None`
-when no stopping event occurs. These numerical readings retain their existing uncalibrated
-whole-procedure standing.
+when no stopping event occurs. These numerical readings carry no whole-procedure coverage
+claim.
 
 Use `result.inspect()`, `result.to_dict()` and `result.to_rows()` for notebook review
-and independent editable exports. `session.export_result(request)` remains the explicit
-request-selected bytes export, and `session.export_contract(paradigm)` exports the
+and independent editable exports. `session.export(request)` is the explicit
+request-selected bytes export, and `session.export(paradigm=...)` exports the
 monitoring contract. Shared `ant.load(...)` invokes the same native artifact consumers
 and returns the specialized consumed type.
 
@@ -355,9 +361,8 @@ and returns the specialized consumed type.
 The Rust `AdaptiveDesignContract::analysis_units(look)` returns a `Result`: a valid
 zero-based look yields the enrolled units whose outcomes are available, while an index
 at or beyond `looks()` returns `invalid_argument` with detail
-`adaptive_inference.look_out_of_range`. Existing callers should propagate or handle the
+`adaptive_inference.look_out_of_range`; propagate or handle the
 refusal. `observation_id(unit)` likewise returns a `Result` and refuses indices at
-or beyond `units()` with `adaptive_inference.unit_out_of_range`; valid identities
-retain their existing encoding. Futility declarations require
+or beyond `units()` with `adaptive_inference.unit_out_of_range`. Futility declarations require
 `StoppingSpec::PosteriorFutility` with a finite
 margin in `[0, 1)` and a finite threshold in `(0, 0.5)`.

@@ -42,10 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let again = prepared.estimate(&ctx)?;
         assert_eq!(prepared.fits_performed(), 1);
         assert_eq!(result.point, again.point);
-        println!(
-            "fit count after reuse: {}; calibration remains not_measured",
-            prepared.fits_performed()
-        );
+        println!("fit count after reuse: {}", prepared.fits_performed());
     }
     let ctx = ExecutionContext::production(20_261_021, 1);
     let data = joint_panel_fixture::whole_program_source();
@@ -57,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let experiment = Study::prepare_joint_panel(data, request, &ctx)?;
     assert!(experiment.inspect().identification.is_identified_claim());
     println!(
-        "whole-program randomization identifies the worlds; model fitting/calibration earns no extra support"
+        "whole-program randomization identifies the worlds; the model fit adds no identification"
     );
     Ok(())
 }

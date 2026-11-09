@@ -1,6 +1,11 @@
-"""Refuse a changed randomized design, then explicitly reprepare it.
+"""Refuse a changed randomized design, then explicitly prepare it again.
 
-Also distinguish a composed point/spread from a supported interval.
+The simulated randomized effect is 2. Rebinding a table whose assignment column changed is
+refused, because the design is fixed at preparation; the refusal names ``ant.prepare`` and
+leaves the original study and outcome unchanged. Preparing again on the flipped assignments
+gives exactly the negated effect. A one-component mixture with a declared mean and variance
+then refuses an interval (``uncertainty_representation_insufficient``) while its declared mean
+stays usable. Nothing here is a claim about real data.
 """
 
 import antecedent as ant
@@ -37,7 +42,7 @@ def main():
     assert ant.estimate(study).answer.value == original.answer.value
     revised = ant.estimate(ant.prepare(changed, query=query, refute=False))
     assert np.isclose(revised.answer.value, -original.answer.value)
-    print("Reprepared effect:", revised.answer.value)
+    print("Effect after preparing again:", revised.answer.value)
     claim = require_success(jl.mixture([jl.MixtureComponent("model", "evidence", 1.0, 2.0, 3.0)]))
     try:
         claim.interval()

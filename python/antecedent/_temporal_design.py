@@ -417,7 +417,7 @@ class TemporalDesignEstimate:
     ``estimate`` is the point estimate (frequentist) or the posterior mean (Bayesian);
     ``standard_error`` is the standard error (the whole-procedure bootstrap standard
     deviation when ``replicates`` is set) or the posterior standard deviation (when ``draws``
-    is set). Unsupported; calibration not_measured.
+    is set). Its support and calibration status are on the result's inspection.
     """
 
     design: str

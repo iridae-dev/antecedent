@@ -250,12 +250,13 @@ class InterferenceQuery:
     bound. A separate unsupported construction accepts cluster randomization,
     NeighborFraction, an explicit partial-interference partition, and the
     total contrast from ``(0, 0)`` to ``(1, 1)``; its cluster-level variance
-    has no interval claim. ``SaturationDesign`` also supports exact two-stage
-    direct, spillover, and total exposure contrasts as separate point queries;
-    its covariance-free variance proxy is not a confidence interval.
-    ``ObservedExposureDesign`` uses supplied exposure probabilities and an
-    explicit network-exchangeability declaration. It reports a point contrast
-    and descriptive cluster variance without an interval.
+    has no interval claim. ``SaturationDesign`` estimates exact two-stage
+    direct, spillover, and total exposure contrasts; the graphless support
+    matrix row ``two_stage_saturation`` states when its pointwise interval is
+    supported. ``ObservedExposureDesign`` uses supplied exposure probabilities
+    and an explicit network-exchangeability declaration; row
+    ``observational_known_exposure`` states when its interval is supported,
+    and otherwise it reports a point contrast and descriptive cluster variance.
     These paths need the keyword-only design facts: ``network``, the fixed
     directed exposure edges between unit rows (``NetworkEdge`` or
     ``(from, to[, weight])``; an empty sequence is a network without edges),

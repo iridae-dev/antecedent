@@ -414,8 +414,8 @@ def mnar_ate_sensitivity(
     ``"regression_adjusted"``, ``"ipw"`` or ``"aipw"``. Each is re-run at every grid point on
     the table completed by the departure: a missing outcome is imputed from the arm's outcome
     regression plus the shift, or, for the selection model, plus the mean residual under the
-    tilted weights. Sampling intervals, including adjusted bootstrap intervals, are withheld
-    pending calibration.
+    tilted weights. Sampling intervals, including adjusted bootstrap intervals, are reported
+    with their calibration status.
     Any other estimator refuses (``unsupported_estimator``).
 
     ``sampling_composition`` requests composing the sampling interval with the assumption range
@@ -425,9 +425,9 @@ def mnar_ate_sensitivity(
     Raises:
         CausalTypeError: an argument has the wrong type.
         MnarSensitivityRefusal: the analysis is refused: no declared mechanism
-            (``mechanism_not_declared``), an unsupported model, estimator (for example an
-            adjusted or doubly robust one: ``unsupported_estimator``), an unbounded or
-            MAR-excluding range, malformed data or options, or exceeded bounds.
+            (``mechanism_not_declared``), an unsupported model or estimator (one outside the
+            four above: ``unsupported_estimator``), a requested sampling composition, an
+            unbounded or MAR-excluding range, malformed data or options, or exceeded bounds.
     """
     if model is not None and not isinstance(model, str):
         raise CausalTypeError("model must be a string or None")

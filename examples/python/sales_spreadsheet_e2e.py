@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Explore several causal questions in a simulated sales analysis.
 
-Discover and accept a graph, estimate an average effect with Bayesian
+Accept a reviewed graph, estimate an average effect with Bayesian
 inference, and examine effects along particular paths and for individual
 rows. A separate temporal block estimates the effect of a brief intervention.
+A counter checks that none of these estimates runs discovery.
 
 The data are simulated from declared linear mechanisms, so the known targets are
 fixture truths of that model: campaign intensity reaches revenue directly with
 coefficient 1.2 and through the channel with 0.6 x 0.8 = 0.48, a total of 1.68,
 and the lagged promotion pulse has coefficient 0.85. The checks compare each
-answer with those values at tolerances sized for a few hundred rows.
+answer with those values at tolerances sized for a few hundred rows; the individual effects
+are checked only for being finite.
 
 Install with `python -m pip install antecedent`; see examples/README.md."""
 
@@ -25,8 +27,8 @@ from antecedent.outcomes import require_success
 def _sales_static(n: int = 400, seed: int = 7):
     """Campaign intensity (t) → revenue (y) via channel (m), confounder spend_context (z).
 
-    Continuous linear-Gaussian SEM so path_decompose (β products) and GCM ITE share
-    the same artifact as Bayesian ATE — binary treatment would refuse path_decompose.
+    Continuous linear-Gaussian SEM, so the path-specific attribution (β products), the
+    fitted-mechanism ITE and the Bayesian ATE all read the same table.
     """
     rng = np.random.default_rng(seed)
     z = rng.normal(size=n)
@@ -61,7 +63,7 @@ def main() -> None:
     # so the "estimate clicks must not discover" assertion below is not vacuous.
     antecedent.discovery.PC.run = spy_run  # type: ignore[method-assign]
 
-    # Hand-accepted DAG (discover-once already reviewed in product UX).
+    # A DAG accepted by hand, standing in for a graph a reviewer accepted after one discovery run.
     dag = antecedent.Dag.from_edges(
         ["z", "t", "m", "y"],
         [("z", "t"), ("z", "m"), ("z", "y"), ("t", "m"), ("t", "y"), ("m", "y")],
@@ -118,7 +120,7 @@ def main() -> None:
     assert all(math.isfinite(float(u)) for u in ite.unit_effects)
     print(f"ITE mean={ite.mean_ite:.4f} n={len(ite.unit_effects)}")
 
-    # Second estimate click — still no discovery.
+    # A second estimate — still no discovery.
     study = bayes.study
     second = require_success(
         antecedent.estimate(antecedent.reconfigure(study, execution=antecedent.Execution(seed=4)))
@@ -128,7 +130,7 @@ def main() -> None:
     acceptance = antecedent.load(artifact, expected=artifact.expectation).acceptance
     assert acceptance.recognized
     print("Calibration:", bayes.calibration.status)
-    assert discovery_calls["n"] == 0, "static estimate clicks must not discover"
+    assert discovery_calls["n"] == 0, "static estimates must not run discovery"
     assert accepted.version == 1
 
     # --- Temporal pulse Bayesian block ---

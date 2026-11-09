@@ -9,7 +9,7 @@ sampling coverage. Method-specific measured scalar intervals use the separate
 ## Layout and identity
 
 `DistributionArtifact` is a distinct, versioned artifact kind. It does not
-reinterpret the existing `CausalPosterior` wire. The metadata section records
+reinterpret the `CausalPosterior` wire. The metadata section records
 the distribution meaning, ordered scientific quantities, alignment, source,
 provider, RNG, snapshot, causal contract, support mask, weights, calibration
 state and provider trust. Each quantity records stable variable ID, name, role,
@@ -35,7 +35,7 @@ resealed artifact still belongs to the original population, regime, provider,
 quantity order or data snapshot. Direct composition compares declared units
 exactly. No unit is inferred or converted.
 
-The initial Rust reader accepts at most 16 MiB, 100,000 draws and 1,024 scalar
+The Rust reader accepts at most 16 MiB, 100,000 draws and 1,024 scalar
 coordinates. It validates declared section sizes before loading payloads and
 checks actual shape, finite draws, weights, masks and quantity identities
 before numerical evaluation. Covariance and nonlinear expectations require
@@ -70,9 +70,9 @@ has a stable name with an explicit one-to-one target quantity binding. It
 refuses summary-only artifacts, mixed parameter/effect meanings, failed fits,
 unidentified mass and unevaluated structural mass. It reorders by named
 bindings into draw-major rows, retaining cross-coordinate covariance and the
-complete legacy posterior metadata (including backend and treatment contrast)
+complete `CausalPosterior` metadata (including backend and treatment contrast)
 and the exact source-to-target bindings as a receipt. The reader reconstructs
-the source column order from those bindings and checks the old summaries
+the source column order from those bindings and checks the source summaries
 against the stored draws on every load. It also refuses changes to weights,
 support, alignment, distribution meaning or trust on converted artifacts.
 For an unweighted parameter or causal-functional posterior, an equal-tailed
@@ -96,8 +96,8 @@ It checks units, population, regime, horizon, conditioning, role and transform
 for every mapped coefficient. It requires one constant residual-variance
 coordinate equal to the target prior's known variance, no unsupported or
 weighted coordinates, and no extra parameters. It computes the source's full
-finite-draw covariance and passes it to the existing dense covariance
-hydration, permuted into target order. An old posterior must first pass the
+finite-draw covariance and passes it to the dense covariance
+hydration, permuted into target order. A `CausalPosterior` must first pass the
 explicit checked conversion above. Positional or partial mappings refuse.
 
 A checked transfer example uses batch A design row `(1, 1)` with response `1` and batch B

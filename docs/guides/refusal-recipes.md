@@ -21,9 +21,13 @@ The [full refusal reference](../reference/refusal-codes.md) lists registered det
 
 ## Read a refusal in code
 
-Every stage module raises a subclass of `antecedent.errors.StructuredRefusal`, which
-exposes the same machine-readable fields on every class. Branch on `code` and `detail`,
-not on the message text:
+Workflow operations such as `ant.analyze`, `ant.estimate` and `ant.load` return a
+scientific refusal as a value: `outcome.refusal` carries `code`, `detail`, `offending` and
+`remedy`, and `require_success(outcome)` raises it when you prefer an exception (see
+[how a refusal reaches you](../concepts/refusals.md#how-a-refusal-reaches-you)). A stage
+function that returns its result directly raises a subclass of
+`antecedent.errors.StructuredRefusal`, which exposes the same machine-readable fields on
+every class. Branch on `code` and `detail`, not on the message text:
 
 ```python
 from antecedent import msm_sensitivity
@@ -44,7 +48,7 @@ except CausalUnsupportedError as refusal:
 ```
 
 A refusal whose code is `invalid_argument` rejects a malformed argument rather than a
-scientific route and is also a `ValueError`; an operational failure such as cancellation is
+scientific route and is also a `CausalValueError` (a `ValueError`); an operational failure such as cancellation is
 not a scientific verdict. `strata` is the stratified table of the
 [sensitivity guide](../sensitivity-and-robustness.md). See
 [refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies)

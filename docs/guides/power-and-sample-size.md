@@ -155,9 +155,9 @@ A plan is a point statement under the declared assumptions. The reference laws a
 the stated models up to the quadrature and series tolerances (noncentral t by Lenth's
 algorithm, with the Johnson–Welch normal form above a noncentrality of 37.5); a Wald test of a
 binary outcome, an HC0 ANCOVA variance and a sandwich over few sequences are normal or
-large-sample approximations whose finite-sample error the simulation shows. The calibration of
-the simulation procedures has not been measured: every plan reports `calibration =
-"not_measured"` and carries no coverage claim.
+large-sample approximations whose finite-sample error the simulation shows. Every plan
+reports the calibration status of its procedures in `plan.calibration` and carries no coverage
+claim.
 
 ## Related
 

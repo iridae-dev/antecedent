@@ -3,7 +3,7 @@
 A route is useful only where something can consume it. This page records, for
 each route of the measurement, mechanism-composition, evidence-ledger and
 counterfactual-transport packages, what inference mode it has and whether it
-can feed each downstream consumer today. It describes the Rust facades in
+can feed each downstream consumer. It describes the Rust facades in
 `crates/antecedent/src/analysis/`; the Python entry of each cell is named in the
 [producer and consumer matrix](producer-consumer-matrix.md), whose cells these rows follow.
 
@@ -15,18 +15,18 @@ Every cell is exactly one state. "Not considered" is not a state.
 | **ADAPTER** | An explicit adapter in code converts the output to what the consumer accepts, keeping the label. The mean and inverse adapters declare a `MeanSource` coordinate (quantity, units, population, regime, functional) carrying the point, with the producer identity as provider; they answer an affine utility or a target mean, carry no standard error, variance, law or sample into the decision, and refuse a quantile or probability criterion (`decision_evaluation.mean_source_insufficient`). |
 | **REFUSED** | The request is refused with a typed reason; the registered detail is named. |
 | **NO ROUTE** | By design the request cannot be formed from this output, and the reason is stated; there is no typed refusal to emit. |
-| **SCHEDULED** | Not connected today. The owner is the module that would hold the adapter; until then the consumer has no way to accept the output, and the value stays point-only. |
+| **NOT CONNECTED** | No adapter connects this output to the consumer, so the consumer has no way to accept it and the value stays point-only. The owner is the module an adapter would belong in. |
 
 An ADAPTER or DIRECT cell never upgrades a label. A point stays a point, an
 uncalibrated standard error stays labelled `uncalibrated_standard_error`, an
-assumption range stays an assumption range, and no interval, posterior or
-coverage statement exists for any row below: an interval route is supported
-only with an independent check of its construction, and without one it refuses
-(the code is named in the row). The one interval formed on a row below is the
-equal-tailed Wald interval of a measurement estimate, from the point and its
-delta-method standard error; it carries the route's calibration annotation, never
-a coverage claim of its own. Calibration status annotates an interval that a
-supported route does report.
+assumption range stays an assumption range, and no posterior or coverage
+statement exists for any row below: an interval route is supported only with an
+independent check of its construction, and without one it refuses (the code is
+named in the row). Two rows report an interval: the equal-tailed Wald interval
+of a measurement estimate, from the point and its delta-method standard error,
+and the pooled interval of an evidence-ledger result. Each carries its
+calibration status, which says whether a coverage record measured that
+construction; no consumer below takes either interval.
 
 Consumers and their owning modules:
 
@@ -109,7 +109,7 @@ for a request to propagate it).
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | interventional law (linear-Gaussian) | exact-given-declared (closed form) | ADAPTER (declared means under each action; the law is not carried) | ADAPTER (`inverse_forward_source`: replayed mean per action) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | REFUSED (conditioning is a separate query) | REFUSED unless admitted by a declared selection diagram or invariance | REFUSED (horizon mismatch, cycles) | REFUSED (`CompositionBundleRefusal`: no node kind) |
 | mean contrast with variance | point-only + uncalibrated first-order variance | ADAPTER (declared means; the variance is not carried) | ADAPTER (declared means as a `MeanClaim`) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | REFUSED (conditioning is a separate query) | REFUSED unless admitted | REFUSED (horizon mismatch, cycles) | REFUSED (`CompositionBundleRefusal`: no node kind) |
-| structural samples | exact draws from the composed law, named noise streams | SCHEDULED | SCHEDULED | SCHEDULED | SCHEDULED | REFUSED (conditioning is a separate query) | REFUSED unless admitted | REFUSED (horizon mismatch, cycles) | SCHEDULED |
+| structural samples | exact draws from the composed law, named noise streams | NOT CONNECTED | NOT CONNECTED | NOT CONNECTED | NOT CONNECTED | REFUSED (conditioning is a separate query) | REFUSED unless admitted | REFUSED (horizon mismatch, cycles) | NOT CONNECTED |
 | finite intervention distribution | exact-finite (enumeration, truncated factorization) | ADAPTER (declared means; the law is not carried) | ADAPTER (`inverse_forward_source`: exact law of each action under the caller's coding) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | REFUSED (conditioning is a separate query) | REFUSED unless admitted | REFUSED (horizon mismatch, cycles) | REFUSED (`CompositionBundleRefusal`: no node kind) |
 | interval or posterior of a composed functional | closed | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
@@ -175,18 +175,19 @@ bundle cannot carry one. Structural samples reach no consumer beyond their own r
 
 ## Evidence ledger
 
-Every combination is point-only. The dependence range is an assumption
-range and is labelled so. Nothing is an interval or posterior.
+Every combination is a point except the pooled interval, which is reported
+with its calibration status. The dependence range is an assumption range and is
+labelled so. Nothing is a posterior.
 
 | Route | Inference mode | Decision | Inverse query | Sensitivity | Design ranking | Counterfactual | Transport | Temporal | Composition |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| statistical pooling (inverse variance, declared covariance) | point-only, model-based variance | ADAPTER (declared pooled quantity as a `MeanSource`) | ADAPTER (the same mean as a `MeanClaim`) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | NO ROUTE (a pooled summary carries no structural model) | SCHEDULED (a transported claim entering a pool with its identity is not composed) | SCHEDULED | REFUSED (`CompositionBundleRefusal`: no node kind) |
-| random effects (DerSimonian-Laird, REML) | point-only, variance conditional on the estimated tau squared | ADAPTER (declared pooled quantity as a `MeanSource`) | ADAPTER (the same mean as a `MeanClaim`) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | NO ROUTE | SCHEDULED | SCHEDULED | REFUSED (`CompositionBundleRefusal`: no node kind) |
-| hierarchical borrowing | point-only posterior mean and variance under the declared finite prior | ADAPTER (declared pooled quantity as a `MeanSource`) | ADAPTER (the same mean as a `MeanClaim`) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | NO ROUTE | SCHEDULED | SCHEDULED | REFUSED (`CompositionBundleRefusal`: no node kind) |
-| dependence range | assumption range (not an interval) | REFUSED (`CausalTypeError`: an assumption range has no point) | REFUSED (an envelope has no mean) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | NO ROUTE | SCHEDULED | SCHEDULED | REFUSED (`CompositionBundleRefusal`: no node kind) |
-| transported claim registration | identity-bearing registration, never native data | SCHEDULED | SCHEDULED | SCHEDULED | SCHEDULED | NO ROUTE | DIRECT | SCHEDULED | SCHEDULED |
-| evidence reuse, repeated observation use | accounting only (mass counted once, flagged `data_reuse`) | NO ROUTE (no numeric value) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE (accounting only) | NO ROUTE | SCHEDULED |
-| pooled interval | closed | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| statistical pooling (inverse variance, declared covariance) | point-only, model-based variance | ADAPTER (declared pooled quantity as a `MeanSource`) | ADAPTER (the same mean as a `MeanClaim`) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | NO ROUTE (a pooled summary carries no structural model) | NOT CONNECTED (a transported claim entering a pool with its identity is not composed) | NOT CONNECTED | REFUSED (`CompositionBundleRefusal`: no node kind) |
+| random effects (DerSimonian-Laird, REML) | point-only, variance conditional on the estimated tau squared | ADAPTER (declared pooled quantity as a `MeanSource`) | ADAPTER (the same mean as a `MeanClaim`) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | NO ROUTE | NOT CONNECTED | NOT CONNECTED | REFUSED (`CompositionBundleRefusal`: no node kind) |
+| hierarchical borrowing | point-only posterior mean and variance under the declared finite prior | ADAPTER (declared pooled quantity as a `MeanSource`) | ADAPTER (the same mean as a `MeanClaim`) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | NO ROUTE | NOT CONNECTED | NOT CONNECTED | REFUSED (`CompositionBundleRefusal`: no node kind) |
+| dependence range | assumption range (not an interval) | REFUSED (`CausalTypeError`: an assumption range has no point) | REFUSED (an envelope has no mean) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | NO ROUTE | NOT CONNECTED | NOT CONNECTED | REFUSED (`CompositionBundleRefusal`: no node kind) |
+| transported claim registration | identity-bearing registration, never native data | NOT CONNECTED | NOT CONNECTED | NOT CONNECTED | NOT CONNECTED | NO ROUTE | DIRECT | NOT CONNECTED | NOT CONNECTED |
+| evidence reuse, repeated observation use | accounting only (mass counted once, flagged `data_reuse`) | NO ROUTE (no numeric value) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE (accounting only) | NO ROUTE | NOT CONNECTED |
+| pooled interval (`EvidenceLedger.pooled_interval`: Wald `z` for fixed-effect and declared-covariance pooling, Hartung-Knapp-Sidik-Jonkman `t` for random effects) | interval with its calibration status; refused (`route_not_supported`) for hierarchical borrowing and a dependence range | NO ROUTE (the mean adapters carry the pooled point, not the interval) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE |
 
 The pooled interval is `EvidenceLedger.pooled_interval`, reported with its calibration
 status. The
@@ -201,8 +202,8 @@ native and transported (`evidence_ledger.native_and_transported`).
 A `point_only` pooled value is a decision claim and an inverse-query claim through the mean
 adapters: the caller declares the pooled quantity (the ledger carries no estimand, units or
 population) as one `MeanSource` coordinate, with the result identity as provider and the ledger
-head as snapshot; an `assumption_range` envelope has no point and is refused, and a pooled
-interval is refused `evidence_ledger.interval_not_measured`. A sensitivity input or a
+head as snapshot; an `assumption_range` envelope has no point and is refused, and the pooled
+interval is not carried into a decision. A sensitivity input or a
 design-ranking signal takes no pooled value, and the composition bundle has no ledger node kind
 (its export preserves the carried and not-carried receipts). A mechanism's evidence id is read as a ledger source identifier by
 `check_declared_independence_against_ledger`; a non-ledger id is unknown
@@ -232,9 +233,9 @@ declared unseen-mass family; the row has no interval route.
 | Route | Inference mode | Decision | Inverse query | Sensitivity | Design ranking | Counterfactual | Transport | Temporal | Composition |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | exact finite laws (identified) | exact-finite, point-only | ADAPTER (declared means of the outcome indicator under each action; an affine utility only) | ADAPTER (the same means as a `MeanClaim`) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | DIRECT (nested and conditional counterfactual events, natural direct and indirect effects) | DIRECT (evidence catalog of population, regime, snapshot) | NO ROUTE (static graph class; temporal transport has its own rows) | REFUSED (`CompositionBundleRefusal`: no node kind) |
-| proven obstruction | exact witness, no value | REFUSED | REFUSED | REFUSED | REFUSED | DIRECT (the witness re-verifies by enumeration) | DIRECT | REFUSED | SCHEDULED |
+| proven obstruction | exact witness, no value | REFUSED | REFUSED | REFUSED | REFUSED | DIRECT (the witness re-verifies by enumeration) | DIRECT | REFUSED | NOT CONNECTED |
 | sampled plug-in point | point-only, uncalibrated delta-method SE | ADAPTER (the same declared means; the standard error is not carried) | ADAPTER (the same means as a `MeanClaim`) | REFUSED (`CausalTypeError`: not a `SensitivityArtifact`) | REFUSED (`CausalTypeError`: not a `design.StatePrior`) | DIRECT (evaluates the stored derivation unchanged) | DIRECT (evidence catalog of population, regime, snapshot) | NO ROUTE (static graph class; temporal transport has its own rows) | REFUSED (`CompositionBundleRefusal`: no node kind) |
-| sampled unseen-mass envelope | structural range, no point | SCHEDULED | SCHEDULED | SCHEDULED | SCHEDULED | DIRECT | DIRECT | NO ROUTE (static graph class; temporal transport has its own rows) | SCHEDULED |
+| sampled unseen-mass envelope | structural range, no point | NOT CONNECTED | NOT CONNECTED | NOT CONNECTED | NOT CONNECTED | DIRECT | DIRECT | NO ROUTE (static graph class; temporal transport has its own rows) | NOT CONNECTED |
 | sampled interval | closed | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 Refusal details: counted, empirical or posterior laws given to the exact
@@ -262,21 +263,21 @@ classified still valid, recompute or withdrawn by `transport_revalidation`
 
 | Route | Inference mode | Decision | Inverse query | Sensitivity | Design ranking | Counterfactual | Transport | Temporal | Composition |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| transported response, point (cohort effect, policy, synthesis, declared) | point-only, extrapolative, receipt carried | DIRECT (`evaluate_transported`; law and interval REFUSED) | DIRECT under an accepting input policy; REFUSED `transported_not_accepted` otherwise | DIRECT (assumption range) | SCHEDULED | NO ROUTE | DIRECT (revalidation) | SCHEDULED | SCHEDULED |
-| transported response, law | transported law, receipt carried | DIRECT (probability criterion; interval REFUSED) | DIRECT under an accepting input policy | REFUSED (`transport_sensitivity.law_response_not_scalar`) | SCHEDULED | NO ROUTE | DIRECT (revalidation) | SCHEDULED | SCHEDULED |
-| cohort effect under a declared selection shift | point-only, labelled extrapolative | ADAPTER (declared mean source) | ADAPTER (`cohort_forward_source`; accepting policy) | DIRECT | SCHEDULED | NO ROUTE | DIRECT | SCHEDULED | SCHEDULED |
-| transported policy value (initial-state law shifted, selection diagram declared) | point-only, exact finite enumeration | ADAPTER (value as a declared mean) | ADAPTER | REFUSED | SCHEDULED | NO ROUTE | DIRECT (library; Python `transported_constructors.from_policy`) | REFUSED (use the period route) | SCHEDULED |
-| period shift of a policy value (fixed horizon, time-invariant mechanisms) | point-only | ADAPTER | ADAPTER | REFUSED | SCHEDULED | NO ROUTE | REFUSED (`temporal_policy_transport.mechanism_time_varying`) | DIRECT (library; Python `transported_constructors.from_period_shift`) | SCHEDULED |
-| adaptive trial as a transport source (recorded-probability standardization) | point-only, uncalibrated, no variance | ADAPTER (declared mean contrast) | REFUSED | REFUSED | REFUSED | NO ROUTE | DIRECT (library, finite strata; Python `transported_constructors.from_adaptive_trial`) | REFUSED | SCHEDULED |
-| discovered CPDAG class | structural envelope, never a point or interval | REFUSED | REFUSED | REFUSED (`transport_sensitivity.no_scalar_family`) | REFUSED | NO ROUTE | DIRECT (library and Python `transport.discovered.transport_across_class` for a CPDAG or PAG class, estimates through `transport.discovered.estimate_discovered_transport`; temporal classes at a declared horizon in the library) | NO ROUTE | SCHEDULED |
-| provider output as source evidence | point-only or not_measured, never native target data, never measured | not applicable (source evidence) | not applicable | not applicable | not applicable | NO ROUTE | DIRECT (admission; attested never relabelled verified) | NO ROUTE | SCHEDULED |
-| discretized composition | point-only with a computed mean-contrast bound | REFUSED (`discretized_scm.point_only` for an interval) | REFUSED | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
-| whole-path cross-world spread (finite Markovian row) | uncalibrated spread, never added across estimands | REFUSED (`cross_world_execution.no_interval_method`) | REFUSED | REFUSED | REFUSED | DIRECT | REFUSED (`cross_world_uncertainty.no_transported_path_derivation`) | NO ROUTE | SCHEDULED |
+| transported response, point (cohort effect, policy, synthesis, declared) | point-only, extrapolative, receipt carried | DIRECT (`evaluate_transported`; law and interval REFUSED) | DIRECT under an accepting input policy; REFUSED `transported_not_accepted` otherwise | DIRECT (assumption range) | NOT CONNECTED | NO ROUTE | DIRECT (revalidation) | NOT CONNECTED | NOT CONNECTED |
+| transported response, law | transported law, receipt carried | DIRECT (probability criterion; interval REFUSED) | DIRECT under an accepting input policy | REFUSED (`transport_sensitivity.law_response_not_scalar`) | NOT CONNECTED | NO ROUTE | DIRECT (revalidation) | NOT CONNECTED | NOT CONNECTED |
+| cohort effect under a declared selection shift | point-only, labelled extrapolative | ADAPTER (declared mean source) | ADAPTER (`cohort_forward_source`; accepting policy) | DIRECT | NOT CONNECTED | NO ROUTE | DIRECT | NOT CONNECTED | NOT CONNECTED |
+| transported policy value (initial-state law shifted, selection diagram declared) | point-only, exact finite enumeration | ADAPTER (value as a declared mean) | ADAPTER | REFUSED | NOT CONNECTED | NO ROUTE | DIRECT (library; Python `transported_constructors.from_policy`) | REFUSED (use the period route) | NOT CONNECTED |
+| period shift of a policy value (fixed horizon, time-invariant mechanisms) | point-only | ADAPTER | ADAPTER | REFUSED | NOT CONNECTED | NO ROUTE | REFUSED (`temporal_policy_transport.mechanism_time_varying`) | DIRECT (library; Python `transported_constructors.from_period_shift`) | NOT CONNECTED |
+| adaptive trial as a transport source (recorded-probability standardization) | point-only, uncalibrated, no variance | ADAPTER (declared mean contrast) | REFUSED | REFUSED | REFUSED | NO ROUTE | DIRECT (library, finite strata; Python `transported_constructors.from_adaptive_trial`) | REFUSED | NOT CONNECTED |
+| discovered CPDAG class | structural envelope, never a point or interval | REFUSED | REFUSED | REFUSED (`transport_sensitivity.no_scalar_family`) | REFUSED | NO ROUTE | DIRECT (library and Python `transport.discovered.transport_across_class` for a CPDAG or PAG class, estimates through `transport.discovered.estimate_discovered_transport`; temporal classes at a declared horizon in the library) | NO ROUTE | NOT CONNECTED |
+| provider output as source evidence | point-only or not_measured, never native target data, never measured | not applicable (source evidence) | not applicable | not applicable | not applicable | NO ROUTE | DIRECT (admission; attested never relabelled verified) | NO ROUTE | NOT CONNECTED |
+| discretized composition | point-only with a computed mean-contrast bound | REFUSED (`discretized_scm.point_only` for an interval) | REFUSED | REFUSED | REFUSED | NO ROUTE | NO ROUTE | NO ROUTE | NOT CONNECTED |
+| whole-path cross-world spread (finite Markovian row) | uncalibrated spread, never added across estimands | REFUSED (`cross_world_execution.no_interval_method`) | REFUSED | REFUSED | REFUSED | DIRECT | REFUSED (`cross_world_uncertainty.no_transported_path_derivation`) | NO ROUTE | NOT CONNECTED |
 
 Temporal transport of a policy value is delivered by
 `temporal_policy_transport`, not by the counterfactual route above. None of
-these outputs is a composition bundle node kind, so a bundle cannot carry them. The general path-specific transport row stays carried
-forward (see
+these outputs is a composition bundle node kind, so a bundle cannot carry them. General
+path-specific transport is not supported (see
 `parity/capability_gaps.toml`).
 
 ## Derived uncertainty, transported vertical and discovery routes
@@ -299,27 +300,30 @@ cell: it has no decision-reliability route.
 
 | Route | Inference mode | Own consumer | Decision | Inverse query | Sensitivity | Design ranking | Counterfactual | Transport | Temporal | Composition |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| composed spread (linear moments, aligned functional) | uncalibrated spread, derived and not_measured | DIRECT (`propagation_artifact`: rebuilt from its bytes under the retained identity) | NO ROUTE (a spread is not a utility input) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
-| composed exceedance (probability, band, verdict; known-weight mixture) | uncalibrated spread, derived and not_measured | DIRECT (`propagation_artifact`) | NO ROUTE (no utility reading) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
-| transported spread (source sampling, target sampling, transport functional) | uncalibrated spread, all three pieces and their dependence named | DIRECT (`propagation_artifact`: replays to identical bits); REFUSED for decision-reliability, composition and inverse query | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
+| composed spread (linear moments, aligned functional) | uncalibrated spread, derived and not_measured | DIRECT (`propagation_artifact`: rebuilt from its bytes under the retained identity) | NO ROUTE (a spread is not a utility input) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NOT CONNECTED |
+| composed exceedance (probability, band, verdict; known-weight mixture) | uncalibrated spread, derived and not_measured | DIRECT (`propagation_artifact`) | NO ROUTE (no utility reading) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NOT CONNECTED |
+| transported spread (source sampling, target sampling, transport functional) | uncalibrated spread, all three pieces and their dependence named | DIRECT (`propagation_artifact`: replays to identical bits); REFUSED for decision-reliability, composition and inverse query | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NOT CONNECTED |
 | composed interval | no interval route; one needs an independent check of the composed construction | REFUSED (`published_route`: `not_supported`, with the mismatch named) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
-| derived decision uncertainty (numerical, selection, rollout components) | derived and not_measured, components never combined | DIRECT (`decision_reliability_derived`: re-derived from the carried draws); REFUSED when published | DIRECT (assessed on the bound decision's own draws) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
-| repeated-measures or clustered procedure report | exact forms plus seeded simulation, derived and not_measured | REFUSED (`decision_reliability_derived`: no route) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
-| transported cohort effect (facade over the fitted-effect transport) | point-only, extrapolative, typed receipt | DIRECT (`decision`: the existing cohort-mean source) | DIRECT (interval and law REFUSED) | ADAPTER (`cohort_forward_source`; accepting policy) | DIRECT | NO ROUTE | NO ROUTE | DIRECT (revalidation) | NO ROUTE | SCHEDULED |
-| transported measurement estimate (carried or target-established error rates) | point-only, uncalibrated, typed receipt | DIRECT (`measurement_artifact`: the existing artifact replays) | SCHEDULED | SCHEDULED | SCHEDULED | SCHEDULED | NO ROUTE (an error-rate invariance is not a counterfactual claim) | DIRECT (library) | NO ROUTE | SCHEDULED |
-| transported mechanism composition (carried or refitted linear-Gaussian mechanisms) | point-only with a labelled parameter-only variance | DIRECT (`mechanism_composition_artifact`: replays to the same bits) | SCHEDULED | ADAPTER (`inverse_forward_source` of the composition) | SCHEDULED | SCHEDULED | REFUSED (conditioning is a separate query) | DIRECT (library; a selection arrow into a carried mechanism refused) | NO ROUTE | SCHEDULED |
-| per-population discovery | structure only, nothing pooled, differences descriptive | DIRECT (`claim_set`: one claim per population) | NO ROUTE (a structure has no response) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED (`selective_discovery.differences_are_not_selection_targets`) | NO ROUTE | SCHEDULED |
-| sample-split discovery | structure on the discovery part; analysis part bound by a receipt | DIRECT (`evidence_ledger`: two disjoint sources; reuse refused) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | SCHEDULED |
+| derived decision uncertainty (numerical, selection, rollout components) | derived and not_measured, components never combined | DIRECT (`decision_reliability_derived`: re-derived from the carried draws); REFUSED when published | DIRECT (assessed on the bound decision's own draws) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NOT CONNECTED |
+| repeated-measures or clustered procedure report | exact forms plus seeded simulation, derived and not_measured | REFUSED (`decision_reliability_derived`: no route) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NOT CONNECTED |
+| transported cohort effect (facade over the fitted-effect transport) | point-only, extrapolative, typed receipt | DIRECT (`decision`: the existing cohort-mean source) | DIRECT (interval and law REFUSED) | ADAPTER (`cohort_forward_source`; accepting policy) | DIRECT | NO ROUTE | NO ROUTE | DIRECT (revalidation) | NO ROUTE | NOT CONNECTED |
+| transported measurement estimate (carried or target-established error rates) | point-only, uncalibrated, typed receipt | DIRECT (`measurement_artifact`: the existing artifact replays) | NOT CONNECTED | NOT CONNECTED | NOT CONNECTED | NOT CONNECTED | NO ROUTE (an error-rate invariance is not a counterfactual claim) | DIRECT (library) | NO ROUTE | NOT CONNECTED |
+| transported mechanism composition (carried or refitted linear-Gaussian mechanisms) | point-only with a labelled parameter-only variance | DIRECT (`mechanism_composition_artifact`: replays to the same bits) | NOT CONNECTED | ADAPTER (`inverse_forward_source` of the composition) | NOT CONNECTED | NOT CONNECTED | REFUSED (conditioning is a separate query) | DIRECT (library; a selection arrow into a carried mechanism refused) | NO ROUTE | NOT CONNECTED |
+| per-population discovery | structure only, nothing pooled, differences descriptive | DIRECT (`claim_set`: one claim per population) | NO ROUTE (a structure has no response) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | REFUSED (`selective_discovery.differences_are_not_selection_targets`) | NO ROUTE | NOT CONNECTED |
+| sample-split discovery | structure on the discovery part; analysis part bound by a receipt | DIRECT (`evidence_ledger`: two disjoint sources; reuse refused) | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NO ROUTE | NOT CONNECTED |
 
 ## Reading the table
 
-- A SCHEDULED cell is not a promise of a date. It records that the consumer
-  has no way to accept this output today and which module owns the adapter.
-- Frequentist and Bayesian modes are not supported for any row: each would need
-  an independent check of its whole-method construction, and every such route
-  refuses with a typed refusal until then. The Wald interval of a measurement
-  estimate is the delta-method construction named in that section, annotated
-  with the route's calibration status; it is not a measured-coverage interval. A derived, not_measured statement (a composed
+- A NOT CONNECTED cell records that the consumer has no way to accept this
+  output and which module an adapter would belong in. It is not a promise.
+- Apart from the two intervals below, frequentist and Bayesian modes are not
+  supported for any row: each would need an independent check of its
+  whole-method construction, and every such route refuses with a typed
+  refusal. The Wald interval of a measurement
+  estimate is the delta-method construction named in that section, and the
+  pooled interval is the construction named in the evidence-ledger section; each
+  is annotated with its calibration status, which says whether a coverage record
+  measured it. A derived, not_measured statement (a composed
   spread, a decision-reliability numerical or selection interval, a
   whole-procedure adaptive report) is labelled `uncalibrated_spread` or
   `derived_not_measured` and is never support: publishing it refuses

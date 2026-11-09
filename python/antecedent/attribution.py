@@ -5,9 +5,10 @@ on mechanisms fitted to the data. Each accepts ``posterior_draws`` (the posterio
 mechanisms: that many Dirichlet-weighted refits of every mechanism, the families held at the ones
 selected on the data) or ``bootstrap_replicates`` (the mechanism-refit row bootstrap), and then
 returns an :class:`AttributionWithUncertainty` holding the point result and the uncertainty of
-every quantity it reports. Both are uncalibrated and unsupported. Without either, the functions
-return the point result as before. Mechanism-change detection has no posterior over the
-mechanisms: it is a two-sample test, not a smooth functional of the refitted mechanisms.
+every quantity it reports. Neither construction is matched against a coverage record, so the
+uncertainty carries no calibration status. Without either, the functions return the point
+result alone. Mechanism-change detection has no posterior over the mechanisms: it is a
+two-sample test, not a smooth functional of the refitted mechanisms.
 """
 
 from __future__ import annotations

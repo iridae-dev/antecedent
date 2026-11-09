@@ -43,9 +43,9 @@ pub fn run() -> Result<(), CausalError> {
     // so none is owed graphically) — but under near-collinearity that
     // single-lag regression absorbs the other lag's coefficient too via
     // classic omitted-variable bias: beta ≈ 0.9 + 0.1 * corr(p1, p2) ≈ 1.0
-    // for lag 1, and symmetrically ≈ 1.0 for lag 2, which is exactly the
-    // wrong, dose-independent-of-horizon surface a stale fixture produced
-    // here. Using `sin((pi/2) t)` instead makes pressure[t-1] and
+    // for lag 1, and symmetrically ≈ 1.0 for lag 2, which would give the
+    // wrong surface: the same at both horizons whatever the dose.
+    // Using `sin((pi/2) t)` instead makes pressure[t-1] and
     // pressure[t-2] exactly phase-quadrature (their sample correlation is
     // ~1e-5, effectively zero — the pi/2 phase shift makes them a sine and
     // a cosine of the same argument), and moreover pressure[t] is exactly 0

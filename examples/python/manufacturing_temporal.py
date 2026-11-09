@@ -2,6 +2,9 @@
 """Estimate how a pressure change affects defects over time.
 
 This example uses a graph with lagged edges to describe delayed effects.
+Defects follow 0.9 times the pressure one step earlier, with no noise, and the script
+checks the one-step pulse effect lies within 0.05 of 0.9. The lag structure is declared,
+not discovered.
 Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations

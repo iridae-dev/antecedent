@@ -1067,7 +1067,7 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: TransportQuery: trial-selection and within-trial treatment overlap,
     #: reported separately (the transported IPW is ``estimate.ate``).
     transport_overlap: TransportOverlapReport | None = None
-    #: T5–T9 transport lineage (formula, provider, bindings) when the query
+    #: Transport lineage (formula, provider, bindings) when the query
     #: was ``transport.Transport``. Specialist views stay on ``transport.distribution``.
     transport: Any = None
     #: InterferenceQuery: Horvitz–Thompson / Hájek contrast, conservative
@@ -1081,8 +1081,9 @@ class AnalysisResult(ResultModel, ResultAPI):
     policy_value: DoublyRobustPolicyEvaluation | None = None
     continuous_dose_response: Any | None = None
     survival: SurvivalEstimate | CumulativeIncidenceEstimate | None = None
-    #: Unsupported Bayesian randomized-design posterior (``bayesian.piecewise_survival`` or
-    #: ``bayesian.continuous_dose_policy``); never supported, calibration ``not_measured``.
+    #: Bayesian randomized-design posterior (``bayesian.piecewise_survival`` or
+    #: ``bayesian.continuous_dose_policy``); its support and calibration status are on the
+    #: result's inspection.
     posterior_row: PosteriorRowEstimate | None = None
     longitudinal_regime: Any | None = None
     sequential_contrast: Any | None = None

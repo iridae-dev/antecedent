@@ -4,7 +4,7 @@ An HCI researcher wants to know whether explanations help people make better dec
 
 This tutorial follows one investigation through three stages. Antecedent helps plan the first study, choose a follow-up when its results leave an important question unresolved, and check the claims proposed for the paper. The researcher supplies the scientific aims and assumptions; the computation makes their consequences inspectable.
 
-The worked example is fully synthetic. It preserves a protocol before generating observations, analyzes a randomized interface comparison, selects and analyzes an independent factorial follow-up, and produces an evidence-linked claim table and a supported abstract. The final results include an inconclusive component effect: a useful investigation need not end with every hypothesis confirmed.
+The worked example is fully synthetic. It preserves a protocol before generating observations, analyzes a randomized interface comparison, selects and analyzes an independent factorial follow-up, and produces an evidence-linked claim table, a supported abstract and the citations behind every number. The final results include an inconclusive component effect: a useful investigation need not end with every hypothesis confirmed.
 
 ## The research question
 
@@ -16,7 +16,7 @@ The primary outcome is each participant's proportion of correct decisions on the
 | --- | --- | --- |
 | Before the first participant | What evidence would answer the primary question? | A protocol, sample-size plan and simulation |
 | After the first study | What remains unresolved, and which study would resolve it? | An identification check, study ranking and amended protocol |
-| Before submission | Which proposed claims are supported by which results? | A claim audit, bounded abstract and reproducible record |
+| Before submission | Which proposed claims are supported by which results, and which methods produced them? | A claim audit, bounded abstract, methods citations and reproducible record |
 
 The population is the recruited cohort of eligible English-speaking desktop volunteers, performing the specified tasks. Randomizing the interface supports an assignment effect in that cohort. It does not automatically extend the result to every AI user, task or device.
 
@@ -188,15 +188,44 @@ The script assembles a numerical abstract from the retained results. Its substan
 
 The accompanying record retains the unresolved mechanism and generalization questions. It preserves the positive primary finding, the time cost and the inconclusive component result rather than selecting only the favorable parts of the investigation.
 
+### Cite the methods behind every number
+
+A methods section cites the published method behind each number and says where the implementation departs from it. Every Antecedent result already carries that information. `outcome.method_provenance` names the provenance records behind the route the result executed (here, the randomized-design identification record and the Neyman difference-in-means estimator record), each with its published sources, the deviations the record documents, what its method review did not cover, and the record's id and digest.
+
+The citations travel with the results. Every audit row that rests on a result stores the record ids and digests of that result next to its effect and interval, so the claim table and the methods section cannot drift apart. One call then collects the bibliography of the whole investigation:
+
+```python
+from antecedent.citations import bibliography, capability_provenance
+
+references = bibliography(
+    [pilot_outcome, time_outcome, correct_outcome, follow_outcome],
+    capability_provenance("design.evsi"),  # the ranking that chose the follow-up
+)
+for citation in references:
+    print(citation.reference)
+    for caveat in citation.caveats:
+        print(f"  - {caveat.text} ({caveat.record})")
+```
+
+The four randomized analyses share one estimator source, so it is listed once with every record that cites it. The study ranking is a design capability rather than an analysis route, so it is cited by its capability id. The bibliography names Splawa-Neyman, Dabrowska and Speed (1990) for the participant-level contrasts, and Raiffa and Schlaifer (1961) and Berger (1985) for the expected value of sample information.
+
+Each citation comes with the caveats its records document, and they belong in the paper. For this study three matter: the interval uses the conservative Neyman variance bound, which omits the unobservable variance of individual effects; the pointwise normal interval needs at least 30 assigned participants per arm, which both studies meet; and the value of the follow-up is an exact closed-form point value under the declared design prior, with no interval. A methods paragraph built from that record reads:
+
+> Effects of interface assignment were estimated as differences in participant-level means under complete randomization, with the conservative Neyman variance bound (Splawa-Neyman, Dabrowska and Speed, 1990), as implemented in Antecedent (provenance record `estimate.randomized.neyman_itt`). The factorial follow-up used the fixed-cell 2×2 contrasts of the same estimator. Its size was chosen by the expected value of sample information under a declared Gaussian design prior (Raiffa and Schlaifer, 1961; Berger, 1985; record `design.evsi`).
+
+Report each record's digest beside its id; the script prints both. The digest changes when a record's sources or deviations change, so a reader can tell which version of the method record the paper relied on.
+
+Provenance is descriptive: it changes no number, support status or calibration annotation. It cites the methods, not the researcher's choices; the protocol snapshots, the design prior and the claim audit are still the researcher's to report. See [cite the methods behind a study](../guides/citing-a-study.md).
+
 ### Retain the scientific record
 
-The output includes both protocol identities, the native planning identity, disjoint cohort sources, the claim audit and the supported abstract. The ledger resolves **256 distinct participants** across the two studies. Multiple outcomes and repeated tasks do not inflate that count.
+The output includes both protocol identities, the native planning identity, disjoint cohort sources, the claim audit with each row's method records, the supported abstract and the methods bibliography. The ledger resolves **256 distinct participants** across the two studies. Multiple outcomes and repeated tasks do not inflate that count.
 
-Both randomized results export and reload against their own independent expectations; attempting to load the component result under the original bundle result's expectation refuses. The repair and ranking artifacts also replay. These artifacts preserve their supported scientific objects, not a complete manuscript or a replacement for retaining the study data and code. The ledger's combined provenance is not a pooled estimate: the bundle effect and component effect remain different targets.
+Both randomized results export and reload against their own independent expectations; attempting to load the component result under the original bundle result's expectation refuses. The repair and ranking artifacts also replay. Each exported result also carries its provenance records, so whoever receives a result receives its citations with it: `ant.load(...).citations()` on the receiving side lists the same sources and caveats. These artifacts preserve their supported scientific objects, not a complete manuscript or a replacement for retaining the study data and code. The ledger's combined provenance is not a pooled estimate: the bundle effect and component effect remain different targets.
 
 ## What this established
 
-Before recruitment, Antecedent made the study's assumptions and resource requirements inspectable. After the first results, it helped distinguish an unresolved causal question from a need for more precision, checked which designs could answer it, and valued the useful candidates. Before publication, its results supported an audit that separated supported, inconclusive, contradicted and unsupported statements.
+Before recruitment, Antecedent made the study's assumptions and resource requirements inspectable. After the first results, it helped distinguish an unresolved causal question from a need for more precision, checked which designs could answer it, and valued the useful candidates. Before publication, its results supported an audit that separated supported, inconclusive, contradicted and unsupported statements, and their provenance supplied the citations and caveats for the methods section.
 
 The investigator still chooses the questions, models, measures and interpretation. The tutorial's application code supplies protocol snapshots and the explicit claim manifest. Together, those pieces keep the research connected from the first plan to the claims in the paper.
 
@@ -210,4 +239,4 @@ The example runs offline with Antecedent and NumPy, needs no credentials or real
 
 <!-- example: examples/python/research_from_day_zero.py -->
 
-For details, see [experimental planning](../guides/power-and-sample-size.md), [randomized and factorial designs](../guides/designs/randomized-experiments.md), [study ranking](../design-ranking.md), [the evidence ledger](../evidence-ledger.md), and [results as claims](../concepts/results-are-claims.md). [The smallest defensible test](synthetic-users-launch.md) follows a complementary investigation centered on a launch decision.
+For details, see [experimental planning](../guides/power-and-sample-size.md), [randomized and factorial designs](../guides/designs/randomized-experiments.md), [study ranking](../design-ranking.md), [the evidence ledger](../evidence-ledger.md), [citing the methods behind a study](../guides/citing-a-study.md) and [results as claims](../concepts/results-are-claims.md). [The smallest defensible test](synthetic-users-launch.md) follows a complementary investigation centered on a launch decision.

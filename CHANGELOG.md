@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.0.0 (unreleased)
+## 3.0.0
 
 Changes since 2.4.1. The [migration guide](docs/migration.md) gives the old and new form of every breaking change and what to regenerate; the [release notes](docs/release-notes/v3.0.0.md) describe the new features.
 
@@ -10,6 +10,7 @@ Changes since 2.4.1. The [migration guide](docs/migration.md) gives the old and 
 - **Joint intervention programs.** `InterventionContrast::linear` and the joint-response routes evaluate a coordinated program over a horizon against a baseline with one joint uncertainty from the shared fit, and search an explicitly enumerated program domain. See [joint intervention responses](docs/guides/joint-intervention-responses.md).
 - **Evidence to decisions to the next study.** A retained response law carries into experimental evidence through an explicit estimand mapping, updates a decision bound to its evidence, and ranks further studies by information value and cost. Withdrawing or superseding a source invalidates current decision use.
 - **Prepare, branch, reuse and embed.** Prepared studies are immutable: `ant.rebind` changes observations, `ant.reconfigure` changes declarations, `branch.reuse` reports what was retained, and every execution returns an `Outcome`. `ant.Execution`, `ant.Frequentist` and `ant.Bayesian` carry execution and inference settings; `ant.estimation.prepare_many` fits a compatible family once.
+- **Citations travel with results.** Every result names the provenance records behind the route it executed, with published sources, documented deviations, review scope limits and record digests: `outcome.method_provenance`, `outcome.citations()` and `antecedent.citations.bibliography(...)` (Rust: `StudyResult::method_provenance()`, `antecedent::bibliography`). Exported analysis results carry them in an additive `analysis_result.method_provenance` section, which `ant.load(...).method_provenance` and `.citations()` read back. See [citing the methods behind a study](docs/guides/citing-a-study.md).
 - **Data diagnostics.** Automatic, bounded, fit-free diagnostics on prepared tabular and series studies, with configurable suites, explicit opt-out, standalone Rust and Python calls and identity-bound reports. See [data diagnostics](docs/guides/data-diagnostics.md).
 - **Development build.** The `development` feature runs routes a release build refuses and records each refusal it would have raised; release builds refuse its artifacts.
 

@@ -80,33 +80,30 @@ difference) at one level.
 | `serial`, lag `L`, `(L + 1) / n <= 0.1` | `mean +- t * se` with the Bartlett long-run variance | Student-t, `n / (L + 1) - 1` degrees of freedom |
 | `cluster`, at least ten clusters | `mean +- t * se` with the cluster-robust variance | Student-t, `G - 1` degrees of freedom |
 
-It is published only for a predictor verified held out of the cases (or never
-fitted) and only where a current coverage record measured the construction at
-the design, score, law family (Gaussian here), level (0.95) and number of cases.
-The record is read from the shipped coverage table: a declaration cannot open
-the route. The measured design is a fixed Gaussian forecast against known
-generators, for the CRPS, the log score and the CRPS difference of two
-forecasts. The number of cases must lie inside the range measured for the
-declared dependence; there is no extrapolation above the largest count or below
-the smallest, and a count outside it is reported `outside_measured_scope`. The
-coverage records form contiguous grids of three case counts each (half the
-base, the base and twice the base):
+It is reported only for a predictor verified held out of the cases (or never
+fitted), with its calibration status: `calibrated` only where a current coverage
+record measured the construction at the design, score, law family (Gaussian
+here), level (0.95) and number of cases. The record is read from the shipped
+coverage table; a declaration cannot supply one. The measured design is a fixed
+Gaussian forecast against known generators, for the CRPS, the log score and the
+CRPS difference of two forecasts. A case count outside the range measured for the
+declared dependence is reported `outside_measured_scope`: no record is extrapolated
+above its largest count or below its smallest. The coverage designs form
+contiguous grids of three case counts each (half the base, the base and twice
+the base):
 
-| Declared dependence | Measured generator | Cases in the measurement design | Cases in the shipped records |
-| --- | --- | --- | --- |
-| `iid` | independent standard normal outcomes | 400 to 1,600; 1,600 to 6,400; 6,400 to 25,600; 25,600 to 102,400 (so 10,000, 30,000 and 100,000 cases lie inside) | 400 to 102,400 |
-| `cluster` | clusters of five cases with a shared cluster effect | 800 to 3,200 (160 to 640 clusters) | 800 to 3,200 |
-| `serial` | stationary AR(1) outcomes, `phi = 0.5`, lag `floor(n^(1/3))` | 1,600 to 6,400 | 1,600 to 6,400 |
+| Declared dependence | Measured generator | Cases in the measurement design |
+| --- | --- | --- |
+| `iid` | independent standard normal outcomes | 400 to 1,600; 1,600 to 6,400; 6,400 to 25,600; 25,600 to 102,400 (so 10,000, 30,000 and 100,000 cases lie inside) |
+| `cluster` | clusters of five cases with a shared cluster effect | 800 to 3,200 (160 to 640 clusters) |
+| `serial` | stationary AR(1) outcomes, `phi = 0.5`, lag `floor(n^(1/3))` | 1,600 to 6,400 |
 
-A case count is supported only inside the last column: the range the gated records
-in the shipped coverage table measured. The measurement design column is the
-range the calibration designs cover; a range of it that no shipped record has
-measured yet is not supported, and a count there refuses like any other count
-outside the shipped records.
+Whether a count inside the design is `calibrated` depends on the coverage records
+current in your build; read the interval's `calibration`.
 
 The iid interval is a Student-t interval of a mean of independent case scores,
 whose validity grows with the case count, and 102,400 cases is the upper limit
-of the measurement design: more cases refuse. Computing it is linear in the
+of the measurement design: more cases are reported `outside_measured_scope`. Computing it is linear in the
 cases up to the sort of the observation identities (scoring, the variance and
 the interval are single passes).
 
@@ -114,17 +111,16 @@ The minimum of ten clusters and the bandwidth limit of the serial interval are
 requirements of the construction, not a measured range: a cluster count or
 series length that satisfies them but lies outside the measured case counts
 is reported `outside_measured_scope`. A serial interval for the CRPS of a single forecast is a named
-boundary (0.925 at 6,400 cases) and reports `measured_below_nominal`; the serial log score and
-CRPS difference are. A heavy-tailed truth is also recorded as a named boundary
-and does not support the route. The interval states its assumptions: cases
+boundary of the coverage design and reports `measured_below_nominal`. A heavy-tailed
+truth is also a named boundary of the design. The interval states its assumptions: cases
 independent or dependent as declared, a finite score variance, a law fixed
 before the cases were seen, and for a rolling-origin design the average
 expected score over the forecast origins.
 
 ## Calibration diagnostics
 
-All diagnostics are labelled `diagnostic` with `calibration = not_measured`: no
-coordinate of this route has measured calibration.
+All diagnostics are labelled `diagnostic` with `calibration = not_measured`: they
+describe the assessed cases and make no coverage claim.
 
 - **PIT histogram.** For a discrete or ensemble law each case spreads its unit
   mass uniformly over `[F(y-), F(y)]` (non-randomized PIT; Czado, Gneiting and
@@ -262,7 +258,8 @@ pa.consume_predictive_assessment_artifact(artifact, result.identity)
 `pa.FitDeclaration.from_ledger(ledger, sources)` and `pa.ledger_observations`
 decide held out from the same rows. `result.score_interval("forecast", "crps")`
 (and `reference=`, `level=`) returns the interval with its calibration status (`calibrated`
-inside a measured design, otherwise `outside_measured_scope` or `not_measured`)
+inside a measured design, otherwise `outside_measured_scope`, `measured_below_nominal`
+or `not_measured`)
 and raises the refusal above for an in-sample or unverified predictor or an
 undeclared dependence; `result.score_interval()` with no
 predictor is the unscoped request and always raises. `result.causal_validity()`

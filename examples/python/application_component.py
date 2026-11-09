@@ -138,7 +138,7 @@ def consume(encoded, retained_identity):
     loaded = ant.load(encoded, expected=expected)
     if loaded.acceptance.identity_bound and loaded.acceptance.answer_available:
         return loaded
-    raise AssertionError(f"not accepted as a claim: {loaded.acceptance}")
+    raise AssertionError(f"not intact for the expected identity: {loaded.acceptance}")
 
 
 # %% [markdown]
@@ -232,14 +232,14 @@ assert loaded.answer.value == outcome.answer.value
 assert loaded.study is None
 assert "refresh" not in loaded.capabilities and "explore" not in loaded.capabilities
 
-# Bytes that were altered, or a different request's identity, are not accepted.
+# Bytes that were altered, or a different request's identity, do not load.
 try:
     consume(b"not an artifact", retained)
 except ant.CausalError as error:
     altered = host.refusal_record(error)
     assert altered["family"] in {family.code for family in host.error_families()}
 else:
-    raise AssertionError("altered bytes were accepted")
+    raise AssertionError("altered bytes loaded")
 flags = np.array([0.0, 1.0] * 80)
 other = Request(
     {"reminder": flags, "sessions": 3 * flags},
@@ -255,4 +255,4 @@ try:
 except ant.CausalError:
     pass
 else:
-    raise AssertionError("a different identity accepted these bytes")
+    raise AssertionError("these bytes loaded under a different identity")

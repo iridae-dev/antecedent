@@ -5,8 +5,12 @@
 survival study through the retained `analyze` / `prepare` API and reports the
 Kaplan-Meier curve, restricted mean survival time (RMST), and fixed-horizon
 survival for each arm. The observation assumption is explicit: here censoring is
-independent given the (empty) conditioning set. The retained study exports,
-loads, and refreshes like any other; the contrast is point-only.
+independent given the (empty) conditioning set. The retained study exports and
+loads like any other; the contrast is point-only.
+
+In the four-row fixture the treated arm has no events, so its survival stays at 1 and its RMST
+equals the horizon 2; the script checks that and that the control RMST is smaller. The
+independent-censoring assumption is declared, not tested.
 
 Install with `python -m pip install antecedent`; see examples/README.md."""
 
@@ -46,7 +50,7 @@ def main() -> None:
     assert abs(curve.rmst_treated - 2.0) < 1e-9, curve.rmst_treated
     assert curve.rmst_control < curve.rmst_treated
 
-    # The frozen study round-trips through the durable artifact.
+    # The result exports and loads; loading checks it is intact and recomputes nothing.
     artifact = outcome.export(artifact_id="survival-study")
     loaded = antecedent.load(artifact, expected=artifact.expectation)
     print("loaded answer kind:", loaded.answer.kind)

@@ -47,7 +47,7 @@ The families built on the base are: `DecisionRefusal` (and its
 `RecalcUnavailable`, `ScoreResumeRefusal` and `ScoreResumeUnavailable`),
 `CompositionBundleRefusal` (with one subclass per stage, including
 `NodeNotFoundRefusal`, `TamperedQuantityRefusal` and `ExpectedIdentityMismatchRefusal`),
-and the earlier estimator refusals `VectorTreatmentRefusal`,
+and the estimator refusals `VectorTreatmentRefusal`,
 `CategoricalTreatmentRefusal` and `CompactExportRefusal`. Many of them are also importable
 lazily from `antecedent.errors`. `ExternalRefusal` and `DesignRankingRefusal` (with
 `SignalProviderRefusal`, `CostUnitsRefusal`, `SourceOverlapRefusal`) are
@@ -369,7 +369,7 @@ ok
 | `scientific_bridge.functional_not_supported` | `bridge_mapping_not_supported` | State the quantity as a prevalence or risk on the probability scale. |
 | `scientific_bridge.horizon_mismatch` | `bridge_binding_mismatch` | Bridge quantities of one horizon. |
 | `scientific_bridge.identity_mismatch` | `route_not_supported` | Supply the artifact whose recomputed identity equals the retained identity, or regenerate it from the intended bridge. |
-| `scientific_bridge.interval_not_supported` | `route_not_supported` | None available yet: a bridged claim is a point value; whole-method coverage of a bridge is not measured. |
+| `scientific_bridge.interval_not_supported` | `route_not_supported` | None available: a bridged claim is a point value, and a bridge interval needs a whole-method coverage record. |
 | `scientific_bridge.invalid_quantity` | `scientific_bridge_invalid` | Name the variable, units, population, regime, functional and transform with canonical conditioning. |
 | `scientific_bridge.malformed_mapping` | `scientific_bridge_invalid` | Declare the mapping within its range. |
 | `scientific_bridge.mapping_not_allowed` | `scientific_bridge_invalid` | Carry the value by a mapping the bridge kind allows. |
@@ -1032,14 +1032,12 @@ format changes with it.
 | Refusal | Remedy |
 | --- | --- |
 | Additive-GAM non-convergence (`additive GAM target did not converge`, `additive GAM nuisance did not converge`, and the weighted nuisance form) | Standardize the treatment and adjustment columns, drop or coarsen near-collinear or near-constant adjustment covariates, or raise `nuisance_lambda` / lower `nuisance_basis` in the response options. |
-| `plug-in response Jacobian supports at most two treatments` | Query the Jacobian over at most two treatments at a time (one `ResponseJacobian` per pair, with the remaining treatments in the adjustment set where the graph supports it), or an `AverageDerivative` per treatment. |
-| `plug-in directional derivative supports at most two treatments` | Restrict the direction to at most two treatments, or query a `ResponseJacobian` per pair and take the inner product with the direction. |
 
 ```python
-query = antecedent.ResponseJacobian(["a", "b", "c"], ["y"], at=[0.0, 0.0, 0.0])
-try:
-    antecedent.analyze(data, query=query, graph=graph)
-except antecedent.CausalError as err:
-    print(err)         # plug-in response Jacobian supports at most two treatments
-    print(err.remedy)  # query the Jacobian over at most two treatments at a time ...
+outcome = antecedent.analyze(data, query=query, graph=graph)
+if outcome.refusal is not None:
+    print(outcome.refusal.code)
+    print(outcome.refusal.remedy)  # what to change, or None when no remedy is named
 ```
+
+A raised `CausalError` carries the same `remedy` attribute.

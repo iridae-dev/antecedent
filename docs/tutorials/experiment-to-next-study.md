@@ -25,7 +25,7 @@ result = require_success(prepared.execute({"inference": "randomized_gaussian", "
 draws = result.report()["law"]["Moments"]["Bayesian"]["draws"]
 ```
 
-The mean contrast across the draws is close to 0.985: the fixture's 1.0, shrunk slightly by the declared prior. The spread across draws is the fit's uncertainty about the contrast.
+The mean contrast across the draws is about 0.96: the fixture's 1.0, shrunk slightly by the declared prior and moved by the Monte Carlo error of 512 draws. The spread across draws is the fit's uncertainty about the contrast.
 
 ## Map the experiment's estimand onto the retained response
 
@@ -49,13 +49,13 @@ report = updated.report(ledger)
 
 The update is frozen importance conditioning. Each retained draw keeps its values and receives a weight proportional to how well its predicted experimental mean matches the observed one, under a Gaussian likelihood with variance `0.2 / 4`. The model is not refit. The example recomputes those weights with independent arithmetic and requires agreement to `1e-12`.
 
-The experiment's mean was declared as 0.3 above what the retained law expected. The posterior mean contrast moves from about 0.985 to about 1.2. It does not move all the way to the observed mean, because the retained law and the experiment each carry information and the weights combine them.
+The experiment's mean was declared as 0.3 above what the retained law expected. The posterior mean contrast moves from about 0.96 to about 1.17. It does not move all the way to the observed mean, because the retained law and the experiment each carry information and the weights combine them.
 
 ## The changed decision
 
 Suppose the programme should run when the contrast exceeds a break-even of 1.1 outcome units. The contract has two actions, `hold` with utility zero and `act` with utility `contrast − 1.1`, and compares them by expected utility.
 
-Before the experiment the retained mean contrast (about 0.985) is below break-even, so the same rule holds. After it, `updated.decide(contract, ledger)` returns a uniquely optimal `act`, and `act`'s expected utility equals the posterior contrast minus the break-even. The experiment changed the decision. Whether that change is worth trusting is the question the next section answers.
+Before the experiment the retained mean contrast (about 0.96) is below break-even, so the same rule holds. After it, `updated.decide(contract, ledger)` returns a uniquely optimal `act`, and `act`'s expected utility equals the posterior contrast minus the break-even. The experiment changed the decision. What that change does and does not establish is the question the next section answers.
 
 ## Read the update's status
 
@@ -87,7 +87,7 @@ The same call accepts studies in another regime through `rank_next_studies` and 
 
 ## What this established
 
-Under a stated mapping, a later experiment changed a retained response and, with it, a decision, without refitting the model. A further study's value was computed and checked against independent integration, and the update stayed a model-conditional experimental update with calibration not_measured.
+Under a stated mapping, a later experiment changed a retained response and, with it, a decision, without refitting the model. A further study's value was computed and checked against independent integration, and the update stayed a model-conditional experimental update with calibration `not_measured`. It did not identify the contrast as a causal effect, and it did not measure the calibration of the updated law.
 
 The next scientific question is which of two things you need: a study that sharpens this decision (the ranking above), or a study whose design identifies the contrast you are deciding on, which would change the status rather than the weights. The [design ranking guide](../design-ranking.md) covers ranking studies in general, and [decide under uncertainty](decide-under-uncertainty.md) follows a decision and the value of more evidence from its start.
 

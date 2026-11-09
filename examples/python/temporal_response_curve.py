@@ -5,6 +5,14 @@ A response curve asks what would happen at each pressure level and time
 horizon. We also estimate the path after setting pressure to one fixed level.
 The graph states which earlier pressure measurements affect today's outcome.
 
+Defects follow 0.9 times the pressure one step earlier plus 0.1 times the pressure two
+steps earlier, with no noise. The script checks that the surface carries pointwise and
+simultaneous bands and that estimating the study again reproduces it; it prints the values
+rather than asserting them, and each band's calibration status is reported as computed. The
+slowly varying pressure series is strongly autocorrelated, which the declared graph omits, so
+the printed surface does not separate the two lag coefficients; the Rust example uses a series
+whose lags are uncorrelated and checks the surface against 0.9 and 0.1.
+
 Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
@@ -37,8 +45,8 @@ curve = ResponseCurve(
 )
 
 # The band comes from joint circular-block bootstrap replicates of the whole
-# surface; bootstrap=0 keeps the point surface and withholds
-# the band, because an analytic band would treat lag-aligned rows as independent.
+# surface; bootstrap=0 keeps the point surface without
+# a band, because an analytic band would treat lag-aligned rows as independent.
 result = require_success(
     analyze(
         data,

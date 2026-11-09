@@ -58,12 +58,23 @@ In project docs, "port" means capability parity, not source translation.
 ## Toolchain
 
 - Rust **1.97**, edition **2024** (see `rust-toolchain.toml`).
-- Format with `cargo fmt --all` from the repo root, or `cargo fmt -p <crate>` for one crate. Do not invoke `rustfmt` directly and do not pass `--edition`: `rustfmt.toml` sets edition 2024, and `--edition` overrides it and rewrites imports. Format only crates you changed. Lint with `cargo clippy -- -D warnings`.
+- Format with `cargo fmt --all` from the repo root, or `cargo fmt -p <crate>` for one crate. Do not invoke `rustfmt` directly and do not pass `--edition`: `rustfmt.toml` sets edition 2024, and `--edition` overrides it and rewrites imports. Format only crates you changed. Lint with `cargo clippy --workspace --all-targets -- -D warnings`, as CI does.
 
 For focused Rust edits, use `bash scripts/test.sh dev -p <crate> --test <target>`
 or `--lib`. Python-only edits can use `bash scripts/test.sh python-test` against
-the current native extension. Run optimized numerical tests with
-`bash scripts/test.sh`; use
-`bash scripts/test.sh all` for Rust tests, doctests, optional feature tests and
-the Python suite. See [test performance](docs/guides/test-performance.md) for
+the current native extension. Run every engineering test (Rust tests, doctests,
+optional feature tests, script tests and the Python suite) with
+`bash scripts/test.sh engineering`. See [test performance](docs/guides/test-performance.md) for
 focused runs, build settings and timing reports.
+
+## Scientific and calibration records
+
+Scientific assertions and calibration measurements run on development machines,
+never in CI. A change to what a recorded assertion or coverage record depends on
+owes that record, and CI fails until it is current again. Before you push, run
+`bash scripts/test.sh` on a clean checkout of your commit: it runs the engineering
+tests, then re-earns only the owed scientific and calibration records. Commit the
+records it rewrites with the change. CI and the release gate only check that every
+record is current (`python3 scripts/scientific_records.py status --check`,
+`python3 scripts/calibration_status.py --check`) and never re-run either lane. See
+[Development](docs/development.md) for the procedures.

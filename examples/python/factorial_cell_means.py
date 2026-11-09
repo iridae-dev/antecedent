@@ -4,7 +4,9 @@
 `antecedent.factorial.estimate` reports cell means, main effects, the
 interaction, and covariance-free variance bounds for a 2x2 factorial randomized
 under independent Bernoulli assignment of each factor. It is a point utility: it
-carries no confidence interval and has no graphless support-matrix row.
+carries no confidence interval. Pointwise intervals for a fixed-cell 2x2 design come from
+``antecedent.experiment.FactorialRandomization`` in a ``RandomizedEffect`` query, the
+``factorial_2x2`` row of the graphless support matrix.
 
 The fixture below is balanced with known cell means, so the main effects (4 and
 5) and the interaction (4) are exact. Install with

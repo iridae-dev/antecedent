@@ -2,14 +2,14 @@
 
 You can ask how an effect behaves across populations, over time and under sampling uncertainty with routes that go beyond a single static estimate: a joint posterior over source and target models, an uncertain initial state, a refresh onto a new observation period, a test that an effect is constant across a partition, and a counterfactual replay of a fixed population. For each route this page states the question it answers, the scope it runs within, the claim it makes, the Python entry point and the namespace of its refusal details.
 
-Whether a route is available, and what its claim is, follows from its current coverage evidence; read `result.inspect().calibration` and `result.inspect().uncertainty` on the result. The statistical adapters below return a factory-only `inference.MeasuredInference` only when their actual scalar bases resolve to current attesting records. Missing or stale evidence refuses, and the underlying model artifacts keep their `not_measured` standing outside the named scalar intervals.
+Whether a route is supported follows from its validation evidence; read `result.inspect().calibration` and `result.inspect().uncertainty` on the result. The statistical adapters below return a factory-only `inference.MeasuredInference` whose named scalar intervals each carry a calibration status: `calibrated` only when the scalar's actual basis resolves to a current attesting record, otherwise `outside_measured_scope`, `measured_below_nominal` or `not_measured`. Calibration annotates these intervals and never withholds them, and the underlying model artifacts keep their `not_measured` standing outside the named scalar intervals.
 
 ## Claim labels
 
 - **Structural envelope.** An unweighted range over a finite, enumerated set of scenarios. It is not a probability statement and carries no sampling uncertainty.
 - **Point only.** A value (or a matrix of values) with no interval and no coverage claim. Where a test is reported, its Type I error and power are not_measured.
-- **Measured scalar inference.** The native producer and fresh consumer derive each reported scalar's full method-specific basis and require a current, passing record. Only the named scalar intervals receive that standing. Sampling and model assumptions remain declarations, and covariance, posterior draws and simultaneous intervals receive no blanket support.
-- **Closed or unsupported.** A missing implementation, unsupported protocol or nonattesting record produces a typed refusal.
+- **Measured scalar inference.** The native producer and fresh consumer derive each reported scalar's full method-specific basis and resolve it against the current records. Only the named scalar intervals can receive `calibrated` standing. Sampling and model assumptions remain declarations, and covariance, posterior draws and simultaneous intervals receive no blanket support.
+- **Closed or unsupported.** A missing implementation or an unsupported route produces a typed refusal. A configuration outside a measured protocol is not refused: its interval is reported with its calibration status.
 
 Every refusal is a pair of a registered reason code and a detail of the form `<namespace>.<snake_case>`; callers switch on the pair.
 
@@ -20,7 +20,7 @@ Every refusal is a pair of a registered reason code and a detail of the form `<n
 - **Measured scope.** A checked fixed-DAG direct or standardization proof; one covariate; zero-mean declared isotropic Gaussian priors of variance 1000; known source variances 1 and (when a second source exists) 2.25; disjoint independent source samples of equal size 150 to 600; original covariates in [-1, 1]; a fixed four-row target covariate design [-0.25, 0.25, 0.25, 0.55]. Four configurations bind intercept or full varying blocks and independent or shared block declarations. Posterior draws are 4096 to 100000 and the nominal level is 0.95. Prior-bank variants cannot borrow this record.
 - **Output.** `MeasuredInference.scalar("target_effect")`. The joint posterior retains its full covariance and model-conditional standing. Gaussian model correctness and IID sampling are declared assumptions.
 - **Entry point.** `antecedent.transport.advanced.joint_bayesian_transport`. Fresh consumption uses `inference.MeasuredInference.load` with the retained expected identity; the source proof, populations, data and model are replayed.
-- **Refusals.** Unsupported graph or transport proof, overlapping or unknown evidence dependence, out-of-protocol priors or designs, and nonattesting records.
+- **Refusals.** Unsupported graph or transport proof, overlapping or unknown evidence dependence, and inputs beyond the adapter's shape bounds (`measured_transport.input_bounds_exceeded`). Priors or designs outside the measured protocol are reported with calibration `not_measured`.
 
 ## Binary nested-Markov inference
 
@@ -31,7 +31,7 @@ Both methods run checked general identification before fitting; nonparametric id
 - `antecedent.transport.advanced.binary_nested_markov_fisher_interval` reports `mean0`, `mean1` and `contrast` at 0.95, using the expected multinomial Fisher information and full delta covariance. Measured sample-size scope is 1000 to 4000; singular or boundary information refuses.
 - `antecedent.transport.advanced.binary_nested_markov` uses the full eleven-dimensional feasible Möbius model with all eleven raw-coordinate Beta(1,1) or all Beta(2,2) shapes. Its sampler is four chains, 2048 warmup and 4096 retained draws per chain, with 0.95 equal-tailed quantiles. All fourteen parameters and derived estimands must satisfy rank and folded Rhat at most 1.01 and bulk and tail ESS at least 400. Measured count scope is 2000 to 8000.
 
-Both return `inference.MeasuredInference` only if all three scalar bases have current records. Posterior summaries are Monte Carlo estimates; parameter-coordinate or simultaneous intervals are not supported. Correct model specification and IID sampling cannot be established from the observed table alone. The fresh consumer replays the point fit plus the complete information or posterior receipt; changing the prior, settings, counts or identity refuses, and a Fisher record cannot supply Bayesian support.
+Both return `inference.MeasuredInference` with each of the three scalars annotated by the calibration status its own basis resolves to. Posterior summaries are Monte Carlo estimates; parameter-coordinate or simultaneous intervals are not supported. Correct model specification and IID sampling cannot be established from the observed table alone. The fresh consumer replays the point fit plus the complete information or posterior receipt; changing the prior, settings, counts or identity refuses, and a Fisher record cannot supply Bayesian support.
 
 ## Uncertain initial state
 
@@ -97,7 +97,7 @@ Transporting a path-specific counterfactual to a named target needs both an iden
 
 ## Bootstrap interval for sampled observation recovery
 
-The measured adapter reruns the checked binary observation-recovery formula and the standardized recovered effect on complete whole-row bootstrap samples (2000 draws, level 0.95, no failed draws, normalization tolerance 0.1, treated level 1 and control 0). Measured row-count scope is 1000 to 4000. `antecedent.transport.advanced.sampled_observation_recovery` returns a `MeasuredInference` for the named `recovered_effect` only when the original derivation and method resolve to a current record. See [interval for sampled recovery](sampled-recovery-bca.md).
+The measured adapter reruns the checked binary observation-recovery formula and the standardized recovered effect on complete whole-row bootstrap samples (2000 draws, level 0.95, no failed draws, normalization tolerance 0.1, treated level 1 and control 0). Measured row-count scope is 1000 to 4000. `antecedent.transport.advanced.sampled_observation_recovery` returns a `MeasuredInference` for the named `recovered_effect`, annotated `calibrated` only when the original derivation and method resolve to a current record. See [interval for sampled recovery](sampled-recovery-bca.md).
 
 ## Scenarios over graph completions
 

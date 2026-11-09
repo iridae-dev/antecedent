@@ -65,13 +65,20 @@ What this decision is and is not:
   Its functional is `mean_difference`, and its regime names active minus
   control. It cannot supply two absolute outcome means. Use that coordinate
   in an affine utility and call `contract.evaluate(result)`; inspect
-  `decided.original_execution` for the immutable original native diagnostics
+  `decided.value.original_execution` for the immutable original native diagnostics
   and effect uncertainty. That uncertainty is not an interval for utility.
 
 `ScientificQuantity.from_response(result, outcome_units=...)` returns every grid
 coordinate at once; `ScientificQuantity.outcome / treatment / utility` build a
 coordinate by hand with only conventional fields defaulted. Scientific meaning
 (units, population, regime) is never defaulted.
+
+When you report a decision, cite the methods behind the results it rests on.
+Each analysis result carries the provenance of the route it ran
+(`result.method_provenance`: the published sources and the documented
+deviations from them), and `antecedent.citations.bibliography(result, ...)`
+lists the sources of several results once. See
+[cite the methods behind a study](guides/citing-a-study.md).
 
 ## Decide from an external claim
 
@@ -234,7 +241,7 @@ A result over structures has its own artifact (see below).
 types. A `Contract` is built from `Action`s, a closed utility `Expr` written with
 ordinary operators (`decision.x(0) * decision.x(1)`, `decision.maximum(...)`),
 `Constraint`s and a `Criterion`. `contract.evaluate(joint_distribution)` returns
-a `Decision` with `verdict`, `actions`, `evpi`, `assumptions`, `explain()` and
+an outcome whose `value` is a `Decision` with `verdict`, `actions`, `evpi`, `assumptions`, `explain()` and
 `export()`; `decision.replay(bytes, contract=..., source=...)` recomputes a stored
 result exactly. Python only builds declarations: identity, validation,
 evaluation, artifacts and refusals are Rust's, and each refusal raises
@@ -249,8 +256,8 @@ of `ExternalRefusal`): registered `code`, `stage`, namespaced `detail`,
 `offending` action input (`action[input]`), `expected` and `supplied` semantics,
 `capability` and `remedy`. `DecisionContractError`, `DecisionEvalError`,
 `StructuralError` and `DesignError` each have a `to_refusal()` in
-`decision_refusal.rs`; the existing reason codes and `reason_code()` are
-unchanged.
+`decision_refusal.rs`, and each error's `reason_code()` gives the registered
+code its refusal carries.
 
 | Family | Namespace | Stage |
 | --- | --- | --- |
@@ -261,7 +268,8 @@ unchanged.
 
 Every detail is a plain string literal of the form `namespace.snake_case`, never
 built with `format!`, so it can be matched against the declared refusals. A missing source lists the needed representations, comma-joined, in
-`expected`. 
+`expected`.
+
 ### Provenance chain and mean-only sources
 
 `DecisionResultArtifact::provenance_chain()` names what stands behind a decision,
@@ -279,7 +287,7 @@ replay still compares like with like. In Python, `Decision.lineage` and
 mean per coordinate, such as an external response grid. A mean answers only the
 expectation of an affine utility: the criterion must be expected utility or
 expected loss, every utility must be affine, and hard constraints refuse
-(`decision_contract_unsatisfied`, `decision.mean_source_insufficient`). Inputs
+(`decision_contract_unsatisfied`, `decision_evaluation.mean_source_insufficient`). Inputs
 whose functional is `outcome` are not found in a mean grid, and a mean source
 that does declare an `outcome` coordinate refuses with a meaning mismatch. The
 result claims no sampling error, no regret and no EVPI, and calls two actions
@@ -287,7 +295,7 @@ indistinguishable only on exactly equal values. In Python,
 `Contract.evaluate(claim)` accepts a `BoundExternalClaim`; its `Decision` lineage
 is the claim's own lineage plus the decision contract and `decision_result`.
 Such a decision is not exportable or replayable (`route_not_supported`,
-`decision.mean_source_not_replayable`). Ranking a study with `design.rank_designs` is covered by
+`decision_evaluation.mean_source_not_replayable`). Ranking a study with `design.rank_designs` is covered by
 [design ranking](design-ranking.md).
 
 ### Structural result artifact
@@ -366,8 +374,8 @@ conditional effect by ordinary least squares of the outcome on the declared basi
 treatment interaction, with an HC3 sandwich covariance and the retained row count `n` and
 design width `p`, gives `phibar' b_hat +/- t_(n-p) sqrt(phibar' V phibar)` for the declared
 cohort's mean of the true conditional effect
-(`antecedent_estimate::cohort_linear_effect`). It is reported only as a measured scalar bound
-to a currently attesting coverage record: randomized or observed-confounded binary treatment,
+(`antecedent_estimate::cohort_linear_effect`). It is reported as a measured scalar with its calibration status, `calibrated`
+only under a current coverage record of the measured design: randomized or observed-confounded binary treatment,
 two to four modifiers, heteroskedastic noise, cohorts of 50 to 200 rows of the fitted
 population, levels 0.90 and 0.95. A caller-built compact export is point-only and refuses
 `route_not_supported` (`cohort_decision.interval_requires_native_fit`); a shifted cohort and a
@@ -392,7 +400,7 @@ upgraded by being passed on.
 
 | Step | Entry | Keeps | Recomputes | Refuses |
 |---|---|---|---|---|
-| analyze, then decide with a transported source | `BoundDecisionContract::evaluate_transported(&TransportedResponse, TransportedDemand, &SupportPolicy)` | the receipt (route, source and target populations, diagram identities, assumptions), the extrapolative support label and the declared exclusions as part of the bound decision identity | the affine expected utility of the transported mean, or the probability criterion of a transported law, and the decision identity | a law request of a point (`transported_decision.law_not_supplied`), an interval (`decision_contract_unsatisfied`), the default policy (`transported_decision.transported_not_accepted`), a support rule stronger than the label (`transported_decision.support_rule_unmet`), an uncertainty requirement a point cannot meet (`transported_decision.uncertainty_requirement`) |
+| analyze, then decide with a transported source | `BoundDecisionContract::evaluate_transported(&TransportedResponse, TransportedDemand, &SupportPolicy)` | the receipt (route, source and target populations, diagram identities, assumptions), the extrapolative support label and the declared exclusions as part of the bound decision identity | the affine expected utility of the transported mean, or the probability criterion of a transported law, and the decision identity | a law request of a point (`transported_decision.law_not_supplied`), an interval (`transported_decision.interval_not_supported`), the default policy (`transported_decision.transported_not_accepted`), a support rule stronger than the label (`transported_decision.support_rule_unmet`), an uncertainty requirement a point cannot meet (`transported_decision.uncertainty_requirement`) |
 | transported source for an inverse query | `analysis::inverse_sources::{composed_source, cohort_source, transported_source, evaluate, seal}` and `PreparedMechanismComposition::inverse_forward_source` | the origin (kind, representation, support, receipt, assumed mechanisms), bound into the sealed query and re-derived on consume | the per-action forward value (replayed from the composition artifact) and the claim digest | a quantile or probability of a point (`inverse_forward_source.point_only_law_requested`), an interval (`inverse_forward_source.interval_not_supported`), a transported source under a native-only policy (`inverse_forward_source.transported_not_accepted`) |
 | refresh, then revalidate transported claims | `transport_revalidation::{TransportSceneBuilder, revalidate}`, `TransportClaimState::observe` | the declared selection diagram, structure and quantity; claims that do not count a changed source | every claim counting a changed source, diagram or target (`recompute`); a state change enters through `invalidation_effects_for_claims` | a calibration record established at another target (`withdrawn`, `calibration_from_another_target`) and an unsupported target (every claim withdrawn); a refused observation leaves the state unchanged |
 | assumption range on a transported value | `transport_sensitivity::{transport_range, transport_sensitivity_artifact}` | the value, its quantity and receipt, the declared bound | the band at each grid point and the sealed sensitivity artifact on consume | a transported law (`transport_sensitivity.law_response_not_scalar`), a structural premise (`transport_sensitivity.no_scalar_family`), a sampling interval composed with the range (`transport_sensitivity.interval_not_composed`) |

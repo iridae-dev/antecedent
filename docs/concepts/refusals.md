@@ -8,7 +8,7 @@ Sometimes the correct causal result is not a number. A refusal is scientific inf
 | --- | --- | --- |
 | Missing evidence | A formula may exist, but a required joint law, provider or declaration is absent | Supply the evidence the refusal names |
 | Nonidentification | The declared structure and evidence do not determine the quantity | Different evidence, an experiment, or stronger assumptions you can defend. More rows do not help |
-| Unavailable implementation | A meaningful request falls outside the implemented routes or the evidence-backed support surface | Choose a supported route, or a different question the available computation can answer |
+| Unavailable implementation | A meaningful request falls outside the implemented routes, or its route is not supported (`not_supported`, naming the missing evidence) | Choose a supported route, or a different question the available computation can answer |
 | Exhausted search | A bounded search or enumeration stopped before finishing | A partial result, with the bound that stopped it and what was left unexamined; not a statement that no solution exists |
 | Unsupported execution status | A route can run, but without executing support evidence | The result runs and keeps that status; read it before relying on the answer |
 | Operational failure | Cancellation, a resource limit, an invalid argument or a callback failure | Fix the call or the resources and rerun. This says nothing about the science |
@@ -54,4 +54,4 @@ Each route states what it does not do, the request most likely to be refused, an
 
 ## Selected routes that execute unsupported
 
-Some routes run without supported evidence. They do not refuse, and they retain refused support status in the result. Successful execution does not upgrade the scientific claim: read support status in `result.inspect()` and, if your application accepts results, apply your own acceptance policy to it.
+A route that is not supported refuses in a release build with `not_supported`; a development build runs it and reports `would_refuse` beside the result. A few selected routes and components, such as an optional bootstrap interval on a route whose support covers the point only, run without supported evidence instead. They do not refuse, and they retain refused support status in the result. Successful execution does not upgrade the scientific claim: read support status in `result.inspect()` and, if your application accepts results, apply your own acceptance policy to it.

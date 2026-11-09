@@ -9,11 +9,11 @@ overrides. Substitute the wheel filename produced by maturin:
 
 ```bash
 cd python
-uv run maturin build --release --out /tmp/antecedent-s-wheel
+uv run maturin build --release --out /tmp/antecedent-candidate-wheel
 cd ../../antecedent-practitioner-scenarios
 python3 run.py \
-  --wheel /tmp/antecedent-s-wheel/<antecedent-X.Y.Z-platform-wheel>.whl \
-  --rust-checkout ../causal-library \
+  --wheel /tmp/antecedent-candidate-wheel/<antecedent-X.Y.Z-platform-wheel>.whl \
+  --rust-checkout <path-to-this-checkout> \
   --scale
 ```
 
@@ -24,7 +24,7 @@ runner self-tests and `leftovers.json`. `reports/acceptance.json` records the
 candidate commit, dirty-tree state and diff digest, wheel digest, Rust lock
 digest, and individual Python/Rust outcomes. `reports/python.json` records the
 installed dependency versions and per-job details. A smoke run without `--scale`
-is useful during development but cannot accept S.
+is useful during development but cannot accept a candidate.
 
 ## Acceptance rule
 
@@ -50,8 +50,8 @@ For each release candidate, require all of the following:
 
 The suite stays outside `scripts/gate_release.sh`. Neither a green library gate
 alone nor a green independent suite alone authorizes the cut. Keep both sets of
-evidence. P owns timing budgets and benchmarks; S owns the scientific assertions
-on practitioner-sized inputs.
+evidence. Timing budgets and benchmarks belong to the [hot-path baselines](hot_paths.md);
+this suite owns the scientific assertions on practitioner-sized inputs.
 
 ## Matrix edge-case suite
 
@@ -61,7 +61,7 @@ with the main runner, run:
 
 ```bash
 python3 run_matrix_edges.py --wheel /absolute/path/to/candidate.whl \
-  --rust-checkout ../causal-library
+  --rust-checkout <path-to-this-checkout>
 ```
 
 These installed-Python public routes cross explicit/accepted graph classes,

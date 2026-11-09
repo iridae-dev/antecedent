@@ -20,7 +20,7 @@ from antecedent.handoff import econml
 
 TRUE_ATE = 2.0
 
-# Populated by ``main`` for earning tests that run this file via runpy.
+# Populated by ``main`` for tests that run this file via runpy.
 LAST_HANDOFF: dict[str, object] = {}
 
 

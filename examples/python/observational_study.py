@@ -5,7 +5,7 @@ Question: among cigarette smokers examined in 1971-75 and followed up in 1982, h
 (or less) weight, in kilograms, did the average person gain between visits if they quit smoking
 than if they kept smoking? This is the average effect of quitting. The data are the NHEFS
 smoking-cessation subset used in Hernan and Robins, "Causal Inference: What If"; see
-``examples/data/nhefs.toml`` for origin, citation, support, checksum and preprocessing.
+``examples/data/nhefs.toml`` for origin, citation, licence, checksum and preprocessing.
 
 Data. By default this script runs on a **synthetic stand-in** with the same columns and size
 (1,629 rows, 63 of them without a 1982 weight), whose average effect of quitting is a fixture

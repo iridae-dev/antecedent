@@ -9,6 +9,9 @@ and freezes the design. `rebind` then reuses that frozen design with
 outcome-only data. Interval claims for this family are rows of the graphless
 support matrix (docs/graphless-support-matrix.md).
 
+The simulated assignment lifts revenue by 2.0, and the script checks the ITT estimate lies
+within 0.5 of it. The interval's calibration status is printed as reported, not asserted.
+
 Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations

@@ -4,7 +4,7 @@ Discovered structure is evidence, not a finished causal model. Antecedent keeps
 compatible graphs in play, reports when an effect is not identified on part of
 that belief, and refuses to invent orientations the data do not support. This
 page is a practitioner reading guide; the [support matrix](support-matrix.md)
-remains the support for which combinations may run.
+lists which combinations are supported.
 
 Related mental-model pages: [results are claims](concepts/results-are-claims.md),
 [refusals](concepts/refusals.md), and the
@@ -50,9 +50,8 @@ per node pair and conditioning subset) would not fit the budget.
 `ExactDagPosterior` enumerates every labeled DAG and stops at **6** variables. For more,
 `OrderMcmc` and `StructureMcmc` (and `CiScreenedPosterior`, which runs structure MCMC on the
 pairs its screen kept) sample the same Gaussian-BIC pseudo-posterior over DAGs and accept up to
-**16** variables. The posterior carries each atom's directed edges as a packed edge set whose
-first word is the earlier 64-bit encoding unchanged: a graph on at most eight variables is
-exactly the integer it was before, and a stored one decodes as it is. `GraphPosterior.adjacency`
+**16** variables. The posterior carries each atom's directed edges as a packed edge set of
+64-bit words, so a graph on at most eight variables is a single word. `GraphPosterior.adjacency`
 in Python holds one Python `int` per atom, so graphs of up to 16 variables decode with ordinary
 integer arithmetic (bit `from * (n_vars - 1) + (to if to < from else to - 1)` is the edge
 `from -> to`). The DBN posterior keeps its own smaller bound, set by its lag-edge space. The
@@ -122,7 +121,7 @@ What is checked, and what is not:
   compared with a closed-form law with no data: the uniform prior on DAGs with at most one
   parent per node has `(n + 1)^(n - 1)` members and an exact edge-count law.
 - Four independent, strongly identified 12-variable colliders are recovered through the multi-word encoding.
-- `antecedent_discovery::exact_dag_marginals` computes the exact `P(i -> j)` of the same posterior (Gaussian BIC, the uniform or Bernoulli edge prior and every constraint, including the parent cap) for up to 15 variables by dynamic programming over node subsets, without enumerating DAGs: the sum over DAGs of a product of per-node factors is a sink recursion, and the sum over the DAGs containing an edge is the same recursion with that node's factor restricted. It agrees with an independent enumeration of every DAG to 1e-9 at five, six and seven variables (1.1 billion DAGs), and the published-condition samplers agree with it at 10 and 12 variables on 2,000 rows. This is the route behind `ExactDagPosterior().run(...)` from 7 to 15 variables (`discover_exact_dag_marginals`): it returns `ExactDagMarginals` (exact `P(i -> j)` and the log normalizing constant) and no graph atoms, so the list of graphs, weights, the MAP graph and the mixture that `analyze` takes over graphs are refused (`option_not_applicable`) rather than approximated; up to 6 variables the enumerating engine and its `GraphPosterior` are unchanged. More than 15 variables are refused naming `EXACT_MARGINAL_MAX_NODES`; larger problems are the samplers' alone.
+- `antecedent_discovery::exact_dag_marginals` computes the exact `P(i -> j)` of the same posterior (Gaussian BIC, the uniform or Bernoulli edge prior and every constraint, including the parent cap) for up to 15 variables by dynamic programming over node subsets, without enumerating DAGs: the sum over DAGs of a product of per-node factors is a sink recursion, and the sum over the DAGs containing an edge is the same recursion with that node's factor restricted. It agrees with an independent enumeration of every DAG to 1e-9 at five, six and seven variables (1.1 billion DAGs), and the published-condition samplers agree with it at 10 and 12 variables on 2,000 rows. This is the route behind `ExactDagPosterior().run(...)` from 7 to 15 variables (`discover_exact_dag_marginals`): it returns `ExactDagMarginals` (exact `P(i -> j)` and the log normalizing constant) and no graph atoms, so the list of graphs, weights, the MAP graph and the mixture that `analyze` takes over graphs are refused (`option_not_applicable`) rather than approximated; up to 6 variables the enumerating engine returns its `GraphPosterior`. More than 15 variables are refused naming `EXACT_MARGINAL_MAX_NODES`; larger problems are the samplers' alone.
 - The paired move is checked against the exact conditional from every one of the 543 four-variable DAGs, and the whole samplers (paired moves alone, then the default ladder) against all 543 DAGs of four variables and all 29 281 of five.
 - **No calibration is claimed.** A reported skeleton marginal of 0.7 does not mean that 70% of
   such pairs are adjacent: the weights are a BIC pseudo-posterior, not an integrated Bayesian
@@ -136,7 +135,7 @@ What is checked, and what is not:
 
 A frequentist search (PC, FCI, GES, LiNGAM, NOTEARS, PCMCI) returns one structure and no
 sampling error. Two compiled routes carry the missing uncertainty. Neither is a support-matrix
-cell, and neither has a coverage record (calibration `not_measured`).
+cell, and neither makes a coverage claim.
 
 **Posterior over Markov equivalence classes.** `EquivalenceClassPosterior(base)` (Rust:
 `DiscoverySpec::equivalence_classes`) runs an `ExactDagPosterior`, `OrderMcmc`,
@@ -222,7 +221,7 @@ How to complete or accept a graph:
    `accepted.review({(u, v): ("tail", "arrow"), ...})` on an
    [`AcceptedGraph`](artifacts.md) handle (version bumps; the old handle stays).
 2. **Supply an explicit DAG** you are willing to defend
-   (`AcceptedGraph.from_graph([...])` or `graph=[(u, v), ...]`), as in
+   (`AcceptedGraph.from_graph(dag)` or `graph=[(u, v), ...]`), as in
    `examples/python/discover_then_estimate.py`.
 3. **Keep the class and use an envelope / posterior route** when you are not
    ready to orient—do not silently pick a MAP orientation to “unblock” the

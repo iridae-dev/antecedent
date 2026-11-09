@@ -176,6 +176,24 @@ class LoadedResult(ResultAPI):
     decoded_artifact: Any
     acceptance: Acceptance
     _bytes: bytes = field(repr=False)
+    #: JSON of the provenance section the artifact carries, checked against its contract.
+    _method_provenance: str | None = field(default=None, repr=False)
+
+    @property
+    def method_provenance(self) -> Any:
+        """Provenance records the producer cited for the route this result executed.
+
+        Read from the artifact's ``analysis_result.method_provenance`` section, which must name
+        the identifier and estimator its contract declares: sources, documented deviations,
+        review scope limits, and each record's id and digest, as the producer's table had them
+        at export. Empty when the artifact carries no such section. Descriptive: it takes no
+        part in loading or replay.
+        """
+        from .citations import MethodProvenance, method_provenance
+
+        if self._method_provenance is None:
+            return method_provenance()
+        return MethodProvenance._parse(self._method_provenance)
 
     @property
     def program_id(self) -> str | None:
@@ -355,9 +373,12 @@ def _load_analysis(
         from .transport.advanced import consume_identification
 
         return consume_identification(encoded)
+    from . import _native
+
     receipt = artifacts.accept(encoded, replay=replay)
     artifact = artifacts.loads(encoded)
-    return LoadedResult(artifact, Acceptance.from_receipt(receipt), encoded)
+    carried = _native.analysis_result_method_provenance_json(encoded)
+    return LoadedResult(artifact, Acceptance.from_receipt(receipt), encoded, carried)
 
 
 def _consumed_transport_view(prepared: Any, result: Any) -> Any:

@@ -70,7 +70,7 @@ def read_plan(study):
     }
 ```
 
-`support_status` is the support-matrix status of the selected route. A `supported` route is one the support matrix supports for this combination of question, graph class, structure, inference and validation. Antecedent can also run a route that is not supported and record that status. Successful execution does not upgrade the scientific claim. `program` is the identity of the compiled program, and every result of the program carries it. This is what lets a host log, compare and cache by what was asked, not by when it ran.
+`support_status` is the support-matrix status of the selected route. A `supported` route is one the support matrix supports for this combination of question, graph class, structure, inference and validation. A route that is not supported refuses in a release build with `not_supported`; a development build runs it and records `would_refuse`. Successful execution does not upgrade the scientific claim. `program` is the identity of the compiled program, and every result of the program carries it. This is what lets a host log, compare and cache by what was asked, not by when it ran.
 
 ## Run it and read the claim
 
@@ -104,7 +104,7 @@ For a successful outcome the host reads four things.
 
 | Field | What it tells the host |
 | --- | --- |
-| `claim["status"]` | `supported`, `partial` or `unsupported`, decided by one rule shared with Rust. `supported` means the claim is identified under the declared structure and evaluated, so the host may use it as stated. It does not certify the declared structure. |
+| `claim["status"]` | `supported`, `partial` or `unsupported`, decided by one rule shared with Rust. `supported` means the claim is identified under the declared structure and evaluated, so the host may use it as stated. It does not check the declared structure. |
 | `claim["kind"]` | The kind of answer: a `point`, or `bounds` or `incomplete` when the structure identifies less. A `partial` claim must travel with its limit. |
 | `support_status` | The support status of the route that ran. |
 | `calibration` | Whether an interval carries a calibration record. Read the status field; do not infer it from whether an interval is present. |
@@ -198,12 +198,12 @@ def consume(encoded, retained_identity):
     loaded = ant.load(encoded, expected=expected)
     if loaded.acceptance.identity_bound and loaded.acceptance.answer_available:
         return loaded
-    raise AssertionError(f"not accepted as a claim: {loaded.acceptance}")
+    raise AssertionError(f"not intact for the expected identity: {loaded.acceptance}")
 ```
 
-The loaded value equals the producer's. Loading restores a recorded claim. It does not recreate the study: `loaded.study` is `None`, so the consumer cannot refresh, explore or re-execute anything, and the artifact itself stays what it recorded. A consumer that wants a new answer prepares a new study on its own data.
+The loaded value equals the producer's. Loading checks that the artifact is intact and restores a recorded claim; it recomputes nothing. It does not recreate the study: `loaded.study` is `None`, so the consumer cannot refresh, explore or re-execute anything, and the artifact itself stays what it recorded. A consumer that wants a new answer prepares a new study on its own data. To cite the methods behind the result in a handoff note or report, the producer reads `outcome.method_provenance` before export; see [cite the methods behind a study](../guides/citing-a-study.md).
 
-The consumer also refuses what it must. Altered bytes raise an error that classifies into a stable family, and a different request's identity does not accept these bytes. In the example both are asserted. In production the identity belongs in a record the byte channel cannot rewrite, as [save, hand off and accept results](../guides/build/artifacts-and-handoff.md) explains, and that guide also separates the producer and consumer into two processes.
+The consumer also refuses what it must. Altered bytes raise an error that classifies into a stable family, and loading these bytes against a different request's identity raises. In the example both are asserted. In production the identity belongs in a record the byte channel cannot rewrite, as [save, hand off and accept results](../guides/build/artifacts-and-handoff.md) explains, and that guide also separates the producer and consumer into two processes.
 
 ## How an agent uses the same interface
 
@@ -213,7 +213,7 @@ Antecedent contains no agent logic: no planner, no prompt, no memory, no tool lo
 
 ## What this established
 
-You have a host that submits a prepared request, reads the plan, distinguishes an answer from a typed refusal and an operational failure, applies a policy of its own to the status, support and calibration fields, keeps the earlier result when new data arrive and hands a result to a consumer that can verify it without the study behind it. In the simulated model, the recovered effect matches the known effect of 2 within sampling error, and the structure that cannot identify it is refused with a registered code.
+You have a host that submits a prepared request, reads the plan, distinguishes an answer from a typed refusal and an operational failure, applies a policy of its own to the status, support and calibration fields, keeps the earlier result when new data arrive and hands a result to a consumer that loads it against the identity it expects, without the study behind it. In the simulated model, the recovered effect matches the known effect of 2 within sampling error, and the structure that cannot identify it is refused with a registered code. None of this shows that a declared graph is true, and the request asked for no interval, so nothing here bears on interval coverage.
 
 The next questions are about the host's environment. To keep results current as data change, see [retained refresh and state publication](../guides/retained-refresh.md) and [staleness and drift diagnostics](../guides/staleness.md). To connect this analysis to a decision or another component's output, see [connect scientific components and bring in outside results](../guides/build/scientific-interfaces.md).
 

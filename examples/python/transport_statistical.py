@@ -1,4 +1,10 @@
-"""Single-source empirical table. Same verbs as the exact and complementary examples."""
+"""Transport a response curve from one source table.
+
+The 150-row source table has ``P(y = 1)`` of 0.5 under ``x = 0`` and 0.8 under ``x = 1``, so the
+transported curve is ``[0.5, 0.8]``; rebinding a replacement table gives ``[0.4, 0.7]`` and leaves
+the first result unchanged. This call requests no bootstrap, so the script checks that no
+interval is reported; the transport assumptions are declared, not tested. Same verbs as the
+exact and complementary-source examples."""
 
 import antecedent as ant
 

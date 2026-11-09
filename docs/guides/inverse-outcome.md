@@ -39,7 +39,7 @@ this inverse claim and is refused.
    forward estimate, margin to the threshold, support label and the forward response's
    assumptions.
 2. **Observational scenarios compatible with an outcome**. Closed:
-   `ObservationalScenarios()` refuses with `not_supported`
+   `ObservationalScenarios()` refuses with `inverse_functional_unsupported`
    (`inverse.observational_scenarios`). `P(X | Y)` or a nearest-feature change is not an
    action, and nothing here recommends one.
 3. **Missing evidence and study options**. Not computed here. Pass the study planner's plan
@@ -110,7 +110,7 @@ retain one time coordinate.
 
 | Reason code | Detail | When |
 | --- | --- | --- |
-| `inverse_functional_unsupported` | `inverse.probability_target` | `ChanceConstraint`: a mean cannot establish `P(Y^do(a) >= y) >= q`; that needs a separately identified, calibrated interventional-distribution cell |
+| `inverse_functional_unsupported` | `inverse.probability_target` | `ChanceConstraint`: a mean cannot establish `P(Y^do(a) >= y) >= q`; that needs a separately identified and supported interventional-distribution route |
 | `inverse_functional_unsupported` | `inverse.quantile_target` | `TargetQuantile` is unsupported by this mean-only route; the separate functional inverse query (`antecedent.inverse_query`, see [decision routes](../decisions.md#routes-at-a-glance)) requires a source supplying the requested functional |
 | `inverse_functional_unsupported` | `inverse.observational_scenarios` | `ObservationalScenarios` |
 | `route_not_supported` | `inverse.forward_not_mean_response` | the forward estimand is not a scalar-outcome mean curve (`ResponseCurve`) |
@@ -154,7 +154,7 @@ answer compatible probability, quantile and nonlinear expectation requests.
 ### Transported acceptance
 
 A transported response is labelled at best extrapolative. A consumer that does
-not accept a transported input refuses it with one code, `not_supported`,
+not accept a transported input refuses it with one code, `decision_contract_unsatisfied`,
 whichever source carried it: an inverse query reading a cohort, composed or
 response source under the native-target-only policy
 (`inverse_forward_source.transported_not_accepted`), and a decision under the
@@ -208,7 +208,7 @@ The mass of the event no scenario explains is reported, not renormalized away.
 | --- | --- | --- |
 | Quantile, probability or nonlinear utility on a point source | `PointOnlyLawRequested` / `decision_contract_unsatisfied` | Supply a law (draws or a finite table) |
 | Quantile or probability on Gaussian mean coordinates or contrasts | `ComposedLawNotMaterialized` | Request an intervention law on outcome coordinates; contrasts remain estimates |
-| Interval region from any source | `IntervalNotSupported` / `not_supported` | Use the point as labelled |
+| Interval region from any source | `IntervalNotSupported` / `uncertainty_representation_insufficient` | Use the point as labelled |
 | Transported input to a consumer that does not accept one (inverse query, cohort forward claim, decision under the default policy) | `decision_contract_unsatisfied` (`inverse_forward_source.transported_not_accepted`, `transported_decision.transported_not_accepted`) | Accept transported inputs explicitly, naming the weaker support status in the policy |
 | Support rule stronger than the transported label | `transport_support_failure` (`transported_decision.support_rule_unmet`) | Weaken the rule for this input or measure in the target |
 | Typed route through the declared constructor, or a hand-typed identity | `transported_decision.route_needs_typed_source`, `transport_identity_not_digest` | Use the typed constructor of the route |
@@ -235,7 +235,7 @@ In Python:
    noise that remains. A `mean` coordinate keeps the expected value only.
 3. Call `derive_composed_source`, then `evaluate` an inverse query that uses
    `probability_threshold` or `target_quantile`.
-4. `seal_per_action` writes one artifact per action. `consume` replays each one
+4. `seal_per_action` writes one artifact per action. `antecedent.inverse_query.consume` replays each one
    without sampling.
 
 <!-- example: examples/python/composed_outcome_law.py -->

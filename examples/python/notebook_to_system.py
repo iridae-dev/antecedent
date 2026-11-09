@@ -1,5 +1,11 @@
 """Notebook exploration to independently consumed scientific bytes.
 
+The simulated treatment raises the outcome by 2. The script checks that a rebound branch
+moves the estimate by exactly 1, that a changed randomized assignment is refused, that a
+declared mixture mean of 2 reaches a decision contract unchanged, and that a fresh process
+loads the same answer from the bytes and the expectation alone. Loading checks integrity and
+identity; it recomputes nothing and does not test the declared graph.
+
 Run with an installed Antecedent. No files are retained after
 this example; a real producer stores container bytes and expectations separately.
 """
@@ -144,9 +150,9 @@ assert require_success(contract.evaluate(mean)).source.means == (2.0,)
 # %% [markdown]
 # ## Persist bytes and independently consume them
 #
-# A result carrying refutation reports loads intact and keeps its answer, but a replay is
-# withheld and names what it cannot replay. The refutation-free result is then loaded in a fresh
-# process from its bytes and expectation alone.
+# A result carrying refutation reports loads intact and keeps its answer; replay cannot
+# recompute the reports and lists them as not replayable. The refutation-free result is then
+# loaded in a fresh process from its bytes and expectation alone.
 
 # %%
 checked_envelope = checked.export()

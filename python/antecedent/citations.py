@@ -169,15 +169,19 @@ def provenance_of(result: Any) -> MethodProvenance:
     """Provenance of ``result``: the identifier and estimator its executed plan names.
 
     ``result`` is an :class:`~antecedent.outcomes.Outcome` or the result it holds. A
-    :class:`MethodProvenance` passes through. A result without a plan (a refusal, or a family
-    that records no strategy-table route) names no route and has empty provenance.
+    :class:`MethodProvenance` passes through. A loaded analysis result gives the provenance its
+    artifact carries. A result without a plan (a refusal, or a family that records no
+    strategy-table route) names no route and has empty provenance.
     """
+    from ._workflow import LoadedResult
     from .outcomes import Outcome
 
     if isinstance(result, MethodProvenance):
         return result
     if isinstance(result, Outcome):
         result = result.value
+    if isinstance(result, LoadedResult):
+        return result.method_provenance
     plan = getattr(result, "plan", None)
     identifier = getattr(plan, "identifier", None) if plan is not None else None
     estimator = getattr(plan, "estimator", None) if plan is not None else None

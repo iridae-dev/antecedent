@@ -1,4 +1,4 @@
-//! Actual nested-model executions supported only by current method-specific records.
+//! Actual nested-model executions, each scalar annotated by its method-specific records.
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };
@@ -152,7 +152,8 @@ impl NestedFisherArtifact {
     /// Execute the original Fisher engine and authorize every reported scalar.
     /// The original candidate retains its `not_measured` standing.
     /// # Errors
-    /// Unsupported protocol, native estimation refusal, or missing current calibration.
+    /// Labels over the measured byte bound or a native estimation refusal; a fit protocol
+    /// outside the measured one is reported with calibration `not_measured`.
     pub fn build_measured(
         input: &NestedMarkovInput,
         options: &FitOptions,
@@ -194,7 +195,9 @@ impl NestedFisherArtifact {
 impl Artifact {
     /// Execute the unchanged eleven-dimensional posterior and authorize three scalars.
     /// # Errors
-    /// Unsupported prior/fit/sampler, original refusal, or missing current calibration.
+    /// Labels over the measured byte bound, an original refusal, or posterior diagnostics
+    /// that fail the frozen Rhat/ESS criteria; an unmeasured prior, fit or sampler is
+    /// reported with calibration `not_measured`.
     pub fn build_measured(
         input: &NestedMarkovInput,
         fit_options: &FitOptions,

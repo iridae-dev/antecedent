@@ -89,6 +89,10 @@ program is posed to the practitioner handle as a `PolicyProgramValue` question, 
 graph rather than as an estimand query:
 
 ```python
+import antecedent
+from antecedent import Dag
+from antecedent.intervention_programs import PolicyProgramValue, generated, maximum, transform
+
 handle = antecedent.prepare(
     data,
     query=PolicyProgramValue([transform("price", maximum(1, 0.85 * generated()))], "demand", n_draws=4000),
@@ -111,14 +115,14 @@ uncertainty is `"unquantified"`. A hard level is supported for observational ide
 the support decision says so, but the handle always reports the model's value; the identified
 estimand of a level is asked of `prepare` with an `AverageEffect` or `ResponseCurve` question. The
 handle has no refutation, retargeting or portable claim, and `analyze()` refuses the question.
-`prepare_policy` remains the lower-level handle for sampling and counterfactual replay on a model
+`prepare_policy` is the lower-level handle for sampling and counterfactual replay on a model
 you fitted yourself; `PreparedPolicy.rebind` carries it to a refitted model.
 
 ## Wire
 
-`InterventionWire` gains `transform` and `assign` arms carrying the expression tree
-(`ValueExprWire`) and the declared reads. Released interventions encode unchanged and the new
-arms appear only when a program is present, so existing identities are unaffected.
+`InterventionWire` has `transform` and `assign` arms carrying the expression tree
+(`ValueExprWire`) and the declared reads. The arms appear only when a program is present, so
+the encoding and identity of an intervention without a program do not depend on them.
 
 ## Batch callbacks
 
@@ -206,22 +210,23 @@ and the digest of that form (`encode_policy_program`, `decode_policy_program`,
 does not define (`UnsupportedVersion`), recomputes the digest (an edited expression is an identity
 mismatch), and re-validates every program, so edited declared reads are refused. The same wire
 form enters target, question and program identities through the query that carries the
-interventions; a query without a program encodes byte for byte as before. A program holding a
+interventions; a query without a program carries no program in its encoding. A program holding a
 runtime-bound callback has no encoding and is refused with `policy_callback_not_portable` before
 any byte is written.
 
 A program whose callbacks are all recoverable is written under a second encoding version, in which
 each callback is its recovery record (name, inputs, output declaration, source SHA-256, entry point,
 pinned dependencies) and its arguments, never its code (`ValueExprWire::Callback`, written only by
-`InterventionWire::from_domain_recoverable`). Programs without callbacks keep version 1, their bytes
-and their identity; a version-1 envelope that carries a record, or a version-2 envelope without
+`InterventionWire::from_domain_recoverable`). Programs without callbacks are written under version 1;
+a version-1 envelope that carries a record, or a version-2 envelope without
 one, is refused. `decode_policy_program_with` takes the implementations the consumer supplies and
 verifies each against its record (`RecoveryRecord::verify`: source digest, entry point, inputs,
 output, dependency pins) before the program is returned, so nothing replays against an
 implementation the artifact does not identify; `policy_program_callback_records` lists the records
 to supply for, and `decode_policy_program` refuses such a program with
 `policy_callback_unrecoverable`. Python: `encode_policy_program` accepts `CallbackProgram`s,
-`required_callbacks(data)` lists the records, `recover_callback(source, record)` rebuilds each
+`intervention_callbacks.required_callbacks(data)` lists the records,
+`intervention_callbacks.recover_callback(source, record)` rebuilds each
 callback and `decode_policy_program(names, data, callbacks=...)` verifies them again.
 
 From Python, `antecedent.intervention_programs` builds programs (`transform`, `assign`, `var`,
@@ -234,7 +239,7 @@ From Python, `antecedent.intervention_programs` builds programs (`transform`, `a
 price floor `max(10, 0.85 * price)` to a fitted model: sampled forward, replayed on each factual
 unit's own noise, supported per route and valued against the unintervened model, saved as a portable
 artifact, and written as a batch callback (refused as portable while it is an in-process function,
-saved as a verified record once it is declared from source). Each asserts its results and runs in
+saved as a recovery record once it is declared from source). Each asserts its results and runs in
 the example suites (`crates/antecedent/tests/examples_run.rs`, `python/tests/test_examples_run.py`).
 
 Python reaches the supports through `antecedent.intervention_programs.policy_support`, the paired

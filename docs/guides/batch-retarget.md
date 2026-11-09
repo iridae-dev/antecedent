@@ -1,16 +1,16 @@
 # Answer many effects at once and retarget a family of claims
 
-A batch answers many average-effect questions on one table. Two additions: the batch
-entry points take the same typed estimator configurations as `analyze`, and a completed batch
-can **retarget** a declared family of claims to caller-declared populations and report their
-joint covariance and named contrasts. The points and plug-in covariance are `point_only`;
-the 95% max-t simultaneous band is supported for complete families at its measured
-coordinate (see [The simultaneous interval](#the-simultaneous-interval)).
+A batch answers many average-effect questions on one table. Its entry points take the same
+typed estimator configurations as `analyze`, and a completed batch can **retarget** a
+declared family of claims to caller-declared populations and report their joint covariance
+and named contrasts. The points and plug-in covariance are `point_only`; the 95% max-t
+simultaneous band of a complete family is supported only at the coordinate its coverage
+record measures (see [The simultaneous interval](#the-simultaneous-interval)).
 
 ## Typed estimator configurations
 
 `ant.estimation.analyze_many` and `ant.estimation.prepare_many` accept
-`estimator=` as a string id (unchanged), an `antecedent.estimators` configuration such as
+`estimator=` as a string id, an `antecedent.estimators` configuration such as
 `Aipw(bootstrap=0, propensity_penalty=PropensityPenalty(...))`, or the `estimator_config=`
 dict `analyze` takes (same keys, same refusals). Rust: `BatchStudy::estimator_spec(spec)`.
 One configuration governs every query. Joint-cell batches additionally accept
@@ -132,12 +132,11 @@ limit of the studentized retargeted points, plug-in `Sigma`) under the single-cl
 retarget's conditions: iid rows or the declared independent cluster units, fixed declared
 weights, positivity and nuisance convergence.
 Selection and weight-estimation uncertainty and the Monte-Carlo error of `c` are excluded.
-The 95% iid interval's coverage record has been measured for 800–3200 rows, and the
-complete-family route is supported at that coordinate:
-`crates/antecedent/tests/batch_retarget_calibration.rs` scores the joint "all four claims
-covered" event;
-other levels, smaller samples and cluster or dyadic dependence coordinates are not covered
-by this record, even though the corresponding band can be computed.
+The calibration design, `crates/antecedent/tests/batch_retarget_calibration.rs`, scores the
+joint "all four claims covered" event of the 95% iid band at 800–3200 rows. The
+complete-family band is supported only at the coordinate a current coverage record measures;
+other levels, smaller samples and cluster or dyadic dependence coordinates are outside that
+record, even though the corresponding band can be computed.
 
 `c` is a Monte-Carlo quantile on the library's one max-t sampler: a deterministic function of
 `(R, level, seed, draws, reference_df)`, with `draws` at least `level / (1 - level)` (the fewest for which the empirical quantile exists) and within the context's memory budget (8 bytes per draw), the stop signal
@@ -183,12 +182,12 @@ A plan whose completion kept no score table fails its retarget members with
 `batch.member(index)` selects one typed outcome for composition or `export()`.
 Its native artifact preserves joint covariance, simultaneous intervals and declared family
 contrasts. Loading the artifact checks acceptance through the independent native consumer
-and reconstructs no live dataset or executable study. The current artifact encoding does
+and reconstructs no live dataset or executable study. The artifact encoding does
 not retain `family_contrast_posterior` draws; those aligned draws remain a live-result
 capability, and loading a member does not supply that distribution.
 
 In Rust, `PreparedBatch::execute_retained` produces a `CompletedBatch` whose preparation
-and `BatchScores` share native ownership. The legacy Rust `estimate_scored` operation also
+and `BatchScores` share native ownership. The Rust `estimate_scored` operation also
 returns results alongside explicit scores; Python uses the retained completion lifecycle.
 
 ### Cluster-DML families
@@ -231,4 +230,4 @@ the refusal code, detail and message of a failed member, `diagnostics`, `scores_
 
 DR-Learner and CausalForest keep their own inferential cells; no score table or interval is
 inferred from a CATE prediction. Quantile and exceedance claims keep the single-claim
-`retarget`. No calibration was run for this cell.
+`retarget`. The family covariance and contrast standard errors carry no coverage claim.

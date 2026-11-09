@@ -403,7 +403,11 @@ jobs:
           CURATED="docs/release-notes/${TAG}.md"
           if [[ -f "$CURATED" ]]; then
             echo "using curated release notes: $CURATED"
-            cp "$CURATED" RELEASE_BODY.md
+            # The notes link to sibling pages relatively (`../guides/x.md`) for the docs site.
+            # A Release body resolves links against the releases page, so point them at the
+            # tagged sources instead.
+            sed -E "s#\]\(\.\./#](https://github.com/${GITHUB_REPOSITORY}/blob/${TAG}/docs/#g" \
+              "$CURATED" > RELEASE_BODY.md
           else
             echo "::warning title=No curated release notes::\
           Expected ${CURATED}. Falling back to a CHANGELOG pointer plus generated notes. \

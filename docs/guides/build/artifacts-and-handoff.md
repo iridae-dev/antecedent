@@ -1,6 +1,6 @@
 # Save, hand off and accept results
 
-A result you export can be stored, sent to another service and read there without access to the data, the study or the process that produced it. The consumer gets the recorded claim with its identification, support and uncertainty statements. It does not get a live study: loading restores what was recorded, and recomputing means preparing again.
+A result you export can be stored, sent to another service and read there without access to the data, the study or the process that produced it. The consumer gets the recorded claim with its identification, support and uncertainty statements. It does not get a live study: loading restores what was recorded and recomputes nothing, a replay recomputes the published numbers only when asked for, and a different answer means preparing a new study.
 
 This guide follows one result through four steps: produce, store, consume and accept.
 
@@ -31,26 +31,44 @@ Persistence does not take file paths implicitly: write the bytes yourself and re
 
 ## Consume and accept
 
-`ant.load(bytes, expected=expected)` rebuilds the recorded result and binds it to the identity you retained.
+`ant.load(bytes, expected=expected)` rebuilds the recorded result, checks that the artifact is intact and binds it to the identity you retained. It recomputes nothing. It returns an `Outcome` whose `value` is the loaded result.
 
 ```python
 loaded = ant.load(path.read_bytes(), expected=expected)
 loaded.answer.value
-loaded.acceptance
+loaded.acceptance.status  # "loaded"
 ```
 
-Read the acceptance, not only the absence of an error. It reports four things separately:
+Read the acceptance, not only the absence of an error. It reports these separately:
 
 | Field | Meaning |
 | --- | --- |
+| `status` | `loaded`: the artifact is intact and the recorded answer is kept; nothing was recomputed. `replayed`: a replay recomputed every published part and each agreed. `unavailable`: the contract is missing, unrecognised or fails its digests, and `integrity` names why. |
 | `identity_bound` | The load was checked against an identity you supplied independently. |
 | `answer_available` | The recorded answer is kept (the artifact is intact). |
-| `replayable` | The recorded program can be re-executed from what the artifact holds. |
 | `resumable` | A live session can be resumed from it. |
 
-Receiving bytes, understanding their meaning, verifying their dependencies and being able to execute them are different states. A host that accepts a claim requires `identity_bound` and `answer_available`. An artifact whose family is recognised but not consumed can be inspected and forwarded with `export()`, and scientific consumption stays unavailable. A malformed or altered container raises a `serialization` error, and a different expected identity raises as well.
+The acceptance of other artifact families also reports `replayable`: whether the recorded program can be re-executed from what the artifact holds.
+
+Receiving bytes, understanding their meaning, recomputing what they publish and being able to execute them are different states. A host that accepts a claim requires `identity_bound` and `answer_available`. An artifact whose family is recognised but not consumed can be inspected and forwarded with `export()`, and scientific consumption stays unavailable. A malformed or altered container raises `CausalSerializationError`, and a different expected identity raises as well: these are errors, not refusals returned in the `Outcome`.
 
 `ant.artifacts.inspect(bytes)` reads the container's metadata. It is inspection, not acceptance of a scientific claim.
+
+### Replay a result from elsewhere
+
+A result your own process produced needs no replay. For one that came from outside your own authoring, ask for one when loading, or on an existing load:
+
+```python
+loaded = ant.load(path.read_bytes(), expected=expected, replay=True)
+replayed = loaded.replay()  # the same, on an existing load
+replayed.acceptance.status  # "replayed" when every published part agrees
+```
+
+A replay recomputes the published numbers from the evidence the artifact carries and never changes the recorded answer. When it does not reach `replayed`, two lists say why: `acceptance.not_replayable` names parts whose evidence the artifact does not carry, which is a limit of the artifact and does not restrict using the loaded answer, and `acceptance.mismatches` names parts that were recomputed and differ. Other artifact families recompute what they publish whenever they load, so `replay=` does not change them.
+
+### Method provenance travels with the bytes
+
+An exported `analysis_result` artifact also carries an `analysis_result.method_provenance` section: the provenance records behind the identifier and estimator the result executed, each with its sources, documented deviations from the published method, review scope limits, record id and digest. It is descriptive and takes no part in acceptance or replay. A Python consumer reads it from the loaded result with `loaded.method_provenance` or `loaded.citations()`; Rust consumers decode it with the functions [the artifact format](../../artifacts.md#method-provenance-section) names. The section is read only when it names the identifier and estimator the contract declares. See [cite the methods behind a study](../citing-a-study.md).
 
 ## Across a process boundary
 
@@ -71,7 +89,7 @@ In production, place `expected.json` in your trusted job registry or another sep
 
 <!-- example: examples/python/artifact_consumer.py -->
 
-The consumer verifies a valid load and deliberately tries a different expected identity and altered bytes. Both must fail. Identity binding, replayability and resumability are reported separately, because accepting a result does not recreate its live study.
+The consumer checks a valid load and deliberately tries a different expected identity and bytes that are not an artifact. Both must raise. Identity binding, replay and resumability are reported separately, because accepting a result does not recreate its live study.
 
 ## Ship a fitted effect model as a small runtime object
 
@@ -79,7 +97,6 @@ When a service needs to evaluate a fitted effect model without the fitting code,
 
 ```python
 from antecedent.compact_export import CompactExport, Intercept, Linear, Numeric, Power, Quantity
-from antecedent.outcomes import require_success
 
 export = CompactExport.build(
     response=Quantity("y", units="mmHg", role="outcome"),
@@ -92,11 +109,11 @@ at_two = export.evaluate({"x": 2.0})
 at_two.point, at_two.standard_error     # 3.0 and 0.08 * sqrt(11)
 
 kept = export.identity                  # retain this out of band
-consumer = require_success(CompactExport.consume(bytes(export.export()), expected_identity=kept))
+consumer = CompactExport.consume(bytes(export.export()), expected_identity=kept)
 consumer.evaluate({"x": 2.0}) == at_two
 ```
 
-The only uncertainty it reports is the model-based `sqrt(phi' V phi)`, with calibration not_measured: it carries no extrapolation or misspecification uncertainty and is never an interval. A query outside the support, with a missing, unknown or non-finite quantity, or inside a mask region is refused with `invalid_argument` and a detail such as `compact_export.out_of_support` or `compact_export.masked_region`; `evaluate_many` returns refusals in place instead of raising. A consumer that passes a different `expected_identity` is refused with `compact_export.identity_unexpected`. Categorical inputs use `Categorical` and `OneHot` terms, and a `MaskRegion` names a region to refuse.
+The only uncertainty it reports is the model-based `sqrt(phi' V phi)`, with calibration not_measured: it carries no extrapolation or misspecification uncertainty and is never an interval. A query outside the support, with a missing, unknown or non-finite quantity, or inside a mask region raises `CompactExportRefusal` with `invalid_argument` and a detail such as `compact_export.out_of_support` or `compact_export.masked_region`; `evaluate_many` returns refusals in place instead of raising. A consumer that passes a different `expected_identity` is refused with `compact_export.identity_unexpected`. Categorical inputs use `Categorical` and `OneHot` terms, and a `MaskRegion` names a region to refuse.
 
 ## Keep a result current
 

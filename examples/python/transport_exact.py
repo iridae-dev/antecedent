@@ -1,4 +1,10 @@
-"""Recursive / exact law. Same verbs as the statistical and complementary examples."""
+"""Transport a response curve from exact source laws.
+
+The source experiment's laws of ``y`` under ``do(x = 0)`` and ``do(x = 1)`` are supplied exactly
+(``P(y = 1)`` is 0.5 and 0.8), so the transported curve must equal ``[0.5, 0.8]``; rebinding to
+replacement laws gives ``[0.4, 0.7]`` and leaves the first result unchanged. Exact laws carry no
+sampling uncertainty, so no interval is inferred, and the transport assumptions are declared,
+not tested. Same verbs as the statistical and complementary-source examples."""
 
 import antecedent as ant
 

@@ -36,7 +36,7 @@ the declaration that would open it; it is not a cache miss.
 | natural / path-specific contrast, finite Markovian SCM | executed (shared exogenous coupling) |
 | the same three quantities, fully declared finite SCM with an exogenous term shared by several mechanisms | executed (one joint exogenous state per unit) |
 | fixed-population two-slice temporal counterfactual | executed, staged with abduction reuse |
-| fixed-population temporal counterfactual, any horizon and any number of named action histories | executed, staged with abduction reuse (`GeneralTemporalExecutor`); sealed as `temporal_counterfactual_general_v1`. The two-slice, two-history route keeps its stable `temporal_counterfactual_v1` layout |
+| fixed-population temporal counterfactual, any horizon and any number of named action histories | executed, staged with abduction reuse (`GeneralTemporalExecutor`); sealed as `temporal_counterfactual_general_v1`. The two-slice, two-history route is sealed as `temporal_counterfactual_v1` |
 | transported static additive linear path-specific | keeps its own theorem-scoped route |
 | transported cross-world execution | closed: `not_supported`, prerequisites named |
 | latent confounding without declared mechanisms, nonparametric ADMG | closed: `cross_world_not_identified` |
@@ -87,9 +87,9 @@ Three situations are kept apart in refusals:
   bound (`cross_world_execution.elimination_bound_exceeded`), or a request outside
   an executed row, is unsupported execution, not non-identification:
   `route_not_supported`.
-- Intervals are not extended to shared terms: the measured whole-path coverage
-  record covers one exogenous term per variable, so a shared-term model reads a
-  point only.
+- Intervals are not extended to shared terms: the whole-path coverage design
+  covers one exogenous term per variable, so a shared-term model reads a point
+  only.
 
 Whether draws may be paired is decided only by the joint-law rule
 (`check_propagation`): a quantity over several worlds needs the aligned
@@ -141,12 +141,12 @@ quantity `P(Y_{do(X=0)} = 0 | evidence)`, truth by exact population probability
 definitions with routes, the quantity, the declared coupling, the shared
 exogenous states (with semantic stream-coordinate digests) and the numbers. A
 consumer replays everything with a fresh executor and refuses on any
-difference; the verified executor is returned so an action-only change resumes
-from the verified abduction. The artifact claims a point only.
+difference; the replayed executor is returned so an action-only change resumes
+from its abduction. The artifact claims a point only.
 
 ## Discretize a Gaussian composition into a finite model
 
-The finite counterfactual routes (exact enumeration, finite counterfactual transport) need variables with finitely many levels. A composed linear-Gaussian model has a closed form, and the discretization is the bounded bridge between them, with a computed error bound against the closed form. In Python, call `PreparedMechanismComposition.discretize(levels)` or `antecedent.discretized_composition.discretize`, then `DiscreteContrast.ate` / `mean_at` and `mean_contrast`. In Rust the surface is `antecedent_model::discretized_scm::DiscretizedLinearGaussian` and the facade `PreparedMechanismComposition::discretize` with `mean_contrast`, `refresh`, `export` and `consume_discretized_composition`.
+The finite counterfactual routes (exact enumeration, finite counterfactual transport) need variables with finitely many levels. A composed linear-Gaussian model has a closed form, and the discretization is the bounded bridge between them, with a computed error bound against the closed form. In Python, call `PreparedMechanismComposition.discretize(levels)` or `antecedent.discretized_composition.discretize`, then build a `DiscreteContrast` (`DiscreteContrast.ate` or `mean_at`) and pass it to `mean_contrast`. In Rust the surface is `antecedent_model::discretized_scm::DiscretizedLinearGaussian` and the facade `PreparedMechanismComposition::discretize` with `mean_contrast`, `refresh`, `export` and `consume_discretized_composition`.
 
 ### Method
 
@@ -172,7 +172,7 @@ discretized law.
 plan is kept; the cell edges, values, tables and identity are recomputed; a
 refit that adds or removes a variable is refused (`levels_undeclared`) and the
 handle is left as it was. `export` writes the source premises, the plan and the
-claimed numbers. The consumer does not trust them: it
+claimed numbers. The consumer recomputes them: it
 re-runs the discretization from the carried premises and plan and requires the
 identity and every claimed edge, value and mean-error bound to equal the
 re-derived ones bit for bit, so an edited premise or an edited claimed number

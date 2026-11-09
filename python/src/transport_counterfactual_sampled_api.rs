@@ -176,8 +176,9 @@ impl SampledCounterfactualTransportResultNative {
         (identity.premises_digest, identity.data_digest)
     }
 
-    /// Replay the sealed artifact, build the delta Wald interval and bind it to
-    /// its currently attesting coverage record, or refuse `not_supported`.
+    /// Replay the sealed artifact and build the delta Wald interval, annotated with
+    /// its calibration status; a design the delta method does not cover refuses
+    /// `route_not_supported`.
     #[pyo3(signature=(*, memory_bytes=None, cancel=None))]
     fn measure_interval(
         &self,

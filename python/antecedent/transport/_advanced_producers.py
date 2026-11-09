@@ -107,11 +107,12 @@ def joint_bayesian_transport(
     """Return native-authorized measured inference for the target-effect scalar.
 
     Requires original identification, typed source/target and complete declared
-    Gaussian priors. Native authorization is confined to the measured known-variance
-    finite validation design at .95; every scalar retains its own record and actual
-    basis. Nearby unsupported protocols refuse. The original complete candidate law
-    remains model-conditional and not_measured; these records are not universal prior
-    calibration or confidence guarantees for arbitrary data-generating laws.
+    Gaussian priors. Every scalar retains its own record and actual basis; a
+    configuration outside the measured known-variance finite validation design at .95
+    is still reported, with calibration not_measured and its scope naming why. The
+    original complete candidate law remains model-conditional and not_measured; these
+    records are not universal prior calibration or confidence guarantees for arbitrary
+    data-generating laws.
     """
     if isinstance(sources, (str, bytes)) or not isinstance(sources, Sequence):
         raise CausalTypeError("sources must be a sequence of source trials")

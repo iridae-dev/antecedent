@@ -44,7 +44,7 @@ result.value.survival.survival_at_tau_difference_interval
 result.value.survival.bootstrap_replicates_ok
 ```
 
-The bootstrap resamples whole subjects within each arm and recomputes the full risk-set estimator. It needs at least eight subjects per arm and 199 to 100,000 requested replicates, and at least 90% of replicates must satisfy the estimator's support contract. If that gate fails the interval is refused rather than silently thinned. The two intervals cover the two scalar contrasts separately. Read `result.value.survival.uncertainty` for the method and valid replicate count, and note that the interval is available but unsupported.
+The bootstrap resamples whole subjects within each arm and recomputes the full risk-set estimator. It needs at least eight subjects per arm and 199 to 100,000 requested replicates, and at least 90% of replicates must satisfy the estimator's support contract. If that gate fails the interval is refused rather than silently thinned. The two intervals cover the two scalar contrasts separately. Read `result.value.survival.uncertainty` for the method and valid replicate count, and `result.value.survival.support_status` for whether the intervals meet the `survival` rows of the [graphless support matrix](../../graphless-support-matrix.md).
 
 With at least 80 subjects per arm and at least 399 valid replicates, the same call gives a simultaneous 95% band over the whole survival-difference curve:
 
@@ -106,7 +106,7 @@ query = antecedent.survival.SurvivalOutcome(
     delayed_entry="entry_day",
     observation_assumption=antecedent.observation.IndependentGiven(()),
 )
-summary = antecedent.analyze(data, query=query).survival
+summary = antecedent.analyze(data, query=query).value.survival
 ```
 
 Risk sets follow counting-process intervals `(entry, duration]`: a subject entering exactly at an event time does not join that time's risk set, and a censored subject stays through the censoring time. Negative or non-finite entry times, and entry times not strictly earlier than the event or censoring time, are refused. Because RMST starts at time zero, each arm must include at least one time-zero entrant and observed follow-up through `tau`; otherwise the estimate would extrapolate from a left-truncated sample as if it were the RMST from the origin. Conditional delayed entry and interval censoring are refused. Delayed entry combines with known censoring survival under `IndependentGiven(())`; the bootstrap keeps each subject's entry, exit, cause and censoring row together, and the delayed-entry curves have no simultaneous band.
@@ -125,7 +125,7 @@ query = antecedent.survival.CompetingRisksOutcome(
     randomized=True,
     observation_assumption=antecedent.observation.IndependentGiven(()),
 )
-cif = antecedent.analyze(data, query=query).survival
+cif = antecedent.analyze(data, query=query).value.survival
 cif.incidence_difference
 ```
 
@@ -165,7 +165,7 @@ row = result.posterior_row
 row.posterior_mean("survival_difference"), row.credible_interval("survival_difference")
 ```
 
-The answer is on `result.posterior_row` (estimator `bayesian.piecewise_survival`), with coordinates `survival_difference` and `rmst_difference`; there is no `result.survival` and no scalar `ate`. The interval is a posterior statement under the declared partition and prior, not a calibrated interval: `row.calibration` is `"not_measured"` and `row.supported` is `False`. With a nearly flat prior and a fine partition the posterior tracks the product-limit estimate; with twelve rows the prior matters a great deal and the interval is wide. See [Declare a likelihood and prior](randomized-experiments.md#declare-a-likelihood-and-prior-for-a-bayesian-answer) for the other declarations.
+The answer is on `result.posterior_row` (estimator `bayesian.piecewise_survival`), with coordinates `survival_difference` and `rmst_difference`; there is no `result.survival` and no scalar `ate`. The interval is a posterior statement under the declared partition and prior: `row.supported` is `False`, and `row.calibration` carries its calibration status. With a nearly flat prior and a fine partition the posterior tracks the product-limit estimate; with twelve rows the prior matters a great deal and the interval is wide. See [Declare a likelihood and prior](randomized-experiments.md#declare-a-likelihood-and-prior-for-a-bayesian-answer) for the other declarations.
 
 ## When treatment was observed, not randomized
 
@@ -213,7 +213,7 @@ psi_R = R_a(Z)    - 1{A = a}/e_a(Z) * integral_0^{t*} [integral_u^{t*} S_a(s|Z) 
 
 The estimate is the mean score and its standard error is the standard deviation of the scores over the square root of the row count. The scores are returned with `row_index`, so a consumer can replay the estimate and its standard error. A `NaN` is a missing cell: the row leaves the complete cases and is counted in `rows_dropped_missing`.
 
-The standard errors are influence-function standard errors with `calibration == "not_measured"`. No interval is produced. Delayed entry, competing risks and time-varying covariates are not covered by this route. Tests compare it to closed-form survival and RMST for exponential event times with a proportional-hazards effect and six confounder cells, and show that the unadjusted Kaplan-Meier contrast is biased under the same confounding (`crates/antecedent/tests/observational_survival_effects.rs`, `python/tests/test_observational_survival.py`).
+The standard errors are influence-function standard errors; `effect.calibration` carries their calibration status. No interval is produced. Delayed entry, competing risks and time-varying covariates are not covered by this route. Tests compare it to closed-form survival and RMST for exponential event times with a proportional-hazards effect and six confounder cells, and show that the unadjusted Kaplan-Meier contrast is biased under the same confounding (`crates/antecedent-estimate/tests/observational_survival_effects.rs`, `python/tests/test_observational_survival.py`).
 
 ### Refusals on the observational route
 

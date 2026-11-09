@@ -7,7 +7,7 @@ evidence, and the scientific quantities they all refer to) each freeze their
 own identities, so that a change in one thing is visible as that change and a
 consumer can hold one identity independently of the bytes it reads.
 
-This page states what the code does today: which identity types exist, the
+This page states what the code does: which identity types exist, the
 digest domain or tag and version of each, what each binds, what is
 deliberately not bound, and how shared latents, aligned draws and overlapping
 observations stay coupled from execution into artifacts. Every identity is a
@@ -85,7 +85,7 @@ Declared in `antecedent_contract::mechanism_composition` and
 
 | Identity | Domain / tag and version | Binds |
 | --- | --- | --- |
-| plan | `antecedent.mechanism_composition_plan`, `MECHANISM_PLAN_IDENTITY_VERSION = 1` | target population and regime; per mechanism the variable, units, transform, population, regime, origin (fitted, external binding, declared), fit artifact id, evidence id, parents with units and transform, conditioning set and latent causes with the mechanisms that share each; the edges; every admission (coordinate, source, target, selection-diagram targets or invariance assumption); the dependence declaration |
+| plan | `antecedent.mechanism_composition_plan`, `MECHANISM_PLAN_IDENTITY_VERSION = 2` | target population and regime; per mechanism the variable, units, transform, population, regime, origin (fitted, external binding, declared), fit artifact id, evidence id, parents with units and transform, conditioning set and latent causes with the mechanisms that share each; the edges; every admission (coordinate, source, target, selection-diagram targets or invariance assumption); the dependence declaration |
 | premises and query | `IdentityDomain::Program` (`antecedent.identity.program.v1`) over the canonical wire encoding with the label `mechanism_composition_v1` and artifact version 1 | the plan's content plus every number: coefficients, intercepts, scales, tables, fitted domains, loadings, parameter covariances and cross-covariances, and the query (interventions, outcome, arms, sample size). The stored result is excluded: it is an output replayed from the premises |
 | fit and evidence identities | caller supplied strings | which fit produced a mechanism and which data it was estimated from, so shared evidence is visible to the dependence check |
 
@@ -161,9 +161,9 @@ edit and an operation the ledger itself refuses.
 
 Declared in `antecedent_io_core::counterfactual_transport_wire` and, for the
 sampled route, `antecedent_estimate::counterfactual_transport_sampled` and
-`antecedent_io::sampled_counterfactual_transport_artifact`. Both artifact
-kinds are at version 1 and are hashed canonical CBOR of typed wire structures
-under `IdentityDomain::TransportCertificate`
+`antecedent_io::sampled_counterfactual_transport_artifact`. The exact artifact
+is at version 2 and the sampled artifact at version 1; both are hashed
+canonical CBOR of typed wire structures under `IdentityDomain::TransportCertificate`
 (`antecedent.identity.transport_certificate.v1`).
 
 | Identity | Tag | Binds |

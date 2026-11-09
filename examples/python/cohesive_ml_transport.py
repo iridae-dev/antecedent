@@ -1,6 +1,12 @@
 """Shared prepare/estimate/inspect/export/load lifecycle for ML and transport.
 
-Run with the release-built Python package. Intervals below are not calibrated.
+A doubly robust learner's fitted effect model is exported and loaded, and the loaded model must
+predict exactly what the fitted one does. A trial is then transported to a target population:
+the trial's effect is exactly 2, the transported effect must equal it, and the loaded result
+keeps the same answer. Loading checks integrity and recomputes nothing. Each reported interval
+carries its own calibration status.
+
+Run with an installed Antecedent package.
 """
 
 import antecedent as ac
@@ -36,7 +42,7 @@ def ml_prepare():
 def ml_example():
     study, data = ml_prepare()
     result = require_success(ac.estimate(study))
-    # The verified portable model contains the source rows; share it accordingly.
+    # The portable fitted model contains the source rows; share it accordingly.
     fitted = result.fitted_model_from_source(data)
     model = FittedEffectModel.load(fitted.export())
     predictions = model.predict({"z": [-1.0, 0.0, 1.0]})

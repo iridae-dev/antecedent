@@ -57,7 +57,7 @@ Ask the same exported decision two questions.
 
 **Can the numbers be reproduced?** Yes. `replay_decision` returns exactly the sealed mean and variance, and the assertion in the example checks it after the withdrawal.
 
-**May the decision be used now?** No. `workflow.decision()`, `export_decision()`, `load(...)` and further utility changes each raise `MixedDecisionRefusal`. Its `reason_code` is registered and its `detail` begins with `evidence_ledger.`, which says the refusal comes from the ledger's standing for a source, not from a numerical fault. The decision's inputs have not become wrong; one of them has stopped being supported for this use.
+**May the decision be used now?** No. `workflow.decision()`, `workflow.export_decision()`, `workflow.load(...)` and further utility changes each raise `MixedDecisionRefusal`. Its `reason_code` is registered and its `detail` begins with `evidence_ledger.`, which says the refusal comes from the ledger's standing for a source, not from a numerical fault. The decision's inputs have not become wrong; one of them no longer has standing as current evidence for this use.
 
 The distinction is the point. A replay shows that a computation is reproducible. Current permission says that the evidence behind it still counts. Withdrawing the trial removes the second without touching the first, because the first never depended on the ledger.
 
@@ -71,4 +71,4 @@ A refusal also does not say what to do next. The next step is scientific: replac
 
 ## What this established
 
-For this decision, changing a utility refits no route, an export replays from its bytes without a ledger, and withdrawing a source ends current use while leaving the historical numbers reproducible. The next question is how to restore standing: bring in a new trial through the ledger and decide again. The [mixed decisions guide](../guides/mixed-decisions.md) shows the declared dependences and shared-parameter policies; the [evidence ledger](../evidence-ledger.md) shows how sources and withdrawals are recorded.
+For this decision, changing a utility refits no route, an export replays from its bytes without a ledger, and withdrawing a source ends current use while leaving the historical numbers reproducible. It did not show how withdrawal propagates in other compositions, or which smaller question the remaining claims can still answer. The next question is how to restore standing: bring in a new trial through the ledger and decide again. The [mixed decisions guide](../guides/mixed-decisions.md) shows the declared dependences and shared-parameter policies; the [evidence ledger](../evidence-ledger.md) shows how sources and withdrawals are recorded.

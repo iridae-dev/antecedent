@@ -95,7 +95,7 @@ impl ExperimentFamily {
 pub enum TransportDistributionFamily {
     /// Positive discrete / density laws as in classical sID.
     PositiveLaws,
-    /// Finite nonnegative tables supplied as exact laws (T4).
+    /// Finite nonnegative tables supplied as exact laws.
     FiniteExactTables,
 }
 

@@ -32,7 +32,7 @@ Edges say *how* a node depends on another:
 | model_version | numerical invalidation |
 | structural_derivation | numerical invalidation; the structure may be reusable, the fit is not |
 | support | withdrawal when the upstream is unsupported |
-| provider_trust | withdrawal when the upstream's trust no longer holds |
+| provider_trust | withdrawal when the upstream's trust does not hold at its current identity |
 | calibration | withdrawal of the calibration the dependent states |
 
 Nodes and edges are stored in canonical order: declaration order changes no
@@ -49,9 +49,9 @@ For an earlier snapshot, a current snapshot and the observed effects:
   no authority. Reusing a structural derivation after compatible data
   replacement recomputes the numbers; it never retains the old fit
   (`structure_reused_fit_not_retained`).
-* **withdrawn** (no longer supported): an input it cannot do without was
-  retired, replaced or removed; coordinates it answers are outside the
-  support; a provider's trust no longer holds; a stage cannot be executed; or
+* **withdrawn** (not supported at the current snapshot): an input it cannot do
+  without was retired, replaced or removed; coordinates it answers are outside the
+  support; a provider's trust does not hold at its current identity; a stage cannot be executed; or
   the calibration it states does not hold at its coordinate.
 
 Numerical invalidation and withdrawal are reported apart: a claim can need
@@ -72,7 +72,7 @@ interval carries that calibration status. The claim itself is not refused. A rec
 established for one target population is therefore never inherited by a claim
 about another: a changed target is a changed coordinate.
 
-The library measures no coverage. A calibration declaration names a record
+Composition verification measures no coverage. A calibration declaration names a record
 identity and a coordinate that the producer supplies. `verify` takes the
 declaration as declared; `verify_against_registry` resolves every held or
 inherited record against the shipped, currently attesting coverage records
@@ -111,9 +111,9 @@ each kind of change has a fixed outcome:
 | Change | Keeps | Recomputes | Refuses |
 |---|---|---|---|
 | `refresh` with new outcome-only data | the structural derivation (graph, identification, bridge form), the version labels, the support and provider-trust standings | every node that reads the data: the score artifact, the law, a bridged claim, a transported result, the decision. The earlier fit and uncertainty carry no authority (`structure_reused_fit_not_retained`) | a fit or an interval carried across: `claim_revalidation_required` |
-| change of target population, source evidence, selection diagram or support | the source evidence and fit when the planner reuses them; a calibration record at the coordinate it was established | the transported claim at the new coordinate | a calibration record established at another target, or inherited from an object that no longer holds it: `not_supported`; coordinates outside the support: `claim_support_withdrawn` |
+| change of target population, source evidence, selection diagram or support | the source evidence and fit when the planner reuses them; a calibration record at the coordinate it was established | the transported claim at the new coordinate | a calibration record established at another target, or inherited from an object that does not currently hold it: `not_supported`; coordinates outside the support: `claim_support_withdrawn` |
 | ledger revision (a source withdrawn, replaced, updated) | results the revised source does not reach | results that lose one member of several | a result built on a withdrawn source and what rests on it: `claim_support_withdrawn` |
-| provider replacement or loss of trust | claims that do not rest on the provider | claims rebuilt on a re-verified provider | claims resting on the provider while its trust does not hold |
+| provider replacement or loss of trust | claims that do not rest on the provider | claims rebuilt on a provider whose trust holds | claims resting on the provider while its trust does not hold |
 | `export` and `load` | the graphs, the observed effects, the declared shared-data relations, every classification and the lineage identity | the classification, on load, from the stored graphs and effects | a stored class, reason, authority, calibration state or lineage identity that does not replay; an identity other than the retained one |
 
 `composition_verification_v1` carries both graphs, the effects, the declared

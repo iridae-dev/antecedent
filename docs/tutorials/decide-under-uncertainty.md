@@ -80,7 +80,7 @@ A confidence interval is not a posterior, and an average effect is not the law o
 
 ## Downside risk under a belief you declare
 
-To ask how likely a loss is, you need a distribution over the effect, and you must say where it comes from. The example declares a normal belief with the estimate as its mean and the standard error as its standard deviation. This is what a flat prior and approximately normal sampling error imply. It is your judgment, stated in the example's code, and Antecedent labels the source as caller-built (`unverified`) with calibration not_measured. If you fit the study under a Bayesian realization instead, its posterior takes the place of this declaration.
+To ask how likely a loss is, you need a distribution over the effect, and you must say where it comes from. The example declares a normal belief with the estimate as its mean and the standard error as its standard deviation. This is what a flat prior and approximately normal sampling error imply. It is your judgment, stated in the example's code, and Antecedent labels the source as caller-built (`unverified`) with calibration `not_measured`. If you fit the study under a Bayesian realization instead, its posterior takes the place of this declaration.
 
 Under that belief the contract can ask three things.
 
@@ -120,6 +120,6 @@ When an input to a decision is itself a corrected measurement or a pooled estima
 
 ## What this established
 
-Under the declared design and belief, continuing is worth about 45 million dollars on average, has roughly a one-in-three chance of losing money, fails a stated downside policy, and is improved most, net of cost, by running a twenty-pair study first. The p-value of 0.07 did not decide any of that. The risk question a mean-only result could not answer refused, and a declared belief answered it with its status attached.
+Under the declared design and belief, continuing is worth about 45 million dollars on average, has roughly a one-in-three chance of losing money, fails a stated downside policy, and is improved most, net of cost, by running a twenty-pair study first. The p-value of 0.07 did not decide any of that. The risk question a mean-only result could not answer refused, and a declared belief answered it with its status attached. The belief itself was not established: the downside numbers are exact for the declared normal belief and change with it.
 
 The next scientific question is whether the twenty-pair study is feasible under the same randomization and non-interference premises. If it is, the continued use is to [update the response with the new experiment](experiment-to-next-study.md) and decide again. To keep an exported decision reproducible while its sources change, see [replay and current decisions](replay-and-current-decisions.md).

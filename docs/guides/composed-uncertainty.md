@@ -10,7 +10,8 @@ Continue below for the exact contracts and refused adjacent requests.
 
 A quantity computed from several uncertain inputs has the spread of the
 composition, not of its components. Two routes read that spread at the composed
-coordinate. Neither produces an interval without a measured record.
+coordinate. The composed-spread route reports an interval with its calibration
+status; the whole-path route reports a spread only.
 
 | Route | Label |
 | --- | --- |
@@ -68,13 +69,13 @@ cross-world executions have no whole-path derivation and are refused.
 
 | Refused request | Reason code or detail | Remedy |
 | --- | --- | --- |
-| Interval of a composition with no record at its coordinate | closed reading (`not_supported`) | Use the spread, or measure the coordinate |
+| Interval read directly from a composition, with no construction named | `uncertainty_representation_insufficient` (`joint_law_propagation.no_interval_construction`) | Name the construction; the interval is then reported with its calibration status |
 | Row pairing of unaligned or marginal inputs | `joint_law_required` (`alignment_mismatch`, `index_pairing_refused`) | Supply draws from one joint law |
 | Independence declared for inputs of unknown evidence overlap | `sampling_dependence_unknown` (`joint_law_propagation.evidence_overlap_unknown`) | Register the sources in the evidence ledger |
 | Independence declared for evidence the ledger shows is shared | `evidence_double_counted` (`joint_law_propagation.shared_evidence_declared_independent`) | Treat the inputs as dependent and supply a covariance or an aligned joint law |
-| Some transport pieces named, some omitted | missing-pieces refusal | Name source sampling, target sampling and the transport functional |
+| Some transport pieces named, some omitted | `joint_law_required` (`joint_law_propagation.transport_pieces_incomplete`) | Name source sampling, target sampling and the transport functional |
 | Unit sampling not declared | `sampling_dependence_unknown` (`cross_world_uncertainty.unit_sampling_undeclared`) | Declare fixed units or a sample from a population |
-| A sampled-path or transported cross-world path | `not_supported` (`cross_world_uncertainty.sampled_path_not_supported`, `transported_path_closed`) | Use exact enumeration in the population the mechanisms were declared for |
+| A sampled-path or transported cross-world path | `estimator_inference_mismatch` (`cross_world_uncertainty.sampled_path_not_supported`), `transport_not_certified` (`cross_world_uncertainty.no_transported_path_derivation`) | Use exact enumeration in the population the mechanisms were declared for |
 | Fitted or sampled mechanisms in a cross-world row | closed | Use the sampled counterfactual route with its posterior input |
 | Interval or posterior from the whole path | closed | Use the labelled spread |
 
@@ -89,7 +90,7 @@ and loss, exposure failure, the stopping rule and the final selection. This
 route derives the uncertainty of the complete declared procedure and keeps
 inferential paradigms apart: a report of one paradigm is never a statement of
 another. Every result is labelled derived and not_measured: the law is exact under the
-stated model but no coverage of any method has been measured.
+stated model and carries no coverage claim for any method.
 
 In Python, `AdaptiveInferenceSession.derive_procedure(elements)` returns the `AdaptiveProcedure` whose `report` derives the uncertainty (`antecedent.adaptive_inference`). Every premise failure of admission carries the registered code `not_supported` with its own detail.
 

@@ -3,7 +3,7 @@
 `antecedent.matched.matched_case_control_odds_ratio` (Rust:
 `antecedent_estimate::conditional_odds_ratio`) estimates one quantity from matched
 sets sampled on the outcome: the **conditional odds ratio** of a binary exposure,
-by exact conditional likelihood (conditional logistic regression). It is a new
+by exact conditional likelihood (conditional logistic regression). It is a separate
 design, not a conversion of the AIPW result, and its claim is `point_only`.
 
 The safeguarded solve takes at most {{bound:estimate.matched_case_control_odds_ratio.max_iterations}} Newton iterations. Artifact replay expands at
@@ -91,8 +91,8 @@ this cell takes neither.
 
 `level=` adds the Wald interval `beta_hat +- z / sqrt(I(beta_hat))` on the log scale,
 exponentiated for the odds ratio, with its calibration status. It rests on asymptotics (many
-informative sets, bounded set size, a fixed `beta`, independent sets); no coverage record
-measures the construction, so the status is `not_measured`. The interval is reported
-regardless and is not part of the exported artifact.
+informative sets, bounded set size, a fixed `beta`, independent sets), and its status
+(`result.interval_calibration`) is `not_measured` unless a coverage record measures the
+construction. The interval is reported either way and is not part of the exported artifact.
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).

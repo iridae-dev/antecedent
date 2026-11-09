@@ -2,7 +2,7 @@
 
 A route is useful only where something can consume it. This page records, for
 each route family that connects observations, actions and decisions, what
-inference mode it has and whether it can feed each downstream consumer today.
+inference mode it has and whether it can feed each downstream consumer.
 It describes the Rust facades in `crates/antecedent/src/analysis/` and the
 executable producer/consumer matrix
 ([producer-consumer-matrix.md](producer-consumer-matrix.md)); it is the
@@ -16,15 +16,15 @@ Every cell is exactly one state. "Not considered" is not a state.
 | **ADAPTER** | A named step the caller writes (a declared `MeanSource` or `MeanClaim`) or an adapter in code converts the output to what the consumer accepts, keeping its label. |
 | **REFUSED** | The request is refused with a typed reason; the exception or registered `detail` is named. |
 | **NO ROUTE** | By design the request cannot be formed from this output, and the reason is stated; there is no typed refusal to emit. |
-| **SCHEDULED** | Not connected today. The owner is the module that would hold the adapter; until then the consumer has no way to accept the output. |
+| **NOT CONNECTED** | No adapter connects this output to the consumer, so the consumer has no way to accept it. The owner is the module an adapter would belong in. |
 
 An ADAPTER or DIRECT cell never upgrades a label. A point stays a point, an
 uncalibrated standard error stays labelled uncalibrated, an assumption range
-stays an assumption range, and no interval, posterior or coverage statement
-exists for any row below: an interval route is supported only with an
-independent check of its construction, and without one it refuses (the code is
-named in the row). Calibration status annotates an interval that a supported
-route does report.
+stays an assumption range, and no interval or posterior exists for any row
+below except the intervals a row names: an interval route is supported only
+with an independent check of its construction, and without one it refuses (the
+code is named in the row). Calibration status annotates an interval that a
+supported route does report.
 
 Inference modes used below: **point-only** (one value, no law), **exact finite**
 (exact given a declared finite model, no sampling uncertainty),
@@ -93,7 +93,7 @@ snapshot.
 | weighted cohort mean contrast, cohort of the model's own population | point-only, no standard error carried | DIRECT (`Contract.evaluate(source)`, affine utility only) | ADAPTER (`source.forward_claim()` as a `MeanClaim`) | REFUSED (`CausalTypeError`) | REFUSED (`CausalTypeError`, a cohort mean is neither prior nor signal) | NO ROUTE (a conditional contrast mean is not a nested counterfactual) | REFUSED `cohort_decision.shift_declaration_required` for a cohort of another population | NO ROUTE (a fitted CATE carries no time coordinate) | REFUSED (`cohort_decision_source_v1` has no node kind) | REFUSED `cohort_decision.joint_law_required` (draws of the contrast are not supplied; remedy: supply per-draw utilities from an aligned law) |
 | cohort of another population under a declared covariate shift | point-only, labelled extrapolative; every row inside the retained support contract | DIRECT | a native-only policy REFUSED `decision_contract_unsatisfied` `inverse_forward_source.transported_not_accepted`; an accepting policy ADAPTER (`cohort_forward_source`) | REFUSED | REFUSED | NO ROUTE | ADAPTER (the declared `CovariateShiftDeclaration`: a declaration with a support check, not a selection-diagram derivation) | NO ROUTE | REFUSED | REFUSED `cohort_decision.joint_law_required` |
 | probability, quantile, nonlinear utility | closed | REFUSED `cohort_decision.law_not_supplied` (`decision_contract_unsatisfied`) | REFUSED `decision_evaluation.mean_source_insufficient` | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
-| interval of the cohort mean | measured interval (native fit) | MEASURED for a native fit, REFUSED `cohort_decision.interval_requires_native_fit` or `cohort_decision.interval_not_supported` (`route_not_supported`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
+| interval of the cohort mean | Student-t interval (HC3) of a natively fitted linear effect, from `source.interval()`, with its calibration status; any other source refuses `cohort_decision.interval_requires_native_fit` or `cohort_decision.interval_not_supported` (`route_not_supported`) | NO ROUTE (the contract takes the cohort mean; the interval is reported beside it) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 Rows outside the retained support contract refuse `cohort_decision.outside_support`
 and a model with no support contract `cohort_decision.support_contract_absent`
@@ -140,9 +140,9 @@ never searched for.
 | Route | Inference mode | Decision | Inverse query | Sensitivity | Design ranking | Counterfactual | Transport | Temporal | Composition bundle | Decision reliability carrier |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | sequential g-formula (exact enumeration of histories) | exact finite, conditional on exchangeability, consistency and positivity | ADAPTER (the policy value as a declared mean) | ADAPTER | REFUSED (`CausalTypeError`) | REFUSED (`CausalTypeError`; the value of collecting evidence is produced by the ranker here, not consumed from it) | NO ROUTE (an interventional value given an information set; no cross-world quantity is formed) | REFUSED `sequential_evaluation.transported_policy_contract_missing` | REFUSED `sequential_evaluation.temporal_transport_contract_missing` | REFUSED (`sequential_evaluation_v1` has no node kind) | NO ROUTE (enumeration is exact: no numerical error) |
-| off-policy from logged trajectories | point value with a Wald interval (calibration `not_measured`) and effective sample size | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED `sequential_evaluation.transported_policy_contract_missing` | REFUSED `sequential_evaluation.temporal_transport_contract_missing` | REFUSED | SCHEDULED (owner below) |
-| rollouts on common random streams | diagnostic: Monte Carlo estimate of the enumerated value, uncalibrated standard error | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED `sequential_evaluation.transported_policy_contract_missing` | REFUSED `sequential_evaluation.temporal_transport_contract_missing` | REFUSED | SCHEDULED (owner below) |
-| comparison of named policies, value of collecting evidence | point-only (ordering of supplied policies; EVSI cross-check) | ADAPTER (per policy) | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED | REFUSED | REFUSED | SCHEDULED for rollout comparisons (owner below) |
+| off-policy from logged trajectories | point value with a Wald interval, reported with its calibration status, and effective sample size | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED `sequential_evaluation.transported_policy_contract_missing` | REFUSED `sequential_evaluation.temporal_transport_contract_missing` | REFUSED | NOT CONNECTED (owner below) |
+| rollouts on common random streams | diagnostic: Monte Carlo estimate of the enumerated value, uncalibrated standard error | ADAPTER | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED `sequential_evaluation.transported_policy_contract_missing` | REFUSED `sequential_evaluation.temporal_transport_contract_missing` | REFUSED | NOT CONNECTED (owner below) |
+| comparison of named policies, value of collecting evidence | point-only (ordering of supplied policies; EVSI cross-check) | ADAPTER (per policy) | ADAPTER | REFUSED | REFUSED | NO ROUTE | REFUSED | REFUSED | REFUSED | NOT CONNECTED for rollout comparisons (owner below) |
 | interval or posterior of a policy value | closed interval | REFUSED `sequential_evaluation.interval_not_supported` (`uncertainty_representation_insufficient`) | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED | REFUSED |
 
 A policy learned from the data under evaluation is
@@ -151,11 +151,10 @@ A policy learned from the data under evaluation is
 history with no declared support `sequential_evaluation.action_not_supported`
 (`history_support_violated`).
 
-**Reliability of a sequential evaluation.** Whether an adapter exists today:
-none. A search of the code finds no producer of `DecisionDraws` outside the
+**Reliability of a sequential evaluation.** No adapter exists. A search of the code finds no producer of `DecisionDraws` outside the
 decision-reliability module, and `RolloutEstimate` exposes only the mean, its
 standard error, the rollout count, the seed and the stream scheme, not the
-per-rollout utilities. So the rollout and off-policy cells are SCHEDULED, not
+per-rollout utilities. So the rollout and off-policy cells are NOT CONNECTED, not
 connected. The mapping the adapter would implement is fixed by what the
 rollout already guarantees:
 
@@ -176,7 +175,7 @@ weighted return `w_i G_i` of each policy would be the utility, with
 `shared_simulation` over the one logged set; per-candidate weights go in the
 utilities, because the carrier's importance weights are shared across
 candidates. The exact g-formula enumerates and has no Monte Carlo error, so its
-cell is NO ROUTE rather than SCHEDULED.
+cell is NO ROUTE rather than NOT CONNECTED.
 
 ## Adaptive inference
 
@@ -247,15 +246,15 @@ declaration of the source paradigm is the caller's.
 | Question | Decision | Typed refusal the user sees | Owner |
 | --- | --- | --- | --- |
 | Reliability of cohort decision outputs | not connected: a point-only mean contrast carries no law and no draws | `cohort_decision.joint_law_required` for a request for draws of the contrast; `CausalTypeError` from `decision_reliability.assess` for the source; remedy: supply per-draw utilities from an aligned law | none (nothing to adapt) |
-| Reliability of sequential evaluation | rollouts and off-policy weighted returns can feed the carrier; no adapter exists today | none: the carrier has no entry that takes an evaluation object (`CausalTypeError`) | `antecedent-design` `sequential_evaluation/rollout.rs` (expose the per-rollout utilities) and `analysis/sequential_evaluation.rs` (the mapping table above) |
+| Reliability of sequential evaluation | rollouts and off-policy weighted returns can feed the carrier; no adapter exists | none: the carrier has no entry that takes an evaluation object (`CausalTypeError`) | `antecedent-design` `sequential_evaluation/rollout.rs` (expose the per-rollout utilities) and `analysis/sequential_evaluation.rs` (the mapping table above) |
 | Transported policy evaluation | refused: a value is for the model's own population | `sequential_evaluation.transported_policy_contract_missing` (`transport_missing_evidence`): names the selection diagram with the mechanisms marked invariant and a target initial-state law with support overlap | counterfactual transport owner for the contract |
 | Temporal transport of a policy value | refused: no time-invariance contract across periods is declared | `sequential_evaluation.temporal_transport_contract_missing` (`transport_missing_evidence`): names the time-invariance contract across periods | `analysis/temporal_transport.rs` owner |
 | Fitted effect model for a cohort of another population | bounded route delivered: declared covariate shift, every row inside the support contract, point-only, labelled extrapolative; a native-only inverse query policy refuses | `cohort_decision.shift_declaration_required`, `cohort_decision.shift_support_failure`, `inverse_forward_source.transported_not_accepted` | `antecedent-io-core` `cohort_decision` and `antecedent-design` `cohort_decision_input` |
 | Bridge used in another population | bounded route delivered as a declaration: a stated transportability premise, labelled transported, unresolved obligation; no selection-diagram derivation | `scientific_bridge.transport_premise_missing`, `scientific_bridge.transport_premise_mismatch` | `antecedent-contract` `bridge` |
 | Adaptive trial data as a transport source | refused: assignment depends on history, so selection is policy-driven and no selection-diagram contract states it; a fixed-design analysis of such data is refused | `adaptive_inference.fixed_sample_on_adaptive_data` (`adaptive_design_ignored`); a transport entry takes no adaptive result (`CausalTypeError`) | none; a route would need the adaptive-design contract expressed as a selection node in the transport catalog |
-| Observational-scenario inversion (`P(X | Y)` scenarios compatible with an outcome) | stays closed, permanently in this release: it is not an action and no interval or ranking of scenarios is supported | `inverse.observational_scenarios` (`inverse_functional_unsupported`) | none |
+| Observational-scenario inversion (`P(X | Y)` scenarios compatible with an outcome) | closed: it is not an action and no interval or ranking of scenarios is supported | `inverse.observational_scenarios` (`inverse_functional_unsupported`) | none |
 
-## Scheduled cells and owners
+## Unconnected cells and owners
 
 | Cell | Owner |
 | --- | --- |
@@ -265,11 +264,13 @@ declaration of the source paradigm is the caller's.
 
 ## Reading the tables
 
-- A SCHEDULED cell is not a promise of a date. It records that the consumer
-  has no way to accept this output today and which module owns the adapter.
-- Frequentist and Bayesian guarantees are not supported for any row: each would
-  need an independent check of its whole-method construction, and every such
-  route refuses with a typed refusal until then.
+- A NOT CONNECTED cell records that the consumer has no way to accept this
+  output and which module an adapter would belong in. It is not a promise.
+- Apart from the intervals the rows name (the cohort mean of a native fit and
+  the published decision-reliability statements), frequentist and Bayesian
+  guarantees are not supported for any row: each would need an independent check
+  of its whole-method construction, and every such route refuses with a typed
+  refusal.
 - The refusals named above, and their remedies, are listed in
   [refusal codes](reference/refusal-codes.md).
 - The page for each family: [scientific bridges](scientific-bridges.md),

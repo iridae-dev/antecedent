@@ -53,7 +53,7 @@ diagnostic. Where the limit never binds nothing changes. The bound is a degree b
 parents, so it can be stricter than a bound on the parents of the true DAG; the guarantee it gives
 is that every DAG in the returned class respects the limit.
 
-Two notes on reading the table.
+Notes on reading the table.
 
 * **Direction knowledge and the data can disagree.** Knowledge orients the edges the
   data leave undirected. When the data compel the opposite direction (a collider, or an

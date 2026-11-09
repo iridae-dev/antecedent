@@ -154,8 +154,8 @@ threads-required = "num-cpus"
 # order unless told otherwise, so a multi-minute test in a late binary starts
 # after the pool has drained and alone sets the wall time. Priority only orders
 # the queue: every test still runs once, with the same assertions. The names
-# are the tests that held the most CPU time in the cold ordinary run recorded
-# in docs/guides/test-performance.md; a renamed test only loses its head start.
+# are the tests that held the most CPU time in a cold ordinary run; a renamed
+# test only loses its head start.
 [[profile.default.overrides]]
 filter = """
 test(=joint_panel_workflow::actual_bayesian_panel_fit_preserves_mixing_diagnostics_and_shared_draw_axes)

@@ -2,9 +2,11 @@
 
 These Markdown sources build the Antecedent documentation site with MkDocs.
 
-Generated pages are `support-matrix.md` and `conformance/`; regenerate them
-from their source registries before committing documentation changes. Release
-notes live in `release-notes/`, one `vX.Y.Z.md` per version.
+Generated pages are `support-matrix.md`, `graphless-support-matrix.md`,
+`counterparts.md`, `examples.md` and `conformance/`, and several other pages hold
+generated blocks between `generated:` comment markers. Never edit generated
+text by hand: change the source registry and rerun its generator before
+committing. Release notes live in `release-notes/`, one `vX.Y.Z.md` per version.
 
 Keep durable user guides in `guides/` and release-specific product changes in
 `release-notes/`. The top level contains established public pages whose URLs
@@ -22,6 +24,7 @@ Local preview (with a matching installed Antecedent):
 ```bash
 python -m pip install -r requirements-docs.txt
 python scripts/generate_example_catalog.py --check
+python scripts/generate_doc_release_links.py --check
 python scripts/check_docs_experience.py
 python scripts/render_notebooks.py
 mkdocs build --strict

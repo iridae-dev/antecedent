@@ -9,6 +9,11 @@ Estimate a response curve, then ask three follow-up questions:
 
 For each answer, check whether the graph identifies it, whether the data support
 it, and what uncertainty is reported.
+
+The simulated structural curve is E[outcome | do(dose = d)] = 12 + 3 ln d - 0.3 d^2. The
+script checks the adjusted curve at dose 4.5 (within 0.6) and the local slope at 2.5 (within
+0.5) against it; the elasticity, the average derivative and the dose beyond the data are
+reported, not checked. Pointwise intervals are not a simultaneous band.
 """
 
 from __future__ import annotations

@@ -21,7 +21,9 @@ This example shows how Antecedent:
 4. reports the probability mass where the marketing effect is not identifiable.
 
 The data are synthetic but operationally realistic, so the true causal effect is
-known and the workflow is fully reproducible.
+known and the workflow is fully reproducible. The script prints the estimates beside the
+simulated effect of 1.5 rather than asserting them; every answer is conditional on the
+declared or discovered structure.
 """
 
 from __future__ import annotations
@@ -153,7 +155,7 @@ print(
 )
 
 # %% [markdown]
-# With this pinned seed and release, the expected result is **0 directed edges and
+# With this seed, the expected result is **0 directed edges and
 # 3 undirected edges**.
 
 # %%

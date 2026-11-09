@@ -14,7 +14,8 @@ the Wald ratio against the complier effect. Three requests are refused with thei
 
 Discontinuity answers are local to the cutoff (and, when fuzzy, to the units the cutoff moves).
 IV bounds are an identified set, never a point; the instrument's independence and exclusion are
-declared, not tested. Nothing here claims interval coverage."""
+declared, not tested. The fuzzy and kink results publish a pointwise 95% interval with their
+support and calibration status, which the script prints but does not assert."""
 
 from __future__ import annotations
 

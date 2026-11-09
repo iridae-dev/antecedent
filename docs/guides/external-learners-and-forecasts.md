@@ -16,12 +16,12 @@ the cancelled run publishes no partial estimate.
 A provider's declared prior training data is not independently authenticated. For pretrained
 models, leave prior training lineage unknown unless you can supply its complete observation
 identities. Ordinary shuffled cross-fitting is not appropriate for time-dependent rows: the
-external nuisance entry points refuse `fold_policy="temporal"` until a forward-only fitting
-contract is available.
+external nuisance entry points refuse `fold_policy="temporal"`, because they have no
+forward-only fitting contract.
 
 ## Nuisance learner
 
-A learner provider implements the existing `CausalProviderSpec` and `execute` interface. Its
+A learner provider implements the `CausalProviderSpec` and `execute` interface. Its
 `query_family` is `nuisance_learner`; it declares `mean`, a variable `output_shape`, and an
 artifact codec. The fit operation returns an empty estimate and an artifact containing the
 fitted model. The predict operation receives that artifact as `model_base64` and returns one
@@ -67,7 +67,8 @@ result = dml_ate(
     outcome=outcome, treatment=treatment, folds=2,
 )
 assert abs(result.estimate - 2.0) < 1e-10
-# Each (id, fit, predict) contains two independently trusted provider receipts.
+# One (id, fit receipt, predict receipt) entry per fold and nuisance model:
+# 2 folds x (control outcome, treated outcome, propensity).
 assert len(result.receipts) == 6
 ```
 
@@ -81,13 +82,13 @@ forest route does not support weights. `cross_fit_aipw` exposes held-out nuisanc
 without making a causal estimate.
 
 The Rust learner interface also supports caller factories for the certified trial-to-target
-AIPW point through `estimate_trial_aipw_with_factories`; that route currently requires zero
+AIPW point through `estimate_trial_aipw_with_factories`; that route requires zero
 bootstrap replicates and marks its external nuisances unverified. Rust callers may also use
 `estimate_smoothed_dose_with_factories` when both factories export portable predictors; it
 refuses serial folds and bootstrap refits. The Python callback adapter does not export a
 portable predictor and is not accepted by that route.
 Rust callers may use `fit_factorized_joint_cells_with_factories` for joint-cell scores;
-that path marks caller factories unverified and retains the existing point-only policy.
+that path marks caller factories unverified and is point-only.
 
 Separately installed packages can register a zero-argument factory under the
 `antecedent.providers` entry-point group. Call `registry.load_entry_point(name)` explicitly.

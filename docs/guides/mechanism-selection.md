@@ -38,7 +38,7 @@ Every family samples, evaluates a structural assignment from noise, abduces
 noise, and gives a log density. Each is attribution-compatible
 (`MechanismFamily::attribution_compatible`); the noise disclosure of a result
 computed through a node is `MechanismFamily::noise_inference_mode`. The categorical
-families rest on the same rank-preservation assumption as the existing categorical
+families rest on the same rank-preservation assumption as the other categorical
 mechanisms.
 
 Tree ensembles are piecewise constant. Beyond the observed range of a parent an

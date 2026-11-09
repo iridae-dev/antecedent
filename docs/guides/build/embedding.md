@@ -192,7 +192,7 @@ assert host.support_cell_report(nearest["coordinate"])["status"] == "supported"
 first. Each names the `changed` axes (`axis`, `from`, `to`) and the `required_action` a caller
 would take. They are alternatives the caller chooses between, never an automatic fallback, and a
 supported cell has none. A malformed coordinate or an axis value outside the matrix raises
-`CausalValueError`. Support a cell does not establish empirical support or interval calibration;
+`CausalValueError`. A supported cell does not establish empirical support or interval calibration;
 see the [support matrix](../../support-matrix.md).
 
 ## Resources, cancellation and callbacks
@@ -245,7 +245,7 @@ These rules govern which calls are admitted, cancellable and work-bounded.
 * **Retained output stays charged.** Bytes a result keeps after the call returns remain
   charged to the context's budget for the result's lifetime. They are not released when
   the computing call returns.
-* **Decoding trusts nothing.** Loading or verifying an artifact costs at most a bound fixed
+* **Decoding trusts nothing.** Loading or checking an artifact costs at most a bound fixed
   by the format. Every count, dimension and grid length read from the bytes is checked
   against that bound before it sizes any work, and nested members share one budget.
 * **Third-party code that cannot be interrupted** (a fitting library, BLAS) is admitted
@@ -303,7 +303,8 @@ pin them are in [callback security](../../callback-security.md); the behavior is
 An artifact is a checksummed container: bytes, not code. Loading never runs a callback, never recreates a live study and never imports anything the bytes name. [Save, hand off and accept results](artifacts-and-handoff.md) covers the producer and consumer workflow; the rules a host enforces are these:
 
 * Keep the expectation apart from the bytes. `ant.load(bytes(artifact), expected=expectation)` binds the load to the identity your producer retained; container metadata never supplies it.
-* Read acceptance, not just success. A load that decodes can still be partial. Use `acceptance.identity_bound` together with `acceptance.answer_available` in Python, or `accepts_as_claim()` in Rust. A malformed or altered container is a `serialization` error.
+* Read acceptance, not just success. A load that decodes can still be partial. In Python, `ant.load` returns an `Outcome`; use `acceptance.identity_bound` together with `acceptance.answer_available`. In Rust, `antecedent::io::load_analysis_result` checks integrity (`is_intact()`) and recomputes nothing; `replay_analysis_result` replays, and its `acceptance.accepts_as_claim()` holds when every published part was recomputed, agrees and carries a claim. A malformed or altered container is a `serialization` error.
+* Replay only when you ask for it. Loading recomputes nothing; `ant.load(..., replay=True)` or `loaded.replay()` recomputes the published numbers of a result from outside your own authoring and reports what was not replayable or did not agree (see [replay a result from elsewhere](artifacts-and-handoff.md#replay-a-result-from-elsewhere)).
 * Bound untrusted input. Reject oversized uploads before calling the library, and do not widen a bound to accept one.
 * A loaded result is immutable. To change anything, compile and run again: `ant.rebind` followed by `ant.estimate` re-executes the same program on new data and keeps the earlier result fixed.
 * Staleness is a question for the host, not a timer in the library. Compare new data with a stored artifact or plan using the [staleness diagnostics](../staleness.md) and act on the typed recommendation (reuse, refresh, re-identify, refuse).

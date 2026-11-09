@@ -7,6 +7,8 @@ in z. Weighting adjusts for that selection; the known treatment effect is 2.
 
 This example selects propensity.weighting explicitly. It also prints overlap
 diagnostics, which help you check whether the weights rely on too few rows.
+The script checks the estimate lies within 0.35 of 2; the overlap numbers are printed, not
+held to a threshold, and the DAG is declared rather than tested.
 Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations

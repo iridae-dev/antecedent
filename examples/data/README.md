@@ -1,12 +1,12 @@
 # Example datasets
 
-Examples that use real data describe it here. Each dataset has a manifest, `<dataset>.toml`, recording where the data come from, how to cite them, the support, the version, the SHA-256 of every file, the retrieval date, the preprocessing and the columns. `fetch.py` downloads and verifies the files.
+Examples that use real data describe it here. Each dataset has a manifest, `<dataset>.toml`, recording where the data come from, how to cite them, the licence, the version, the SHA-256 of every file, the retrieval date, the preprocessing and the columns. `fetch.py` downloads and verifies the files.
 
 Real observational data are never presented as known causal truth. An example built on a dataset also carries a synthetic stand-in with the same columns and a stated truth, so it runs offline and its assertions can check something known.
 
 ## Datasets
 
-| Dataset | Used by | Support |
+| Dataset | Used by | Licence |
 | --- | --- | --- |
 | [`nhefs`](nhefs.toml): NHEFS smoking-cessation subset from Hernán and Robins, *Causal Inference: What If* | `examples/python/observational_study.py` | not stated by the publisher; downloaded on request, not redistributed |
 | [`nsw_psid`](nsw_psid.toml): NSW job-training experiment with a PSID comparison group | `examples/python/when_overlap_fails.py` | not stated by the publisher; downloaded on request, not redistributed |

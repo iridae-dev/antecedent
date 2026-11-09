@@ -2,8 +2,9 @@
 
 A backdoor AIPW outcome names the records of the route it executed (``identify.backdoor``,
 ``estimate.aipw``) with their documented deviations, and a study's bibliography lists each
-source once. The record table and the de-duplication are the Rust implementation's; the Rust
-route test is ``crates/antecedent/tests/aipw_ate_route_evidence.rs``.
+source once. A loaded artifact gives the provenance its producer exported. The record table and
+the de-duplication are the Rust implementation's; the Rust route test is
+``crates/antecedent/tests/aipw_ate_route_evidence.rs``.
 """
 
 from __future__ import annotations
@@ -43,6 +44,21 @@ def test_aipw_outcome_cites_the_executed_route() -> None:
     assert ("estimate.aipw", aipw.digest) in dml.records
     assert any(c.kind == "deviation" and "not inherited" in c.text for c in dml.caveats)
     assert dml.reference.endswith("https://doi.org/10.1111/ectj.12097")
+
+
+def test_a_loaded_result_carries_the_producers_citations() -> None:
+    outcome = ant.analyze(confounded(), graph=GRAPH, query=QUERY, estimator=Aipw(bootstrap=0))
+    artifact = outcome.export()
+    for loaded in (
+        ant.load(artifact, expected=artifact.expectation),
+        ant.load(bytes(artifact)),
+    ):
+        carried = loaded.method_provenance
+        assert carried.records == outcome.method_provenance.records
+        assert carried.unlinked == ()
+        assert loaded.value.method_provenance.records == carried.records
+        assert loaded.citations() == outcome.citations()
+        assert bibliography(loaded, outcome) == outcome.citations()
 
 
 def test_bibliography_lists_a_shared_source_once() -> None:

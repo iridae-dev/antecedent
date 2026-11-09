@@ -416,13 +416,14 @@ impl PreparedPredictiveAssessment {
     /// The interval of one predictor's expected score, or of the expected difference of
     /// two predictors' scores, under the declared dependence.
     ///
-    /// Published only for a held-out or unfitted predictor where a current attesting
-    /// coverage record measured the construction at this design, score, law family,
-    /// level and number of cases; the record is resolved from the shipped coverage table.
+    /// Published only for a held-out or unfitted predictor, with its calibration status:
+    /// `calibrated` where a current attesting coverage record measured the construction at
+    /// this design, score, law family, level and number of cases, and otherwise the status
+    /// that names why not; the record is resolved from the shipped coverage table.
     ///
     /// # Errors
-    /// `not_supported` outside a measured design, an undeclared dependence, an
-    /// in-sample or unverified predictor, or a degenerate sample variance.
+    /// An invalid request, an undeclared dependence, an in-sample or unverified predictor,
+    /// or a degenerate sample variance.
     pub fn expected_score_interval(
         &self,
         query: &ScoreIntervalQuery,

@@ -189,7 +189,7 @@ outcome = validation.refute_target(
 )
 ```
 
-Other resolved defaults remain `alpha=0.05`, `subset_fraction=0.8`,
+The other defaults are `alpha=0.05`, `subset_fraction=0.8`,
 `mediation_rho_bar=0.1` and `common_cause_strength=0.0`. Negative-control
 exposure/outcome and mediator names default to `None`; the graph supplies
 compatible controls where possible. The default pre-trend lead is one period
@@ -242,8 +242,8 @@ square root of the odds ratio or `(1 − 0.5^√HR) / (1 − 0.5^√(1/HR))`, an
 standardized mean difference `d` with standard error `s` uses `exp(0.91·d)`
 with limits `exp(0.91·d ± 1.78·s)`.
 
-The signed-rank bound is computed exactly up to 300 non-zero pairs and by the
-normal approximation with the tie-corrected variance above. Matched sets with
+The signed-rank bound is computed exactly up to 300 non-zero pairs and, above
+that, by the normal approximation with the tie-corrected variance. Matched sets with
 several controls use the separable approximation of Gastwirth, Krieger and
 Rosenbaum (2000). `validation.amplify(Γ, Λ)` returns the outcome effect `Δ` an
 unobserved covariate with treatment effect `Λ` needs to produce `Γ`
@@ -278,7 +278,6 @@ range cannot be cited for a vector claim.
 | `validation.mediation_sensitivity_posterior` | coordinate-major draws of the mediator coefficient, the two residual standard deviations, their correlation and the total effect | the same, draw by draw; `test` is the joint posterior probability that every outcome keeps its side, `break_even` the correlation at which the weakest posterior median reaches zero and `break_even_significance` the same for the credible limit |
 | `validation.msm_parameter_sensitivity` | an outcome, the exposure terms of a marginal structural model and its subject weights | sequential exchangeability (no unmeasured time-varying confounding): the model is fitted by weighted least squares with the weights held fixed, each exposure parameter has a robust (HC1) standard error and the effective degrees of freedom `(Σw)²/Σw² - p`, and the partial-R² range is read at the weakest parameter |
 | `model="mediation"` or `model="marginal_structural"` on `evalue_vector`, `evalue_posterior`, `omitted_variable_bias_vector`, `omitted_variable_bias_posterior` | the E-value or partial-R² analysis of a mediation component or an MSM parameter | no unmeasured mediator-outcome confounding (treatment unconfounded), or sequential exchangeability; the range records that assumption in its identity |
-
 | `validation.mediation_path_sensitivity` | one mediator and several outcomes; `path="treatment_mediator"`, `"mediator_outcome"`, `"treatment_outcome"` (the direct effect given the mediator) or `"indirect"` | no unmeasured confounding of that path (each bound to its own assumption); for `"indirect"` both paths are confounded at the tested strength, each coefficient moving toward zero by its own worst-case bias, the share left is the product of the two paths' shares and the break-even is the equal partial R² at which that product falls to `1 - q` (at `q = 1`, the smaller of the two robustness values) |
 | `validation.msm_parameter_sensitivity_refit` | as `msm_parameter_sensitivity`, with the stabilized-weight models of each time point | as above, with every weight model refitted in each unit-bootstrap replicate, so the standard error carries the cost of estimating the weights |
 
@@ -291,8 +290,8 @@ estimated denominator model, so the plain `msm_parameter_sensitivity` is a
 conservative analysis and the refit one the one that matches repeated sampling.
 
 The marginal sensitivity model (`msm_sensitivity`) and the decision
-sensitivity grid are unchanged; they remain the analyses for bounded
-inverse-probability weights and for decisions.
+sensitivity grid are the analyses for bounded inverse-probability weights and
+for decisions; see [Probe sensitivity](../sensitivity-and-robustness.md).
 
 ## Related
 

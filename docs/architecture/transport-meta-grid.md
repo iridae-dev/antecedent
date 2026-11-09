@@ -78,12 +78,12 @@ aliases fail validation. Unknown, linked or clustered dependence retains point
 estimates and withholds IID uncertainty. Alternative formulas are never averaged
 and disagreeing sources are never silently pooled.
 
-T6's outer bootstrap uses the same successful replicate IDs across executable
+The outer bootstrap uses the same successful replicate IDs across executable
 points. A support failure invalidates the entire replicate family. A contrast
 references two points and the parent grid identity and uses paired draws.
 Requested coordinates and the executable family are both identity inputs.
-Intervals are pointwise and nominal. Quantile inference, derivatives,
-simultaneous bands, and new calibrated-coverage claims remain closed.
+Intervals are pointwise and nominal, and each carries its calibration status.
+Quantile inference, derivatives and simultaneous bands are not supported.
 
 ## Durable authority and migration
 
@@ -129,10 +129,5 @@ That Python file also supplies reproducible unequal-size sampling fixtures,
 provider aliases, partial grids, missing joint regimes, support failures,
 artifact consumption and mutation, atomic refresh and resource controls.
 `test_bounded_multisource_calibration_fixture` checks deterministic execution and
-paired bookkeeping only. It is **not a coverage measurement**.
-
-No coverage measurement of the multi-source grid exists: an env-gated hit-count
-script that printed counts without asserting a band was removed rather than kept
-as evidence. No hours-long calibration
-was run for T7–T9 implementation, and the calibration-dependent T7
-and T8 completion gates remain open.
+paired bookkeeping only. It is **not a coverage measurement**: the grid's
+pointwise intervals report their calibration status like every other interval.

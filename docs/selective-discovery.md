@@ -229,7 +229,7 @@ dropping rows (a weighted test needs one weight per row).
 (`SplitRows::discovery_row_ids` / `analysis_row_ids`, `SampleSplit.analysis_row_ids`), the
 weights of its rows, and the all-included analysis mask when the source had a mask. The
 receipt records the exclusions, the identity of the source mask and of the source,
-discovery and analysis weights, and the content identity of the source and both parts. The identity version is unchanged: exclusions, mask and weights enter the receipt identity only when present, so a split of a complete, unmasked, unweighted table keeps the identity it always had.
+discovery and analysis weights, and the content identity of the source and both parts. Exclusions, mask and weights enter the receipt identity only when present.
 
 *Weights.* Weights are gathered with their rows, bit for bit and unnormalized, so a part's
 weights sum to whatever its rows held. Zero weights are legitimate and stay in their part (they contribute nothing to a weighted
@@ -257,9 +257,9 @@ is refused (`split_part_weight_invalid`).
   zero are excluded from the estimate and counted (`SamplingWeightRecord::zero_weight_rows`),
   and the effective sample size of the rows used is reported beside the row count.
   `SplitAnalysisEffect::interval` is the Student interval at the effective sample size less
-  the regression's coefficients; its whole-method coverage is `not_measured` until
-  `tests/sample_split_weighted_effect_calibration.rs` (10 variables, 3,000 participants,
-  weights of coefficient of variation 0.8) has been measured.
+  the regression's coefficients, and it carries its whole-method calibration status; the
+  measuring harness is `crates/antecedent/tests/sample_split_weighted_effect_calibration.rs`
+  (10 variables, 3,000 participants, weights of coefficient of variation 0.8).
 
 *What verification checks.* `SampleSplitReceipt::verify` re-derives the partition from the
 rule and the recorded exclusions and checks every stored identity (rows, exclusions, mask,
@@ -299,8 +299,8 @@ under its own key and supports nothing.
 How often PC returns exactly the true graph over that family is printed by the same
 harness (`info recovery` lines) and published here as a table, not as support. A row
 states the variable count, the rows given to discovery and the share of replicates whose
-discovered graph equals the true one. The table is filled from the measurement at the
-release cut and carries the commit it was measured at (`4ae60f8b5`). It is a description of
+discovered graph equals the true one. The table carries the commit it was measured at
+(`4ae60f8b5`). It is a description of
 how the search behaves, not support: the support is the coverage record of the interval.
 
 | Variables | Discovery rows | Replicates | Graph recovered | Interval reported |
@@ -361,10 +361,9 @@ and 4,000 participants (three quarters to discovery and one quarter to analysis)
 topology, in `crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs`.
 
 Three quarters go to discovery because resolving the graph needs more information than the
-held-out coefficient fit; all reporting, coverage and width targets remain unchanged. New
-sources use protocol version two and a `discovery_fraction_0_75` calibration key. Version-one
-sources replay their original half split and retain their original key; evidence from one
-allocation cannot support the other.
+held-out coefficient fit. Sources use protocol version two and a `discovery_fraction_0_75`
+calibration key. A version-one source replays its half split under its own key; evidence from
+one allocation cannot support the other.
 
 The topologies are connected graphs with confounding, mediators and nuisance variables:
 `hub_confounded_multi_path` (a hub confounds the treatment and the outcome; the effect runs
@@ -374,7 +373,7 @@ path under confounding; maximum degree four). A table does not announce its topo
 `ParentSetEffect.measure` supports a cell only when the records of every topology of its
 declared degree attest it at that variable count, transformation, knowledge and analysis row
 count: the conservative intersection (a family declared at degree three has the first two
-topologies; the third has degree four). Until the records exist `measure` refuses with
+topologies; the third has degree four). Without those records `measure` refuses with
 `not_supported`.
 
 Every replicate of a design reruns discovery, acceptance or refusal and estimation. The truth

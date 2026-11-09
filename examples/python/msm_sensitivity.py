@@ -4,7 +4,7 @@ A stratified average treatment effect (ATE) is identified at ``Lambda = 1`` (no 
 confounding). ``Lambda`` bounds how far the odds of treatment may shift with a potential outcome;
 ``msm_ate_sensitivity`` returns the sharp ATE range at each ``Lambda`` and the tipping point where
 the range first reaches a decision threshold. The range is an assumption range, not a confidence
-interval: the strata are exact inputs, so the sampling interval is withheld.
+interval: the strata are exact inputs, so there is no sampling interval.
 
 Hand oracles for the two strata below: identified ATE = 0.5 * 0.4 + 0.5 * 0.2 = 0.3; sharp bounds
 at Lambda = 2 are [0.04375, 0.4875]; the lower bound reaches 0 at (2 + sqrt(193)) / 7 = 2.27035."""

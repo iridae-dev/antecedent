@@ -41,7 +41,7 @@ immutable `reconfigure` branch. The shared default table is available through
 
 Use `study.inspect()` to read what the study already knows: cached
 identification, contract identities, and the reasoning report. Until estimation
-runs, calibration is `unavailable` with the reason `not_executed`.
+runs, calibration is `not_measured` with the reason `not_executed`.
 
 `study.preflight()` gives the cheaper structural view from before identification.
 It has no `program_id`, because that identity also depends on identification.
@@ -305,8 +305,8 @@ the `penalized_support` diagnostic). The route keeps the score table and retarge
 covariance) and publishes the cross-fitted influence-function SE; with `bootstrap > 0` it
 publishes a bootstrap SE whose every replicate repeats penalty selection and nuisance
 fitting (`penalized_bootstrap` lists the penalties each replicate selected). Both
-rest on a stated remainder condition and are calibration-wired and not_measured, so
-they report `not_measured`. `nuisance_fallback="ridge_logistic"` / `"lasso"` (or a
+rest on a stated remainder condition, and each interval carries its calibration status
+(read `result.inspect().calibration`). `nuisance_fallback="ridge_logistic"` / `"lasso"` (or a
 `PropensityPenalty` for its tuning) re-runs the route with that propensity when the plain
 GLM fit fails and records the failed fit in `penalized_fallback`;
 `nuisance_fallback="ml"` stays closed (`nuisance_fallback_not_supported`) and a lasso outside

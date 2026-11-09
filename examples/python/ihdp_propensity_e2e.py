@@ -4,8 +4,8 @@
 Data provenance
 ---------------
 This script does **not** redistribute the real Infant Health and Development
-Program (IHDP) microdata. Redistributing that table is support-sensitive, and
-public mirrors are flaky for CI. Instead it synthesizes an **IHDP-like** table
+Program (IHDP) microdata. Redistributing that table is subject to its data-use terms, and
+public mirrors are unreliable. Instead it synthesizes an **IHDP-like** table
 that matches the classic NPCI / Hill (2011) layout:
 
 - ``n = 747`` rows (the usual IHDP analysis size),
@@ -38,8 +38,8 @@ Estimators
   Chernozhukov et al. (2018) DML rate guarantees as transferring; see
   ``provenance/estimate.aipw.toml`` (Funk et al. 2011 is the uncross-fit cite).
 
-Expected ranges (seeded; CI should not flake)
----------------------------------------------
+Expected ranges (seeded)
+------------------------
 With ``seed=11`` and ``bootstrap=40``:
 
 - IPW ATE ∈ [3.7, 4.5], 95% Wald CI contains 4.0,

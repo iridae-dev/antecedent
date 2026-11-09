@@ -1,7 +1,10 @@
 """Consume scientific bytes against a separately retained identity.
 
 Use --input for a producer's directory. With no arguments, create a temporary
-producer fixture and demonstrate valid consumption and two invalid requests.
+producer fixture and demonstrate valid consumption and two invalid requests: the right bytes
+against a different expected identity, and bytes that are not an artifact. Loading checks
+that the artifact is intact and bound to the expected identity; it recomputes nothing and does
+not recreate a live study or its data.
 """
 
 import argparse
@@ -35,7 +38,7 @@ def consume(directory):
     wrong_expected = different.expectation
     for label, content, identity in [
         ("wrong identity", data, wrong_expected),
-        ("altered bytes", b"not-an-artifact", expected),
+        ("malformed bytes", b"not-an-artifact", expected),
     ]:
         try:
             ant.load(content, expected=identity)

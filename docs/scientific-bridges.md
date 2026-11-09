@@ -71,7 +71,7 @@ the declaration or evidence that would support the request.
 | population, regime, horizon, conditioning, quantity or units mismatch | `bridge_binding_mismatch` | `population_mismatch`, `regime_mismatch`, ... |
 | validation minimums not met, an extrapolated surrogate effect, an unattainable recorded prevalence | `bridge_mapping_not_supported` | `validation_trials_too_few`, `outside_validated_range`, `outside_attainable_range`, ... |
 | a mean, law, posterior, identified set or joint law where another is required | `bridge_substitution_refused` | `value_kind_substitution` |
-| an interval of a bridged claim with no level named, or a posterior or joint law | `not_supported` | `interval_not_supported` |
+| an interval of a bridged claim with no level named, or a posterior or joint law | `route_not_supported` | `interval_not_supported` |
 | an interval of a bridged value with no source standard error | `required_option_missing` | `interval_source_uncertainty_required` |
 | an interval of a map the construction does not cover | `route_not_supported` | `interval_scope_outside_measured` |
 | draws offered by an associational, refused, bounded or incomplete claim | `bridge_mapping_not_supported` | `source_not_draws` |
@@ -138,7 +138,7 @@ deterministic stream of the seed, so the mapped table is a function of the contr
 table and the seed.
 
 The bridged table is read as an `uncalibrated_spread` with calibration `not_measured`. An interval is
-requested through the same measured-coverage gate as the interval of a bridged mean, on the mean twin
+requested through the same calibration lookup as the interval of a bridged mean, on the mean twin
 of the bridge at the source's mean with the standard deviation of the draws as the source standard
 error. A map with uncertain coefficients (propagated by draws, which no construction here covers) and
 a declared slope-source covariance (the records were measured with independent evidence) are refused
@@ -205,8 +205,8 @@ variance `V = se^2` and a declared covariance `c` of the slope estimator and the
 
 The variance is **not an interval**. It is recorded on the claim as an uncertainty component labelled
 `uncalibrated_spread`, calibration `not_measured`: it is a first-order propagation that no coverage record
-measured. The interval of the bridged value stays the separate, scoped request that the measured-coverage rule
-gates (below), and an affine map that declares uncertainty is no exact transform of the source interval, so its
+measured. The interval of the bridged value stays a separate, scoped request, reported with its calibration
+status (below), and an affine map that declares uncertainty is no exact transform of the source interval, so its
 interval request refuses `interval_scope_outside_measured`.
 
 The dependence is never assumed. An affine map that declares its uncertainty must declare how the source
@@ -281,11 +281,11 @@ claim.value, claim.fit.r_squared, claim.unresolved   # 0.796, 529/535, ("assumpt
 exported = claim.export("surrogate-bridge")
 again = sb.consume_scientific_bridge_artifact(bytes(exported), exported.expectation.identity)
 claim.require_value_kind("predictive_law")            # refused: value_kind_substitution
-claim.interval()                                      # refused: not_supported (unscoped)
+claim.interval()                                      # refused: route_not_supported (unscoped)
 
 claim = bridge.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate, standard_error=0.1))
-claim.interval(0.95)                                  # the interval of the bridged value, inside a
-                                                      # measured design; refused outside it
+claim.interval(0.95)                                  # the interval of the bridged value, with
+                                                      # its calibration status
 
 claim = uncertain_bridge.derive(                      # a mapping that declares its uncertainty
     sb.SourceClaim.declared("intent", 0.5, stated, standard_error=0.05, nonlinear="square")
@@ -311,7 +311,7 @@ bridged.distribution()        # the aligned draws of the terminal outcome
 bridged.reading               # "uncalibrated_spread"
 parts = bridged.chain_stage("terminal")   # sources and a measurement-mapping stage for pc.propagate
                                           # (an affine map, a predictive line or a correction)
-bridged.interval(0.95)        # refused outside a measured design
+bridged.interval(0.95)        # refused: uncertain coefficients (interval_scope_outside_measured)
 ```
 
 Refusals are `ScientificBridgeRefusal` (a `CausalUnsupportedError`) with `reason_code`, `detail`
@@ -337,11 +337,13 @@ estimation uncertainty.
 
 An identity or affine map adds no uncertainty and nothing to measure, so its
 interval is supported as an exact transform of the declared source interval.
-The estimating mappings are published only where a current coverage record
-measured the construction (surrogate bridges over 15, 20 and 40 validation
-trials; corrections with rates estimated from 100, 200 and 400 validation
-units, Youden index at least 0.3, rate standard errors at most 0.05; level
-0.95), and the record is read from the shipped coverage table. The trial
+An estimating mapping's interval is reported with its calibration status, read
+from the shipped coverage table: `calibrated` only where a current record
+measured the construction. The coverage design spans surrogate bridges over 15,
+20 and 40 validation trials and corrections with rates estimated from 100, 200
+and 400 validation units, at level 0.95. A correction with a Youden index below
+0.3 or a rate standard error above 0.05 is outside the construction and refuses
+(`interval_scope_outside_measured`). The trial
 effects are treated as exact points, as the mapping does; the declared
 assumptions of the bridge stay unresolved obligations; invariance across
 populations is a declared premise; none of this is individual-level surrogacy.
@@ -351,7 +353,7 @@ beside the derived result and is supplied again to a consumer that wants it.
 ## What is not supported
 
 No propagated variance read as an interval or as a calibrated uncertainty, no assumed independence of the
-source and an uncertain mapping, no nonlinear map of a mean alone. No interval outside a measured design or without the source standard error (for a
+source and an uncertain mapping, no nonlinear map of a mean alone. No interval outside the constructed range or without the source standard error (for a
 bridge of draws: none for an uncertain map or a declared source-mapping covariance),
 no identified set or joint outcome law, no bridge of a bootstrap, sampling or empirical
 law, no associational claim as a source, no truncation or extrapolation of draws

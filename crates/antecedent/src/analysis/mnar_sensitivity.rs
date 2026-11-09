@@ -20,7 +20,7 @@
 //! Every effect over the range is an assumption-dependent range, never a confidence interval
 //! and never empirically established: the departure from missing at random is recorded as an
 //! assumption with status `untestable`. Sampling intervals and their derived tipping conclusions
-//! are withheld pending calibration and are never merged with the range.
+//! are reported with their calibration status and are never merged with the range.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -7,8 +7,8 @@ use super::{CachePolicy, ExecutionContext, execution_api, interrupt, pyclass, py
 /// (matches attribution bench policy).
 pub(crate) const PY_DEFAULT_CACHE_MAX_BYTES: u64 = 4_000_000;
 
-/// Resolve an omitted or zero `threads=` to [`antecedent::execution::default_user_threads`].
-/// An explicit `threads >= 1` is a pin and may exceed the default cap.
+/// Resolve an omitted `threads=` to [`antecedent::execution::default_user_threads`]; an explicit
+/// zero runs on one thread. An explicit `threads >= 1` is a pin and may exceed the default cap.
 pub(crate) fn resolve_user_threads(threads: Option<u32>) -> u32 {
     match threads {
         Some(n) if n >= 1 => n,

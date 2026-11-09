@@ -419,6 +419,72 @@ fn accept_analysis_result_contract(
     })
 }
 
+/// The provenance records an analysis-result artifact carries for its executed route, as JSON.
+///
+/// `None` when the artifact carries no section bound to its contract. Descriptive: reading it
+/// is separate from loading and replay, and takes no part in either.
+#[pyfunction]
+fn analysis_result_method_provenance_json(bytes: &[u8]) -> PyResult<Option<String>> {
+    crate::catch_ffi(|| {
+        carried_method_provenance(bytes)
+            .map(|provenance| {
+                serde_json::to_string(&provenance)
+                    .map_err(|error| crate::value_err(error.to_string()))
+            })
+            .transpose()
+    })
+}
+
+/// Section id of the provenance records an analysis-result export carries.
+const METHOD_PROVENANCE_SECTION: &str = "analysis_result.method_provenance";
+
+/// The provenance records the producer cited for the executed route, as the artifact carries
+/// them.
+///
+/// `None` when the artifact has no readable contract, or the section is absent, duplicated,
+/// unreadable, in another format, or does not name the identifier and estimator the contract
+/// declares (at most one id per role, and each declared id for its role). This is the check
+/// `decode_method_provenance_section` applies on the Rust replay path.
+fn carried_method_provenance(
+    bytes: &[u8],
+) -> Option<antecedent::io::method_provenance::MethodProvenanceWire> {
+    let (artifact, _, _) = antecedent::io::decode_analysis_result_artifact(bytes).ok()?;
+    let contract = antecedent::io::decode_analysis_result_contract(&artifact).ok()??;
+    let (identifier, estimator) = (contract.identifier.as_deref(), contract.estimator.as_deref());
+    let mut sections =
+        artifact.sections.iter().filter(|section| section.id == METHOD_PROVENANCE_SECTION);
+    let section = sections.next()?;
+    if sections.next().is_some() {
+        return None;
+    }
+    let provenance: antecedent::io::method_provenance::MethodProvenanceWire =
+        antecedent::io::convert::from_cbor(&section.data).ok()?;
+    let format = antecedent::io::method_provenance::method_provenance(None, None).format;
+    if provenance.format != format {
+        return None;
+    }
+    for (role, declared) in [("identifier", identifier), ("estimator", estimator)] {
+        let mut keys: Vec<&str> = provenance
+            .records
+            .iter()
+            .flat_map(|record| record.cited_for.iter())
+            .chain(&provenance.unlinked)
+            .filter(|cited| cited.role.as_str() == role)
+            .map(|cited| cited.key.as_str())
+            .collect();
+        keys.sort_unstable();
+        keys.dedup();
+        let agrees = match declared {
+            Some(declared) => keys == [declared],
+            None => keys.len() <= 1,
+        };
+        if !agrees {
+            return None;
+        }
+    }
+    Some(provenance)
+}
+
 #[pyfunction(name = "encode_external_estimate_claim")]
 #[pyo3(signature = (*, learner, config, payload, names, treatment, outcome, identifier, status, confounders, identification=None, data_snapshot=None, snapshot_payload=None, scalar_value=None, value_types=None, contrast=None, modifiers=None))]
 #[allow(clippy::too_many_arguments)]
@@ -582,6 +648,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decode_causal_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(inspect_artifact_container, m)?)?;
     m.add_function(wrap_pyfunction!(accept_analysis_result_contract, m)?)?;
+    m.add_function(wrap_pyfunction!(analysis_result_method_provenance_json, m)?)?;
     m.add_function(wrap_pyfunction!(encode_external_estimate_claim_py, m)?)?;
     Ok(())
 }

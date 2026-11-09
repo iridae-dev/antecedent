@@ -39,7 +39,7 @@ own cannot be scored (the divergence is infinite) and is refused.
 
 `variance_contribution` is `coefficient**2 * Var(parent)`, the variance the edge adds to the
 child in the child's squared units; it is the numerator of the first-order approximation of
-`strength` and what `strength` was before the logarithmic measure. The sign stays in `coefficient`
+`strength`. The sign stays in `coefficient`
 while both are non-negative.
 
 ## Population contrast under `do`

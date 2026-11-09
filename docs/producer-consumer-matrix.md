@@ -4,7 +4,7 @@ Which object can be given to which decision-side consumer, by which route, and w
 refused. The rule behind every cell: **a consumer never infers a joint law, a posterior or a
 causal response from a neighbouring object.** A mean is not an outcome distribution, a point
 estimate is not a response, a posterior summary is not a prior signal, and a decision result is
-not a source. Every route here is point-only; nothing on this page is an interval, a coverage
+not a source. Every route in the matrix is point-only; no matrix cell is an interval, a coverage
 statement or probability support.
 
 The cells are `parity/producer_consumer.toml`, rendered between the markers below.
@@ -403,7 +403,7 @@ Its calibration is a whole-method design (cohort-weight and support-selection st
 included) that has no independent construction check, so no interval is reported.
 
 
-Composed Gaussian intervention queries now publish an analytic univariate outcome
+Composed Gaussian intervention queries publish an analytic univariate outcome
 law for `outcome` coordinates. Inverse probability/quantile and quadratic utility
 consumers read that law; the sealed inverse consumer replays the analytic functional.
 Mean contrasts and mean coordinates retain point-only standing. Outcome variance

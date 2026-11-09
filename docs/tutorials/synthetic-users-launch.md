@@ -198,7 +198,7 @@ The signal likelihoods and finite hypothesis model are supplied by the applicati
 
 The native ranker accepts equally weighted state draws. Application code therefore approximates the weighted belief by 4,096 deterministic quantile draws and records the atom-mass error. The script independently enumerates all possible count summaries, checks the resulting information values to `1e-9`, and verifies that the unrounded belief gives the same candidate order and cost signs. Export and consumption also preserve the ranking's external-signal standing.
 
-## What the example establishes
+## What this established
 
 The successful path uses a large agent dataset and historical human observations to make a much smaller new human study decision-relevant. Antecedent guides the initial pilot choice, updates the decision as evidence arrives, and helps determine when further confidential exposure is not worth its cost. The comparison with the larger human-only study makes the benefit visible in the action taken, without equating the underlying evidence.
 
@@ -206,11 +206,13 @@ The failed-transfer path uses the small pilot to ask a better next question. A p
 
 The application supplies the finite hypothesis family, binomial likelihoods, numerical prior projection and checkpoint controller. Antecedent supplies the prior-composition, mechanism-transport, decision, identification-repair and study-ranking operations they call. The complete example makes that boundary executable.
 
+It did not establish agent-to-human equivalence, the cause of the checkout discrepancy or the effect of an authentication repair. The targeted study is a recommendation under declared likelihoods, not a result.
+
 **Synthetic data helps determine which real-world evidence is necessary. It does not replace the need for that evidence.**
 
 ## Run the complete investigation
 
-Run from a checkout with the 3.0 Python extension installed:
+Run from a checkout with the Python extension installed:
 
 ```bash
 python examples/python/synthetic_users_launch.py

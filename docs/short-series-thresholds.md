@@ -100,10 +100,10 @@ The thresholds were set on the SE construction before the Bartlett
 kernel-bias factor; re-measured with it (the table below), every cell below
 0.855 still warns on at least 91% of its replicates, so they stand.
 
-The multi-step sequential threshold is not the rule's 30: it stays at the 40
-an earlier measurement of the same sweep set (before the SE construction
-changes listed under the table), which warns on more replicates, not fewer.
-The mediation threshold rose from 35 to 40 with that re-measurement: in the
+The multi-step sequential threshold is not the rule's 30: it is pinned at the
+40 of a measurement of the same sweep set made before the SE construction
+changes listed under the table, which warns on more replicates, not fewer.
+The mediation threshold is the replication's 40, not the sweep's 35: in the
 replication, the AR(1)-treatment Total at ρ = 0.9, n = 160 covered 0.846 and
 warned on fewer than 90% of its replicates at 35.
 
@@ -129,9 +129,9 @@ The failure line 0.855 is the lower edge of the calibration gate's
    of the time, and one 3 points low almost always.
 
 The short-series thresholds are set so that cells *below the band* warn; a
-cell between 0.855 and roughly 0.885 is not caught by the warning. Before the
+cell between 0.855 and roughly 0.885 is not caught by the warning. Without the
 recheck rule such a cell could pass a 400-replicate gate even though at 2000
-replicates it measures significantly low; the recheck now fails it, and a
+replicates it measures significantly low; the recheck fails it, and a
 gated design that still measures below the floor after the SE work below is
 named as a boundary cell (`*_boundary_within_band`): its test asserts the
 band around its *measured* coverage at each grid point
@@ -185,8 +185,8 @@ completion's score shows it, as a weak but slowly decaying component that the
 block-length reading sees; catching it at ρ = 0.95, n = 400 takes 155, which
 also warns on mixtures that cover nominally below about n = 400.
 
-The previous rule (one floor of 100 on the lag-1 reading of the single score,
-or of the weighted mixture score) warned, in a 1000-replicate run of the same
+A single floor of 100 on the lag-1 reading of the single score (or of the
+weighted mixture score) would warn, in a 1000-replicate run of the same
 sweep, on every short-memory replicate at n ≤ 100 and on 30–88% at n = 160
 while those designs covered nominally, and on at most 11% of the TemporalCpdag
 bias cells at n = 160 and none at n = 400.
@@ -203,7 +203,7 @@ fitted regression, residuals included), the circular-Bartlett fixed-b factor
 factor of the target scores (`antecedent_estimate::kernel_bias_scale`: measured
 as the AR(1)-prewhitened long-run variance over the Bartlett variance at the
 block length, 1.01–1.05 on the persistent designs, at most 1.01 on the
-short-memory ones; the factor now reads the Kendall-corrected AR(1) and
+short-memory ones; the factor reads the Kendall-corrected AR(1) and
 BIC AR(q) model shared with the response bands, never smaller on the same
 score), and fixtures whose noise streams are seeded independently per
 replicate. The kernel-bias factor only widens intervals, so the thresholds set

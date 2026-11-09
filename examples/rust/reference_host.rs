@@ -68,8 +68,8 @@ fn serve(request: &Request, ctx: &ExecutionContext) -> Result<(Value, Vec<u8>), 
     Ok((response, bytes))
 }
 
-/// Accept artifact bytes only as a verified claim. Anything else is a refusal
-/// the host reports; it never uses the numbers inside.
+/// Replay artifact bytes and accept them only as a replayed claim. Anything else is a
+/// refusal the host reports; it never uses the numbers inside.
 fn accept(bytes: &[u8]) -> Result<Value, CausalError> {
     let consumed = replay_analysis_result(bytes)?;
     if consumed.acceptance.accepts_as_claim() {

@@ -74,7 +74,7 @@ Structural transport is separate from prior transfer. `antecedent.transport` ask
 
 ## Unsupported utilities
 
-`transport.advanced.estimate_trial_effect` computes augmented IPW from supplied outcome regressions (`mu0`, `mu1`) and returns a bare number: no study, export or calibration slot, and no support. It agrees with the `analyze` path on the point value for the construction both support. `transport.advanced.estimate_augmented_response_grid` evaluates caller-supplied regressions and local response weights on a dose grid under a checked certificate:
+`transport.advanced.estimate_trial_effect` computes the trial IPW point and, from supplied outcome regressions (`mu0`, `mu1`), the augmented IPW point, and returns them with the overlap report in a `TrialTransportEstimate`: no study, export or calibration slot, and no support. It agrees with the `analyze` path on the point value for the construction both support. `transport.advanced.estimate_augmented_response_grid` evaluates caller-supplied regressions and local response weights on a dose grid under a checked certificate:
 
 ```python
 from antecedent.transport import advanced as transport

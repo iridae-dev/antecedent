@@ -1,8 +1,8 @@
 # Compose sources into one decision
 
 Combine native results, external claims and independently fitted mechanisms into one decision, recalculate only what a change affects, and export the result as one portable bundle. The routes join [decisions, design and repair](decisions.md#routes-at-a-glance) with the
-external claims of [external scientific objects](guides/build/scientific-interfaces.md). Every route here is **point-only**. Nothing on this page is an interval,
-a coverage statement or probability support. Uncertainty carried inside a composed artifact keeps its source standing.
+external claims of [external scientific objects](guides/build/scientific-interfaces.md). Every route here is **point-only**, except that a mechanism-composition contrast also reports a Wald
+interval with its calibration status. Nothing here is a coverage statement or probability support. Uncertainty carried inside a composed artifact keeps its source standing.
 Composition supplies no additional calibration or interval guarantee.
 
 Each route below gives the question it answers, its scope bounds, claim label, Python
@@ -105,13 +105,13 @@ not a certificate that a cache exists.
 ## Composition bundle and verifiers
 
 - **Question.** Can a composed decision be exported as one portable bundle that
-  an independent consumer verifies node by node?
+  an independent consumer checks node by node?
 - **Scope.** A typed directed acyclic graph of nodes, with each edge carrying the
   Merkle digest of its upstream node, so a changed upstream identity changes
   every dependent digest and the bundle identity. Declaration order does not
-  change the identity. Each embedded node is verified through its artifact's own
+  change the identity. Each embedded node is replayed by its artifact's own
   consumer, with binding facts read from the decoded fields and never from text
-  a producer wrote beside it. A reference node is verified only as matched a
+  a producer wrote beside it. A reference node is only matched against a
   supplied source and is never replayed. A kind with no verifier (causal
   contract, attestation, quantity coordinates, transformation) fails and must
   travel as a reference. A consumer that retains the bundle identity
@@ -119,9 +119,9 @@ not a certificate that a cache exists.
   consistency.
 - **Claim labels.** A decision over an aligned joint law is labelled `joint_draw`.
   A decision resting on an external mean is labelled `point_only_attested`, its
-  declared mean is shown but is not a verified value, and a decision that needs
+  declared mean is shown but is not recomputed, and a decision that needs
   a joint law over a mean-only claim fails `unsupported_law`.
-- **Claim.** Point-only: the bundle certifies decoding, identities and bindings.
+- **Claim.** Point-only: the bundle checks decoding, identities and bindings.
 - **Python.** `antecedent.composition_bundle`: `BundleBuilder`, `Bundle`,
   `consume_bundle`, `describe_artifact`.
 - **Refusals.** `composition_bundle.*` (shared by the bundle and the verifiers).
@@ -247,7 +247,7 @@ Individually valid conditional mechanisms do not imply a valid joint model. Comp
 | Structure | explicitly mapped acyclic graphs | any directed cycle (before execution) |
 | Family | additive-noise linear-Gaussian with declared parents and declared unit-variance Gaussian shared latents; or finite conditional tables | mixed families, nonlinear or non-additive mechanisms |
 | Execution | closed-form joint mean/covariance and `do()` law; exact enumeration and truncated factorization; structural sampling | conditioning on observations (a separate query) |
-| Uncertainty | first-order delta-method variance of a linear contrast of interventional means, from a declared parameter law | intervals, posteriors, variance functionals, any claim over several mechanisms with unknown dependence |
+| Uncertainty | first-order delta-method variance of a linear contrast of interventional means, from a declared parameter law, and its Wald interval with calibration status | posteriors, variance functionals, any claim over several mechanisms with unknown dependence |
 
 Residual `sigma` of a linear-Gaussian mechanism is the *idiosyncratic* part;
 a declared latent adds `loading^2` to the total residual variance and
@@ -289,8 +289,8 @@ declaration that would support the composition.
 
 Composition is exact given the declared mechanisms. The delta-method variance is
 a parameter-covariance variance only: it omits second-order terms, holds residual
-scales fixed and carries no coverage claim. No interval is reported for it; an interval route
-needs an independent check of its whole-method construction first.
+scales fixed and carries no coverage claim. Its Wald interval (`interval`) is reported
+with its calibration status.
 
 ### Prepare, refresh and export
 
@@ -330,7 +330,8 @@ declared and need `admit_declared_mechanisms=True`), `Dependence` and
 `finite_law`, refreshes with `refresh_mechanisms`, exports one query with
 `export` and is consumed by `consume_mechanism_composition_artifact`. A refusal
 is a `MechanismCompositionRefusal` listing every defect (`refusals`,
-`details`); `interval()` raises `not_supported`.
+`details`); `interval(contrast, level)` returns the first-order Wald interval with
+its calibration slot.
 
 The `composed_model` producer is a row of
 [the producer and consumer matrix](producer-consumer-matrix.md): a composed model

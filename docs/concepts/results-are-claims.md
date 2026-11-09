@@ -19,6 +19,7 @@ report.identification, report.support, report.uncertainty, report.assumptions, r
 | Assumptions | What was taken as given |
 | Evidence | The data, experiments or declared laws behind it, and their support for the requested coordinates |
 | Uncertainty | Which sources are represented, how an interval was built and whether a calibration record supports it |
+| Methods | The provenance records behind the route that ran: published sources, documented deviations and review scope (`result.method_provenance`; see [citing a study](../guides/citing-a-study.md)) |
 | Limits | What the claim does not establish |
 
 ## Answer shapes
@@ -30,6 +31,8 @@ report.identification, report.support, report.uncertainty, report.assumptions, r
 | `partial` | A claim with unresolved identification or structural components |
 | `response` | A curve, surface, derivative or intervention response |
 | `structured` | Several linked results |
+| `policy_value` | The value of a policy or intervention program |
+| `distribution` | A distribution over outcomes rather than one number |
 | `associational` | A noncausal description, labelled as such |
 | `refused` | No claim; a typed refusal states why |
 | `unavailable` | No usable claim, with a reason instead of fabricated precision |
@@ -50,17 +53,17 @@ These words name different checks. Each applies to a particular object, and none
 | Executes | The declared request can run |
 | Identified | Stated assumptions and evidence determine the target within the named identification scope |
 | Model conditional | The result follows from the specified or fitted model |
-| Supported | The named combination of question, structure, evidence, inference and estimator has provenance and independent scientific checks, so it runs. A route that is not supported refuses in release builds |
+| Supported | The named combination of question, structure, evidence, inference and estimator has provenance and an independent scientific check that currently passes, so it runs. A route that is not supported refuses in release builds with `not_supported` and names the missing evidence |
 | Scientific refusal | A typed refusal because the combination is outside what the route can support; the result carries the reason code |
 | Development build | A build that runs a route that is not supported and reports `would_refuse` beside the result |
 | Independently checked | A named calculation or proposition was compared with an appropriate independent reference |
 | Calibration status | An annotation on an interval: `calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`. It never decides whether a route runs |
-| Replayed | A specified calculation was reproduced under the consumer's procedure |
-| Accepted artifact | Specified identity, interpretation or replay checks passed for a saved result |
+| Loaded | A saved result is intact and its recorded answer is kept; nothing is recomputed |
+| Replayed | Opt-in replay recomputed every published part of a loaded result and each agreed |
 | Current authority | A supported workflow checked the current standing of its sources for present use |
 | Numerically certified | A named numerical proposition was established within its domain |
 
-Two further distinctions come up constantly. A *frozen output* of Antecedent checks change against a recorded result; it is not an independent oracle. An *accepted artifact* means the result's contract and identities checked out; it does not mean the causal assumptions are true.
+Two further distinctions come up constantly. A *frozen output* of Antecedent checks change against a recorded result; it is not an independent oracle. A *loaded* artifact is intact, and a *replayed* one was also recomputed and agreed; neither means the causal assumptions are true.
 
 For a worked account of the evidence behind these distinctions, read [How Antecedent checks its scientific methods](../guides/scientific-verification.md).
 

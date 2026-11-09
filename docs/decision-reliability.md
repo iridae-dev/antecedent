@@ -64,8 +64,8 @@ Producers that feed it: the cohort-decision route supplies per-draw cohort
 utilities (`producer = "cohort_decision"`), the sequential-evaluation route
 supplies per-draw policy values (`producer = "sequential_evaluation"`), and any
 decision or design run that kept its simulated utilities may supply them under
-its own label. Those routes stay point-only until this package supports them at
-a named coordinate.
+its own label. A producing route stays point-only wherever this analysis is not
+supported at a named coordinate for it.
 
 ## Three uncertainties, reported separately
 

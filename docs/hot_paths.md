@@ -17,7 +17,7 @@ allocation/memory contracts, and owning crates.
 | Progressive estimate execute | `antecedent` | (conformance) `latency_tiers` | — | StageClock + ProgressSink + `StageResultSink` payloads; effort on `ExecutionPerformanceRecord` |
 | Cancel mid-bootstrap | `antecedent-estimate` / `antecedent` | (conformance) `latency_tiers::cancel_mid_bootstrap_yields_partial_not_silent_full` | — | Soft partial SE; `cancelled` flag; no silent full result |
 | Adaptive bootstrap | `antecedent-estimate` / `antecedent` | (conformance) `latency_tiers::adaptive_bootstrap_pin_stable_count_and_se`, `production_replicates` | — | Opt-in only (`ExecutionContext::production` and `for_tests` both evaluate the full request). When enabled, the stop is a Monte Carlo error bound, not a convergence heuristic: after `AdaptiveBootstrapBudget::required_replicates()` successes (`max(min_replicates, ⌈1 + 1/(2ε²)⌉)`, the count at which the relative MC SE of a bootstrap SE, `≈ 1/√(2(B−1))`, is `≤ ε`); `early_stopped` + actual `bootstrap_replicates_ok` |
-| Adaptive Bayesian draws | `antecedent-estimate` / `antecedent` | (conformance) `latency_tiers::adaptive_draws_preserve_exact_nig_count_and_width` | — | Opt-in only. When enabled, Laplace MVN redraws stop once the effect-draw ESS reaches `ess_target` (the quantile-width heuristic was removed); `early_stopped` + actual `n_draws` |
+| Adaptive Bayesian draws | `antecedent-estimate` / `antecedent` | (conformance) `latency_tiers::adaptive_draws_preserve_exact_nig_count_and_width` | — | Opt-in only. When enabled, Laplace MVN redraws stop once the effect-draw ESS reaches `ess_target`; `early_stopped` + actual `n_draws` |
 | Prepared re-estimate | `antecedent` | (conformance) `prepared_analysis` | — | Compile-once `PreparedStudy`; identify-once cache (`exec.identify.cached`); temporal response caches `I(h)` per requested horizon; schema-gated refresh; 2nd shot skips compile and identification |
 | Discover-once / estimate-many | `antecedent` / Python | (conformance) `latency_tiers::discovered_graph_builds_under_every_latency_tier`, `test_accepted_graph` | — | Python `prepare` / `analyze` refuse an unexecuted discovery configuration and name `ant.discovery.discover` (the Rust builder cannot express the combination); `AcceptedGraph` version stable across estimate clicks |
 | Shared estimate→refute workspace | `antecedent` | (conformance) `shared_workspace` | — | `StaticEstimateWorkspaces` for linear / propensity / AIPW across estimate→refute |
@@ -51,7 +51,9 @@ allocation/memory contracts, and owning crates.
 
 ## Smoke commands
 
-Criterion smokes used by feature gates (`--test`):
+The `benches` section of `scripts/gate_release.sh` smokes every bench target of
+the workspace in one cargo invocation (`--test` mode); a pull request that
+touches no bench file or `[[bench]]` entry skips it. To smoke one target:
 
 ```bash
 cargo bench -p antecedent-kernels --bench gather -- --test
@@ -79,14 +81,18 @@ cargo bench -p antecedent --bench transport -- --test
 ```
 
 Absolute timings in baseline files are machine-class references (Apple M1).
-CI does not compare timings: `scripts/gate_hot_path_baselines.sh` checks only
+CI does not compare absolute timings with them: `scripts/gate_hot_path_baselines.sh` checks only
 that each linked baseline file exists and records a wall time or the statement "none
 published", because shared runners cannot enforce M1 times. Comparing
 Criterion means with the documented budgets is a manual step on the reference
 machine (`GATE_CRITERION_MEANS=1`), and a regression beyond a budget is
 reviewed by hand, not blocked automatically. Only rows marked "asserted in
 bench" carry an allocation assertion; other rows record a baseline without
-one. Every baseline file carries an `Established`, `Machine class` and `Commit`
+one. Relative regressions are checked separately: a pull request labelled `perf`
+runs the `bench-regression` CI job, which benchmarks the gather, reductions,
+traversal, d-separation, adjustment and PCMCI targets at the base and the head
+commit in one job and fails when the head is more than 25% slower beyond noise
+(`scripts/bench_regression.py`). Every baseline file carries an `Established`, `Machine class` and `Commit`
 line (`scripts/gate_hot_path_baselines.sh` requires them); where the original
 measurement did not record one, the line says so and gives what version-control
 history supports: the commit that added the file and its date, never a guessed
@@ -131,7 +137,7 @@ Use new buffers and `ant.rebind(study, data=new_data)` for changed observations.
 ## Staged execution
 
 Cached derivative estimation and refitted GCM unit counterfactual execution are
-measured in `antecedent/benches/staged_handle.rs`.
+measured in `crates/antecedent/benches/staged_handle.rs`.
 [Baseline](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/staged_handle.md). Preparation is excluded from
 these timings; supplied-data estimation remains inside each iteration.
 The same target also smokes inspect, capability, and metadata-only artifact
