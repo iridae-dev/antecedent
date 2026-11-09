@@ -7,8 +7,9 @@
 
 ``record`` rewrites each ``[[method_review.artifacts]]`` ``sha256`` and ``record_sha256``
 in place.  ``mapping`` does the same for ``[[non_algorithm_review.artifacts]]`` and its ``record_sha256``.
-``fixture`` rewrites each ``oracle.reference_review.artifacts`` ``sha256`` and
-``fixture_payload_sha256``.
+``fixture`` rewrites each reference-review artifact ``sha256`` and ``fixture_payload_sha256``
+and keeps the review in ``parity/fixture_reviews/<family>/<name>.json``, moving one still
+embedded in the fixture (``oracle.reference_review``) out of it.
 
 A source or test artifact binds the items the review covers (``items = ["fn solve", "impl
 Kernel"]``, see ``review_items.py``): the digest hashes only those items, so an edit
@@ -28,7 +29,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT
-from evidence_kinds import fixture_payload_digest
+from evidence_kinds import fixture_payload_digest, load_fixture, review_path
 from provenance_links import method_review_digest, non_algorithm_digest
 from review_items import artifact_digest
 
@@ -91,12 +92,21 @@ def bind_mapping(path: Path) -> None:
 
 
 def bind_fixture(path: Path) -> None:
-    document = json.loads(path.read_text(encoding="utf-8"))
+    """Rebind a fixture's review and keep it in `parity/fixture_reviews`: a review still
+    embedded in the fixture moves out, so this and later rebinds leave the fixture, which
+    tests read, unchanged."""
+    document = load_fixture(REPO_ROOT, path)
     review = document["oracle"]["reference_review"]
     for artifact in review["artifacts"]:
         artifact["sha256"] = bound_digest(artifact)
     review["fixture_payload_sha256"] = fixture_payload_digest(document)
-    path.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    target = review_path(REPO_ROOT, path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(review, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    if "reference_review" in stored.get("oracle", {}):
+        del stored["oracle"]["reference_review"]
+        path.write_text(json.dumps(stored, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def main() -> int:

@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from _repo import ensure_scripts_on_path, load_toml_binary
-from evidence_kinds import ORACLE_KINDS, fixture_review_problems
+from evidence_kinds import ORACLE_KINDS, fixture_review_problems, load_fixture
 
 root = Path(".")
 fail = []
@@ -131,8 +131,9 @@ def command_blocks(obj):
 
 for expected in sorted((root / "conformance").glob("**/expected.json")):
     try:
-        document = json.loads(expected.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+        document = load_fixture(root, expected)
+    except ValueError as error:
+        fail.append(str(error))
         continue
     if isinstance(document.get("oracle"), dict):
         fail.extend(f"{expected}: {problem}" for problem in fixture_review_problems(root, document))

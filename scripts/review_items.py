@@ -52,18 +52,22 @@ def review_json_digest(payload: object) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-def file_digest(path: Path) -> str:
-    """Digest of a data artifact.  A fixture that carries its own ``oracle.reference_review``
-    is bound by its payload, so rebinding that review never stales the reviews that read it."""
+def file_digest(path: Path, root: Path | None = None) -> str:
+    """Digest of a data artifact.  A fixture with a reference review (embedded as
+    ``oracle.reference_review`` or kept in ``parity/fixture_reviews``) is bound by its
+    payload, so rebinding that review never stales the reviews that read it."""
     if path.suffix == ".json":
         try:
             document = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             document = None
         oracle = document.get("oracle") if isinstance(document, dict) else None
-        if isinstance(oracle, dict) and "reference_review" in oracle:
-            from evidence_kinds import fixture_payload_digest
-
+        from evidence_kinds import fixture_payload_digest, review_path
+        try:
+            separate = root is not None and review_path(root, path).is_file()
+        except ValueError:
+            separate = False
+        if isinstance(oracle, dict) and ("reference_review" in oracle or separate):
             return fixture_payload_digest(document)
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -210,7 +214,7 @@ def artifact_digest(root: Path, artifact: dict) -> tuple[str | None, str | None]
     if path.suffix in SOURCE_SUFFIXES:
         if items is None:
             if artifact.get("role") in WHOLE_FILE_ROLES:
-                return file_digest(path), None
+                return file_digest(path, root), None
             return None, "binds a whole source file; name the reviewed items"
         if (
             not isinstance(items, list)
@@ -221,7 +225,7 @@ def artifact_digest(root: Path, artifact: dict) -> tuple[str | None, str | None]
         return items_digest(path, items)
     if items is not None:
         return None, "items apply to source files; a data file binds whole"
-    return file_digest(path), None
+    return file_digest(path, root), None
 
 
 def artifact_problem(root: Path, artifact: dict, label: str) -> str | None:
