@@ -11,7 +11,7 @@ A search result makes one of two kinds of statement, and they are not interchang
 - **A numerical certificate** is a bound on the *fitted scalar objective*: with interval arithmetic and branch-and-bound, no feasible schedule has a fitted value higher than the bound. It says nothing about whether the fitted mechanism is right.
 - **A real-world optimum** would require the fitted response to describe what actually happens under each program. That is an identification and model question. A certified numerical optimum of a confounded or misspecified response is still a best schedule of that response, and the result stays model-conditional unless the design identifies the programs.
 
-Every report therefore carries `scope` (`model_conditional` unless the retained design identifies the worlds) and `selected_value_reliability`, which reads `not_measured` until a procedure that measures the reliability of selecting from data has been run. Finite search certifies only the candidate set you supplied; continuous search without a certificate reports a best-found point and its stopping reason.
+Every report therefore carries `scope` (`model_conditional` unless the retained design identifies the worlds) and `selected_value_reliability`, which reads `not_measured`: a search does not measure how optimistic a selection from the same data is; the [held-out procedures](#select-from-data-and-evaluate-on-held-out-units) address that. Finite search certifies only the candidate set you supplied; continuous search without a certificate reports a best-found point and its stopping reason.
 
 ## Rank a finite set of programs
 

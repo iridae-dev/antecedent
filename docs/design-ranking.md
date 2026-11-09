@@ -17,9 +17,9 @@ design.rank_designs(
 | `"evsi"` | `decision=DesignDecision(...)`, no cost map | `Candidate` studies | expected value of sample information, costs reported separately |
 | `"net_value"` | `decision=` and `cost_map=` | `Candidate` studies | EVSI net of study cost under the cost map |
 | `"structural_sufficiency_cost"` | `StructuralCandidate` declarations | structural declarations | caller-declared sufficiency, cost units, budget, id |
-| `"graph_entropy"` | `objective=GraphEntropy()`, `prior=` | plans | original heuristic graph-channel entropy reduction |
+| `"graph_entropy"` | `objective=GraphEntropy()`, `prior=` | plans | heuristic graph-channel entropy reduction |
 | `"effect_width"` | `objective=EffectWidth(...)` | plans | signed linear-model treatment standard-error reduction |
-| `"model_distinction"` | `objective=ModelDistinction(...)` | plans | original reliability-scaled pairwise log-likelihood-gap heuristic |
+| `"model_distinction"` | `objective=ModelDistinction(...)` | plans | reliability-scaled pairwise log-likelihood-gap heuristic |
 | `"decision_regret"` | `objective=DecisionRegret(...)` | plans | preposterior EVSI using a callable utility |
 
 Claim labels: every value is **point-only**. A Monte Carlo value (when a signal has
@@ -36,7 +36,7 @@ budget is that planned size. In Rust, `PlanningResult::sampling_candidate`,
 `experiment_candidate` and `future_data` give the `CandidateDesign` for `rank_designs_bound`
 and the future data of a value-of-information evaluation.
 
-`rank_structural` is a compatibility view of `rank_designs` for structural
+`rank_structural` is a view of `rank_designs` for structural
 declarations (see the end of this page).
 
 ## Ranking plans by identification
@@ -329,8 +329,8 @@ sufficiency flag, then cost units, sample budget and semantic id. The flag is no
 an identification proof produced by the ranker. Entries have no numeric `score`
 or `probability`; no identification probability or value of information is inferred.
 The structural ordering identity is invariant to input order. `rank_structural`
-delegates to the same implementation and returns the existing `StructuralRanking`
-compatibility view; composite structural consumers continue using that view.
+delegates to the same implementation and returns a `StructuralRanking`
+view, which composite structural consumers read.
 
 ```python
 ranking = design.rank_designs([
@@ -358,7 +358,7 @@ ranking.best.implemented_functional  # "ols_gram_se_reduction"
 ```
 
 `GraphEntropy()` uses `prior=StructurePrior(...)` and its optional graph features.
-It exposes the existing soft-observation heuristic, not likelihood-based expected
+It is a soft-observation heuristic, not likelihood-based expected
 information gain. `EffectWidth` uses declared linear-model Gram information;
 `MeasurementColumn`, `DesignInformation` and `EnvironmentInformation` supply
 prospective covariate, intervention and environment information. Sampling and
@@ -390,13 +390,13 @@ deterministic. Native callback refusals retain the original exception as their
 cause. Only native-supported plans are scored; unsupported candidates appear in
 `violations`. `DecisionRegret` scores EVSI before cost, without subtracting or
 converting study costs. For affine utilities and portable signal-provider study
-artifacts, continue using `decision=DesignDecision(...)` and `cost_map=`.
+artifacts, use `decision=DesignDecision(...)` and `cost_map=`.
 
 These native objective results expose `ObjectiveCandidate` entries, each retaining
-`implemented_functional`, `evaluation`, `stderr` and `rank_uncertain`. Their original
-native scoring semantics are unchanged. None has an identification probability or
+`implemented_functional`, `evaluation`, `stderr` and `rank_uncertain`. Each keeps its
+native scoring semantics. None has an identification probability or
 portable artifact. Bounds use `max_cost` and `max_sample_budget`; unrelated value
-or gate arguments refuse rather than being silently applied. Calibration remains
+or gate arguments refuse rather than being silently applied. Calibration is
 `not_measured` for every objective.
 
 Runnable examples: [`rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/rank_designs.py)
@@ -548,7 +548,7 @@ ranked = design.rank_designs(
 The source quantity must name one retained scalar/effect column in the original
 catalog artifact. Draws are decoded natively. Summary-only and coefficient-only
 priors refuse, as do incomplete or nonconverged posteriors. Weights, strength,
-conflict shrinkage and affine source-to-target maps are checked by the existing
+conflict shrinkage and affine source-to-target maps are checked by the
 adapter. A population change needs an explicit `transport_policy_id`. The mapped
 state's scientific quantity and population, prior identity and signal family are
 bound and checked again by ranking. Original observation identities are retained;
@@ -559,10 +559,10 @@ in the original adaptation request.
 allocated draws, transfer policy, observation checks and source digest. The adapter
 uses deterministic resampling of the original sampled posterior. Exact finite-law
 integration is exact conditional on that discrete prior, not an exact computation
-under an unknown continuous posterior. Calibration remains `not_measured`.
+under an unknown continuous posterior. Calibration is `not_measured`.
 
 Population, physical units, affine transfer and historical observation/lineage
-identities are explicit scientific declarations: legacy posterior artifacts do not
+identities are explicit scientific declarations: retained posterior artifacts do not
 carry enough information to independently authenticate those declarations. Catalog
 compatibility does not issue a new causal identification evidence. The ranking's
 source digests bind original artifact bytes and transfer declarations, and retained

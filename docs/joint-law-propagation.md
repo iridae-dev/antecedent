@@ -15,8 +15,8 @@ inputs goes through it.
 | mixture | known weights; the components need no joint law | `invalid_argument` (`mixture_weights_unknown`) |
 | transported interval, or its source-sampling, target-sampling and transport-functional pieces, composed with another claim | an aligned joint law or a supplied covariance; independence is never assumed for these pieces | `joint_law_required` (`transported_dependence_required`) |
 | functional of unpaired marginals | nothing, but the result is a labelled envelope | `uncertainty_representation_insufficient` if read as a point (`envelope_is_not_a_point`) |
-| interval of a composed quantity | a named construction and the declared evidence size, read through `check_composed_interval`; the interval is reported with its calibration status | `uncertainty_representation_insufficient` (`interval_route_closed`) when no construction is named |
-| posterior of any composed quantity | no construction supplies one | `uncertainty_representation_insufficient` (`posterior_route_closed`) |
+| interval of a composed quantity | a named construction and the declared evidence size, read through `check_composed_interval`; the interval is reported with its calibration status | `uncertainty_representation_insufficient` (`no_interval_construction`) when no construction is named |
+| posterior of any composed quantity | no construction supplies one | `uncertainty_representation_insufficient` (`no_posterior_for_fixed_law_inputs`) |
 
 Each refusal carries a registered reason code, a namespaced
 `joint_law_propagation.*` detail, the offending input and a remedy that names
@@ -89,7 +89,7 @@ dependence declaration, construction and the declared number of observations
 behind the least-supported input) and resolves it against the shipped coverage
 records. The caller supplies no record. The interval is reported with the
 resulting calibration status: `calibrated` when a current record matches,
-`not_measured` when none does.
+otherwise `outside_measured_scope`, `measured_below_nominal` or `not_measured`.
 
 The measured design (`joint_law_composed_interval_calibration.rs`): the whole
 method is the component estimators, their sampling covariance and the supported
@@ -99,7 +99,7 @@ shared evidence; the covariance is estimated from the same rows or draws.
 Linear operations on the linear-moments and aligned-joint-law routes only. A
 declaration of independence that is violated is undetectable and under-covers;
 it is a premise, not a check, and is not a record. Nonlinear operations,
-mixtures, envelopes and transported pieces have no record, so any such interval is `not_measured`.
+mixtures, envelopes and transported pieces are outside that design: no record matches them, so any such interval is `not_measured`.
 
 ## References
 

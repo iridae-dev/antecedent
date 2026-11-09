@@ -81,10 +81,8 @@ regression pin, not accuracy evidence. Each implementation is checked against an
 independent calculation on identical inputs (the same data, `lambda` grid,
 replicates and remeasurement noise), which establishes that the code computes
 the stated approximation, not that the approximation is unbiased. Their bias
-across repeated datasets is assessed in the scheduled measurement phase. Until
-that is measured the route stays approximate and uncalibrated: no coverage or
-accuracy claim is made, the standard error is uncalibrated, and no interval is
-produced.
+across repeated datasets is not established: the route is approximate, makes no
+coverage or accuracy claim, and its standard error is uncalibrated.
 
 Uncertainty: linear regression calibration keeps the delta method above.
 Logistic calibration and SIMEX (either link) bootstrap the whole procedure:
@@ -98,8 +96,9 @@ refuses before anything is allocated. More than a tenth of the replicates
 failing refuses. The variance is split into the measurement-parameter part
 (derivative in `sigma^2` by a central difference under common random numbers,
 times the variance of `sigma^2`) and the remaining sampling part. The standard
-error is uncalibrated, no interval is produced, and the result has no artifact
-layout (`export` refuses).
+error is uncalibrated; `interval(level)` reports the Wald interval of the
+corrected coefficient with calibration `not_measured`, and the result has no
+artifact layout (`export` refuses).
 
 ## Uncertainty
 
@@ -108,9 +107,9 @@ of the estimated measurement parameters (error variance, sensitivity and
 specificity, confusion columns, between-imputation variance). The record says
 whether parameter uncertainty was propagated, declared exact, or not
 representable (`ParameterUncertainty`). The standard error is an uncalibrated
-estimate: no interval is produced and an interval request is refused
-(`not_supported`) until the whole measurement-plus-estimation method has a
-measured coverage record.
+estimate. The estimate's `interval(level)` is the Wald interval built from it,
+reported with calibration `not_measured`; a route that derives no standard
+error refuses the interval (`route_not_supported`).
 
 ## Artifact
 
@@ -133,7 +132,8 @@ place), the binding, the declared structure, the operation the route enters
 and, for the posterior route, the exact attested or verified provider object.
 The data binding of the estimator is derived from the same fields. Estimation,
 export and consumption follow the sections above; the result carries the model
-identity, the `uncalibrated_standard_error` label and a closed interval.
+identity, the `uncalibrated_standard_error` label and a Wald interval annotated
+`not_measured`.
 
 What `refresh` does, per route:
 
@@ -169,8 +169,8 @@ check. `PreparedMeasurementModel` offers `estimate`, `estimate_continuous`
 `with_validation_parameters` and `check_operation`; each returns a new object
 and a refusal leaves the prepared object untouched. `MeasurementEstimate`
 carries the point, the naive point, the uncalibrated standard error and the
-variance parts, exports with `export`, and `interval()` raises
-`not_supported`. `consume_measurement_model_artifact` recomputes the stored
+variance parts, exports with `export`, and `interval(level)` returns the Wald
+interval with its calibration slot (`not_measured`). `consume_measurement_model_artifact` recomputes the stored
 numbers against the retained model identity. A posterior provider is stated
 with `ProviderObject` (an attestation, or a verification receipt the library
 issued); a claim of native trust is refused by name. Refusals are

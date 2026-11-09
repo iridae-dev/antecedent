@@ -15,7 +15,7 @@ Overlap that is not declared stays unknown; independence is never assumed.
 | Combinations | statistical pooling, Bayesian borrowing, causal transport, evidence reuse, repeated observation use (five distinct operations) | an operation does not imply another |
 | Transport | a transported claim carries its source populations, selection-diagram digest and assumptions | counting one source as native target data and as transported |
 | Revision | add, update, replace, withdraw, supersede, revalidate-downstream, each with an identity and a downstream classification | using a withdrawn or superseded source, citing a stale result |
-| Uncertainty | point values; an assumption range for unknown dependence; a pooled-mean interval for a measured construction | a posterior, or an interval without a currently attesting coverage record |
+| Uncertainty | point values; an assumption range for unknown dependence; a 95% pooled-mean interval reported with its calibration status | a posterior, or an interval for a result that has no interval construction (a borrowing posterior, a dependence range) |
 
 ## Mass accounting
 
@@ -82,30 +82,32 @@ source are refused before any number; the numbers are then computed and the stag
 both succeed. `revise_source` applies add, update, replace, supersede and
 withdraw and returns the downstream classification. `synthesis` refuses a
 result that is no longer valid, so stale numbers are never served, and
-`pooled_interval` reports a 95% interval only when a current attesting record
-covers its exact construction and scope. Fixed-effect Wald and HKSJ
-intervals retain separate keys. Current HKSJ publication is restricted to the
-baseline-family measured counts 20, 25 and 30; a passing strong-heterogeneity
-five- or fifteen-study record cannot support an unknown study family.
+`pooled_interval` reports a 95% interval with its calibration status, which is
+`calibrated` only when a current record covers its exact construction and scope.
+Fixed-effect Wald and HKSJ intervals have separate calibration keys. An HKSJ
+interval at a study count other than 20, 25 or 30 is annotated `not_measured`: a
+strong-heterogeneity five- or fifteen-study record cannot attest an unknown study family.
 
 For independent Gaussian study estimates sharing one marginal mean, use the
 equal-study Gaussian workflow: Rust `pool_gaussian_studies(...)`, followed by
 `pooled_interval(result)`. In Python, select
 `random_effects(..., method="equal_study_gaussian")`, then
-`pooled_interval(outcome.result)`. Study variances may be unequal and unknown;
+`ledger.pooled_interval(outcome.value.result)`. Study variances may be unequal and unknown;
 independent Gaussian random effects satisfy the common marginal mean model.
 Unequal fixed means and dependent study sources do not. Equal study weights,
 empirical study-level variance and a Student reference form the distinct
-`independent_gaussian_study_t` construction. Its twelve records cover the
-original declared moderate-heterogeneity designs at 5/10/15/20/25/30 studies and
-homogeneous/strong designs at 5/15/30, at the recorded per-study sizes 75/100/200.
-They do not relabel HKSJ records or change the DL/REML numerical recipes.
+`independent_gaussian_study_t` construction. Its coverage design spans
+moderate-heterogeneity designs at 5/10/15/20/25/30 studies and
+homogeneous and strong-heterogeneity designs at 5/15/30, at per-study sizes 75/100/200.
+Its records are separate from the HKSJ records and do not touch the DL/REML numerical recipes.
 
 Calling DL/REML `random_effects` without the Gaussian option selects the DL/REML
 construction; there is no automatic fallback between constructions.
-Fewer than 5 or more than 30 studies, a result with no numbers, a borrowing posterior,
-an assumption range, or a construction without a current matching record
-refuses `not_supported`.
+A result with no numbers refuses; a borrowing posterior or an assumption range has no
+interval construction and refuses `route_not_supported`
+(`evidence_ledger.interval_construction_unavailable`). Fewer than 5 or more than 30 studies,
+or a construction without a current matching record, still reports the interval, annotated
+`not_measured` or `outside_measured_scope`.
 
 
 `refresh` with added or retired evidence:
@@ -139,8 +141,9 @@ that does not replay, including a consistently resealed edit.
 `refresh` (returns a new session and leaves this one untouched) and `export`.
 A refused request raises `EvidenceLedgerRefusal` with its registered
 `reason_code` and `evidence_ledger.*` `detail`, and leaves the session as it
-was; `pooled_interval` returns the measured interval and its coverage record,
-or raises `not_supported` when no record governs the construction.
+was; `pooled_interval` returns the interval with its calibration slot (naming
+the coverage record when one attests), and raises `EvidenceLedgerRefusal` for a
+result with no interval construction.
 `consume_evidence_ledger_artifact` replays the operations, recomputes the
 syntheses and refuses another retained identity.
 
@@ -149,10 +152,16 @@ syntheses and refuses another retained identity.
 `ledger.export(...)` returns a typed `ExportedArtifact`: `bytes(artifact)` are the container,
 `.expectation` the identity to retain, and carried/not-carried export receipts sit in immutable
 `.metadata`; no summary silently becomes a replayable synthesis.
-`ant.load(bytes(artifact), expected=artifact.expectation)` uses the existing ledger replay
+`ant.load(bytes(artifact), expected=artifact.expectation)` replays it through the ledger
 consumer. Retain the expectation separately from the container.
 
 A scalar `SynthesisOutcome` can use `outcome.as_mean_source(quantity=...)` for
 decision or inverse-query composition. Explicitly declare the pooled quantity's units,
 population and regime. Evidence and lineage remain attached; an assumption range without
 a point, or a pooled interval without support, cannot become a mean or a law.
+
+The ledger records which evidence a result used, not which methods produced it. Each
+analysis result that enters the ledger carries the provenance of its own route
+(`outcome.method_provenance`: the published sources and the documented deviations from
+them), and `antecedent.citations.bibliography(*results)` lists the sources of a whole
+study once. See [cite the methods behind a study](guides/citing-a-study.md).

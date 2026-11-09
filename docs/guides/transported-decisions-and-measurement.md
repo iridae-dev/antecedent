@@ -1,6 +1,6 @@
 # Transport into decisions and measurement models
 
-You can carry something already learned in one population, such as a fitted effect model, a measurement model's error rates, a policy, an adaptive trial or a provider's output, into a declared target population and use it in a decision. Each route states the premise it stands on, inspects no target outcomes and returns a point with that premise attached. None produces an interval.
+You can carry something already learned in one population, such as a fitted effect model, a measurement model's error rates, a policy, an adaptive trial or a provider's output, into a declared target population and use it in a decision. Each route states the premise it stands on, inspects no target outcomes and returns its value with that premise attached. The measurement routes also report the parameter uncertainty they propagate, with calibration `not_measured`; the other routes are point-only.
 
 ## Run a small example
 
@@ -22,7 +22,7 @@ The sections below give the contracts for each route and the requests that are r
 | A policy and an earlier period | Period shift | `antecedent_design::temporal_policy_transport::evaluate_temporal_policy` | The same g-formula with a shifted initial state |
 | An external provider's output | Provider-sourced transport | `antecedent_contract::provider_transport::ProviderTransportSource::admit` | An admitted source and a portable handoff |
 
-A cohort effect is read in Python as a `cohort_decision` source and, under a declared covariate shift, becomes a transported response with `antecedent.transported_response.TransportedResponse.from_shifted_cohort`. It is decided on with `Contract.evaluate_transported` or read by an inverse query through `antecedent.inverse_sources.cohort_forward_source` (see [inverse queries and decisions](inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources)). The measurement route is reached through `antecedent.measurement_model`. Policy, adaptive-trial and period values reach a decision as transported responses through `antecedent.transported_constructors.{from_policy, from_adaptive_trial, from_period_shift}`, each with a re-deriving verifier (`verify_policy`, `verify_adaptive_trial`, `verify_period_shift`) that refuses a value which does not match. The typed constructors copy populations, identities, assumptions and the support label from the producing result; none is typed by the caller.
+A cohort effect is read in Python as a `cohort_decision` source and, under a declared covariate shift, becomes a transported response with `antecedent.transported_response.TransportedResponse.from_shifted_cohort`. It is decided on with `Contract.evaluate_transported` or read by an inverse query through `antecedent.inverse_sources.cohort_forward_source` (see [inverse queries and decisions](inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources)). The measurement routes are reached through `antecedent.measurement_models` (`transport_measurement_model`, `transport_pooled_differential`). Policy, adaptive-trial and period values reach a decision as transported responses through `antecedent.transported_constructors.{from_policy, from_adaptive_trial, from_period_shift}`, each with a re-deriving verifier (`verify_policy`, `verify_adaptive_trial`, `verify_period_shift`) that refuses a value which does not match. The typed constructors copy populations, identities, assumptions and the support label from the producing result; none is typed by the caller.
 
 ## Cohort effect under a selection premise
 
@@ -44,7 +44,7 @@ The result is the source model re-bound to the target, with a receipt binding th
 
 ### Pooled differential error
 
-When error rates differ by population and several populations hold their own validation samples, `transport_pooled_differential_prevalence` pools them instead of refusing (Python: `antecedent.measurement_models.transport_pooled_differential`). The logits of sensitivity and specificity are modelled as draws from a population distribution whose between-population variance `tau^2` is estimated (DerSimonian and Laird); invariance is the special case `tau^2 = 0`, so the premise's uncertainty is propagated rather than assumed away. The target's rates are the predictive law of that distribution, updated by the target's own validation sample when one exists. The Rogan-Gladen correction of the recorded prevalence is propagated by simulation. A draw with a non-positive Youden index is discarded and counted; more than five percent refuse (`differential_error_not_pooled`; next step: validate in the target). The interval is an uncalibrated simulation interval, for binary sensitivity and specificity only.
+When error rates differ by population and several populations hold their own validation samples, `transport_pooled_differential_prevalence` pools them instead of refusing (Python: `antecedent.measurement_models.transport_pooled_differential`). The logits of sensitivity and specificity are modelled as draws from a population distribution whose between-population variance `tau^2` is estimated (DerSimonian and Laird); invariance is the special case `tau^2 = 0`, so the premise's uncertainty is propagated rather than assumed away. The target's rates are the predictive law of that distribution, updated by the target's own validation sample when one exists. The Rogan-Gladen correction of the recorded prevalence is propagated by simulation. A draw with a non-positive Youden index is discarded and counted; more than five percent refuse (`differential_error_not_pooled`; next step: validate in the target). The interval is a simulation interval with calibration `not_measured`, for binary sensitivity and specificity only.
 
 ## Transported policy
 
@@ -99,7 +99,7 @@ Check the connection between a declared transported offer and a callback input, 
 | Provider output claimed as native target data; a handoff to a native-only consumer | none issued | Present it as a transported external claim; use a consumer that accepts transported claims |
 | A stored handoff consumed against another callback declaration | `provider_transport.identity_mismatch` | Consume it against the declaration it was sealed for |
 | Relabelled calibration, provenance or evidence in a stored artifact | none issued | Re-seal from the offer; the consumer re-derives it |
-| Interval, posterior or calibration from any route above | none issued | Use the point as labelled; an interval needs a measured record at the target |
+| A calibrated interval, posterior or calibration label from any route above | none issued | Use the value as labelled; calibration needs a coverage record measured at the target |
 
 ## Related
 
