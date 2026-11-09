@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
 from _repo import load_toml
@@ -38,6 +39,24 @@ BOOLEAN_REQUIREMENTS = (
     "requires_balanced_sequences",
     "requires_known_density",
 )
+
+
+
+def defining_file(source: Path, function: str) -> Path | None:
+    """The file defining `function` in the Rust module `source`: the file itself or a child
+    module file it declares (`mod tests;` in `x.rs` lives in `x/tests.rs`)."""
+    if not source.is_file():
+        return None
+    text = source.read_text(encoding="utf-8")
+    pattern = rf"\bfn\s+{function}\s*\("
+    if re.search(pattern, text):
+        return source
+    base = source.parent if source.name in ("lib.rs", "main.rs", "mod.rs") else source.with_suffix("")
+    for child in re.findall(r"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z_0-9]*)\s*;", text, re.M):
+        for candidate in (base / f"{child}.rs", base / child / "mod.rs"):
+            if candidate.is_file() and re.search(pattern, candidate.read_text(encoding="utf-8")):
+                return candidate
+    return None
 
 
 def load_rows() -> list[dict]:
@@ -84,10 +103,8 @@ def load_rows() -> list[dict]:
             path, sep, function = row[evidence].partition("::")
             if not sep or not re.fullmatch(r"[a-zA-Z_][a-zA-Z_0-9]*", function):
                 raise ValueError(f"{key}: invalid {evidence} citation")
-            source = ROOT / path
-            if not source.is_file() or not re.search(
-                rf"\bfn\s+{function}\s*\(", source.read_text(encoding="utf-8")
-            ):
+            source = defining_file(ROOT / path, function)
+            if source is None:
                 raise ValueError(f"{key}: missing {evidence} function")
             if evidence == "known_truth_test" and (
                 "95_normal_interval" in row["inference_claim"]
