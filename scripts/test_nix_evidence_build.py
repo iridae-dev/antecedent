@@ -45,7 +45,7 @@ class BuildOnlyTest(unittest.TestCase):
         commands = []
         def fake_run(argv, **kwargs):
             commands.append(argv)
-            return SimpleNamespace(stdout="/nix/store/output\n", stderr="")
+            return SimpleNamespace(returncode=0, stdout="/nix/store/output\n", stderr="")
         recorded = []
         with patch.object(build.subprocess, "run", side_effect=fake_run), \
              patch.object(build, "_reproducibility_key", return_value="key"), \
@@ -75,8 +75,15 @@ class BuildOnlyTest(unittest.TestCase):
         # Not requested: one build.
         self.assertEqual(len(commands), 1)
         with (
-            patch.object(build.subprocess, "run", return_value=SimpleNamespace(stdout="/nix/store/output", stderr="warning: ignoring untrusted setting")),
+            patch.object(build.subprocess, "run", return_value=SimpleNamespace(returncode=0, stdout="/nix/store/output", stderr="warning: ignoring untrusted setting")),
             self.assertRaisesRegex(ValueError, "untrusted"),
+        ):
+            build._build(Path("/repo"), "/nix/store/source", TOY)
+        # A failed build reports the derivation's log tail, not only its exit status.
+        failed = SimpleNamespace(returncode=1, stdout="", stderr="error: builder failed\nerror[E0425]: in crate toy")
+        with (
+            patch.object(build.subprocess, "run", return_value=failed),
+            self.assertRaisesRegex(RuntimeError, r"exit 1\):\n(.|\n)*E0425"),
         ):
             build._build(Path("/repo"), "/nix/store/source", TOY)
 

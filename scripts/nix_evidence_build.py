@@ -91,7 +91,12 @@ def _build(root: Path, source: str, build_targets: list[dict], deps_source: str 
     ]
 
     def build(argv: list[str]) -> str:
-        result = subprocess.run(argv, cwd=root, capture_output=True, text=True, check=True)
+        result = subprocess.run(argv, cwd=root, capture_output=True, text=True)
+        if result.returncode != 0:
+            # The derivation's log tail names the failing crate or check; without it a
+            # failed build reports only an exit status.
+            tail = "\n".join(result.stderr.strip().splitlines()[-60:])
+            raise RuntimeError(f"Nix build failed (exit {result.returncode}):\n{tail}")
         warnings = result.stderr.lower()
         if "ignoring untrusted" in warnings or "not a trusted user" in warnings:
             raise ValueError("Nix ignored an untrusted build setting")

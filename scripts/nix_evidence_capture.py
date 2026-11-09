@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -55,9 +56,14 @@ def diagnose_target(root: Path, rows: list[dict], run=subprocess.run) -> dict:
     return capture_built_target(root, rows, built, run)
 
 
-# Concurrent test processes per target: half the cores, leaving room for tests that
-# use threads internally and for the earning process itself.
+# Concurrent test processes across every target of a run: half the cores, leaving room
+# for tests that use threads internally and for the earning process itself. Targets are
+# captured concurrently, so the limit is one process-wide set of slots.
 CAPTURE_WORKERS = max(1, (os.cpu_count() or 2) // 2)
+_SLOTS = threading.BoundedSemaphore(CAPTURE_WORKERS)
+# Held while the checkout is read against its committed snapshot, and by a caller while
+# it writes and allows run outputs: a check never sees a written output not yet allowed.
+CHECKOUT_LOCK = threading.RLock()
 
 # The verified committed snapshot of each commit, materialized and imported once per
 # process: every target of one run is checked against the same commit.
@@ -66,6 +72,12 @@ _SNAPSHOTS: dict[tuple[str, str], tuple[tempfile.TemporaryDirectory, Path, str]]
 
 def _verified_snapshot(root: Path, source: dict, allowed_outputs: dict[str, str] | None) -> tuple[Path, str]:
     key = (str(root), source["commit"])
+    with CHECKOUT_LOCK:
+        return _snapshot_locked(root, source, allowed_outputs, key)
+
+
+def _snapshot_locked(root: Path, source: dict, allowed_outputs: dict[str, str] | None,
+                     key: tuple[str, str]) -> tuple[Path, str]:
     if key not in _SNAPSHOTS:
         directory = tempfile.TemporaryDirectory(prefix="antecedent-nix-capture-")
         snapshot = Path(directory.name) / "snapshot"
@@ -122,19 +134,25 @@ def capture_built_target(root: Path, rows: list[dict], built: dict, run=subproce
     snapshot, commit = _verified_snapshot(root, source, allowed_outputs)
     env = capture_env(root)
     binary = str(target_binary(artifact))
-    verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
-    recheck_artifact(root, artifact)
+    with CHECKOUT_LOCK:
+        verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
+        recheck_artifact(root, artifact)
     try:
-        # Rows of one target are independent single-threaded test processes: run them
-        # concurrently. The source and artifact are checked before and after the batch.
+        # Rows are independent test processes: run them concurrently, within the
+        # process-wide slots shared with other targets. The source and artifact are
+        # checked before and after the batch.
+        def one(info: dict) -> dict[str, set[int]] | None:
+            with _SLOTS:
+                return capture_one(root, binary, info, env, run, llvm_tools=tools)
+
         with ThreadPoolExecutor(max_workers=min(len(infos), CAPTURE_WORKERS)) as pool:
-            captured = list(pool.map(lambda info: capture_one(root, binary, info, env, run, llvm_tools=tools),
-                                     infos))
+            captured = list(pool.map(one, infos))
     finally:
         # Recheck even on a test or coverage failure; no result is returned if
         # the source or artifact changed while the batch ran.
-        recheck_artifact(root, artifact)
-        verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
+        with CHECKOUT_LOCK:
+            recheck_artifact(root, artifact)
+            verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
     for info, coverage in zip(infos, captured, strict=True):
         if coverage is None:
             if continue_on_failure:

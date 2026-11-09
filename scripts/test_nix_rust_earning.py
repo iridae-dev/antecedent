@@ -77,8 +77,9 @@ class NixRustEarning(unittest.TestCase):
             preflight.assert_called_once_with()
             # One derivation, built from a clean checkout before any record is written.
             self.assertEqual(seen, [([("a", "lib", ""), ("b", "lib", "")], {})])
-            self.assertEqual(marks, ["/nix/store/shared/targets/a/lib/lib/bin/test",
-                                     "/nix/store/shared/targets/b/lib/lib/bin/test"])
+            # Targets are captured concurrently and recorded as each completes.
+            self.assertEqual(sorted(marks), ["/nix/store/shared/targets/a/lib/lib/bin/test",
+                                             "/nix/store/shared/targets/b/lib/lib/bin/test"])
             self.assertEqual(record.call_args.kwargs["source_state"], ("head", False))
 
     def test_policy_failure_precedes_withdrawal_and_capture(self):

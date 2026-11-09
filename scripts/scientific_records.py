@@ -11,9 +11,9 @@ content-addressed dependency manifest it earned (`scripts/evidence_earning.py`).
 checks manifests with `scripts/evidence_manifests.py` only: no compiler, Cargo or test runs.
 A row without a manifest, or whose manifest no longer matches, is owed.
 
-`run` earns owed Rust assertions by building each test target once with coverage
-instrumentation and running each assertion exactly; owed Python assertions run in one pytest
-batch. A rerun withdraws the old pass first, so a failed or interrupted run never leaves a
+`run` earns owed Rust assertions: every owed test target is built once with coverage
+instrumentation in one Nix derivation, and each assertion then runs exactly, the assertions
+of all targets concurrently. Scientific assertions are Rust tests. A rerun withdraws the old pass first, so a failed or interrupted run never leaves a
 superseded pass standing. `--all` or ANTECEDENT_SCIENTIFIC_ALL=1 reruns everything.
 
 A recorded pass is evidence for support only. It is not a calibration measurement and no
@@ -386,10 +386,12 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
                   scientific_targets: list[tuple[str, str, str]] | None = None,
                   check_reproducible: bool = False) -> int:
     """Build every owed target in one audited Nix derivation, then capture and record each."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     from evidence_earning import Snapshot, binding, require_compile_environment, select_items
     from nix_artifact_identity import target_binary
     from nix_evidence_build import build_committed_targets
-    from nix_evidence_capture import capture_built_target
+    from nix_evidence_capture import CHECKOUT_LOCK, capture_built_target
     from nix_evidence_policy import validate_build
     from nix_evidence_source import _clean_head
 
@@ -439,6 +441,8 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
     builds = build_committed_targets(root, [cargo_target(c, t) for c, t in groups],
                                      deps_targets=scientific_targets, check_reproducible=check_reproducible,
                                      allowed_outputs=allowed)
+    ledger = "parity/scientific_records.toml"
+    prepared = []
     for (crate, target), todo in sorted(groups.items()):
         _clean_head(root, allowed)
         built = builds[cargo_target(crate, target)]
@@ -451,44 +455,55 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
         }
         _clean_head(root, allowed)
         withdraw_records(root, [info for _, info in todo])
-        ledger = "parity/scientific_records.toml"
         if (root / ledger).is_file():
             _remember_nix_output(root, allowed, ledger)
-        result = capture_built_target(root, [row for row, _ in todo], built, run,
-                                      continue_on_failure=True, allowed_outputs=allowed)
-        failed += len(result["failures"])
-        earned = []
-        for row, info in todo:
-            selector = info["selector"]
-            if selector not in result["coverage"]:
-                continue
-            _clean_head(root, allowed)
-            try:
-                snapshots[selector].mark_nix_executed(str(target_binary(built["artifact"])))
-                select_items(snapshots[selector], Path(built["artifact"]["output"]) / "compiler-inventory",
-                             result["coverage"][selector], source_root=Path(built["source"]["store_path"]))
-                ref = snapshots[selector].publish()
-            except RuntimeError as error:
-                print(f"FAIL: {selector}: {error}")
-                failed += 1
-                continue
-            manifest = f"parity/evidence_manifests/{ref}.json"
-            # The manifest, its input groups and item tables are this run's own outputs.
-            for output in snapshots[selector].outputs:
-                _remember_nix_output(root, allowed, output)
-            # Manifest filenames are content addresses, not merely paths to trust.
-            if allowed[manifest] != ref:
-                raise RuntimeError("published evidence manifest does not match its content address")
-            earned.append({**row, "selector": selector, "dependency_manifest": ref,
-                           "fingerprint": snapshots[selector].manifest["record"]["fingerprint"]})
-        source_commit, _ = _clean_head(root, allowed)
-        if source_commit != built["source"]["commit"]:
-            raise RuntimeError("checkout commit differs from Nix build source")
-        recorded += record_passes(root, earned, source_state=(source_commit, False))
-        if (root / ledger).is_file():
-            _remember_nix_output(root, allowed, ledger)
-        _clean_head(root, allowed)
-        print(f"  {crate} {' '.join(target)}: {len(earned)}/{len(todo)} earned", flush=True)
+        prepared.append((crate, target, todo, built, snapshots))
+    # Every target's tests run at once within the shared capture slots, so one slow
+    # assertion no longer holds back the targets after it. Results are recorded here as
+    # each target completes, under the lock the capture threads' checkout checks take.
+    with ThreadPoolExecutor(max_workers=len(prepared)) as pool:
+        futures = {
+            pool.submit(capture_built_target, root, [row for row, _ in todo], built, run,
+                        continue_on_failure=True, allowed_outputs=allowed): (crate, target, todo, built, snapshots)
+            for crate, target, todo, built, snapshots in prepared
+        }
+        for future in as_completed(futures):
+            crate, target, todo, built, snapshots = futures[future]
+            result = future.result()
+            with CHECKOUT_LOCK:
+                failed += len(result["failures"])
+                earned = []
+                for row, info in todo:
+                    selector = info["selector"]
+                    if selector not in result["coverage"]:
+                        continue
+                    _clean_head(root, allowed)
+                    try:
+                        snapshots[selector].mark_nix_executed(str(target_binary(built["artifact"])))
+                        select_items(snapshots[selector], Path(built["artifact"]["output"]) / "compiler-inventory",
+                                     result["coverage"][selector], source_root=Path(built["source"]["store_path"]))
+                        ref = snapshots[selector].publish()
+                    except RuntimeError as error:
+                        print(f"FAIL: {selector}: {error}")
+                        failed += 1
+                        continue
+                    manifest = f"parity/evidence_manifests/{ref}.json"
+                    # The manifest, its input groups and item tables are this run's own outputs.
+                    for output in snapshots[selector].outputs:
+                        _remember_nix_output(root, allowed, output)
+                    # Manifest filenames are content addresses, not merely paths to trust.
+                    if allowed[manifest] != ref:
+                        raise RuntimeError("published evidence manifest does not match its content address")
+                    earned.append({**row, "selector": selector, "dependency_manifest": ref,
+                                   "fingerprint": snapshots[selector].manifest["record"]["fingerprint"]})
+                source_commit, _ = _clean_head(root, allowed)
+                if source_commit != built["source"]["commit"]:
+                    raise RuntimeError("checkout commit differs from Nix build source")
+                recorded += record_passes(root, earned, source_state=(source_commit, False))
+                if (root / ledger).is_file():
+                    _remember_nix_output(root, allowed, ledger)
+                _clean_head(root, allowed)
+                print(f"  {crate} {' '.join(target)}: {len(earned)}/{len(todo)} earned", flush=True)
     print(f"scientific records: earned {recorded} Rust pass(es); {failed} failed")
     return failed
 
@@ -570,8 +585,8 @@ def main() -> int:
     run.add_argument("--all", action="store_true", help="rerun and re-record every assertion (manual)")
     run.add_argument("--rust-build-backend", choices=("cargo", "nix"), default="nix",
                      help="Rust build backend: nix (default) builds each target from committed HEAD under the "
-                          "audited sandbox policy and projects unexecuted bodies; cargo builds on the host "
-                          "and keeps complete source")
+                          "audited sandbox policy and binds each record to the items its assertion executed "
+                          "and depends on; cargo builds on the host and keeps complete source")
     run.add_argument("--check-reproducible", action="store_true",
                      help="also rebuild the Nix evidence derivation and require identical output, once per "
                           "recipe and lock")
