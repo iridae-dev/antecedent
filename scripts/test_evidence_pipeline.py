@@ -22,7 +22,7 @@ class PipelineTest(unittest.TestCase):
 
     def test_compile_time_data_requires_a_boundary_and_invalidates_the_pass(self):
         with tempfile.TemporaryDirectory(prefix='antecedent-compile-input-') as tmp:
-            root = Path(tmp)
+            root = Path(tmp).resolve()
             original = Path(__file__).resolve().parents[1]
             for crate in ('reader', 'toy'):
                 (root / f'crates/{crate}/src').mkdir(parents=True)
@@ -70,7 +70,7 @@ why="reader macro reads its consumer's input.txt"
 
     def test_capture_earn_and_check_with_pinned_compiler(self):
         with tempfile.TemporaryDirectory(prefix='antecedent-manifest-engineering-') as tmp:
-            root = Path(tmp)
+            root = Path(tmp).resolve()
             (root/'crates/toy/src').mkdir(parents=True)
             (root/'crates/toy/tests').mkdir()
             (root/'tools/evidence-analyzer').mkdir(parents=True)
@@ -89,6 +89,13 @@ why="reader macro reads its consumer's input.txt"
             (root/'crates/toy/data').mkdir()
             (root/'crates/toy/data/notes.txt').write_text('first\n', encoding="utf-8")
             (root/'crates/toy/tests/check.rs').write_text('#[test] fn check() { assert_eq!(toy::used(), 2); }\n', encoding="utf-8")
+            # Another test target includes an example by `#[path]`: scanned for every row of
+            # the crate, but never compiled into `check`.
+            (root/'examples').mkdir()
+            (root/'examples/sample.rs').write_text('pub fn sample() -> i32 { 1 }\n', encoding="utf-8")
+            (root/'crates/toy/tests/suite_01.rs').write_text(
+                '#[path = "../../../examples/sample.rs"]\nmod sample;\n#[test] fn other() { assert_eq!(sample::sample(), 1); }\n',
+                encoding="utf-8")
             subprocess.run(['cargo','generate-lockfile','--offline'],cwd=root,check=True,capture_output=True)
             row = dict(evidence_test='crates/toy/tests/check.rs',evidence_assertion='check',fixtures=[],roles=['scientific'])
             # Only the selection provider is replaced: compilation, instrumentation,
@@ -124,6 +131,10 @@ why="reader macro reads its consumer's input.txt"
             (root/'crates/toy/data/added.txt').write_text('new\n', encoding="utf-8")
             owed,current = sr.classify(root,[row])
             self.assertEqual((len(owed),len(current)),(0,1), manifest)
+            # An example compiled only into another test target is not this record's input.
+            (root/'examples/sample.rs').write_text('pub fn sample() -> i32 { 1 + 0 }\n', encoding="utf-8")
+            owed,current = sr.classify(root,[row])
+            self.assertEqual((len(owed),len(current)),(0,1))
             # A declaration of another source's dynamic reads is not this record's input.
             (root/'parity').mkdir(exist_ok=True)
             (root/'parity/fingerprint_inputs.toml').write_text(

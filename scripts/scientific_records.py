@@ -265,6 +265,8 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str
     (through the compiler inventory driver when `rustc-dev` is installed), run each assertion
     exactly, and publish its manifest. The ledger is written after every target, so an
     interrupted run keeps what it finished. Returns the number of failures."""
+    # One canonical root: scanned `#[path]` modules and data reads resolve through symlinks.
+    root = root.resolve()
     if backend == "nix":
         return earn_rust_nix(root, items, run, check_reproducible=check_reproducible)
     if backend != "cargo":
