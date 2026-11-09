@@ -573,15 +573,7 @@ def main(argv: list[str] | None = None) -> int:
     from evidence_fingerprint import coverage_row
     fp = status.tree_fingerprinter()
     fingerprints = status.identity_fingerprints(records, fp)
-    snapshots = {}
-    for planned in probes:
-        rec = planned.record
-        if planned.k is not None and fingerprints.get(rec['id']):
-            row = dict(record_id=rec['id'], calibration_sha=rec['calibration_sha'], sha=sha,
-                       fingerprint=fingerprints[rec['id']], k=planned.k,
-                       bound=RULE_OF_THREE/planned.k, result='pass')
-            row['measurement_digest'] = measurement_digest(rec)
-            snapshots[rec['id']] = Snapshot(ROOT, coverage_row(rec['test'], rec.get('dgp', '')), probe_binding(row), fp)
+    probed = {planned.record['id']: planned.record for planned in probes}
     print(f"== probing {len(probes)} record(s) at {sha} ({len(tasks)} gate job(s)) ==")
     results = run_tasks(tasks, len(groups), args.jobs, decision_json)
     if head_sha() != sha or worktree_dirty():
@@ -590,10 +582,23 @@ def main(argv: list[str] | None = None) -> int:
     import calibration_status as status
 
     rows, verdicts = judge(probes, tasks, results, sha, fingerprints)
+    # A passing probe is bound, like a measurement, to the Nix-built binary it ran and
+    # the items its runs executed (`publish_executed`).
+    from calibration_runner import record_runs, run_evidence
+    from evidence_earning import publish_executed
+    from scientific_records import _remember_nix_output
+    runs = record_runs(PROBE_LOG_DIR)
+    allowed: dict[str, str] = {}
     for row in rows:
         if row['result'] == 'pass':
-            row['measurement_digest'] = snapshots[row['record_id']].manifest['record']['measurement_digest']
-            row['dependency_manifest'] = snapshots[row['record_id']].publish()
+            rec = probed[row['record_id']]
+            row['measurement_digest'] = measurement_digest(rec)
+            built, coverage = run_evidence(ROOT, PROBE_LOG_DIR, runs.get(row['record_id'], set()))
+            snapshot = Snapshot(ROOT, coverage_row(rec['test'], rec.get('dgp', '')), probe_binding(row), fp,
+                                nix_build=built, allowed_outputs=allowed)
+            row['dependency_manifest'] = publish_executed(snapshot, built, coverage)
+            for output in snapshot.outputs:
+                _remember_nix_output(ROOT, allowed, output)
     existing = (
         load_toml(ATTESTATIONS).get("attestation", [])
         if ATTESTATIONS.is_file()
