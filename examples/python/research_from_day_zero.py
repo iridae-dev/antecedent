@@ -2,8 +2,10 @@
 """Plan an HCI study, select a follow-up and assemble an evidence-linked claim audit.
 
 Antecedent plans and analyzes randomized studies, checks identification obligations,
-and ranks studies. Application code freezes protocol snapshots, generates task data,
-and connects explicitly declared manuscript claims to those results.
+ranks studies, and names the provenance records behind every result: the published
+sources, the documented deviations from them, and each record's id and digest.
+Application code freezes protocol snapshots, generates task data, and connects
+explicitly declared manuscript claims to those results and their citations.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from statistics import NormalDist
 import antecedent as ant
 import numpy as np
 from antecedent import decision, design, repair
+from antecedent.citations import bibliography, capability_provenance
 from antecedent.design import planning
 from antecedent.evidence_ledger import EvidenceLedger, Lineage, SourceDeclaration
 from antecedent.experiment import (
@@ -46,6 +49,13 @@ TRUTH = {
 def snapshot(record):
     text = json.dumps(record, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+def methods_of(outcome):
+    """The provenance records behind one result's executed route: id and digest."""
+    provenance = outcome.method_provenance
+    assert provenance.records and not provenance.unlinked
+    return [{"record": record.id, "digest": record.digest} for record in provenance.records]
 
 
 def plan_study():
@@ -451,6 +461,7 @@ audit = [
         "evidence": pilot_source,
         "effect": pilot_fit.effect,
         "interval": pilot_fit.interval_95,
+        "methods": methods_of(pilot_outcome),
     },
     {
         "claim": "The factorial study estimates the effect of content separately from the pause",
@@ -458,6 +469,7 @@ audit = [
         "evidence": follow_source,
         "effect": follow_fit.effect,
         "interval": follow_fit.interval_95,
+        "methods": methods_of(follow_outcome),
     },
     {
         "claim": "Explanation content independently improved accuracy",
@@ -467,6 +479,7 @@ audit = [
         "evidence": follow_source,
         "effect": follow_fit.effect,
         "interval": follow_fit.interval_95,
+        "methods": methods_of(follow_outcome),
     },
     {
         "claim": "The benefit occurred because people inspected and understood the AI",
@@ -483,6 +496,7 @@ audit = [
         "evidence": pilot_source,
         "seconds_added": time_fit.effect,
         "interval": time_fit.interval_95,
+        "methods": methods_of(time_outcome),
     },
     {
         "claim": "There was no accuracy loss when AI advice was correct",
@@ -491,6 +505,7 @@ audit = [
         "effect": correct_fit.effect,
         "interval": correct_fit.interval_95,
         "reason": "The pointwise secondary interval includes losses; no noninferiority margin was declared",
+        "methods": methods_of(correct_outcome),
     },
     {
         "claim": "The results establish a benefit for all AI users",
@@ -509,6 +524,32 @@ assert (
     == "contradicted"
 )
 assert protocol_text == json.dumps(protocol, sort_keys=True) and protocol_id != amendment_id
+
+# %% [markdown]
+# ## Cite the methods behind each number
+#
+# Every result names the provenance records behind the route it executed. Each audit row
+# above already carries the record ids and digests of the result it rests on. One
+# bibliography covers the four randomized analyses and the value-of-information ranking
+# that chose the follow-up; a source several results share is listed once, with every
+# caveat its records document.
+
+# %%
+analyses = [pilot_outcome, time_outcome, correct_outcome, follow_outcome]
+# The ranking is a design capability rather than an analysis route; cite it by capability.
+references = bibliography(analyses, capability_provenance("design.evsi"))
+assert len(references) == len({citation.reference for citation in references})
+cited = {record for citation in references for record, _ in citation.records}
+for outcome in analyses:
+    assert {r.id for r in outcome.method_provenance.records if r.sources} <= cited
+methods = [
+    {
+        "reference": citation.reference,
+        "records": [{"record": record, "digest": digest} for record, digest in citation.records],
+        "caveats": [f"{caveat.text} ({caveat.record})" for caveat in citation.caveats],
+    }
+    for citation in references
+]
 
 # %% [markdown]
 # ## Replay the artifacts and assemble the report
@@ -587,6 +628,7 @@ print(
             },
             "claim_audit": audit,
             "supported_abstract": abstract,
+            "methods_and_citations": methods,
             "paper_evidence": record,
             "pilot_artifact_sha256": hashlib.sha256(bytes(artifact)).hexdigest(),
             "followup_artifact_sha256": hashlib.sha256(bytes(follow_artifact)).hexdigest(),
