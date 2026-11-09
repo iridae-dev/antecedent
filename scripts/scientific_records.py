@@ -237,6 +237,11 @@ def exact_test_name(root: Path, row: dict, info: dict) -> str:
     found = [m.start() for m in re.finditer(rf"\bfn\s+{re.escape(function)}\s*[<(]", masked.skeleton)]
     if len(found) != 1:
         raise SelectorError(f"{info['selector']}: {len(found)} functions named {function} in {row['evidence_test']}")
+    # The module path is where the file is declared, which a `#[path]` attribute can make
+    # differ from where it sits; the selector keeps the file-location form as its identity.
+    target = te.target_root(root / row["evidence_test"])
+    if target is not None:
+        prefix = te.module_path(root / row["evidence_test"], target[0]).rstrip(":")
     inner = [block.name for block in sorted(te.module_items(masked), key=lambda block: block.body[0])
              if block.body[0] < found[0] < block.body[1]]
     return "::".join([part for part in (prefix, *inner) if part] + [function])
