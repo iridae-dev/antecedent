@@ -291,6 +291,43 @@ fn native_joint_response_supplies_an_aligned_law_for_nonlinear_functionals() {
     assert!(close(probability.value, 0.5));
 }
 
+/// Functionals of the issued native aligned law against finite arithmetic over its rows.
+///
+/// Hand values. The two aligned draws are (2, 4) and (4, 6), each of weight 1/2. A single
+/// action with utility `dose1 * dose2` has per-draw utilities 8 and 24, so
+/// `E = 16`, `Var = ((8 - 16)^2 + (24 - 16)^2) / 2 = 64`, `P(u <= 16) = 1/2`, and the
+/// 0.75 quantile is the left inverse of the weighted CDF: `F(8) = 1/2 < 0.75`, so 24.
+/// The population covariance of the two coordinates is
+/// `((2 - 3)(4 - 5) + (4 - 3)(6 - 5)) / 2 = 1`.
+#[test]
+fn native_aligned_law_functionals_match_finite_arithmetic() {
+    let claim =
+        NativeResponseClaim::from_response(&joint_response(), &schema(), &context()).unwrap();
+    let mut contract = contract(DecisionCriterion::Quantile { p: 0.5 });
+    contract.actions = vec![DecisionAction {
+        id: "P".into(),
+        kind: ActionKind::Intervention,
+        inputs: vec![quantity("1"), quantity("2")],
+        utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1)),
+    }];
+    let requirement = contract.source_requirement().unwrap().unwrap();
+    let input = claim.into_decision_source(&requirement).unwrap();
+    let NativeDecisionSource::JointLaw(artifact) = &input.source else {
+        panic!("a quantile requirement is answered by an aligned joint law");
+    };
+    assert_eq!(artifact.draws(), &[2.0, 4.0, 4.0, 6.0][..]);
+    let value =
+        |functional| evaluate_functional(&contract, "P", functional, artifact).unwrap().value;
+    assert!(close(value(DecisionFunctional::Expectation), 16.0));
+    assert!(close(value(DecisionFunctional::Variance), 64.0));
+    assert!(close(
+        value(DecisionFunctional::Probability { threshold: 16.0, tail: Tail::Lower }),
+        0.5
+    ));
+    assert!(close(value(DecisionFunctional::Quantile { p: 0.75 }), 24.0));
+    assert!(close(artifact.covariance(0, 1).unwrap(), 1.0));
+}
+
 fn artifact_contract() -> DecisionContract {
     contract(DecisionCriterion::PosteriorExpectedUtility)
 }
