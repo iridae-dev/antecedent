@@ -824,12 +824,12 @@ mod tests {
 
     /// Under independent Gaussian noise, PC skeleton edge retention should track α.
     ///
-    /// Measured locally via `scripts/measure_calibration_groups.sh`. Loose band:
+    /// Measured locally via `scripts/measure_calibration.sh`. Loose band:
     /// with `N_SIM · C(p,2)` pair-trials the Monte Carlo SE near α=0.05 is small;
     /// we accept roughly ±4 SE plus a hard floor/ceiling for small budgets.
     /// Raised `N_SIM` (80) so total pair-trials ≈ 800 and MC SE(α) ≈ 0.0077.
     #[test]
-    #[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn pc_null_fpr_near_alpha() {
         const N_VARS: usize = 5;
         const N_OBS: usize = 400;

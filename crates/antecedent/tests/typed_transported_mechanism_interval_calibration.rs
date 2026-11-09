@@ -23,7 +23,7 @@
 //! `n_sim()` replicates, rechecked at 2000 near the edge. The interval conditions on the
 //! declared transport premises and on the two samples being independent.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -215,7 +215,7 @@ fn construction() -> Construction {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn typed_transported_poisson_mechanism_first_order_interval() {
     let n = grid_n(BASE_ROWS);
     let truth = (0.5 + 0.2 * AT_X + 0.25 * AT_X * AT_X).exp();

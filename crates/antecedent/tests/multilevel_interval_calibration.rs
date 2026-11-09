@@ -10,7 +10,7 @@
 //! publishes it only once a coverage record of this construction exists, so the design scores
 //! the candidate and the plain tests pin that the route keys the same construction.
 //!
-//! `multilevel_generalized_propensity_interval` is registered in `scripts/measure_calibration_groups.sh`
+//! `multilevel_generalized_propensity_interval` is registered in `parity/calibration_groups.toml`
 //! (`run_ml`) and its coverage is `not_measured`: the coverage record is the only missing piece.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

@@ -1,7 +1,7 @@
 //! Coverage of the registered surrogate z-transport percentile interval.
 //!
 //! The cited joint is `P(W)P(X)P(Y|X)` under `do(Z=0)`, with `P(Y=1|X=0)=0.2`.
-//! Ignored tests run via `scripts/measure_calibration_groups.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -157,7 +157,7 @@ fn construction() -> Construction {
 
 /// The 400-replicate band passes, but the project's 2000-replicate recheck does not
 /// (n=200 covered 0.932 against [0.935, 0.965]). The route therefore keeps
-/// `estimator_grid_not_measured` and this test stays out of `measure_calibration_groups.sh`.
+/// `estimator_grid_not_measured` and this test stays out of `measure_calibration.sh`.
 #[test]
 #[ignore = "coverage: the 2000-replicate recheck misses the nominal band"]
 fn surrogate_cited_margin_nominal_coverage() {

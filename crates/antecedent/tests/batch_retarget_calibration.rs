@@ -10,7 +10,7 @@
 //! one, "all four truths inside the band", recorded as the unit interval against 0.5
 //! (covered) or 2.0 (missed), the same way the response-curve simultaneous band is scored.
 //!
-//! `batch_retarget_max_t_simultaneous_band` is registered in `scripts/measure_calibration_groups.sh`
+//! `batch_retarget_max_t_simultaneous_band` is registered in `parity/calibration_groups.toml`
 //! (`run_br`, measured over the sample-size grid); its coverage is `not_measured`, so the
 //! published interval stays closed (`not_supported`) and no coverage record exists. The evaluator is `BatchRetargetReport::simultaneous_interval`.
 //!

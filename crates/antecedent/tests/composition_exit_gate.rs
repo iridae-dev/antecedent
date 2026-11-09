@@ -10,7 +10,7 @@
 //! refusal or incomplete side.
 //!
 //! Story 3 checks the public analytic interval. Its coverage is measured separately
-//! in `learned_continuous_calibration.rs` under `scripts/measure_calibration_groups.sh`.
+//! in `learned_continuous_calibration.rs` under `scripts/measure_calibration.sh`.
 //! `scripts/gate_composition_exit.sh` verifies the corresponding coverage records.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

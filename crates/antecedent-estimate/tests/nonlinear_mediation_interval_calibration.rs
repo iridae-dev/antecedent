@@ -29,7 +29,7 @@
 //! Assertion: `CoverageTally::assert`, the harness band around the nominal 0.95 for the first
 //! `n_sim()` replicates, rechecked at 2000 near the edge.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -164,7 +164,7 @@ fn execute(n: usize, seed: u64) -> Option<Scored> {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn nonlinear_mediation_natural_effects_percentile_bootstrap_interval() {
     let n = grid_n(BASE_ROWS);
     let truths = truth();

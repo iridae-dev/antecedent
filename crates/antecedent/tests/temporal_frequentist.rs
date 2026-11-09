@@ -11,7 +11,7 @@
 //! where the series is too short for the score's memory: the short-series
 //! warning must fire, and coverage is recorded.
 //!
-//! Ignored coverage tests run via `scripts/measure_calibration_groups.sh`. The
+//! Ignored coverage tests run via `scripts/measure_calibration.sh`. The
 //! non-ignored tests pin that the circular-block path is the one taken and the
 //! short-series threshold of each one-series family on fixed series.
 //!
@@ -577,7 +577,7 @@ fn confounded_mediation_coverage(test: &'static str) -> Coverage {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage() {
     let coverage = confounded_mediation_coverage(
         "temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage",
@@ -591,7 +591,7 @@ fn temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage() {
 macro_rules! effect_gate {
     ($name:ident, $scenario:expr, $what:expr, $query:expr, $truth:expr, $offset:expr) => {
         #[test]
-        #[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration.sh"]
         fn $name() {
             gate(&effect_coverage(stringify!($name), $scenario, $what, &$query, $truth, $offset));
         }
@@ -601,7 +601,7 @@ macro_rules! effect_gate {
 macro_rules! effect_boundary_gate {
     ($name:ident, $scenario:expr, $what:expr, $query:expr, $truth:expr, $offset:expr, $measured:expr) => {
         #[test]
-        #[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration.sh"]
         fn $name() {
             boundary_gate(
                 &effect_coverage(stringify!($name), $scenario, $what, &$query, $truth, $offset),
@@ -614,7 +614,7 @@ macro_rules! effect_boundary_gate {
 macro_rules! mediation_gate {
     ($name:ident, $scenario:expr $(, $measured:expr)?) => {
         #[test]
-        #[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+        #[ignore = "calibration: run via scripts/measure_calibration.sh"]
         fn $name() {
             mediation_gate!(@run stringify!($name), $scenario $(, $measured)?);
         }
@@ -636,7 +636,7 @@ effect_gate!(
     0
 );
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_pulse_ar05_n160_nominal_90_coverage() {
     gate_at(
         &effect_coverage(
@@ -818,7 +818,7 @@ fn sequential_coverage(test: &'static str, label: &str, rho: f64, n: usize, seed
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage() {
     gate(&sequential_coverage(
         "temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage",
@@ -830,7 +830,7 @@ fn temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage() {
     gate(&sequential_coverage(
         "temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage",
@@ -850,7 +850,7 @@ fn temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage() {
 // recorded.
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary() {
     boundary(&headline_coverage(
         "temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary",
@@ -866,7 +866,7 @@ fn temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary() {
     const SEED: u64 = 810_000;
     boundary(&mediation_coverage_on(
@@ -880,7 +880,7 @@ fn temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary() {
     boundary(&headline_coverage(
         "temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary",

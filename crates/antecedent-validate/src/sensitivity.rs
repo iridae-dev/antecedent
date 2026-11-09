@@ -2433,7 +2433,7 @@ mod scalable_cases {
     /// the time, is reported for at least 90% of samples, and is at most 1.5 times the
     /// treatment effect (0.5) wide at the median.
     #[test]
-    #[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+    #[ignore = "calibration: run via scripts/measure_calibration.sh"]
     fn scalable_sensitivity_replacement_validated_separately() {
         let record = |id: &str| {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

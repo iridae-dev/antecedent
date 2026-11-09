@@ -36,7 +36,7 @@
 //! probe outside the Gaussian-score assumption: it records coverage and checks
 //! that the assumption is stated, but does not gate on nominal coverage.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh`.
+//! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -485,7 +485,7 @@ fn ade_truth() -> f64 {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn ade_frequentist_gaussian_treatment_nominal_90_coverage() {
     scalar_coverage(
         "ade_frequentist_gaussian_treatment",
@@ -508,7 +508,7 @@ fn ade_frequentist_gaussian_treatment_nominal_90_coverage() {
 /// conservative-direction overcoverage of this posterior at the larger
 /// sample size, not band noise. Grid point 2 is a named boundary.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn ade_bayesian_gaussian_treatment_nominal_90_coverage() {
     scalar_coverage(
         "ade_bayesian_gaussian_treatment",
@@ -523,7 +523,7 @@ fn ade_bayesian_gaussian_treatment_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn ade_skewed_heteroskedastic_treatment_probe() {
     // Monte-Carlo truth E[2 cos A] under the skewed treatment law.
     let mut z = gaussian(0x5EED_ADE0);
@@ -554,7 +554,7 @@ fn ade_skewed_heteroskedastic_treatment_probe() {
 // --- Point derivative and its scales -----------------------------------------
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn point_derivative_frequentist_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_frequentist_curvature",
@@ -569,7 +569,7 @@ fn point_derivative_frequentist_curvature_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn point_derivative_bayesian_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_bayesian_curvature",
@@ -594,7 +594,7 @@ fn second_order_query() -> F {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn point_derivative_order_2_frequentist_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_order_2_frequentist_curvature",
@@ -617,7 +617,7 @@ fn point_derivative_order_2_frequentist_curvature_nominal_90_coverage() {
 /// no excess kurtosis. The Frequentist order-2 interval on the same DGP is
 /// nominal.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn point_derivative_order_2_bayesian_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_order_2_bayesian_curvature",
@@ -632,7 +632,7 @@ fn point_derivative_order_2_bayesian_curvature_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn semi_elasticity_log_treatment_frequentist_nominal_90_coverage() {
     scalar_coverage(
         "semi_elasticity_log_treatment_frequentist",
@@ -647,7 +647,7 @@ fn semi_elasticity_log_treatment_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn semi_elasticity_log_treatment_bayesian_nominal_90_coverage() {
     scalar_coverage(
         "semi_elasticity_log_treatment_bayesian",
@@ -662,7 +662,7 @@ fn semi_elasticity_log_treatment_bayesian_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn semi_elasticity_log_outcome_bayesian_nominal_90_coverage() {
     scalar_coverage(
         "semi_elasticity_log_outcome_bayesian",
@@ -677,7 +677,7 @@ fn semi_elasticity_log_outcome_bayesian_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn elasticity_bayesian_nominal_90_coverage() {
     scalar_coverage(
         "elasticity_bayesian",
@@ -790,14 +790,14 @@ fn elasticity_frequentist_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn elasticity_dag_frequentist_nominal_90_coverage() {
     elasticity_frequentist_coverage("elasticity_dag_frequentist_nominal_90_coverage", false, LEVEL)
         .assert();
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn elasticity_dag_accepted_frequentist_nominal_90_coverage() {
     elasticity_frequentist_coverage(
         "elasticity_dag_accepted_frequentist_nominal_90_coverage",
@@ -808,14 +808,14 @@ fn elasticity_dag_accepted_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn elasticity_dag_frequentist_nominal_95_coverage() {
     elasticity_frequentist_coverage("elasticity_dag_frequentist_nominal_95_coverage", false, 0.95)
         .assert();
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn elasticity_dag_accepted_frequentist_nominal_95_coverage() {
     elasticity_frequentist_coverage(
         "elasticity_dag_accepted_frequentist_nominal_95_coverage",
@@ -1007,7 +1007,7 @@ fn assert_all_boundary(tallies: &[CoverageTally], measured: &[[f64; GRID_POINTS]
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_jacobian_bayesian_boundary_within_band() {
     let tallies = gam_coverage(
         "response_jacobian_bayesian_boundary_within_band",
@@ -1035,7 +1035,7 @@ fn assert_all_nominal(tallies: &[CoverageTally]) {
 /// 0.893 / 0.890 at 2000 replicates (0.880 / 0.878 before the exchangeable-rank
 /// quantiles and the degrees-of-freedom inflation, see `JACOBIAN_MEASURED`).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn directional_derivative_bayesian_nominal_90_coverage() {
     let tallies = gam_coverage(
         "directional_derivative_bayesian_nominal_90_coverage",
@@ -1161,7 +1161,7 @@ fn gam_frequentist_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn response_jacobian_dag_frequentist_nominal_90_coverage() {
     let tallies = gam_frequentist_coverage(
         "response_jacobian_dag_frequentist_nominal_90_coverage",
@@ -1174,7 +1174,7 @@ fn response_jacobian_dag_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn directional_derivative_dag_frequentist_nominal_90_coverage() {
     let tallies = gam_frequentist_coverage(
         "directional_derivative_dag_frequentist_nominal_90_coverage",

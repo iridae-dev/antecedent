@@ -1123,7 +1123,7 @@ impl CoverageGate {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_pulse_conjugate_nominal_90_coverage() {
     use crate::temporal_adjustment::TemporalLinearAdjustment;
     use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
@@ -1182,7 +1182,7 @@ fn bayesian_pulse_conjugate_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_sustained_single_step_conjugate_nominal_90_coverage() {
     use crate::temporal_adjustment::TemporalLinearAdjustment;
     use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
@@ -1240,7 +1240,7 @@ fn bayesian_sustained_single_step_conjugate_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_sustained_multi_step_conjugate_nominal_90_coverage() {
     use crate::temporal_sequential::estimate_sustained_window;
     use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
@@ -1372,7 +1372,7 @@ fn unit_effect_lag1_panel(n_units: usize, t_len: usize, seed: u64) -> antecedent
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn bayesian_panel_hierarchical_nominal_90_coverage() {
     use crate::temporal_adjustment::TemporalLinearAdjustment;
     use antecedent_core::{TemporalEffectQuery, TemporalPolicy};

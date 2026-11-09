@@ -646,11 +646,11 @@ def reachability_cases() -> list[bool]:
             "orphan_calibration_test",
             {
                 "crates/antecedent/tests/mixture_interval_calibration.rs": append(
-                    '\n#[test]\n#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]\n'
+                    '\n#[test]\n#[ignore = "calibration: run via scripts/measure_calibration.sh"]\n'
                     "fn orphan_cell_nominal_90_coverage() {}\n"
                 )
             },
-            ["`orphan_cell_nominal_90_coverage` claims to run via scripts/measure_calibration_groups.sh"],
+            ["`orphan_cell_nominal_90_coverage` claims to be a calibration measurement"],
         ),
         # An oracle block whose kind is outside the closed vocabulary.
         case(

@@ -23,7 +23,7 @@
 //! per node, coefficients of magnitude 0.5–1) and simulates the rows. A replicate the gate
 //! refuses is counted, not scored.
 //!
-//! Each test runs via `scripts/measure_calibration_groups.sh` and is `#[ignore]`d otherwise.
+//! Each test runs via `scripts/measure_calibration.sh` and is `#[ignore]`d otherwise.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -365,7 +365,7 @@ fn order_sampler_gated(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn structure_mcmc_marginals_match_the_exact_posterior_at_ten_variables() {
     assert_marginals_match_the_exact_posterior(
         "structure_mcmc",
@@ -376,7 +376,7 @@ fn structure_mcmc_marginals_match_the_exact_posterior_at_ten_variables() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn structure_mcmc_marginals_match_the_exact_posterior_at_twelve_variables() {
     assert_marginals_match_the_exact_posterior(
         "structure_mcmc",
@@ -387,19 +387,19 @@ fn structure_mcmc_marginals_match_the_exact_posterior_at_twelve_variables() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn order_mcmc_marginals_match_the_exact_posterior_at_ten_variables() {
     assert_marginals_match_the_exact_posterior("order_mcmc", 10, MAX_PARENTS, order_sampler_gated);
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn order_mcmc_marginals_match_the_exact_posterior_at_twelve_variables() {
     assert_marginals_match_the_exact_posterior("order_mcmc", 12, MAX_PARENTS, order_sampler_gated);
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn structure_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps() {
     for max_parents in OTHER_MAX_PARENTS {
         assert_marginals_match_the_exact_posterior(
@@ -412,7 +412,7 @@ fn structure_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps() {
     for max_parents in OTHER_MAX_PARENTS {
         assert_marginals_match_the_exact_posterior(

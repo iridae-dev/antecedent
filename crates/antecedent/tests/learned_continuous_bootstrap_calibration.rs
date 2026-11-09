@@ -23,7 +23,7 @@
 //! measured outcome: the percentile construction is the one the estimator ships, and a
 //! below-band result is recorded as a named boundary rather than adjusted.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -116,7 +116,7 @@ fn record(design: Design, test: &'static str, dgp_name: &'static str) {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn learned_trial_aipw_nested_cohort_joint_bootstrap_mean_contrast() {
     record(
         Design::NestedCohort,
@@ -126,7 +126,7 @@ fn learned_trial_aipw_nested_cohort_joint_bootstrap_mean_contrast() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn learned_trial_aipw_independent_samples_joint_bootstrap_mean_contrast() {
     record(
         Design::IndependentSamples,

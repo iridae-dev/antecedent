@@ -78,10 +78,10 @@ inputs = [
   "provenance/estimate.distance_matching.toml",
   "provenance/estimate.propensity_matching.toml",
   "crates/antecedent-estimate/tests/knn_matching_calibration.rs",
-  "scripts/measure_calibration_groups.sh",
+  "parity/calibration_groups.toml",
 ]
 env = []
-why = "repository_file(relative) reads the matching provenance records, the calibration design and the gate script"
+why = "repository_file(relative) reads the matching provenance records, the calibration design and the calibration group table"
 
 [[input]]
 source = "crates/antecedent-state/tests/particle_filter_oracle.rs"

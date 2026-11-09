@@ -20,7 +20,7 @@
 //! `n_sim()` replicates, rechecked at 2000 near the edge. The interval rests on asymptotic
 //! normality of the conditional score; no small-sample exactness is claimed.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -81,7 +81,7 @@ fn construction() -> Construction {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn matched_pairs_conditional_odds_ratio_wald_interval() {
     let n = grid_n(BASE_PAIRS);
     let truth = THETA.ln();

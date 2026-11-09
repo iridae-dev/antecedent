@@ -42,7 +42,7 @@
 //! 0.93 at the nominal 0.95 is asserted at every size. The other grid points are measured for
 //! their coverage.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build). The interval stays
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build). The interval stays
 //! labelled `not_measured` until this design has been measured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

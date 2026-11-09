@@ -9,7 +9,7 @@
 //! drops between-completion covariance or scores against one completion
 //! fails here.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh` (release build).
+//! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -268,7 +268,7 @@ fn run_ate_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn static_cpdag_ate_envelope_frequentist_nominal_90_coverage() {
     run_ate_coverage(
         "static_cpdag_ate_envelope_frequentist_nominal_90_coverage",
@@ -285,7 +285,7 @@ fn static_cpdag_ate_envelope_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn static_cpdag_ate_envelope_bayesian_nominal_90_coverage() {
     run_ate_coverage(
         "static_cpdag_ate_envelope_bayesian_nominal_90_coverage",
@@ -341,7 +341,7 @@ const PAG_TOTAL_SHIFT: f64 = 0.9 * KAPPA;
 const PAG_TRUTH: f64 = (4.0 * B + 2.0 * (B + PAG_TOTAL_SHIFT)) / 6.0;
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn static_pag_ate_envelope_frequentist_nominal_90_coverage() {
     run_ate_coverage(
         "static_pag_ate_envelope_frequentist_nominal_90_coverage",
@@ -369,7 +369,7 @@ fn static_pag_ate_envelope_frequentist_nominal_90_coverage() {
 /// `B + 0.9·KAPPA`, one unidentified completion excluded), with the analytic-SE
 /// interval (`bootstrap_replicates(0)`).
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_pag_frequentist_envelope_nominal_coverage() {
     run_ate_coverage(
         "average_effect_pag_frequentist_envelope_nominal_coverage",
@@ -389,7 +389,7 @@ fn average_effect_pag_frequentist_envelope_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn static_pag_ate_envelope_bayesian_nominal_90_coverage() {
     run_ate_coverage(
         "static_pag_ate_envelope_bayesian_nominal_90_coverage",
@@ -535,7 +535,7 @@ fn run_conditional_coverage(
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn conditional_effect_dag_frequentist_nominal_90_coverage() {
     run_conditional_coverage(
         "conditional_effect_dag_frequentist_nominal_90_coverage",
@@ -554,7 +554,7 @@ fn conditional_effect_dag_frequentist_nominal_90_coverage() {
 /// Small-subgroup regime: `P(x = 1) = 0.08` at `n = 300` (about 24 rows in the
 /// modifier stratum), so the interaction coefficient is poorly determined.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage() {
     run_conditional_coverage(
         "conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage",
@@ -571,7 +571,7 @@ fn conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn conditional_effect_dag_bayesian_nominal_90_coverage() {
     run_conditional_coverage(
         "conditional_effect_dag_bayesian_nominal_90_coverage",
@@ -594,7 +594,7 @@ fn conditional_effect_dag_bayesian_nominal_90_coverage() {
 const CONDITIONAL_CPDAG_TRUTH: f64 = B + G * 0.5 + 0.5 * KAPPA;
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn conditional_effect_cpdag_frequentist_nominal_90_coverage() {
     run_conditional_coverage(
         "conditional_effect_cpdag_frequentist_nominal_90_coverage",
@@ -611,7 +611,7 @@ fn conditional_effect_cpdag_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn conditional_effect_cpdag_bayesian_nominal_90_coverage() {
     run_conditional_coverage(
         "conditional_effect_cpdag_bayesian_nominal_90_coverage",
@@ -631,7 +631,7 @@ fn conditional_effect_cpdag_bayesian_nominal_90_coverage() {
 const CONDITIONAL_PAG_TRUTH: f64 = B + G * 0.5 + 2.0 * PAG_TOTAL_SHIFT / 6.0;
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn conditional_effect_pag_frequentist_nominal_90_coverage() {
     run_conditional_coverage(
         "conditional_effect_pag_frequentist_nominal_90_coverage",
@@ -648,7 +648,7 @@ fn conditional_effect_pag_frequentist_nominal_90_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn conditional_effect_pag_bayesian_nominal_90_coverage() {
     run_conditional_coverage(
         "conditional_effect_pag_bayesian_nominal_90_coverage",
@@ -800,7 +800,7 @@ fn agreeing_pag_data(n: usize, seed: u64, modifier: bool) -> TabularData {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_cpdag_graph_posterior_frequentist_nominal_coverage() {
     run_ate_coverage(
         "average_effect_cpdag_graph_posterior_frequentist_nominal_coverage",
@@ -817,7 +817,7 @@ fn average_effect_cpdag_graph_posterior_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_cpdag_graph_posterior_bayesian_nominal_coverage() {
     run_ate_coverage(
         "average_effect_cpdag_graph_posterior_bayesian_nominal_coverage",
@@ -834,7 +834,7 @@ fn average_effect_cpdag_graph_posterior_bayesian_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_pag_graph_posterior_frequentist_nominal_coverage() {
     run_ate_coverage(
         "average_effect_pag_graph_posterior_frequentist_nominal_coverage",
@@ -851,7 +851,7 @@ fn average_effect_pag_graph_posterior_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_pag_graph_posterior_bayesian_nominal_coverage() {
     run_ate_coverage(
         "average_effect_pag_graph_posterior_bayesian_nominal_coverage",
@@ -868,7 +868,7 @@ fn average_effect_pag_graph_posterior_bayesian_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn conditional_effect_cpdag_graph_posterior_frequentist_nominal_coverage() {
     run_conditional_coverage(
         "conditional_effect_cpdag_graph_posterior_frequentist_nominal_coverage",
@@ -887,7 +887,7 @@ fn conditional_effect_cpdag_graph_posterior_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn conditional_effect_cpdag_graph_posterior_bayesian_nominal_coverage() {
     run_conditional_coverage(
         "conditional_effect_cpdag_graph_posterior_bayesian_nominal_coverage",
@@ -906,7 +906,7 @@ fn conditional_effect_cpdag_graph_posterior_bayesian_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn conditional_effect_pag_graph_posterior_frequentist_nominal_coverage() {
     run_conditional_coverage(
         "conditional_effect_pag_graph_posterior_frequentist_nominal_coverage",
@@ -923,7 +923,7 @@ fn conditional_effect_pag_graph_posterior_frequentist_nominal_coverage() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn conditional_effect_pag_graph_posterior_bayesian_nominal_coverage() {
     run_conditional_coverage(
         "conditional_effect_pag_graph_posterior_bayesian_nominal_coverage",
@@ -967,7 +967,7 @@ fn codetermined_data(n: usize, seed: u64) -> TabularData {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn codetermined_aipw_closure_nominal_90_coverage() {
     let key =
         scalar_key("codetermined_aipw_closure_nominal_90_coverage", "codetermined_data", false);
@@ -1039,7 +1039,7 @@ fn unknown_data(n: usize, seed: u64) -> TabularData {
 /// length is therefore 1 by construction, and the summed band width is
 /// printed separately.
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn unknown_two_scenario_joint_band_nominal_95_coverage() {
     const TRUTH: [f64; 2] = [1.0, -1.0];
     // No record: the runtime keys this execution's interval as `none`; the

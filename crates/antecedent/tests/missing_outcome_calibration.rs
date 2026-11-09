@@ -6,7 +6,7 @@
 //! candidate construction `effect ± z_{0.975} · sqrt(variance)` from the estimator that
 //! backs each route, on 600 participants (the grid varies the size), at effect 0.3 with 15%
 //! of outcomes missing at random on the baseline. They are `#[ignore]`d measurement designs
-//! registered in `scripts/measure_calibration_groups.sh` (`run_mo`); the coverage record is the only
+//! registered in `parity/calibration_groups.toml`; the coverage record is the only
 //! missing piece. The fixed-seed truth checks of the same estimators are the unit tests of
 //! `crates/antecedent-estimate/src/randomized_missing.rs` and
 //! `crates/antecedent/tests/missing_data_routes.rs`.

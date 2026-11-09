@@ -9,7 +9,7 @@
 //! (shared Dirichlet row-weight) posterior — a genuine credible interval for that
 //! functional rather than a degenerate point.
 //!
-//! Ignored tests run via `scripts/measure_calibration_groups.sh`. The non-ignored test
+//! Ignored tests run via `scripts/measure_calibration.sh`. The non-ignored test
 //! checks the population truth end to end and does not emit a coverage record.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -222,7 +222,7 @@ fn empirical_reference_posterior_is_non_degenerate() {
 }
 
 #[test]
-#[ignore = "calibration: run via scripts/measure_calibration_groups.sh"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn anomaly_attribution_dag_bayesian_nominal_coverage() {
     let mut tallies = [
         keyed("anomaly_attribution_dag_bayesian_nominal_coverage", REPORTED_LEVEL),
