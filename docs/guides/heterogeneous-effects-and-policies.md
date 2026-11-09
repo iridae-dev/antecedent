@@ -91,7 +91,7 @@ The route evaluates a precomputed policy and does not train it. Identification r
 
 ## Conditional dose-response at chosen doses
 
-`policy.ConditionalDoseResponse`, through `analyze(data, query=...).continuous_dose_response`, estimates response levels at dose targets you specify within baseline groups you supply. The native estimator uses an Epanechnikov kernel, 0.75(1 - u²), centered at each target and inverse supplied density weights, then reports a Hajek local mean. You provide the continuous-dose density evaluated at each observed dose and declare whether it is known or externally estimated.
+`policy.ConditionalDoseResponse`, through `analyze(data, query=...).value.continuous_dose_response`, estimates response levels at dose targets you specify within baseline groups you supply. The native estimator uses an Epanechnikov kernel, 0.75(1 - u²), centered at each target and inverse supplied density weights, then reports a Hajek local mean. You provide the continuous-dose density evaluated at each observed dose and declare whether it is known or externally estimated.
 
 Each group and target result reports local row count, effective sample size, minimum local density, maximum normalized weight and descriptive local outcome spread. The route refuses targets without the configured minimum local rows and rejects non-positive densities. Bandwidth sets the local window. The route fits no outcome or density model.
 

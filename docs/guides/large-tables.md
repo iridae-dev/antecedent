@@ -24,7 +24,7 @@ also take the path itself (`"orders.parquet"`, a `pathlib.Path`, or a directory)
 whose extension is not `.parquet`, `.parq`, `.pq`, `.arrow`, `.feather`, `.ipc` or
 `.arrows`, and that is not a directory, is refused with `reason_code="invalid_argument"`.
 Arrow C streams (`__arrow_c_stream__` exporters such as PyArrow, Polars and DuckDB
-tables) are accepted as before.
+tables) are accepted too.
 
 The handle is a read-only mapping of column name to array. Indexing one name reads that
 column; `read(columns)` reads several in one pass. `from_parquet(path, columns=[...])`
@@ -134,8 +134,8 @@ changed value changes it. It is issued only after a complete first scan.
 
 ## What this does not change
 
-Reading a large table does not extend a route's calibrated range. Intervals are
-calibrated up to 100,000 rows for the measured constructions; larger tables run and
-report `outside_measured_scope` (see
+Reading a large table does not extend a route's calibrated range. An interval is
+`calibrated` only when its coverage record's measured range contains the row count;
+a larger table runs and its intervals report `outside_measured_scope` (see
 [what the routes do not do](../user-facing-limits.md#sample-size-series-length-and-the-measured-range)).
 Polars is not a backend; direct Arrow remains the preparation path.

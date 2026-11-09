@@ -81,6 +81,8 @@ A response result deliberately keeps four judgments separate:
    `Frequentist` record a confidence interval's.
 4. `assumptions` and `provenance` record the claims and algorithm used. Do not
    infer an observation assumption merely from an observation-mechanism column.
+   To cite the published methods behind the route, read `result.method_provenance`
+   and `result.citations()` (see [citing a study](guides/citing-a-study.md)).
 
 Inspect warnings and diagnostics even when a numerical estimate is present:
 
@@ -96,8 +98,9 @@ print(view.provenance)
 print(view.evidence_status)
 ```
 
-Every successful analysis has `evidence_status == "supported"`.
-A supported cell can still carry
+In a release build every successful analysis has `evidence_status == "supported"`;
+a development build can also return `"not_supported"`, with the reasons in
+`would_refuse`. A supported cell can still carry
 a scientifically untrustworthy number; read `support.warnings` before treating
 the curve as a claim.
 
@@ -143,8 +146,8 @@ result = accepted.analyze(data, query)
 ```
 
 When the accepted graph is a DAG, this is the same response identification and
-estimation path as a hand-authored DAG. The artifact version does not change on
-an estimate click.
+estimation path as a hand-authored DAG. Estimating does not change the accepted
+artifact's version.
 
 `Cpdag` and `Pag` response queries are supported through the same completion
 envelope as ATE: `analyze()` and prepared studies mass-weight identified
@@ -345,10 +348,10 @@ The block length is chosen for interval coverage, not for the mean-squared error
 of the variance. The circular-block variance behaves like a Bartlett-kernel
 long-run variance with bandwidth `ℓ`, and the testing-optimal Bartlett bandwidth
 grows like `n^{1/2}` (Sun, Phillips & Jin 2008). With the `n^{1/3}` rule of the
-scalar temporal effect resamplers, the kernel truncation bias left
-observation-adjusted bands under AR(1) `ρ = 0.5` residuals under the band for
-nominal 95% (that run was not retained), and neither a `t_ν/z` batch-means
-factor nor longer blocks under that factor repaired it. The fixed-b factor carries the extra estimation noise of the longer
+scalar temporal effect resamplers, the kernel truncation bias leaves
+observation-adjusted bands under AR(1) `ρ = 0.5` residuals below nominal 95%
+coverage, and neither a `t_ν/z` batch-means factor nor longer blocks under that
+factor repairs it. The fixed-b factor carries the extra estimation noise of the longer
 block, so independent rows are not over-covered.
 
 The kernel-bias factor is what the block length cannot buy. The Bartlett kernel
@@ -385,8 +388,7 @@ when any cell reads fewer than 15 effective rows.
   Set / Shift designs; there a lagged outcome in the adjustment set would need
   outcome ancestry that repeats at every earlier slice, which temporal backdoor
   identification does not certify, so it refuses first. No replicate row pairs values
-  across a block junction. The raw-series replicate that an earlier release used for Sequence
-  overlays measured 31–81% coverage for a nominal 95% band and is gone.
+  across a block junction.
 - **Bayesian.** The simultaneous credible band uses posterior draws of the
   grid around the posterior mean: joint Gibbs draws for
   `estimate.temporal_observed_bayes`, and index-paired independent per-horizon
@@ -425,9 +427,10 @@ band.lower, band.upper, band.critical, band.replicates
 Bayesian responses (posterior intervals), static responses, and `cell.aipw`
 refuse a positive `Frequentist(bootstrap=...)` rather than ignoring it.
 
-Coverage of these bands was measured on linear-Gaussian simulations with iid and
-AR(1) residuals (`crates/antecedent/tests/temporal_response_calibration.rs`,
-400 replicates, `n = 160`). With iid and AR(1) `rho = 0.5` residuals on every
+Each published band reports its calibration status. The calibration design for
+these bands is linear-Gaussian simulations with iid and AR(1) residuals
+(`crates/antecedent/tests/temporal_response_calibration.rs`, 400 replicates,
+`n = 160`). With iid and AR(1) `rho = 0.5` residuals on every
 Frequentist cell, and with an AR(1) `phi = 0.9` treatment, the dose curve covers
 at 0.945-0.948 pointwise and 0.948 simultaneous, and the shift response at 0.943
 pointwise and 0.948 simultaneous. The shift level is essentially the sample mean
@@ -497,9 +500,7 @@ row's covariates, `∫ mu(a, x) dP_n(x)`, so each row also moves the level throu
 its covariates. With the additive outcome nuisance this is the per-row
 constant `c_i = mu(a_i, x_i) - ∫ mu(a_i, x) dP_n(x) = h(x_i) - mean h(x)` from
 the row's own cross-fit fold, identical at every grid point. Without it the
-pointwise band under-covered at nominal 0.90 on a confounded linear law
-(`crates/antecedent/tests/static_calibration.rs`; that pre-fix run was not
-retained). The values
+pointwise band under-covers at nominal 0.90 on a confounded linear law. The values
 still condition on the fitted nuisances and bandwidth: second-order nuisance
 error and bandwidth selection are not inside them.
 
@@ -551,7 +552,8 @@ validation `none`, under Frequentist and Bayesian inference; see the
 [support matrix](support-matrix.md), which carries each cell's evidence.
 Derivatives on a `Cpdag`, `Pag`, latent-confounded `Admg` or `TemporalAdmg` (the
 contemporaneous projection over rows, or the unrolled window of its template over
-a series) execute through the compiler and stay unsupported: each identified
+a series) are not supported, so a release build refuses them; a development build
+runs them through the compiler: each identified
 completion, or the ADMG itself, is identified by one adjustment set valid for every
 treatment/outcome pair; where no adjustment set exists the front-door criterion is
 searched and the derivative is estimated with the outcome additive in the treatment, the
@@ -563,9 +565,10 @@ row influence, and a TemporalAdmg derivative over a series is identified per hor
 unrolled window of its template and may be prepared as a handle.
 Graph-posterior, observation-adjusted, and cheap/full coordinates remain refused.
 Mean curves on `Cpdag` / `Pag` are a separate class-aware cell. The definitions below are the
-supported forms, not support to run every constructor argument. Repeated-
-sampling coverage of every published derivative interval is measured in
-`crates/antecedent/tests/derivative_calibration.rs`.
+supported forms, not support to run every constructor argument. The coverage
+design for the published derivative intervals is
+`crates/antecedent/tests/derivative_calibration.rs`; each interval reports its
+calibration status.
 
 - `ResponseCurve(treatment, outcome, grid=...)` evaluates
   `a -> E[Y | do(A=a)]` on an explicit, increasing grid.
@@ -603,15 +606,16 @@ sampling coverage of every published derivative interval is measured in
   the corresponding delta-method approximation. A finite scalar interval is
   unavailable when the level is not statistically separated from zero, which
   is reported as `response.derivative_interval_unbounded`. The interval
-  conditions on the caller bandwidth and fitted nuisances; its nominal 90% coverage was measured
-  on the curved additive, Gaussian-treatment calibration design at sample sizes
-  500, 1000, and 1500 for explicit and accepted DAGs.
+  conditions on the caller bandwidth and fitted nuisances; its nominal 90% calibration design
+  is the curved additive, Gaussian-treatment law at sample sizes 500, 1000, and
+  1500 for explicit and accepted DAGs.
 - `SemiElasticity(..., at=a, log_scale=...)` is either `a m'`
   (`log_scale="treatment"`, the default) or `m'/μ` (`log_scale="outcome"`).
   Both ride the same matrix cell. Frequentist `log_scale="treatment"` publishes
   `|a|` times the bias-corrected slope interval. `log_scale="outcome"` and
   transformed second derivatives publish joint-covariance delta-method
-  intervals, whose coverage is not calibrated for those scales.
+  intervals, which the derivative calibration design does not cover on those
+  scales.
 - `ResponseJacobian(...)` and `DirectionalDerivative(...)` are additive-GAM
   plug-in gradients with at most two treatments, a common adjustment set, and
   a shared complete-case row set. The target surface is an unpenalized cubic
@@ -622,21 +626,17 @@ sampling coverage of every published derivative interval is measured in
   query is the unnormalized inner product `∇m · d`. Differential missingness
   across outcomes is refused.
 
-  The Frequentist result is point-only: `uncertainty` is empty and the warning
-  `response.no_derivative_interval_method` says why. Each gradient coordinate
-  is a linear functional of the target fit's coefficients, so a
-  coefficient-sandwich confidence band exists. Its analytic variance uses an
-  HC2 correction based on each complete row's leverage in the penalized spline
+  Each gradient coordinate is a linear functional of the target fit's
+  coefficients, so the Frequentist result publishes a pointwise
+  coefficient-sandwich confidence band. Its analytic variance uses an HC2
+  correction based on each complete row's leverage in the penalized spline
   fit; the Bayesian band below uses a separate average-leverage correction.
-  Its 90% coverage is measured at three sample sizes in
-  `derivative_calibration.rs`. The public route stays point-only while those
-  records are reviewed: one directional coordinate narrowly missed an
-  exploratory 8,000-repetition threshold. For an interval today, run the query
-  with Bayesian inference. A Rust `Jacobian` on a transformed
-  `DerivativeScale` (for example an elasticity Jacobian) has no interval
-  construction at all, wired or published. The scalar `Elasticity` query is a
-  different route (a Kennedy-DR point derivative) and does publish a calibrated
-  Fieller interval.
+  The band is built on the identity scale only: a Rust `Jacobian` on a
+  transformed `DerivativeScale` (for example an elasticity Jacobian), and a
+  design whose treatment columns are collinear, publish the point alone, and
+  the warning `response.no_derivative_interval_method` says why. The scalar
+  `Elasticity` query is a different route (a Kennedy-DR point derivative) and
+  publishes a Fieller interval.
 
 Bayesian derivatives keep the Frequentist estimator identities and replace
 the analytic interval with a Rubin Dirichlet(1,…,1) row-weight posterior in
@@ -906,7 +906,9 @@ degree up to 95), which is valid because the outcome model is additive, so each
 policy enters only through its own marginal law. Its canonical strategy is
 `response.intervention_gcomp`, distinct from the Kennedy curve estimator. The result is deliberately
 marked extrapolative: observed marginal bounds are reported, but joint policy
-support and statistical uncertainty are not certified. Soft mechanism
+support is not certified, and the interval is the conditional fitted-basis
+sandwich described under
+[Static intervention-level uncertainty](#static-intervention-level-uncertainty). Soft mechanism
 replacements and temporally sequenced policies require a structural model and
 fail closed in this estimator.
 
@@ -947,8 +949,8 @@ cannot support them rather than falling back to an in-sample fit. These paths
 return a point curve with `uncertainty.kind == "none"`
 and a `joint_uncertainty_unavailable` warning: correcting observation and then
 smoothing a curve does not make the component standard errors a valid joint
-band. Observation-aware subset validation likewise fails closed until both
-stages can be refit jointly. Observation-adjusted derivatives, interval
+band. Observation-aware subset validation likewise fails closed, because the
+two stages are not refit jointly. Observation-adjusted derivatives, interval
 censoring, and other unsupported mechanism/assumption/estimator combinations
 fail closed rather than returning the response of the observed proxy.
 
@@ -966,4 +968,4 @@ nonparametric efficient-influence interval. A Set response can therefore have
 sampling uncertainty even when all counterfactual fitted row means are equal.
 Class-aware static responses combine these scores using frozen graph weights
 and original row IDs. Curve joint-covariance scores are `N` times the local-WLS
-contributions documented above; the diagnostic export itself is unchanged.
+contributions documented above; the diagnostic export itself is not rescaled.

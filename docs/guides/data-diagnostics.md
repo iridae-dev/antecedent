@@ -23,7 +23,7 @@ for finding in report.findings:
 `report.columns` contains typed column summaries; `report.checks` records evaluated,
 inapplicable, disabled and unavailable checks. Missing values and infinities count
 as non-finite. Undefined moments stay absent. The `blocking` severity is reserved
-for adapted existing preflight execution requirements, such as a rank-deficient
+for preflight execution requirements, such as a rank-deficient
 regression design. Collecting that finding never itself refuses preparation.
 
 Prepared inspection and `repr(study)` show bounded finding counts. Python emits
@@ -89,7 +89,7 @@ token for missing or non-finite cells, preserving typed integer and categorical
 equality. It covers all retained inspected columns; it
 does not establish that two records represent the same real-world observation.
 
-Existing preflight relationships run automatically only on complete designs with
+Preflight relationship checks run automatically only on complete designs with
 at most 4,096 rows and 64 adjustment-design columns. A wider or taller design is
 explicitly not evaluated; a sample rank is never passed off as full-table rank.
 Use `DataDiagnostics(max_sample_rows=None)` in an explicit call to request
@@ -119,7 +119,7 @@ The standalone Rust API is `antecedent::diagnose_data`; prepared Rust handles ex
 `StudyBuilder::data_diagnostics(Some(policy))` or disable it with `None`; batch
 builders expose the same setting.
 
-[Preflight diagnostics](preflight-diagnostics.md) retain their existing execution
+[Preflight diagnostics](preflight-diagnostics.md) keep their own execution
 requirements and relationship checks. [Staleness](staleness.md) compares snapshots
 under its own policy. Fitted diagnostics and scientific refuters remain explicit;
 this suite fits no model and runs neither of them.

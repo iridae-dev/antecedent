@@ -17,8 +17,8 @@ of check are kept in separate types so one is never read as the other.
 `prepared.preflight()` (Python) inspects the structure of the plan only; `diagnose` reads the data.
 
 For automatic bounded quality profiling and structured advisory findings, see
-[data quality diagnostics](data-diagnostics.md). The existing preflight calls below
-keep their signatures and execution-specific interpretation.
+[data quality diagnostics](data-diagnostics.md). The preflight calls below keep their own
+execution-specific interpretation.
 
 ## Fit-free preflight
 
@@ -75,8 +75,8 @@ iterations, nearest fitted-probability margin and the count of rows within `1e-8
 Every entry is absent (`None`, or an empty list) unless the failing step measured it; a fit
 that failed before it produced scores never has a propensity range reconstructed for it.
 
-Fields ride beside the refusal and never change it: every existing reason code, message and
-exception class is preserved (the tests pin the message strings). The rendered text of a
+Fields ride beside the refusal and never change it: the reason code, message and exception
+class stay those of the refusal (the tests pin the message strings). The rendered text of a
 refusal never includes the fields.
 
 Sites that populate the fields:
@@ -243,7 +243,7 @@ Outside a prepared plan:
 - `BatchScores::estimate_retarget_cost(request)` counts a batch retarget: **zero nuisance
   fits** (the retained scores are reweighted), the claims, the contrasts and the snapshot rows,
   `claims * rows` weighted score reads and `claims * (claims + 1) / 2 * rows` covariance
-  products. The unpublished max-t evaluator polls once per 1024 draws.
+  products. The max-t evaluator polls once per 1024 draws.
 - `estimate_joint_cell_cost(config, components, orderings, rows)` counts a factorized joint
   cell from `FactorizedJointConfig::planned_fits`: per fold the distinct prefix-stratum
   conditionals over every ordering (shared between orderings), `folds * strata` conditional
@@ -324,5 +324,5 @@ The synthetic tests in `crates/antecedent/tests/preflight_reproducers.rs` and `p
 - **Configured estimator in a batch.** `BatchStudy::estimator_spec` takes a configured
   estimator; combining it with an explicit `bootstrap_replicates` is refused when the study
   is built, with the setting named as the refusal's subject.
-- **Not reproduced here:** joint-cell instability and repeated-entity or dyad dependence
-  (no bounded public workload was added); those stay with their own cells.
+- **Not reproduced here:** joint-cell instability and repeated-entity or dyad dependence,
+  which have no bounded public workload; those stay with their own cells.

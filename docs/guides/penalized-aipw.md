@@ -1,7 +1,5 @@
 # Estimate with a penalized propensity (ridge or lasso AIPW)
 
-The previously documented evidence scope allowed at most {{bound:estimate.penalized_propensity_aipw.historical_evidence_max_grid}} penalty candidates and {{bound:estimate.penalized_propensity_aipw.historical_evidence_max_inner_folds}} inner folds; these figures do not imply that every configuration in that envelope has measured coverage. The constructor requires a nonempty grid of finite positive penalties and at least {{bound:estimate.penalized_propensity_aipw.runtime_min_inner_folds}} folds. It accepts at most 65,536 input penalties per declaration, counting duplicates before deduplication. This is a conservative 256 MiB configuration policy (4,096 bytes per entry), not a shared reservation or an execution-context admission; it does not charge downstream copies or concurrent declarations. The historical evidence scope is separate from this implementation cap. The fold plan separately limits folds by the training-row count and its {{bound:estimate.penalized_propensity_aipw.runtime_fold_index_capacity}}-value index representation. Calibrated intervals remain qualified by the exact recorded configuration.
-
 `Aipw(propensity_penalty=PropensityPenalty(...))` (Rust:
 `AipwAte::with_propensity_nuisance(PropensityNuisance::ridge_logistic(..))` or
 `::lasso_with(..)`) fits the binary propensity of the cross-fitted AIPW with an explicit
@@ -11,8 +9,9 @@ rescued fit is not an MLE). The route publishes the cross-fitted point estimate,
 table, and two interval constructions whose assumptions are stated below: the cross-fitted
 influence-function SE of the out-of-fold scores, and (with `bootstrap > 0`) a refit bootstrap
 that repeats penalty selection and every nuisance fit on each resample. A declared
-GLM-to-penalized fallback runs the same route when the plain GLM propensity fit fails. The claim is
-`calibrated` at the four measured ridge/lasso 95% analytic and refit-bootstrap coordinates (see "Calibration").
+GLM-to-penalized fallback runs the same route when the plain GLM propensity fit fails. Each
+interval reports its calibration status: `calibrated` only at a coordinate a ridge or lasso
+coverage record measures (see [Calibration](#calibration)).
 
 ```python
 from antecedent.estimators import Aipw, PropensityPenalty
@@ -35,10 +34,11 @@ result.value.estimate.penalized_support      # the covariates the lasso kept on 
 result.value.estimate.penalized_bootstrap    # per-replicate penalties, replicate accounting
 ```
 
-The shown grids match measured 95% coordinates. The analytic ridge record covers 300–1200
-rows; the lasso refit-bootstrap record covers 600–2400 rows with at least 40 bootstrap
-replicates. The default tuning grids are useful for estimation but do not match these
-coverage records.
+The shown grids are the configurations the 95% calibration design measures (see
+[Calibration](#calibration)). The default tuning grids are useful for estimation but are a
+different configuration, so their intervals report `outside_measured_scope`.
+
+The recorded evidence scope spans at most {{bound:estimate.penalized_propensity_aipw.historical_evidence_max_grid}} penalty candidates and {{bound:estimate.penalized_propensity_aipw.historical_evidence_max_inner_folds}} inner folds; these figures do not imply that every configuration in that envelope has measured coverage. The constructor requires a nonempty grid of finite positive penalties and at least {{bound:estimate.penalized_propensity_aipw.runtime_min_inner_folds}} folds. It accepts at most 65,536 input penalties per declaration, counting duplicates before deduplication. This is a conservative 256 MiB configuration policy (4,096 bytes per entry), not a shared reservation or an execution-context admission; it does not charge downstream copies or concurrent declarations. The recorded evidence scope is separate from this implementation cap. The fold plan separately limits folds by the training-row count and its {{bound:estimate.penalized_propensity_aipw.runtime_fold_index_capacity}}-value index representation. Calibrated intervals remain qualified by the exact recorded configuration.
 
 ## What is fixed
 
@@ -156,8 +156,8 @@ interval is conditional on it. Sufficient regimes, stated as assumptions:
 - The fold plan is stratified on the treatment arm, so the rows of one fold are not
   exchangeable with a simple random split; the argument above treats the plan as ancillary
   given the arms (the standard practical reading).
-- Any coverage statement: the calibration suite below measures coverage on designs where
-  (RC) holds; those design-specific records have been measured.
+- Any coverage statement beyond the calibration design: the calibration suite below measures
+  coverage on designs where (RC) holds, and a record speaks only for its exact configuration.
 
 ## The refit bootstrap
 
@@ -248,8 +248,10 @@ cancelled bootstrap reports the stop and publishes no SE.
 
 ## Calibration
 
-The four 95% ridge/lasso analytic and refit-bootstrap coverage records are measured and
-supported at their exact calibration coordinates. The coverage tests in
+The calibration design measures the 95% ridge and lasso analytic and refit-bootstrap
+intervals at the coordinates below; an interval reports `calibrated` only when a current
+coverage record covers its exact coordinate (read `result.inspect().calibration`). The
+coverage tests in
 `crates/antecedent-estimate/src/calibration_coverage.rs` and the binding check in
 `crates/antecedent/tests/calibration_binding.rs` confirm that each record's nuisance label
 and interval method match the public facade.
@@ -263,7 +265,7 @@ A different penalty grid, sample-size range, level or bootstrap count is reporte
 `outside_measured_scope`, not covered by these records. The fallback
 route has no coverage test of its own: its destination's interval is the ridge or lasso
 interval, but its calibration key (`propensity=glm_fallback_...`) matches no record, so a
-fallback interval stays unassessed until one is measured. An in-repo, fixed-seed repeated
+fallback interval reports `not_measured`. An in-repo, fixed-seed repeated
 sampling test (`the_influence_interval_covers_the_known_effect_in_repeated_sampling`) is a
 guard, not a record.
 

@@ -4,9 +4,9 @@
 `AipwAte::with_cluster_ids(..).with_cluster_dml(ClusterDml::new(20)?)`) cross-fits the
 standard AIPW average effect with **whole clusters** owning folds. The route publishes the
 cross-fitted point estimate, the score table and the cluster-sandwich standard error of the
-scores (`se_analytic`, also the named receipt `ClusterDml::receipt`). The one-way interval's
-95% coverage record is measured, and the interval reports `calibrated` inside its measured coordinate
-(see [What is published](#what-is-published-and-what-is-not)).
+scores (`se_analytic`, also the named receipt `ClusterDml::receipt`). The one-way interval
+reports its calibration status: `calibrated` only inside the measured coordinate of its coverage
+record (see [What is published](#what-is-published-and-what-is-not)).
 
 ```python
 from antecedent.estimators import Aipw, ClusterDml
@@ -31,7 +31,7 @@ unit="dyad")`, is the second supported unit (see [Two-way and dyadic units](#two
 plan) followed by a cluster standard error. There, the rows of a cluster train the
 nuisances that score the other rows of the same cluster, so the scores of one cluster are
 not independent of each other *through the nuisances*, and no sum over clusters undoes it.
-That route is unchanged and makes no "clustered DML" claim. This route differs at the fold
+That route makes no "clustered DML" claim. This route differs at the fold
 level: the unit of the plan is the cluster.
 
 ## The estimator
@@ -137,13 +137,12 @@ dyadic unit) and `se_reference_df` equal to the receipt's `reference_df`.
 - A requested bootstrap (which would resample rows and split clusters) or a non-default
   `se_kind` is refused with `cluster_interval_not_supported` (`cluster_dml.no_interval_method`):
   the route reports its own sandwich standard error rather than ignoring the request.
-- **Calibration.** The calibration harness is wired and runnable:
-  `crates/antecedent/tests/cluster_dml_calibration.rs` (`cluster_dml_t_wald_interval`,
-  registered in `scripts/measure_calibration_groups.sh`) scores the facade's published interval over a
-  sample grid of cluster counts and was measured. The one-way 95% cluster interval
-  reports `calibrated` for 300–800 rows at that coordinate. This construction does
-  not measure the dyadic `multiway` coordinate;
-  a dyadic interval must not inherit its one-way coverage record.
+- **Calibration.** `crates/antecedent/tests/cluster_dml_calibration.rs`
+  (`cluster_dml_t_wald_interval`, registered in `scripts/measure_calibration_groups.sh`)
+  scores the facade's published interval over a sample grid of cluster counts. A one-way 95%
+  cluster interval reports `calibrated` only inside the row range of its coverage record
+  (read `result.inspect().calibration`). This construction does not measure the dyadic
+  `multiway` coordinate; a dyadic interval never inherits its one-way coverage record.
 
 **Known-truth check.** `crates/antecedent-estimate/tests/cluster_dml_known_truth.rs` draws
 clustered data with a cluster-level random effect on the outcome, a covariate and the
@@ -275,7 +274,7 @@ asymptotics):
   applies to each of `S_a`, `S_b`; the library refuses only a component above one fold's
   share);
 - (D4), (D5): positivity and the nuisance remainder rate, as in the one-way cell, with the
-  effective sample size now nearer the number of components than `n`.
+  effective sample size nearer the number of components than `n`.
 
 **Reference degrees of freedom.** The few-cluster convention of Cameron, Gelbach and Miller
 for a two-way variance is `G_min - 1` with `G_min = min(G_a, G_b)`; the receipt reports it as
@@ -314,7 +313,7 @@ names the seed and the unit set; the Rust `ScreenSplitReceipt` also carries the 
 the unit count and the number of units per half. The split is the existing
 `screen_rows`/`estimate_rows` pair, so the existing disjointness record applies unchanged.
 This is a data-ownership guarantee about the split only; it does not make the winning
-candidate's interval calibrated, and no family-wise coverage run was made.
+candidate's interval calibrated, and it carries no family-wise coverage claim.
 
 ## Clusters for propensity weighting, stratification and the causal forest
 

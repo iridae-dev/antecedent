@@ -56,8 +56,8 @@ scores. It is meaningful only when all of these hold; the library checks the fir
 4. A cluster or panel dependence structure is not handled: use the cluster-DML route for
    whole-cluster folds.
 
-The table has no wire change: it is the existing `ScoreTable` artifact with another
-provenance tag, so its wire round trip is the AIPW one.
+The table is the `ScoreTable` artifact with its own provenance tag, so it serializes and
+round-trips exactly as the AIPW table does.
 
 ## Inspect the treatment model on its own
 
@@ -100,7 +100,7 @@ For each summarized row the product reports the score at the posterior mode, its
 - A partially linear DML fit, a trimmed DML fit, a DR-Learner or CausalForest fit under a
   non-`AllObserved` target or trimming: no table, `score_table_unavailable`.
 - Quantile and exceedance functionals read the AIPW table only; the learner routes keep no
-  functional grid, so those refuse as before.
+  functional grid, so those refuse.
 - DR-Learner CATE profiles and CausalForest CATE intervals are separate cells and are not
   extended by this one.
 

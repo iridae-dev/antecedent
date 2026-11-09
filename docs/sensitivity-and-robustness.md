@@ -99,7 +99,7 @@ What is reported, and what is kept apart:
 | --- | --- |
 | `assumption_range` | The envelope of the point effects over the declared range. An assumption range: `is_confidence_interval` and `empirically_established` are always `False`. |
 | `assumptions` | The departure assumption, status `untestable`, and the treatment-ignorability assumption held fixed. |
-| `point.sampling` | A delta-method sampling interval conditional on that parameter value, at the stated `level`. Reported beside the range; composing the two refuses (`route_not_supported` / `mnar_sensitivity.composition_not_supported`). |
+| `point.sampling` | A sampling interval conditional on that parameter value, at the stated `level`: the delta method for `difference_in_means`, the seeded bootstrap for an adjusted estimator. Reported beside the range with its calibration status; composing the two refuses (`route_not_supported` / `mnar_sensitivity.composition_not_supported`). |
 | `observed_case_effect` | The estimate from the observed outcomes alone, which equals the missing-at-random estimate here. |
 
 Refusals use `MnarSensitivityRefusal` with detail `mnar_sensitivity.<slot>`:
@@ -180,7 +180,7 @@ assert sample_bounds.input_basis == "empirical_plugin"
 ```
 
 This route requires a checked static binary-treatment `AverageEffect` and the
-same finite adjustment set. At Lambda = 1 the new MSM model declares
+same finite adjustment set. At Lambda = 1 the MSM model declares
 conditional ignorability within those strata; the original analysis query or
 identification premises do not certify that added assumption. In particular,
 a front-door or general-ID estimator need not equal this empirical stratified
@@ -372,5 +372,4 @@ Runnable examples:
 [`mechanism_discrepancy.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/mechanism_discrepancy.py).
 
 Related: [target-native validation](guides/target-native-validation.md) (refutations and sensitivity ranges for the quantity a result reports), [evaluating actions with a decision contract](decisions.md),
-[transport and counterfactuals](transport-counterfactuals.md),
-[decisions](decisions.md).
+[transport and counterfactuals](transport-counterfactuals.md).

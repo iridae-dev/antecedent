@@ -161,7 +161,7 @@ Every result of the routes above carries `missing_data.accounting`:
   `units_total` / `units_dropped` for panels.
 
 The policy enters the data-snapshot identity only when it differs from the route's default, so
-a study that keeps the default has the identity it always had. The accounting is derived from
+declaring the route's default leaves the identity unchanged. The accounting is derived from
 the data and the policy and is not part of the identity.
 
 ## What each policy assumes
@@ -199,8 +199,8 @@ score-adjusted `R Y / pi` pseudo-outcome to the Gaussian working likelihood. The
 model is fitted and held fixed; its score correction enters the pseudo-outcome spread, but
 its coefficients do not receive a posterior. This is a modular pseudo-posterior conditional
 on the fitted observation model. Its support covers pointwise 95% posterior quantiles under
-the declared MAR, positivity and correct logistic-model assumptions; repeated-sampling
-calibration remains **not_measured**.
+the declared MAR, positivity and correct logistic-model assumptions; that support does not rest
+on a repeated-sampling coverage record, and each interval reports its calibration status.
 
 The prior shrinks each arm's pseudo-mean, so the posterior mean is not exactly a Hajek
 responder mean. With saturated response strata the unshrunk pseudo-mean equals the
@@ -389,8 +389,8 @@ Two refusals are different scientific information. A self-censoring edge (`X_i -
 A claim over a result whose policy differs from the route's default carries the policy, the
 assumption it needs and the digest of the dropped rows among its evidence references; a
 multiple-imputation claim also names the specification, the pooled variance components and the
-imputation's assumptions digest. Claims of default policies keep exactly the references they
-had.
+imputation's assumptions digest. A claim under the route's default policy carries none of these
+references.
 
 ## Unbalanced panels
 
