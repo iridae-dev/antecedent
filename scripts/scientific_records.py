@@ -536,7 +536,20 @@ def cmd_status(root: Path, args: argparse.Namespace) -> int:
             unresolved.append(str(error))
     for problem in unresolved:
         print(f"FAIL: {problem}")
-    return int(bool(unresolved) or (args.check and bool(owed)))
+    # Evidence no record reaches is never committed: a run prunes it as it finishes.
+    from evidence_manifests import unreachable_evidence
+    orphans = unreachable_evidence(root)
+    if orphans:
+        print(f"FAIL: {len(orphans)} stored evidence file(s) no record reaches; "
+              "run `python3 scripts/scientific_records.py prune`")
+    return int(bool(unresolved) or (args.check and bool(owed or orphans)))
+
+
+def cmd_prune(root: Path, args: argparse.Namespace) -> int:
+    from evidence_manifests import prune_evidence
+    removed = prune_evidence(root)
+    print(f"scientific records: pruned {len(removed)} stored evidence file(s) no record reaches")
+    return 0
 
 
 def matches_only(item: dict, patterns: list[str]) -> bool:
@@ -575,15 +588,18 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
                        check_reproducible=bool(getattr(args, "check_reproducible", False)))
     recorded, status = len(run_items) - failed, int(bool(failed))
     print(f"scientific records: recorded {recorded} pass(es); {len(run_items) - recorded} not recorded")
+    # Withdrawn passes leave their evidence behind; nothing reaches it any more.
+    cmd_prune(root, args)
     return status
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("prune", help="delete stored evidence no record reaches (a run does this as it finishes)")
     status = sub.add_parser("status")
     status.add_argument(
-        "--check", action="store_true", help="exit 1 when any assertion is owed; executes nothing"
+        "--check", action="store_true", help="exit 1 when any assertion is owed or stored evidence is unreachable; executes nothing"
     )
     run = sub.add_parser("run")
     run.add_argument("--all", action="store_true", help="rerun and re-record every assertion (manual)")
@@ -603,7 +619,7 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        return {"status": cmd_status, "run": cmd_run}[args.command](REPO_ROOT, args)
+        return {"status": cmd_status, "run": cmd_run, "prune": cmd_prune}[args.command](REPO_ROOT, args)
     except UnresolvedInput as problem:
         # An input the fingerprint cannot account for owes its record; it is never silently current.
         print(f"FAIL: a scientific assertion has an undeclared input: {problem}")

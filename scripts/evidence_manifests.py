@@ -520,6 +520,56 @@ def inventory(root: Path, kind: str = "all") -> list[tuple[dict, object]]:
     return records
 
 
+def _stored(root: Path) -> set[str]:
+    from evidence_items import STORE as ITEMS
+    found = set()
+    for directory in (STORE, INPUT_GROUPS, ITEMS):
+        base = root / directory
+        if base.is_dir():
+            found.update(f"{directory}/{p.name}" for p in base.iterdir()
+                         if p.suffix == ".json" and HEX.fullmatch(p.stem))
+    return found
+
+
+def reachable_evidence(root: Path) -> set[str]:
+    """Stored evidence a record still reaches: its manifest, the manifest's input groups,
+    and the item tables those groups name. Every ledger that cites manifests counts."""
+    from evidence_items import STORE as ITEMS
+    checker = Checker(root)
+    reached: set[str] = set()
+    for _, ref in inventory(root):
+        if not isinstance(ref, str) or not HEX.fullmatch(ref):
+            continue
+        path = root / STORE / f"{ref}.json"
+        if not path.is_file():
+            continue
+        reached.add(f"{STORE}/{ref}.json")
+        try:
+            stored = json.loads(path.read_bytes())
+            reached.update(f"{INPUT_GROUPS}/{g}.json" for g in stored.get("input_groups", [])
+                           if isinstance(g, str) and HEX.fullmatch(g))
+            inputs = checker.load(ref)["inputs"]
+        except (OSError, ValueError, KeyError, TypeError):
+            # An unreadable manifest keeps what it names; its record reports the defect.
+            continue
+        reached.update(f"{ITEMS}/{e['table']}.json" for e in inputs
+                       if e.get("kind") == "rust_items" and isinstance(e.get("table"), str))
+    return reached
+
+
+def unreachable_evidence(root: Path) -> list[str]:
+    """Stored evidence no record reaches: superseded by a later pass or left by a stopped run."""
+    return sorted(_stored(root) - reachable_evidence(root))
+
+
+def prune_evidence(root: Path) -> list[str]:
+    """Delete stored evidence no record reaches. History keeps every superseded file."""
+    removed = unreachable_evidence(root)
+    for rel in removed:
+        (root / rel).unlink()
+    return removed
+
+
 def report(root: Path = ROOT, kind: str = "all") -> dict:
     return Checker(root).report(inventory(root, kind))
 
