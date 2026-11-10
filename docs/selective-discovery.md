@@ -150,7 +150,7 @@ the request. Three decisions are recorded:
 
 ## Hold an accepted graph and estimate from it repeatedly
 
-When you discover a graph once, review it, and then run many estimates, hold it in an `AcceptedGraph` (`antecedent.accepted_graph`). The handle keeps the graph, a `version`, the `algorithm_id` and any background-knowledge identity. Changing the bootstrap, the prior scale, the treatment levels or the latency never re-enters discovery: rediscovery happens only when you call `rediscover`, and `replace` or `review` bump the version explicitly. This differs from one-shot `analyze(..., discovery=...)`, which is a script convenience and is refused under `latency="interactive"`.
+When you discover a graph once, review it, and then run many estimates, hold it in an `AcceptedGraph` (`antecedent.accepted_graph`). The handle keeps the graph, a `version`, the `algorithm_id` and any background-knowledge identity. Changing the bootstrap, the prior scale, the treatment levels or the latency never re-enters discovery: rediscovery happens only when you call `rediscover`, and `replace` or `review` bump the version explicitly. Preparation never runs a search: `discovery=` on `prepare` and `analyze` takes an executed graph posterior, and a search configuration is refused with the instruction to run `discovery.discover` first.
 
 The graph below is the structure of a simulated confounded model (`z` confounds `t` and `y`); here it is accepted by hand.
 

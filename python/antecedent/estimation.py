@@ -1652,6 +1652,12 @@ class _PreparedEngine(Generic[ResultT]):
             raise _not_applicable(
                 "accept_discovered=False", "a study without live discovery (nothing to review)"
             )
+        if live_discovery and not callable(getattr(discovery, "accept", None)):
+            raise CausalTypeError(
+                "discovery= takes a graph posterior (a posterior search's run(...) result or "
+                f"GraphPosterior.from_graphs); got {type(discovery).__name__}. Next attempt: "
+                "accept a search through discovery.discover(data, method=...) and pass graph="
+            )
         if live_discovery and latency == "interactive":
             raise CausalUnsupportedError(
                 "discovery= is not on the interactive estimate path; run discovery once "

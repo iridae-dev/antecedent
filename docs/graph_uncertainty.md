@@ -210,8 +210,8 @@ records—see `python/tests/test_review_required_ux.py`.
 
 Typical triggers:
 
-- `analyze(..., discovery=FCI(...), accept_discovered=False)` (or incomplete
-  review) when circle / undirected marks remain.
+- `discovery.discover(data, method=FCI(...), accept_discovered=False)` (or incomplete
+  review) when circle marks remain.
 - Forcing a point estimate on a TemporalPag / MAG completion path with no
   identified mass (compile refusal rather than a silent NaN).
 
