@@ -519,20 +519,53 @@ calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 [[gate]]
 group = "knn_matching_calibration__knn_matching_interval_ci_coverage.p0"
 passed = 1
-calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
-protocol = "population_linear"
+calibration_sha = "231107b020975e4371285ae46c4e5c7bfb27858a"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = [
+  { log = "knn_matching_calibration__knn_matching_interval_ci_coverage.p0.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 380, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 1.0, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 0, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "knn_matching_interval", nominal = 0.95, record_id = "", test = "knn_matching_interval_ci_coverage" },
+]
 
 [[gate]]
 group = "knn_matching_calibration__knn_matching_interval_ci_coverage.p1"
 passed = 1
-calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
-protocol = "population_linear"
+calibration_sha = "231107b020975e4371285ae46c4e5c7bfb27858a"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = [
+  { log = "knn_matching_calibration__knn_matching_interval_ci_coverage.p1.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1923, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.017159790641138956, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }, grid_point = 1, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "knn_matching_interval", nominal = 0.95, record_id = "", test = "knn_matching_interval_ci_coverage" },
+]
 
 [[gate]]
 group = "knn_matching_calibration__knn_matching_interval_ci_coverage.p2"
 passed = 1
-calibration_sha = "e15c4b0c33daf638d11f64b6a7fff6e3bc216022"
-protocol = "population_linear"
+calibration_sha = "231107b020975e4371285ae46c4e5c7bfb27858a"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = [
+  { log = "knn_matching_calibration__knn_matching_interval_ci_coverage.p2.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 2, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "knn_matching_interval", nominal = 0.95, record_id = "", test = "knn_matching_interval_ci_coverage" },
+]
 
 [[gate]]
 group = "learned_continuous_calibration__learned_trial_aipw_misspecified_nuisance_cases"
@@ -577,32 +610,134 @@ calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 [[gate]]
 group = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p0"
 passed = 1
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
+calibration_sha = "231107b020975e4371285ae46c4e5c7bfb27858a"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = [
+  { log = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p0.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 368, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.20601378586617, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 0, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "Bayesian TemporalCpdag mediation completion 0 (θ=0.300)", nominal = 0.9, record_id = "", test = "bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage" },
+  { log = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p0.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 368, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.20601378586617, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 0, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "Bayesian TemporalCpdag mediation completion 1 (θ=0.300)", nominal = 0.9, record_id = "", test = "bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage" },
+]
 
 [[gate]]
 group = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p1"
 passed = 1
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
+calibration_sha = "231107b020975e4371285ae46c4e5c7bfb27858a"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = [
+  { log = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p1.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 361, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.9512519054528531, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 1, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "Bayesian TemporalCpdag mediation completion 0 (θ=0.300)", nominal = 0.9, record_id = "", test = "bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage" },
+  { log = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p1.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 361, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.9512519054528531, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 1, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "Bayesian TemporalCpdag mediation completion 1 (θ=0.300)", nominal = 0.9, record_id = "", test = "bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage" },
+]
 
 [[gate]]
 group = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p2"
 passed = 1
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
+calibration_sha = "231107b020975e4371285ae46c4e5c7bfb27858a"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = [
+  { log = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p2.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 359, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.916047155333023, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 2, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "Bayesian TemporalCpdag mediation completion 0 (θ=0.300)", nominal = 0.9, record_id = "", test = "bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage" },
+  { log = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p2.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 359, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.916047155333023, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 2, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "Bayesian TemporalCpdag mediation completion 1 (θ=0.300)", nominal = 0.9, record_id = "", test = "bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage" },
+]
 
 [[gate]]
 group = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p0"
 passed = 1
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
+calibration_sha = "231107b020975e4371285ae46c4e5c7bfb27858a"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = [
+  { log = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p0.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 353, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.27991740453572234, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 0, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "Bayesian TemporalCpdag mediation (kappa=0) completion 0 (θ=0.300)", nominal = 0.9, record_id = "", test = "bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage" },
+  { log = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p0.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 353, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.27991740453572234, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 0, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "Bayesian TemporalCpdag mediation (kappa=0) completion 1 (θ=0.300)", nominal = 0.9, record_id = "", test = "bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage" },
+]
 
 [[gate]]
 group = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p1"
 passed = 1
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
+calibration_sha = "231107b020975e4371285ae46c4e5c7bfb27858a"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = [
+  { log = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p1.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 355, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.44734184079040323, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 1, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "Bayesian TemporalCpdag mediation (kappa=0) completion 0 (θ=0.300)", nominal = 0.9, record_id = "", test = "bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage" },
+  { log = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p1.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 355, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.44734184079040323, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 1, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "Bayesian TemporalCpdag mediation (kappa=0) completion 1 (θ=0.300)", nominal = 0.9, record_id = "", test = "bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage" },
+]
 
 [[gate]]
 group = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p2"
 passed = 1
-calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
+calibration_sha = "231107b020975e4371285ae46c4e5c7bfb27858a"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = [
+  { log = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p2.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 363, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.6906063913231464, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 2, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "Bayesian TemporalCpdag mediation (kappa=0) completion 0 (θ=0.300)", nominal = 0.9, record_id = "", test = "bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage" },
+  { log = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p2.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 363, family_alpha = 0.05, family_cells = 611328, family_digest = "0cd323feb932b1e8deb945e6b1d1574adeaf20b71ad5c434e71c47c38f5d636f", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.6906063913231464, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 2, measured_at = "231107b020975e4371285ae46c4e5c7bfb27858a", name = "Bayesian TemporalCpdag mediation (kappa=0) completion 1 (θ=0.300)", nominal = 0.9, record_id = "", test = "bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage" },
+]
 
 [[gate]]
 group = "observational_effects_calibration__policy_cross_fitted_learning_n3000_l95"
