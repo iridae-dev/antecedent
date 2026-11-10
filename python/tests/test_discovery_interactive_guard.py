@@ -68,3 +68,18 @@ def test_interactive_with_supplied_graph_ok():
     assert math.isfinite(result.ate)
     assert abs(result.ate - 2.0) < 4.0 * result.estimate.se_analytic
     assert result.performance.latency_mode == "interactive"
+
+
+def test_search_result_as_discovery_is_refused_with_the_next_attempt():
+    # A constraint search's run(...) result is neither a graph posterior nor an accepted graph.
+    data, _edges = confounded_scm(n=400, seed=11)
+    searched = antecedent.discovery.FCI(alpha=0.2, fdr=False).run(data)
+    with pytest.raises(
+        antecedent.errors.CausalTypeError, match="takes a graph posterior"
+    ) as caught:
+        antecedent.analyze(
+            data,
+            discovery=searched,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        )
+    assert "discovery.discover" in str(caught.value)

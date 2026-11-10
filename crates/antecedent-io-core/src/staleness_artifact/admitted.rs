@@ -5,9 +5,10 @@
 //! each string/vector at its validated length. One owner holds their aggregate lease.
 
 use super::{
-    IoError, JointProfileWire, LevelCountWire, MissingPatternWire, NumericProfileWire,
-    OutcomeModelWire, OverlapSummaryWire, RecordedCheckWire, STALENESS_BASELINE_MAGIC,
-    STALENESS_BASELINE_MAX_BYTES, StalenessBaselineWire, StalenessColumnWire,
+    GraphImplicationsWire, ImpliedIndependenceWire, IoError, JointProfileWire, LevelCountWire,
+    MissingPatternWire, NumericProfileWire, OutcomeModelWire, OverlapSummaryWire,
+    RecordedCheckWire, STALENESS_BASELINE_MAGIC, STALENESS_BASELINE_MAX_BYTES,
+    StalenessBaselineWire, StalenessColumnWire,
 };
 use antecedent_core::ExecutionContext;
 use antecedent_core::execution::AdmissionLease;
@@ -520,10 +521,15 @@ record!(RecordedCheckWire {
 });
 record!(OutcomeModelWire { design: Vec<String>, outcome: String, n: u64,
     xtx: Vec<f64>, xty: Vec<f64>, yty: f64 });
+record!(ImpliedIndependenceWire { x: String, y: String, given: Vec<String>,
+    statistic: Option<f64> = default, p_value: Option<f64> = default });
+record!(GraphImplicationsWire { test: String, unavailable: Option<String> = default,
+    items: Vec<ImpliedIndependenceWire> });
 record!(StalenessBaselineWire { version: u32, required_features: Vec<String>, kind: String,
     plan_identity: String, snapshot: String, policy: String, treatment: Option<String> = default,
     outcome: Option<String> = default, adjustment: Vec<String>, bayesian: bool, period_column: Option<String> = default,
     rows: u64, complete_rows: u64, arms: Vec<LevelCountWire>, columns: Vec<StalenessColumnWire>,
     joint: Option<JointProfileWire> = default, missing: Option<MissingPatternWire> = default,
     overlap: Option<OverlapSummaryWire> = default, checks: Vec<RecordedCheckWire>,
-    outcome_model: Option<OutcomeModelWire> = default, seal: String });
+    outcome_model: Option<OutcomeModelWire> = default,
+    implications: Option<GraphImplicationsWire> = default, seal: String });

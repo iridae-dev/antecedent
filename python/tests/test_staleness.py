@@ -238,3 +238,90 @@ def test_execution_seed_does_not_reach_the_diagnostic_streams(study, baseline_da
         drift.staleness(study, baseline_data, policy=POLICY, execution=ant.Execution(seed=99))
     )
     assert first.to_dict()["evaluations"] == second.to_dict()["evaluations"]
+
+
+def customers(seed: int, *, hidden: bool, n: int = 4000) -> dict[str, np.ndarray]:
+    """`price -> engagement <- tenure`, `price -> support`; `hidden` adds an unmeasured cause
+    of engagement, support and cancellation."""
+    rng = np.random.default_rng(seed)
+    price, tenure = rng.normal(size=n), rng.normal(size=n)
+    u = rng.normal(size=n) if hidden else np.zeros(n)
+    engagement = -0.6 * price + 0.5 * tenure + 0.6 * u + rng.normal(size=n)
+    support = 0.5 * price + 0.8 * u + rng.normal(size=n)
+    cancellation = -0.8 * engagement + 0.5 * support + 0.3 * price + 0.8 * u + rng.normal(size=n)
+    return {
+        "price": price,
+        "tenure": tenure,
+        "engagement": engagement,
+        "support": support,
+        "cancellation": cancellation,
+    }
+
+
+CUSTOMER_GRAPH = [
+    ("price", "engagement"),
+    ("tenure", "engagement"),
+    ("price", "support"),
+    ("price", "cancellation"),
+    ("engagement", "cancellation"),
+    ("support", "cancellation"),
+]
+
+
+def _customer_study(data, graph):
+    return ant.prepare(
+        data,
+        graph=graph,
+        query=ant.AverageEffect("engagement", "cancellation"),
+        inference=ant.Frequentist(bootstrap=0),
+        refute="none",
+        execution=ant.Execution(seed=1, threads=2),
+    )
+
+
+def test_an_independence_the_graph_implies_and_new_data_contradict_asks_to_reidentify():
+    study = _customer_study(customers(1, hidden=False), CUSTOMER_GRAPH)
+    unchanged = require_success(study.staleness(customers(3, hidden=False)))
+    assert unchanged.recommendation == "reuse" and unchanged.findings == ()
+    implied = [f for f in unchanged.evaluations if f.kind == "implied_independence"]
+    assert {f.subject for f in implied} == {
+        "price _||_ tenure",
+        "tenure _||_ support",
+        "tenure _||_ cancellation | price, engagement",
+        "engagement _||_ support | price",
+    }
+
+    changed = require_success(study.staleness(customers(2, hidden=True)))
+    assert changed.recommendation == "reidentify", changed.to_dict()
+    assert {f.kind for f in changed.findings} == {"implied_independence"}
+    failed = {f.subject: f for f in changed.findings}["engagement _||_ support | price"]
+    # Given price: covariance 0.48 over variances 1.61 and 1.64, a partial correlation of 0.295.
+    assert failed.statistic == pytest.approx(0.48 / np.sqrt(1.61 * 1.64), abs=0.05)
+    assert failed.threshold_name == "implication_threshold" and failed.forces == "reidentify"
+    assert "identification" in changed.invalidated
+    assert "review the graph" in changed.next_attempt
+
+    # The exported baseline carries the statements: the same report without the study.
+    artifact = require_success(drift.baseline(study)).export()
+    again = require_success(drift.staleness(bytes(artifact), customers(2, hidden=True)))
+    assert again.identity == changed.identity
+
+
+def test_a_graph_that_implies_nothing_names_the_check_it_could_not_make():
+    keep = ("price", "engagement", "cancellation")
+    graph = [edge for edge in CUSTOMER_GRAPH if set(edge) <= set(keep)]
+    before = {name: column for name, column in customers(1, hidden=False).items() if name in keep}
+    after = {name: column for name, column in customers(2, hidden=True).items() if name in keep}
+    report = require_success(_customer_study(before, graph).staleness(after))
+    assert report.recommendation == "reuse"
+    reason = dict(report.not_evaluated)["implied_independence"]
+    assert "implies no conditional independence" in reason
+
+
+def test_the_implication_policy_fields_resolve_validate_and_enter_the_identity():
+    default = StalenessPolicy().resolved()
+    assert default["implication_test"] == "parcorr"
+    assert default["implication_threshold"] == 0.1 and default["max_implications"] == 512
+    assert StalenessPolicy(implication_threshold=0.2).identity != StalenessPolicy().identity
+    with pytest.raises(ant.errors.CausalError, match="implication_test"):
+        StalenessPolicy(implication_test="gpdc").resolved()

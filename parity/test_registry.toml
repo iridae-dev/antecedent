@@ -670,6 +670,27 @@ path = "crates/antecedent-validate/tests/staleness.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "staleness-implied-independence"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/staleness/implications.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "staleness-implied-independence-scenarios"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/staleness/implications_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "staleness-graph-facade"
+crate = "antecedent"
+cargo_target = "staleness_facade"
+path = "crates/antecedent/tests/staleness_graph_facade.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "staleness-statistics"
 crate = "antecedent-validate"
 cargo_target = "lib"

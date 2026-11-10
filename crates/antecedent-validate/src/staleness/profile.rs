@@ -399,6 +399,7 @@ pub(crate) fn profile(
         overlap,
         checks,
         outcome_model,
+        implications: None,
         seal: String::new(),
     }
 }

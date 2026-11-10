@@ -632,7 +632,15 @@ fn preserves_unshielded_colliders(pag: &Pag, mag: &Pag) -> bool {
 }
 
 pub(crate) fn as_admg(g: &Pag) -> Admg {
-    let mut admg = Admg::with_variables(u32::try_from(g.node_count()).expect("node count fits"));
+    mag_to_admg(g).expect("validated directed MAG marks")
+}
+
+/// A circle-free PAG (a maximal ancestral graph without selection) as an ADMG over the same
+/// node positions: a tail-to-arrow edge is directed and an arrow-to-arrow edge is bidirected.
+/// `None` when a mark is neither a tail nor an arrowhead, or the directed edges form a cycle.
+#[must_use]
+pub fn mag_to_admg(g: &Pag) -> Option<Admg> {
+    let mut admg = Admg::with_variables(u32::try_from(g.node_count()).ok()?);
     for i in 0..g.node_count() {
         let a = DenseNodeId::from_index(i);
         for (b, at_a, at_b) in g.neighbors(a) {
@@ -640,20 +648,14 @@ pub(crate) fn as_admg(g: &Pag) -> Admg {
                 continue;
             }
             match (at_a, at_b) {
-                (Endpoint::Tail, Endpoint::Arrow) => {
-                    admg.insert_directed(a, b).expect("validated MAG");
-                }
-                (Endpoint::Arrow, Endpoint::Tail) => {
-                    admg.insert_directed(b, a).expect("validated MAG");
-                }
-                (Endpoint::Arrow, Endpoint::Arrow) => {
-                    admg.insert_bidirected(a, b).expect("validated MAG");
-                }
-                _ => unreachable!("validated directed MAG marks"),
+                (Endpoint::Tail, Endpoint::Arrow) => admg.insert_directed(a, b).ok()?,
+                (Endpoint::Arrow, Endpoint::Tail) => admg.insert_directed(b, a).ok()?,
+                (Endpoint::Arrow, Endpoint::Arrow) => admg.insert_bidirected(a, b).ok()?,
+                _ => return None,
             }
         }
     }
-    admg
+    Some(admg)
 }
 
 /// The m-separation model of a graph: one answer per node pair and conditioning subset, one
@@ -1596,5 +1598,22 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_mag_becomes_the_admg_of_its_directed_and_bidirected_edges() {
+        let node = DenseNodeId::from_index;
+        let mut mag = Pag::with_variables(3);
+        mag.insert_directed(node(0), node(1)).unwrap();
+        mag.insert_bidirected(node(1), node(2)).unwrap();
+        let admg = mag_to_admg(&mag).expect("tails and arrowheads only");
+        assert_eq!(admg.parents(node(1)), [node(0)]);
+        assert_eq!(admg.bidirected_neighbors(node(1)), [node(2)]);
+        assert!(admg.parents(node(2)).is_empty());
+        assert_eq!(as_admg(&mag).directed_edge_pairs_sorted(), admg.directed_edge_pairs_sorted());
+        // A circle mark is not a MAG mark: there is no ADMG to return.
+        let mut open = Pag::with_variables(2);
+        open.insert_circle_arrow(node(0), node(1)).unwrap();
+        assert!(mag_to_admg(&open).is_none());
     }
 }

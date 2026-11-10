@@ -95,6 +95,7 @@ pub(crate) fn assess(
         outcome: baseline.outcome.clone(),
         adjustment: baseline.adjustment.clone(),
         bayesian: baseline.bayesian,
+        implications: None,
     };
     let period = policy.period_column.clone().or_else(|| baseline.period_column.clone());
     let mut profile_policy = policy.clone();
@@ -186,6 +187,8 @@ fn diagnostics(
     checkpoint()?;
     overlap(baseline, new, policy, &mut ev);
     checks(baseline, new, &mut ev);
+    implied(baseline, table, policy, ctx, &mut ev)?;
+    checkpoint()?;
     if baseline.bayesian {
         match (&baseline.outcome_model, &new.outcome_model) {
             (Some(old), Some(current)) if old.design == current.design => {
@@ -958,11 +961,32 @@ fn next_attempt(
             text
         }
         Recommendation::Reidentify => {
-            let mut text = format!(
-                "identify again on the new data (re-prepare the study): {} no longer support the \
-                 stored identification or adjustment set",
-                subjects(Recommendation::Reidentify)
-            );
+            let named = |implied: bool| -> String {
+                let mut names: Vec<&str> = evaluations
+                    .iter()
+                    .filter(|f| {
+                        f.exceeded
+                            && f.forces == Recommendation::Reidentify
+                            && (f.kind == FindingKind::ImpliedIndependence) == implied
+                    })
+                    .map(|f| f.subject.as_str())
+                    .collect();
+                names.dedup();
+                names.join(", ")
+            };
+            let mut text = String::from("identify again on the new data (re-prepare the study)");
+            let premises = named(false);
+            if !premises.is_empty() {
+                text.push_str(": ");
+                text.push_str(&premises);
+                text.push_str(" no longer support the stored identification or adjustment set");
+            }
+            let implied = named(true);
+            if !implied.is_empty() {
+                text.push_str("; the new data contradict what the plan's graph implies (");
+                text.push_str(&implied);
+                text.push_str("), so review the graph before identifying again");
+            }
             if exceeded(FindingKind::PeriodDrift) {
                 text.push_str(
                     "; the periods drift, so declare the mechanism invariant across periods or \
@@ -992,4 +1016,77 @@ fn next_attempt(
             }
         }
     }
+}
+
+/// The conditional independencies the plan's graph implies, tested again on the new data.
+///
+/// A statement that held on the plan's data and fails now is test-based: it exceeds only when
+/// its adjusted p-value is at most `alpha` and its statistic reaches `implication_threshold`.
+fn implied(
+    baseline: &StalenessBaselineWire,
+    table: &ReadTable<'_>,
+    policy: &StalenessPolicy,
+    ctx: &ExecutionContext,
+    ev: &mut Evaluator,
+) -> Result<(), StalenessError> {
+    let label = FindingKind::ImpliedIndependence.label();
+    let Some(recorded) = &baseline.implications else {
+        ev.skip(label, "the baseline records no graph for the plan");
+        return Ok(());
+    };
+    if let Some(reason) = &recorded.unavailable {
+        ev.skip(label, reason.clone());
+        return Ok(());
+    }
+    if recorded.items.is_empty() {
+        ev.skip(
+            label,
+            "the plan's graph implies no conditional independence among its columns, so the \
+             data cannot contradict it",
+        );
+        return Ok(());
+    }
+    if !recorded.test.eq_ignore_ascii_case(&policy.implication_test) {
+        ev.skip(
+            label,
+            format!(
+                "the baseline recorded the {} test and the policy names {}",
+                recorded.test, policy.implication_test
+            ),
+        );
+        return Ok(());
+    }
+    let current = super::implications::retest(recorded, table, policy, ctx)?;
+    for (item, now) in recorded.items.iter().zip(current) {
+        let subject = super::implications::subject(item);
+        let (Some(was), Some(was_p)) = (item.statistic, item.p_value) else {
+            ev.skip(subject, "the independence could not be tested on the plan's data");
+            continue;
+        };
+        if was_p <= policy.alpha && was.abs() >= policy.implication_threshold {
+            ev.skip(subject, "the plan's data already contradicted this independence");
+            continue;
+        }
+        let Some((statistic, p_value)) = now else {
+            ev.skip(subject, "the independence cannot be tested on the new data");
+            continue;
+        };
+        ev.test(
+            StalenessFinding::threshold(
+                FindingKind::ImpliedIndependence,
+                subject,
+                ("test_statistic", statistic),
+                ("implication_threshold", policy.implication_threshold),
+                false,
+                Recommendation::Reidentify,
+                vec![Stage::Evidence],
+            )
+            .with("recorded_statistic", was)
+            .with("recorded_p_value", was_p)
+            .detail(format!("{} test of an independence the plan's graph implies", recorded.test)),
+            p_value,
+            statistic.abs() >= policy.implication_threshold,
+        );
+    }
+    Ok(())
 }

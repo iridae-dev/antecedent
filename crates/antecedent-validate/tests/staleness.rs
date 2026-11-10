@@ -115,6 +115,7 @@ fn plan(bayesian: bool) -> StalenessPlan {
         outcome: Some("y".into()),
         adjustment: vec!["z1".into(), "z2".into()],
         bayesian,
+        implications: None,
     }
 }
 

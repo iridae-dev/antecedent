@@ -74,6 +74,9 @@ pub enum FindingKind {
     InsufficientData,
     /// The target cannot be formed on the new data (a role column or an arm is missing).
     TargetIncompatible,
+    /// A conditional independence the plan's graph implies, and that held on the plan's data,
+    /// fails on the new data.
+    ImpliedIndependence,
 }
 
 impl FindingKind {
@@ -94,6 +97,7 @@ impl FindingKind {
             Self::MissingnessChange => "missingness_change",
             Self::InsufficientData => "insufficient_data",
             Self::TargetIncompatible => "target_incompatible",
+            Self::ImpliedIndependence => "implied_independence",
         }
     }
 }

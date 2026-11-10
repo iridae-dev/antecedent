@@ -13,7 +13,7 @@ policy and returns one typed recommendation:
 | --- | --- | --- |
 | `reuse` | No diagnostic exceeds its threshold. | Keep the stored claim; nothing is refitted. |
 | `refresh` | The data changed, but every identification-level premise holds. | `ant.rebind(study, data=new_data)`, then explicitly `ant.estimate(branch)`: compatible identification is retained and dependent scores, fits, laws and decisions are invalidated. |
-| `reidentify` | A premise of the identification product or of the adjustment set failed: positivity, overlap, support of the treatment or adjustment set, a recorded identification check, or drift across periods. | Prepare again on the new data (for period drift, first declare the mechanism invariant across periods or model period-level parameters). |
+| `reidentify` | A premise of the identification product or of the adjustment set failed: positivity, overlap, support of the treatment or adjustment set, a recorded identification check, an independence the plan's graph implies, or drift across periods. | Prepare again on the new data (for period drift, first declare the mechanism invariant across periods or model period-level parameters). |
 | `refuse` | The schema or the target is incompatible with the plan, or too few rows remain to assess uncertainty. | Project the new data onto the prepared schema, re-specify the target, or collect more rows. |
 
 The diagnostic decides and explains; it changes nothing. No scheduler or
@@ -127,10 +127,47 @@ test), so it costs far less than a refit.
 | Support loss | fraction of new values beyond the recorded range (exact test under exchangeability) | `support_tolerance`, `alpha` | reidentify on the treatment or adjustment set, refresh otherwise | `evidence` or `data_snapshot` |
 | Level change | rows at a level the baseline never saw; a recorded level that disappeared (binomial test); a new or missing treatment arm | `min_level_rows`, `alpha` | as support loss (a missing arm refuses) | as support loss, plus `treatment_grid` for a new arm |
 | Prior-likelihood conflict (Bayesian plans) | Box's prior predictive F statistic of the new outcome-regression coefficients under the stored posterior; Gaussian divergence of the new likelihood from the stored posterior | `alpha` | refresh | `prior.0`, `data_snapshot` |
+| Implied independence | the conditional-independence test of each statement the plan's graph implies, on the new data | `implication_threshold`, `alpha` | reidentify | `evidence` |
 | Period drift | CUSUM of per-period means of the new data (Brownian-bridge supremum) | `smd_threshold`, `alpha` | reidentify | `source_population`, `evidence` |
 | Schema change | columns added, removed, retyped or reordered | none allowed | refuse | `data_snapshot`, `evidence` |
 | Missingness change | change of a column's missing rate (two-proportion test); total-variation change of the patterns (chi-square test) | `missingness_threshold`, `alpha` | refresh | `row_design` |
 | Insufficient data, target incompatible | complete rows, rows per arm, absent role columns or arms | `min_rows`, `min_rows_per_arm` | refuse | `data_snapshot`, `row_design` or `query` |
+
+### What the graph implies
+
+The other diagnostics compare the new data with the plan's data. This one compares the new data
+with the plan's graph. A graph over measured columns asserts that some pairs of columns are
+independent once a set of other columns is held fixed, and those statements can be tested on a
+table with no model fitted. The baseline records one statement for every pair of columns the
+graph separates, with the smallest conditioning set found for it, and its test on the plan's
+data. An assessment repeats the tests. A statement that held and now fails is a finding that
+forces `reidentify`: the data no longer agree with the structure the plan was identified under.
+
+```python
+report = require_success(drift.staleness(study, new_data))
+[f.subject for f in report.findings if f.kind == "implied_independence"]
+# ['engagement _||_ support | price']
+report.not_evaluated   # names this diagnostic, with the reason, when nothing could be tested
+```
+
+| Graph of the plan | Statements listed |
+| --- | --- |
+| `Dag` | every pair the graph d-separates |
+| `Admg` | every pair it m-separates; a pair joined only through unmeasured causes that no measured column blocks contributes none |
+| `Cpdag`, `Pag` | the statements shared by every member of the class examined (at most 64 members) |
+| a temporal graph, or more than 64 nodes | none; the report says why |
+
+The test is `implication_test` (default `parcorr`, a partial correlation; any named test with
+an analytic frequentist p-value is accepted). A statement exceeds when its adjusted p-value is
+at most `alpha` and its statistic reaches `implication_threshold` (default 0.1). It joins the
+same multiplicity family as the other tests. A statement the plan's own data already
+contradicted is not a staleness finding and is listed under `not_evaluated`.
+
+Read the result with two limits in mind. A graph that joins every pair of its columns implies
+nothing, so no data can contradict it: the report then lists `implied_independence` under
+`not_evaluated` and the other diagnostics decide alone. And a statement that still holds is
+not evidence that the graph is right. An unmeasured cause of the treatment and the outcome
+that touches no other measured column leaves every listed statement intact.
 
 ### Multiplicity and the false-alarm rate
 
@@ -156,8 +193,9 @@ also names the semantic dependency classes of the changed inputs
 
 `StalenessPolicy` declares every threshold, the test level, the multiplicity
 rule, the minimum sample sizes, the bins and subsample size, the permutation
-count, the random-stream seed, the positivity margin, the period column and the
-reference prior of the Bayesian check. Its identity is part of the report
+count, the random-stream seed, the positivity margin, the period column, the
+reference prior of the Bayesian check, and the test, threshold and cap of the
+graph's implications. Its identity is part of the report
 identity, which also binds the plan, the baseline seal, the old and new
 snapshot identities and every evaluation. The same baseline, data and policy
 give the same report on any thread count: subsampling and permutations draw
@@ -178,4 +216,7 @@ time are not sequentially corrected. Positivity and overlap are assessed for a
 binary 0/1 treatment on a numeric adjustment set. The Bayesian check uses a
 reference conjugate Gaussian model of the outcome regression, not the plan's
 own prior. Period drift compares means, not variances. Panel and
-multi-environment studies are assessed per unit or environment table.
+multi-environment studies are assessed per unit or environment table. The
+graph's implications are tested by a linear partial correlation unless another
+test is named, are not listed for temporal graphs, and say nothing about a
+graph that implies no independence.

@@ -37,6 +37,7 @@ Each tutorial follows one scientific task and pairs with a maintained example.
 | Decide when a result is suggestive but not significant | [Decide under uncertainty](tutorials/decide-under-uncertainty.md) |
 | Analyze a real public dataset end to end | [An observational study](tutorials/observational-study.md) |
 | Follow a refusal when the comparison group does not overlap, and see how far the answer moves | [When overlap fails](tutorials/when-overlap-fails.md) |
+| Follow a claim when new data stop fitting its graph: check, rediscover, compare readings and plan the study that would settle it | [When the causal assumptions stop holding](tutorials/when-assumptions-change.md) |
 | Use Antecedent as a component of an application | [Application component](tutorials/application-component.md) |
 
 ## Guides
