@@ -129,6 +129,8 @@ The refusal is the answer under that reading: with a hidden cause of both engage
 
 Two things follow. The second reading passes its check and is still wrong: -0.61 is not -0.8, because the third reading is the true one here. And the table cannot separate the second reading from the third, since the graph check assumes no hidden causes and so cannot be put to the third at all. Choosing between them takes knowledge from outside the table, or new evidence.
 
+The readings are put to the question one at a time here. `GraphPosterior.from_graphs` can hold several complete graphs with weights and report the mass on which an effect is not identified, but its atoms cannot carry a directed and a bidirected edge on the same pair, which is exactly what the third reading declares between engagement and cancellation. That reading has to be asked as its own graph.
+
 ## What would settle it
 
 Asked to describe, the refused call also returns the [evidence the failure determines](../guides/fallback.md).
