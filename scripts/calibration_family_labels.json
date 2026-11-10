@@ -152,7 +152,7 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/adaptive_whole_procedure_calibration.rs",
-      "sha256": "d59774c88310f01238cc3cab562e397daea249568beb0fe22e3848b55d1e93f8",
+      "sha256": "fb72cecde7a4bf4c0d769fa6bc330f5a48f268cc83d8f08e119fbf11ce4e75f9",
       "labelled_calls": [
         {
           "line": 596,
@@ -942,7 +942,7 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration.rs",
-      "sha256": "a860de6df3502112d99229059fd4bd5d956385941fabde60dc64d43f1fb82277",
+      "sha256": "84cf409e69179d8fac04707bb9eae6b9947e24bc82c864c4838485b633083529",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources."
