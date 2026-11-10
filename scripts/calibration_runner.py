@@ -39,6 +39,9 @@ _RECHECK_TEST = re.compile(r"^calibration-recheck-test (\S+)", re.M)
 _REPLICATED = {"replicated_interval", "replicated_statistical_test"}
 # Replicates the instrumented binary runs, single-threaded, beside a release-binary measurement.
 SLICE_NSIM = 16
+# Test targets whose outer replicate map has a fixed budget, the acceptance count, at
+# every grid point: a first pass of any other size is not the look they report.
+FIXED_BUDGET_TARGETS = frozenset({"adaptive_whole_procedure_calibration"})
 
 
 @dataclass(frozen=True)
@@ -105,6 +108,8 @@ def first_pass_nsim(group: GroupSpec, point: int | None, acceptance: Acceptance,
                     acceptance_nsim: int, smoke: bool, parent_protocol: str = "2") -> int:
     """Replicates of a first pass (the gate's former `first_pass_nsim`)."""
     test = group.label.partition(": ")[2]
+    if not smoke and group.target in FIXED_BUDGET_TARGETS:
+        return max(first, acceptance_nsim)
     if point in (0, 2):
         # Legacy parent records replay the version-1 400/2000/400 plan.
         if parent_protocol == "1" and group.label.startswith("sample_split_parent_set_effect_calibration:"):
@@ -201,7 +206,9 @@ def measure(spec: dict) -> dict:
         coverage.append(regions)
     if release is not None and status == 0:
         # The measurement ran uninstrumented: a smoke slice of the same test, one thread, on
-        # the instrumented binary says which code it runs. Its logs and tallies are discarded.
+        # the instrumented binary says which code it runs. Its logs and tallies are discarded,
+        # and so is its verdict: a test's assertions are stated for the measured replicate
+        # count, so a slice that fails one still executed the code it reports.
         slice_env = {k: v for k, v in base_env.items()
                      if k not in ("ANTECEDENT_CALIBRATION_TALLY_OUT", "ANTECEDENT_CALIBRATION_PRIOR_TALLIES",
                                   "ANTECEDENT_CALIBRATION_REPLICATE_START")}
@@ -209,7 +216,7 @@ def measure(spec: dict) -> dict:
                           "ANTECEDENT_CALIBRATION_SMOKE": "1", "ANTECEDENT_CALIBRATION_THREADS": "1"})
         _, slice_output, regions, problem = instrumented_run(
             spec["binary"], libtest_args(group), cwd=Path(spec["cwd"]), env=slice_env,
-            tools=spec["tools"], merge_output=True)
+            tools=spec["tools"], merge_output=True, failed_runs_count=True)
         if regions is None or passed_tests(slice_output) + slice_output.count("... FAILED") < 1:
             problems.append(f"the coverage slice of {log} ran no test or could not be read: {problem}")
             status = 1

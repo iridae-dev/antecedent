@@ -11,8 +11,8 @@ import calibration_runner as cr
 from _repo import REPO_ROOT
 
 
-def group(tests=("one",), grid=True, ignored=True, label="suite: one"):
-    return cr.GroupSpec(1, label, "antecedent", "suite", (), tests, ignored, grid)
+def group(tests=("one",), grid=True, ignored=True, label="suite: one", target="suite"):
+    return cr.GroupSpec(1, label, "antecedent", target, (), tests, ignored, grid)
 
 
 class TableTests(unittest.TestCase):
@@ -41,6 +41,14 @@ class FirstPassTests(unittest.TestCase):
         self.assertEqual(self.nsim("point", 2), 2000)  # an explicit non-base binding
         self.assertEqual(self.nsim("point", 0), 400)
         self.assertEqual(self.nsim("bound", 1, smoke=True), 400)
+
+    def test_a_fixed_budget_target_runs_its_budget_at_every_point(self):
+        fixed = group(label="adaptive_whole_procedure_calibration: case",
+                      target="adaptive_whole_procedure_calibration")
+        nsim = lambda point, smoke=False: cr.first_pass_nsim(  # noqa: E731
+            fixed, point, self.acceptance, first=400, acceptance_nsim=2000, smoke=smoke)
+        self.assertEqual([nsim(p) for p in (0, 1, 2)], [2000, 2000, 2000])
+        self.assertEqual(nsim(0, smoke=True), 400)
 
 
 class ArgumentTests(unittest.TestCase):
@@ -124,7 +132,8 @@ class ReleaseMeasureTests(MeasureFixture):
             return Done("calibration-recheck x\ntest result: ok. 1 passed; 0 failed\n" if len(runs) == 1
                         else "test result: ok. 1 passed; 0 failed\n")
 
-        def instrumented(binary, args, *, cwd, env, tools, merge_output):
+        def instrumented(binary, args, *, cwd, env, tools, merge_output, failed_runs_count):
+            self.assertTrue(failed_runs_count)
             runs.append((binary, env))
             return 0, "test result: ok. 1 passed; 0 failed\n", {"src.rs": {(7, 1)}}, None
 
@@ -151,6 +160,17 @@ class ReleaseMeasureTests(MeasureFixture):
             result = cr.measure(self.spec(group(), release_binary="/bin/release"))
         self.assertEqual(result["status"], 1)
         self.assertIn("coverage slice", result["problems"][0])
+
+
+    def test_a_slice_whose_assertion_fails_still_gives_the_coverage(self):
+        class Done:
+            returncode, stdout = 0, "test result: ok. 1 passed; 0 failed\n"
+        sliced = (101, "test t ... FAILED\ntest result: FAILED. 0 passed; 1 failed\n", {"src.rs": {(3, 1)}}, None)
+        with patch("subprocess.run", return_value=Done()), \
+                patch("evidence_capture.instrumented_run", return_value=sliced):
+            result = cr.measure(self.spec(group(), release_binary="/bin/release"))
+        self.assertEqual((result["status"], result["problems"]), (0, []))
+        self.assertEqual(result["coverage"], {"src.rs": {(3, 1)}})
 
 
 class RecordBindingTests(unittest.TestCase):

@@ -61,18 +61,20 @@ def merge_coverage(*parts: dict[str, set[tuple[int, int]]] | None) -> dict[str, 
 
 def instrumented_run(binary: str, args: list[str], *, cwd: Path, env: dict[str, str],
                      tools: dict[str, str], run=subprocess.run, merge_output: bool = False,
-                     coverage: bool = True) -> tuple[int, str, dict | None, str | None]:
+                     coverage: bool = True, failed_runs_count: bool = False,
+                     ) -> tuple[int, str, dict | None, str | None]:
     """Run `binary args` under its own profile: (exit status, output, executed regions, problem).
 
     The regions are `None`, with a problem, when the run failed or its profile could not
-    be read; `merge_output` interleaves stderr into stdout as a log would."""
+    be read; `merge_output` interleaves stderr into stdout as a log would. With
+    `failed_runs_count`, a run whose test failed still reports the regions it executed."""
     with tempfile.TemporaryDirectory(prefix="antecedent-capture-") as tmp:
         raw, data = Path(tmp) / "run.profraw", Path(tmp) / "run.profdata"
         streams = ({"stdout": subprocess.PIPE, "stderr": subprocess.STDOUT} if merge_output
                    else {"capture_output": True})
         done = run([binary, *args], cwd=cwd, env={**env, "LLVM_PROFILE_FILE": str(raw)}, text=True, **streams)
         output = (done.stdout or "") + ("" if merge_output else (done.stderr or ""))
-        if done.returncode != 0:
+        if done.returncode != 0 and not (failed_runs_count and raw.is_file()):
             return done.returncode, output, None, "the test binary failed"
         if not coverage:
             return 0, output, None, None
@@ -86,7 +88,7 @@ def instrumented_run(binary: str, args: list[str], *, cwd: Path, env: dict[str, 
                      text=True, capture_output=True)
         if export.returncode != 0:
             return 0, output, None, f"llvm-cov export failed\n{export.stderr[-400:]}"
-        return 0, output, region_coverage(json.loads(export.stdout)), None
+        return done.returncode, output, region_coverage(json.loads(export.stdout)), None
 
 
 def configure(workers: int) -> None:
