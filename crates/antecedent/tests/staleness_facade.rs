@@ -226,3 +226,6 @@ fn rebind_estimate(
     *prepared = branch;
     Ok(result)
 }
+
+#[path = "staleness_graph_facade.rs"]
+mod graph_implications;

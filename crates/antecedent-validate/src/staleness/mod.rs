@@ -26,6 +26,7 @@
 //! | level change | rows at a new level; a recorded level that disappeared (binomial test) | `min_level_rows`, `alpha` | as support loss | as support loss |
 //! | prior-likelihood conflict | Box prior predictive F statistic of the new coefficients under the stored posterior; Gaussian divergence | `alpha` | refresh | `prior.0`, `data_snapshot` |
 //! | period drift | CUSUM of per-period means (Brownian-bridge supremum) | `smd_threshold`, `alpha` | reidentify | `source_population`, `evidence` |
+//! | implied independence | the conditional-independence test of each statement the plan's graph implies, on new data | `implication_threshold`, `alpha` | reidentify | `evidence` |
 //! | schema change | columns added, removed, retyped or reordered | zero | refuse | `data_snapshot`, `evidence` |
 //! | missingness change | change of a column's missing rate (two-proportion test); total-variation change of the patterns (chi-square test) | `missingness_threshold`, `alpha` | refresh | `row_design` |
 //! | insufficient data, target incompatible | complete rows, rows per arm, missing role columns or arms | `min_rows`, `min_rows_per_arm` | refuse | `data_snapshot`, `row_design` or `query` |
@@ -45,7 +46,7 @@
 //!   (and `row_design` when the complete rows changed, `prior.0` on a prior conflict).
 //! * [`Recommendation::Reidentify`]: an identification-level premise failed (positivity,
 //!   overlap, support of the treatment or adjustment set, a recorded identification check,
-//!   period drift). The changed keys add `evidence` (and `source_population`), which the
+//!   an independence the plan's graph implies, period drift). The changed keys add `evidence` (and `source_population`), which the
 //!   recalculation planner propagates to the identification product.
 //! * [`Recommendation::Refuse`]: the schema or the target is incompatible, or too few rows
 //!   remain to assess uncertainty.
@@ -59,6 +60,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod assess;
+pub mod implications;
 mod policy;
 mod profile;
 mod report;
@@ -125,6 +127,9 @@ pub struct StalenessPlan {
     pub adjustment: Vec<String>,
     /// Whether the plan is Bayesian (enables the prior-likelihood check).
     pub bayesian: bool,
+    /// The conditional independencies the plan's graph implies; `None` for a plan that
+    /// declares no graph.
+    pub implications: Option<implications::GraphImplications>,
 }
 
 impl StalenessPlan {
@@ -196,9 +201,9 @@ impl StalenessBaseline {
             reference: None,
             subsample_op: stats::BASELINE_SUBSAMPLE_OP,
         };
-        let wire = profile::profile(&table, snapshot_identity(data), &inputs)
-            .sealed()
-            .map_err(|e| StalenessError::Artifact(e.to_string()))?;
+        let mut wire = profile::profile(&table, snapshot_identity(data), &inputs);
+        wire.implications = implications::record(plan, &table, policy, ctx)?;
+        let wire = wire.sealed().map_err(|e| StalenessError::Artifact(e.to_string()))?;
         check_cancelled(ctx)?;
         Ok(Self { wire })
     }

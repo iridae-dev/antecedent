@@ -97,6 +97,9 @@ class StalenessPolicy:
     prior_variance: float | None = None
     prior_shape: float | None = None
     prior_rate: float | None = None
+    implication_threshold: float | None = None
+    implication_test: str | None = None
+    max_implications: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """The declared (non-``None``) fields."""

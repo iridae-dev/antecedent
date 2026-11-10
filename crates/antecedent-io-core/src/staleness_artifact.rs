@@ -33,6 +33,9 @@ pub const STALENESS_BASELINE_VERSION: u32 = 1;
 pub const STALENESS_BASELINE_WIDE_VERSION: u32 = 2;
 /// Required feature of a staleness baseline.
 pub const STALENESS_BASELINE_FEATURE: &str = "staleness_baseline_v1";
+/// Additional required feature of a baseline that records the conditional independencies the
+/// plan's graph implies. A baseline without them keeps its bytes and its seal.
+pub const STALENESS_IMPLICATIONS_FEATURE: &str = "staleness_graph_implications_v1";
 /// Most plan columns whose missingness patterns are stored as one 64-bit word.
 pub const NARROW_PATTERN_COLUMNS: usize = 64;
 
@@ -244,6 +247,10 @@ pub struct StalenessBaselineWire {
     pub checks: Vec<RecordedCheckWire>,
     /// Outcome regression statistics of a Bayesian plan.
     pub outcome_model: Option<OutcomeModelWire>,
+    /// Conditional independencies the plan's graph implies, tested on the plan's data. Absent
+    /// (and not encoded) for a plan that declares no graph.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub implications: Option<GraphImplicationsWire>,
     /// Digest of every other field.
     pub seal: String,
 }
@@ -258,7 +265,8 @@ impl Serialize for Unsealed<'_> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
         let wire = self.0;
-        let mut state = serializer.serialize_struct("StalenessBaselineWire", 21)?;
+        let fields = if wire.implications.is_some() { 22 } else { 21 };
+        let mut state = serializer.serialize_struct("StalenessBaselineWire", fields)?;
         macro_rules! fields {
             ($($field:ident),* $(,)?) => {
                 $(state.serialize_field(stringify!($field), &wire.$field)?;)*
@@ -286,6 +294,9 @@ impl Serialize for Unsealed<'_> {
             checks,
             outcome_model
         );
+        if let Some(implications) = &wire.implications {
+            state.serialize_field("implications", implications)?;
+        }
         state.serialize_field("seal", "")?;
         state.end()
     }
@@ -312,7 +323,7 @@ impl StalenessBaselineWire {
         } else {
             STALENESS_BASELINE_VERSION
         };
-        self.required_features = vec![STALENESS_BASELINE_FEATURE.into()];
+        self.required_features = self.expected_features();
         self.kind = STALENESS_BASELINE_KIND.into();
         self.seal = self.expected_seal()?;
         Ok(self)
@@ -332,7 +343,7 @@ impl StalenessBaselineWire {
                 self.version
             )));
         }
-        if self.required_features != [STALENESS_BASELINE_FEATURE] {
+        if self.required_features != self.expected_features() {
             return Err(IoError::Convert("staleness baseline requires an unknown feature".into()));
         }
         if self.kind != STALENESS_BASELINE_KIND {
@@ -405,6 +416,46 @@ impl StalenessBaselineWire {
     }
 }
 
+/// One conditional independence the plan's graph implies, with its test on one snapshot.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ImpliedIndependenceWire {
+    /// First column.
+    pub x: String,
+    /// Second column.
+    pub y: String,
+    /// Columns held fixed.
+    pub given: Vec<String>,
+    /// Test statistic on the snapshot; absent when the test could not be formed.
+    pub statistic: Option<f64>,
+    /// p-value of independence on the snapshot; absent when the test could not be formed.
+    pub p_value: Option<f64>,
+}
+
+/// The conditional independencies a plan's graph implies among its measured columns.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GraphImplicationsWire {
+    /// Name of the conditional-independence test the statistics come from.
+    pub test: String,
+    /// Why no implication is listed, when the graph could not be read for them.
+    pub unavailable: Option<String>,
+    /// One entry per pair of columns the graph separates.
+    pub items: Vec<ImpliedIndependenceWire>,
+}
+
+impl StalenessBaselineWire {
+    /// The features a baseline with these fields requires of its reader.
+    #[must_use]
+    pub fn expected_features(&self) -> Vec<String> {
+        let mut features = vec![STALENESS_BASELINE_FEATURE.to_owned()];
+        if self.implications.is_some() {
+            features.push(STALENESS_IMPLICATIONS_FEATURE.to_owned());
+        }
+        features
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -447,8 +498,53 @@ mod tests {
             overlap: None,
             checks: Vec::new(),
             outcome_model: None,
+            implications: None,
             seal: String::new(),
         }
+    }
+
+    #[test]
+    fn graph_implications_need_their_feature_and_leave_other_baselines_unchanged() {
+        let plain = minimal().sealed().unwrap();
+        assert_eq!(plain.required_features, [STALENESS_BASELINE_FEATURE]);
+        let mut with = minimal();
+        with.implications = Some(GraphImplicationsWire {
+            test: "parcorr".into(),
+            unavailable: None,
+            items: vec![
+                ImpliedIndependenceWire {
+                    x: "t".into(),
+                    y: "z".into(),
+                    given: vec!["y".into()],
+                    statistic: Some(0.25),
+                    p_value: Some(0.5),
+                },
+                ImpliedIndependenceWire {
+                    x: "t".into(),
+                    y: "y".into(),
+                    given: Vec::new(),
+                    statistic: None,
+                    p_value: None,
+                },
+            ],
+        });
+        let with = with.sealed().unwrap();
+        assert_eq!(
+            with.required_features,
+            [STALENESS_BASELINE_FEATURE, STALENESS_IMPLICATIONS_FEATURE]
+        );
+        assert_ne!(with.seal, plain.seal);
+        let bytes = with.export().unwrap();
+        assert_eq!(StalenessBaselineWire::consume(&bytes).unwrap(), with);
+        let ctx = antecedent_core::ExecutionContext::for_tests(17);
+        assert_eq!(StalenessBaselineWire::consume_admitted(&bytes, &ctx).unwrap().wire(), &with);
+        // The implications enter the seal, and the feature cannot be dropped.
+        let mut edited = with.clone();
+        edited.implications.as_mut().unwrap().items[0].given.clear();
+        assert!(edited.verify().is_err());
+        let mut unmarked = with.clone();
+        unmarked.required_features.truncate(1);
+        assert!(unmarked.verify().is_err());
     }
 
     #[test]

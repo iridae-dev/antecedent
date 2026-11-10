@@ -72,13 +72,28 @@ impl PyPreparedAnalysis {
 
     /// The roles a staleness baseline of this study records, as JSON.
     fn staleness_plan_json(&self) -> String {
+        use antecedent::analysis::staleness::GraphImplications;
         let plan = self.inner.staleness_plan();
+        let implications = match &plan.implications {
+            None => serde_json::Value::Null,
+            Some(GraphImplications::Unavailable(reason)) => {
+                serde_json::json!({"unavailable": reason, "statements": []})
+            }
+            Some(GraphImplications::Listed(statements)) => serde_json::json!({
+                "unavailable": null,
+                "statements": statements
+                    .iter()
+                    .map(|s| serde_json::json!({"x": s.x, "y": s.y, "given": s.given}))
+                    .collect::<Vec<_>>(),
+            }),
+        };
         serde_json::json!({
             "plan_identity": plan.plan_identity,
             "treatment": plan.treatment,
             "outcome": plan.outcome,
             "adjustment": plan.adjustment,
             "bayesian": plan.bayesian,
+            "implications": implications,
         })
         .to_string()
     }

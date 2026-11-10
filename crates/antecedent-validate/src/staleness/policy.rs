@@ -104,6 +104,15 @@ pub struct StalenessPolicy {
     pub prior_shape: f64,
     /// Rate of the reference inverse-gamma prior of the noise variance.
     pub prior_rate: f64,
+    /// Smallest absolute statistic of a conditional-independence test (a partial correlation
+    /// for the default test) that counts as a failed implication of the plan's graph.
+    pub implication_threshold: f64,
+    /// Conditional-independence test of the graph's implications, by name. It must report an
+    /// analytic frequentist p-value.
+    pub implication_test: String,
+    /// Most implied independencies a baseline records; a graph that implies more records none
+    /// and says so.
+    pub max_implications: usize,
 }
 
 impl Default for StalenessPolicy {
@@ -134,9 +143,16 @@ impl Default for StalenessPolicy {
             prior_variance: 100.0,
             prior_shape: 0.01,
             prior_rate: 0.01,
+            implication_threshold: DEFAULT_IMPLICATION_THRESHOLD,
+            implication_test: DEFAULT_IMPLICATION_TEST.into(),
+            max_implications: DEFAULT_MAX_IMPLICATIONS,
         }
     }
 }
+
+const DEFAULT_IMPLICATION_THRESHOLD: f64 = 0.1;
+const DEFAULT_IMPLICATION_TEST: &str = "parcorr";
+const DEFAULT_MAX_IMPLICATIONS: usize = 512;
 
 fn unit_open(value: f64) -> bool {
     value.is_finite() && value > 0.0 && value < 1.0
@@ -209,6 +225,12 @@ impl StalenessPolicy {
         if self.period_column.as_deref().is_some_and(str::is_empty) {
             return Err(StalenessError::Policy("period_column must not be empty"));
         }
+        if !non_negative(self.implication_threshold) {
+            return Err(StalenessError::Policy(
+                "implication_threshold must be finite and nonnegative",
+            ));
+        }
+        super::implications::resolve_test(self)?;
         Ok(())
     }
 
@@ -242,6 +264,18 @@ impl StalenessPolicy {
             .real(self.prior_variance)
             .real(self.prior_shape)
             .real(self.prior_rate);
+        // Encoded only away from their defaults, so a policy that leaves them alone keeps the
+        // identity it had before they existed.
+        if self.implication_threshold.to_bits() != DEFAULT_IMPLICATION_THRESHOLD.to_bits()
+            || self.implication_test != DEFAULT_IMPLICATION_TEST
+            || self.max_implications != DEFAULT_MAX_IMPLICATIONS
+        {
+            writer
+                .text("implications")
+                .real(self.implication_threshold)
+                .text(&self.implication_test)
+                .word(self.max_implications as u64);
+        }
         writer.finish_hex()
     }
 }
@@ -270,5 +304,26 @@ mod tests {
         let mut bad = base;
         bad.alpha = 1.5;
         assert!(matches!(bad.validate(), Err(StalenessError::Policy(_))));
+    }
+
+    #[test]
+    fn implication_fields_enter_the_identity_only_away_from_their_defaults() {
+        let base = StalenessPolicy::default();
+        let id = base.identity();
+        let mut threshold = base.clone();
+        threshold.implication_threshold = 0.2;
+        assert_ne!(threshold.identity(), id);
+        let mut test = base.clone();
+        test.implication_test = "robust_parcorr".into();
+        test.validate().expect("an analytic frequentist test is accepted");
+        assert_ne!(test.identity(), id);
+        let mut cap = base.clone();
+        cap.max_implications = 8;
+        assert_ne!(cap.identity(), id);
+        for name in ["nope", "bayes_factor", "gpdc"] {
+            let mut bad = base.clone();
+            bad.implication_test = name.into();
+            assert!(matches!(bad.validate(), Err(StalenessError::Policy(_))), "{name}");
+        }
     }
 }

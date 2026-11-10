@@ -17,6 +17,7 @@
 
 use antecedent_core::{CanonicalEncode, CanonicalWriter, CausalQuery, ExecutionContext};
 use antecedent_data::TabularData;
+pub use antecedent_validate::staleness::implications::{GraphImplications, ImpliedIndependence};
 pub use antecedent_validate::staleness::{
     FindingKind, Multiplicity, Recommendation, StalenessBaseline, StalenessError, StalenessFinding,
     StalenessPlan, StalenessPolicy, StalenessReport, dependency_class, snapshot_identity,
@@ -81,7 +82,33 @@ impl PreparedStudy {
                 },
                 |program| program.to_hex(),
             );
-        StalenessPlan { plan_identity, treatment, outcome, adjustment, bayesian }
+        let implications = self.graph_implications();
+        StalenessPlan { plan_identity, treatment, outcome, adjustment, bayesian, implications }
+    }
+
+    /// The conditional independencies the study's graph implies among its columns; `None`
+    /// for a study that declares no graph.
+    fn graph_implications(&self) -> Option<GraphImplications> {
+        use crate::accepted::GraphRef;
+        let schema = self.schema();
+        let name = |node: &antecedent_core::NodeRef| match node {
+            antecedent_core::NodeRef::Static(variable) => {
+                schema.get(*variable).ok().map(|column| column.name.to_string())
+            }
+            _ => None,
+        };
+        Some(match self.study().graph.graph_ref() {
+            GraphRef::Dag(graph) => GraphImplications::from_dag(graph, &name),
+            GraphRef::Admg(graph) => GraphImplications::from_admg(graph, &name),
+            GraphRef::Cpdag(graph) => GraphImplications::from_cpdag(graph, &name),
+            GraphRef::Pag(graph) => GraphImplications::from_pag(graph, &name),
+            GraphRef::RandomizedTrial => return None,
+            _ => GraphImplications::Unavailable(
+                "the plan's graph is temporal: its implications relate lagged values, which \
+                 a test over exchangeable rows does not assess"
+                    .into(),
+            ),
+        })
     }
 
     /// The data snapshot the study retains, as a table.
@@ -261,7 +288,7 @@ fn count(
 /// Malformed JSON, an unknown field, a field of the wrong type, or a policy that does not
 /// validate.
 pub fn staleness_policy_from_json(text: &str) -> Result<StalenessPolicy, CausalError> {
-    const FIELDS: [&str; 25] = [
+    const FIELDS: [&str; 28] = [
         "alpha",
         "multiplicity",
         "smd_threshold",
@@ -287,6 +314,9 @@ pub fn staleness_policy_from_json(text: &str) -> Result<StalenessPolicy, CausalE
         "prior_variance",
         "prior_shape",
         "prior_rate",
+        "implication_threshold",
+        "implication_test",
+        "max_implications",
     ];
     let parsed: Value = serde_json::from_str(text)
         .map_err(|error| CausalError::Compile { message: format!("staleness policy: {error}") })?;
@@ -315,6 +345,7 @@ pub fn staleness_policy_from_json(text: &str) -> Result<StalenessPolicy, CausalE
         ("prior_variance", &mut policy.prior_variance),
         ("prior_shape", &mut policy.prior_shape),
         ("prior_rate", &mut policy.prior_rate),
+        ("implication_threshold", &mut policy.implication_threshold),
     ] {
         real(&object, key, slot)?;
     }
@@ -355,6 +386,17 @@ pub fn staleness_policy_from_json(text: &str) -> Result<StalenessPolicy, CausalE
                 .to_owned(),
         );
     }
+    if let Some(value) = field(&object, "implication_test") {
+        value
+            .as_str()
+            .ok_or_else(|| CausalError::Compile {
+                message: "staleness policy implication_test must be a string".into(),
+            })?
+            .clone_into(&mut policy.implication_test);
+    }
+    let mut most = policy.max_implications as u64;
+    count(&object, "max_implications", &mut most)?;
+    policy.max_implications = usize::try_from(most).map_err(|_| too_large("max_implications"))?;
     policy.validate().map_err(causal)?;
     Ok(policy)
 }
@@ -388,6 +430,9 @@ pub fn staleness_policy_json(policy: &StalenessPolicy) -> Value {
         "prior_variance": policy.prior_variance,
         "prior_shape": policy.prior_shape,
         "prior_rate": policy.prior_rate,
+        "implication_threshold": policy.implication_threshold,
+        "implication_test": policy.implication_test,
+        "max_implications": policy.max_implications,
         "identity": policy.identity(),
     })
 }
