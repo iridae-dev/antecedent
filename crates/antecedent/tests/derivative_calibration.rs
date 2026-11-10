@@ -242,7 +242,7 @@ fn directional_query() -> F {
 }
 
 fn bayes() -> InferenceMode {
-    InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(DRAWS))
+    InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(DRAWS))
 }
 
 fn run(
