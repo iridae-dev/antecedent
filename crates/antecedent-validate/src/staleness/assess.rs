@@ -961,16 +961,31 @@ fn next_attempt(
             text
         }
         Recommendation::Reidentify => {
-            let mut text = format!(
-                "identify again on the new data (re-prepare the study): {} no longer support the \
-                 stored identification or adjustment set",
-                subjects(Recommendation::Reidentify)
-            );
-            if exceeded(FindingKind::ImpliedIndependence) {
-                text.push_str(
-                    "; an independence the plan's graph implies fails on the new data, so review \
-                     the graph before identifying again",
-                );
+            let named = |implied: bool| -> String {
+                let mut names: Vec<&str> = evaluations
+                    .iter()
+                    .filter(|f| {
+                        f.exceeded
+                            && f.forces == Recommendation::Reidentify
+                            && (f.kind == FindingKind::ImpliedIndependence) == implied
+                    })
+                    .map(|f| f.subject.as_str())
+                    .collect();
+                names.dedup();
+                names.join(", ")
+            };
+            let mut text = String::from("identify again on the new data (re-prepare the study)");
+            let premises = named(false);
+            if !premises.is_empty() {
+                text.push_str(": ");
+                text.push_str(&premises);
+                text.push_str(" no longer support the stored identification or adjustment set");
+            }
+            let implied = named(true);
+            if !implied.is_empty() {
+                text.push_str("; the new data contradict what the plan's graph implies (");
+                text.push_str(&implied);
+                text.push_str("), so review the graph before identifying again");
             }
             if exceeded(FindingKind::PeriodDrift) {
                 text.push_str(
