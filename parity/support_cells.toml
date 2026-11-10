@@ -277,7 +277,6 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -298,7 +297,6 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -429,7 +427,6 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -452,7 +449,6 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -473,7 +469,6 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -494,7 +489,6 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -516,7 +510,6 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -537,7 +530,6 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -669,7 +661,6 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -691,7 +682,6 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -712,7 +702,6 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -733,7 +722,6 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -755,7 +743,6 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -776,7 +763,6 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -1058,7 +1044,6 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -1617,7 +1602,6 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp", "functional.effect", "dml", "dr.learner", "causal.forest", "propensity.stratification", "distance.matching", "frontdoor.functional", "randomized.quantile"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "dml", source = "crates/antecedent-estimate/src/dml.rs", source_symbol = "DmlAte", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "dr.learner", source = "crates/antecedent-estimate/src/dr.rs", source_symbol = "DrLearner", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "causal.forest", source = "crates/antecedent-estimate/src/causal_forest.rs", source_symbol = "CausalForest", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "frontdoor.functional", source = "crates/antecedent-estimate/src/frontdoor_functional.rs", source_symbol = "FrontDoorFunctional", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_frontdoor_functional_calibration_owner_executes_all_static_coordinates" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
@@ -1654,7 +1638,6 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp", "functional.effect", "dml", "dr.learner", "causal.forest", "propensity.stratification", "distance.matching", "frontdoor.functional"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "dml", source = "crates/antecedent-estimate/src/dml.rs", source_symbol = "DmlAte", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "dr.learner", source = "crates/antecedent-estimate/src/dr.rs", source_symbol = "DrLearner", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "causal.forest", source = "crates/antecedent-estimate/src/causal_forest.rs", source_symbol = "CausalForest", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "frontdoor.functional", source = "crates/antecedent-estimate/src/frontdoor_functional.rs", source_symbol = "FrontDoorFunctional", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_frontdoor_functional_calibration_owner_executes_all_static_coordinates" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
@@ -1689,7 +1672,6 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp", "functional.effect", "dml", "dr.learner", "causal.forest", "propensity.stratification", "distance.matching", "frontdoor.functional"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "dml", source = "crates/antecedent-estimate/src/dml.rs", source_symbol = "DmlAte", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "dr.learner", source = "crates/antecedent-estimate/src/dr.rs", source_symbol = "DrLearner", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "causal.forest", source = "crates/antecedent-estimate/src/causal_forest.rs", source_symbol = "CausalForest", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "frontdoor.functional", source = "crates/antecedent-estimate/src/frontdoor_functional.rs", source_symbol = "FrontDoorFunctional", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_frontdoor_functional_calibration_owner_executes_all_static_coordinates" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/validate/refuters"
@@ -1724,7 +1706,6 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp", "functional.effect", "dml", "dr.learner", "causal.forest", "propensity.stratification", "distance.matching", "frontdoor.functional", "randomized.quantile"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "dml", source = "crates/antecedent-estimate/src/dml.rs", source_symbol = "DmlAte", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "dr.learner", source = "crates/antecedent-estimate/src/dr.rs", source_symbol = "DrLearner", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "causal.forest", source = "crates/antecedent-estimate/src/causal_forest.rs", source_symbol = "CausalForest", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "frontdoor.functional", source = "crates/antecedent-estimate/src/frontdoor_functional.rs", source_symbol = "FrontDoorFunctional", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_frontdoor_functional_calibration_owner_executes_all_static_coordinates" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
@@ -1760,7 +1741,6 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp", "functional.effect", "dml", "dr.learner", "causal.forest", "propensity.stratification", "distance.matching", "frontdoor.functional"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "dml", source = "crates/antecedent-estimate/src/dml.rs", source_symbol = "DmlAte", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "dr.learner", source = "crates/antecedent-estimate/src/dr.rs", source_symbol = "DrLearner", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "causal.forest", source = "crates/antecedent-estimate/src/causal_forest.rs", source_symbol = "CausalForest", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "frontdoor.functional", source = "crates/antecedent-estimate/src/frontdoor_functional.rs", source_symbol = "FrontDoorFunctional", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_frontdoor_functional_calibration_owner_executes_all_static_coordinates" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
@@ -1795,7 +1775,6 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["linear.adjustment.ate", "aipw", "frontdoor.linear_two_stage", "glm.adjustment", "iv.2sls", "iv.wald", "propensity.matching", "propensity.weighting", "rd.sharp", "functional.effect", "dml", "dr.learner", "causal.forest", "propensity.stratification", "distance.matching", "frontdoor.functional"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "dml", source = "crates/antecedent-estimate/src/dml.rs", source_symbol = "DmlAte", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "dr.learner", source = "crates/antecedent-estimate/src/dr.rs", source_symbol = "DrLearner", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "causal.forest", source = "crates/antecedent-estimate/src/causal_forest.rs", source_symbol = "CausalForest", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_score_learner_calibration_owners_execute_all_static_coordinates" }, { estimator = "frontdoor.functional", source = "crates/antecedent-estimate/src/frontdoor_functional.rs", source_symbol = "FrontDoorFunctional", evidence_test = "crates/antecedent/tests/calibration_binding.rs", evidence_assertion = "checked_frontdoor_functional_calibration_owner_executes_all_static_coordinates" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/validate/refuters"
@@ -2590,7 +2569,6 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["temporal.linear.adjustment", "temporal.lagged_instrument", "temporal.glm_link_contrast", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs", evidence_assertion = "fixed_temporal_contrasts_execute_from_retained_proof_and_procedure" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
@@ -2614,7 +2592,6 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["temporal.linear.adjustment", "temporal.lagged_instrument", "temporal.glm_link_contrast", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs", evidence_assertion = "fixed_temporal_contrasts_execute_from_retained_proof_and_procedure" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
@@ -2638,7 +2615,6 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.linear.adjustment", "temporal.lagged_instrument", "temporal.glm_link_contrast", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs", evidence_assertion = "fixed_temporal_contrasts_execute_from_retained_proof_and_procedure" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
@@ -2662,7 +2638,6 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.linear.adjustment", "temporal.lagged_instrument", "temporal.glm_link_contrast", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs", evidence_assertion = "fixed_temporal_contrasts_execute_from_retained_proof_and_procedure" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
@@ -2686,7 +2661,6 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.linear.adjustment", "temporal.lagged_instrument", "temporal.glm_link_contrast", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs", evidence_assertion = "fixed_temporal_contrasts_execute_from_retained_proof_and_procedure" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
@@ -2710,7 +2684,6 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.linear.adjustment", "temporal.lagged_instrument", "temporal.glm_link_contrast", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs", evidence_assertion = "fixed_temporal_contrasts_execute_from_retained_proof_and_procedure" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/response/temporal_dose_horizon"
@@ -2734,7 +2707,6 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp", "bayesian.temporal.glm_link_contrast", "bayesian.temporal.lagged_instrument", "bayesian.temporal.white_innovation_linear"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_bayesian_temporal_dag_lifecycle.rs", evidence_assertion = "bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
@@ -2759,7 +2731,6 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp", "bayesian.temporal.glm_link_contrast", "bayesian.temporal.lagged_instrument", "bayesian.temporal.white_innovation_linear"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_bayesian_temporal_dag_lifecycle.rs", evidence_assertion = "bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
@@ -2784,7 +2755,6 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp", "bayesian.temporal.glm_link_contrast", "bayesian.temporal.lagged_instrument", "bayesian.temporal.white_innovation_linear"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_bayesian_temporal_dag_lifecycle.rs", evidence_assertion = "bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
@@ -2809,7 +2779,6 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp", "bayesian.temporal.glm_link_contrast", "bayesian.temporal.lagged_instrument", "bayesian.temporal.white_innovation_linear"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_bayesian_temporal_dag_lifecycle.rs", evidence_assertion = "bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
@@ -2834,7 +2803,6 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp", "bayesian.temporal.glm_link_contrast", "bayesian.temporal.lagged_instrument", "bayesian.temporal.white_innovation_linear"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_bayesian_temporal_dag_lifecycle.rs", evidence_assertion = "bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
@@ -2859,7 +2827,6 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp", "bayesian.temporal.glm_link_contrast", "bayesian.temporal.lagged_instrument", "bayesian.temporal.white_innovation_linear"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_bayesian_temporal_dag_lifecycle.rs", evidence_assertion = "bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_sustained"
@@ -4104,7 +4071,6 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs", evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
@@ -4125,7 +4091,6 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs", evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
@@ -4147,7 +4112,6 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs", evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
@@ -4168,7 +4132,6 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs", evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
@@ -4189,7 +4152,6 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs", evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
@@ -4210,7 +4172,6 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs", evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
@@ -4231,7 +4192,6 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs", evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
@@ -4252,7 +4212,6 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs", evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
@@ -4274,7 +4233,6 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs", evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
@@ -4295,7 +4253,6 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs", evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
@@ -4316,7 +4273,6 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs", evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
@@ -4337,7 +4293,6 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["temporal.linear.adjustment", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_class_effect_route_evidence.rs", evidence_assertion = "all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
@@ -5075,7 +5030,6 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -6020,7 +5974,6 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -6042,7 +5995,6 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["bayesian.temporal.gcomp", "temporal.sequential.gcomp"]
 # Scientific algorithm ownership; these are not additional public selector names.
-calibration_estimators = [{ estimator = "temporal.sequential.gcomp", source = "crates/antecedent-estimate/src/temporal_sequential.rs", source_symbol = "SequentialContrastDesign", evidence_test = "crates/antecedent/tests/checked_temporal_graph_posterior_effect_route_evidence.rs", evidence_assertion = "all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs" }]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
