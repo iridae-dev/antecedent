@@ -21,9 +21,9 @@
 use std::borrow::Cow;
 
 use antecedent_core::ExecutionContext;
-use antecedent_graph::completion::CompletionSampler;
+use antecedent_graph::completion::{CompletionSampler, mag_to_admg};
 use antecedent_graph::{
-    Admg, BitSet, Cpdag, CpdagCompletionSampler, DSeparationWorkspace, Dag, DenseNodeId, Endpoint,
+    Admg, BitSet, Cpdag, CpdagCompletionSampler, DSeparationWorkspace, Dag, DenseNodeId,
     GraphWorkspace, NodeRef, Pag,
 };
 use antecedent_io_core::staleness_artifact::{GraphImplicationsWire, ImpliedIndependenceWire};
@@ -136,28 +136,6 @@ fn shared_separations(members: &[Admg]) -> Vec<Separation> {
     kept
 }
 
-/// A circle-free PAG (a maximal ancestral graph without selection) as an ADMG over the same
-/// node positions; `None` when a mark is neither a tail nor an arrowhead.
-fn mag_admg(mag: &Pag) -> Option<Admg> {
-    let n = mag.node_count();
-    let mut admg = Admg::with_variables(u32::try_from(n).ok()?);
-    for i in 0..n {
-        let a = node(i);
-        for (b, at_a, at_b) in mag.neighbors(a) {
-            if b.raw() < a.raw() {
-                continue;
-            }
-            match (at_a, at_b) {
-                (Endpoint::Tail, Endpoint::Arrow) => admg.insert_directed(a, b).ok()?,
-                (Endpoint::Arrow, Endpoint::Tail) => admg.insert_directed(b, a).ok()?,
-                (Endpoint::Arrow, Endpoint::Arrow) => admg.insert_bidirected(a, b).ok()?,
-                _ => return None,
-            }
-        }
-    }
-    Some(admg)
-}
-
 fn too_large(n: usize) -> Option<GraphImplications> {
     (n > MAX_IMPLICATION_NODES).then(|| {
         GraphImplications::Unavailable(format!(
@@ -235,7 +213,7 @@ impl GraphImplications {
         let Ok(sampler) = CompletionSampler::new(pag.clone(), MAX_CLASS_MEMBERS) else {
             return Self::Unavailable("the PAG has no ancestral completion".into());
         };
-        let members: Vec<Admg> = sampler.filter_map(|member| mag_admg(&member.graph)).collect();
+        let members: Vec<Admg> = sampler.filter_map(|member| mag_to_admg(&member.graph)).collect();
         if members.is_empty() {
             return Self::Unavailable(
                 "no ancestral graph completes the PAG within the completion search budget".into(),
