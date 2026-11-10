@@ -140,8 +140,8 @@ class SelectionTests(unittest.TestCase):
         ]
         return ei.Inventory.read(json.dumps(r) for r in records)
 
-    def earn(self, observes=False):
-        selection = ei.Selection(self.root, self.inventory(observes))
+    def earn(self, observes=False, callee_bodies=False):
+        selection = ei.Selection(self.root, self.inventory(observes), callee_bodies=callee_bodies)
         for rel, source, needle in ((TEST, TEST_SOURCE, "assert!"), (EST, EST_SOURCE, "self.bias +")):
             selection.execute(rel, source.index(needle))
         entries, tables = selection.entries(em.Checker(self.root, {}), ["crates/c"], "crates/c")
@@ -169,6 +169,15 @@ class SelectionTests(unittest.TestCase):
         self.assertIn("full", selection.parts[LIB]["mod:est#0"])
         self.assertNotIn("impl:Mean#0/fn:idle#0", selection.parts[EST])
         self.assertNotIn("fn:unused#0", selection.parts[LIB])
+
+    def test_a_sampled_run_binds_called_functions_whole(self):
+        # Coverage from a slice of the replicates: a function the executed code calls may
+        # run in a replicate the slice did not, so its body is an input.
+        selection, entries = self.earn(callee_bodies=True)
+        self.assertIn("full", selection.parts[LIB]["fn:helper#0"])
+        self.assertNotIn("impl:Mean#0/fn:idle#0", selection.parts[EST])  # never named: still out
+        self.edit(LIB, "{ x + 1.0 }", "{ x + 2.0 }")
+        self.assertFalse(self.current(entries))
 
     def test_unrelated_edits_leave_the_record_current(self):
         _, entries = self.earn()

@@ -18,6 +18,7 @@ from pathlib import Path
 from _repo import scientific_target_feature_args
 from nix_artifact_identity import (
     RECIPE_FILES,
+    _file_hash,
     inspect_artifact,
     recheck_artifact,
     target_dir,
@@ -213,6 +214,59 @@ def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
                                           "evidence_authorized": False}
         verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
     return built
+
+
+# The recipe of the uninstrumented calibration binaries and what it imports.
+RELEASE_RECIPE_FILES = ("nix/calibration-release.nix", "nix/evidence-common.nix",
+                        "nix/evidence-toolchain.nix", "flake.lock")
+
+
+def attach_release_builds(root: Path, built: dict[tuple[str, str, str], dict]) -> None:
+    """Build the uninstrumented, optimized binaries of `built`'s targets from the same
+    committed source and dependency snapshot (`nix/calibration-release.nix`), and add each
+    to its build record as `release`: its output, binary path, digest and recipe digests.
+
+    A calibration measurement runs its replicates on that binary and a slice of them on
+    the instrumented one, whose coverage says what the measurement depends on."""
+    root = root.resolve()
+    if not built:
+        return
+    artifacts = [record["artifact"] for record in built.values()]
+    first = artifacts[0]
+    if any(a["source"] != first["source"] or a["deps_source"] != first["deps_source"]
+           or a["build_targets"] != first["build_targets"] for a in artifacts):
+        raise ValueError("release binaries need one shared evidence build")
+    command = [
+        "nix", "--extra-experimental-features", "nix-command flakes", "--offline",
+        "--option", "substitute", "false", "--option", "builders", "", "build",
+        "--file", str(root / "nix/calibration-release.nix"), "--no-link", "--print-out-paths",
+        "--arg", "src", "builtins.storePath " + json.dumps(first["source"]),
+        "--argstr", "targetsJson", targets_json(first["build_targets"]),
+        "--arg", "depsSrc", "builtins.storePath " + json.dumps(first["deps_source"]),
+        "--argstr", "depsTargetsJson", targets_json(first["deps_targets"]),
+    ]
+    result = subprocess.run(command, cwd=root, capture_output=True, text=True)
+    if result.returncode != 0:
+        tail = "\n".join(result.stderr.strip().splitlines()[-60:])
+        raise RuntimeError(f"Nix release build failed (exit {result.returncode}):\n{tail}")
+    warnings = result.stderr.lower()
+    if "ignoring untrusted" in warnings or "not a trusted user" in warnings:
+        raise ValueError("Nix ignored an untrusted build setting")
+    output = Path(result.stdout.strip())
+    recipe = {rel: hashlib.sha256((root / rel).read_bytes()).hexdigest() for rel in RELEASE_RECIPE_FILES}
+    for (crate, kind, name), record in built.items():
+        binary = f"{target_dir(crate, kind, name)}/bin/test"
+        record["release"] = {"output": str(output), "binary": binary,
+                             "binary_sha256": _file_hash(output / binary), "recipe_sha256": recipe}
+
+
+def release_binary(record: dict) -> Path:
+    """The release binary of a build record, refused when its bytes changed since it was built."""
+    release = record["release"]
+    path = Path(release["output"]) / release["binary"]
+    if _file_hash(path) != release["binary_sha256"]:
+        raise ValueError("release binary changed since it was built")
+    return path
 
 
 def build_committed_target(root: Path, crate: str, target_kind: str, target_name: str = "", *,

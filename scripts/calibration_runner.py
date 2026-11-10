@@ -1,13 +1,19 @@
 """Measuring one calibration group at one grid point: its first pass and, when the
 harness asks for it, its recheck.
 
-A unit of work runs the group's Nix-built, coverage-instrumented test binary through
-the shared runner (`evidence_capture`) and writes the same files the collector,
+A unit of work runs the group's Nix-built test binary through the shared runner
+(`evidence_capture`) and writes the same files the collector,
 the decision audit and the probe read: `<stem>.log`, `<stem>.tallies.jsonl` and,
 after a recheck, `<stem>.recheck.log` and `<stem>.recheck.tallies.jsonl`, each log
 ending in its `calibration-measured-at` stamp (and decision context). It returns the
-code regions every run executed, so each record it emits is bound to the items its
+code regions its runs executed, so each record it emits is bound to the items its
 measurement depended on.
+
+With a release build (`nix/calibration-release.nix`) the replicates run on that
+uninstrumented, optimized binary, and the instrumented binary of the same source runs a
+smoke slice of `SLICE_NSIM` replicates, one thread, for coverage: counters in hot loops
+cost several times the work, and threads sharing them far more. Its records bind every
+function the executed code calls whole (`evidence_items.Selection.callee_bodies`).
 
 The first pass runs `first_nsim` replicates. When it passes, ran at least one test,
 is not a smoke run, ran fewer than `recheck_nsim` replicates and printed
@@ -31,6 +37,8 @@ _PASSED = re.compile(r"^test result: ok\. (\d+) passed", re.M)
 _RECHECK = re.compile(r"^calibration-recheck ", re.M)
 _RECHECK_TEST = re.compile(r"^calibration-recheck-test (\S+)", re.M)
 _REPLICATED = {"replicated_interval", "replicated_statistical_test"}
+# Replicates the instrumented binary runs, single-threaded, beside a release-binary measurement.
+SLICE_NSIM = 16
 
 
 @dataclass(frozen=True)
@@ -134,6 +142,17 @@ def measure(spec: dict) -> dict:
     regions every run executed, and whether it rechecked."""
     from evidence_capture import instrumented_run, merge_coverage
     group = GroupSpec(**spec["group"])
+    release = spec.get("release_binary")
+
+    def measured_run(args: list[str], env: dict[str, str]):
+        """A measurement run: on the release binary when there is one, else instrumented."""
+        if release is None:
+            return instrumented_run(spec["binary"], args, cwd=Path(spec["cwd"]), env=env,
+                                    tools=spec["tools"], merge_output=True)
+        import subprocess
+        done = subprocess.run([release, *args], cwd=spec["cwd"], env=env, text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        return done.returncode, done.stdout or "", {}, None
     stem = Path(spec["stem"])
     log, tallies = stem.with_name(stem.name + ".log"), stem.with_name(stem.name + ".tallies.jsonl")
     recheck_log = stem.with_name(stem.name + ".recheck.log")
@@ -152,9 +171,7 @@ def measure(spec: dict) -> dict:
 
     first = spec["first_nsim"]
     env = {**base_env, "ANTECEDENT_CALIBRATION_NSIM": str(first), "ANTECEDENT_CALIBRATION_TALLY_OUT": str(tallies)}
-    status, output, regions, problem = instrumented_run(
-        spec["binary"], libtest_args(group), cwd=Path(spec["cwd"]), env=env, tools=spec["tools"],
-        merge_output=True)
+    status, output, regions, problem = measured_run(libtest_args(group), env)
     problems = []
     if status == 0 and passed_tests(output) < 1:
         problems.append(f"no test ran for this group (renamed or filtered away): {log}")
@@ -172,9 +189,7 @@ def measure(spec: dict) -> dict:
                "ANTECEDENT_CALIBRATION_REPLICATE_START": str(first),
                "ANTECEDENT_CALIBRATION_PRIOR_TALLIES": str(tallies),
                "ANTECEDENT_CALIBRATION_TALLY_OUT": str(recheck_tallies)}
-        status, output, regions, problem = instrumented_run(
-            spec["binary"], libtest_args(group, tests), cwd=Path(spec["cwd"]), env=env,
-            tools=spec["tools"], merge_output=True)
+        status, output, regions, problem = measured_run(libtest_args(group, tests), env)
         if status == 0 and passed_tests(output) < 1:
             problems.append(f"no test ran for this group (renamed or filtered away): {recheck_log}")
             status = 1
@@ -184,6 +199,21 @@ def measure(spec: dict) -> dict:
         output += "".join(f"calibration-rechecked-test {t}\n" for t in tests)
         stamp(recheck_log, output)
         coverage.append(regions)
+    if release is not None and status == 0:
+        # The measurement ran uninstrumented: a smoke slice of the same test, one thread, on
+        # the instrumented binary says which code it runs. Its logs and tallies are discarded.
+        slice_env = {k: v for k, v in base_env.items()
+                     if k not in ("ANTECEDENT_CALIBRATION_TALLY_OUT", "ANTECEDENT_CALIBRATION_PRIOR_TALLIES",
+                                  "ANTECEDENT_CALIBRATION_REPLICATE_START")}
+        slice_env.update({"ANTECEDENT_CALIBRATION_NSIM": str(min(SLICE_NSIM, first)),
+                          "ANTECEDENT_CALIBRATION_SMOKE": "1", "ANTECEDENT_CALIBRATION_THREADS": "1"})
+        _, slice_output, regions, problem = instrumented_run(
+            spec["binary"], libtest_args(group), cwd=Path(spec["cwd"]), env=slice_env,
+            tools=spec["tools"], merge_output=True)
+        if regions is None or passed_tests(slice_output) + slice_output.count("... FAILED") < 1:
+            problems.append(f"the coverage slice of {log} ran no test or could not be read: {problem}")
+            status = 1
+        coverage = [regions or {}]
     return {"status": status, "rechecked": rechecked, "problems": problems,
             "coverage": merge_coverage(*coverage)}
 
@@ -211,14 +241,17 @@ def coverage_path(stem: Path) -> Path:
 
 def execute(root: Path, tasks: list[Task], *, env: dict[str, str], log_dir: Path, jobs: int,
             first_nsim: int, recheck_nsim: int, acceptance_nsim: int = 2000, smoke: bool = False,
-            confirm: bool = False, decision_context: str | None = None, on_done=None) -> dict:
+            confirm: bool = False, decision_context: str | None = None, on_done=None,
+            release: bool = True) -> dict:
     """Build every task's test binary in one Nix derivation from clean HEAD, then measure
     the tasks in the order given, `jobs` at a time, through the shared runner.
 
     Each task's logs land under `log_dir` with the code regions its runs executed beside
     them (`<stem>.coverage.json`), and the build records in `log_dir/evidence-builds.json`,
     so the collector binds every record it accepts to the items its measurement ran.
-    `on_done(task, result)` is called as each task finishes. Returns `{task.key: result}`."""
+    `on_done(task, result)` is called as each task finishes. Returns `{task.key: result}`.
+    With `release` (the default) the replicates run on the uninstrumented release build of
+    the same source and the instrumented binary runs a coverage slice (module docstring)."""
     import json
     from concurrent.futures import as_completed
     from dataclasses import asdict
@@ -242,6 +275,9 @@ def execute(root: Path, tasks: list[Task], *, env: dict[str, str], log_dir: Path
     built = build_committed_targets(root, targets, features=features)
     for record in built.values():
         validate_build(root, record)
+    if release:
+        from nix_evidence_build import attach_release_builds
+        attach_release_builds(root, built)
     log_dir.mkdir(parents=True, exist_ok=True)
     (log_dir / BUILDS).write_text(json.dumps({"|".join(k): v for k, v in built.items()}, sort_keys=True),
                                   encoding="utf-8")
@@ -267,6 +303,8 @@ def execute(root: Path, tasks: list[Task], *, env: dict[str, str], log_dir: Path
             "group": asdict(task.group), "point": task.point,
             "stem": str(stem_of(log_dir, task.group, task.point, confirm)),
             "binary": str(output / record["artifact"]["binary"]),
+            "release_binary": (str(Path(record["release"]["output"]) / record["release"]["binary"])
+                               if "release" in record else None),
             "cwd": str(root / "crates" / task.group.package),
             "env": {**base, "ANTECEDENT_CALIBRATION_THREADS": str(task.threads)},
             "tools": {name: str(output / "bin" / name) for name in ("llvm-profdata", "llvm-cov")},

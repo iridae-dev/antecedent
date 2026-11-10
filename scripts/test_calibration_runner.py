@@ -51,7 +51,7 @@ class ArgumentTests(unittest.TestCase):
         self.assertNotIn("--ignored", cr.libtest_args(group(ignored=False)))
 
 
-class MeasureTests(unittest.TestCase):
+class MeasureFixture(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = Path(self.tmp.name)
@@ -65,6 +65,8 @@ class MeasureTests(unittest.TestCase):
                 "cwd": str(self.dir), "env": {"PATH": "/bin"}, "tools": {}, "first_nsim": 400,
                 "recheck_nsim": 2000, "smoke": False, "sha": "a" * 40, "decision_context": "{}", **kw}
 
+
+class MeasureTests(MeasureFixture):
     def test_a_recheck_extends_the_first_pass_and_both_logs_are_stamped(self):
         calls = []
         outputs = iter([
@@ -107,6 +109,48 @@ class MeasureTests(unittest.TestCase):
                    return_value=(0, "calibration-recheck x\ntest result: ok. 1 passed\n", {}, None)) as run:
             result = cr.measure(self.spec(group(), smoke=True))
         self.assertEqual((result["status"], result["rechecked"], run.call_count), (0, False, 1))
+
+
+class ReleaseMeasureTests(MeasureFixture):
+    def test_replicates_run_on_the_release_binary_and_a_slice_gives_the_coverage(self):
+        runs = []
+
+        class Done:
+            def __init__(self, stdout):
+                self.returncode, self.stdout = 0, stdout
+
+        def plain(argv, **kw):
+            runs.append((argv[0], kw["env"]))
+            return Done("calibration-recheck x\ntest result: ok. 1 passed; 0 failed\n" if len(runs) == 1
+                        else "test result: ok. 1 passed; 0 failed\n")
+
+        def instrumented(binary, args, *, cwd, env, tools, merge_output):
+            runs.append((binary, env))
+            return 0, "test result: ok. 1 passed; 0 failed\n", {"src.rs": {(7, 1)}}, None
+
+        with patch("subprocess.run", plain), patch("evidence_capture.instrumented_run", instrumented):
+            result = cr.measure(self.spec(group(), release_binary="/bin/release",
+                                          env={"PATH": "/bin", "ANTECEDENT_CALIBRATION_THREADS": "4"}))
+        self.assertEqual((result["status"], result["rechecked"]), (0, True))
+        (first, a), (recheck, b), (sliced, c) = runs
+        self.assertEqual((first, recheck, sliced), ("/bin/release", "/bin/release", "/bin/test"))
+        self.assertEqual((a["ANTECEDENT_CALIBRATION_NSIM"], b["ANTECEDENT_CALIBRATION_NSIM"]), ("400", "2000"))
+        self.assertEqual(a["ANTECEDENT_CALIBRATION_THREADS"], "4")
+        # The slice is a smoke run of a few replicates on one thread, writing no tallies.
+        self.assertEqual((c["ANTECEDENT_CALIBRATION_NSIM"], c["ANTECEDENT_CALIBRATION_SMOKE"],
+                          c["ANTECEDENT_CALIBRATION_THREADS"]), (str(cr.SLICE_NSIM), "1", "1"))
+        self.assertNotIn("ANTECEDENT_CALIBRATION_TALLY_OUT", c)
+        self.assertEqual(c["ANTECEDENT_CALIBRATION_GRID_POINT"], "1")
+        self.assertEqual(result["coverage"], {"src.rs": {(7, 1)}})
+
+    def test_an_unreadable_slice_fails_the_measurement(self):
+        class Done:
+            returncode, stdout = 0, "test result: ok. 1 passed; 0 failed\n"
+        with patch("subprocess.run", return_value=Done()), \
+                patch("evidence_capture.instrumented_run", return_value=(0, "", None, "no profile")):
+            result = cr.measure(self.spec(group(), release_binary="/bin/release"))
+        self.assertEqual(result["status"], 1)
+        self.assertIn("coverage slice", result["problems"][0])
 
 
 class RecordBindingTests(unittest.TestCase):

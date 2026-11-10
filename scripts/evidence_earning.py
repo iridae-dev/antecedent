@@ -204,6 +204,8 @@ class Snapshot:
             files.update(root / rel for rel in ('flake.lock', 'nix/evidence-target.nix', 'nix/evidence-deps.nix',
                          'nix/evidence-common.nix', 'nix/evidence-driver.nix', 'nix/evidence-toolchain.nix',
                          'scripts/nix_evidence_policy.py', 'scripts/nix_evidence_deps.py'))
+            if 'release' in nix_build:
+                files.update(root / rel for rel in nix_build['release']['recipe_sha256'])
         self.fixed_files = {path.resolve() for path in files}
         files |= used.files
         for rel in row.get('fixtures', []):
@@ -359,6 +361,11 @@ class Snapshot:
                 'tools': nix_build['tools'], 'policy': self.nix_policy,
                 'compiler_graph_sha256': digest(canonical(nix_build['compiler_graph'])),
             }
+            if 'release' in nix_build:
+                # The replicates ran on the uninstrumented binary of the same source; the
+                # instrumented artifact ran a slice of them to say what they depend on.
+                self.manifest['nix_build']['release'] = {
+                    k: nix_build['release'][k] for k in ('binary', 'binary_sha256', 'recipe_sha256')}
 
     def mark_nix_executed(self, binary: str) -> None:
         """Bind a successful exact capture to the verified Nix-built executable."""
@@ -501,13 +508,19 @@ def publish_executed(snapshot: Snapshot, built: dict, coverage: dict[str, set[tu
     measurements; returns the manifest's address."""
     from nix_artifact_identity import target_binary
     snapshot.mark_nix_executed(str(target_binary(built["artifact"])))
+    sliced = "release" in built
+    if sliced:
+        from nix_evidence_build import release_binary
+        release_binary(built)  # refused if its bytes changed since the build
+    # When the instrumented binary ran only a slice of the replicates, a function the
+    # measured code calls is bound whole even if the slice never entered it.
     select_items(snapshot, Path(built["artifact"]["output"]) / "compiler-inventory", coverage,
-                 source_root=Path(built["source"]["store_path"]))
+                 source_root=Path(built["source"]["store_path"]), callee_bodies=sliced)
     return snapshot.publish()
 
 
 def select_items(snapshot: Snapshot, directory: Path, coverage: dict[str, set[tuple[int, int]]],
-                 *, source_root: Path | None = None) -> None:
+                 *, source_root: Path | None = None, callee_bodies: bool = False) -> None:
     """Replace a Rust assertion's whole sources with the items it depends on.
 
     `coverage` maps checkout paths to executed (line, column) positions and
@@ -532,7 +545,7 @@ def select_items(snapshot: Snapshot, directory: Path, coverage: dict[str, set[tu
             raise RuntimeError('Nix precision requires compiler inventory and instrumented coverage')
         return
     root = snapshot.root.resolve()
-    selection = Selection(root, inventory)
+    selection = Selection(root, inventory, callee_bodies=callee_bodies)
     for path, positions in sorted(coverage.items()):
         try:
             rel = Path(path).resolve().relative_to(root).as_posix()

@@ -2,7 +2,8 @@
 
 Earning starts from the items coverage shows executed and follows the compiler
 inventory (`tools/evidence-analyzer/driver.rs`): an executed function's whole text,
-the signature of every function it names, the whole text of every type, constant,
+the signature of every function it names (its whole text, transitively, when the
+coverage is a sample of the runs: `callee_bodies`), the whole text of every type, constant,
 static, trait, alias and macro it uses (and theirs, transitively), the header of
 each impl it runs in, and the `mod` declarations that put each file in its crate.
 Name resolution and method selection are guarded rather than recorded:
@@ -181,9 +182,13 @@ def crate_dir(root: Path, rel: str) -> str:
 class Selection:
     """The items one record depends on, grown from its executed positions."""
 
-    def __init__(self, root: Path, inventory: Inventory):
+    def __init__(self, root: Path, inventory: Inventory, *, callee_bodies: bool = False):
         self.root = root
         self.inventory = inventory
+        # Coverage from a sample of the runs (a calibration slice): a function that
+        # executed code names may run in a replicate the sample did not, so it is kept
+        # whole, transitively, rather than by its signature.
+        self.callee_bodies = callee_bodies
         self.parts: dict[str, dict[str, set[str]]] = {}
         self.whole: dict[str, str] = {}
         self.names: set[str] = set()
@@ -292,7 +297,9 @@ class Selection:
                     if target is None:
                         continue
                     target_rel, target_node = target
-                    if relation == "fn":
+                    if relation == "fn" and self.callee_bodies:
+                        wanted = "full"
+                    elif relation == "fn":
                         target_file = self.file(target_rel)
                         header = target_file.part(target_node, "sig") if target_file else ""
                         wanted = "full" if re.search(r"\bimpl\b|\basync\b", header) else "sig"

@@ -92,6 +92,40 @@ class ManifestTests(unittest.TestCase):
                 self.assertFalse(result["current"])
                 self.assertIn("manifest_owed:Nix build provenance is not yet supported", result["reasons"])
 
+    def test_a_release_binary_is_bound_only_for_a_calibration_measurement(self):
+        nar = "sha256-" + "A" * 43 + "="
+        recipe = {rel: "1" * 64 for rel in ("nix/evidence-target.nix", "nix/evidence-deps.nix",
+                                            "nix/evidence-common.nix", "nix/evidence-driver.nix",
+                                            "nix/evidence-toolchain.nix", "flake.lock")}
+        release_recipe = {rel: "2" * 64 if rel == "nix/calibration-release.nix" else "1" * 64
+                          for rel in ("nix/calibration-release.nix", "nix/evidence-common.nix",
+                                      "nix/evidence-toolchain.nix", "flake.lock")}
+        source = {"commit": "c" * 40, "store_path": "/nix/store/" + "a" * 32 + "-source", "nar_hash": nar}
+        artifact = {"schema": 2, "crate": "c", "target_kind": "test", "target_name": "t",
+                    "binary": "targets/c/test/t/bin/test", "binary_sha256": "b" * 64,
+                    "build_targets": [{"crate": "c", "kind": "test", "name": "t"}],
+                    "source": source["store_path"], "source_nar_hash": nar, "output_nar_hash": nar,
+                    "recipe_sha256": recipe}
+        receipt = {"schema": "nix-build-v1", "execution": "exact-binary", "artifact": artifact,
+                   "source": source, "tools": {"rustc": "1", "rustc_commit": "x", "cargo": "c"},
+                   "policy": {"id": "nix-darwin-private-tmp-audit-v1", "source_projection_allowed": True,
+                              "audit_selection_sha256": "d" * 64},
+                   "compiler_graph_sha256": "e" * 64,
+                   "release": {"binary": artifact["binary"], "binary_sha256": "f" * 64,
+                               "recipe_sha256": release_recipe}}
+        inputs = [{"kind": "evidence_file", "path": rel, "digest": digest}
+                  for rel, digest in {**recipe, **release_recipe}.items()]
+        calibration = {"kind": "calibration", "key": "record-id"}
+        em.validate_nix_receipt(receipt, calibration, inputs)
+        with self.assertRaises(em.InvalidManifest):  # a scientific assertion never runs it
+            em.validate_nix_receipt(receipt, {"kind": "scientific", "key": "c::t::x"}, inputs)
+        unbound = [i for i in inputs if i["path"] != "nix/calibration-release.nix"]
+        with self.assertRaises(em.InvalidManifest):  # its recipe must be an input
+            em.validate_nix_receipt(receipt, calibration, unbound)
+        other = {**receipt, "release": {**receipt["release"], "binary": "targets/c/test/u/bin/test"}}
+        with self.assertRaises(em.InvalidManifest):  # the same target as the instrumented build
+            em.validate_nix_receipt(other, calibration, inputs)
+
     def test_body_edit_detected_even_with_preserved_timestamp_and_size(self):
         manifest = self.manifest()
         path = self.root / "src/a.rs"

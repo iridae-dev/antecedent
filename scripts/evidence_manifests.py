@@ -278,6 +278,19 @@ def validate_nix_receipt(receipt: object, binding: dict, inputs: list[dict]) -> 
             raise ValueError("incomplete recipe identity")
         if not required or any(tracked.get(path) != value for path, value in required.items()):
             raise ValueError("unbound recipe or audit registry")
+        if "release" in receipt:
+            # Replicates ran on the uninstrumented build of the same targets; only a
+            # calibration measurement does that, and its recipe is bound like the other.
+            release = receipt["release"]
+            if binding["kind"] not in ("calibration", "probe"):
+                raise ValueError("release binary outside a calibration measurement")
+            if release["binary"] != artifact["binary"] or not HEX.fullmatch(release["binary_sha256"]):
+                raise ValueError("invalid release binary")
+            if set(release["recipe_sha256"]) != {"nix/calibration-release.nix", "nix/evidence-common.nix",
+                                                 "nix/evidence-toolchain.nix", "flake.lock"}:
+                raise ValueError("incomplete release recipe identity")
+            if any(tracked.get(path) != value for path, value in release["recipe_sha256"].items()):
+                raise ValueError("unbound release recipe")
     except (AttributeError, KeyError, TypeError, ValueError):
         raise InvalidManifest("invalid Nix build provenance") from None
 
