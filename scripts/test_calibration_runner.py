@@ -165,12 +165,19 @@ class ReleaseMeasureTests(MeasureFixture):
     def test_a_slice_whose_assertion_fails_still_gives_the_coverage(self):
         class Done:
             returncode, stdout = 0, "test result: ok. 1 passed; 0 failed\n"
-        sliced = (101, "test t ... FAILED\ntest result: FAILED. 0 passed; 1 failed\n", {"src.rs": {(3, 1)}}, None)
+        sliced = (101, "test t ... its own output\nFAILED\ntest result: FAILED. 0 passed; 1 failed\n",
+                  {"src.rs": {(3, 1)}}, None)
         with patch("subprocess.run", return_value=Done()), \
                 patch("evidence_capture.instrumented_run", return_value=sliced):
             result = cr.measure(self.spec(group(), release_binary="/bin/release"))
         self.assertEqual((result["status"], result["problems"]), (0, []))
         self.assertEqual(result["coverage"], {"src.rs": {(3, 1)}})
+
+
+class LogLineTests(unittest.TestCase):
+    def test_a_calibration_line_joined_to_the_progress_prefix_starts_its_own_line(self):
+        joined = "test t ... calibration-decision {}\nok\ntest u ... ok\n"
+        self.assertEqual(cr.log_lines(joined), "test t ... \ncalibration-decision {}\nok\ntest u ... ok\n")
 
 
 class RecordBindingTests(unittest.TestCase):

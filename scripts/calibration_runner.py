@@ -34,6 +34,7 @@ from pathlib import Path
 GROUPS = "parity/calibration_groups.toml"
 ACCEPTANCE = "parity/acceptance_manifest.toml"
 _PASSED = re.compile(r"^test result: ok\. (\d+) passed", re.M)
+_RAN = re.compile(r"^test result: \w+\. (\d+) passed; (\d+) failed", re.M)
 _RECHECK = re.compile(r"^calibration-recheck ", re.M)
 _RECHECK_TEST = re.compile(r"^calibration-recheck-test (\S+)", re.M)
 _REPLICATED = {"replicated_interval", "replicated_statistical_test"}
@@ -134,6 +135,23 @@ def passed_tests(output: str) -> int:
     return sum(int(n) for n in _PASSED.findall(output))
 
 
+_PROGRESS = re.compile(r"^(test \S+ \.\.\. )(?=calibration-)", re.M)
+
+
+def log_lines(output: str) -> str:
+    """The output with libtest's `test name ... ` progress prefix on a line of its own.
+
+    Under `--nocapture` libtest writes that prefix without a newline, so the first line a
+    test prints joins it; a `calibration-` line must start its own line to be read."""
+    return _PROGRESS.sub(r"\1\n", output)
+
+
+def ran_tests(output: str) -> int:
+    """Tests that ran to a verdict, passed or failed: a failure's verdict can follow the
+    test's own output on a later line, so the summary line is what counts them."""
+    return sum(int(p) + int(f) for p, f in _RAN.findall(output))
+
+
 def stem_of(log_dir: Path, group: GroupSpec, point: int | None, confirm: bool) -> Path:
     suffix = "" if point is None else f".p{point}"
     return log_dir / f"{group.safe}{suffix}{'.confirm' if confirm else ''}"
@@ -169,7 +187,7 @@ def measure(spec: dict) -> dict:
         base_env["ANTECEDENT_CALIBRATION_GRID_POINT"] = str(spec["point"])
 
     def stamp(path: Path, text: str) -> None:
-        lines = [text.rstrip("\n") + "\n" if text else "", f"calibration-measured-at {spec['sha']}\n"]
+        lines = [log_lines(text).rstrip("\n") + "\n" if text else "", f"calibration-measured-at {spec['sha']}\n"]
         if spec.get("decision_context"):
             lines.append(f"calibration-decision-context {spec['decision_context']}\n")
         path.write_text("".join(lines), encoding="utf-8", newline="\n")
@@ -217,7 +235,7 @@ def measure(spec: dict) -> dict:
         _, slice_output, regions, problem = instrumented_run(
             spec["binary"], libtest_args(group), cwd=Path(spec["cwd"]), env=slice_env,
             tools=spec["tools"], merge_output=True, failed_runs_count=True)
-        if regions is None or passed_tests(slice_output) + slice_output.count("... FAILED") < 1:
+        if regions is None or ran_tests(slice_output) < 1:
             problems.append(f"the coverage slice of {log} ran no test or could not be read: {problem}")
             status = 1
         coverage = [regions or {}]
