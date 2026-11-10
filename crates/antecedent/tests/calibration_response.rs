@@ -276,7 +276,8 @@ fn run_graph_posterior_bayesian_response(
     let mut builder = Study::tabular(data)
         .graph_posterior(single_atom_response_posterior())
         .query(CausalQuery::Response(level_query(1.0)))
-        .inference(bayes());
+        .inference(bayes())
+        .refute(RefuteSuite::None);
     if let Some(level) = level {
         builder = builder.response_options(ContinuousResponseOptions {
             confidence_level: level,
@@ -545,6 +546,7 @@ fn graph_posterior_class_level_coverage(case: &ClassCase, mut tallies: [Coverage
             .graph_posterior(posterior.clone())
             .query(CausalQuery::Response(level_query(1.0)))
             .inference(bayes())
+            .refute(RefuteSuite::None)
             .build()
             .ok()?;
         let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
@@ -622,7 +624,8 @@ fn run_class_graph_posterior(
     let mut builder = Study::tabular(data.clone())
         .graph_posterior(posterior.clone())
         .query(CausalQuery::Response(query))
-        .inference(inference);
+        .inference(inference)
+        .refute(RefuteSuite::None);
     if let Some(level) = level {
         builder = builder.response_options(ContinuousResponseOptions {
             confidence_level: level,
