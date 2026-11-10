@@ -14,14 +14,16 @@ integration that has started failing). The causal effect of engagement is the sa
 months; what changes is whether the measured columns can recover it.
 
 The assertions check: January's estimate is within 0.1 of -0.8; the same analysis on April's
-table returns a different number while the staleness diagnostic recommends `reuse`; the old
-graph's implied independence of engagement and support holds in January and fails in April; a
+table returns a different number; the staleness diagnostic recommends `reuse` on a second
+January sample and `reidentify` on April's, naming the independence of engagement and support
+that the graph implies and April contradicts; the whole-graph check agrees on that statement; a
 resampled search almost never joins engagement and support in January and almost always does in
 April; a search that allows hidden causes no longer orients engagement and cancellation; three
 readings of April's table give two different estimates and one refusal; the evidence plan
 certifies an experiment and not more rows of the same table; in the simulation more rows
 keep the wrong answer while the experiment recovers -0.8; and with only three of the columns
-the estimate moves just as far while no check has anything to test.
+the estimate moves just as far, the staleness diagnostic recommends `reuse`, and it names the
+check it could not make.
 
 What this does not claim: the checks here found the change only because the unmeasured cause
 left traces among the other measured columns. A changed discovery result is not proof
@@ -151,31 +153,40 @@ assert abs(rerun.answer.value - first.answer.value) > 0.3
 record.append(("April", "January's analysis on new rows", f"{rerun.answer.value:.2f}"))
 
 # %% [markdown]
-# ## Did the data move out from under the plan?
+# ## Is the January claim stale?
 #
-# The staleness diagnostic compares the new table with what the plan was prepared on:
-# covariate distributions, coverage of the treatment and the adjustment set, missingness,
-# schema. Here it finds nothing and recommends `reuse`. That answer is correct for the
-# question it asks. It does not ask whether the graph is still right.
+# The staleness diagnostic compares the new table with what the plan was prepared on. Most of
+# what it checks is coverage: covariate distributions, the range of the treatment and the
+# adjustment set, missingness, schema. April passes all of that. It also repeats, on the new
+# rows, the test of every conditional independence the plan's graph implies. January's graph
+# says engagement and support are independent once price is held fixed. A second January
+# sample agrees. April's table does not, and the recommendation is to identify again.
 
 # %%
 policy = drift.StalenessPolicy(alpha=0.01)
+steady = require_success(drift.staleness(study, customers(3), policy=policy))
 stale = require_success(drift.staleness(study, april, policy=policy))
-print("staleness:", stale.recommendation, "| findings:", len(stale.findings))
-print("diagnostics run:", len(stale.evaluations))
-assert stale.recommendation == "reuse" and not stale.findings
+print("second January sample:", steady.recommendation)
+print("April:", stale.recommendation)
+for finding in stale.findings:
+    print(f"  {finding.kind}: {finding.subject} (statistic {finding.statistic:.3f})")
+print(stale.next_attempt)
+assert steady.recommendation == "reuse" and not steady.findings
+assert stale.recommendation == "reidentify"
+assert {finding.kind for finding in stale.findings} == {"implied_independence"}
+assert "engagement _||_ support | price" in {
+    finding.subject for finding in stale.findings
+}
 record.append(("April", "staleness diagnostic", stale.recommendation))
 
 # %% [markdown]
-# ## Does the graph still fit?
+# ## How wrong is the graph as a whole?
 #
-# A graph asserts independencies, and those can be tested on a table with no model fitted.
-# January's graph says engagement and support are independent once price is held fixed. A
-# second January sample agrees. April's table does not.
-#
-# The overall verdict compares the graph with random relabellings of itself, and the old
-# graph still beats those in April. "Not rejected" only says it is better than chance. The
-# individual implications say where it fails.
+# The staleness finding is about single statements. `evaluate_graph` asks a different
+# question of the whole graph: does it explain the table better than random relabellings of
+# its own nodes? In April it still does. "Not rejected" only says the graph is better than
+# chance, which a partly wrong graph easily is. Its list of implications shows the same
+# failure the staleness diagnostic found.
 
 # %%
 control = evaluate_graph(customers(3), GRAPH, **FALSIFY)
@@ -380,8 +391,8 @@ record.append(
 # The checks above had something to test because the unmeasured cause also moved `support`,
 # and because `tenure` moves engagement without touching cancellation. Keep only `price`,
 # `engagement` and `cancellation` and the graph over them implies no independence at all.
-# The estimate moves exactly as before, the staleness diagnostic still recommends `reuse`,
-# and the graph check has nothing to say.
+# The estimate moves exactly as before. The staleness diagnostic recommends `reuse`, and
+# lists the graph's implications among what it could not evaluate, with the reason.
 
 # %%
 KEPT = ("price", "engagement", "cancellation")
@@ -401,8 +412,11 @@ small_stale = require_success(drift.staleness(small_study, small_april, policy=p
 small_check = evaluate_graph(small_april, SMALL, **FALSIFY)
 print(f"three columns: January {small_before:.3f}, April {small_after:.3f}")
 print("staleness:", small_stale.recommendation, "| graph check:", small_check.outcome)
+untested = dict(small_stale.not_evaluated)
+print("not evaluated:", untested)
 assert abs(small_before - TRUE_EFFECT) < 0.1 and abs(small_after - TRUE_EFFECT) > 0.3
 assert small_stale.recommendation == "reuse"
+assert "implies no conditional independence" in untested["implied_independence"]
 assert small_check.outcome == "uninformative"
 assert small_check.uninformative_reason == "no_testable_implication"
 

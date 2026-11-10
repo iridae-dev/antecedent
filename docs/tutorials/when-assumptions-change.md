@@ -13,7 +13,7 @@ The data are simulated, so the truth is known. One unit of engagement lowers the
 | Declared by a person | Learned from data |
 | --- | --- |
 | The direction of the one edge discovery left open in January | January's graph, apart from that edge |
-| Three readings of the new link that appears in April | That April's table contradicts one independence the January graph asserts |
+| Three readings of the new link that appears in April | That April's table contradicts two independencies the January graph asserts |
 | Two candidate studies, with their costs and sample sizes | Which candidate study would identify the effect |
 
 The simulated truth is a property of the stated mechanism. It is there so each step can be checked, not as a claim about any real business.
@@ -45,25 +45,37 @@ It has not. The simulated effect is still -0.8. The estimate moved because custo
 
 ## Three checks, three different questions
 
-### Did the data move out from under the plan?
+### Is the January claim stale?
 
 ```python
 stale = require_success(drift.staleness(study, april, policy=drift.StalenessPolicy(alpha=0.01)))
-stale.recommendation    # "reuse"
+stale.recommendation                       # "reidentify"
+[f.subject for f in stale.findings]
+# ['tenure _||_ cancellation | price, engagement', 'engagement _||_ support | price']
 ```
 
-The [staleness diagnostic](../guides/staleness.md) runs 22 comparisons between April's table and what the plan was prepared on: covariate distributions, coverage of the treatment and the adjustment set, missingness, schema. None exceeds its threshold, so it recommends `reuse`.
+The [staleness diagnostic](../guides/staleness.md) compares April's table with what the plan was prepared on. Most of what it checks is coverage: covariate distributions, the range of the treatment and the adjustment set, missingness, schema. April passes all of that. Its customers cover the same ranges as January's, and the adjustment is still computable on them.
 
-That is the right answer to the question it asks. April's customers cover the same ranges as January's, so the adjustment is still computable on them. Staleness reads the data against the plan's premises about coverage; it does not test the graph. Had April's prices moved outside January's range it would have recommended `reidentify`, and that would still say nothing about a hidden cause.
+It also repeats, on the new rows, the test of every conditional independence the plan's graph implies. January's graph implies four. Two of them fail in April.
 
-### Does the graph still fit?
+| Statement the graph implies | January, second sample | April |
+| --- | --- | --- |
+| price and tenure are independent | holds | holds |
+| tenure and support are independent | holds | holds |
+| engagement and support are independent given price | holds (0.01) | fails (0.28) |
+| tenure and cancellation are independent given price and engagement | holds (-0.01) | fails (-0.17) |
 
-A graph asserts independencies, and [those can be tested](../guides/graph-falsification.md) without fitting anything. January's graph says engagement and support are independent once price is held fixed.
+The numbers are partial correlations. A statement exceeds only when it is significant after adjustment for every test in the assessment and its correlation reaches 0.1, so a second January sample comes back `reuse` with nothing found.
+
+The recommendation is `reidentify`, not `refresh`. Refreshing would repeat January's analysis on April's rows, which is the -0.36 above. The finding says the structure that analysis rests on no longer agrees with the data.
+
+### How wrong is the graph as a whole?
+
+The staleness finding is about single statements. [`evaluate_graph`](../guides/graph-falsification.md) asks a different question of the whole graph: does it explain the table better than random relabellings of its own nodes?
 
 ```python
 checked = evaluate_graph(april, GRAPH, alpha=0.01, n_permutations=500, permutation_seed=7)
 checked.outcome, checked.n_violations     # "not_rejected", 3 of 7
-[(t.node, t.other) for t in checked.evidence if t.violated]
 ```
 
 | Table | Verdict | Violated implications |
@@ -71,7 +83,7 @@ checked.outcome, checked.n_violations     # "not_rejected", 3 of 7
 | A second January sample | `not_rejected` | 0 of 7 |
 | April | `not_rejected` | 3 of 7, including engagement and support given price |
 
-The verdict is the same in both rows, and it is worth reading closely. It compares the graph with random relabellings of its own nodes, and January's graph still explains April better than those do. `not_rejected` means better than chance, which a partly wrong graph easily is. The evidence list is where the specific failure shows: an independence that held in January is violated in April with a p-value below one in a million. The count is not corrected for multiple testing, so it is a reason to look, not a finding by itself.
+The verdict is the same in both rows. January's graph still explains April better than its relabellings do, and `not_rejected` means better than chance, which a partly wrong graph easily is. The two results do not conflict. One says a specific statement failed; the other says the graph as a whole is still far from arbitrary. Both are true of a graph that is mostly right and missing one cause.
 
 ### Is that sampling noise?
 
@@ -184,21 +196,21 @@ Keep only `price`, `engagement` and `cancellation` and neither is available. The
 | --- | --- |
 | January's estimate | -0.79 |
 | The same analysis on April | -0.36 |
-| Staleness | `reuse` |
+| Staleness | `reuse`; `implied_independence` listed under `not_evaluated` |
 | Graph check | `uninformative`: `no_testable_implication` |
 
-The estimate is as wrong as before and nothing reports it. This is the ordinary case, not a contrived one: a table that holds a treatment, an outcome and the confounders someone thought of carries no test of whether they thought of all of them.
+The estimate is as wrong as before and no check contradicts it. What the staleness report can do is say so: its `not_evaluated` entry reads "the plan's graph implies no conditional independence among its columns, so the data cannot contradict it". A `reuse` with that entry beside it is a weaker statement than a `reuse` without. This is the ordinary case, not a contrived one: a table that holds a treatment, an outcome and the confounders someone thought of carries no test of whether they thought of all of them.
 
 <!-- example: examples/python/when_assumptions_change.py -->
 
 ## Who moves between the steps
 
-None of these steps triggered the next. The staleness diagnostic did not launch discovery. Discovery did not replace the accepted graph. The evidence plan did not run a study. A host application made each call, chose which reading to put the question to, and kept the record the example prints at its end. Antecedent supplies each computation and its limits; when to run them and what to do with the result stay with the application and the people behind it.
+None of these steps triggered the next. The staleness diagnostic recommended identifying again and did not launch discovery. Discovery did not replace the accepted graph. The evidence plan did not run a study. A host application made each call, chose which reading to put the question to, and kept the record the example prints at its end. Antecedent supplies each computation and its limits; when to run them and what to do with the result stay with the application and the people behind it.
 
 ## What this established
 
-A January estimate, reproduced exactly on April's data, was no longer justified as a causal effect. The data-coverage check passed; one independence the graph asserts failed; a resampled search showed the failure was not noise; and a search allowing hidden causes withdrew the direction January relied on. Of three readings of the new data, one was discarded, one gave an estimate that was wrong, and one refused. The refusal named an experiment as sufficient and more observational rows as not, and in the simulation that is how it turned out.
+A January estimate, reproduced exactly on April's data, was no longer justified as a causal effect. April covered the same ranges as January; two independencies the graph implies failed, and the staleness diagnostic asked to identify again; a resampled search showed the failure was not noise; and a search allowing hidden causes withdrew the direction January relied on. Of three readings of the new data, one was discarded, one gave an estimate that was wrong, and one refused. The refusal named an experiment as sufficient and more observational rows as not, and in the simulation that is how it turned out.
 
-It did not show that January's graph was wrong in January. It did not identify the unmeasured cause. And it was able to notice the change only because that cause left traces among the other measured columns. With three columns the same change went unreported by every check. That limit is the reason the assumptions are stated beside every estimate, and the reason an experiment is worth its cost when the answer matters.
+It did not show that January's graph was wrong in January. It did not identify the unmeasured cause. And it was able to notice the change only because that cause left traces among the other measured columns. With three columns the same change contradicted nothing, and the most a check could do was say it had nothing to test. That limit is the reason the assumptions are stated beside every estimate, and the reason an experiment is worth its cost when the answer matters.
 
 For keeping several structures in play with weights, see [graph uncertainty](../graph_uncertainty.md). For the refusal and the description that can accompany it, see [when the effect is not identified](../guides/fallback.md). To value a study against a decision, continue with [from a new experiment to the next study](experiment-to-next-study.md).
