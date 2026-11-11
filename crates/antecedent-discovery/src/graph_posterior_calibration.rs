@@ -350,8 +350,34 @@ fn order_sampler_gated(
     prior: &GraphPrior,
     ctx: &ExecutionContext,
 ) -> Option<GraphPosterior> {
+    order_sampler_scheduled(gate, data, vars, prior, ctx, 1)
+}
+
+/// [`order_sampler_gated`] with four times the warmup and draws: the schedule the parent caps
+/// other than the default are published at. A tighter or looser cap reshapes which parent sets
+/// the chains must cross between; at 24,000 draws the four chains can agree on a rare skeleton
+/// pair before they have settled on its marginal, which the gate cannot see, and at 96,000 every
+/// published replicate matches the exact posterior.
+fn order_sampler_long(
+    gate: bool,
+    data: &TabularData,
+    vars: &[VariableId],
+    prior: &GraphPrior,
+    ctx: &ExecutionContext,
+) -> Option<GraphPosterior> {
+    order_sampler_scheduled(gate, data, vars, prior, ctx, 4)
+}
+
+fn order_sampler_scheduled(
+    gate: bool,
+    data: &TabularData,
+    vars: &[VariableId],
+    prior: &GraphPrior,
+    ctx: &ExecutionContext,
+    scale: u32,
+) -> Option<GraphPosterior> {
     OrderMcmc::new()
-        .with_schedule(4, 6000, 24_000, 2)
+        .with_schedule(4, 6000 * scale, 24_000 * scale, 2)
         .with_diagnostics_gate(gate)
         .run(
             data,
@@ -419,7 +445,7 @@ fn order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps() {
             "order_mcmc",
             10,
             max_parents,
-            order_sampler_gated,
+            order_sampler_long,
         );
     }
 }
