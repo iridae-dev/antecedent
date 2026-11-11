@@ -2450,7 +2450,18 @@ mod scalable_cases {
                 .contains("feature_id = \"validate.confounding_sensitivity\"")
         );
 
-        let (replicates, n, effect) = (2_000u64, 50_000usize, 0.5);
+        // A smoke run (the instrumented coverage slice) asks for a few replicates through the
+        // environment; the measured run is the frozen 2,000.
+        let smoke = std::env::var("ANTECEDENT_CALIBRATION_SMOKE").is_ok_and(|v| v == "1");
+        let replicates = if smoke {
+            std::env::var("ANTECEDENT_CALIBRATION_NSIM")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(16)
+        } else {
+            2_000u64
+        };
+        let (n, effect) = (50_000usize, 0.5);
         let grid = default_grid();
         let ctx = ExecutionContext::production(73, 4);
         let (mut reported, mut covered) = (0u32, 0u32);
