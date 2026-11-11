@@ -64,7 +64,11 @@ pub fn assess(design: MetricDesign<'_>, attempts: usize, results: &[Option<FitMe
     let fits = complete_sample(design, attempts, results);
     let r = attempts as f64;
     let alpha: f64 = 0.05;
-    let slack = 3. * (alpha * (1. - alpha) / r).sqrt();
+    // The suite checks hundreds of error rates (432 over its designs, methods and grid points),
+    // each a Monte Carlo estimate on shared simulated data. Four standard errors is a
+    // family-wise 5% allowance for up to about 1,500 one-sided rate checks; three, applied to
+    // every rate alone, fails some honest rate by chance in most full runs.
+    let slack = 4. * (alpha * (1. - alpha) / r).sqrt();
     let mut estimated_covariance = [0.; 4];
     let mut mean = [0.; 2];
     let mut estimated_contrast_variance = [0.; 3];
