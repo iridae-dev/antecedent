@@ -429,21 +429,12 @@ impl super::super::Study {
         };
         let series = series_owned.as_ref().unwrap_or(data);
         let input = ClassResponseInput { series, query: &qh, estimand: &estimand, indexer };
-        let Some(mut response) =
+        let Some(response) =
             self.class_completion_response(sweep, run, fits, &site, input, series_owned.is_some())?
         else {
             run.assembly.push_unevaluated(horizon_index, case_index, weight, case.result.status);
             return Ok(());
         };
-        // The class response pools each completion's per-cell band into one
-        // shared draws-agnostic band (published with `draws: None`) and rejects
-        // a band that carries retained draws. A single-coordinate
-        // `InterventionResponse` band now retains its posterior draws (only the
-        // single-atom graph-posterior scalar path consumes them), so drop them
-        // here to keep the completions poolable and the class band unchanged.
-        if let ResponseUncertainty::PointwiseBand { draws, .. } = &mut response.uncertainty {
-            *draws = None;
-        }
         let atom_assumptions = response.assumptions.clone();
         let atom_index = run.assembly.push_atom(
             horizon_index,

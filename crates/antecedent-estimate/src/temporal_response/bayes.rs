@@ -107,9 +107,10 @@ struct HorizonRun<'a> {
 }
 
 /// The cell summaries in published order (dose-major, horizon-minor), with the full-length
-/// per-cell draw columns retained for a single-coordinate `InterventionResponse` so the
-/// facade can surface its scalar credible interval as a `Scalar` uncertainty whose draws
-/// reconstruct the published `[lower, upper]`. Curves keep `draws: None`.
+/// per-cell draw columns the summaries were taken from. A curve or an intervention response
+/// retains them as its band's draws whenever they are one posterior law (see
+/// [`retained_response_draws`] and [`retained_joint_trajectory_draws`]), so every published
+/// `[lower, upper]` is reproduced by re-summarizing its column.
 struct CellSummaries {
     mean: Vec<f64>,
     lower: Vec<f64>,
@@ -235,9 +236,7 @@ impl TemporalResponseEstimator {
             assumptions
                 .push(temporal_bayesian_tempering_assumption(&temporal.horizons, &tempering));
         }
-        let band_draws = if target.intervention.is_none() {
-            None
-        } else if joint_block.is_some() {
+        let band_draws = if joint_block.is_some() {
             retained_joint_trajectory_draws(&band_columns, temporal.horizons.len())
         } else {
             retained_response_draws(&band_columns, temporal.horizons.len())
@@ -700,40 +699,43 @@ fn joint_trajectory_draws(
     joint_draws(&draws, structural_span, seed, rng)
 }
 
-/// Draws retained for a single-coordinate intervention response over several horizons whose
-/// columns are one joint trajectory law: column `h` is the response at horizon `h` and draw
-/// `r` of every column is the same draw of the trajectory, so a functional across horizons
-/// can be evaluated draw by draw.
+/// Draws retained for a response over several horizons whose columns are one joint trajectory
+/// law: the columns are the published cells (dose-major, horizon-minor; one dose for an
+/// intervention response) and draw `r` of every column is the same draw of the trajectory, so a
+/// functional across doses or horizons can be evaluated draw by draw.
 pub(super) fn retained_joint_trajectory_draws(
     columns: &[Vec<f64>],
     horizon_count: usize,
 ) -> Option<CredibleDraws> {
     let n_draws = columns.first()?.len();
-    (columns.len() == horizon_count
+    (horizon_count > 0
+        && columns.len() % horizon_count == 0
         && n_draws >= 2
         && columns.iter().all(|column| column.len() == n_draws))
     .then(|| CredibleDraws::columns(n_draws, columns))
 }
 
-/// Draws retained for a single-coordinate intervention response.
+/// Draws retained for a response whose horizons were not tied into one joint law.
 ///
-/// Horizons are separate conjugate fits on separately prepared designs, so
+/// Horizons are then separate conjugate fits on separately prepared designs, so
 /// their draws are independent marginals: index r of one horizon has no
 /// relation to index r of another. Only a response with exactly one horizon
-/// has a single coordinate whose retained draws are a posterior in their own
-/// right; several horizons retain nothing, so no consumer can read the
-/// index-paired product as a joint trajectory posterior. Shared time labels
-/// do not change that (a nonlinear functional across horizons has no draws to
-/// evaluate and falls to the refusal path).
+/// retains its draws: its columns are its doses (one for an intervention
+/// response), which share each coefficient draw, so they are one posterior law.
+/// Several horizons retain nothing, so no consumer can read the index-paired
+/// product as a joint trajectory posterior. Shared time labels do not change
+/// that (a nonlinear functional across horizons has no draws to evaluate and
+/// falls to the refusal path).
 pub(super) fn retained_response_draws(
     columns: &[Vec<f64>],
     horizon_count: usize,
 ) -> Option<CredibleDraws> {
-    if horizon_count != 1 || columns.len() != 1 {
+    if horizon_count != 1 {
         return None;
     }
-    let n_draws = columns[0].len();
-    (n_draws >= 2).then(|| CredibleDraws::columns(n_draws, columns))
+    let n_draws = columns.first()?.len();
+    (n_draws >= 2 && columns.iter().all(|column| column.len() == n_draws))
+        .then(|| CredibleDraws::columns(n_draws, columns))
 }
 
 #[cfg(test)]
@@ -772,9 +774,14 @@ mod tests {
         assert!(retained_response_draws(std::slice::from_ref(&column), 1).is_some());
         let columns = vec![column, vec![9.0, 8.0, 7.0]];
         assert!(retained_response_draws(&columns, 2).is_none());
+        // Two doses at one horizon share each coefficient draw: one posterior law.
+        assert_eq!(retained_response_draws(&columns, 1).map(|d| d.n_coordinates()), Some(2));
         // The same columns are retained once they are one joint trajectory law.
         assert!(retained_joint_trajectory_draws(&columns, 2).is_some());
         assert!(retained_joint_trajectory_draws(&columns, 3).is_none());
+        // A curve's dose-major, horizon-minor cells of one joint trajectory law.
+        let curve = [columns.as_slice(), columns.as_slice()].concat();
+        assert_eq!(retained_joint_trajectory_draws(&curve, 2).map(|d| d.n_coordinates()), Some(4));
     }
 
     fn noise(state: &mut u64) -> f64 {

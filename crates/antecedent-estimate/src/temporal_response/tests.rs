@@ -1474,6 +1474,11 @@ fn bayesian_response_retains_draws_only_for_a_single_horizon() {
     // nothing is retained for a nonlinear functional to evaluate.
     let columns = vec![column.clone(), vec![9.0, 8.0, 7.0]];
     assert!(super::bayes::retained_response_draws(&columns, 2).is_none());
+    // A curve's doses at one horizon share each coefficient draw, so they are retained.
+    let curve = super::bayes::retained_response_draws(&columns, 1)
+        .expect("one horizon's dose columns retain their draws");
+    assert_eq!((curve.n_coordinates(), curve.n_draws), (2, 3));
+    assert_eq!(curve.column(1), Some(&[9.0, 8.0, 7.0][..]));
     // Fewer than two draws is not a retained posterior.
     assert!(super::bayes::retained_response_draws(&[vec![1.0]], 1).is_none());
 }

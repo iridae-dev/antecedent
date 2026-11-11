@@ -13,8 +13,14 @@ use super::{
 
 /// The band every completion shares, laid out over the class surface, when each
 /// horizon's evaluated completions publish the same estimate and the same
-/// pointwise band. A horizon whose completions disagree, or that publishes no
-/// band, leaves the class unbanded.
+/// pointwise band, retained draws included. A horizon whose completions
+/// disagree, or that publishes no band, leaves the class unbanded.
+///
+/// With one horizon the shared band keeps the draws it was taken from: its
+/// cells are that horizon's cells in the same order. Across several horizons
+/// each horizon is a separate completion fit whose draws are independent of
+/// the others', so the class band retains none rather than pairing them by
+/// draw index as if they were one joint law.
 #[expect(
     clippy::float_cmp,
     reason = "class members must agree on the exact declared confidence level"
@@ -50,17 +56,24 @@ pub(super) fn shared_temporal_class_uncertainty(
     let mut lower = vec![0.0; cells_per_horizon * n_horizons];
     let mut upper = vec![0.0; cells_per_horizon * n_horizons];
     let (mut level, mut interpretation) = (None, None);
+    let mut shared_draws = None;
     for (horizon, response) in exemplars.iter().enumerate() {
         let ResponseUncertainty::PointwiseBand {
             level: horizon_level,
             lower: horizon_lower,
             upper: horizon_upper,
             interpretation: horizon_interpretation,
-            draws: None,
+            draws: horizon_draws,
         } = &response.uncertainty
         else {
             return None;
         };
+        if n_horizons == 1 {
+            shared_draws = horizon_draws
+                .as_ref()
+                .filter(|draws| draws.n_coordinates() == cells_per_horizon)
+                .cloned();
+        }
         if horizon_lower.len() != cells_per_horizon || horizon_upper.len() != cells_per_horizon {
             return None;
         }
@@ -85,7 +98,7 @@ pub(super) fn shared_temporal_class_uncertainty(
         lower: Arc::from(lower),
         upper: Arc::from(upper),
         interpretation: interpretation?,
-        draws: None,
+        draws: shared_draws,
     })
 }
 
