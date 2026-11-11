@@ -994,7 +994,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "2b691ede41914afbfe6b7ba71434d86267ccf2dc67e51e7607fe59c65cbaf623"
 recorded_at = "2026-11-09T21:25:35Z"
-dependency_manifest = "21d1d4d3151ad7d575c27745e5069b60f861093535ae505eceeebe671f181620"
+dependency_manifest = "51829c1e7d41279194646877391bb7df668c2cf2cff6bad1423d8c9c5257c3a1"
 
 [[record]]
 test = "antecedent-design::suite_01::inverse_forward_source::a_finite_composition_answers_mean_quantile_and_probability_exactly"
@@ -1004,7 +1004,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "2b691ede41914afbfe6b7ba71434d86267ccf2dc67e51e7607fe59c65cbaf623"
 recorded_at = "2026-11-09T21:25:35Z"
-dependency_manifest = "26c3d0dca2947a02f7c16b68fb947a6a466bf047e55f9f3293cbfba7f152ab5c"
+dependency_manifest = "31f9fbb86be610e7ceb6e738571117a49b6d8cc31df194bbc8cf4018a574ec9d"
 
 [[record]]
 test = "antecedent-design::suite_01::inverse_forward_source::a_transported_policy_value_is_a_supported_inverse_source_with_its_diagram"
@@ -1014,7 +1014,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "2b691ede41914afbfe6b7ba71434d86267ccf2dc67e51e7607fe59c65cbaf623"
 recorded_at = "2026-11-09T21:25:35Z"
-dependency_manifest = "2fcd2e321253ac36aa8b8bf096268470ae5ea751c45d1b3b948c299e795ef115"
+dependency_manifest = "691de517a366058cf53ad0718801fb0bc2ba5595d5602c090a460f87c2c411ba"
 
 [[record]]
 test = "antecedent-design::suite_01::inverse_forward_source::composed_identity_is_order_invariant_and_follows_the_premises"
@@ -1024,7 +1024,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "2b691ede41914afbfe6b7ba71434d86267ccf2dc67e51e7607fe59c65cbaf623"
 recorded_at = "2026-11-09T21:25:35Z"
-dependency_manifest = "f8a0833f3c10900786b645357733c4a121f5c4bbf175cd36f78d58772661bd7e"
+dependency_manifest = "3e7589097277cbc6260c761531d6bab8e8b492e43d72dc0a29320ce362a48f98"
 
 [[record]]
 test = "antecedent-design::suite_01::inverse_observational_scenarios::an_at_most_event_inverts_the_tail"
@@ -1054,7 +1054,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "cb7ac687a3b6e6d1df56b86e2c9220da05e9238ab918952d2758de1306aefa77"
 recorded_at = "2026-11-09T21:25:35Z"
-dependency_manifest = "6396ac6ddc8ec292056883fbf53bc930d78ae08c2f69e9d35e62b38198c9762d"
+dependency_manifest = "3b366c1dafec6e0b9712688e506c8d11a78996111c7d2342cb7f5b565157c83b"
 
 [[record]]
 test = "antecedent-design::suite_02::adaptive_policy_search::hard_and_chance_exposure_constraints_bind_and_relax_monotonically"
@@ -5262,7 +5262,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "4d0190801c686c160d9f0312f2932be783899f272e5c72835954b975a5038b82"
 recorded_at = "2026-11-09T21:23:58Z"
-dependency_manifest = "de6b34f13e0652ac6f8885073d3841c2f9a12f51e7e479bd003e3f5884add86f"
+dependency_manifest = "1e77bea08b5294c9cf900a380769168b7cfc22177c0f9daafa80fcc374368717"
 
 [[record]]
 test = "antecedent::dirichlet_update_exact::functional_inverse_boundary_is_the_conjugate_posterior_mean"
@@ -5272,7 +5272,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "4d0190801c686c160d9f0312f2932be783899f272e5c72835954b975a5038b82"
 recorded_at = "2026-11-09T21:23:58Z"
-dependency_manifest = "12d87a96d6ec39d7226e2fab874bb8ce038d1fce3a18135e090aa3481e639fb7"
+dependency_manifest = "c567899b45285ac0c42e7aa8ae20b179214c168fb941bb506bbd9a5b4601db0d"
 
 [[record]]
 test = "antecedent::dirichlet_update_exact::msm_posterior_is_the_identified_ate_of_the_conjugate_updated_laws"
@@ -8092,7 +8092,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "c56a786baf81c62ed8b00a146772deb0eb294f6ebb077783e35d68abba030991"
 recorded_at = "2026-11-09T14:16:54Z"
-dependency_manifest = "a68ff9468a357123abd1bcd7154ed287b6257952aa13be0976e0a0ccfe27b4e4"
+dependency_manifest = "3913338f7f1c5adb518d41f69e8f8419d8bf6d5780989ae6c38271d1b7f271be"
 
 [[record]]
 test = "antecedent::suite_05::joint_law_propagation_facade::a_covariance_aware_contrast_agrees_between_moments_and_aligned_draws"
@@ -9132,7 +9132,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "de04f78adad5f85f9c123bdf53dbe8876cb9fbc5a20c4f076cf226931512913a"
 recorded_at = "2026-11-09T21:23:28Z"
-dependency_manifest = "aa0b86952287b96660cf21aac4c21b4a78f74c9c38830afeb98bc0441eaa001e"
+dependency_manifest = "61e40e769e1c0b4ef3f48b7ad1cd1c161f291667d14c292448f24254587ac4cb"
 
 [[record]]
 test = "antecedent::suite_08::transport_scenarios_conditional::each_identified_scenario_matches_its_own_enumerated_truth"
