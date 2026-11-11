@@ -4549,9 +4549,10 @@
   {
    "deviations": [
     "no cross-fitting on the ATT/ATC, trimmed, and predicate-target paths: propensity and outcome nuisances are fit on the full sample, so Chernozhukov et al.'s sample-splitting premise is not met there and its rate conditions are not inherited",
-    "nuisance families are fixed GLM (propensity) and OLS (outcome), not the arbitrary ML learners the DML analysis admits"
+    "nuisance families are fixed GLM (propensity) and OLS (outcome), not the arbitrary ML learners the DML analysis admits",
+    "on the full-sample paths under the iid SE kind the influence values are leverage-corrected before the variance (HC3-style, MacKinnon and White 1985): each centred value is divided by 1 - h_i, h_i = max(m_i / sum m, weighted OLS leverage of the row in the outcome arm the score uses: both arms for the ATE, the control arm for the ATT, the treated arm for the ATC), capped at 0.99. The plug-in variance of heavy-tailed influence values (sampling weights under informative selection) is biased low at practitioner sizes; every h_i tends to zero, so the asymptotic variance is unchanged. The propensity fit's own leverage is not included. Cross-fitted routes and the cluster, multiway and HAC kinds read the influence uncorrected"
    ],
-   "digest": "f8819b29dceb32866dfbe2772676626eee0ca5525d33ee40bc123512007ddb8f",
+   "digest": "14c356a241df9cb03c4ac4747fac80046ce6cfe49063a6371af6da9eec879964",
    "id": "estimate.aipw",
    "review": "method_review",
    "scope_limits": [
@@ -4592,6 +4593,19 @@
      ],
      "title": "Doubly Robust Estimation of Causal Effects",
      "year": 2011
+    },
+    {
+     "authors": [
+      "James G MacKinnon",
+      "Halbert White"
+     ],
+     "doi": "10.1016/0304-4076(85)90158-7",
+     "doi_verified": true,
+     "sections": [
+      "HC3: residuals divided by one minus the leverage"
+     ],
+     "title": "Some heteroskedasticity-consistent covariance matrix estimators with improved finite sample properties",
+     "year": 1985
     }
    ]
   },
@@ -8853,12 +8867,12 @@
   },
   {
    "deviations": [
-    "Fixed composition of native chained-equation imputation, Gaussian BIC graph scoring and conjugate g-computation, restricted in advance to DAGs (the variable count limited by the adjacency word and the execution's resource limits) with a direct treatment-to-outcome edge, with a root treatment or with treatment parents, and keeping only graphs whose treatment-to-outcome effect has a unique minimal back-door adjustment set (excluded graphs are counted and sealed). No single joint Bayesian posterior is claimed.",
+    "Fixed composition of native chained-equation imputation, Gaussian BIC graph scoring and conjugate g-computation, restricted in advance to DAGs (the variable count limited by the adjacency word and the execution's resource limits) with a direct treatment-to-outcome edge, with a root treatment, with treatment parents, or with treatment parents and every other variable a declared pre-treatment covariate (no variable descends from the treatment, which excludes the mediator and collider orientations of a confounder that fit the data equally well), and keeping only graphs whose treatment-to-outcome effect has a unique minimal back-door adjustment set (excluded graphs are counted and sealed). No single joint Bayesian posterior is claimed.",
     "The consumer re-derives each atom's identification and adjustment set from its graph and compares it with the compiler's retained operation. It carries, and does not recompute, the compiler's lowered program identity.",
     "The V3 prior-predictive candidate draws one treatment effect from Uniform(-1,1) per independently generated dataset; its reported coverage is averaged under that declared distribution, not uniform or pointwise.",
     "The measured route is calibrated only where a current attesting coverage record covers the reported construction and row count. Independent scientific review and whole-procedure measurement remain pending; no review or calibration record is asserted."
    ],
-   "digest": "77ff4d69450efb2032ed8704a650d85e30e1435f6cb2159faa43f5d28f7163b0",
+   "digest": "7f3d7b32b825ef82fc307383a9083b99a676b9e2f9d4684a23abcee2c47bd0e1",
    "id": "graph_imputation.compiled_candidate",
    "review": "none",
    "scope_limits": [],

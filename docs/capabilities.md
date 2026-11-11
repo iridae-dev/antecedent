@@ -881,8 +881,8 @@ and `ChangeAttribution` run on every static and temporal graph class (see
   probability, and times one minus it). Fixed CUPED reports a pointwise score
   interval under the same arm support with a coefficient set independently of
   the trial outcomes; its known probabilities may vary by row. Both are exact
-  separate graphless supports, backed by 2,000-allocation known-truth coverage
-  from 150 to 600 rows (ANCOVA) and 200 to 400 rows (CUPED) at the probability
+  separate graphless supports, backed by exact known-truth checks; their
+  2,000-allocation coverage is measured as calibration, from 150 to 600 rows (ANCOVA) and 200 to 400 rows (CUPED) at the probability
   boundaries, a 2:1 allocation and 300 balanced rows, and by artifact checks.
   Where the normal interval is unsupported, a complete randomization's
   difference in means and the Bernoulli ANCOVA (one or two covariates) report a
@@ -906,7 +906,7 @@ and `ChangeAttribution` run on every static and temporal graph class (see
   independent sequences with equal observed period counts, 30 observed
   periods per arm, probabilities from 0.2 through 0.8 on every row, and
   positive variance yield a pointwise 95% Student interval and an exact
-  graphless support. Six unconditional 2,000-allocation known-truth cells
+  graphless support. Six unconditional 2,000-allocation calibration cells
   include serial assignment within sequences. Sparse, unequal-length, or
   weak-probability schedules retain a point and variance without an interval.
   No carryover and no between-sequence interference remain declared

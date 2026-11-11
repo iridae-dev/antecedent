@@ -45984,9 +45984,9 @@ route_estimator = "functional.effect"
 matrix_digest = "5f0bb860dd78e2e4"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_adjustable_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:Admg:explicit:Frequentist:full"
@@ -46001,9 +46001,9 @@ route_estimator = "functional.effect"
 matrix_digest = "4efcc4ff862b5ed4"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_adjustable_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:Admg:explicit:Bayesian:cheap"
@@ -46018,9 +46018,9 @@ route_estimator = "functional.effect"
 matrix_digest = "3aa12a76878633fe"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:Admg:explicit:Bayesian:full"
@@ -46035,9 +46035,9 @@ route_estimator = "functional.effect"
 matrix_digest = "ae41f10faca6f0ac"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:Admg:accepted:Frequentist:cheap"
@@ -46052,9 +46052,9 @@ route_estimator = "functional.effect"
 matrix_digest = "589ecb2086e83e94"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_adjustable_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:Admg:accepted:Frequentist:full"
@@ -46069,9 +46069,9 @@ route_estimator = "functional.effect"
 matrix_digest = "6f8c28c398377ccb"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_adjustable_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:Admg:accepted:Bayesian:cheap"
@@ -46086,9 +46086,9 @@ route_estimator = "functional.effect"
 matrix_digest = "192c6e0795189bb0"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:Admg:accepted:Bayesian:full"
@@ -46103,9 +46103,9 @@ route_estimator = "functional.effect"
 matrix_digest = "e2e6cb5bef134431"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/response/curve_refuter_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_known_truth.rs|response_curve_validation_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/response/curve_refuter_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:Cpdag:explicit:Frequentist:cheap"
@@ -47072,9 +47072,9 @@ route_estimator = "functional.effect"
 matrix_digest = "e4572bcd718ceda1"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_adjustable_temporal_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:TemporalAdmg:explicit:Frequentist:full"
@@ -47089,9 +47089,9 @@ route_estimator = "functional.effect"
 matrix_digest = "68cdd190970b8f03"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_adjustable_temporal_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:TemporalAdmg:explicit:Bayesian:cheap"
@@ -47106,9 +47106,9 @@ route_estimator = "functional.effect"
 matrix_digest = "76d606f89b19f964"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:TemporalAdmg:explicit:Bayesian:full"
@@ -47123,9 +47123,9 @@ route_estimator = "functional.effect"
 matrix_digest = "c8ea9d392d8c9746"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:TemporalAdmg:accepted:Frequentist:cheap"
@@ -47140,9 +47140,9 @@ route_estimator = "functional.effect"
 matrix_digest = "368a2c387ad6ce66"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_adjustable_temporal_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:TemporalAdmg:accepted:Frequentist:full"
@@ -47157,9 +47157,9 @@ route_estimator = "functional.effect"
 matrix_digest = "9de4f4f5f5c2cf53"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth", "response.kennedy_dr = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_adjustable_temporal_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:TemporalAdmg:accepted:Bayesian:cheap"
@@ -47174,9 +47174,9 @@ route_estimator = "functional.effect"
 matrix_digest = "4d0ce11492a971ee"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
 
 [[obligation]]
 id = "ResponseCurve:TemporalAdmg:accepted:Bayesian:full"
@@ -47191,6 +47191,6 @@ route_estimator = "functional.effect"
 matrix_digest = "c147c0cbcb1a2a1d"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/response_curve_validation_routes_known_truth.rs::response_curve_validation_temporal_admg_known_truth"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/response/curve_refuter_route_states"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/response_curve_validation_routes_known_truth.rs|response_curve_validation_temporal_admg_known_truth|conformance/estimate/admg_frontdoor_functional"
 uncertainty = "estimator_grid_not_measured"
-evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/response/curve_refuter_route_states"]
+evidence_reachability = ["crates/antecedent/tests/response_curve_validation_routes_known_truth.rs", "conformance/estimate/admg_frontdoor_functional"]
