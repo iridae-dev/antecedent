@@ -23383,3 +23383,52 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_nix_evidence_deps.py"
 gates = ["inventory"]
+
+[[test]]
+id = "grid-functional-effect-calibration"
+crate = "antecedent"
+cargo_target = "grid_functional_effect_calibration"
+path = "crates/antecedent/tests/grid_functional_effect_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "grid-temporal-effect-calibration"
+crate = "antecedent"
+cargo_target = "grid_temporal_effect_calibration"
+path = "crates/antecedent/tests/grid_temporal_effect_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "grid-response-calibration"
+crate = "antecedent"
+cargo_target = "grid_response_calibration"
+path = "crates/antecedent/tests/grid_response_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "grid-temporal-response-calibration"
+crate = "antecedent"
+cargo_target = "grid_temporal_response_calibration"
+path = "crates/antecedent/tests/grid_temporal_response_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "grid-temporal-response-bayesian-calibration"
+crate = "antecedent"
+cargo_target = "grid_temporal_response_bayesian_calibration"
+path = "crates/antecedent/tests/grid_temporal_response_bayesian_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "grid-static-calibration"
+crate = "antecedent"
+cargo_target = "grid_static_calibration"
+path = "crates/antecedent/tests/grid_static_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "grid-mechanism-design-calibration"
+crate = "antecedent"
+cargo_target = "grid_mechanism_design_calibration"
+path = "crates/antecedent/tests/grid_mechanism_design_calibration.rs"
+gates = ["inventory"]

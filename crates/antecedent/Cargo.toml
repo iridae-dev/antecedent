@@ -76,6 +76,34 @@ arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
 
 [[test]]
+name = "grid_functional_effect_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_mechanism_design_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_response_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_static_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_temporal_effect_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_temporal_response_bayesian_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "grid_temporal_response_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
 name = "recalc_joint_bayesian"
 required-features = ["calibration-internal"]
 

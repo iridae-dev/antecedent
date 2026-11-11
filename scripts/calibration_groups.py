@@ -52,18 +52,17 @@ Selection without `--all` or `--owed`:
 
 from __future__ import annotations
 
+import subprocess  # noqa: F401  (tests patch calibration_groups.subprocess)
 import argparse
 import fnmatch
 import math
 import os
 import re
 import shutil
-import subprocess
 import sys
 import threading
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import cache
@@ -149,7 +148,7 @@ class Group:
     label: str
     long: bool
     grid: bool  # measured over the sample-size grid
-    spec: "object | None" = None  # calibration_runner.GroupSpec: what the group runs
+    spec: object | None = None  # calibration_runner.GroupSpec: what the group runs
 
     @property
     def head(self) -> str:

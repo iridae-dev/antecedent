@@ -57,8 +57,21 @@
       "review": "Fixed two-action off-policy design with declared logging and target policies, known target value and a static record key."
     },
     {
+      "path": "crates/antecedent-estimate/src/bayesian/tests.rs",
+      "sha256": "fd3b37803244857f5e9543c0955ecbc874cc3a94cb004e14622e32e46eaa1748",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 1073,
+          "call": "CoverageTally::new(",
+          "argument": "name, level"
+        }
+      ],
+      "review": "Four fixed conjugate temporal coverage designs with literal tally names at the source-fixed 90% level; the equal-tailed interval rule is fixed before simulation."
+    },
+    {
       "path": "crates/antecedent-estimate/src/calibration_coverage.rs",
-      "sha256": "3a0bee6812bd50b333b130d1a7d7cbd0929a496fd637d0de79fdd5658c26f297",
+      "sha256": "0c09da0284c78b9b1afb19a70ca06a8228a224d66e41c2afe20f74e5bdf166af",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -67,32 +80,32 @@
           "argument": "key, LEVEL"
         },
         {
-          "line": 1607,
+          "line": 1609,
           "call": "CoverageTally::for_record(",
           "argument": "key, REPORTED_LEVEL"
         },
         {
-          "line": 1635,
+          "line": 1637,
           "call": "CoverageTally::for_record(",
           "argument": "key, REPORTED_LEVEL"
         },
         {
-          "line": 1666,
+          "line": 1668,
           "call": "CoverageTally::for_record(",
           "argument": "key, REPORTED_LEVEL"
         },
         {
-          "line": 1958,
+          "line": 1960,
           "call": "CoverageTally::new(",
           "argument": "\"reported_level_below_floor\", REPORTED_LEVEL"
         },
         {
-          "line": 1980,
+          "line": 1982,
           "call": "CoverageTally::new(",
           "argument": "\"above_ceiling\", REPORTED_LEVEL"
         },
         {
-          "line": 1994,
+          "line": 1996,
           "call": "CoverageTally::new(",
           "argument": "\"skip_miss\", REPORTED_LEVEL"
         }
@@ -100,8 +113,21 @@
       "review": "Runtime coverage consumer/tests only; no Monte Carlo hypothesis producer."
     },
     {
+      "path": "crates/antecedent-estimate/src/dml.rs",
+      "sha256": "78870960d0540a770312e45602ae7d396c537b131243440c848ab40c983f7b25",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 1564,
+          "call": "CoverageTally::new(",
+          "argument": "format!(\"learner_ate_known_truth_coverage {name}\"),\n                level,"
+        }
+      ],
+      "review": "Four fixed learner methods with literal tally names at the fixture's declared nominal level; one source-fixed DGP and truth."
+    },
+    {
       "path": "crates/antecedent-estimate/tests/adaptive_inference_calibration.rs",
-      "sha256": "534bb865fd47608a8ba95469e400c3d42caf0c36c11ae9d210abb94367e4348a",
+      "sha256": "836cd7451c7e403f80b98366c1a938e8f119bb59e62402f9b7a066b6a5911ead",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -125,12 +151,12 @@
           "argument": "\"anytime_valid_sequence_covers_the_arm_mean_at_every_look_l95\", 0.95"
         },
         {
-          "line": 579,
+          "line": 575,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"confidence_sequence\" }, 0.95"
         },
         {
-          "line": 705,
+          "line": 701,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"repeated_confidence_interval\" },\n        0.95,"
         }
@@ -206,6 +232,19 @@
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared candidate tally constructor takes caller static test/DGP/method identity and declared confidence; callers are source-fixed gate cases."
+    },
+    {
+      "path": "crates/antecedent-estimate/tests/common/inference_metrics.rs",
+      "sha256": "1cebbc57dee93af5ac07c7fde6953d58f51e761bbcd395b1a07ea249ca63ede9",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 36,
+          "call": "CoverageTally::new(",
+          "argument": "name, 0.95"
+        }
+      ],
+      "review": "Error-rate tallies named from the caller's fixed test, covariance-kind/direction loop and sample size; each is a non-rejection rate at the source-fixed 1 - 0.05 level, never chosen from outcomes."
     },
     {
       "path": "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs",
@@ -929,7 +968,7 @@
     },
     {
       "path": "crates/antecedent/tests/cluster_dml_calibration.rs",
-      "sha256": "b76fdec14fd9dffa2d59112767367b5e5e8e03995bce849cd857a59ae8e9ee81",
+      "sha256": "402d3840888a06cf075f06271e6ad5d2e6570ae0adf0d2b5df7ef8d3bbc2f15c",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -942,7 +981,7 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration.rs",
-      "sha256": "ab86e771a18d1867f8173bfd993c940c2a93ed2faa4bc3e298a5adfc7f9d4f5b",
+      "sha256": "f3368a57ec1e8e78cf1123310a28808603f704d143fcc7214fe5c458e1d03fed",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources."
@@ -953,6 +992,25 @@
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared immutable construction/record-key binding, no calibration outcomes choose hypotheses."
+    },
+    {
+      "path": "crates/antecedent/tests/common/grid_cell.rs",
+      "sha256": "5f6b31ad4ba94f20ff7149f8d5a271e66b30a885425c55505ce5146c99e1985b",
+      "labelled_calls": [
+        {
+          "line": 252,
+          "call": ".labelled(",
+          "argument": "label.clone()"
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 247,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, level"
+        }
+      ],
+      "review": "Shared sibling driver with no hypothesis of its own: the caller hands it the coordinate (test, DGP, interval, estimator, variant count) and a declared target list (label and closed-form truth) before any replicate runs. It makes one record tally per variant, target and level at the two source-fixed levels (reported 0.95 and gate 0.90), so a test asserts at most variants x targets x 2 cells per grid point, all fixed by the caller's source. A label is the target's declared label. The variants are the caller's fixed validation modes and accepted twin; each sibling runs on the first two replicates, must report the base interval bit for bit, and its record is bound from its own execution (runtime match key and validation mode) and scored on those base intervals. No observed coverage chooses a label, target or variant."
     },
     {
       "path": "crates/antecedent/tests/common/reported.rs",
@@ -1092,7 +1150,7 @@
     },
     {
       "path": "crates/antecedent/tests/graph_imputation_interval_calibration.rs",
-      "sha256": "df4cb23406ac2cb8ce4dfaf598b7ab1e3d6f0604a50816ad8fe89de4e29bdd9b",
+      "sha256": "6e0e759578d06d8dc4c22619f6a40a0701df6adf73957563b53d789789edbfa9",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1101,12 +1159,25 @@
           "argument": "RecordKey {\n            test: \"graph_imputation_mar_bic_nearest_rank_candidate\",\n            dgp: \"randomized_binary_covariate_linear_normal_mar_by_treatment\",\n            interval: \"nearest_rank_95\",\n        },\n        0.95,"
         },
         {
-          "line": 143,
+          "line": 146,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"nearest_rank_95\" }, 0.95"
         }
       ],
       "review": "Fixed graph-imputation prior-predictive cells with declared priors and effects; candidate measurements, no label chosen from outcomes."
+    },
+    {
+      "path": "crates/antecedent/tests/grid_functional_effect_calibration.rs",
+      "sha256": "7e6784ef96932d6c0f74a8cbddd40909a82face66757178b0caea9c608c612d5",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 539,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, level"
+        }
+      ],
+      "review": "One test per supported functional-effect coordinate through the shared sibling driver: the scored targets (labels and closed-form truths) are a caller-declared list handed to the driver before any replicate runs, at most three per test, at the two source-fixed levels; the sibling variants are the fixed validation modes and the accepted twin of the coordinate, never chosen from outcomes."
     },
     {
       "path": "crates/antecedent/tests/joint_law_composed_interval_calibration.rs",
@@ -1566,7 +1637,7 @@
     },
     {
       "path": "crates/antecedent/tests/randomized_interval_calibration.rs",
-      "sha256": "70266bb40aaa3fc6c7c6ae2e2a701dc73dca32e309ca4f71a901b5cc772b520c",
+      "sha256": "1a3ace7f5923b7c6d0db23219df18b38a7635e1bb88396761a638d66f498102f",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1575,37 +1646,37 @@
           "argument": "RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL"
         },
         {
-          "line": 539,
+          "line": 540,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL"
         },
         {
-          "line": 667,
+          "line": 668,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test,\n            dgp: \"cluster_margin_fixed_population\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 825,
+          "line": 826,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_matched_pair_delta_interval\",\n            dgp: \"fixed_matched_pair_margin\",\n            interval: \"delta_method_student_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 933,
+          "line": 934,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_switchback_delta_interval\",\n            dgp: \"fixed_switchback_margin\",\n            interval: \"delta_method_student_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1050,
+          "line": 1051,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_lagged_excursion_delta_interval\",\n            dgp: \"fixed_lagged_excursion_margin\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1142,
+          "line": 1143,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_static_regime_bootstrap_delta_interval\",\n            dgp: \"fixed_single_period_regime_margin\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1246,
+          "line": 1247,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_adaptive_regime_jackknife_delta_interval\",\n            dgp: \"randomized_treatment_affected_binary_state\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         }
@@ -1979,7 +2050,7 @@
     },
     {
       "path": "crates/antecedent/tests/temporal_class_calibration.rs",
-      "sha256": "74a7ce63a71ecec838529ba5ee0179848baee27481c854af4f0c3c68aff916ef",
+      "sha256": "7bbebe9d7478141f60b3137f548ea0d30565a18c95a54a957220e7c02904f6bb",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -2193,7 +2264,7 @@
     },
     {
       "path": "crates/antecedent/tests/z_transport_surrogate_calibration.rs",
-      "sha256": "0eb1512f52b3382ca266f3efd433bbee66e248f29de6397f9f88e835f0478376",
+      "sha256": "37ef9b6e92244c83850549be0a06647445d3c0aa6dab8d5fd66ee1dce2b75eb8",
       "labelled_calls": [],
       "constructor_calls": [
         {
