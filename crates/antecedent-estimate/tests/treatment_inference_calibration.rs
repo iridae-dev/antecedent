@@ -24,12 +24,6 @@ use antecedent_estimate::vector_treatment::{
 };
 use calibration::{grid_n, grid_seed, n_sim};
 use metrics::{FitMetrics, MetricDesign};
-/// Fewest rows the vector design states HC0's diagnostics at. HC0 has no finite-sample
-/// correction: at 256 rows with two treatments it understates the coefficient variance by about
-/// a tenth and the Holm family rate of the partial null exceeds `alpha` plus its Monte Carlo
-/// slack, so its standing begins at 512 rows; HC1 to HC3 carry the correction and hold at 256.
-const HC0_MIN_ROWS: usize = 512;
-
 fn kinds(hetero: bool) -> Vec<VectorCovariance> {
     let mut v = vec![
         VectorCovariance::Hc0,
@@ -83,9 +77,6 @@ fn vector(test: &str, hetero: bool) {
     let attempts = usize::try_from(n_sim().max(2000)).unwrap();
     let seed = grid_seed(0x48ab_0000);
     for covariance in kinds(hetero) {
-        if covariance == VectorCovariance::Hc0 && n < HC0_MIN_ROWS {
-            continue;
-        }
         for partial in [false, true] {
             let beta = if partial { [0., 0.5] } else { [0., 0.] };
             let options = VectorTreatmentOptions {
