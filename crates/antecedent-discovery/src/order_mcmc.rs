@@ -241,16 +241,28 @@ impl OrderMcmc {
                 let target = SharedTarget(std::rc::Rc::new(std::cell::RefCell::new(
                     ScoredTarget::new(n, &score_data, score_family, &prior_table),
                 )));
+                // The first chain starts at the required-edge graph; every other chain at an
+                // overdispersed draw (a random compatible order and prior-rate forward edges), so
+                // chains that have not crossed between the posterior's modes disagree and the
+                // gate's R-hat sees it, instead of agreeing from one shared start.
+                let (start_order, start_mask, start_score) = if chain == 0 {
+                    (initial_order.clone(), initial_mask.clone(), initial_score)
+                } else {
+                    overdispersed_start(n, &initial_mask, prior, &mut target.clone(), &mut rng)
+                        .unwrap_or_else(|| {
+                            (initial_order.clone(), initial_mask.clone(), initial_score)
+                        })
+                };
                 let mut replicas: Vec<_> = ladder
                     .iter()
                     .map(|_| OrderWalker {
                         n,
                         target: target.clone(),
-                        order: initial_order.clone(),
-                        mask: initial_mask.clone(),
-                        cur: initial_score,
-                        pending_order: initial_order.clone(),
-                        pending_mask: initial_mask.clone(),
+                        order: start_order.clone(),
+                        mask: start_mask.clone(),
+                        cur: start_score,
+                        pending_order: start_order.clone(),
+                        pending_mask: start_mask.clone(),
                         pos_scratch: Vec::with_capacity(n),
                         max_parents: prior.constraints.max_parents,
                     })
@@ -417,6 +429,44 @@ impl<T: ChainTarget> MaskChain for OrderWalker<T> {
     fn sample(&self) -> AdjacencyMask {
         self.mask.clone()
     }
+}
+
+/// An overdispersed starting state for one chain: a uniformly random topological order of the
+/// required edges, then each further forward edge with the prior's inclusion rate (one half under
+/// the uniform prior) while its child is under the parent cap. `None` when the draw has no finite
+/// score (a forbidden edge, a tier), and the chain then starts at the required-edge graph.
+fn overdispersed_start<T: ChainTarget>(
+    n: usize,
+    required: &AdjacencyMask,
+    prior: &GraphPrior,
+    target: &mut T,
+    rng: &mut CausalRng,
+) -> Option<(Vec<usize>, AdjacencyMask, f64)> {
+    let mut order = Vec::with_capacity(n);
+    while order.len() < n {
+        let ready: Vec<usize> = (0..n)
+            .filter(|node| {
+                !order.contains(node)
+                    && (0..n).all(|p| {
+                        p == *node || !required.has_edge(n, p, *node) || order.contains(&p)
+                    })
+            })
+            .collect();
+        order.push(ready[crate::indexing::bounded_index(rng.next_u64(), ready.len())]);
+    }
+    let rate = prior.edge_inclusion.unwrap_or(0.5);
+    let cap = prior.constraints.max_parents.unwrap_or(n);
+    let mut mask = required.clone();
+    for (k, &child) in order.iter().enumerate() {
+        for &parent in &order[..k] {
+            let parents = (0..n).filter(|&p| mask.has_edge(n, p, child)).count();
+            if !mask.has_edge(n, parent, child) && parents < cap && rng.next_f64() < rate {
+                mask.set_edge(n, parent, child, true);
+            }
+        }
+    }
+    let score = target.score(&mask)? - log_topological_order_count(&mask, n);
+    score.is_finite().then_some((order, mask, score))
 }
 
 fn propose_order(
