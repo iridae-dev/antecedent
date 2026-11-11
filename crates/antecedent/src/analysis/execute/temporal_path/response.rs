@@ -439,12 +439,11 @@ impl super::super::Study {
     /// (identifiability is level-free); neither reads the schedule contrast's
     /// active level, since both simulate the query's own per-step intervention
     /// values directly off the unfolded SEM (or `overlays`, for the sequential
-    /// engine) rather than off the certificate's literal. A per-node
-    /// varying-dose schedule that the general-ID single-literal contrast
-    /// cannot express (see `resolve_schedule_active_level`) is therefore still
-    /// identifiable here: strip the levels before certifying so a genuine
-    /// per-node dose schedule is not refused for a contrast neither
-    /// consumption path reads.
+    /// engine) rather than off the certificate's literal. The levels are
+    /// stripped before certifying, so the certificate is the schedule's
+    /// structural one at the reference literal (a per-node dose schedule is
+    /// certified the same way when its levels are kept; see
+    /// `resolve_schedule_active_level`).
     fn temporal_response_identification(
         &self,
         graph: &TemporalDag,

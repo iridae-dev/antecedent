@@ -788,8 +788,7 @@ impl super::Study {
         }
         // A fresh run executes through a prepared handle, so its result carries the executed
         // contract that attests what ran (program, data snapshot, validation mode). A route whose
-        // preparation refuses what a fresh compile runs (a per-node dose schedule, which the
-        // joint-schedule certificate cannot express) still runs as before, without that stamp.
+        // preparation refuses what a fresh compile runs still runs as before, without that stamp.
         match self.prepare(ctx).and_then(|prepared| prepared.estimate_retained(ctx)) {
             Ok(result) => Ok(result),
             Err(_) => {

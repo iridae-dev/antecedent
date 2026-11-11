@@ -1479,10 +1479,9 @@ mod tests {
         (data, graph)
     }
 
-    // Both offsets carry the same Set level (0.5): `resolve_schedule_active_level`
-    // refuses a joint schedule whose Set steps disagree (a genuine per-node dose
-    // schedule the single-literal contrast cannot certify), and these tests exercise
-    // a multi-offset hard-set schedule, not a per-node dose difference.
+    // Both offsets carry the same Set level (0.5): these tests exercise a
+    // multi-offset hard-set schedule, not a per-node dose difference (which
+    // `resolve_schedule_active_level` certifies at a level-free reference).
     fn hard_overlays() -> Vec<SequentialMechanismOverlay> {
         [(-2, 0.5), (-1, 0.5)]
             .into_iter()
