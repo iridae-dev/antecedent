@@ -786,16 +786,21 @@ impl super::Study {
         if let Some(result) = self.run_sealed_specialist_transport_and_linear(route, ctx)? {
             return Ok(*result);
         }
-        // A fresh run executes through a prepared handle, so its result carries the executed
-        // contract that attests what ran (program, data snapshot, validation mode). A route whose
-        // preparation refuses what a fresh compile runs still runs as before, without that stamp.
-        match self.prepare(ctx).and_then(|prepared| prepared.estimate_retained(ctx)) {
-            Ok(result) => Ok(result),
-            Err(_) => {
-                let compiled = std::sync::Arc::new(self.compile(ctx)?);
-                self.execute_shared(&compiled, None, ctx)
-            }
+        let compiled = std::sync::Arc::new(self.compile(ctx)?);
+        let mut result = self.execute_shared(&compiled, None, ctx)?;
+        // The fresh run executed the study's compiled plan; a deferred handle prepared from that
+        // plan (its retained identification reused, nothing fitted) builds the executed contract
+        // that stamps what ran (program, data snapshot, validation mode), so the result's
+        // calibration can say which validation it was earned under. The run itself, its
+        // diagnostics and its fitted work are those of the fresh compile; a study whose
+        // preparation refuses stays unstamped.
+        if result.executed_contract.is_none()
+            && let Ok(prepared) = self.prepare_deferred_from(&compiled, ctx)
+            && let Ok(contract) = prepared.executed_contract(&self.data, self.settings.refute, None)
+        {
+            result.executed_contract = Some(contract);
         }
+        Ok(result)
     }
 
     /// Identify only (no estimation). Supports static DAG and ADMG average-effect

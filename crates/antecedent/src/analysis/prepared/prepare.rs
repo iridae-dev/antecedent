@@ -104,6 +104,19 @@ impl Study {
     }
 
     /// The body of preparation, run under the plan's preparation budget.
+    /// [`Self::prepare_deferred`] reusing the identification `plan` already retains: the handle a
+    /// fresh run's executed contract is built from, without identifying or fitting again.
+    pub(crate) fn prepare_deferred_from(
+        &self,
+        plan: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedStudy, CausalError> {
+        antecedent_estimate::prepare::with_preparation_budget(
+            PhysicalExecutionPlan::preparation_budget(ctx),
+            || self.prepare_metered(ctx, false, Some(plan)),
+        )
+    }
+
     fn prepare_metered(
         &self,
         ctx: &ExecutionContext,
