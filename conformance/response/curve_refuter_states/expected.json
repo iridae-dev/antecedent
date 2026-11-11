@@ -27,57 +27,6 @@
       "fixture_id and dgp text (checked only as a guard on the model used)"
     ],
     "independence_basis": "The generator regenerates the stated rows from the integer noise recurrence and solves the exact rational normal equations of Y on 1, T, Z; it imports no Antecedent code and no statistics package. The shared object is the stated law and the noise recurrence.",
-    "historical_exposure": "Written for this fixture from the stated law and declared inputs; no product implementation source was consulted and no earlier pinned numbers are reused.",
-    "reference_review": {
-      "scope": "Exact interventional-mean curve of a linear structural law with a measured confounder and Gaussian-like noise, the finite-sample least-squares curve of the regenerated rows, the confounded unadjusted slope, and the position of one off-support grid point relative to the observed treatment range.",
-      "independence_basis": "The generator regenerates the stated rows from the integer noise recurrence and solves the exact rational normal equations of Y on 1, T, Z; it imports no Antecedent code and no statistics package. The shared object is the stated law and the noise recurrence.",
-      "historical_exposure": "Written for this fixture from the stated law and declared inputs; no product implementation source was consulted and no earlier pinned numbers are reused.",
-      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
-      "limitations": "The law is linear, so the curve is a line and the fixture cannot detect curvature errors. The tolerance is a declared estimation band. The refuter verdicts themselves (support, placebo treatment, random common cause, data subset) are asserted against these truths and against the planted off-support grid point, not derived by the reference; the refuters' power against planted breaks of the procedure is pinned on injected refits beside the implementation. No uncertainty or calibration.",
-      "sources": [],
-      "artifacts": [
-        {
-          "role": "generator",
-          "path": "conformance/response/curve_refuter_states/reference.py",
-          "sha256": "83810b0d336f4e21f2825f90c1f9c139f0f64d8ba29b37f3c8710b461566f341"
-        },
-        {
-          "role": "environment_lock",
-          "path": "conformance/response/curve_refuter_states/reference.py.lock",
-          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
-        },
-        {
-          "role": "assertion_source",
-          "path": "crates/antecedent/tests/response_curve_validation_known_truth.rs",
-          "items": [
-            "const ROWS",
-            "fn admg_fixture",
-            "fn balanced_table",
-            "fn bayesian",
-            "fn class_case",
-            "fn curve",
-            "fn dag",
-            "fn fixture",
-            "fn grid",
-            "fn number",
-            "fn oriented_pag",
-            "fn published",
-            "fn report",
-            "fn reports",
-            "fn response_curve_validation_adjustable_admg_known_truth",
-            "fn response_curve_validation_admg_known_truth",
-            "fn response_curve_validation_bayesian_dag_known_truth",
-            "fn response_curve_validation_class_known_truth",
-            "fn response_curve_validation_detects_a_grid_beyond_the_observed_treatment_range",
-            "fn response_curve_validation_known_truth",
-            "fn study",
-            "fn table",
-            "fn two_completion_cpdag"
-          ],
-          "sha256": "74063e63a8de664bdf154a757374dc05621031befb58c2e41b87bc8865e68608"
-        }
-      ],
-      "fixture_payload_sha256": "ad5e143c1ae19d0b398be847b29f439abdeef4123c43fc4a311bdfceaea489c7"
-    }
+    "historical_exposure": "Written for this fixture from the stated law and declared inputs; no product implementation source was consulted and no earlier pinned numbers are reused."
   }
 }

@@ -297,30 +297,55 @@ fn two_completion_cpdag() -> Cpdag {
     g
 }
 
-/// Treatment levels crossed with `z = +-1` and noise `+-0.2`: `Y = 1 + 2 T + 1.5 Z + e`.
-fn balanced_table() -> TabularData {
+/// Treatment levels crossed with `z = +-1` and noise `+-0.2`, under the fixture's linear law
+/// `Y = intercept + treatment_coefficient T + confounder_coefficient Z + e`. `Z` is balanced
+/// against every treatment level, so it is independent of `T` and every completion of the class
+/// fixtures below identifies the same curve. Returns the table and `mean(z)` (zero).
+fn balanced_table(pin: &Value) -> (TabularData, f64) {
+    let (intercept, slope, z_coefficient) = (
+        number(pin, "intercept"),
+        number(pin, "treatment_coefficient"),
+        number(pin, "confounder_coefficient"),
+    );
     let (mut z, mut t, mut y) = (Vec::new(), Vec::new(), Vec::new());
     for k in 0..31_u32 {
         let level = -1.5 + 3.0 * f64::from(k) / 30.0;
         for (zv, e) in [(1.0, 0.2), (1.0, -0.2), (-1.0, 0.2), (-1.0, -0.2)] {
             z.push(zv);
             t.push(level);
-            y.push(1.0 + 2.0 * level + 1.5 * zv + e);
+            y.push(intercept + slope * level + z_coefficient * zv + e);
         }
     }
-    TabularData::from_f64_columns([("z", z.as_slice()), ("t", t.as_slice()), ("y", y.as_slice())])
-        .unwrap()
+    #[allow(clippy::cast_precision_loss, reason = "the row count is exact in f64")]
+    let mean_z = z.iter().sum::<f64>() / z.len() as f64;
+    let data = TabularData::from_f64_columns([
+        ("z", z.as_slice()),
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    (data, mean_z)
+}
+
+/// The fixture's closed form at level `x`: `intercept + treatment_coefficient x +
+/// confounder_coefficient mean(Z)`, the back-door average over the observed confounder.
+fn closed_form(pin: &Value, mean_z: f64, x: f64) -> f64 {
+    number(pin, "intercept")
+        + number(pin, "treatment_coefficient") * x
+        + number(pin, "confounder_coefficient") * mean_z
 }
 
 #[test]
 fn response_curve_validation_class_known_truth() {
-    let data = balanced_table();
-    let grid = [-0.9, 0.0, 0.9];
+    let pin = fixture();
+    let (data, mean_z) = balanced_table(&pin);
+    let grid = grid(&pin);
+    let truth: Vec<f64> = grid.iter().map(|x| closed_form(&pin, mean_z, *x)).collect();
     for pag in [false, true] {
         for accepted in [false, true] {
             for bayes in [false, true] {
                 for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
-                    class_case(&data, &grid, (pag, accepted, bayes), suite);
+                    class_case(&data, &grid, &truth, (pag, accepted, bayes), suite);
                 }
             }
         }
@@ -340,6 +365,7 @@ fn oriented_pag() -> Pag {
 fn class_case(
     data: &TabularData,
     grid: &[f64],
+    truth: &[f64],
     (pag, accepted, bayes): (bool, bool, bool),
     suite: RefuteSuite,
 ) {
@@ -359,8 +385,10 @@ fn class_case(
     let builder = if bayes { builder.inference(bayesian()) } else { builder };
     let result = run_retained(builder, &label, &ExecutionContext::for_tests(917));
     assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
-    for (value, x) in published(&result).iter().zip(grid) {
-        assert!((value - (1.0 + 2.0 * x)).abs() <= 0.25, "{label}: {value} at {x}");
+    // A class publishes the envelope of its completions' curves; the band is wider than the
+    // fixture's single-graph band because the midpoint of that envelope is judged on 124 rows.
+    for ((value, x), expected) in published(&result).iter().zip(grid).zip(truth) {
+        assert!((value - expected).abs() <= 0.25, "{label}: {value} vs {expected} at {x}");
     }
     // Each completion is refuted against its own adjustment estimand: every report
     // of every name passes, and each name is present.
@@ -380,7 +408,8 @@ fn class_case(
 
 /// The ADMG front-door fixture: the curve is the ID-algorithm plug-in, refit whole under a
 /// permuted placebo treatment and a row subset; the random common cause is not applicable.
-fn admg_fixture() -> (TabularData, Admg, ResponseQuery) {
+/// Returns the table, the graph, the curve query on the grid `[0, 1]` and the fixture document.
+fn admg_fixture() -> (TabularData, Admg, ResponseQuery, Value) {
     let pin: Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/admg_frontdoor_functional/expected.json"
     ))
@@ -420,7 +449,45 @@ fn admg_fixture() -> (TabularData, Admg, ResponseQuery) {
             GridSpec::Values(std::sync::Arc::from([0.0, 1.0])),
         ),
     });
-    (data, graph, query)
+    (data, graph, query, pin)
+}
+
+const FRONTDOOR_DRAWS: usize = 256;
+
+/// The front-door contrast `E[Y | do(1)] - E[Y | do(0)]` read off the curve published on the
+/// grid `[0, 1]` equals the fixture's enumerated `expected_ate` (0.282). The Frequentist plug-in
+/// is exact. The Bayesian posterior mean of `FRONTDOOR_DRAWS` draws with a negligible prior
+/// (`prior_scale = 1e6`): each level is a functional of binary proportions on `N` rows with
+/// posterior sd at most `2 / sqrt(N)`, so the mean lies within `5 sd / sqrt(draws)` of the
+/// posterior mean, which differs from the plug-in by at most the nonlinearity bias `sd^2`.
+fn assert_frontdoor_contrast(
+    label: &str,
+    pin: &Value,
+    result: &antecedent::StudyResult,
+    bayes: bool,
+) {
+    let truth = pin["frequentist"]["expected_ate"].as_f64().expect("fixture expected_ate");
+    let tolerance = if bayes {
+        let rows: u64 = pin["contingency_table"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["count"].as_u64().unwrap())
+            .sum();
+        #[allow(clippy::cast_precision_loss, reason = "row and draw counts are exact in f64")]
+        let (rows, draws) = (rows as f64, FRONTDOOR_DRAWS as f64);
+        let sd = 2.0 / rows.sqrt();
+        5.0 * sd / draws.sqrt() + sd * sd
+    } else {
+        1e-9
+    };
+    let curve = published(result);
+    assert_eq!(curve.len(), 2, "{label}: the curve is published on the grid [0, 1]");
+    let contrast = curve[1] - curve[0];
+    assert!(
+        (contrast - truth).abs() <= tolerance,
+        "{label}: front-door contrast {contrast} vs fixture {truth} (tolerance {tolerance})"
+    );
 }
 
 /// An ADMG with no bidirected edge is identified by back-door adjustment and runs the
@@ -457,7 +524,7 @@ fn response_curve_validation_adjustable_admg_known_truth() {
 
 #[test]
 fn response_curve_validation_admg_known_truth() {
-    let (data, graph, query) = admg_fixture();
+    let (data, graph, query, pin) = admg_fixture();
     for accepted in [false, true] {
         for bayes in [false, true] {
             for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
@@ -475,13 +542,16 @@ fn response_curve_validation_admg_known_truth() {
                 };
                 let builder = if bayes {
                     builder.inference(InferenceMode::Bayesian(
-                        BayesianConfig::conjugate().n_draws(256),
+                        BayesianConfig::conjugate()
+                            .n_draws(FRONTDOOR_DRAWS)
+                            .prior_scale(1_000_000.0),
                     ))
                 } else {
                     builder
                 };
                 let result = run_retained(builder, &label, &ExecutionContext::for_tests(918));
                 assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
+                assert_frontdoor_contrast(&label, &pin, &result, bayes);
                 for name in ["curve.support", "curve.placebo_treatment"] {
                     let found = report(&result, name)
                         .unwrap_or_else(|| panic!("{label}: no {name} report"));

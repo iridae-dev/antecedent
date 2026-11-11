@@ -1061,8 +1061,8 @@ fn heterogeneous_se_case<F>(name: &str, result_for: F)
 where
     F: Fn(u32) -> StudyResult + Sync,
 {
-    // No record: this cell is gated one-sided (at least the band's lower edge), which
-    // the record harness has no role for; the construction is conservative here by design.
+    // No record: this cell is gated one-sided (at least the band's lower edge) through the
+    // suite's one-sided family decision; the construction is conservative here by design.
     let mut tally = SetTally::new(name, None, B1, Some(heterogeneous_se_unadjusted_plim()));
     let runs = map_replicates(n_sim(), |s| result_for(u32::try_from(s).unwrap()));
     for result in &runs {
@@ -1076,7 +1076,7 @@ where
          band=[{lo:.3}, {hi:.3}] (one-sided: at least {lo:.3}) mean_length={:.4}",
         tally.truth.0.mean_length()
     );
-    assert!(rate >= lo, "{name}: true completion under-covered, {rate:.3} < {lo:.3}");
+    tally.truth.0.assert_at_least();
 }
 
 #[test]

@@ -233,6 +233,43 @@ fn run(
         .unwrap()
 }
 
+/// The built study `run` executes, for a test that also pins the cell it compiles to.
+fn posterior_study(
+    data: &TimeSeriesData,
+    gp: GraphPosterior,
+    query: CausalQuery,
+    inference: InferenceMode,
+    suite: RefuteSuite,
+) -> Study {
+    Study::series(data.clone())
+        .graph_posterior(gp)
+        .query(query)
+        .inference(inference)
+        .refute(suite)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+}
+
+/// The support-matrix cell the study compiles to (`query:graph_class:structure:inference:
+/// validation`), so a test pins the coordinate it executes rather than inferring it.
+fn compiled_cell(study: &Study) -> String {
+    study
+        .compile(&ExecutionContext::for_tests(0))
+        .unwrap()
+        .lowered()
+        .expect("compile attaches a lowered program")
+        .scientific()
+        .support_coordinate()
+        .expect("the study is on the support-matrix axis")
+        .to_owned()
+}
+
+/// The matrix validation axis of a checked suite.
+fn matrix_validation(suite: RefuteSuite) -> &'static str {
+    if suite == RefuteSuite::Full { "full" } else { "cheap" }
+}
+
 fn bayes(draws: usize) -> InferenceMode {
     InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(draws).prior_scale(1_000_000.0))
 }
@@ -322,18 +359,26 @@ fn temporal_class_mediation_matches_the_path_product_under_cheap_and_full() {
         [VariableId::from_raw(1)],
         MediationContrast::Mediated,
     );
-    for (mode, inference) in [("frequentist", InferenceMode::Frequentist), ("bayesian", bayes(256))]
+    for (mode, inference) in [("Frequentist", InferenceMode::Frequentist), ("Bayesian", bayes(256))]
     {
         for suite in CHECKED {
             let label = format!("{mode} {suite:?}");
-            let result = run(
+            let built = posterior_study(
                 &data,
                 fixture_posterior(Some(GraphPosteriorAtomKind::Cpdag), pin, 3),
                 CausalQuery::Mediation(query.clone()),
                 inference.clone(),
                 suite,
-                91,
             );
+            assert_eq!(
+                compiled_cell(&built),
+                format!(
+                    "TemporalMediationEffect:TemporalCpdag:graph_posterior:{mode}:{}",
+                    matrix_validation(suite)
+                ),
+                "{label}: the class-atom posterior runs the TemporalCpdag cell"
+            );
+            let result = built.run(&ExecutionContext::for_tests(91)).unwrap();
             let ate = result.estimate().as_effect().unwrap().ate;
             assert!((ate - effect_truth).abs() < band, "{label}: mediated {ate} vs {effect_truth}");
             assert!(
@@ -365,18 +410,26 @@ fn temporal_dag_graph_posterior_intervention_response_matches_the_structural_lev
         TemporalResponseSpec::new(vec![q.horizon_steps], q.policy.clone(), q.max_history_lag)
             .unwrap(),
     );
-    for (mode, inference) in [("frequentist", InferenceMode::Frequentist), ("bayesian", bayes(64))]
+    for (mode, inference) in [("Frequentist", InferenceMode::Frequentist), ("Bayesian", bayes(64))]
     {
         for suite in CHECKED {
             let label = format!("{mode} {suite:?}");
-            let result = run(
+            let built = posterior_study(
                 &data,
                 fixture_posterior(None, pin, 2),
                 CausalQuery::Response(response.clone()),
                 inference.clone(),
                 suite,
-                11,
             );
+            assert_eq!(
+                compiled_cell(&built),
+                format!(
+                    "InterventionResponse:TemporalDag:graph_posterior:{mode}:{}",
+                    matrix_validation(suite)
+                ),
+                "{label}: the DAG-atom posterior on a series runs the TemporalDag cell"
+            );
+            let result = built.run(&ExecutionContext::for_tests(11)).unwrap();
             let atoms: Vec<f64> = result
                 .structural_response
                 .as_ref()

@@ -375,6 +375,23 @@ fn class_posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
     .unwrap()
 }
 
+/// The support-matrix cell a study compiles to (`query:graph_class:structure:inference:
+/// validation`), so a test pins the coordinate it executes rather than inferring it.
+fn compiled_cell(builder: &antecedent::analysis::StudyBuilder) -> String {
+    builder
+        .clone()
+        .build()
+        .unwrap()
+        .compile(&ExecutionContext::for_tests(0))
+        .unwrap()
+        .lowered()
+        .expect("compile attaches a lowered program")
+        .scientific()
+        .support_coordinate()
+        .expect("the study is on the support-matrix axis")
+        .to_owned()
+}
+
 #[test]
 fn response_curve_validation_temporal_posterior_known_truth() {
     let pin = fixture();
@@ -384,7 +401,8 @@ fn response_curve_validation_temporal_posterior_known_truth() {
     let lag_grid = numbers(&pin["lag_series"], "grid");
     let class_grid = numbers(&pin["class_series"], "grid");
     for bayes in [false, true] {
-        for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+        let inference = if bayes { "Bayesian" } else { "Frequentist" };
+        for (suite, validation) in [(RefuteSuite::Cheap, "cheap"), (RefuteSuite::Full, "full")] {
             let label = format!("dbn posterior bayesian={bayes} {suite:?}");
             let builder = Study::series(lag_data.clone())
                 .graph_posterior(dbn_posterior())
@@ -392,6 +410,11 @@ fn response_curve_validation_temporal_posterior_known_truth() {
                 .refute(suite)
                 .bootstrap_replicates(0);
             let builder = if bayes { builder.inference(bayesian()) } else { builder };
+            assert_eq!(
+                compiled_cell(&builder),
+                format!("ResponseCurve:TemporalDag:graph_posterior:{inference}:{validation}"),
+                "{label}"
+            );
             let result = run_retained(builder, &label, &ExecutionContext::for_tests(934));
             assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
             for (value, x) in published(&result).iter().zip(&lag_grid) {
@@ -399,7 +422,11 @@ fn response_curve_validation_temporal_posterior_known_truth() {
             }
             assert_curve_reports(&label, &result, suite);
 
-            for kind in [GraphPosteriorAtomKind::Cpdag, GraphPosteriorAtomKind::Pag] {
+            // Class atoms on a series are the temporal class of their kind.
+            for (kind, class) in [
+                (GraphPosteriorAtomKind::Cpdag, "TemporalCpdag"),
+                (GraphPosteriorAtomKind::Pag, "TemporalPag"),
+            ] {
                 let label = format!("{kind:?} posterior bayesian={bayes} {suite:?}");
                 let builder = Study::series(class_data.clone())
                     .graph_posterior(class_posterior(kind))
@@ -407,6 +434,11 @@ fn response_curve_validation_temporal_posterior_known_truth() {
                     .refute(suite)
                     .bootstrap_replicates(0);
                 let builder = if bayes { builder.inference(bayesian()) } else { builder };
+                assert_eq!(
+                    compiled_cell(&builder),
+                    format!("ResponseCurve:{class}:graph_posterior:{inference}:{validation}"),
+                    "{label}"
+                );
                 let result = run_retained(builder, &label, &ExecutionContext::for_tests(935));
                 assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
                 for (value, x) in published(&result).iter().zip(&class_grid) {
@@ -552,7 +584,8 @@ fn response_curve_validation_panel_known_truth() {
 
 /// The front-door ADMG fixture read as a `TemporalAdmg` template (`from_static_contemporaneous`),
 /// which the executor projects to its contemporaneous ADMG and runs as the general-ID plug-in.
-fn temporal_admg_frontdoor() -> (TabularData, TemporalAdmg, ResponseQuery) {
+/// Returns the table, the template, the curve query on the grid `[0, 1]` and the fixture document.
+fn temporal_admg_frontdoor() -> (TabularData, TemporalAdmg, ResponseQuery, Value) {
     let pin: Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/admg_frontdoor_functional/expected.json"
     ))
@@ -592,12 +625,44 @@ fn temporal_admg_frontdoor() -> (TabularData, TemporalAdmg, ResponseQuery) {
             GridSpec::Values(Arc::from([0.0, 1.0])),
         ),
     });
-    (data, TemporalAdmg::from_static_contemporaneous(&graph).unwrap(), query)
+    (data, TemporalAdmg::from_static_contemporaneous(&graph).unwrap(), query, pin)
+}
+
+const FRONTDOOR_DRAWS: usize = 256;
+
+/// The front-door contrast `E[Y | do(1)] - E[Y | do(0)]` read off the curve published on the
+/// grid `[0, 1]` equals the fixture's enumerated `expected_ate` (0.282). The Frequentist plug-in
+/// is exact. The Bayesian posterior mean of `FRONTDOOR_DRAWS` draws with a negligible prior
+/// (`prior_scale = 1e6`): each level is a functional of binary proportions on `N` rows with
+/// posterior sd at most `2 / sqrt(N)`, so the mean lies within `5 sd / sqrt(draws)` of the
+/// posterior mean, which differs from the plug-in by at most the nonlinearity bias `sd^2`.
+fn assert_frontdoor_contrast(label: &str, pin: &Value, result: &StudyResult, bayes: bool) {
+    let truth = pin["frequentist"]["expected_ate"].as_f64().expect("fixture expected_ate");
+    let tolerance = if bayes {
+        let rows: u64 = pin["contingency_table"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["count"].as_u64().unwrap())
+            .sum();
+        let (rows, draws) = (rows as f64, FRONTDOOR_DRAWS as f64);
+        let sd = 2.0 / rows.sqrt();
+        5.0 * sd / draws.sqrt() + sd * sd
+    } else {
+        1e-9
+    };
+    let curve = published(result);
+    assert_eq!(curve.len(), 2, "{label}: the curve is published on the grid [0, 1]");
+    let contrast = curve[1] - curve[0];
+    assert!(
+        (contrast - truth).abs() <= tolerance,
+        "{label}: front-door contrast {contrast} vs fixture {truth} (tolerance {tolerance})"
+    );
 }
 
 #[test]
 fn response_curve_validation_temporal_admg_known_truth() {
-    let (data, graph, query) = temporal_admg_frontdoor();
+    let (data, graph, query, pin) = temporal_admg_frontdoor();
     for accepted in [false, true] {
         for bayes in [false, true] {
             for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
@@ -613,9 +678,18 @@ fn response_curve_validation_temporal_admg_known_truth() {
                 } else {
                     base.graph(graph.clone())
                 };
-                let builder = if bayes { builder.inference(bayesian()) } else { builder };
+                let builder = if bayes {
+                    builder.inference(InferenceMode::Bayesian(
+                        BayesianConfig::conjugate()
+                            .n_draws(FRONTDOOR_DRAWS)
+                            .prior_scale(1_000_000.0),
+                    ))
+                } else {
+                    builder
+                };
                 let result = run_retained(builder, &label, &ExecutionContext::for_tests(938));
                 assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
+                assert_frontdoor_contrast(&label, &pin, &result, bayes);
                 for name in ["curve.support", "curve.placebo_treatment"] {
                     let found = report(&result, name)
                         .unwrap_or_else(|| panic!("{label}: no {name} report"));

@@ -74,29 +74,30 @@ impl StudyResult {
         // identity it does carry, including the inference binding (which commits validation)
         // and the engine-stamped base data snapshot. The full execution snapshot continues
         // to bind any replay evidence. A caller-edited suite cannot select a different mode.
+        let executed_from = |executed: &crate::ExecutedContract| {
+            executed.identities == contract.identities
+                || (contract.identities.program.is_none()
+                    && executed.identities.program.is_some()
+                    && executed.identities.target == contract.identities.target
+                    && executed.identities.identification == contract.identities.identification
+                    && executed.identities.inference_binding
+                        == contract.identities.inference_binding
+                    && executed.identities.observation == contract.identities.observation
+                    && executed.inspection_data_snapshot == contract.identities.data_snapshot)
+        };
         match (self.executed_contract, coordinate) {
             (Some(executed), Some(cell))
-                if (executed.identities == contract.identities
-                    || (contract.identities.program.is_none()
-                        && executed.identities.program.is_some()
-                        && executed.identities.target == contract.identities.target
-                        && executed.identities.identification
-                            == contract.identities.identification
-                        && executed.identities.inference_binding
-                            == contract.identities.inference_binding
-                        && executed.identities.observation == contract.identities.observation
-                        && executed.inspection_data_snapshot
-                            == contract.identities.data_snapshot))
+                if executed_from(&executed)
                     && crate::support::validation_axis(executed.refute) == cell.validation =>
             {
                 cell.validation.as_str()
             }
-            // These two checked graphless routes refuse a validation suite at
+            // These checked graphless routes refuse a validation suite at
             // preparation. Only an exact execution stamp and the supported,
             // result-bound route coordinate establish that fact; a detached or
             // merely inspected result remains unknown.
             (Some(executed), None)
-                if executed.identities == contract.identities
+                if executed_from(&executed)
                     && executed.refute == crate::RefuteSuite::None
                     && contract.graph_class == GraphClass::RandomizedTrial
                     && contract.structure_source == StructureSource::RandomizedTrial
@@ -106,6 +107,10 @@ impl StudyResult {
                                 match (&self.payload, &contract.body.query) {
                                     (ResultPayload::PanelDid(_), antecedent_io::CausalQueryWire::PanelDid(_)) =>
                                         coordinate.starts_with("graphless:difference_in_differences/"),
+                                    // The frequentist randomized ITT refuses a validation suite at
+                                    // preparation (checked_randomized), like the two routes above.
+                                    (ResultPayload::RandomizedEffect(_), antecedent_io::CausalQueryWire::RandomizedEffect(_)) =>
+                                        coordinate.starts_with("graphless:randomized_effect/"),
                                     (ResultPayload::PosteriorRow(row), antecedent_io::CausalQueryWire::RandomizedEffect(_)) =>
                                         row.randomized_ipow.is_some()
                                             && coordinate.starts_with("graphless:randomized_effect/")

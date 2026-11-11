@@ -1837,6 +1837,85 @@ impl CoverageTally {
         self.emit_record_as(false, "one_sided", one_sided);
     }
 
+    /// The suite's family decision on this tally, logged, when the runner supplies
+    /// its frozen decision context: `Some(compatible)`. `None` without one (a smoke
+    /// or local run), where the caller keeps its own fixed rule.
+    ///
+    /// For a rate check scored as coverage (a non-rejection under a null, say)
+    /// whose tolerance otherwise lives in the caller: `lower_only` decides
+    /// at-least-nominal, otherwise compatibility on both sides. The attempts must
+    /// be the registered look ([`n_sim`]).
+    pub fn decide(&self, lower_only: bool) -> Option<bool> {
+        self.finish();
+        let decision = self.family_decision(lower_only)?;
+        self.log_family_decision(&decision);
+        Some(decision.compatible)
+    }
+
+    /// Assert a conservative (at-least-nominal) coverage claim of a tally that
+    /// keeps no record, through the suite's one-sided family decision.
+    ///
+    /// The record-less counterpart of [`Self::assert_one_sided`]: under the
+    /// runner's frozen decision context the one-sided decision gates the claim
+    /// and is logged; without one the precision floor and recheck rule of
+    /// [`passes_one_sided`] apply as before. Over-coverage never fails.
+    ///
+    /// # Panics
+    ///
+    /// On a record tally, a rejected one-sided decision, coverage below
+    /// `level − 3·MCSE` or below the precision floor, or too many skipped replicates.
+    pub fn assert_at_least(&self) {
+        assert!(
+            self.record.is_none(),
+            "{}: a record tally states its side and target through assert_one_sided",
+            self.name
+        );
+        self.finish();
+        let attempts = self.attempts();
+        let rate = self.rate();
+        if smoke() {
+            self.emit_smoke_as(!passes_one_sided(attempts, self.level, rate), "one_sided", None);
+            return;
+        }
+        self.check_skips();
+        if let Some(decision) = self.family_decision(true) {
+            self.log_family_decision(&decision);
+            if n_sim() == DEFAULT_N_SIM && needs_one_sided_recheck(attempts, self.level, rate) {
+                self.print_recheck(attempts, rate);
+                return;
+            }
+            assert!(
+                decision.compatible,
+                "{}: suite coverage decision rejects conservative coverage (p={})",
+                self.name, decision.p_value
+            );
+            return;
+        }
+        let (lo, _) = coverage_band(attempts, self.level);
+        eprintln!(
+            "calibration {} (at least nominal): nominal={:.2} coverage={rate:.3} mcse={:.4} \
+             lower_band={lo:.3} ({}/{} covered, {} skipped)",
+            self.name,
+            self.level,
+            coverage_mcse(attempts, self.level),
+            self.covered,
+            attempts,
+            self.skipped
+        );
+        if needs_one_sided_recheck(attempts, self.level, rate) {
+            self.print_recheck(attempts, rate);
+            return;
+        }
+        assert!(
+            passes_one_sided(attempts, self.level, rate),
+            "{} {:.0}% coverage={rate:.3} below the one-sided band [{lo:.3}] ({}/{})",
+            self.name,
+            self.level * 100.0,
+            self.covered,
+            attempts
+        );
+    }
+
     /// Validate the conservative independent-Gaussian equal-study Student method.
     ///
     /// Ibragimov--Mueller (2010), section 2.1, proves at least nominal coverage

@@ -184,8 +184,8 @@ fn bayesian_tolerance(pin: &serde_json::Value) -> f64 {
     5.0 * sd / (DRAWS as f64).sqrt() + sd * sd
 }
 
-fn modes(pin: &serde_json::Value) -> [(&'static str, InferenceMode, f64); 2] {
-    [
+fn modes(pin: &serde_json::Value) -> Vec<(&'static str, InferenceMode, f64)> {
+    vec![
         ("frequentist", InferenceMode::Frequentist, 1e-9),
         (
             "bayesian",
