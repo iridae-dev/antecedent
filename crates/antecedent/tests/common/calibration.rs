@@ -1143,9 +1143,6 @@ impl CoverageTally {
         self.record.as_ref().map(|record| record.key.interval)
     }
 
-    /// Distinguish several records one test emits for the same interval
-    /// (e.g. one per grid point).
-    #[must_use]
     /// The same tally under another name, its record unchanged: the name keys its state and
     /// decision, so two tallies of one test at one level (two interval methods) need two.
     #[must_use]
@@ -1154,6 +1151,9 @@ impl CoverageTally {
         self
     }
 
+    /// Distinguish several records one test emits for the same interval
+    /// (e.g. one per grid point).
+    #[must_use]
     pub fn labelled(mut self, label: impl Into<String>) -> Self {
         let label = label.into();
         self.name = format!("{} [{label}]", self.name);
