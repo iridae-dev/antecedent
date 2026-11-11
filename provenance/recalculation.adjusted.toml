@@ -41,7 +41,7 @@ record_sha256 = "0e9785e23b0ddba1692f8a0a5dfe44773a8086b8cf7a981ef69035fccc7c701
 role = "implementation"
 path = "crates/antecedent-estimate/src/adjustment_resume.rs"
 items = ["fn contrast", "fn covariance", "fn from_linear", "fn glm", "fn in_support", "fn linear", "fn support", "struct AdjustedFit"]
-sha256 = "e9a2db39148ab44a8379df5424fd22395a93772fd22d9210c050f253f91f6ded"
+sha256 = "ce14ff53ee693b7a1c6c1e96a665b3e37b217eab95df9f8e0959b20a97c4899b"
 
 [[method_review.artifacts]]
 role = "assertion"

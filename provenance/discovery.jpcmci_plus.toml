@@ -46,7 +46,7 @@ record_sha256 = "edb3c5210212ab485ade3ceb3d7f5e5dfcfec9f467ae22bee490610a599928c
 role = "implementation"
 path = "crates/antecedent-discovery/src/jpcmci_plus.rs"
 items = ["fn admit_inputs", "fn prepare_dummy_ci", "fn orient_phase_scores", "type PreparedDummyCi", "fn cpdag_from_jpcmci_links", "fn default", "fn directed_exogenous_links", "fn exogenous_parents_from_scored", "fn force_orient_exogenous", "fn logical_exogenous_ids", "fn new", "fn orient_exogenous_links", "fn remap_dummy_block_links", "fn replace_exogenous_parents", "fn run", "struct JpcmciPlus", "type JpcmciPlusDiscoveryResult"]
-sha256 = "63877259291cf6c303128625332e414ae14d397dd8cfb94c4e2068786f3ad058"
+sha256 = "63d80e29a265e8130be08a85405a92d668c2f52716d4dd100ed7a7f6a6624bc0"
 
 [[method_review.artifacts]]
 role = "implementation"

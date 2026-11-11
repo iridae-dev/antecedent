@@ -53,7 +53,7 @@ record_sha256 = "f7b35fb016f020b178c2e4a089b107ad0ea2b2d9f0e518da430c50217b8977c
 role = "implementation"
 path = "crates/antecedent-estimate/src/dose_grid_functional.rs"
 items = ["const MINIMUM_ESS_FLOOR", "const Z_95", "enum DoseDesign", "enum DoseFunctional", "enum IntervalCalibration", "enum RowDependence", "fn band_units", "fn bias_aware_influence_columns", "fn build_report", "fn contrast_row", "fn count_clusters", "fn declaration_refusal", "fn declared_rows", "fn dose_support_report", "fn estimate_dose_grid_bias_aware", "fn estimate_dose_grid_bias_aware_declared", "fn estimate_dose_grid_functional", "fn estimate_dose_grid_functional_declared", "fn estimate_dose_grid_functional_with_context", "fn evaluate_prepared", "fn evaluation_points", "fn fit_at", "fn grid_rows", "fn interval", "fn interval_quantile", "fn is_plain", "fn kernel_ess", "fn label_points", "fn observed_range", "fn prepare_rows", "fn refuse", "fn refuse_unsupported", "fn score_standard_error", "fn smoother_at", "fn validate_claims", "fn validate_inputs", "struct BiasAwareDoseGrid", "struct ClaimSet", "struct DeclaredRows", "struct DoseContrast", "struct DoseDerivative", "struct DoseGridRequest", "struct DoseGridRow", "struct DoseLevel", "struct NumericalReport", "struct PointwiseInterval", "struct PreparedRows", "struct RowDeclaration", "struct SimultaneousBand", "type BiasAwareColumns"]
-sha256 = "f2ff1099103a625bbf0e7f811d21d12b0ba845a961a90342cdd79476f680ce27"
+sha256 = "c8a7699488835cee0caff5e55d2af1eec83e6fef6f119c72b28dcc50b680d532"
 
 [[method_review.artifacts]]
 role = "assertion"

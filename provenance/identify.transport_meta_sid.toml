@@ -39,7 +39,7 @@ record_sha256 = "fd25fbca7e553b6d21f4485336ce5d95880be20968dce0929b313dd7f254e83
 role = "implementation"
 path = "crates/antecedent-identify/src/sid/meta.rs"
 items = ["fn canonical", "fn check_meta_resources", "fn identify_meta_transport", "fn sources", "fn validate_meta_sources", "fn verify_meta_s_hedge", "fn verify_meta_transport", "struct MetaSource", "struct MetaTransportQuery", "type CheckedTransportDerivation"]
-sha256 = "17e33a350957ea4f4d7ecb3fb0f6510fb2df4607275316b7021ed9f737bf32ed"
+sha256 = "1502ee72bd59ea5a3e5a5afac17991da50d117754d2443d8347e99857db4517e"
 
 [[method_review.artifacts]]
 role = "assertion"

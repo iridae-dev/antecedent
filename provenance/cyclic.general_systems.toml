@@ -149,7 +149,7 @@ sha256 = "6a6f7525422a627075f5f749de31890c5a45ccfe603347098fbb65d4b0ff8aeb"
 role = "implementation"
 path = "crates/antecedent-model/src/nonlinear_sde.rs"
 items = ["const CANCEL_STRIDE", "const GOLDEN", "const MAX_SDE_INPUTS", "const MAX_SDE_KNOTS", "const MAX_SDE_PARAMETERS", "const MAX_SDE_RETAINED_CELLS", "const MAX_SDE_STATE", "const MAX_SDE_STEP_EVALUATIONS", "const MAX_WORLDS", "const ROUNDING_MARGIN", "enum SdeBoundaryRule", "enum SdeError", "enum SdeInterpolation", "enum SdeScheme", "fn apply", "fn bad", "fn boundary", "fn bytes", "fn certificate", "fn check_cancel", "fn compile", "fn contains", "fn contains_all", "fn counter_normal", "fn dimension", "fn from", "fn output_times", "fn parameter_values", "fn range", "fn splitmix_mix", "fn system", "fn unsupported", "fn validate", "fn value_at", "struct CompiledSde", "struct SdeBoundary", "struct SdeCertificate", "struct SdeContrastEnsemble", "struct SdeDiffusion", "struct SdeEnsembleReport", "struct SdeInput", "struct SdeNumericalError", "struct SdeParameter", "struct SdePaths", "struct SdeRetention", "struct SdeSimulationPolicy", "struct SdeSystem", "struct SdeWorldEnsemble"]
-sha256 = "0bbdcd2764876b3b6fd587a799baa6b6caf1fdc119ddb9420a01bd61e493dd5b"
+sha256 = "8bf09b0ccb2d9a8f0a6ab5d31047a7c06f1599e3f956798b4d94d0a903433441"
 
 [[method_review.artifacts]]
 role = "implementation"

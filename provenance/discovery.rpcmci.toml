@@ -42,7 +42,7 @@ record_sha256 = "4d70cf1cd69173205e09a396f29789f76115d69d5ffc6943680e7122b6fd28a
 role = "implementation"
 path = "crates/antecedent-discovery/src/rpcmci.rs"
 items = ["const DEFAULT_SWITCH_PENALTY", "fn at", "fn default", "fn discover_regimes", "fn get", "fn indexes_for", "fn is_empty", "fn len", "fn min_cost_label_path", "fn new", "fn reassign_by_lagged_residual", "fn regime_window_mask", "fn run", "fn try_new", "fn unique_regimes", "fn with_alternating_iters", "fn with_min_regime_len", "fn with_pcmci_plus", "struct RegimeAssignment", "struct RegimeEquation", "struct RegimeGraphCollection", "struct RegimeModel", "struct Rpcmci", "struct RpcmciDiscoveryResult", "type LaggedParents", "fn retained_regime_parents", "fn fit_regime_models"]
-sha256 = "81ad82abfc75f0a61aa8ceeb5ed2b8c9e122df60aa0e4472a307786b2a8b0869"
+sha256 = "dfc127178f600b9e721e764bea0c47816d5215d203f4b147b620a944cfa4339c"
 
 [[method_review.artifacts]]
 role = "assertion"

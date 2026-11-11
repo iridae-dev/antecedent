@@ -43,4 +43,4 @@ sha256 = "797f8cafc3029d0e15baeff295478c1e44048060c621667045881e97d823a09f"
 role = "assertion"
 path = "crates/antecedent-estimate/tests/observation_recovery_execution.rs"
 items = ["fn at_level", "fn binary_posterior_consumer_replays_the_pattern_mean", "fn binary_posterior_mean_stays_at_the_enumerated_recovery", "fn binary_posterior_refuses_an_external_power_prior", "fn close", "fn complete_case", "fn cross_censoring_matches_the_enumerated_truth", "fn ctx", "fn derive", "fn effect_graph", "fn every_graph_of_the_bounded_class_matches_truth_or_has_a_verified_witness", "fn observed_laws_outside_the_contract_are_refused", "fn relabel", "fn single_censoring_recovery_matches_the_enumerated_truth", "fn sweep", "fn the_colluder_archetype_has_a_recoverable_target", "fn the_effect_handoff_refuses_a_mismatched_law", "fn the_recovered_law_feeds_a_backdoor_effect_equal_to_the_complete_data_effect", "fn variable_and_response_permutations_leave_the_recovered_law_unchanged", "fn witness_model"]
-sha256 = "4c277aba940ce037d1df87823f6f013908b8c85bbc124f29caf83da08687a921"
+sha256 = "34a10ed99d6be9e760e51877fe1eb08d14cd3a618c832b5fc9d6c0b8030b90c7"

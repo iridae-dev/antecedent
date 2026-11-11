@@ -43,7 +43,7 @@ sha256 = "13cd6d5e9cf1ec01e16e66a294352f5133e10166f61b41471759f5d012053d59"
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/mod.rs"
 items = ["fn bootstrap_intervals", "fn bootstrap_unit_draws"]
-sha256 = "47932372bfccc1f1779ec27ba895247ac43732f16c038f46c83cce1e073b3cca"
+sha256 = "c9129e5de19d635fcaf9c1909050ca28df91e3fcb5dded7a62ec75b8b589c672"
 
 [[method_review.artifacts]]
 role = "implementation"

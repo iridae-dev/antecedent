@@ -60,7 +60,7 @@ sha256 = "ba21131e6a3b3037414c7c3892706da4efa34213817f06e13375cbe408a4c0eb"
 role = "implementation"
 path = "crates/antecedent-validate/src/bayesian_checks/sbc.rs"
 items = ["const SBC_BINS", "const SBC_CHI2_CRITICAL_4DF_P99", "const SBC_CHI2_CRITICAL_9DF_P99", "enum GeneratingVariance", "fn check", "fn default", "fn draw_generating_parameters", "fn new", "fn prior_correlation_cholesky", "fn prior_standard_normals", "fn sbc_bin", "fn sbc_rank_draws", "fn sbc_refit_seed", "fn to_report", "struct SbcReport", "struct SimulationBasedCalibration"]
-sha256 = "081b8be6fc6c7b60c51c629238a1bfff4c6913024b9949f9f300fa8064d94a5e"
+sha256 = "a55af4ed5aa350eaf1c2dabcff0718d06ee9a76f5728483b1a84c0f5493d4cf7"
 
 [[method_review.artifacts]]
 role = "implementation"

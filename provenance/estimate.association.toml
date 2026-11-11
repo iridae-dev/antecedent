@@ -58,7 +58,7 @@ sha256 = "92bfcd8b29752208063e7da2fc6e62c977f637288228699a8760a264cdbb6c17"
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_association_reference.rs"
 items = ["const BOOTSTRAP_STREAM", "const FOLD_STREAM", "const POSTERIOR_STREAM", "const SEED", "enum Col", "fn association_dump_library_streams", "fn block_length", "fn build", "fn check_plain", "fn close", "fn code", "fn declarations_the_estimator_cannot_honour_are_refused_with_their_reason", "fn estimates_and_analytic_errors_match_the_definition_references", "fn estimator", "fn is_conjugate", "fn modality", "fn parse_col", "fn predictors_crossing_into_too_many_strata_are_refused", "fn reference", "fn regenerate", "fn resampling_summaries_and_posteriors_match_the_references_on_the_library_streams", "fn run", "fn storage", "fn the_reference_covers_every_branch_it_names", "fn the_selection_rule_matches_its_documented_decision_table", "fn tolerance", "struct Built"]
-sha256 = "7a8a15699b966fcfa856ddca47fe02391d5c84362435e17360f61965765f281a"
+sha256 = "f3551eea87018bfc4a5eb227c74d1d14aec689763973bf5c052a5b5e490da4fb"
 
 [[method_review.artifacts]]
 role = "reference"

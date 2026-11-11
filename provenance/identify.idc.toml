@@ -60,10 +60,10 @@ sha256 = "4fcd9ab6713df50c603b87fe21dd6cdff1bfe1c9bf83af0cd3716ac25df4793b"
 role = "implementation"
 path = "crates/antecedent-identify/src/id/expression.rs"
 items = ["fn c_component_expression", "fn conditionals", "fn dist_marginal", "fn emit", "fn intern_nodes", "fn intervention_for_factor", "fn marginalize", "fn markov_product", "fn observational_marginal", "fn product_of", "fn q_component_product", "fn sum_out_if_any"]
-sha256 = "4026f88ad1de8f67b02b3c91428805504ba9c64abbf058e2ef37c5ae25897b8e"
+sha256 = "6a025af0a0c2cbe983e1178b8e30031345578345f88a1f719595cc3424e557a1"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/idc_rule2_enumeration.rs"
 items = ["fn admg", "fn ancestors_of", "fn closures", "fn connected", "fn d", "fn edges", "fn extend", "fn from_masks", "fn idc_matches_the_rule_two_closure_on_every_three_node_admg", "fn idc_matches_the_rule_two_closure_on_sampled_four_node_admgs", "fn members", "fn mutilated", "fn run", "fn separated", "fn set_query", "fn the_reference_separation_recovers_textbook_cases", "fn v", "struct Graph"]
-sha256 = "f7e52cd650853adedeb8e42ad5f6dca9b47a552dbe22f1a8393a7ee3bdd53f79"
+sha256 = "ac1b4ad2927afafb33ccb44528a729a17a8fa87662162fc45c698ed02673ed2e"

@@ -43,7 +43,7 @@ record_sha256 = "386c11989cd9b86ef1e11addc32d549a64a479a81eabbb912edea796bf1af93
 role = "implementation"
 path = "crates/antecedent-estimate/src/overlap.rs"
 items = ["const DEFAULT_PROPENSITY_CLIP", "enum IpwTarget", "enum OverlapPolicy", "fn arm_ess", "fn canonical", "fn clip_sensitivity_grid", "fn from_propensities", "fn observed_ipw_weights", "fn weight", "fn weight_summary", "struct ClipSensitivity", "struct OverlapReport", "struct PropensityInterval"]
-sha256 = "46906cd0a329e6f05f73535755e461779e3eecfc32a38c6dbf144578687375c4"
+sha256 = "9aa98e80e81f8449b412a41a52c063de626af04b4fabf2152051b58ccd7872a5"
 
 [[method_review.artifacts]]
 role = "assertion"

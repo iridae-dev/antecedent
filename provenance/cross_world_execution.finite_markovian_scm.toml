@@ -48,13 +48,13 @@ sha256 = "fe9e9bb0ab6e4f220575f032de99e75d556c9ed577b324095485bcf735b16e64"
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/finite_executor.rs"
 items = ["const INFERENCE_LABEL", "const MAX_RETAINED", "const SPREAD_LABEL", "enum ExogenousInference", "enum ExogenousMethod", "enum NoiseCoupling", "fn abduction_identity", "fn check_pairing", "fn check_enumeration_work", "fn classify", "fn counters", "fn default", "fn digest", "fn draws_digest", "fn execute", "fn execute_eliminated", "fn matrix_error", "fn max_retained", "fn name", "fn new", "fn noise_spread", "fn receipts", "fn retained", "fn static_checks", "fn unit_spread", "fn with_max_retained", "struct EliminationReceipt", "struct ExecutionReceipt", "struct FiniteExecutionRequest", "struct FiniteExecutionResult", "struct FiniteScmExecutor", "struct NoiseSpread", "struct RetainedAbduction", "struct UnitAnswer", "struct UnitSpread"]
-sha256 = "5cdc0931c5b02c3469a33edba842ed987195b6db62b8e6701fce2254f437b2af"
+sha256 = "ed0855ef3682bd1ab3d8762ff2d756727481255805cc29cca91bd99e6b70f41d"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/factorized.rs"
 items = ["module"]
-sha256 = "4ac4f563a43e5313ca8f9e355bcaa9e517a1aa28d7713492e43faf14431afeda"
+sha256 = "fbd81117d23d7d897125fa8b9db0551fbbb76399886fc568081fc6a42c7feb4b"
 
 [[method_review.artifacts]]
 role = "assertion"

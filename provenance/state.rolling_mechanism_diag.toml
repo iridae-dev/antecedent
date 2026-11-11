@@ -34,7 +34,7 @@ record_sha256 = "6544286660ccf6c797b4db9b8ab6a15e67b6f90e34b4706b22e169c368e6e7e
 role = "implementation"
 path = "crates/antecedent-state/src/mechanism_diag.rs"
 items = ["fn append_batch", "fn append_row", "fn bytes_estimate", "fn bytes_for", "fn evict_oldest", "fn ncols", "fn new", "fn rebuild_ols_from_ring", "fn refresh_summaries", "struct RollingMechanismDiagnostics"]
-sha256 = "68e9dcdc26a95c5fdd4a277296c1f1834d731ce83909cefd14159c4dc147afef"
+sha256 = "99ec92ec538832aa9542b2293276f8e7f56412eb61d49a722d20e207a9147b36"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

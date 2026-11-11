@@ -48,7 +48,7 @@ sha256 = "0fde40ec45df8fa5f1b4ddae0deac78c934c58afc35aa74079cf5a29d908e601"
 role = "implementation"
 path = "crates/antecedent-design/src/adaptive_policy_search.rs"
 items = ["const WILSON_Z", "enum AdaptivePolicySearchError", "enum DrawSplit", "enum HeldOutDesign", "enum HeldOutRequirement", "enum PolicyObjective", "enum PolicyStanding", "enum SearchStop", "enum StandingRequest", "fn cancelled", "fn check_source", "fn compare", "fn compile", "fn contrasts", "fn default", "fn evaluate", "fn execute", "fn fractional_lower_tail_mean", "fn invalid", "fn mean_and_se", "fn memory_quote", "fn observable_variables", "fn search_family", "fn standard_normal", "fn try_candidate", "fn wilson_upper", "struct AdaptivePolicySearchResult", "struct ChanceBound", "struct ConstraintReport", "struct FamilySearchResult", "struct FamilyState", "struct PairedContrast", "struct PolicyAttempt", "struct PolicyConstraints", "struct PolicyEvaluation", "struct PolicyPath", "struct PolicySearchOptions", "struct PreparedAdaptivePolicySearch", "struct ResponseStanding", "struct Score", "trait PolicyRolloutSource"]
-sha256 = "54e8790c00fd562c64f26229f6affa5ca31af11085f74fbb916e90ef88d3b916"
+sha256 = "da3b5ef4a9696a97ab430297b92e351d298cd33ddb2f9b04fa2495656d8d9ea7"
 
 [[method_review.artifacts]]
 role = "assertion"

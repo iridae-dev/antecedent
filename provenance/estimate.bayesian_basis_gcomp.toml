@@ -58,7 +58,7 @@ record_sha256 = "45eeb5b53bf2f72a122c0a9f1ffa3e5b72b1461f4804775b7232b5a0d8047ec
 role = "implementation"
 path = "crates/antecedent-learn/src/bayesian_basis.rs"
 items = ["enum BasisTargetPopulation", "fn admit_f64_cells", "fn default", "fn evaluate_draws", "fn fit", "fn is_binary_with_both_levels", "fn validate_inputs", "struct BasisData", "struct BayesianBasisEffect", "struct BayesianBasisGComputation", "struct BayesianBasisSpec"]
-sha256 = "1a2771790a27b377f487711ab208fd1518123dc6bd4aae5caf9333d98f680ac1"
+sha256 = "c91d74cc9d4ffd80c394ce024d4b83677b555bc4d9f69d286d4f80deb2b807f9"
 
 [[method_review.artifacts]]
 role = "implementation"

@@ -42,4 +42,4 @@ record_sha256 = "6a12326d24d543c0bfdb7ef2edb60792c1fc02199a478b37773f89bb917cf95
 role = "implementation"
 path = "crates/antecedent-estimate/src/measurement_transport.rs"
 items = ["module"]
-sha256 = "811b96cd705beda848b5fc64aad68480ce07e70e50cc45c427d990bb01e60819"
+sha256 = "35261b07e3dd93b27eea2d01349bbe071550b0c8f25d5a42842a9e3c8c491258"

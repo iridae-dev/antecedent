@@ -38,7 +38,7 @@ record_sha256 = "13ec69e9557cee642e85f0e8198df32008682a1aead73fb93194182162b827c
 role = "implementation"
 path = "crates/antecedent-discovery/src/dbn_posterior.rs"
 items = ["const DBN_EXACT_MAX_TEMPLATES", "const LABELED_DAG_COUNTS", "fn accumulate_lagged_marginals", "fn build_lagged_score_data", "fn exact_fits_budget", "fn has_lag_edge", "fn initial_dbn_state", "fn lag_bit", "fn new", "fn run", "fn run_exact", "fn run_mcmc", "fn run_panel", "fn run_units", "fn score_cache", "fn score_dbn_template", "struct DbnPosterior", "struct DbnTarget", "struct DbnWalker"]
-sha256 = "da2368d0c81ad8203bae82395a8ec0907c294a025fc8196e0aa97f2abf96f97a"
+sha256 = "554a7ba4cdbd74ac7f8ccea8858d14a489fe851970076dbf6659f36b9f3f4f00"
 
 [[method_review.artifacts]]
 role = "implementation"

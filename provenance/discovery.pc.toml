@@ -53,13 +53,13 @@ sha256 = "6e82e5c996af2c79a06420cabec296135bff838b0ab02b574c2cf8d10dc86a42"
 role = "implementation"
 path = "crates/antecedent-discovery/src/orientation.rs"
 items = ["module"]
-sha256 = "0de3ae78655b4a35aac9c5ef67c5e9c497e0ed4c770e36159d74f9ef296bc151"
+sha256 = "fdfcfa649438a34ec08daaf21a3ceeb3878dae210eeb8b396376076e71af718e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/evidence.rs"
 items = ["module"]
-sha256 = "ccac750e9a770d0659ade55b05793f9f965c12edf09b62876e0391097d2fd2ba"
+sha256 = "bbdae7b2e35d816a59565f97128b7db6bc97d8bb8a2a0705f548566231b69d5e"
 
 [[method_review.artifacts]]
 role = "assertion"

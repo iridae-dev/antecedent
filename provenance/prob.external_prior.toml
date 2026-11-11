@@ -42,7 +42,7 @@ record_sha256 = "bff1015ed09894d06c7758f0d3706887f969ea490a65433fc380e171a61d21b
 role = "implementation"
 path = "crates/antecedent-prob/src/external_prior.rs"
 items = ["fn compose_dense", "fn compose_external_priors", "fn compose_external_priors_with_alphas", "fn compose_mixture", "fn compose_power_add", "fn composition_assumption", "fn dense_scale", "fn effective_ess_per_source", "fn kish_weights_for_composition", "fn new", "fn power", "fn power_composed_ess", "fn power_mixture", "fn validate", "fn validate_mixture_weights", "struct ComposedPrior", "struct ExternalPriorSource", "struct ExternalPriorWeight"]
-sha256 = "eb7599f7a87546fdb3eda19d1de25cdddd0f2784493ffc2f7549c23f1cc59f89"
+sha256 = "932bf8472d8afe0064ac8374e3ab70aa690ec52fd363002974ce61b5bc57eff0"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -41,7 +41,7 @@ record_sha256 = "82476cf06fd803a7b8413e5a42c8d7b60af72ae6d5be97d1b660382617ec9a5
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
 items = ["const LAD_MAX_SWEEPS", "const LAD_OBJECTIVE_TOLERANCE", "const LAD_POLISH_MOVES_PER_COEFFICIENT", "const LAD_RESIDUAL_FLOOR", "const REFINE_PIVOT_SQ", "const REFINE_RSS_FRACTION", "enum GraphScoreFamily", "enum ParentSetOp", "fn bic_from_rss", "fn bind", "fn centered_column", "fn clear", "fn col", "fn compensated_sum", "fn content_fingerprint", "fn delta_score", "fn ensure_gram", "fn equilibrated_spd", "fn fingerprint", "fn full_graph_score", "fn gaussian_bic_from_gram", "fn gaussian_design_gram", "fn laplace_bic_local", "fn local_score", "fn new", "fn parents_of", "fn polish_lad_vertex", "fn refined_rss", "fn rss_from_joint_gram", "fn score_graph", "fn solve_spd", "fn solve_square", "fn sorted_parents", "struct GraphScoreCacheKey", "struct GraphScoreData", "struct LocalScoreCache"]
-sha256 = "a494d8f77845d35ea2d2956ee6b94f6fa164f9fc130595353e7a1fa722c88f6b"
+sha256 = "ae929c9e0313c94685fd90df54d87860fc0319733a6bc8d70685d5904d730731"
 
 [[method_review.artifacts]]
 role = "implementation"

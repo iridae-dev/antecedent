@@ -38,7 +38,7 @@ record_sha256 = "5b387af4fd846f6fb58bfad5222ed1db8df9420b0dd41f13007c4779465170e
 role = "implementation"
 path = "crates/antecedent-validate/src/conflict.rs"
 items = ["fn apply_conflict_and_compose", "fn compose_with_conflict_policy", "fn estimate_conflict_signals", "fn new", "fn shrink_alpha", "fn try_new", "fn validate", "struct ConflictPolicy", "struct ConflictSignals"]
-sha256 = "a33ec5633b09e2bb898ff2553d363ad235bf63da0e8818282b0575dad7bf53cc"
+sha256 = "4259b5454bc3bfe700adca0d9ad7b37d6dbe6af3daf30aaa7d80368e841f1545"
 
 [[method_review.artifacts]]
 role = "implementation"

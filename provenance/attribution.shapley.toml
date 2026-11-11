@@ -42,7 +42,7 @@ record_sha256 = "0fd2c30359904dce8bd5cc7996c658598ab2f5f0b5629a20766b1836ec48fda
 role = "implementation"
 path = "crates/antecedent-attribution/src/shapley.rs"
 items = ["const MAX_COALITION_SAMPLE_BUDGET", "const MAX_DENSE_TABLE_PLAYERS", "const MAX_PREFETCHED", "const MIN_PARALLEL_COALITIONS", "const PREFETCH_BLOCK", "const PREFETCH_PERMUTATIONS", "const PROGRESS_REPORTS", "enum Evaluator", "fn check_shapley_sample_budget", "fn check_shapley_size", "fn estimate_shapley", "fn estimate_exact_shapley", "fn evaluate_coalition", "fn factorial_weights", "fn fork", "fn fork_workers", "fn into_contributions", "fn new", "fn permutation_masks", "fn prefetch", "fn samples_per_evaluation", "fn threads", "fn value", "struct Prefetched", "struct ShapleyEstimate", "trait CoalitionPayoff"]
-sha256 = "56dc972183a125c68ec2deb536d41923875c318608949a50bea549adba890acd"
+sha256 = "23a4584450dd671f010e6100f702211506c60f10c9a11a6e371f31a51f266295"
 
 [[method_review.artifacts]]
 role = "assertion"

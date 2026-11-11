@@ -65,7 +65,7 @@ sha256 = "fdc71e4775cd160a2dff94d6a274b8dbfce7c2d19787c4519f0572ab1ceda01b"
 role = "assertion"
 path = "crates/antecedent-estimate/tests/joint_design_reference.rs"
 items = ["fn a_history_without_a_declared_posterior_coordinate_or_a_singular_prior_is_refused", "fn cases", "fn close", "fn design", "fn flat", "fn floats", "fn history_means_and_sandwich_match_the_enumerated_inclusion_reference", "fn randomized_means_and_sandwich_match_the_exact_reference", "fn sequences", "fn switchback_design", "fn the_ar1_history_posterior_has_the_exact_gaussian_moments", "fn unsupported_programs_and_bad_probabilities_are_refused"]
-sha256 = "b702641c48787dbb3f279c596a37a322e7974d9f712e755ddeec51f1dc6d1e8a"
+sha256 = "b24cffa94915ff3fdc0ca97493a5634806b22ad59108bcec2f893bcb4b2d8410"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -47,7 +47,7 @@ record_sha256 = "e23b47e666103425b9c275d551a98c9d4c0561a028726b45cf8cc75c24ebd99
 role = "implementation"
 path = "crates/antecedent-estimate/src/latent_class_effects.rs"
 items = ["const EXHAUSTIVE_ALIGNMENT_CLASSES", "const LATENT_CLASS_CAVEAT", "const LATENT_CLASS_INFERENCE_CLAIM", "const LATENT_CLASS_MAX_ITERATIONS", "const LATENT_CLASS_MAX_RESTARTS", "const MONOTONE_TOLERANCE", "enum EmFailure", "enum PremiseStatus", "fn align_replicate", "fn as_u64", "fn best_fit", "fn bootstrap_replicate", "fn bootstrap_se", "fn cancelled_fit", "fn canonical_order", "fn check_identification", "fn class_design", "fn cmp_rows", "fn declare_conditional_randomization", "fn distinct_design_points", "fn e_step", "fn fit_latent_class_effects", "fn hard_responsibilities", "fn m_step", "fn min_cost_assignment", "fn mixture_average", "fn new", "fn permutations", "fn permute_into", "fn premises", "fn reorder", "fn resample", "fn row", "fn run_em", "fn seeded_init", "fn unit_draw", "fn validate_config", "fn validate_data", "fn wls", "struct BootstrapSe", "struct FitState", "struct LatentClassBootstrap", "struct LatentClassConfig", "struct LatentClassData", "struct LatentClassEffect", "struct LatentClassPremise", "struct LatentClassResult", "struct Limits", "struct Params", "struct Problem", "type Replicate"]
-sha256 = "bf536f8e236d048260218f15ea8b0c5f8a671a09f29c6a826b901cbf16b0cd1c"
+sha256 = "d0d5767ae9f357fe1dc7f3ea12b324af6aa5d89c1e26b8e96a43cdb03e45c97d"
 
 [[method_review.artifacts]]
 role = "assertion"

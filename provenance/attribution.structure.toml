@@ -60,7 +60,7 @@ record_sha256 = "5409365556c03a5a66fb776a54508733c296668ba2f228671f343238a8e84c6
 role = "implementation"
 path = "crates/antecedent-attribution/src/structure_change.rs"
 items = ["fn baseline_law", "fn default", "fn law_memo", "fn measure", "fn parent_sets_differ", "fn sorted_parents", "fn structure_change", "fn structure_change_impl", "fn structure_players", "fn validate_shared_layout", "fn value", "struct StructureChangeOptions", "struct StructureFits", "struct StructureSwapPayoff", "type RefitWeights"]
-sha256 = "ccb3df4d4f268be8475775fab254cb1c43d75ba10f2d237be1fd45da9f9a0b94"
+sha256 = "dd1a953819883251527665e131371d54be8ff8b03c54e88879df1da795ea6a00"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

@@ -46,7 +46,7 @@ record_sha256 = "68a4f72c116cdb5be37288aee6060129a605d51306b681f3315dea656b45d04
 role = "implementation"
 path = "crates/antecedent-state/src/suff_stats.rs"
 items = ["const MAX_OLS_COLUMNS", "fn add_f64", "fn append_batch", "fn append_row", "fn append_validated", "fn centered_residual_sse", "fn centred_moments", "fn chan_merge_scatter", "fn entries_finite", "fn mean_x", "fn mean_y", "fn merge", "fn moments_close", "fn n", "fn ncols", "fn new", "fn offset_dominates", "fn published_matches_scatter", "fn rebuilt_moment", "fn refine_solution", "fn residual_variance", "fn scatter_aligned", "fn solve_beta", "fn solve_centered", "fn solve_gram", "fn solve_shifted", "fn solve_shifted_normal", "fn square_len", "fn unsupported", "fn validate_row", "fn xtx", "fn xty", "fn xx", "fn xy", "fn yty", "struct CentredMoments", "struct LinearOlsSuffStats", "struct ShiftedNormalSolution"]
-sha256 = "e10f4c259f087ba79cc50e6dd2edd5acfee2372e366aa39edc4a63f24c767722"
+sha256 = "9c8bff78b6a9478ea6ad3632d63ee17491ef4d1bf3a1426733d10fef38f64fa9"
 
 [[method_review.artifacts]]
 role = "implementation"

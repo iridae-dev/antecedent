@@ -46,7 +46,7 @@ record_sha256 = "a792e1170d2631ccc969a23a8d95dcea1aed243cf2c7f8162b0e178d9d9002b
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_cell.rs"
 items = ["enum ScoreQuantity", "fn artifact_identity", "fn cell_n_variables", "fn check_rows", "fn dag_of", "fn data", "fn default", "fn descendants", "fn estimation", "fn execute_cell_with_receipt", "fn execute_resumed_retarget", "fn export_scores", "fn fit_cells", "fn freeze", "fn freeze_crossfit_scores", "fn graph_identity", "fn has_run", "fn identify_cells", "fn identities", "fn is_live", "fn is_recomputed", "fn is_reused", "fn new", "fn plan", "fn quantity_value", "fn refusal_plan", "fn requested", "fn resume_from_score_bytes", "fn resume_from_scores", "fn rows", "fn run", "fn run_cell_stages", "fn score_law", "fn score_table", "fn screen_adjustment", "fn set_retarget_support", "fn snapshot_identity", "fn supported_plan", "fn tag", "fn target_identity", "fn to_u64", "fn utility_identity", "struct CellLive", "struct CellRequest", "struct CellSession", "struct CellSpec", "struct ScoreResumeRequest", "struct ScoreResumeSession", "type Columns"]
-sha256 = "d3cda7fe0b4f9b793089b33de0d9eb3675190f11a70403b20043aec8b79e5450"
+sha256 = "46946774a2fea9eefd3597f1b72c3660b6cd9623580862c7b08ef3ed21372068"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

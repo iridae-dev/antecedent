@@ -74,7 +74,7 @@ sha256 = "62ef137937ae3fa4e0960b3d582326ce465371ed3d5f0b6e270e458cfd577da2"
 role = "assertion"
 path = "crates/antecedent-estimate/tests/gam_derivative_band_construction.rs"
 items = ["const LAMBDA", "const N", "const Z_975", "fn cubic", "fn cubic_derivative", "fn fixture", "fn quadratic", "fn reference", "fn solve", "fn the_identity_jacobian_band_equals_the_hand_computed_hc2_sandwich", "struct Fixture", "struct Reference", "type Basis3", "type Basis4"]
-sha256 = "17f14da4996105152bb8d7c8f84e97b89c7de3fa8c0a7a148a30a4c0fa4fc983"
+sha256 = "251c63c87ace2ad013b331876855eae4d5bc3ec16e921e5c80b1c917e17274fd"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -50,4 +50,4 @@ sha256 = "8a9ac8bf2efeb0ffdd9075b5c54dbdd0a2237235f1a85a5192e4a05018d05a4a"
 role = "assertion"
 path = "crates/antecedent/tests/interference_interval_route.rs"
 items = ["const K", "const TREATED", "fn assert_support_round_trips_and_refuses_forgery", "fn cluster_bayesian_bootstrap_centres_on_the_design_estimate_with_a_matching_spread", "fn cluster_bayesian_bootstrap_refuses_a_thin_arm_at_prepare", "fn cluster_fixture", "fn externally_estimated_observational_stays_point_only", "fn group_mean_contrast", "fn run", "fn supported_cluster_total_interval_round_trips_and_refuses_forgery", "fn supported_observational_known_interval_round_trips_and_refuses_forgery", "fn supported_saturation_interval_round_trips_and_refuses_forgery", "fn thin_cluster_total_cannot_forge_a_support"]
-sha256 = "ddf7fa47e8902614cbf952d989f9b226ea4bdb78f5d44f2ff85ebed0f2be23c4"
+sha256 = "2bdf710cf283a8e14690799976931871dca8bb443feb9c9ef8a75e931493d0ed"

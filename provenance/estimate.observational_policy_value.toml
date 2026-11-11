@@ -47,7 +47,7 @@ record_sha256 = "99961c6abedad366fb88a0b8ee7dd0ff29416a7d140e9c2514559a626816b9c
 role = "implementation"
 path = "crates/antecedent-estimate/src/observational_policy.rs"
 items = ["const DEFAULT_MIN_PROPENSITY", "const DEFAULT_POLICY_FOLDS", "const MIN_EVALUATION_ROWS", "enum KnownPropensity", "enum PolicyEvaluation", "enum PolicyObjective", "enum PolicyOrigin", "fn add_split", "fn as_str", "fn best_action", "fn estimate", "fn finish", "fn fit_split", "fn fit_splits", "fn flatten_action_scores", "fn folds", "fn held_out", "fn index_of", "fn new", "fn nuisance_key", "fn policy_cancelled", "fn splits", "fn validate", "struct ActionValue", "struct FitWorkspace", "struct ObservationalPolicyValue", "struct PolicyData", "struct PolicyFits", "struct PolicyValueEstimate", "struct Prepared", "struct ReferenceComparison", "struct Scored", "struct SplitNuisance", "struct SplitRows", "struct Splits"]
-sha256 = "c531183ef84f91afc5edf4e74a2d98a592a9bd3496fd15c4bf7309e64b7f4b64"
+sha256 = "f6745436565436f4fd886fa2733c4ac5ed4fed4a3f5619cbf6da209fcc1cc388"
 
 [[method_review.artifacts]]
 role = "implementation"

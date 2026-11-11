@@ -50,7 +50,7 @@ record_sha256 = "02ce91a91adfdbe5ab10d0f0f4cfa1fc58e47611ab5333effa51a2e87f5a584
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/participant_posterior.rs"
 items = ["const CANCEL_STRIDE", "const EDGE_LOG_TOLERANCE", "const MAX_ARMS", "const MAX_PANELS", "const MAX_RESPONSES", "const MAX_RHO_PASSES", "const MAX_WIDENINGS", "const NEGLIGIBLE_WEIGHT_LOG", "const NODES", "const PANEL_SIGMAS", "const RHO_PANELS_FIRST", "const RHO_PANELS_MAX", "const RHO_PANELS_REFINED", "const RHO_PANEL_SIGMAS", "const RHO_WINDOW_SIGMAS", "const RULE", "const TAIL_DECAY", "const U_LIMIT", "const WINDOW_SIGMAS", "enum CorrelationModel", "fn arm_log_density", "fn assemble", "fn at", "fn build_layout", "fn build_rule", "fn cdf_at_nodes", "fn correlation_nodes", "fn design_effect", "fn evaluate", "fn exact_posterior", "fn is_valid", "fn ln_sigmoid", "fn log_pmf_table", "fn log_sum_exp_weighted", "fn mean", "fn new", "fn node_functionals", "fn normalized", "fn rule", "fn settle_correlation", "fn whole", "fn window", "struct ArmEvidence", "struct ArmStats", "struct Cdf", "struct CorrelationPrior", "struct Evaluation", "struct ExactPosterior", "struct Layout", "struct NodeFunctionals", "struct PosteriorRequest", "struct Rule"]
-sha256 = "5dd707f92eadcf39c36189db491ceeb3c51c6d1c1ee4396e185adea1bbf28407"
+sha256 = "496f2dfb1c0abb60e6857f65060f7a503a4fee457380aa79b342014985535a5d"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -62,7 +62,7 @@ sha256 = "75314b70ef5bbdc0f5f62f0ef84fbecad94e0f4691957bd2fe891bfa2e979232"
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/participant_procedure.rs"
 items = ["const MAX_PARTICIPANT_LOOKS", "const MAX_PARTICIPANT_RESPONSES", "const THRESHOLD_BAND", "enum Detail", "enum LookDecision", "enum StopReason", "fn alpha_per_arm", "fn anytime", "fn arms", "fn assignment_row", "fn batch", "fn beta_binomial_pmf", "fn borrowing", "fn completed_count", "fn correlation", "fn correlation_prior", "fn decisions", "fn declaration", "fn enrolment", "fn exact", "fn fired", "fn in_open_unit", "fn lag_looks", "fn margin_needed", "fn means", "fn min_exploration", "fn new", "fn numbers", "fn posterior", "fn priors", "fn read_history", "fn reading", "fn record", "fn responses", "fn view", "fn walk", "struct AnytimeSettings", "struct ArmReading", "struct ComparisonReading", "struct DecisionRules", "struct FrequentistClaim", "struct FutilityRule", "struct LookReading", "struct LookSnapshot", "struct Participant", "struct ParticipantDeclaration", "struct ParticipantHistory", "struct ParticipantSpec", "struct PosteriorClaim", "struct Replayed", "struct Tally", "struct View", "struct Walk", "trait Enrolment"]
-sha256 = "0d96f98b78716d1fe65c0d348789e00b2f115ba62a6c082c3ca1e83cb6c18bd8"
+sha256 = "6913d4984250f979243bcd923712da3f98f9a725e46a2ad940692f2f4cea25bb"
 
 [[method_review.artifacts]]
 role = "implementation"

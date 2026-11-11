@@ -66,13 +66,13 @@ sha256 = "f2bf007216600ff2ed0a3ed2cd3f5ae1b428fee68d616ae93b40286d6cbf1c1a"
 role = "implementation"
 path = "crates/antecedent-identify/src/sid/counterfactual_transport/validation.rs"
 items = ["enum Rejection", "fn atoms_map", "fn from", "fn validate", "fn validate_catalog", "struct UsableRegime", "struct Validated", "type ClassifiedCatalog"]
-sha256 = "6594648b6cd7813310d8e9aae3e46f4090b9b9e5ad09c9fb0099de35991925ca"
+sha256 = "3da60e1ecfad25e6f53370839568e12bc296b4aa62032a119465a99fb1be3e0a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/counterfactual_transport.rs"
 items = ["const AGREEMENT", "const BLOCK", "const DETAIL_BUDGET", "const DETAIL_COUNTED", "const DETAIL_INCOMPATIBLE", "const DETAIL_INVALID", "const DETAIL_MISSING", "const DETAIL_SUPPORT", "const DETAIL_ZERO_MASS", "const MISSING", "const UNSET", "const ZERO_MASS", "enum Failure", "enum Frame", "enum FreeCoordinatePolicy", "enum ItemFrame", "fn as_ref", "fn averaged_factor", "fn charge", "fn charge_catalog_validation", "fn checked_evidence_text_cmp", "fn checked_evidence_text_copy", "fn describe", "fn ensure_item_cache", "fn evaluate_counterfactual_transport", "fn evaluate_with_policy", "fn extract_of", "fn factor_value", "fn functional", "fn into_error", "fn invalid", "fn level_at", "fn new", "fn push", "fn refused", "fn reserve", "fn retain_factor", "fn sum_over", "fn sum_value", "fn tick", "fn validate_execution_shape", "fn value", "fn view_of", "fn with_level", "struct CounterfactualTransportEvidence", "struct CounterfactualTransportPoint", "struct Engine", "struct EvaluationRepairs", "struct ItemExtract", "struct ItemStack", "struct ItemSum", "struct LawView", "struct RetainedSlice", "struct RetainedSliceInner", "struct SetupBudget"]
-sha256 = "d5ecd05817cf20df593012b56e0e7b8fcc5f60995dcd8f394455b17d8358b71e"
+sha256 = "a41efa223bdfb0c89306f493fbbc1ed04c5807ddac414cdba3057c6280d11f6f"
 
 [[method_review.artifacts]]
 role = "assertion"

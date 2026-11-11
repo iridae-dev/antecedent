@@ -38,7 +38,7 @@ record_sha256 = "56f4406fd66390b8cecced510a0af7449a1114702852b6a46e52dbee710926e
 role = "implementation"
 path = "crates/antecedent-estimate/src/count_fitted_posterior.rs"
 items = ["const MAX_ASSIGNMENTS", "const MAX_DRAWS", "const MAX_ENUMERATION_WORK", "enum NodeTable", "fn check_cancelled", "fn check_work", "fn conditional", "fn config_index", "fn ln_gamma_draw", "fn new", "fn next_u64", "fn nodes", "fn normal", "fn point", "fn posterior_interval", "fn quantile_mcse", "fn rows", "fn uniform", "fn unsupported", "fn validate_query", "struct CountFittedModel", "struct CountNode", "struct PosteriorInterval", "struct PosteriorQuery", "struct SplitMix"]
-sha256 = "0a150c796c8a0949e375df917f57bf08ac8fab5f373ae40ad5ba45d7af57f202"
+sha256 = "edfb350d3f0cb628eda8095c8e96a02a4e05f21fb60a0e743041ff7334d7b511"
 
 [[method_review.artifacts]]
 role = "assertion"

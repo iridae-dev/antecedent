@@ -44,7 +44,7 @@ sha256 = "8cc4d4dcfdcafd28a57f1fbaa345c1a6f6af4ccd2a77ffd7449a6626f5ca35f3"
 role = "implementation"
 path = "crates/antecedent-stats/src/quantile.rs"
 items = ["module"]
-sha256 = "5c3e70ead6db11697f810248e830f7d93319637cb251cd9442acf3c51639c4ad"
+sha256 = "db65ced1c83626891587f995463b2b7d8ec40bc0d52167b57c3fbc5128cd9ce5"
 
 [[method_review.artifacts]]
 role = "implementation"

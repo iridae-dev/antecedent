@@ -47,7 +47,7 @@ record_sha256 = "120e4541a3239604c08601fb29d7b1731649a5a9b0a39506f4647bf14d83716
 role = "implementation"
 path = "crates/antecedent-model/src/do_sampler.rs"
 items = ["const DEFAULT_ROOT_MATCH_TOLERANCE", "fn confounded_ipw_weights", "fn default", "fn density", "fn estimate", "fn new", "fn sample", "fn silverman_bandwidth", "fn weighted_mean", "fn with_root_match_tolerance", "struct DoSampleResult", "struct KdeDoSampler", "struct McmcDoSampler", "struct WeightingDoSampler"]
-sha256 = "5003d94cd391ada0c4b24c42dc0937bef750392d5b6569e4aca5bad5c1fdf1b9"
+sha256 = "ae2e989c4b8bebd935d6783e7cfbb9156f33248576fc615117c6e3cc1c4b6d2e"
 
 [[method_review.artifacts]]
 role = "assertion"

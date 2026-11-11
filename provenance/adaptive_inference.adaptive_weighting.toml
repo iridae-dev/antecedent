@@ -40,7 +40,7 @@ record_sha256 = "efe21c6e0cba0c3ca249848b7f152bab0bd592e2af814f4bdf6a6ae2aaf3b73
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/weighting.rs"
 items = ["const CANCEL_STRIDE", "const MAX_ADAPTIVE_UNITS", "const MAX_WEIGHTED_ARMS", "const PROBABILITY_ROW_TOLERANCE", "enum Estimand", "enum WeightScheme", "fn adaptive_scores", "fn check_history", "fn weighted_estimate", "struct AdaptiveEstimate", "struct OutcomeModelPrior"]
-sha256 = "f9a6afdb5f4fa78ecf4f5ac65fb15d4d07848988e94bceb0ef59b38998226c90"
+sha256 = "f2880c39c21e195f4c8d710fbaf604737977746db29c4c38bd0cb72c609963d7"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -48,7 +48,7 @@ record_sha256 = "3c24fbd17d87c61914ab155dd827de35b64b8c04418b08d0e1ac41f050b5364
 role = "implementation"
 path = "crates/antecedent-core/src/recalc.rs"
 items = ["const ABSENT", "const MAX_EXTERNAL_BRANCHES", "const STAGE_IDENTITY_KEY", "enum Boundary", "enum ChangeKind", "enum ChangedDependency", "enum MissingDependency", "enum RefusalReason", "enum RequestSupport", "enum RetargetSupport", "enum Revalidation", "enum Stage", "enum StageStatus", "fn all", "fn by_change", "fn canonical_identity", "fn contains", "fn decide", "fn dependencies", "fn detail", "fn effective", "fn entries", "fn first_refusal", "fn fresh_process", "fn fresh_scores", "fn fresh_status", "fn identity", "fn in_process", "fn index", "fn is_absent", "fn is_executable", "fn is_input", "fn is_standing", "fn label", "fn new", "fn of", "fn own", "fn own_change", "fn plan", "fn reason_code", "fn recomputed", "fn recomputed_computations", "fn record", "fn refused", "fn refused_dependency", "fn remove", "fn request_refusal", "fn reused", "fn revalidation", "fn revalidation_since", "fn set", "fn set_calibration", "fn status", "fn tag", "fn to_hex", "fn with_tag", "fn worst", "struct Branch", "struct Planner", "struct RecalcCapabilities", "struct RecalcPlan", "struct ResumeContext", "struct StageEntry", "struct StageIdentities", "struct StageIdentity"]
-sha256 = "29ce33a83596fd0eb05824fdcfb8c4c333809914fa1702c3e04281e6f92303cb"
+sha256 = "445917e7ec785c01f51b5480455eb513418e2d0c889ade6808909b161825a1c7"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -60,7 +60,7 @@ sha256 = "f9422fb0c7c136e15a900a0bb0cb5b117b3d4e944c7f027235a68740f732335f"
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_receipt.rs"
 items = ["const ALL", "const EXTENDED", "enum Counter", "enum RecalcRequestCode", "enum RecalcRunError", "enum ReceiptError", "fn add", "fn as_slice", "fn as_str", "fn column", "fn counts", "fn data", "fn decide", "fn default", "fn entries", "fn entry", "fn estimator_identity_bytes", "fn execute_with_receipt", "fn f64", "fn f64s", "fn finish", "fn from", "fn get", "fn graph", "fn identities", "fn identity", "fn into_iter", "fn is_live", "fn is_recomputed", "fn law_stage", "fn measured", "fn n_rows", "fn name", "fn new", "fn opt_f64", "fn opt_panel", "fn opt_u32s", "fn plan", "fn push", "fn raw", "fn record", "fn resume", "fn run_stages", "fn score_stages", "fn score_table", "fn set_request_support", "fn set_retarget_support", "fn stage", "fn status_table", "fn study", "fn tag", "fn to_u64", "fn total", "fn totals", "fn u32", "fn u32s", "fn usize", "fn validate", "fn values", "fn write", "fn write_identity", "struct Columns", "struct DecisionValue", "struct IdentityBytes", "struct LawValue", "struct Live", "struct RecalcOutcome", "struct RecalcReceipt", "struct RecalcRequest", "struct RecalcSession", "struct ReceiptEntry", "struct ReceiptRecorder", "struct StageCounts", "struct TargetWeights", "struct UtilitySpec", "trait CanonicalIdentity", "type IntoIter", "type RetainedScoreStage"]
-sha256 = "af1913b7104c133b3e637cb177cc2cb274e106b9d9b2a60d362e39ad8f0bb204"
+sha256 = "ba59ba8fb12d6ed1d39d8250201c6a538d55533c8496c33e0b4f98b2fc3ef233"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

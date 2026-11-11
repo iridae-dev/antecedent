@@ -48,7 +48,7 @@ record_sha256 = "34101b6c554d83ecc59059a789a51cf8dabd0430fcc7c8f31b1901cc51ead86
 role = "implementation"
 path = "crates/antecedent-estimate/src/observation.rs"
 items = ["const DEFAULT_OBSERVATION_PROBABILITY_FLOOR", "const LAGGED_OUTCOME_REGRESSOR_REFUSAL", "enum FoldLayout", "enum SelectedOutcomeCorrection", "fn adjust_temporal_anchors", "fn adjust_temporal_series", "fn adjusted_outcome_with_extras", "fn censored", "fn censored_from_columns", "fn censoring_independence", "fn covariate_row", "fn crossfit_selected_nuisances", "fn default", "fn exact_outcome_independence", "fn fit_selected_outcome_regression", "fn fold_of", "fn gather_anchor_column", "fn gather_anchor_columns", "fn lag_aligned_observation_table", "fn new", "fn observation_fit_error", "fn observation_floor", "fn observation_floor_declared", "fn outcome_model_extras", "fn predict_linear", "fn read_complete_columns", "fn require_temporal_observation_containment", "fn require_unlagged_outcome_regressor", "fn retained_outcome_regressors", "fn selected", "fn selected_from_columns", "fn subset_colmajor", "fn temporal_conditioning_ids", "fn temporal_curve_outcome_regressors", "fn validate_options", "struct CensoringColumns", "struct CensoringValues", "struct CrossFittedSelectedNuisances", "struct ObservationAdjustedOutcome", "struct ObservationEstimatorOptions", "struct ObservationMechanismEstimator", "struct OutcomeModelExtras"]
-sha256 = "1bbcc9fb6db00472e1555d94a189632297b9b247bbad9a1c3210c6326dc10a4e"
+sha256 = "9b6bc7b599d0424f3c10d22fcb396c36c48db10e717c81fe93ee15f96a2cc5bb"
 
 [[method_review.artifacts]]
 role = "implementation"

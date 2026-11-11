@@ -40,4 +40,4 @@ sha256 = "5c979bea5c58f5a8f79ebe6d57414eb44900c86f3cee4d2829f951992d37e642"
 role = "implementation"
 path = "crates/antecedent-graph/src/unfold.rs"
 items = ["module"]
-sha256 = "bbc06f1f58cedaf6c2d0d084c27185fb3addc9e10f61407150529600f851dcc8"
+sha256 = "c75969eb4de8483bfce30caf970238f58758b3b85cfad37378cb6f303ca82e53"

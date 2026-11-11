@@ -47,4 +47,4 @@ sha256 = "fe09d5985ae9824d39a0fe29c98baa4e9b3e1279c197b6a70641f4eeab87d526"
 role = "assertion"
 path = "crates/antecedent-discovery/src/lingam_oracle_tests.rs"
 items = ["fn assert_recovers", "fn columns", "fn dcor_definition", "fn distance_correlation_matches_its_definition", "fn known_structures_are_recovered_exactly", "fn marginal", "fn next", "fn product_grid_errors_are_exactly_uncorrelated_and_independent", "fn random", "fn random_models_recover_their_order_edges_and_coefficients", "fn run", "fn unit", "struct Lcg", "struct Model"]
-sha256 = "45abeda02677d1abbf1a461cf00f7ea3e0edd07ee0d41b70a76558a731f43548"
+sha256 = "3c1671c4375f814acddafa67525bbe2d78c2bf5ee8bd840db83a92a88047c363"

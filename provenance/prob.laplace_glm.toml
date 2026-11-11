@@ -41,7 +41,7 @@ record_sha256 = "8459119d4f85c02f67a1cdbb6d5f065514c6c066127d77bf3b48e0cd7628862
 role = "implementation"
 path = "crates/antecedent-prob/src/laplace.rs"
 items = ["fn fit", "fn fit_gaussian_laplace", "fn fit_gaussian_laplace_known", "fn fit_laplace_glm", "fn fit_laplace_glm_inner", "fn gaussian_normal_equations", "fn laplace_derivatives", "fn laplace_line_search", "fn sample_gaussian_mvn"]
-sha256 = "262e0f9653a24e966a56a08670f30aa17760aa8543aa489e2edf43c95fda8922"
+sha256 = "68278cc2f2db9d8bc32e80ae1f490711e321ae1f5a3c3f9a0a667485821d6927"
 
 [[method_review.artifacts]]
 role = "implementation"

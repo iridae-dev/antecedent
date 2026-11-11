@@ -43,7 +43,7 @@ record_sha256 = "2851b103a0024e1005ec0441a21171e39b915f8f8e75d618a21850af5cfee45
 role = "implementation"
 path = "crates/antecedent/src/analysis/native_claims.rs"
 items = ["enum NativeDecisionSource", "fn aligned_draws", "fn bind_refusal", "fn calibration", "fn check", "fn coordinates", "fn decision_source", "fn from_response", "fn has_joint_law", "fn into_decision_source", "fn joint_artifact", "fn mean_curve", "fn mean_source", "fn means", "fn names", "fn native_response_coordinates", "fn point_status", "fn point_surface", "fn program_identity", "fn provenance_id", "fn refusal", "fn representation_name", "fn support_status", "fn trust", "fn variable_name", "struct NativeDecisionInput", "struct NativeResponseClaim", "struct NativeResponseContext", "struct WithheldCoordinate"]
-sha256 = "5b4713ea0423433494a38b53a0aa4337bcf158e6ddce58ffb1d25bc73f39c953"
+sha256 = "25bb2b0be8aadb5f5a0161ef6a6e10816a7c8d0a5a674e70794e2bfec7efafdb"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

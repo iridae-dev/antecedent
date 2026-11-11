@@ -52,7 +52,7 @@ sha256 = "d845f04f6d17923e16183380169b183c85e4d8e3112402bdc098413fa7c72825"
 role = "implementation"
 path = "crates/antecedent-discovery/src/exact_enumeration.rs"
 items = ["const MAX_ENUM_NODES", "fn default", "fn enumerate_unique_dags", "fn grow_dags", "fn new", "fn run", "fn sample_instead", "struct ExactDagPosterior"]
-sha256 = "7673a1a6a5799ab55b473fdc2ee312dc2853493dbd9021fc00defb632632a196"
+sha256 = "8d5307deb3d5654ad069d54902fce20d9e453fe5533cd59f8b39ee23ca590f48"
 
 [[method_review.artifacts]]
 role = "implementation"

@@ -36,7 +36,7 @@ record_sha256 = "53d69d9cfc3b405e9475a28d9eb5c4fda01f0515143d499711b2b9b037de300
 role = "implementation"
 path = "crates/antecedent-stats/src/synthesis.rs"
 items = ["const MAX_JACOBI_SWEEPS", "const MAX_STUDIES", "const MAX_TAU_SUPPORT", "const PRIOR_SUM_TOLERANCE", "const PSD_RELATIVE_TOLERANCE", "const REML_BISECTIONS", "const REML_BRACKET_DOUBLINGS", "const SYMMETRY_RELATIVE_TOLERANCE", "enum BetweenStudyMethod", "enum MeanPrior", "enum SynthesisError", "fn check_covariance", "fn check_equicorrelated_inputs", "fn check_summaries", "fn conditional_on_tau", "fn denominator", "fn equicorrelated_gls", "fn estimate", "fn finite_extremes", "fn fixed_effect_gls", "fn fixed_effect_inverse_variance", "fn hierarchical_normal_borrowing", "fn new", "fn pooled_dependence_envelope", "fn random_effects_at", "fn random_effects_dersimonian_laird", "fn random_effects_reml", "fn reml_score", "fn scaled_eigenvalue_extremes", "fn symmetric_eigenvalues", "fn validate", "fn variance", "fn variance_stationary_points", "struct ConditionalPosterior", "struct CovarianceCheck", "struct DependenceEnvelope", "struct EquicorrelationTerms", "struct HierarchicalPosterior", "struct PooledEstimate", "struct RandomEffectsEstimate", "struct TauPrior", "type EnvelopeExtremes"]
-sha256 = "bd03cfb87ee2e77ddafcbdbd46f9ec6fe7844ae7a66915f762d51e9fe5c5d2a9"
+sha256 = "8f7b682c011c85858a04db909bd0c975788c2aab6bd6472018c59938cf8e9727"
 
 [[method_review.artifacts]]
 role = "assertion"

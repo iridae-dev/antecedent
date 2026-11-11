@@ -29,7 +29,7 @@ record_sha256 = "f886b1e0ad18932b53328d428f23a5147a9a0626bc106d8e70fb5378af1486b
 role = "implementation"
 path = "crates/antecedent-estimate/src/dose_grid_functional.rs"
 items = ["const MINIMUM_ESS_FLOOR", "const Z_95", "enum DoseDesign", "enum DoseFunctional", "enum IntervalCalibration", "enum RowDependence", "fn build_report", "fn contrast_row", "fn count_clusters", "fn declaration_refusal", "fn declared_rows", "fn estimate_dose_grid_functional", "fn estimate_dose_grid_functional_declared", "fn estimate_dose_grid_functional_with_context", "fn estimate_dose_grid_quadratic_mean", "fn estimate_dose_grid_quadratic_mean_declared", "fn estimate_dose_grid_quadratic_mean_with_context", "fn evaluate_prepared", "fn evaluation_points", "fn fit_at", "fn grid_rows", "fn interval", "fn interval_quantile", "fn is_plain", "fn kernel_ess", "fn label_points", "fn observed_range", "fn prepare_rows", "fn refuse", "fn refuse_unsupported", "fn score_standard_error", "fn validate_claims", "fn validate_inputs", "struct ClaimSet", "struct DeclaredRows", "struct DoseContrast", "struct DoseDerivative", "struct DoseGridRequest", "struct DoseGridRow", "struct DoseLevel", "struct NumericalReport", "struct PointwiseInterval", "struct PreparedRows", "struct RowDeclaration", "struct SimultaneousBand"]
-sha256 = "f862e45b2f96469e3d580b38bbf24fe3718994b951796f8b3d5987ef78fdf93c"
+sha256 = "1dc24fd80c420af48ec1c9f069b6880dbc25f00d73b4a28a2883ab301eaf4c42"
 
 [[method_review.artifacts]]
 role = "assertion"

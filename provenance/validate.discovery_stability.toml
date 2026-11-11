@@ -103,19 +103,19 @@ sha256 = "4ef8b7ca3945ae12a75154063bcb65b8ba3b30a62008592215a4caad6efcf64a"
 role = "implementation"
 path = "crates/antecedent-discovery/src/pcmci_plus.rs"
 items = ["fn contemp_mci_phase_inner", "fn declared_mci_family", "fn default", "fn is_contemp_node", "fn lagged_pc1_parents", "fn majority_is_collider", "fn majority_sep_counts", "fn new", "fn node_var_lag", "fn orient_fixed_directions", "fn orient_majority_colliders", "fn orient_majority_leg", "fn run", "fn run_on_frame", "struct MajorityVote", "struct PcmciPlus", "type AdjMap", "type ScoreMap", "fn admit_frame", "fn initial_mci_adjacency", "fn scored_surviving_mci_links"]
-sha256 = "4f6434c12828842d6fdfdd273e024d668079b6ef70e48bfe940fc6e54c9d1f63"
+sha256 = "67fc231f1b1e2a4f4793adf2476413fc0fc2ba577b899f838c3e7f6c18280a1c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/jpcmci_plus.rs"
 items = ["fn admit_inputs", "fn prepare_dummy_ci", "fn orient_phase_scores", "type PreparedDummyCi", "fn cpdag_from_jpcmci_links", "fn default", "fn directed_exogenous_links", "fn exogenous_parents_from_scored", "fn force_orient_exogenous", "fn logical_exogenous_ids", "fn new", "fn orient_exogenous_links", "fn remap_dummy_block_links", "fn replace_exogenous_parents", "fn run", "struct JpcmciPlus", "type JpcmciPlusDiscoveryResult"]
-sha256 = "63877259291cf6c303128625332e414ae14d397dd8cfb94c4e2068786f3ad058"
+sha256 = "63d80e29a265e8130be08a85405a92d668c2f52716d4dd100ed7a7f6a6624bc0"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/lpcmci_phases.rs"
 items = ["module"]
-sha256 = "e56e219f6bede15a86f289b3b664d96fd0016a4ecf88c1b873dbae0ecb16ea07"
+sha256 = "bd4bbd83e890deb6769068391011aaff81244354754c1f33f6d659b18cce1b0e"
 
 [[method_review.artifacts]]
 role = "assertion"

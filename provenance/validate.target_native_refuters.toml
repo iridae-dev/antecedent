@@ -38,7 +38,7 @@ record_sha256 = "ece87533165b4133afa174367b0f2bd17b6669391010adfb41accd251e40cb5
 role = "implementation"
 path = "crates/antecedent-validate/src/target_native/joint.rs"
 items = ["const RELATIVE_RIDGE", "enum JointStatisticKind", "fn as_str", "fn cholesky_in_place", "fn joint_mahalanobis", "fn joint_mahalanobis_with_bias", "fn mahalanobis_squared", "fn mean_and_covariance", "struct JointStatistic"]
-sha256 = "82616d2c88043e65b98a2ad55028d014f09405b5ef692144d68d0aa126a0f7fb"
+sha256 = "8e6ae1760571605dd7fe8cc33cdddb459c1a1faf313da6aba5567f56c8bedc73"
 
 [[method_review.artifacts]]
 role = "implementation"

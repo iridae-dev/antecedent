@@ -45,7 +45,7 @@ record_sha256 = "7af0ed902f9195dda120cd78ec7a2588e7ea4d1d4a28e469595b5c8eac23fa3
 role = "implementation"
 path = "crates/antecedent-io-core/src/compact_export.rs"
 items = ["const CALIBRATION_STATUS", "const COMPACT_EXPORT_VERSION", "const MAX_POLYNOMIAL_DEGREE", "const NEGATIVE_VARIANCE_TOLERANCE", "const POINT_SCOPE", "const PSD_TOLERANCE", "const SE_BASIS", "const SYMMETRY_TOLERANCE", "const UNCERTAINTY_SCOPE", "enum InputSupport", "enum QueryValue", "enum TermSpec", "fn basis_row", "fn body", "fn build", "fn canonical_support", "fn check_covariance", "fn check_input_value", "fn check_inputs", "fn check_mask", "fn check_quantity", "fn check_region", "fn check_semantics", "fn check_shape", "fn check_support", "fn check_terms", "fn compute_digests", "fn data_digest", "fn declared", "fn default", "fn evaluate", "fn evaluate_body", "fn first_negative_pivot", "fn hash_quantity", "fn hash_support", "fn hash_term", "fn identity", "fn invalid", "fn new", "fn number_of", "fn premises_digest", "fn region_matches", "fn seal", "fn with_level", "fn with_number", "struct CompactExport", "struct CompactExportBody", "struct ExportInput", "struct ExportLimits", "struct ExportQuery", "struct ExportRefusal", "struct ExportScope", "struct ExportSpec", "struct MaskCondition", "struct MaskRegion", "struct PointWithSe"]
-sha256 = "2819c60cbfb32bbb705be357ef282a7b24bc0f28c917279432b87fbd7b1f1007"
+sha256 = "0946f472146d0cc5ad4865ee15b256c809b399490fc6a4b6e3f8a86a83606129"
 
 [[method_review.artifacts]]
 role = "assertion"

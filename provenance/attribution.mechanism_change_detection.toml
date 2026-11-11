@@ -39,19 +39,19 @@ record_sha256 = "1c484f81df753b313af6b877137a9168da928a8f0df087e9263f1d61bbc36b4
 role = "implementation"
 path = "crates/antecedent-attribution/src/mechanism_change.rs"
 items = ["const MIN_POPULATION_ROWS", "const PARENT_SHIFT_ALPHA", "enum MechanismChangeMethod", "fn baseline_cross_fit_folds", "fn charge_run_validation", "fn cross_fitted_residuals", "fn fit_cross_fitted_baseline", "struct CrossFittedBaseline", "fn detect_mechanism_changes", "fn detect_mechanism_changes_with_correction", "fn gaussian_lr_statistic", "fn kfold_row_indices", "fn parent_covariate_shift_detected", "fn poll_run_cancellation", "fn residual_pairs", "fn residual_stream_id", "fn residuals", "fn validate_runs", "type PopulationRuns", "type TargetResiduals"]
-sha256 = "1cbe0cda9460d2186b9be1f0f1f4884a16d5fd50dec5ee3767e0b55bffcc38a3"
+sha256 = "56e11c90a1f2ce6a8ef2e4ad17460a82588efdb52735b28f5f3b421855e9e7fd"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/mechanism_change/posterior.rs"
 items = ["const NIG_ALPHA0", "const NIG_KAPPA0", "fn mechanism_change_posterior", "fn mechanism_change_posterior_impl", "fn nig_log_marginal", "fn sample_mean", "fn serial_inflation", "fn serial_inflation_with_runs", "struct MechanismChangePosterior"]
-sha256 = "ade122e9bfcddb2f62f4164ba2efe93664b538275180b3e47c954e53eda12de5"
+sha256 = "21ab8978b4158e7c1fd09d13aa5ca6acaff49c81671aacea2e21be27ecdec0ae"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/mechanism_change_detection_reference.rs"
 items = ["fn bh", "fn close", "fn detection_statistics_and_family_correction_match_the_reference", "fn floats"]
-sha256 = "9bb9730599ad63693ecc130eec0a801cf678d08c70fe90cbaa5f20f674b4e3aa"
+sha256 = "76a815ec853efc5e629e15f2837272f786e89ff36239db87054ea1aad2f22ff9"
 
 [[method_review.artifacts]]
 role = "reference"

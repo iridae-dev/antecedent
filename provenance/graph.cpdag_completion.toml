@@ -46,7 +46,7 @@ sha256 = "72e05afb325dc86c56985e2f358efceafa750221c739ff9dcf21ca4affc23d68"
 role = "implementation"
 path = "crates/antecedent-graph/src/mec_search.rs"
 items = ["fn children", "fn conflict_edge_count", "fn edges", "fn has_edge", "fn is_mec_member", "fn new", "fn node_count", "fn orient_undirected", "fn parents", "fn sorted_pair", "fn unshielded_colliders_cpdag", "fn unshielded_colliders_dag", "struct ReadOnlyContext", "trait MecCpdag", "trait MecDag"]
-sha256 = "fce9abdaa5e256fb823d2733653d2dd00043fb10492adac7020d844a073a2e57"
+sha256 = "a71b39f0f083e0a1e9cee94415ecc3166789db027c80453f9b42ab26b39ffbbc"
 
 [[method_review.artifacts]]
 role = "assertion"

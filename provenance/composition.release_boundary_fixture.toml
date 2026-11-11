@@ -39,7 +39,7 @@ record_sha256 = "0f4a1d5bd9059a2a7622274c050cc97aa13044de05871b498b47c2c1d7aebea
 role = "implementation"
 path = "crates/antecedent/tests/composition_release_fixture/scenario.rs"
 items = ["const CONSTRUCT", "const INDICATOR", "fn bits", "fn build", "fn bundle", "fn check_interfaces", "fn claim_graph", "fn compose", "fn consume", "fn ctx", "fn decide", "fn decision_contract", "fn downstream_of", "fn excess_quantity", "fn excess_risk", "fn export_interventional", "fn fixture", "fn from_fixture", "fn gate", "fn graph_inputs", "fn ident", "fn interface_components", "fn interface_pair_details", "fn mean_source", "fn measure", "fn measurement_binding", "fn measurement_model", "fn mechanism_quantity", "fn num", "fn observations", "fn of", "fn oracle", "fn outcome_risk", "fn pool", "fn prevalence_quantity", "fn revise", "fn revised_study_declarations", "fn rows_of", "fn scalar", "fn selected", "fn study_declarations", "fn study_source", "fn table_input", "fn text", "fn value_of", "fn verify", "struct Bundle", "struct ConsumerReport", "struct DecisionDeclaration", "struct GraphInputs", "struct InterfaceOptions", "struct Measured", "struct Oracle", "struct Pooled", "struct Refused", "struct RevisionStep", "struct StudyDeclaration", "struct World"]
-sha256 = "b6108495a917f00f89355e6f00c8d70875595982f1ed3c843ec7f3f603b41801"
+sha256 = "41f10f90a5382bee5c033026f68b64137b6752b7e38dffeb3cb45262b266d381"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

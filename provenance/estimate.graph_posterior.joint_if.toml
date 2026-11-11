@@ -42,7 +42,7 @@ record_sha256 = "2bb69005429b2e0bd18844540d53846e0d83f6550abbfdefd767a3bedb23f91
 role = "implementation"
 path = "crates/antecedent-estimate/src/joint_if.rs"
 items = ["fn frozen_weight_mixture_scores", "fn get", "fn joint_influence_covariance", "fn joint_influence_covariance_with_means", "fn positive_weight_scale", "fn se", "fn weighted_mean", "struct JointCovariance"]
-sha256 = "604bbab9dc056c63388c31a1e5db924aa5171f3033b6cd57f179e05c6bdb461d"
+sha256 = "ee9b8f3a2ba2e42748c8683c66e057c3802e7badfda64e65db1baa69e63d7e32"
 
 [[method_review.artifacts]]
 role = "assertion"

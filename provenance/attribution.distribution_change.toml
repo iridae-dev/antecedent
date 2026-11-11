@@ -36,7 +36,7 @@ record_sha256 = "b4a1f8cf39efa04cf75c5cbbe952ce7e4be06a205d8a440ea9d88fafc217748
 role = "implementation"
 path = "crates/antecedent-attribution/src/distribution_change.rs"
 items = ["enum PlayerKind", "fn baseline", "fn baseline_law", "fn comparison", "fn default", "fn distribution_change", "fn distribution_change_on_populations", "fn distribution_change_with_mechanisms", "fn joint_players", "fn law_memo", "fn measure", "fn parts", "fn validate_distribution_change_query", "fn value", "struct DistributionChangeOptions", "struct MechanismSwapPayoff"]
-sha256 = "c048663e9c4df51d0911234593a323a99ac400376e6b66a47af834c1d44fd34e"
+sha256 = "e91a4180049099741402bf1599944bfb717238453ce5e81df005207d71a913fa"
 
 [[method_review.artifacts]]
 role = "implementation"

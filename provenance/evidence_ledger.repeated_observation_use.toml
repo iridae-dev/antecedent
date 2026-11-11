@@ -28,7 +28,7 @@ record_sha256 = "de50b29a8c471f68f522ab986f612e85da7b8ee711805eb46533825d75a6c31
 role = "implementation"
 path = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
 items = ["enum Loss", "enum Plan", "enum Retire", "fn account", "fn add_source", "fn apply", "fn canonical_source", "fn check_borrowing", "fn check_combination", "fn check_listed", "fn check_new_source", "fn check_pooling", "fn check_repeated_use", "fn check_replaced_result", "fn check_reuse", "fn check_transport", "fn combine", "fn default", "fn dependence", "fn double_counting", "fn finish_combination", "fn head", "fn insert_source", "fn lineage_closure", "fn loss_of", "fn mass_account", "fn native_and_transported", "fn new", "fn operation_identity", "fn operations", "fn overlap", "fn overlap_of", "fn overlaps_with_existing", "fn plan", "fn plan_retire", "fn reclassify", "fn reentry_between", "fn relation", "fn replace_source", "fn require_disjoint_groups", "fn require_known", "fn require_pairwise_independent", "fn require_pairwise_independent_for_diagonal", "fn require_usable", "fn require_valid", "fn resolve_effective", "fn result", "fn result_sources", "fn results", "fn revalidate_downstream", "fn shared_observations", "fn source", "fn source_loss_class", "fn source_loss_classification", "fn sources", "fn standing", "fn state_digest", "fn supersede_source", "fn text_ok", "fn unknown_overlap", "fn update_source", "fn withdraw_source", "struct CanonicalSource", "struct CheckedCombination", "struct CombinationFacts", "struct EvidenceLedger"]
-sha256 = "667b79ee7284586a3475c19438d28291220d07a4d0954b40c424a6037f7323cc"
+sha256 = "5bf4abdd84a2a8a3eb0c1d8d70b79e11a8175cb67d746a6ac5b8dec972dfe087"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

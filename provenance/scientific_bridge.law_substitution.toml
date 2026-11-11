@@ -48,7 +48,7 @@ sha256 = "852932442e8822f52942a0a5beb3f72f9d3ec4f68b8d0aa9dfd269146961a188"
 role = "implementation"
 path = "crates/antecedent-contract/src/bridge/claim.rs"
 items = ["const BRIDGE_CLAIM_IDENTITY_VERSION", "const PROPAGATION_SECTION", "const TAG_CLAIM", "const TAG_TARGET", "fn assumptions", "fn bridge_receipt", "fn bridged_claim_id", "fn bridged_claim_id_with_propagation", "fn bridged_identities", "fn bridged_reasoning", "fn bridged_uncertainty", "fn claim_identity_prefix", "fn derive_bridged_claim", "fn derive_bridged_claim_propagating", "fn freshness", "fn is_alignment_evidence", "fn kind", "fn mismatch_name", "fn node", "fn obligation", "fn request_interval", "fn require_value_kind", "fn source_point_value", "struct BridgeSource", "struct BridgedClaim"]
-sha256 = "90e802665e0498f0be589de184183615903a20df67f04efb55f80295e9878875"
+sha256 = "855712e4b7ee91e91f5281f0c805ca25d15f00af65accfe1c03771a17b3970a7"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

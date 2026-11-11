@@ -57,7 +57,7 @@ sha256 = "9309c686e894469a7f3bdc93a2f594423a5429b012acca31a299e076f88da848"
 role = "implementation"
 path = "crates/antecedent-model/src/falsify.rs"
 items = ["const DEFAULT_MAX_CI_TESTS", "const MAX_ENUMERATED_RELABELLINGS", "const MAX_FALSIFICATION_WORK", "const PERMUTATION_STREAM", "enum GraphFalsificationOutcome", "enum GraphUninformativeReason", "enum RelabellingPlan", "fn below", "fn check_falsification_work", "fn count_equivalent_permutations", "fn default", "fn draw_permutations", "fn ensure", "fn factorial_within", "fn falsification_permutation_allocation", "fn falsify_graph", "fn graph_falsification_columns", "fn iter", "fn key_under", "fn len", "fn limitations", "fn local_markov_implications", "fn next_permutation", "fn of", "fn refuse", "fn relabelled", "fn shuffle", "fn stopped", "fn validate", "fn violations", "struct CiKey", "struct CiSession", "struct EquivalenceSignature", "struct GraphFalsificationConfig", "struct GraphFalsificationReport", "struct Implication", "struct MarkovImplicationTest", "type GraphFalsificationColumns"]
-sha256 = "56186d8112fcb6a07ed73534527cd5c3bce30d75cb13ec3d7d357be02c06c4b0"
+sha256 = "a2e1c2150143707b41b3f09152d5088e07a89b2d5b9d9385844d161920741289"
 
 [[method_review.artifacts]]
 role = "assertion"

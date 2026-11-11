@@ -48,13 +48,13 @@ sha256 = "8db868a38fb9329ccc302687353e239bfb4da246125b07435c6261810f57ae3b"
 role = "implementation"
 path = "crates/antecedent-stats/src/joint_law/projection.rs"
 items = ["const DRAW_EXCHANGEABLE_RANK_CONSTRUCTION", "const DRAW_INTERPOLATED_CONSTRUCTION", "const MIXTURE_EQUAL_TAIL_CONSTRUCTION", "const NORMAL_APPROXIMATION_CONSTRUCTION", "enum DecisionVerdict", "fn as_str", "fn check_level", "fn composed_exceedance_decision", "fn draw_interval_candidate", "fn exceedance_verdict", "fn marginal_interval_candidate", "fn mixture_exceedance", "fn mixture_marginal", "fn normal_interval_candidate", "struct ExceedanceDecision", "struct IntervalCandidate"]
-sha256 = "ae420875070b8e9678a90f5051cc0f6323b5a815cfcfe82bceb570b384b91122"
+sha256 = "ae494255faae4ac9350c4249cce53d7d9e353a25cfc8ef555292df65d40a0748"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/joint_law/marginal.rs"
 items = ["fn atoms", "fn coupled_expectation", "fn covariance_envelope", "fn difference_cdf_envelope", "fn frechet_expectation_envelope", "fn from_weighted", "fn functional_envelope", "fn linear_variance_envelope", "fn mass_at_most", "fn mass_below", "fn mean", "fn monotone_couplings", "fn negated", "fn product_moment_envelope", "fn quantile", "fn sum_cdf_envelope", "fn variance", "fn verify_structure", "struct Marginal"]
-sha256 = "5c4725ae3058244f3f1b5f6d926e2f16822504477964d1b770bd8a9d3ec3aaf5"
+sha256 = "6ecccb22bff51a4bb6439c9799ef3bbda9323bc33af9364b120c37a53c09aac5"
 
 [[method_review.artifacts]]
 role = "assertion"

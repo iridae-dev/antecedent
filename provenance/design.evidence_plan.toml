@@ -49,13 +49,13 @@ record_sha256 = "69d750df8408177ae9dd9cc20cf7278bb65c5e771c23e9c64dfcbf9c3c20ec2
 role = "implementation"
 path = "crates/antecedent-design/src/evidence_plan.rs"
 items = ["const PLAN_CALIBRATION", "const PLAN_RANKING_GUARANTEE", "const SUBSET_VALUE_NOTE", "enum PlanOutcome", "enum PlanValueBasis", "fn as_str", "fn build", "fn calibration", "fn closing", "fn compare", "fn from_ranking", "fn gate_rank", "fn identity", "fn invalid", "fn mark_close_calls", "fn obligation", "fn of", "fn rank_options", "fn ranking_guarantee", "fn score", "fn status", "fn units", "fn value_of", "struct EvidencePlan", "struct EvidencePlanError", "struct OptionValue", "struct PlanCost", "struct PlanInputs", "struct PlanOption", "struct PlanRoute", "struct PlanValuation", "struct PlanValue", "struct PlanValueRow", "struct RouteBudget", "struct UnverifiedRoute"]
-sha256 = "e7d9a7abfa62d98b187b97c633758d993916b1b6855600789759d2c728935890"
+sha256 = "0414203aad15cee0c781c23d5ee7f380506e487863d2b54564e19c8ee86d17e2"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/candidate_generation.rs"
 items = ["fn complete", "fn generate_candidates", "fn id_list", "fn kinds_for", "fn label_of", "fn raw", "fn refusal", "fn sorted", "fn validate", "struct CandidateGeneration", "struct CandidateTemplate", "struct StudyDeclarations", "struct UnmatchedObligation", "type TemplateKey"]
-sha256 = "3dd167d525361172a772a0bf3c4b0047d72cacc26540859a2f927fda9f6208c2"
+sha256 = "1c81a06bbb29986540c35a29e6ce838ae4b23492be41e535d5a99f5c27392992"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

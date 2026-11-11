@@ -61,7 +61,7 @@ sha256 = "ec0f7f83eaa2bdd39624ead222789a87231c136ad05fc626928b99752a4c2011"
 role = "implementation"
 path = "crates/antecedent-io-core/src/contract_section/verify.rs"
 items = ["module"]
-sha256 = "9db106d0328c02a8e2e266a2d3d16837de8deed4efafe1e22c7b55b79c8cabbc"
+sha256 = "94cd64fe35601571a090b174f5416b863f7767fb36d61c91428dca4e40bc9534"
 
 [[method_review.artifacts]]
 role = "implementation"

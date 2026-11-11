@@ -58,7 +58,7 @@ sha256 = "4fcd9ab6713df50c603b87fe21dd6cdff1bfe1c9bf83af0cd3716ac25df4793b"
 role = "implementation"
 path = "crates/antecedent-identify/src/id/expression.rs"
 items = ["fn c_component_expression", "fn conditionals", "fn dist_marginal", "fn emit", "fn intern_nodes", "fn intervention_for_factor", "fn marginalize", "fn markov_product", "fn observational_marginal", "fn product_of", "fn q_component_product", "fn sum_out_if_any"]
-sha256 = "4026f88ad1de8f67b02b3c91428805504ba9c64abbf058e2ef37c5ae25897b8e"
+sha256 = "6a025af0a0c2cbe983e1178b8e30031345578345f88a1f719595cc3424e557a1"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -76,4 +76,4 @@ sha256 = "0e09e5f2cd0cc1c6155a03c50c8aeb031c21eda5206fc977f590722896759e02"
 role = "assertion"
 path = "crates/antecedent-identify/tests/hedge_definition_enumeration.rs"
 items = ["fn admg", "fn ancestors_after_cut", "fn bidirected_connected", "fn bitset", "fn choose", "fn d", "fn forest_pair_exists", "fn from_masks", "fn id_refuses_exactly_when_a_hedge_exists_on_every_four_node_single_query", "fn id_refuses_exactly_when_a_hedge_exists_on_every_three_node_admg", "fn id_refuses_exactly_when_a_hedge_exists_on_four_node_joint_queries", "fn is_hedge", "fn members", "fn query", "fn some_hedge", "fn some_hedge_for_a_sub_outcome", "fn sweep", "fn the_reference_recovers_the_textbook_hedges", "fn the_shipped_verifier_matches_the_definition_on_every_three_node_admg", "fn the_shipped_verifier_matches_the_definition_on_sampled_four_node_admgs", "fn v", "fn verifier_agrees", "struct Graph"]
-sha256 = "5cd5a1d4ab95e3f070a1cd9771db11f5326afa7f1297db0381808ccb35bf04f1"
+sha256 = "d1af4821dec537e62512bdff094f2aa0d9c2fa7b914bf4ad14e49727ee0168d0"

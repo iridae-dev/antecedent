@@ -44,7 +44,7 @@ record_sha256 = "d061d8376d7dfbbcd58cd14255daf071ea79553fb60cb878a0e44d505052913
 role = "implementation"
 path = "crates/antecedent/src/analysis/decision_claims.rs"
 items = ["const NOT_ENUMERATED_ATOM", "const NOT_ENUMERATED_DOMAIN", "const SCENARIO_DOMAIN", "const SHAPE_LAW", "enum ClaimError", "enum IntervalReading", "fn atom_leaders", "fn build", "fn check_causal", "fn check_weights", "fn cpdag_claims", "fn digests_of", "fn envelope_identified_utilities", "fn evaluate_cpdag_decision", "fn evaluate_scenario_decision", "fn evidence_of", "fn finish", "fn from_ranges", "fn interval_identified_utilities", "fn law_artifact", "fn new", "fn not_enumerated_digest", "fn report_identified_utilities", "fn scenario_claims", "fn scenario_digest", "fn support_of", "fn to_refusal", "fn utilities_with", "fn validate", "fn verify", "fn weighted_identified_utilities", "fn with_default_support", "struct ClaimSource", "struct Input", "struct OutcomeBinding", "struct ScenarioAtomRecord", "struct ScenarioClaimBinding", "struct ScenarioClaims", "struct ScenarioDecision", "struct ScenarioDigest"]
-sha256 = "429536e1b8a62b6e3af37d5531872c016fd2ce17060259169c9a78074806f451"
+sha256 = "47e0eefdacafd69b80970547662c3c914518bc5988c46eb9b3df326fa6db4a89"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

@@ -47,4 +47,4 @@ sha256 = "5095bbe77f139cf6103d03825fb859eae56aba2162180e1aae5085dd8001b379"
 role = "assertion"
 path = "crates/antecedent-discovery/src/ges_oracle_tests.rs"
 items = ["fn acyclic", "fn adjacent", "fn ancestors", "fn assert_class", "fn class_edges", "fn clearly_faithful", "fn columns", "fn covariance", "fn d_separated", "fn edges", "fn exact_covariance_columns_reproduce_the_population_covariance", "fn known_classes_are_recovered_from_population_scores", "fn model", "fn next", "fn orthonormal_noise", "fn partial_correlation", "fn random_model", "fn random_models_recover_their_markov_equivalence_class", "fn run_ges", "fn unit", "fn unshielded_colliders", "struct Lcg", "struct Model", "type ClassEdge"]
-sha256 = "72fe1b0ca4c931a4f458c9f7512d9e84d468c15eaeeb449d36090916a68871cf"
+sha256 = "2d3b051d7819c36841ac0a88ab7de5ad511e48ab8f8599656e1a6926bf961f39"

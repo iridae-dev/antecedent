@@ -39,7 +39,7 @@ record_sha256 = "c4e98736b5f1a05d0ad1703cdf97ff1c31c986acea2b73c2c38a06d1ef7ddf3
 role = "implementation"
 path = "crates/antecedent-estimate/src/adjustment.rs"
 items = ["enum LinearFitKind", "fn coefficient_se_and_influence", "fn default", "fn fit", "fn fit_coefficients", "fn fit_point", "fn fit_point_with_ols_residuals", "fn fit_point_with_ols_residuals_unobserved", "fn new", "fn prepare", "fn prepare_unchecked", "fn prepare_with_backend", "fn refuse_non_finite_cells", "fn refuse_unweighted_routes", "fn with_sampling_weights", "struct EstimationWorkspace", "struct LinearAdjustmentAte", "struct PreparedEstimationProblem"]
-sha256 = "4f513fe28b9349a76243a851f60e0a0f3d4b8484d12c0d2276c84de6584b84b1"
+sha256 = "9cca07ccb293ff5614071217cd5c920f9fa8a59e62975c1dad092b3976e8fa5b"
 
 [[method_review.artifacts]]
 role = "implementation"

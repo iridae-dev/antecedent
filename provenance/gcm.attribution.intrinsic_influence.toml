@@ -54,7 +54,7 @@ record_sha256 = "387e3a192c51181dcabd3cbbdfdb0fe887aa6f0158009c61d9b835cafac5515
 role = "implementation"
 path = "crates/antecedent-attribution/src/intrinsic_influence.rs"
 items = ["const DEFAULT_PERMUTATIONS", "const ESTIMATOR", "const FIT_STREAM", "const GAME", "const MIN_FIT_BOOTSTRAP_REPLICATES", "const REASON_EXACT", "const REASON_NOT_QUANTIFIED_NO_DATA", "const REASON_NOT_REQUESTED", "const REASON_OVER_BUDGET", "const REASON_REFIT_FAILED", "enum ComponentStatus", "enum FitComponent", "enum FitResampling", "enum IntrinsicAllocation", "enum NoiseIndependence", "enum ShapleyMethod", "enum UncertaintyComponent", "fn allocation_config", "fn as_str", "fn bootstrap_spread", "fn build_source_uncertainties", "fn exact_is_no_costlier", "fn fit_component", "fn holds_families", "fn intrinsic_influence", "fn intrinsic_influence_with_temporal_runs", "fn nested_variance", "fn new", "fn noise_sources", "fn over_budget", "fn plan_within_budget", "fn refit_weights", "fn refuse", "fn require_independent_noise", "fn require_noise_support", "fn resample_rows", "fn run_game", "fn status", "fn summarize_fit_outcomes", "fn validate", "fn values", "fn variance_of", "fn with_allocation", "fn with_seed", "fn with_simulation", "struct BatchPayoff", "struct BatchState", "struct ComponentUncertainty", "struct Decomposed", "struct Game", "struct IntrinsicBudget", "struct IntrinsicInfluenceQuery", "struct IntrinsicInfluenceResult", "struct IntrinsicMethod", "struct PooledPayoff", "struct ReplicateBank", "struct SourceInfluence"]
-sha256 = "7d21e7c7a1f5326cbfab4227e5ecfaa9d7efea1cc88abe4b130e1d532c8e565a"
+sha256 = "98d371b4455ca06bde93d51b2ede5d4144b7428104922b1d8ecf6ea791bf4ca5"
 
 [[method_review.artifacts]]
 role = "assertion"

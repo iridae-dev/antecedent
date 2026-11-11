@@ -47,7 +47,7 @@ sha256 = "80e94d8ef6ecd5f1ef71edba67b769ded17c4a282f009443bf7235e3683aaea2"
 role = "implementation"
 path = "crates/antecedent-graph/src/tiered.rs"
 items = ["enum WithinTier", "fn build", "fn new", "fn tier_closure_set", "fn tier_of", "fn to_admg", "struct TierIndex", "struct TieredBackground"]
-sha256 = "d06668e1ef66c03e98e1e05a8207ee2e12c7af9be604b7fdd198bcc3b4922045"
+sha256 = "b8e01518923d924368e1431c5986bd8891d9d283b78c1d46cc01e22732359fdf"
 
 [[method_review.artifacts]]
 role = "implementation"

@@ -42,13 +42,13 @@ record_sha256 = "299d941d864c7aa4d09dad34940131b13e2153151df90eeed50e7804338b1c0
 role = "implementation"
 path = "crates/antecedent-stats/src/synthesis_transport.rs"
 items = ["const DIAGONAL_RELATIVE_TOLERANCE", "const MAX_TRANSPORTED_SUMMARIES", "enum SummaryOrigin", "enum TransportedSynthesisError", "fn borrow_transported", "fn pool_transported", "fn transport_aware_covariance", "fn transported_prior_update", "fn validate", "struct TransportAwareSummary", "struct TransportedBorrowing", "struct TransportedPooled", "struct TransportedPriorUpdate"]
-sha256 = "9b147a7fc6c2eb5180d57834d2026cc7f4f0ff876808965dab55fa7df79fc170"
+sha256 = "0aacd7448e254d1854f6a3b1fdd5b57df195c65a349749b5e8d5f6b9ab06eb4c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/synthesis.rs"
 items = ["const MAX_JACOBI_SWEEPS", "const MAX_STUDIES", "const MAX_TAU_SUPPORT", "const PRIOR_SUM_TOLERANCE", "const PSD_RELATIVE_TOLERANCE", "const SYMMETRY_RELATIVE_TOLERANCE", "enum MeanPrior", "enum SynthesisError", "fn check_covariance", "fn check_summaries", "fn conditional_on_tau", "fn denominator", "fn estimate", "fn fixed_effect_gls", "fn hierarchical_normal_borrowing", "fn scaled_eigenvalue_extremes", "fn symmetric_eigenvalues", "fn variance", "struct ConditionalPosterior", "struct CovarianceCheck", "struct HierarchicalPosterior", "struct PooledEstimate", "struct TauPrior"]
-sha256 = "c7f1082adc40eb979fbe1cb6758ba0926054e79422a9a5c24a846b946e77f450"
+sha256 = "fda90cc62f1a2ff2153e7731f0fc831b12bd30685d032d8027c47d17c1c046b7"
 
 [[method_review.artifacts]]
 role = "assertion"

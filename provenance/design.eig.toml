@@ -54,13 +54,13 @@ record_sha256 = "491705a1154cac99a95af1cc3a02504d0cdf4c0f9651d39f7f071f49eef32fa
 role = "implementation"
 path = "crates/antecedent-design/src/ranker.rs"
 items = ["const MAX_RANK_DRAWS", "const RANK_STREAM", "fn assemble_ranking", "fn check_constraints", "fn critical_value", "fn default", "fn exact_expectation", "fn filter_active_candidates", "fn n_looks", "fn new", "fn observation_reliability", "fn paired", "fn paired_difference", "fn prepare_decision", "fn push", "fn rank", "fn run_mc_scoring_loop", "fn uncertainty_ok", "fn unmapped_decision_candidate", "fn validate", "fn validate_config", "fn validate_rank_inputs", "fn with_config", "struct ActiveScoring", "struct DecisionRegistry", "struct DesignConstraints", "struct DesignEvaluationContext", "struct DesignRankConfig", "struct DesignRanker", "struct EffectWidthContext", "struct EnvironmentGramSpec", "struct InterventionDesignEffect", "struct MeasureColumnSpec", "struct ModelLoglikDraws", "struct RankDrawStats", "struct ScoringRun"]
-sha256 = "3199145295cd0d9787fefb8b672d2cae616141bf910a929acac9589a42c355ab"
+sha256 = "588a7b81caaf9b40ba5b0255cd51364e67bf852c6cd085427f294bc0330162d9"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/ranker/entropy.rs"
 items = ["fn exact_gain", "fn likelihood", "fn new", "fn posterior_entropy", "struct EntropyChannel"]
-sha256 = "188379a22d580fe1221fd2822cd99197971cb02ff645a81a1389e7bccd38c77f"
+sha256 = "50ecdc0898d76b9b177cf0281c4d2b6a07d6059a5a1891ce87bb2a7686c892cc"
 
 [[method_review.artifacts]]
 role = "implementation"

@@ -46,7 +46,7 @@ record_sha256 = "458d72d798ecdedd2c1b74e46a35f2623641ab23cb88268b977d6d7236a6520
 role = "implementation"
 path = "crates/antecedent-estimate/src/functional_distribution.rs"
 items = ["const MAX_DISCRETE_LEVELS", "enum RowResampling", "fn align_replicate_atoms", "fn average_over_free_variables", "fn binary_mean_interval", "fn block_length", "fn build_empirical_provider", "fn clear", "fn collect_factor_signatures", "fn collect_observational_factors", "fn conditioning_points", "fn default", "fn estimate", "fn estimate_point", "fn estimate_point_with", "fn eval_err", "fn functional_cell_unevaluable", "fn functional_free_variables", "fn functional_program", "fn new", "fn prepare", "fn program", "fn resample", "fn set_assignments", "fn visit_distribution_nodes", "struct DistributionAtom", "struct FunctionalDistribution", "struct FunctionalDistributionWorkspace", "struct InterventionalDistributionEstimate", "struct PreparedFunctionalDistribution", "type AtomKey", "type FactorKey", "type FactorSignature", "type RetainedFactorFit"]
-sha256 = "52aa4ef5bfb62e423f6a91dc0bd614ffa1da4eb99038410ab4d227eeca99b6c7"
+sha256 = "f8f7c782b35419e69f2849128e238c2ee17f989247db0543ca3674b63b48bde5"
 
 [[method_review.artifacts]]
 role = "implementation"

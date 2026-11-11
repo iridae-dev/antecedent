@@ -58,7 +58,7 @@ record_sha256 = "abc0dd4060c42c4a04714c9ee1ce40319f1cdce208ccd4506dbbe0706d4cfc5
 role = "implementation"
 path = "crates/antecedent-estimate/src/nested_markov_binary.rs"
 items = ["const BISECTION_STEPS", "const BOUNDARY_TOLERANCE", "const CELL_COUNT", "const CONSTRAINT_TOLERANCE", "const DEFAULT_MAX_ITERATIONS", "const DEFAULT_TOLERANCE", "const FEASIBLE_TOLERANCE", "const MAX_ITERATIONS_CAP", "const NORMALIZATION_TOLERANCE", "const OUTSIDE_BINARY_SCOPE", "enum ConstraintStatus", "enum FitMethod", "fn ascend", "fn bisect_unit", "fn boundary_stats", "fn cancelled", "fn cell_index", "fn check_likelihood", "fn closed_form_blocks", "fn constraint_residuals", "fn default", "fn finish", "fn fit_nested_markov", "fn guard", "fn invalid", "fn log_likelihood", "fn new", "fn numerical", "fn outside", "fn p4", "fn parameters_from_law", "fn plain", "fn plugin_means", "fn positivity", "fn probabilities", "fn q2_score", "fn q4_score", "fn routed", "fn solve_g", "fn start_margins", "fn total", "fn validate_options", "fn with", "struct BinaryCells", "struct ConstraintResiduals", "struct FitDiagnostics", "struct FitOptions", "struct LawMarginals", "struct LikelihoodCheck", "struct NestedMarkovFit", "struct NestedMarkovRefusal", "struct NestedParameters", "type Refusal"]
-sha256 = "b25068f43dc8c0d8f0a7223f8c32fe6af82bc0bb1c9f17acce6080465243bac1"
+sha256 = "728289660dec8ea8023089dd104400ed29cbd5ed5a5a963ff9f5a7f965662526"
 
 [[method_review.artifacts]]
 role = "assertion"

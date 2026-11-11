@@ -52,7 +52,7 @@ record_sha256 = "2104fdd4e72101996cbd06a99eddb9b0a2021936de6ac897088d5d3b2f6aa8b
 role = "implementation"
 path = "crates/antecedent-prob/src/mcmc_stats.rs"
 items = ["fn diagnostics_one", "fn empirical_quantiles", "fn fold_about_median", "fn geyer_ess_split", "fn has_variation", "fn lag_autocovariance", "fn mcmc_summary", "fn min_bulk_ess", "fn min_tail_ess", "fn parameter_mcmc_diagnostics", "fn rank_normalize", "fn sample_at", "fn split_rhat_on_segments", "fn split_segment_stats", "fn summarize", "fn valid_layout", "struct McmcSummary", "struct ParameterMcmcDiagnostics", "struct SegmentStats"]
-sha256 = "687d5d440e12d84bbcb4c91e12ed6b481705264b22fce8429f08e53385cc75bb"
+sha256 = "3babdf8cf11c996c29ae523634a1c8d5b3ac5b6e20ee6e17d86dc4ee884dc7a2"
 
 [[method_review.artifacts]]
 role = "implementation"

@@ -50,7 +50,7 @@ sha256 = "e318f0e296c0e89a9082c38e2a0e867c3e6277ada132fe5e420321cfc812c38a"
 role = "implementation"
 path = "crates/antecedent-stats/src/glm.rs"
 items = ["const DEFAULT_RIDGE_ON_SEPARATION", "enum GlmFamily", "enum NbAlphaPolicy", "fn default", "fn fit_glm", "fn mean_from_eta", "fn new", "fn require_ok", "struct GlmDesignRef", "struct GlmFit", "struct GlmOptions"]
-sha256 = "c092b03abebe4680b162df6cc19cdc6652b4a1f96e404939588d25ab92ad4319"
+sha256 = "56fa68ade0896df6101f94d1b01fa69bce13ab16ddb44e8c6439d3896521d288"
 
 [[method_review.artifacts]]
 role = "implementation"

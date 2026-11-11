@@ -58,4 +58,4 @@ sha256 = "dc682ce786a9a7c05fff12ac1f954e02f57935104647270b0cdc885b8c51b205"
 role = "assertion"
 path = "crates/antecedent-estimate/tests/interference_saturation_calibration.rs"
 items = ["const CLUSTERS", "const DRAWS", "const UNITS_PER_CLUSTER", "fn centered_noise", "fn complete_cluster_randomization_pointwise_total_interval_covers_truth", "fn complete_cluster_total_interval_calibrates_at_support_boundary", "fn next_u64", "fn saturation_pointwise_intervals_cover_effects_across_neighbor_mappings", "fn uniform", "struct Contrast"]
-sha256 = "9b7d6d504d062e34051515a0c5942ca2da3288d4aba4b2bb3aa8c504acda6246"
+sha256 = "9834ec31123b158c76249cdc788333e10a314a34e72829afed4af11dd7d8bbc1"

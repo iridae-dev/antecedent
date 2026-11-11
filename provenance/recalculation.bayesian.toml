@@ -30,7 +30,7 @@ sha256 = "c21fe34be3aa49cab1e6e3bd8c2c626d7f71d1a2422647ca773e830e18117ba8"
 role = "assertion"
 path = "crates/antecedent/src/analysis/recalc_bayesian_summary_tests.rs"
 items = ["fn close", "fn floats", "fn projections_equal_the_exact_rational_mean_sd_type7_quantiles_and_strict_proportion"]
-sha256 = "824ec0da928b8721e47423eba2a282e85d8e104bd45a8dc9b67eb7fa1d8d0152"
+sha256 = "44db9a386a9fba36486a3363ab04e747b1b0bc7229e1048144602e732a74b558"
 
 [[method_review.artifacts]]
 role = "reference"

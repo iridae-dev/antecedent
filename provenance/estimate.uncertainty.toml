@@ -55,7 +55,7 @@ sha256 = "571229247ad3bac486d72390443a919f640053b523684819277dc6d702d3c0df"
 role = "implementation"
 path = "crates/antecedent/src/result/uncertainty.rs"
 items = ["const REPORTED_SE_INTERVAL_LEVEL", "fn critical_value", "fn interval", "fn new", "fn positive_finite", "fn reported_se_interval_z", "fn select", "fn withhold_iv", "struct IntervalBinding", "struct PublishedScalarUncertainty"]
-sha256 = "a7337299e63e0afe3f0f8adb7404ed51219d99e73b201a350cdd1a6df790d62c"
+sha256 = "770ef67f2c1ca1bdb3f4764176ca7488b14d3053aba118379017d303e8807977"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

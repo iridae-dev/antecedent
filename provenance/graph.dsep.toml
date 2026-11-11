@@ -52,4 +52,4 @@ sha256 = "52648bfa431cd6c5d9118f14bcc54df9f708364896b82e536811bac4e34ab049"
 role = "assertion"
 path = "crates/antecedent-graph/src/dsep_tests.rs"
 items = ["enum EdgeKind", "fn chain3", "fn chain_blocked_by_middle", "fn collider_opens_with_conditioning", "fn endpoint_in_z_is_not_d_separated", "fn exists_active_path_dfs", "fn fork_blocked_by_common_cause", "fn has_descendant_in_z", "fn is_triple_active", "fn mutilation_removes_incoming", "fn path_oracle_d_separated", "fn property_dsep_witness_endpoints_and_activity", "fn property_matches_path_oracle_on_tiny_dags", "fn property_multi_treatment_mutilation_on_random_dags", "fn property_mutilation_drops_incoming_on_random_dags", "fn property_topological_order_on_random_dags", "fn random_dag", "fn random_dag_with_density", "fn sample_z_mask", "fn trail_active_under_z", "fn witness_returns_path_when_connected", "fn z_from_mask"]
-sha256 = "66f5acfe8132cc19d266bdbc938f5927c290fc854293304e8d7390e73ad7a796"
+sha256 = "1c4035e43bf1ea2ce4a6537380f2ca6b170c1966bca3eda64025b6da71744db6"

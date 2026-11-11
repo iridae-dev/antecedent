@@ -55,7 +55,7 @@ sha256 = "ca3c564bda17b8bc7cb097a8ea306d0fc38c5556911ecf44e2e911529c2a08b8"
 role = "assertion"
 path = "crates/antecedent-learn/tests/nested_markov_bayesian_reference.rs"
 items = ["fn asymmetric_counts_posterior_means_match_independent_quadrature", "fn coordinate_law_satisfies_the_verma_nested_markov_constraints", "fn gauss", "fn integrate", "fn low_count_full_joint_posterior_matches_independent_integration_and_prior_sensitivity", "fn moment", "fn terms", "fn weighted_quantile", "struct Reference", "struct Term"]
-sha256 = "8dd8f33a95129428aae665d7ff629205cf89d3ed45a82343da98944cdc7b69e6"
+sha256 = "cb4a72cd04537336d707643962e3d76bd42abe7c09dcd61ef1002ec42b483808"
 
 [[method_review.artifacts]]
 role = "reference"

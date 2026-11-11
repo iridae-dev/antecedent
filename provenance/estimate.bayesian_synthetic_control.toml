@@ -57,7 +57,7 @@ record_sha256 = "3c9b30f50cc2c01d1aa6c9d261bac25e3939f204059c4a335fe3877f404b3d0
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian_synthetic_control.rs"
 items = ["const CHAINS", "const CHAIN_SEED_STRIDE", "const MAX_RHAT", "const MIN_BULK_ESS", "const PATH_SEED_STRIDE", "const STEP_SCALES", "const THIN", "fn assemble", "fn below", "fn effect_draw", "fn fit_bayesian_synthetic_control", "fn new", "fn parse_panel", "fn period_paths", "fn power", "fn residuals", "fn run_chain", "fn transfer_step", "fn validate", "fn whitened_ss", "struct BayesianSyntheticControlEstimate", "struct BayesianSyntheticControlSpec", "struct ChainDraws", "struct ChainState", "struct ScPanel"]
-sha256 = "c5dd2943b060fd0f57ca3f31d4f5f0b9db61d3e2cbee9f126a2751e1862f63f3"
+sha256 = "2280ddf3c1a8eccf11c424ff395334d277ca13a65009ffe90023b4446dd59386"
 
 [[method_review.artifacts]]
 role = "assertion"

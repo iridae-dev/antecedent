@@ -43,7 +43,7 @@ record_sha256 = "49292292a6029aa084a7a29eae0882399d23ed954a6be166dc6b7ee92d1521f
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/weighting.rs"
 items = ["fn apply_target_weights", "fn arm_weighted_sums", "fn attach_bootstrap", "fn bootstrap_se", "fn clusters", "fn compute_ipw_weights", "fn compute_ipw_weights_into", "fn default", "fn fit", "fn fit_point", "fn fit_point_influence", "fn hajek_difference", "fn hajek_iid_se", "fn hajek_influence_values", "fn hajek_weighted_mean", "fn new", "fn prepare", "fn replicate_ate", "fn with_overlap", "fn with_sampling_weights", "struct HajekPropensity", "struct IpwReplicate", "struct PropensityWeighting"]
-sha256 = "ea3935f2594338350d4d2df736d11677ce08fe0e2e141fb9d167612103818c4d"
+sha256 = "a1934b842b45556060027e521848b8a5b52a6fd398dd389b91716581960a4c84"
 
 [[method_review.artifacts]]
 role = "assertion"

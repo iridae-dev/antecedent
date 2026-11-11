@@ -40,7 +40,7 @@ record_sha256 = "57ed8f0dd9e75ba61a9409d6829ef6462d797adaf86d1262448ef1e9acb49a0
 role = "implementation"
 path = "crates/antecedent-contract/src/callback_protocol/declaration.rs"
 items = ["const CALLBACK_OUTPUT_PORT", "const CALLBACK_PROTOCOL_VERSION", "const TAG_DECLARATION", "enum CallbackKind", "enum CallbackOperation", "enum CallbackTrust", "enum DependencyDeclaration", "enum DependencyKind", "enum InputSupplier", "enum ReplayContract", "enum RetryContract", "fn canonical_identity", "fn capability", "fn check_text", "fn complete", "fn contract_operation", "fn effective_evidence", "fn interface_contract", "fn label", "fn new", "fn provider_object", "fn tag", "fn update_object", "fn validate", "fn validate_dependencies_and_replay", "fn validate_identity", "fn validate_inputs", "fn validate_operations", "fn write_evidence", "fn write_support", "struct CallbackDeclaration", "struct CallbackDependency", "struct CallbackInput", "struct UpdateDeclaration"]
-sha256 = "cbde5079ddcdf086f6de495ef3a475c69753d993c03cab7ee499c37c6105ff2b"
+sha256 = "c081e97b1a39f232a34e52b53d344ff6db38de71bdfb614a8cd8d0740dccd098"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

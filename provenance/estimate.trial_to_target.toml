@@ -39,7 +39,7 @@ record_sha256 = "68862f0fba503a6f14690cbad4dc273ce8d803b8af1dfb1152330e018d1e093
 role = "implementation"
 path = "crates/antecedent-estimate/src/transport.rs"
 items = ["const EXTREME_WEIGHT_THRESHOLD", "fn catalog", "fn diagnostic", "fn ipw_influence", "fn kish_effective_sample_size", "fn outcomes", "fn require_dahabreh_compatible_formula", "fn treatments", "fn trial_aipw_row_scores", "fn trial_to_target_effect", "fn trial_to_target_ipw_se", "fn trial_to_target_parts", "fn validate_trial_to_target_inputs", "struct TransportEffectEstimate", "struct TransportOverlapDiagnostic", "struct TransportOverlapReport"]
-sha256 = "75361ef68d6f6f1d64022775f896234ac0d1797daf829d127ec9fb7f487759e6"
+sha256 = "8729ab4dca0bab61361fe614d91345831a0c91e463b7e6ff2aa4cb69607ef6b1"
 
 [[method_review.artifacts]]
 role = "assertion"

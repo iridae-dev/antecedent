@@ -25,7 +25,7 @@ record_sha256 = "b276e7a30d9829b557353294c17aa0090adc7740b7fb1cf9cad70dd7232e137
 role = "implementation"
 path = "crates/antecedent-validate/src/predictive_assessment/assess.rs"
 items = ["const ASSESSMENT_CAUSAL_VALIDITY", "const ASSESSMENT_FAMILY", "const ASSESSMENT_INFERENCE_CLAIM", "const CANCELLATION_STRIDE", "const MAX_ASSESSMENT_WORK", "const REPLAY_TOLERANCE", "fn admit_comparisons", "fn assess_predictive_laws", "fn assessment_identity", "fn assessment_identity_with_provenance", "fn canonical", "fn canonicalized", "fn close", "fn close_all", "fn close_opt", "fn compare_predictors", "fn comparison_predictors", "fn diagnostics_difference", "fn first_replay_difference", "fn interval_refusal", "fn new", "fn request_causal_validity", "fn request_score_as_probability", "fn request_score_interval", "fn resolve_comparisons", "fn score_predictor", "fn serial_lag", "fn sorted_keys", "fn validate_spec", "fn withheld", "struct AssessmentUncertainty", "struct FoldScore", "struct PredictiveAssessmentReport", "struct PredictiveAssessmentSpec", "struct PredictorAssessment", "struct ScoreIntervalRequest", "struct ScoreSummary"]
-sha256 = "02f495c8c595c41ded3a3e0b5c1282ee44e1cb6062105fa4a29bd8218a27a11c"
+sha256 = "b1b89cc66df4062a27b6661da1085ff3aafce5f11745b3e1960d48770a7ec394"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

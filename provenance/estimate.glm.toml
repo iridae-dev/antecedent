@@ -42,7 +42,7 @@ record_sha256 = "78e9d54cda875d51a1a5874e22232b42d1fdc8083d2bd485f95a3c81f526bec
 role = "implementation"
 path = "crates/antecedent-estimate/src/glm_adjustment.rs"
 items = ["fn attach_bootstrap", "fn bootstrap_se", "fn default", "fn fit", "fn fit_point", "fn new", "fn prepare", "fn with_sampling_weights", "struct GlmAdjustmentAte", "struct GlmAdjustmentWorkspace", "struct PreparedGlmProblem"]
-sha256 = "42cea648fe53f8e5112eb80b3b27e7499f9efb0fef51b235ef40013e62650ee8"
+sha256 = "62960b9d399763d70df40d242748c2c15157b14e21cbab33c4590631006495a4"
 
 [[method_review.artifacts]]
 role = "implementation"

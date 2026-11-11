@@ -36,4 +36,4 @@ record_sha256 = "1a16cb2ae2b51107d5a29abcca101879bc5d9cc24f3630b7d0b779f374a4413
 role = "implementation"
 path = "crates/antecedent-identify/src/experiment_regime.rs"
 items = ["module"]
-sha256 = "d192d8f2e9483719395307a6bbdb980eb5bb3a96179576ad089c6c680ac58151"
+sha256 = "d37e4162d4c7a672f110c731971dca4fecafab0f41c513746e56e798ad1dfba4"

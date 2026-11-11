@@ -39,7 +39,7 @@ record_sha256 = "8b4f98a5d1c4842ca02151e2b10241fb650c941c5d9e750d3ce9f0928e57c61
 role = "implementation"
 path = "crates/antecedent-estimate/src/survival.rs"
 items = ["enum SurvivalEndpoint", "fn arm_curve", "fn randomized_survival_ipcw_summary", "fn randomized_survival_summary", "struct KnownCensoring", "struct RandomizedSurvivalSummary", "struct SurvivalRows", "type ArmCurve"]
-sha256 = "22f9508e2f80dc2338977e06dbd5cc4dcddc64a5b27e861bbea84a23eaefa583"
+sha256 = "97ca5bd0e5af361744ebafd3b4f962b4f223183cf3269d03b741eddd45a54654"
 
 [[method_review.artifacts]]
 role = "assertion"

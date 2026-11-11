@@ -36,7 +36,7 @@ record_sha256 = "1ca98d9108c9a0d679cc90086c7e2084dad50f9262c80aa2b84ea07f52660a8
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/hierarchical_choice.rs"
 items = ["const CANCEL_STRIDE", "const MAX_DISTINCT_HISTOGRAMS", "const MAX_HIERARCHICAL_CHOICES", "const MAX_HIERARCHICAL_OPTIONS", "const PANEL_SCHEDULE", "const QUADRATURE_ERROR_LIMIT", "const V_LIMIT", "const ZOOM_CUT", "const ZOOM_GRID", "const ZOOM_ITERATIONS", "const ZOOM_SHRINK", "fn attempt", "fn cdf", "fn integrate", "fn interpolate", "fn log_target", "fn new", "fn place", "fn quantile", "fn regions", "fn respondents", "fn scratch", "fn share_interval", "fn summary", "fn zoom", "struct Cube", "struct HierarchicalChoicePosterior", "struct HierarchicalChoicePrior", "struct HierarchicalSummary", "struct Marginal", "struct Region", "struct Scratch"]
-sha256 = "a5c4a669685ebcf22ee8cdfcf408954f41e64b4b4bbd9e4456e68277bc6542bb"
+sha256 = "d5392b1cb4c9d0c474d8f683e25e402b962d4fddd630bf2b670dae7f75438ae4"
 
 [[method_review.artifacts]]
 role = "assertion"

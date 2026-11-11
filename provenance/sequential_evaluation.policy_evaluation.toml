@@ -51,7 +51,7 @@ record_sha256 = "cba15a7b0802f436b5d5468d277d4c860ef59ea7e1edd8ea3ebe53ee9046f96
 role = "implementation"
 path = "crates/antecedent-design/src/sequential_evaluation/gformula.rs"
 items = ["const DECLARED", "const RECEIPT_BLOCK", "enum Entered", "enum NodeKind", "fn admit_receipt", "fn check_support", "fn commit_tail", "fn default", "fn delayed_utility", "fn enter", "fn evaluate_policy", "fn incomplete", "fn visit", "fn walk", "struct ActionFrame", "struct DecisionReceipt", "struct EvaluationLimits", "struct Frame", "struct HistoryReceipt", "struct Node", "struct Pending", "struct PolicyEvaluation", "struct SequentialAssumptions", "struct Walker"]
-sha256 = "7465e43395cb205227ebf5429150737a9e88eb9d39f0f9f3d80744575cbbb5b2"
+sha256 = "3429dd7e020f4e8d478780f6c28ca2db60d1a39de3b6eafcb62493380f18c5cc"
 
 [[method_review.artifacts]]
 role = "implementation"

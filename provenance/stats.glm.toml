@@ -41,7 +41,7 @@ record_sha256 = "cd5e352093a4bc707adc82d77557178bb7b6cd31ce423080b1f403967f1df9e
 role = "implementation"
 path = "crates/antecedent-stats/src/glm.rs"
 items = ["const DEFAULT_RIDGE_ON_SEPARATION", "enum GlmFamily", "enum NbAlphaPolicy", "fn default", "fn fit_glm", "fn fit_glm_weighted", "fn new", "fn require_ok", "struct GlmDesignRef", "struct GlmFit", "struct GlmOptions"]
-sha256 = "e9bce9ed9ae80f30725ef6de376bcaaa1c0290e589e6c9ec91bbc411896f6579"
+sha256 = "ee5d0ee1f7f9f35958d57df457b1dee96f13d017909b57404639e83749867d03"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -65,7 +65,7 @@ sha256 = "0047db486007410638ca79acb4d59a567098cdcf45fe777de46ac6a7cae51aa4"
 role = "assertion"
 path = "crates/antecedent-stats/tests/glm_reference.rs"
 items = ["const REFERENCE", "fn an_iteration_limit_is_reported_as_non_convergence", "fn coefficient_error", "fn default_options_reach_the_same_estimates_as_tight_tolerances", "fn family_of", "fn fit_case", "fn fits_match_the_exact_maximum_likelihood_estimates", "fn floats", "fn invalid_outcomes_and_weights_are_refused", "fn negative_binomial_dispersion_policies_match_their_definitions", "fn optional_floats", "fn ridge_fits_match_the_exact_penalised_maximiser", "fn separated_logistic_fits_are_flagged_refused_and_ridge_refit_on_request", "fn tight"]
-sha256 = "6b92837497a50941af71e435c58e8693a6714d4174a587abb91cfd766aa86182"
+sha256 = "c45c59eaabe38831716d77a1c6452586819bebebeb8b867a4bf77ac100715b01"
 
 [[method_review.artifacts]]
 role = "reference"

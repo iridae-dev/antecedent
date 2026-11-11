@@ -28,7 +28,7 @@ record_sha256 = "3b5ae2558efdf524ef13e615dcac91755547286047b7ef840a97b7e3834032a
 role = "implementation"
 path = "crates/antecedent-contract/src/joint_law_rule.rs"
 items = ["const ASSUMPTION_RANGE_LABEL", "const JOINT_LAW_STAGE", "const POINT_ONLY_LABEL", "const UNCALIBRATED_SPREAD_LABEL", "enum InputAlignment", "enum InputRole", "enum PropagationClass", "enum PropagationDependence", "enum PropagationOperation", "enum PropagationRoute", "enum RequestedReading", "fn blank", "fn check_core", "fn check_envelope", "fn check_linear", "fn check_nonlinear", "fn check_propagation", "fn check_propagation_with_ledger", "fn check_rows_pairable", "fn check_rows_pairable_across", "fn check_transported", "fn class", "fn closed_reading", "fn common_alignment", "fn dependence_unknown", "fn finish_propagation", "fn invalid", "fn is_piece", "fn is_transported", "fn label", "fn ledger_shared_evidence", "fn min_inputs", "fn missing_pieces", "fn plan", "fn refuse", "fn remember_shared", "fn shared_evidence", "fn validate", "struct PropagationInput", "struct PropagationPlan", "struct PropagationRequest"]
-sha256 = "bba2c7e521582c5fdfadc3d85131d1c6036594cae59f4fdf6f82f7d69d96d760"
+sha256 = "e0ed4ab21cfc1536b7cb6776ca1ac7f0002ff9722b85a9b095d9e11cdb7fd928"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

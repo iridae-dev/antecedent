@@ -54,7 +54,7 @@ sha256 = "cff0ab7f97771f7d318d5d2763ee073d18be9fb9c5435375c0f433cf366e416c"
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/matching.rs"
 items = ["const BOUNDING_BOX_MIN_DIMENSION", "const DIRECT_RUN", "const MATCH_CANCELLATION_CHUNK", "enum CaliperScale", "enum SpatialIndex", "fn add_donor_usage", "fn check_label_lengths", "fn control_to_treated", "fn default", "fn donor_usage", "fn fit", "fn fit_linear_mean", "fn for_dimension", "fn from_donors", "fn match_diffs", "fn match_diffs_with", "fn match_nearest_k", "fn match_nearest_tied", "fn match_scalar_sorted", "fn match_target", "fn match_with_box_tree", "fn matched_outcome_diffs", "fn matched_point_effect", "fn matching_contrast", "fn mean_noise_inflation", "fn nearest", "fn new", "fn predict_linear", "fn prepare", "fn quote_exact_matching", "fn require_match_counts", "fn require_read_inference", "fn set_sizes", "fn treated_to_control", "fn with_caliper", "fn with_overlap", "fn with_sampling_weights", "struct MatchSide", "struct MatchedArms", "struct MatchedDiffs", "struct MatchedEffects", "struct MatchedEstimate", "struct MatchingSample", "struct SortedScalarIndex", "struct TiedDonors"]
-sha256 = "24c9aff6e61b9ef2305ec1a7cad486147ad3cf2676475d15918bdfc6dab47d25"
+sha256 = "4c9e9f8863415c4fd189a78af8541131d83675e58431074bdf7d73fc115c8876"
 
 [[method_review.artifacts]]
 role = "implementation"

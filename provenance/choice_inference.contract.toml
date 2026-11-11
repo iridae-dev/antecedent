@@ -56,7 +56,7 @@ sha256 = "c7b4353c1edced31a0d31a34cb2bff72e4a5fa18068c152de770498fc8a62beb"
 role = "implementation"
 path = "crates/antecedent-design/src/choice_evsi.rs"
 items = ["module"]
-sha256 = "e6734a2ab58d3b87f0bcec95caa1d0a617f3eedd7977aa898cda5edc594833ec"
+sha256 = "f903f6cc71d59129347955d2a2b1d6f41351cecf69ae9d43946d4466c92ca002"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

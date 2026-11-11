@@ -59,7 +59,7 @@ record_sha256 = "5eb6578709728dac92d6c9e3d2f6ae75610d6d8303077844e244c80a638f048
 role = "implementation"
 path = "crates/antecedent-model/src/program.rs"
 items = ["const PROGRAM_BLOCK_ROWS", "enum Op", "enum ProgramKind", "fn apply_node_program", "fn arith_columns", "fn arith_scalar", "fn column_workspace_bytes", "fn compile_columns", "fn emit", "fn evaluate_columns", "fn evaluate_columns_with_scratch", "fn from", "fn history_slot", "fn into_error", "fn kind", "fn lag_slots", "fn lowered_ops", "fn max_lag", "fn reads", "fn refusal_budget", "fn refusal_callback", "fn refusal_callback_declaration", "fn refusal_expression_invalid", "fn refusal_for_fault", "fn refusal_generated_unavailable", "fn refusal_history_not_past", "fn refusal_history_unavailable", "fn refusal_output_type", "fn refusal_undeclared_read", "fn refusal_unknown_variable", "fn run_block", "fn run_block_in_place", "fn step_callback", "fn step_columns", "struct NodeProgram", "struct PolicyRefusal"]
-sha256 = "8d91cfb12b1c9d413dfda32106747e313a704cd9867d88faa2f16de59c1570a0"
+sha256 = "9058ac46f68abeb24a77753aa289a4edcef1cfc73031220ab6a23c5a4f64c818"
 
 [[method_review.artifacts]]
 role = "assertion"

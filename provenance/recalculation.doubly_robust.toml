@@ -39,7 +39,7 @@ record_sha256 = "71f7f3145af76a84452b55f059c565fd2a9b416e00cb62edf279adbdbff499c
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_dr.rs"
 items = ["enum DrEstimator", "fn boundary", "fn data", "fn default", "fn dr_stage", "fn execute_dr_with_receipt", "fn export_predictor_result", "fn export_predictor_result_with_source", "fn export_scores", "fn family", "fn feature_bounds", "fn fitted_effect", "fn graph", "fn identities", "fn is_live", "fn new", "fn plan", "fn plan_ids", "fn predict", "fn prediction_columns", "fn recomputed", "fn resume", "fn score_table", "fn spec", "fn study", "fn supported", "fn validate", "struct DrRequest", "struct DrSession", "struct Live", "type DrStage"]
-sha256 = "b1f2027551edd714565e1531f77f2af467eaed879ecdf0058fc1a3d9feab42e5"
+sha256 = "de00b4f6be5b08f95aad3243df9795fca1ab6c149733c5d7275fc5cc2dd1ce8d"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

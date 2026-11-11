@@ -47,7 +47,7 @@ sha256 = "97575b682afb858f29f7d7464dd34e814df3756371674d1d81b22f9f2241a038"
 role = "assertion"
 path = "crates/antecedent-estimate/src/continuous_dose.rs"
 items = ["const N", "const PER_GROUP", "const REPLICATES", "const TRUTH", "fn dose_policy_refuses_unmapped_and_unsupported_local_targets", "fn fixed_dose_policy_value", "fn fixed_group_dose_policy_paired_intervals_cover_kernel_smoothed_truth", "fn fixed_group_dose_policy_support_boundary_covers_known_truth", "fn group_response", "fn nonuniform_density_heteroscedastic_intervals_cover_quadrature_truth", "fn nonuniform_density_policy_value_matches_quadrature_on_a_quantile_design", "fn policy_rules", "struct DosePolicyValue", "struct DoseRows", "struct DoseRules", "struct DoseWindow"]
-sha256 = "7a0d6365cf6906848573e188d5bf2b5cd32324ebcd407d2327affc20bfbfba51"
+sha256 = "0960450c767fc9dd59c0a2442d857497e86ec002030da6da3ff17a7f81709834"
 
 [[method_review.artifacts]]
 role = "reference"

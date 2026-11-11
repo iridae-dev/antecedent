@@ -20,7 +20,7 @@ record_sha256 = "0a8558654d0337d14d98ee0ab5c852882c9f7a50a0904ed9a51d60be60fd486
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_external.rs"
 items = ["const DEFAULT_ATTEMPT_LIMIT", "enum CallbackPolicy", "enum ExternalCallbackError", "fn admit_attempt", "fn bind_attested_output", "fn default", "fn digest", "fn execute", "fn export_output", "fn fmt", "fn identities", "fn invoke_attested_provider", "fn issued_claim", "fn label", "fn metadata_guard", "fn new", "fn plan", "fn plan_inputs", "fn plan_with_provider", "fn quantity_bounded", "fn response_bounded", "fn resume", "fn resume_with_limits", "fn text_identity", "fn validate", "fn with_metadata_limits", "struct CallbackContext", "struct CallbackFailure", "struct ExternalCallbackOutcome", "struct ExternalCallbackRequest", "struct ExternalCallbackSession", "struct ExternalMetadataLimits", "struct InvocationAttempt", "struct LiveOutput", "struct ProviderDescriptor", "trait ExternalMeanProvider"]
-sha256 = "3571571ff3fdc0a46340fbfa7a659536b574e487db13e7a88779ebae2fa4d20e"
+sha256 = "44c80a9c15d7ef7b2a6da1fd3744e51f65f92af51928dcc1139cc0034571225b"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

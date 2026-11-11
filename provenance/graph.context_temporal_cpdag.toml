@@ -38,7 +38,7 @@ record_sha256 = "324c69b67ca224d2fc3d36dee378370eea91bf44b3565f1daedad80cfa0aba6
 role = "implementation"
 path = "crates/antecedent-graph/src/cpdag.rs"
 items = ["fn add_context", "fn add_lagged", "fn add_node", "fn empty", "fn insert_directed", "fn insert_marked", "fn insert_undirected", "fn orient_undirected", "fn to_directed_skeleton", "fn try_into_temporal_dag", "struct TemporalCpdag"]
-sha256 = "82ed39373cdbbf97af94e5afe04d744d3cda4e9f76e2b0ac3138b44830deaba8"
+sha256 = "40c1189af8b6e0e5e82fdb9c5380468974e783e0d5e4ab778fb5ca43e44247bb"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

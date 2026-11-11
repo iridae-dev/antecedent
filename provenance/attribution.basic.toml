@@ -59,7 +59,7 @@ sha256 = "a1969c25dbfadd502210110b6d4fa93f1b99d37bdc068d89b258efdf98c7e73c"
 role = "assertion"
 path = "crates/antecedent-attribution/tests/anomaly_arrow_reference.rs"
 items = ["fn arrow_strength_is_the_cut_edge_divergence_and_the_variance_contribution_is_reported_too", "fn chain", "fn check_case", "fn close", "fn data_for", "fn degenerate_bulk_falls_back_to_the_mean_absolute_deviation_then_to_one", "fn empirical_reference_uses_the_median_and_scaled_mad_of_the_target_column", "fn f", "fn far_tail_scores_follow_the_exact_tail_across_the_asymptotic_switch", "fn fixed_reference_scores_and_exact_shapley_equal_the_definition", "fn linear", "fn reference"]
-sha256 = "5c281fbde4c61c213872b40cff159d0d4433b398fb03b8a68934cf265f520189"
+sha256 = "10b12c34a61cee1bb704808b11c796b1a4af0727bc8936f4c5fa68133cf52794"
 
 [[method_review.artifacts]]
 role = "reference"

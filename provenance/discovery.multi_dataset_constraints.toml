@@ -41,7 +41,7 @@ record_sha256 = "ee4c3e74096e332a800e44f91399bcf4f202bd04030ab91d259836b07010e1f
 role = "implementation"
 path = "crates/antecedent-discovery/src/constraints.rs"
 items = ["enum CiMaskType", "enum ContextKind", "enum CrossEnvLinkAssumption", "enum JpcmciNodeRole", "enum SpaceDummyCiMode", "enum TimeDummyCiMode", "fn allows_lagged_as_source", "fn build", "fn context_kind", "fn default", "fn gunther_forbids", "fn is_context", "fn is_dummy", "fn is_exogenous", "fn is_observed_context", "fn len", "fn message", "fn role_of", "struct DiscoveryConstraints", "struct MultiDatasetConstraints", "struct TemporalConstraints"]
-sha256 = "65bed20409a4efe485aecf0de1160644e911513ef2557368a78c1bf55490d545"
+sha256 = "1dff34b5176f037674fc8d3022e54e006d45012d678e67c897cf3d04caa40d74"
 
 [[method_review.artifacts]]
 role = "implementation"

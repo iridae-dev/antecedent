@@ -26,7 +26,7 @@ record_sha256 = "d3b74bf5d6e841bd4ddb1fb5556ce8858bc0f30877f9df56320f73ac82e83b1
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/execute_helpers_parametric.rs"
 items = ["enum ClassAtomOutcome", "fn class_structural_mixture", "fn envelope_to_identification_result", "fn envelope_to_identification_result_for", "fn identification_status_ok_for_case", "fn parametric_scm_identification", "fn parametric_scm_identification_over", "fn scalar_identified_set", "struct ClassMixtureFacts"]
-sha256 = "40ab79bb5ad3cda76c8bf6918330c9ccbcb0071a108ab16a6771cf46e1ea1e0a"
+sha256 = "903a98e85a35029c055f5fbc260b383ad8dc1813f0c2bb8f8a9e8e17f5520230"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

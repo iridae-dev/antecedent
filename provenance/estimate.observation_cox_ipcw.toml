@@ -32,7 +32,7 @@ record_sha256 = "ee14d5247c16eb922203a29de49e9d8d5cb36accbeabe0d5f3b965cc2cf7339
 role = "implementation"
 path = "crates/antecedent-stats/src/cox_ipcw.rs"
 items = ["enum Stopping", "fn baseline_at", "fn baseline_before", "fn cox_breslow", "fn cox_ipcw", "fn evaluate", "fn fit_standardized", "fn invalid", "fn linear_predictor", "fn new", "fn reset_accumulators", "struct CoxBreslowFit", "struct CoxIpcwFit", "struct CoxScratch", "struct StandardizedCox"]
-sha256 = "6c82b207eb2c08ee3f0452b2e9473d24c8c44cd9231359d33cf9195341b949e4"
+sha256 = "438be10d1a310e81d9032b13f61dac9ecc2f299b40d5090921c2fefbd3c90ea0"
 
 [[method_review.artifacts]]
 role = "assertion"

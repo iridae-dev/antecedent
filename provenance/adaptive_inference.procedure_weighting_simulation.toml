@@ -38,7 +38,7 @@ record_sha256 = "e56ea36634939fe548fbfc09f8788aa2ccc9048547bc7ebe8f0fa80eeba9ff8
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_simulation.rs"
 items = ["const CACHES", "const CACHE_ENTRY_BYTES", "const MAX_SIMULATION_REPLICATIONS", "const SIMULATION_CACHE_ENTRIES", "const STREAM_MIX", "fn draw", "fn effective_row", "fn mean_enrolled", "fn rule_stop_fraction", "fn simulate_one_procedure", "fn simulate_procedure", "fn simulate_procedure_within", "fn summarize", "struct ProcedureSimulationInput", "struct SimulatedLaw", "struct SimulatedReplicate", "struct SimulationRequest", "struct SimulationSummary", "struct Unit"]
-sha256 = "cc60cf763fcbb1daf5268c79176dc7dabbeaf30945f16be50d95795624d6b384"
+sha256 = "8c9c496549132f9d40a578f023ca3ba4a3fc7364be06b826142c08b044a34191"
 
 [[method_review.artifacts]]
 role = "assertion"

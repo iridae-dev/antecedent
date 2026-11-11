@@ -40,7 +40,7 @@ record_sha256 = "bc25f4e2001fb1b3c59a9aec5c72daed592d03743b2edf095a0eb01e194ec23
 role = "implementation"
 path = "crates/antecedent-estimate/src/survival_posterior.rs"
 items = ["const MAX_HAZARD_POSTERIOR_DRAWS", "const MIN_HAZARD_POSTERIOR_DRAWS", "fn arm_posteriors", "fn draw_curve", "fn interval_area", "fn randomized_piecewise_survival_posterior", "fn rmst_mean", "fn stay_factor", "fn survival_mean", "fn validate", "struct HazardGammaPrior", "struct IntervalHazardPosterior", "struct PiecewiseSurvivalPosterior"]
-sha256 = "47d86e1c47620f097c6d2b71e735cbe2fc9ac6c4eb5a898af74bd2e6a738a3fa"
+sha256 = "fd84119412e910b8b5680e1038fe0e43b34bb3aeaf2532be4b87d63f9aa66de0"
 
 [[method_review.artifacts]]
 role = "assertion"

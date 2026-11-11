@@ -51,7 +51,7 @@ sha256 = "e542ecbde3d75c4562577e9eddbfec41375c0f1e3b70d0164456d77888994288"
 role = "implementation"
 path = "crates/antecedent-model/src/compose/gaussian.rs"
 items = ["enum GaussianConditioningError", "fn add", "fn backward_solve", "fn cholesky_lower", "fn compile", "fn condition", "fn covariance_of", "fn div", "fn evidence_log_density", "fn forward_solve", "fn from_finite", "fn law", "fn law_with", "fn mean", "fn mean_contrast", "fn mean_contrast_uncertainty", "fn mean_of", "fn mul", "fn neg", "fn normalized", "fn observed", "fn position", "fn resolve", "fn spec", "fn sum", "fn to_f64", "fn variables", "fn variance_of", "struct ComposedLinearGaussian", "struct ConditionedGaussian", "struct ContrastArm", "struct FunctionalUncertainty", "struct JointGaussian", "struct MeanContrast", "struct Node", "struct Wide"]
-sha256 = "652e32d3f793d5a3283d609f7dbe0ff51218003f78910935defaa7a1de66087f"
+sha256 = "983c8935f31522ec4ef82ad0fd95317a289494dbf245a8977a1488b5eb937722"
 
 [[method_review.artifacts]]
 role = "implementation"

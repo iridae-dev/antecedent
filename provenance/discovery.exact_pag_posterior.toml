@@ -42,7 +42,7 @@ record_sha256 = "2a9c73af8710c39aaa823fc7146c66a0f7e4c815feaaa9ca35da56ee057b223
 role = "implementation"
 path = "crates/antecedent-discovery/src/exact_pag_posterior.rs"
 items = ["const CLASS_COMPLETION_CAP", "const LINKS", "const PAG_ENUM_MAX_NODES", "const PAG_MCMC_MAX_NODES", "const PAG_MCMC_WORK_BUDGET", "const RICF_SWEEPS", "const RICF_TOLERANCE", "enum Link", "enum Mark", "fn adjacent", "fn ancestral", "fn arrow_at", "fn bidirected", "fn charge", "fn cholesky", "fn class_pag", "fn code", "fn complete_class", "fn completion_connects", "fn completion_maximal", "fn completion_signature", "fn connects", "fn covariance_of", "fn default", "fn directed", "fn enumerate_mags", "fn exact_pag_posterior", "fn finish_posterior", "fn invert_spd", "fn link", "fn m_separated", "fn mag_bic", "fn maximal", "fn mix", "fn pag_posterior_mcmc", "fn pair_index", "fn reach", "fn residual_covariance", "fn signature", "fn solve_linear", "fn uniform_index", "fn work", "struct CompletionBudget", "struct Mixed", "struct PagMcmcSchedule", "fn pooled_class_frequencies"]
-sha256 = "f43d73500cb351a8b537b817026b33ac41c2b9020466975a961d3b42eb19ede6"
+sha256 = "b69dcffa72e56c8de150b0d8e02bcee6afe3bfb93fa24408931d5c04fc5460ea"
 
 [[method_review.artifacts]]
 role = "assertion"

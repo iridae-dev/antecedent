@@ -47,7 +47,7 @@ sha256 = "ef1c3ef5c606e4adc0a5c92addedf455130e81d259fc3f00d7098fcc19394328"
 role = "implementation"
 path = "crates/antecedent-stats/src/measurement_error/classification.rs"
 items = ["fn category_outcome_means", "fn check_count", "fn column_counts", "fn congruence", "fn corrected_categories", "fn corrected_prevalence", "fn corrected_risk_difference_differential", "fn corrected_risk_difference_nondifferential", "fn from_validation_counts", "fn levels", "fn matrix", "fn new", "fn one_norm", "fn require_youden", "fn youden", "struct BinaryErrorRates", "struct ConfusionMatrix", "struct CorrectedCategorical", "struct CorrectedProportion", "struct CorrectedRiskDifference", "struct ObservedClassSummary", "struct TwoByTwoCounts"]
-sha256 = "7200b43014cdac3eb8f07fbd62881eb9269506143dbdca2ffe05dc5cc3814135"
+sha256 = "caf7a5dc4c04f0705c127283e5d8a8e4c89de072bff2c6c829aebaeb9ec02a46"
 
 [[method_review.artifacts]]
 role = "assertion"

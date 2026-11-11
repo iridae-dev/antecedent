@@ -32,7 +32,7 @@ record_sha256 = "d85c442309e39e96190665df5772826868c9402d4290c3a3aa1b3c5cf04fccc
 role = "implementation"
 path = "crates/antecedent-contract/src/adaptive_design/declaration.rs"
 items = ["const ADAPTIVE_DESIGN_VERSION", "const MAX_CONTRACT_UNITS", "const PROBABILITY_ROW_TOLERANCE", "const STAGE_BIND", "enum BoundarySidedness", "enum DelayMechanism", "enum SpendingKind", "enum StoppingSpec", "fn admit_paradigm", "fn analysis_units", "fn arms", "fn as_str", "fn authorize_cell", "fn cell", "fn check_history", "fn check_monitoring", "fn check_rule", "fn check_shapes", "fn declaration", "fn declare_bind", "fn details", "fn identity", "fn identity_of", "fn invalid", "fn is_adaptive", "fn is_binary", "fn looks", "fn missing", "fn new", "fn required_elements", "fn units", "struct AdaptiveContractError", "struct AdaptiveDesignContract", "struct AdaptiveDesignDeclaration", "struct InterimAnalysis", "struct OutcomeAvailability", "struct PolicyEpoch", "struct RouteAuthorization", "struct StoppingRuleDeclaration"]
-sha256 = "0505b5a2c64b2394d7dcd84360464dc06c560842e99842b921b6bd725305f350"
+sha256 = "f1c56453df3f6e78be81d7b7b7db015851eaa697657529d98f41edceec5484e6"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

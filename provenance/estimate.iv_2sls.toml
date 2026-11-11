@@ -42,7 +42,7 @@ record_sha256 = "c5bed8c1d2f025ad87baa08812313862edc0c924338a25755be81f7c158b4fe
 role = "implementation"
 path = "crates/antecedent-estimate/src/iv.rs"
 items = ["const AR_LEVEL", "fn attach_anderson_rubin", "fn default", "fn fit", "fn new", "fn prepare", "fn prepare_iv_problem", "fn problem", "fn require_read_inference", "fn shared_slice", "fn unobserved_discrete_level", "fn wald_first_stage_diagnostics", "fn wald_ratio", "struct ArData", "struct PreparedIvProblem", "struct TwoStageLeastSquares", "struct TwoStageLeastSquaresWorkspace", "struct WaldIv", "struct WaldResult"]
-sha256 = "5a939fcb91845288fe37568c50c8ba79af5569de1d04450249b3f159ee462cd1"
+sha256 = "09ed9f206e96e4604061947549c570bab344034fd87df8d8e9af52c42d64c6d2"
 
 [[method_review.artifacts]]
 role = "implementation"

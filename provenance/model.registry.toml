@@ -186,7 +186,7 @@ sha256 = "0856fe08dffdcbf2dfcda194a05b9ecc5aff1670f6ffd0c117d1af66dbe6e713"
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_weighted_refit_reference.rs"
 items = ["fn close", "fn floats", "fn table", "fn weighted_linear_gaussian_refits_match_exact_weighted_least_squares"]
-sha256 = "911ef7645c3942fa4e4d4f794d8b08145468e9d21bb7de044f17aab34c78afe6"
+sha256 = "78d412dd924cba9c26917e9076dc062178d49b1d7e2234cea585137073d360e5"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -204,7 +204,7 @@ sha256 = "97a356809da99c2050c5e232cade1c88838572d9db792fcefcd53222821d181c"
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_state_space_reference.rs"
 items = ["fn all_close", "fn close", "fn floats", "fn registry_state_space_reference_em_fit_matches_joint_law_em", "fn registry_state_space_reference_filter_and_smoother_match_exact_rational_recursions", "fn registry_state_space_reference_predictive_density_is_unit_free", "fn table"]
-sha256 = "7795b90196d8f1431aa47efc78bb8ca04501bb51b0ed6cc703abea8bc675dab9"
+sha256 = "8d311d83aafebbce7895643eb9ea98ff52db09524bb514dd74373471a9c2d813"
 
 [[method_review.artifacts]]
 role = "assertion"

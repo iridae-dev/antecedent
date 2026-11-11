@@ -45,7 +45,7 @@ sha256 = "5c805e2c3ce8ca359d5b2e86abbedca1b9b22c81281c9e3d430bbd882b3b2b15"
 role = "implementation"
 path = "crates/antecedent-prob/src/laplace.rs"
 items = ["fn fit", "fn fit_gaussian_laplace", "fn fit_gaussian_laplace_known", "fn fit_laplace_glm", "fn fit_laplace_glm_inner", "fn fit_laplace_glm_owned", "fn gaussian_normal_equations", "fn laplace_derivatives", "fn laplace_line_search", "fn sample_gaussian_mvn"]
-sha256 = "dfae743a45a9cb7947311e7ab2dc395c4767082ad7708e2c52b86c221929ee31"
+sha256 = "f15c64483b76a6d837f45e2906798f1dd93ba53789efe6a7faf41fd94998becc"
 
 [[method_review.artifacts]]
 role = "assertion"

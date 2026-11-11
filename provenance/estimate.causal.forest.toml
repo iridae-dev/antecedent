@@ -41,7 +41,7 @@ record_sha256 = "b3abf9dd36eb49ff1dc601521b4869ea0aed7d989a26452b93e1b6f7e76b776
 role = "implementation"
 path = "crates/antecedent-estimate/src/causal_forest.rs"
 items = ["const MIN_CUTS", "const SUBSAMPLE_FRACTION", "enum Node", "fn aggregate_forest_cate", "fn arm_slot", "fn best_split", "fn candidate_thresholds", "fn choose_features", "fn cluster_subsample", "fn fill_cate", "fn fit", "fn fit_internal", "fn grow_from", "fn grow_tree", "fn ix", "fn leaf", "fn leaf_dispersion_from_leaf_ses", "fn leaf_stat", "fn len", "fn marginal", "fn new", "fn partition_rows", "fn physical_rows", "fn portable_forest", "fn portable_nodes", "fn predict_leaf", "fn prepare", "fn presorted", "fn require_row_units", "fn split", "fn subsample", "fn tau_from_sums", "fn with_cluster_dml", "fn with_cluster_ids", "fn with_honesty", "fn with_max_cuts", "fn with_max_depth", "fn with_min_leaf", "fn with_n_trees", "fn with_source_cluster_ids", "struct CausalForest", "struct ForestCate", "struct ForestData", "struct LeafEstimate", "struct NodeRows", "struct Split", "struct TreeShape", "type Row"]
-sha256 = "160d3c56322b750ef71604447f77f9a85fa2e501da4d828c8ba649ced273de40"
+sha256 = "0bb2154be0b78928fcf90973a32c3b91b0bf8ec4d7dd969517a2e5c9020e2fe2"
 
 [[method_review.artifacts]]
 role = "assertion"

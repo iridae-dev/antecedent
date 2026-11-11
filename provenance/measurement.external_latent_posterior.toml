@@ -41,7 +41,7 @@ record_sha256 = "2fb56d512c515d61519a78ea4ad0568bf18eaf548584d9bf427804b4c5b4d13
 role = "implementation"
 path = "crates/antecedent-stats/src/measurement_error.rs"
 items = ["const MAX_MEASUREMENT_COVARIATES", "const MAX_MEASUREMENT_ROWS", "enum MeasurementErrorError", "fn accumulate", "fn finite_all", "fn from_external_replicates", "fn from_main_sample_replicates", "fn from_validation", "fn group_statistics", "fn implied_reliability", "fn known", "fn linear_functional", "fn matmul", "fn matvec", "fn replicate_variance_components", "fn solve", "fn standard_error", "fn transpose", "struct CorrectedLinear", "struct ErrorVariance", "struct LinearErrorData", "struct LinearMoments", "struct ValidationSummary", "struct VarianceComponents"]
-sha256 = "686d6567e24b5dc580c795666168468bd1c089555be6313830536a1637df821a"
+sha256 = "4cd2e5d71be4050314b2c1e362d65c83c5720125ac0c33649660a41b51bb504e"
 
 [[method_review.artifacts]]
 role = "implementation"

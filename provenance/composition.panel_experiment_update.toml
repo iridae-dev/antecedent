@@ -51,7 +51,7 @@ record_sha256 = "31973837b1746f5e803eb02a11a098644bec28a8e8915f304db00512e952b3f
 role = "implementation"
 path = "crates/antecedent-prob/src/finite_belief.rs"
 items = ["fn condition", "fn invalid", "fn linear_functional_rows", "struct AffineGaussianExperiment", "struct JointAffineGaussianExperiment"]
-sha256 = "3629cfedc295d2dbbe10083ede9f76b3541460f9e11526c5d30070099cdd28ba"
+sha256 = "4bccc22a00a1778a9c1f83130569d8d23ae7259023da5654f0328ecbe8366b7e"
 
 [[method_review.artifacts]]
 role = "assertion"

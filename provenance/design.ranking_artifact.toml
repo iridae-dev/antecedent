@@ -75,7 +75,7 @@ sha256 = "b5b3218e5805e94efb0f0af5a130a2d699a20cf0fe1152c559641da5fcaadafb"
 role = "implementation"
 path = "crates/antecedent-design/src/design_ranking_artifact/consuming.rs"
 items = ["fn check_bounds", "fn check_costs", "fn check_decision", "fn check_signal", "fn consume", "fn consume_wire_with_limits", "fn consume_with_limits", "fn rank_key", "fn rebuild_ranking", "fn signal_request_of", "fn trust_limit", "fn trust_limit_unreceipted", "fn verify_candidate", "fn verify_order", "fn verify_search"]
-sha256 = "f05b1ec7952217ba1086bbbd05e0bdb2809439dff4fb5b0492b74d561a50d968"
+sha256 = "0652b58208cab031cdeb68dbceda8e6a01532442478c26e1e83cfc6a5eddeb8f"
 
 [[method_review.artifacts]]
 role = "assertion"
