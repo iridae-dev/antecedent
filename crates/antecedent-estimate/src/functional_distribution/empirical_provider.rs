@@ -16,6 +16,21 @@ pub(super) struct EncodedColumns {
     n: usize,
     pub(super) row_ids: Vec<usize>,
     columns: HashMap<VariableId, EncodedColumn>,
+    /// Mixed-radix row keys by variable list, computed on first use. They depend on the
+    /// codes alone, so every weighted draw over these rows shares them.
+    row_keys: RowKeys,
+}
+
+/// A row with a missing level under [`RowKeys`].
+const NO_KEY: u32 = u32::MAX;
+
+#[derive(Debug, Default)]
+struct RowKeys(Mutex<HashMap<Vec<VariableId>, Arc<[u32]>>>);
+
+impl Clone for RowKeys {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -24,6 +39,8 @@ pub(super) struct EncodedColumn {
     pub(super) codes: Vec<u32>,
     /// Level value by code.
     pub(super) levels: Arc<[Value]>,
+    /// [`Self::observed_codes`], computed on first use.
+    observed: std::sync::OnceLock<Vec<u32>>,
 }
 
 impl EncodedColumns {
@@ -54,9 +71,9 @@ impl EncodedColumns {
                     "variable exceeds discrete level cap for functional.distribution",
                 ));
             }
-            columns.insert(id, EncodedColumn { codes: col.codes, levels: Arc::from(col.levels) });
+            columns.insert(id, EncodedColumn::new(col.codes, Arc::from(col.levels)));
         }
-        Ok(Self { n, row_ids: (0..n).collect(), columns })
+        Ok(Self { n, row_ids: (0..n).collect(), columns, row_keys: RowKeys::default() })
     }
 
     /// Row count.
@@ -81,14 +98,52 @@ impl EncodedColumns {
                     .iter()
                     .map(|&i| col.codes.get(i).copied().unwrap_or(DiscreteColumn::MISSING))
                     .collect();
-                (id, EncodedColumn { codes, levels: Arc::clone(&col.levels) })
+                (id, EncodedColumn::new(codes, Arc::clone(&col.levels)))
             })
             .collect();
-        Self { n: idx.len(), row_ids: idx.iter().map(|&i| self.row_ids[i]).collect(), columns }
+        Self {
+            n: idx.len(),
+            row_ids: idx.iter().map(|&i| self.row_ids[i]).collect(),
+            columns,
+            row_keys: RowKeys::default(),
+        }
     }
 
     pub(super) fn column(&self, id: VariableId) -> Result<&EncodedColumn, EstimationError> {
         self.columns.get(&id).ok_or_else(|| EstimationError::data_msg("missing column"))
+    }
+
+    /// The mixed-radix key of every row over `ids` (first variable most significant), or
+    /// [`NO_KEY`] where a level is missing; rows past the shortest column have no key.
+    /// `cells` is the product of the columns' level counts, bounded by the caller.
+    fn keys_over(
+        &self,
+        ids: &[VariableId],
+        cols: &[&EncodedColumn],
+        cells: usize,
+    ) -> Result<Arc<[u32]>, EstimationError> {
+        let mut cache = self.row_keys.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(keys) = cache.get(ids) {
+            return Ok(Arc::clone(keys));
+        }
+        if u32::try_from(cells).map_or(true, |cells| cells >= NO_KEY) {
+            return Err(EstimationError::data_msg("too many joint cells to key a CPT"));
+        }
+        let rows = cols.iter().map(|column| column.codes.len()).min().unwrap_or(self.n);
+        let mut keys = vec![0_u32; rows];
+        for column in cols {
+            let radix = column.levels.len() as u32;
+            for (key, &code) in keys.iter_mut().zip(&column.codes) {
+                *key = if *key == NO_KEY || code == DiscreteColumn::MISSING {
+                    NO_KEY
+                } else {
+                    *key * radix + code
+                };
+            }
+        }
+        let keys: Arc<[u32]> = Arc::from(keys);
+        cache.insert(ids.to_vec(), Arc::clone(&keys));
+        Ok(keys)
     }
 
     /// Test constructor from explicit cells (`None` = missing); levels in first-seen order.
@@ -112,10 +167,10 @@ impl EncodedColumns {
                         }
                     })
                     .collect();
-                (id, EncodedColumn { codes, levels: Arc::from(levels) })
+                (id, EncodedColumn::new(codes, Arc::from(levels)))
             })
             .collect();
-        Self { n, row_ids: (0..n).collect(), columns }
+        Self { n, row_ids: (0..n).collect(), columns, row_keys: RowKeys::default() }
     }
 
     /// Test view of one column as cells.
@@ -130,17 +185,26 @@ impl EncodedColumns {
 }
 
 impl EncodedColumn {
+    fn new(codes: Vec<u32>, levels: Arc<[Value]>) -> Self {
+        Self { codes, levels, observed: std::sync::OnceLock::new() }
+    }
+
     /// Codes that occur in the sample, in order of first appearance.
     fn observed_codes(&self) -> Vec<u32> {
-        let mut seen = vec![false; self.levels.len()];
-        let mut order = Vec::new();
-        for &code in &self.codes {
-            if code != DiscreteColumn::MISSING && !std::mem::replace(&mut seen[code as usize], true)
-            {
-                order.push(code);
-            }
-        }
-        order
+        self.observed
+            .get_or_init(|| {
+                let mut seen = vec![false; self.levels.len()];
+                let mut order = Vec::new();
+                for &code in &self.codes {
+                    if code != DiscreteColumn::MISSING
+                        && !std::mem::replace(&mut seen[code as usize], true)
+                    {
+                        order.push(code);
+                    }
+                }
+                order
+            })
+            .clone()
     }
 }
 
@@ -496,27 +560,14 @@ fn construct_cpt_entries(
     let mut joint = vec![0.0_f64; var_cells * cond_cells];
     let mut marg = vec![0.0_f64; cond_cells];
     let mut total = 0.0;
-    // Mixed-radix key of one row over `cols`; `None` when a code is absent or missing.
-    let row_key = |cols: &[&EncodedColumn], row: usize| -> Option<usize> {
-        let mut key = 0usize;
-        for column in cols {
-            let code = *column.codes.get(row)?;
-            if code == DiscreteColumn::MISSING {
-                return None;
-            }
-            key = key * column.levels.len() + code as usize;
-        }
-        Some(key)
-    };
-    for row in 0..n {
+    let cond_keys = columns.keys_over(cond, &cond_cols, cond_cells)?;
+    let var_keys = columns.keys_over(vars, &var_cols, var_cells)?;
+    for (row, (&cond_key, &var_key)) in cond_keys.iter().zip(var_keys.iter()).enumerate().take(n) {
         let weight = weights.map_or(1.0, |w| w.get(row).copied().unwrap_or(0.0));
-        if weight <= 0.0 {
+        if weight <= 0.0 || cond_key == NO_KEY || var_key == NO_KEY {
             continue;
         }
-        let (Some(cond_key), Some(var_key)) = (row_key(&cond_cols, row), row_key(&var_cols, row))
-        else {
-            continue;
-        };
+        let (cond_key, var_key) = (cond_key as usize, var_key as usize);
         *marg.get_mut(cond_key).ok_or_else(too_many)? += weight;
         *joint.get_mut(var_key * cond_cells + cond_key).ok_or_else(too_many)? += weight;
         total += weight;
