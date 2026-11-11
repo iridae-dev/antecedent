@@ -323,6 +323,41 @@ class ManifestTests(unittest.TestCase):
         manifest["inputs"][0]["name"] = "PATH"
         self.assertFalse(self.check(manifest)["current"])
 
+    def test_another_targets_declaration_is_not_an_input_of_a_binary(self):
+        git = lambda *args: subprocess.run(["git", *args], cwd=self.root, check=True, capture_output=True, text=True)  # noqa: E731
+        base = ('[package]\nname = "c"\nautotests = false\n\n[features]\nslow = []\n\n'
+                '[[test]]\nname = "mine"\npath = "tests/mine.rs"\nrequired-features = ["slow"]\n')
+        self.write("crates/c/Cargo.toml", base)
+        git("init", "-q")
+        git("-c", "user.email=t@t", "-c", "user.name=t", "add", "crates/c/Cargo.toml")
+        git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "bound")
+        commit = git("rev-parse", "HEAD").stdout.strip()
+        bound = em.digest((self.root / "crates/c/Cargo.toml").read_bytes())
+        test = {"nix_build": {"source": {"commit": commit},
+                              "artifact": {"target_kind": "test", "target_name": "mine"}}}
+        lib = {"nix_build": {"source": {"commit": commit},
+                             "artifact": {"target_kind": "lib", "target_name": "c"}}}
+        same = lambda manifest: em.Checker(self.root, {}).same_build_manifest_as_bound(  # noqa: E731
+            "crates/c/Cargo.toml", bound, manifest)
+        added = base + '\n[[test]]\nname = "new"\npath = "tests/new.rs"\nrequired-features = ["slow"]\n'
+        self.write("crates/c/Cargo.toml", added + '\n[[bench]]\nname = "b"\n\n[[example]]\nname = "e"\n')
+        self.assertTrue(same(test))
+        self.assertTrue(same(lib))
+        # The record's own declaration, and every table a build reads, stay inputs.
+        self.write("crates/c/Cargo.toml", base.replace('required-features = ["slow"]', 'harness = false'))
+        self.assertFalse(same(test))
+        self.assertTrue(same(lib))
+        self.write("crates/c/Cargo.toml", added.replace("slow = []", 'slow = ["dep:x"]'))
+        self.assertFalse(same(test))
+        self.assertFalse(same(lib))
+        self.write("crates/c/Cargo.toml", added + '\n[[bin]]\nname = "tool"\n')
+        self.assertFalse(same(test))
+        # Bytes the bound commit does not hold, or no build provenance, owe.
+        self.write("crates/c/Cargo.toml", added)
+        self.assertFalse(em.Checker(self.root, {}).same_build_manifest_as_bound(
+            "crates/c/Cargo.toml", em.digest(b"other"), test))
+        self.assertFalse(same({}))
+
     def test_membership_in_a_git_work_tree_skips_ignored_files_only(self):
         git = lambda *args: subprocess.run(["git", *args], cwd=self.root, check=True, capture_output=True)  # noqa: E731
         self.write(".gitignore", ".DS_Store\n*.so\n")

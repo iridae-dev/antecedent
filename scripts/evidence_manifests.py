@@ -115,6 +115,34 @@ def rust_text_digest(text: str) -> str:
     return digest(b"rust-text\0" + normalized_rust(text).encode("utf-8"))
 
 
+# Cargo target declarations that are separate executables: building one target never
+# reads another's table, so another target's declaration is not an input of a binary.
+OTHER_TARGET_TABLES = ("test", "bench", "example")
+
+
+def build_manifest_digest(data: bytes, target: str | None) -> str | None:
+    """Digest of a Cargo.toml as the build of one executable reads it: every `[[test]]`,
+    `[[bench]]` and `[[example]]` declaration removed except the one named `target` (the
+    record's own test target; `None` for a library unit-test binary or a dependency's
+    manifest). Package, library, binary, feature, dependency, lint and profile tables are
+    kept whole. `None` when the bytes are not a TOML manifest of that shape."""
+    import tomllib
+    try:
+        parsed = tomllib.loads(data.decode("utf-8"))
+        for table in OTHER_TARGET_TABLES:
+            entries = parsed.pop(table, None)
+            if entries is None:
+                continue
+            if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
+                return None
+            own = [e for e in entries if target is not None and table == "test" and e.get("name") == target]
+            if own:
+                parsed[table] = own
+        return digest(b"cargo-build-manifest\0" + canonical(parsed))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError, TypeError, ValueError):
+        return None
+
+
 def canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
                       allow_nan=False).encode("utf-8")
@@ -475,6 +503,35 @@ class Checker:
         bound_text = cache[(commit, key)]
         return bool(bound_text) and bound_text == self.rust_text(key)
 
+    def same_build_manifest_as_bound(self, key: str, bound: str, manifest: dict) -> bool:
+        """Whether a Cargo.toml bound by raw bytes differs from them only in the
+        declarations of other test, bench or example targets, which the build of the
+        record's executable does not read (`build_manifest_digest`).
+
+        As for Rust code, the bound bytes come from the commit the record's Nix build used
+        and must hash to the recorded digest; the record's own target comes from that
+        build's artifact. Anything else leaves the input changed."""
+        build = manifest.get("nix_build") or {}
+        commit = build.get("source", {}).get("commit")
+        artifact = build.get("artifact") or {}
+        if (not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit)
+                or artifact.get("target_kind") not in ("lib", "test")):
+            return False
+        target = artifact.get("target_name") if artifact["target_kind"] == "test" else None
+        if target is not None and not isinstance(target, str):
+            return False
+        cache = self.__dict__.setdefault("_bound_build_manifest", {})
+        if (commit, key, target) not in cache:
+            shown = subprocess.run(["git", "show", f"{commit}:{key}"], cwd=self.root, capture_output=True)
+            data = shown.stdout if shown.returncode == 0 else None
+            cache[(commit, key, target)] = (data is not None and digest(data) == bound
+                                            and build_manifest_digest(data, target))
+        bound_build = cache[(commit, key, target)]
+        path = self.path(key)
+        if not bound_build or not path.is_file():
+            return False
+        return bound_build == build_manifest_digest(path.read_bytes(), target)
+
     def input_digest(self, kind: str, key: str) -> str:
         cache_key = kind, key
         if cache_key in self.cache:
@@ -581,6 +638,11 @@ class Checker:
                         # Bound by raw bytes before code text was recorded: recover the bound
                         # bytes from the commit the record was built from and compare as code.
                         unchanged = self.same_code_as_bound(key, entry["digest"], manifest)
+                    elif (not unchanged and kind == "evidence_file"
+                          and PurePosixPath(key).name == "Cargo.toml"):
+                        # A new target declared beside the record's own is not an input of
+                        # its binary: compare the manifest as that build reads it.
+                        unchanged = self.same_build_manifest_as_bound(key, entry["digest"], manifest)
                 if not unchanged:
                     reasons.append(f"input_changed:{kind}:{key}")
             result["current"] = not reasons
