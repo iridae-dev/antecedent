@@ -629,10 +629,11 @@ def record_shape_problems(rec: dict, collector, root: Path) -> list[str]:
     )
     if rid != expected and not rid.startswith(expected + "."):
         problems.append(f"{label}: id does not match its fields ({expected}[.<label>])")
-    if (
-        rid.startswith(expected + ".")
-        and _sanitize(rid[len(expected) + 1 :]) != rid[len(expected) + 1 :]
-    ):
+    # A schema-2 id carries its validation mode (and an accepted structure) as segments of their
+    # own (`.v2_<mode>`) ahead of any label; the label after them is sanitized like any other.
+    suffix = rid[len(expected) + 1 :] if rid.startswith(expected + ".") else ""
+    suffix = re.sub(r"^(?:v2_[a-z_]+(?:\.|$))+", "", suffix)
+    if suffix and _sanitize(suffix) != suffix:
         problems.append(f"{label}: record label is not sanitized")
     sha = str(rec["calibration_sha"])
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
