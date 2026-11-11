@@ -252,6 +252,7 @@ impl OrderMcmc {
                         pending_order: initial_order.clone(),
                         pending_mask: initial_mask.clone(),
                         pos_scratch: Vec::with_capacity(n),
+                        max_parents: prior.constraints.max_parents,
                     })
                     .collect();
                 let run = run_tempered_mask_chain(
@@ -311,6 +312,8 @@ struct OrderWalker<T> {
     pending_order: Vec<usize>,
     pending_mask: AdjacencyMask,
     pos_scratch: Vec<usize>,
+    /// The prior's cap on the parents of any node, which the edge move respects by exchange.
+    max_parents: Option<usize>,
 }
 
 impl<T: ChainTarget> OrderWalker<T> {
@@ -381,6 +384,7 @@ impl<T: ChainTarget> MaskChain for OrderWalker<T> {
             rng,
             &mut self.pending_order,
             &mut self.pos_scratch,
+            self.max_parents,
         );
         0
     }
@@ -422,6 +426,7 @@ fn propose_order(
     rng: &mut CausalRng,
     new_order: &mut Vec<usize>,
     pos: &mut Vec<usize>,
+    max_parents: Option<usize>,
 ) -> AdjacencyMask {
     new_order.clear();
     new_order.extend_from_slice(order);
@@ -460,6 +465,20 @@ fn propose_order(
             let (from, to) = if pos[a] < pos[b] { (a, b) } else { (b, a) };
             let on = new_mask.has_edge(n, from, to);
             new_mask.set_edge(n, from, to, !on);
+            // Adding a parent to a node already at the cap exchanges one of its parents, chosen
+            // uniformly, for the new one. The reverse of the exchange is the same move from the
+            // other state (the node is at the cap in both), so the proposal stays symmetric; a
+            // flip that would only exceed the cap was always rejected, which left a capped
+            // node's parent set reachable only through a lower-scoring state with one fewer.
+            if !on && let Some(cap) = max_parents {
+                let parents: Vec<usize> =
+                    (0..n).filter(|&p| p != from && mask.has_edge(n, p, to)).collect();
+                if parents.len() >= cap && !parents.is_empty() {
+                    let out =
+                        parents[crate::indexing::bounded_index(rng.next_u64(), parents.len())];
+                    new_mask.set_edge(n, out, to, false);
+                }
+            }
         }
     }
     new_mask
@@ -589,6 +608,9 @@ mod tests {
                         pending_order: (0..n).collect(),
                         pending_mask: AdjacencyMask::EMPTY,
                         pos_scratch: Vec::with_capacity(n),
+                        // The forest law caps every node at one parent: the parent exchange
+                        // runs at every capped flip, so the exact law checks it too.
+                        max_parents: Some(1),
                     })
                     .collect();
                 let plan = MaskChainPlan {
@@ -622,7 +644,7 @@ mod tests {
         let (mut proposed, mut pos) = (Vec::new(), Vec::new());
         let mut moved_to = [false; 10];
         for _ in 0..4_000 {
-            let new_mask = propose_order(&order, &mask, n, &mut rng, &mut proposed, &mut pos);
+            let new_mask = propose_order(&order, &mask, n, &mut rng, &mut proposed, &mut pos, None);
             let mut sorted = proposed.clone();
             sorted.sort_unstable();
             assert_eq!(sorted, (0..n).collect::<Vec<_>>());
