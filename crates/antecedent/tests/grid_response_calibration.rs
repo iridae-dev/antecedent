@@ -73,7 +73,7 @@ use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, response_normal_pair, response_posterior_pairs,
 };
 use common::static_dgp::response_data;
-use grid_cell::{Cell, IntervalPair, Target, measure};
+use grid_cell::{Cell, IntervalPair, Target, measure, sharing_base};
 
 /// Base sample size of the derivative designs.
 const N_DERIVATIVE: usize = 1000;
@@ -907,462 +907,506 @@ fn measure_coordinate(
 
 macro_rules! coverage_tests {
     ($(
-        $name:ident: $family:literal, $class:ident, $query:ident, $mode:ident,
-        [$(($via:ident, $suite:ident)),+ $(,)?];
+        $name:ident: $family:literal,
+        $($class:ident, $query:ident, $mode:ident, [$(($via:ident, $suite:ident)),+ $(,)?]),+;
     )+) => {$(
         #[test]
         #[ignore = "calibration: run via scripts/measure_calibration.sh"]
         fn $name() {
-            measure_coordinate(
-                stringify!($name),
-                $family,
-                Class::$class,
-                Query::$query,
-                Mode::$mode,
-                &[$(($via, RefuteSuite::$suite)),+],
-            );
+            sharing_base(|| {$(
+                measure_coordinate(
+                    stringify!($name),
+                    $family,
+                    Class::$class,
+                    Query::$query,
+                    Mode::$mode,
+                    &[$(($via, RefuteSuite::$suite)),+],
+                );
+            )+});
         }
     )+};
 }
 
 coverage_tests! {
-    point_derivative_dag_given_frequentist_coverage: 0x52E5_0000, Dag, Point, Frequentist, [
-        (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
-    point_derivative_dag_given_bayesian_coverage: 0x52E5_0001, Dag, Point, Bayesian, [
-        (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
-    point_derivative_dag_graph_posterior_frequentist_coverage: 0x52E5_0002, Dag, Point, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    point_derivative_dag_graph_posterior_bayesian_coverage: 0x52E5_0003, Dag, Point, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    point_derivative_cpdag_given_frequentist_coverage: 0x52E5_0004, Cpdag, Point, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    point_derivative_cpdag_given_bayesian_coverage: 0x52E5_0005, Cpdag, Point, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    point_derivative_cpdag_graph_posterior_frequentist_coverage: 0x52E5_0006, Cpdag, Point, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    point_derivative_cpdag_graph_posterior_bayesian_coverage: 0x52E5_0007, Cpdag, Point, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    point_derivative_pag_given_frequentist_coverage: 0x52E5_0008, Pag, Point, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    point_derivative_pag_given_bayesian_coverage: 0x52E5_0009, Pag, Point, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    point_derivative_pag_graph_posterior_frequentist_coverage: 0x52E5_000A, Pag, Point, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    point_derivative_pag_graph_posterior_bayesian_coverage: 0x52E5_000B, Pag, Point, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    point_derivative_admg_given_frequentist_coverage: 0x52E5_000C, Admg, Point, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    point_derivative_admg_given_bayesian_coverage: 0x52E5_000D, Admg, Point, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    point_derivative_admg_graph_posterior_frequentist_coverage: 0x52E5_000E, Admg, Point, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    point_derivative_admg_graph_posterior_bayesian_coverage: 0x52E5_000F, Admg, Point, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    point_derivative_temporal_admg_graph_posterior_frequentist_coverage: 0x52E5_0010, TemporalAdmg, Point, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    point_derivative_temporal_admg_graph_posterior_bayesian_coverage: 0x52E5_0011, TemporalAdmg, Point, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    plain_elasticity_dag_given_frequentist_coverage: 0x52E5_0012, Dag, Elasticity, Frequentist, [
-        (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
-    ];
-    plain_elasticity_dag_given_bayesian_coverage: 0x52E5_0013, Dag, Elasticity, Bayesian, [
-        (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
-    plain_elasticity_dag_graph_posterior_frequentist_coverage: 0x52E5_0014, Dag, Elasticity, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    plain_elasticity_dag_graph_posterior_bayesian_coverage: 0x52E5_0015, Dag, Elasticity, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    plain_elasticity_cpdag_given_frequentist_coverage: 0x52E5_0016, Cpdag, Elasticity, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    plain_elasticity_cpdag_given_bayesian_coverage: 0x52E5_0017, Cpdag, Elasticity, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    plain_elasticity_cpdag_graph_posterior_frequentist_coverage: 0x52E5_0018, Cpdag, Elasticity, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    plain_elasticity_cpdag_graph_posterior_bayesian_coverage: 0x52E5_0019, Cpdag, Elasticity, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    plain_elasticity_pag_given_frequentist_coverage: 0x52E5_001A, Pag, Elasticity, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    plain_elasticity_pag_given_bayesian_coverage: 0x52E5_001B, Pag, Elasticity, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    plain_elasticity_pag_graph_posterior_frequentist_coverage: 0x52E5_001C, Pag, Elasticity, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    plain_elasticity_pag_graph_posterior_bayesian_coverage: 0x52E5_001D, Pag, Elasticity, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    plain_elasticity_admg_given_frequentist_coverage: 0x52E5_001E, Admg, Elasticity, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    plain_elasticity_admg_given_bayesian_coverage: 0x52E5_001F, Admg, Elasticity, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    plain_elasticity_admg_graph_posterior_frequentist_coverage: 0x52E5_0020, Admg, Elasticity, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    plain_elasticity_admg_graph_posterior_bayesian_coverage: 0x52E5_0021, Admg, Elasticity, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    plain_elasticity_temporal_admg_graph_posterior_frequentist_coverage: 0x52E5_0022, TemporalAdmg, Elasticity, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    plain_elasticity_temporal_admg_graph_posterior_bayesian_coverage: 0x52E5_0023, TemporalAdmg, Elasticity, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    semi_elasticity_dag_given_frequentist_coverage: 0x52E5_0024, Dag, SemiElasticity, Frequentist, [
-        (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
-    semi_elasticity_dag_given_bayesian_coverage: 0x52E5_0025, Dag, SemiElasticity, Bayesian, [
-        (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
-    semi_elasticity_dag_graph_posterior_frequentist_coverage: 0x52E5_0026, Dag, SemiElasticity, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    semi_elasticity_dag_graph_posterior_bayesian_coverage: 0x52E5_0027, Dag, SemiElasticity, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    semi_elasticity_cpdag_given_frequentist_coverage: 0x52E5_0028, Cpdag, SemiElasticity, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    semi_elasticity_cpdag_given_bayesian_coverage: 0x52E5_0029, Cpdag, SemiElasticity, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    semi_elasticity_cpdag_graph_posterior_frequentist_coverage: 0x52E5_002A, Cpdag, SemiElasticity, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    semi_elasticity_cpdag_graph_posterior_bayesian_coverage: 0x52E5_002B, Cpdag, SemiElasticity, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    semi_elasticity_pag_given_frequentist_coverage: 0x52E5_002C, Pag, SemiElasticity, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    semi_elasticity_pag_given_bayesian_coverage: 0x52E5_002D, Pag, SemiElasticity, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    semi_elasticity_pag_graph_posterior_frequentist_coverage: 0x52E5_002E, Pag, SemiElasticity, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    semi_elasticity_pag_graph_posterior_bayesian_coverage: 0x52E5_002F, Pag, SemiElasticity, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    semi_elasticity_admg_given_frequentist_coverage: 0x52E5_0030, Admg, SemiElasticity, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    semi_elasticity_admg_given_bayesian_coverage: 0x52E5_0031, Admg, SemiElasticity, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    semi_elasticity_admg_graph_posterior_frequentist_coverage: 0x52E5_0032, Admg, SemiElasticity, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    semi_elasticity_admg_graph_posterior_bayesian_coverage: 0x52E5_0033, Admg, SemiElasticity, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    semi_elasticity_temporal_admg_graph_posterior_frequentist_coverage: 0x52E5_0034, TemporalAdmg, SemiElasticity, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    semi_elasticity_temporal_admg_graph_posterior_bayesian_coverage: 0x52E5_0035, TemporalAdmg, SemiElasticity, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    average_derivative_dag_given_frequentist_coverage: 0x52E5_0036, Dag, Average, Frequentist, [
-        (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
-    average_derivative_dag_given_bayesian_coverage: 0x52E5_0037, Dag, Average, Bayesian, [
-        (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
-    average_derivative_dag_graph_posterior_frequentist_coverage: 0x52E5_0038, Dag, Average, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    average_derivative_dag_graph_posterior_bayesian_coverage: 0x52E5_0039, Dag, Average, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    average_derivative_cpdag_given_frequentist_coverage: 0x52E5_003A, Cpdag, Average, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    average_derivative_cpdag_given_bayesian_coverage: 0x52E5_003B, Cpdag, Average, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    average_derivative_cpdag_graph_posterior_frequentist_coverage: 0x52E5_003C, Cpdag, Average, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    average_derivative_cpdag_graph_posterior_bayesian_coverage: 0x52E5_003D, Cpdag, Average, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    average_derivative_pag_given_frequentist_coverage: 0x52E5_003E, Pag, Average, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    average_derivative_pag_given_bayesian_coverage: 0x52E5_003F, Pag, Average, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    average_derivative_pag_graph_posterior_frequentist_coverage: 0x52E5_0040, Pag, Average, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    average_derivative_pag_graph_posterior_bayesian_coverage: 0x52E5_0041, Pag, Average, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    average_derivative_admg_given_frequentist_coverage: 0x52E5_0042, Admg, Average, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    average_derivative_admg_given_bayesian_coverage: 0x52E5_0043, Admg, Average, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    average_derivative_admg_graph_posterior_frequentist_coverage: 0x52E5_0044, Admg, Average, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    average_derivative_admg_graph_posterior_bayesian_coverage: 0x52E5_0045, Admg, Average, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    average_derivative_temporal_admg_graph_posterior_frequentist_coverage: 0x52E5_0046, TemporalAdmg, Average, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    average_derivative_temporal_admg_graph_posterior_bayesian_coverage: 0x52E5_0047, TemporalAdmg, Average, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_jacobian_dag_given_frequentist_coverage: 0x52E5_0048, Dag, Jacobian, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    response_jacobian_dag_given_bayesian_coverage: 0x52E5_0049, Dag, Jacobian, Bayesian, [
-        (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
-    response_jacobian_dag_graph_posterior_frequentist_coverage: 0x52E5_004A, Dag, Jacobian, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_jacobian_dag_graph_posterior_bayesian_coverage: 0x52E5_004B, Dag, Jacobian, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_jacobian_cpdag_given_frequentist_coverage: 0x52E5_004C, Cpdag, Jacobian, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    response_jacobian_cpdag_given_bayesian_coverage: 0x52E5_004D, Cpdag, Jacobian, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    response_jacobian_cpdag_graph_posterior_frequentist_coverage: 0x52E5_004E, Cpdag, Jacobian, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_jacobian_cpdag_graph_posterior_bayesian_coverage: 0x52E5_004F, Cpdag, Jacobian, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_jacobian_pag_given_frequentist_coverage: 0x52E5_0050, Pag, Jacobian, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    response_jacobian_pag_given_bayesian_coverage: 0x52E5_0051, Pag, Jacobian, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    response_jacobian_pag_graph_posterior_frequentist_coverage: 0x52E5_0052, Pag, Jacobian, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_jacobian_pag_graph_posterior_bayesian_coverage: 0x52E5_0053, Pag, Jacobian, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_jacobian_admg_given_frequentist_coverage: 0x52E5_0054, Admg, Jacobian, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    response_jacobian_admg_given_bayesian_coverage: 0x52E5_0055, Admg, Jacobian, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    response_jacobian_admg_graph_posterior_frequentist_coverage: 0x52E5_0056, Admg, Jacobian, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_jacobian_admg_graph_posterior_bayesian_coverage: 0x52E5_0057, Admg, Jacobian, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_jacobian_temporal_admg_graph_posterior_frequentist_coverage: 0x52E5_0058, TemporalAdmg, Jacobian, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_jacobian_temporal_admg_graph_posterior_bayesian_coverage: 0x52E5_0059, TemporalAdmg, Jacobian, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    directional_derivative_dag_given_frequentist_coverage: 0x52E5_005A, Dag, Directional, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    directional_derivative_dag_given_bayesian_coverage: 0x52E5_005B, Dag, Directional, Bayesian, [
-        (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
-    directional_derivative_dag_graph_posterior_frequentist_coverage: 0x52E5_005C, Dag, Directional, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    directional_derivative_dag_graph_posterior_bayesian_coverage: 0x52E5_005D, Dag, Directional, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    directional_derivative_cpdag_given_frequentist_coverage: 0x52E5_005E, Cpdag, Directional, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    directional_derivative_cpdag_given_bayesian_coverage: 0x52E5_005F, Cpdag, Directional, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    directional_derivative_cpdag_graph_posterior_frequentist_coverage: 0x52E5_0060, Cpdag, Directional, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    directional_derivative_cpdag_graph_posterior_bayesian_coverage: 0x52E5_0061, Cpdag, Directional, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    directional_derivative_pag_given_frequentist_coverage: 0x52E5_0062, Pag, Directional, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    directional_derivative_pag_given_bayesian_coverage: 0x52E5_0063, Pag, Directional, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    directional_derivative_pag_graph_posterior_frequentist_coverage: 0x52E5_0064, Pag, Directional, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    directional_derivative_pag_graph_posterior_bayesian_coverage: 0x52E5_0065, Pag, Directional, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    directional_derivative_admg_given_frequentist_coverage: 0x52E5_0066, Admg, Directional, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    directional_derivative_admg_given_bayesian_coverage: 0x52E5_0067, Admg, Directional, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    directional_derivative_admg_graph_posterior_frequentist_coverage: 0x52E5_0068, Admg, Directional, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    directional_derivative_admg_graph_posterior_bayesian_coverage: 0x52E5_0069, Admg, Directional, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    directional_derivative_temporal_admg_graph_posterior_frequentist_coverage: 0x52E5_006A, TemporalAdmg, Directional, Frequentist, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    directional_derivative_temporal_admg_graph_posterior_bayesian_coverage: 0x52E5_006B, TemporalAdmg, Directional, Bayesian, [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_curve_dag_given_frequentist_coverage: 0x52E5_006C, Dag, Curve, Frequentist, [
-        (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
-    response_curve_dag_graph_posterior_frequentist_coverage: 0x52E5_006D, Dag, Curve, Frequentist, [
-        (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_curve_cpdag_given_frequentist_coverage: 0x52E5_006E, Cpdag, Curve, Frequentist, [
-        (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
-    response_curve_cpdag_graph_posterior_frequentist_coverage: 0x52E5_006F, Cpdag, Curve, Frequentist, [
-        (Posterior, Cheap), (Posterior, Full),
-    ];
-    response_curve_pag_given_frequentist_coverage: 0x52E5_0070, Pag, Curve, Frequentist, [
-        (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
-    ];
-    response_curve_pag_graph_posterior_frequentist_coverage: 0x52E5_0071, Pag, Curve, Frequentist, [
-        (Posterior, Cheap), (Posterior, Full),
-    ];
-    point_derivative_temporal_admg_given_frequentist_coverage: 0x52E5_0072, TemporalAdmg, Point, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    point_derivative_temporal_admg_given_bayesian_coverage: 0x52E5_0073, TemporalAdmg, Point, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    plain_elasticity_temporal_admg_given_frequentist_coverage: 0x52E5_0074, TemporalAdmg, Elasticity, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    plain_elasticity_temporal_admg_given_bayesian_coverage: 0x52E5_0075, TemporalAdmg, Elasticity, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    semi_elasticity_temporal_admg_given_frequentist_coverage: 0x52E5_0076, TemporalAdmg, SemiElasticity, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    semi_elasticity_temporal_admg_given_bayesian_coverage: 0x52E5_0077, TemporalAdmg, SemiElasticity, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    average_derivative_temporal_admg_given_frequentist_coverage: 0x52E5_0078, TemporalAdmg, Average, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    average_derivative_temporal_admg_given_bayesian_coverage: 0x52E5_0079, TemporalAdmg, Average, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    response_jacobian_temporal_admg_given_frequentist_coverage: 0x52E5_007A, TemporalAdmg, Jacobian, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    response_jacobian_temporal_admg_given_bayesian_coverage: 0x52E5_007B, TemporalAdmg, Jacobian, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    directional_derivative_temporal_admg_given_frequentist_coverage: 0x52E5_007C, TemporalAdmg, Directional, Frequentist, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    directional_derivative_temporal_admg_given_bayesian_coverage: 0x52E5_007D, TemporalAdmg, Directional, Bayesian, [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
+    point_derivative_dag_given_frequentist_coverage: 0x52E5_0000,
+        Dag, Point, Frequentist, [
+            (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ],
+        Dag, Point, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
+    point_derivative_dag_graph_posterior_bayesian_coverage: 0x52E5_0003,
+        Dag, Point, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Dag, Point, Bayesian, [
+            (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ];
+    point_derivative_cpdag_graph_posterior_frequentist_coverage: 0x52E5_0006,
+        Cpdag, Point, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Cpdag, Point, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Pag, Point, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Pag, Point, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
+    point_derivative_pag_graph_posterior_bayesian_coverage: 0x52E5_000B,
+        Pag, Point, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Cpdag, Point, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Cpdag, Point, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Pag, Point, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    point_derivative_temporal_admg_graph_posterior_frequentist_coverage: 0x52E5_0010,
+        TemporalAdmg, Point, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Admg, Point, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Admg, Point, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        TemporalAdmg, Point, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    point_derivative_temporal_admg_graph_posterior_bayesian_coverage: 0x52E5_0011,
+        TemporalAdmg, Point, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Admg, Point, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Admg, Point, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        TemporalAdmg, Point, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    plain_elasticity_dag_graph_posterior_frequentist_coverage: 0x52E5_0014,
+        Dag, Elasticity, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Dag, Elasticity, Frequentist, [
+            (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
+        ];
+    plain_elasticity_dag_graph_posterior_bayesian_coverage: 0x52E5_0015,
+        Dag, Elasticity, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Dag, Elasticity, Bayesian, [
+            (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ];
+    plain_elasticity_cpdag_graph_posterior_bayesian_coverage: 0x52E5_0019,
+        Cpdag, Elasticity, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Cpdag, Elasticity, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Pag, Elasticity, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Pag, Elasticity, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
+    plain_elasticity_pag_graph_posterior_frequentist_coverage: 0x52E5_001C,
+        Pag, Elasticity, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Cpdag, Elasticity, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Cpdag, Elasticity, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Pag, Elasticity, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    plain_elasticity_admg_graph_posterior_frequentist_coverage: 0x52E5_0020,
+        Admg, Elasticity, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Admg, Elasticity, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        TemporalAdmg, Elasticity, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        TemporalAdmg, Elasticity, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    plain_elasticity_admg_graph_posterior_bayesian_coverage: 0x52E5_0021,
+        Admg, Elasticity, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Admg, Elasticity, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        TemporalAdmg, Elasticity, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        TemporalAdmg, Elasticity, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    semi_elasticity_dag_given_frequentist_coverage: 0x52E5_0024,
+        Dag, SemiElasticity, Frequentist, [
+            (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ],
+        Dag, SemiElasticity, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
+    semi_elasticity_dag_graph_posterior_bayesian_coverage: 0x52E5_0027,
+        Dag, SemiElasticity, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Dag, SemiElasticity, Bayesian, [
+            (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ];
+    semi_elasticity_cpdag_graph_posterior_bayesian_coverage: 0x52E5_002B,
+        Cpdag, SemiElasticity, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Cpdag, SemiElasticity, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Pag, SemiElasticity, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Pag, SemiElasticity, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
+    semi_elasticity_pag_given_frequentist_coverage: 0x52E5_002C,
+        Pag, SemiElasticity, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Cpdag, SemiElasticity, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Cpdag, SemiElasticity, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Pag, SemiElasticity, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
+    semi_elasticity_temporal_admg_graph_posterior_frequentist_coverage: 0x52E5_0034,
+        TemporalAdmg, SemiElasticity, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Admg, SemiElasticity, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Admg, SemiElasticity, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        TemporalAdmg, SemiElasticity, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    semi_elasticity_temporal_admg_graph_posterior_bayesian_coverage: 0x52E5_0035,
+        TemporalAdmg, SemiElasticity, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Admg, SemiElasticity, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Admg, SemiElasticity, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        TemporalAdmg, SemiElasticity, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    average_derivative_dag_graph_posterior_frequentist_coverage: 0x52E5_0038,
+        Dag, Average, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Dag, Average, Frequentist, [
+            (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ];
+    average_derivative_dag_graph_posterior_bayesian_coverage: 0x52E5_0039,
+        Dag, Average, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Dag, Average, Bayesian, [
+            (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ];
+    average_derivative_cpdag_given_frequentist_coverage: 0x52E5_003A,
+        Cpdag, Average, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Cpdag, Average, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Pag, Average, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Pag, Average, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
+    average_derivative_cpdag_graph_posterior_bayesian_coverage: 0x52E5_003D,
+        Cpdag, Average, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Cpdag, Average, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Pag, Average, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Pag, Average, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
+    average_derivative_admg_graph_posterior_bayesian_coverage: 0x52E5_0045,
+        Admg, Average, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Admg, Average, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        TemporalAdmg, Average, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        TemporalAdmg, Average, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    response_jacobian_dag_graph_posterior_frequentist_coverage: 0x52E5_004A,
+        Dag, Jacobian, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Dag, Jacobian, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    response_jacobian_dag_graph_posterior_bayesian_coverage: 0x52E5_004B,
+        Dag, Jacobian, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Dag, Jacobian, Bayesian, [
+            (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ];
+    response_jacobian_cpdag_given_frequentist_coverage: 0x52E5_004C,
+        Cpdag, Jacobian, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Cpdag, Jacobian, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Pag, Jacobian, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Pag, Jacobian, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
+    response_jacobian_pag_graph_posterior_bayesian_coverage: 0x52E5_0053,
+        Pag, Jacobian, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Cpdag, Jacobian, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Cpdag, Jacobian, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Pag, Jacobian, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    response_jacobian_temporal_admg_graph_posterior_frequentist_coverage: 0x52E5_0058,
+        TemporalAdmg, Jacobian, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Admg, Jacobian, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Admg, Jacobian, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        TemporalAdmg, Jacobian, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    response_jacobian_temporal_admg_graph_posterior_bayesian_coverage: 0x52E5_0059,
+        TemporalAdmg, Jacobian, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Admg, Jacobian, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Admg, Jacobian, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        TemporalAdmg, Jacobian, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    directional_derivative_dag_graph_posterior_frequentist_coverage: 0x52E5_005C,
+        Dag, Directional, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Dag, Directional, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    directional_derivative_dag_graph_posterior_bayesian_coverage: 0x52E5_005D,
+        Dag, Directional, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Dag, Directional, Bayesian, [
+            (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ];
+    directional_derivative_pag_graph_posterior_frequentist_coverage: 0x52E5_0064,
+        Pag, Directional, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Cpdag, Directional, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Cpdag, Directional, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Pag, Directional, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    directional_derivative_pag_graph_posterior_bayesian_coverage: 0x52E5_0065,
+        Pag, Directional, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Cpdag, Directional, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Cpdag, Directional, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Pag, Directional, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    directional_derivative_temporal_admg_graph_posterior_bayesian_coverage: 0x52E5_006B,
+        TemporalAdmg, Directional, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        Admg, Directional, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Admg, Directional, Bayesian, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        TemporalAdmg, Directional, Bayesian, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    response_curve_dag_given_frequentist_coverage: 0x52E5_006C,
+        Dag, Curve, Frequentist, [
+            (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ];
+    response_curve_dag_graph_posterior_frequentist_coverage: 0x52E5_006D,
+        Dag, Curve, Frequentist, [
+            (Posterior, Cheap), (Posterior, Full),
+        ];
+    response_curve_cpdag_given_frequentist_coverage: 0x52E5_006E,
+        Cpdag, Curve, Frequentist, [
+            (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ];
+    response_curve_cpdag_graph_posterior_frequentist_coverage: 0x52E5_006F,
+        Cpdag, Curve, Frequentist, [
+            (Posterior, Cheap), (Posterior, Full),
+        ];
+    response_curve_pag_given_frequentist_coverage: 0x52E5_0070,
+        Pag, Curve, Frequentist, [
+            (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
+        ];
+    response_curve_pag_graph_posterior_frequentist_coverage: 0x52E5_0071,
+        Pag, Curve, Frequentist, [
+            (Posterior, Cheap), (Posterior, Full),
+        ];
+    average_derivative_temporal_admg_given_frequentist_coverage: 0x52E5_0078,
+        TemporalAdmg, Average, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Admg, Average, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Admg, Average, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        TemporalAdmg, Average, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
+    directional_derivative_temporal_admg_given_frequentist_coverage: 0x52E5_007C,
+        TemporalAdmg, Directional, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Admg, Directional, Frequentist, [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        Admg, Directional, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        TemporalAdmg, Directional, Frequentist, [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
 }

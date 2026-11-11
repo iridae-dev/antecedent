@@ -64,6 +64,7 @@ use common::reported::{
 };
 use grid_cell::{
     Cell, IntervalPair, SIBLING_REPLICATES, Target, measure, measure_from_unrecorded_base,
+    sharing_base,
 };
 use serde_json::Value;
 
@@ -497,7 +498,7 @@ fn measure_identified_set(
     let bits = |interval: Option<(f64, f64)>| interval.map(|(lo, hi)| (lo.to_bits(), hi.to_bits()));
     let runs = map_replicates(n_sim(), |rep| {
         let base = execute(rep, 0);
-        let siblings: Vec<SetRun> = if rep < SIBLING_REPLICATES {
+        let siblings: Vec<SetRun> = if rep < u64::from(SIBLING_REPLICATES) {
             (1..coordinate.variants.len())
                 .map(|variant| {
                     let sibling = execute(rep, variant);
@@ -858,25 +859,123 @@ fn ps_coverage(test: &'static str, family: u64, class: &str, mode: Mode, variant
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn path_specific_dag_given_frequentist_coverage() {
-    ps_coverage(
-        "path_specific_dag_given_frequentist_coverage",
-        0xFE10_0000,
-        "Dag",
-        Mode::Frequentist,
-        &PS_GIVEN_DAG,
-    );
+    sharing_base(|| {
+        {
+            ps_coverage(
+                "path_specific_dag_given_frequentist_coverage",
+                0xFE10_0000,
+                "Dag",
+                Mode::Frequentist,
+                &PS_GIVEN_DAG,
+            );
+        }
+        {
+            ps_coverage(
+                "path_specific_dag_given_frequentist_coverage",
+                0xFE10_0000,
+                "Cpdag",
+                Mode::Frequentist,
+                &PS_GIVEN,
+            );
+        }
+        {
+            ps_coverage(
+                "path_specific_dag_given_frequentist_coverage",
+                0xFE10_0000,
+                "Pag",
+                Mode::Frequentist,
+                &PS_GIVEN,
+            );
+        }
+        {
+            ps_coverage(
+                "path_specific_dag_given_frequentist_coverage",
+                0xFE10_0000,
+                "Dag",
+                Mode::Frequentist,
+                &PS_POSTERIOR,
+            );
+        }
+        {
+            ps_coverage(
+                "path_specific_dag_given_frequentist_coverage",
+                0xFE10_0000,
+                "Cpdag",
+                Mode::Frequentist,
+                &PS_POSTERIOR,
+            );
+        }
+        {
+            ps_coverage(
+                "path_specific_dag_given_frequentist_coverage",
+                0xFE10_0000,
+                "Pag",
+                Mode::Frequentist,
+                &PS_POSTERIOR,
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn path_specific_dag_given_bayesian_coverage() {
-    ps_coverage(
-        "path_specific_dag_given_bayesian_coverage",
-        0xFE10_0001,
-        "Dag",
-        Mode::Bayesian,
-        &PS_GIVEN_DAG,
-    );
+    sharing_base(|| {
+        {
+            ps_coverage(
+                "path_specific_dag_given_bayesian_coverage",
+                0xFE10_0001,
+                "Dag",
+                Mode::Bayesian,
+                &PS_GIVEN_DAG,
+            );
+        }
+        {
+            ps_coverage(
+                "path_specific_dag_given_bayesian_coverage",
+                0xFE10_0001,
+                "Cpdag",
+                Mode::Bayesian,
+                &PS_GIVEN,
+            );
+        }
+        {
+            ps_coverage(
+                "path_specific_dag_given_bayesian_coverage",
+                0xFE10_0001,
+                "Pag",
+                Mode::Bayesian,
+                &PS_GIVEN,
+            );
+        }
+        {
+            ps_coverage(
+                "path_specific_dag_given_bayesian_coverage",
+                0xFE10_0001,
+                "Dag",
+                Mode::Bayesian,
+                &PS_POSTERIOR,
+            );
+        }
+        {
+            ps_coverage(
+                "path_specific_dag_given_bayesian_coverage",
+                0xFE10_0001,
+                "Cpdag",
+                Mode::Bayesian,
+                &PS_POSTERIOR,
+            );
+        }
+        {
+            ps_coverage(
+                "path_specific_dag_given_bayesian_coverage",
+                0xFE10_0001,
+                "Pag",
+                Mode::Bayesian,
+                &PS_POSTERIOR,
+            );
+        }
+    });
 }
 
 #[test]
@@ -929,78 +1028,6 @@ fn path_specific_temporal_admg_given_bayesian_coverage() {
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn path_specific_cpdag_given_frequentist_coverage() {
-    ps_coverage(
-        "path_specific_cpdag_given_frequentist_coverage",
-        0xFE10_0006,
-        "Cpdag",
-        Mode::Frequentist,
-        &PS_GIVEN,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn path_specific_cpdag_given_bayesian_coverage() {
-    ps_coverage(
-        "path_specific_cpdag_given_bayesian_coverage",
-        0xFE10_0007,
-        "Cpdag",
-        Mode::Bayesian,
-        &PS_GIVEN,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn path_specific_pag_given_frequentist_coverage() {
-    ps_coverage(
-        "path_specific_pag_given_frequentist_coverage",
-        0xFE10_0008,
-        "Pag",
-        Mode::Frequentist,
-        &PS_GIVEN,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn path_specific_pag_given_bayesian_coverage() {
-    ps_coverage(
-        "path_specific_pag_given_bayesian_coverage",
-        0xFE10_0009,
-        "Pag",
-        Mode::Bayesian,
-        &PS_GIVEN,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn path_specific_dag_graph_posterior_frequentist_coverage() {
-    ps_coverage(
-        "path_specific_dag_graph_posterior_frequentist_coverage",
-        0xFE10_000A,
-        "Dag",
-        Mode::Frequentist,
-        &PS_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn path_specific_dag_graph_posterior_bayesian_coverage() {
-    ps_coverage(
-        "path_specific_dag_graph_posterior_bayesian_coverage",
-        0xFE10_000B,
-        "Dag",
-        Mode::Bayesian,
-        &PS_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn path_specific_admg_graph_posterior_frequentist_coverage() {
     ps_coverage(
         "path_specific_admg_graph_posterior_frequentist_coverage",
@@ -1042,54 +1069,6 @@ fn path_specific_temporal_admg_graph_posterior_bayesian_coverage() {
         "path_specific_temporal_admg_graph_posterior_bayesian_coverage",
         0xFE10_000F,
         "TemporalAdmg",
-        Mode::Bayesian,
-        &PS_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn path_specific_cpdag_graph_posterior_frequentist_coverage() {
-    ps_coverage(
-        "path_specific_cpdag_graph_posterior_frequentist_coverage",
-        0xFE10_0010,
-        "Cpdag",
-        Mode::Frequentist,
-        &PS_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn path_specific_cpdag_graph_posterior_bayesian_coverage() {
-    ps_coverage(
-        "path_specific_cpdag_graph_posterior_bayesian_coverage",
-        0xFE10_0011,
-        "Cpdag",
-        Mode::Bayesian,
-        &PS_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn path_specific_pag_graph_posterior_frequentist_coverage() {
-    ps_coverage(
-        "path_specific_pag_graph_posterior_frequentist_coverage",
-        0xFE10_0012,
-        "Pag",
-        Mode::Frequentist,
-        &PS_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn path_specific_pag_graph_posterior_bayesian_coverage() {
-    ps_coverage(
-        "path_specific_pag_graph_posterior_bayesian_coverage",
-        0xFE10_0013,
-        "Pag",
         Mode::Bayesian,
         &PS_POSTERIOR,
     );
@@ -1316,49 +1295,69 @@ fn mediation_temporal_admg_given_bayesian_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn mediation_cpdag_given_frequentist_coverage() {
-    med_measure(
-        "mediation_cpdag_given_frequentist_coverage",
-        0xFE20_0005,
-        MedClass::Cpdag,
-        Mode::Frequentist,
-        MED_GIVEN,
-    );
+    sharing_base(|| {
+        {
+            med_measure(
+                "mediation_cpdag_given_frequentist_coverage",
+                0xFE20_0005,
+                MedClass::Cpdag,
+                Mode::Frequentist,
+                MED_GIVEN,
+            );
+        }
+        {
+            med_measure(
+                "mediation_cpdag_given_frequentist_coverage",
+                0xFE20_0005,
+                MedClass::Admg,
+                Mode::Frequentist,
+                MED_POSTERIOR,
+            );
+        }
+        {
+            med_measure(
+                "mediation_cpdag_given_frequentist_coverage",
+                0xFE20_0005,
+                MedClass::Cpdag,
+                Mode::Frequentist,
+                MED_POSTERIOR,
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn mediation_cpdag_given_bayesian_coverage() {
-    med_measure(
-        "mediation_cpdag_given_bayesian_coverage",
-        0xFE20_0006,
-        MedClass::Cpdag,
-        Mode::Bayesian,
-        MED_GIVEN,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn mediation_admg_graph_posterior_frequentist_coverage() {
-    med_measure(
-        "mediation_admg_graph_posterior_frequentist_coverage",
-        0xFE20_0007,
-        MedClass::Admg,
-        Mode::Frequentist,
-        MED_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn mediation_admg_graph_posterior_bayesian_coverage() {
-    med_measure(
-        "mediation_admg_graph_posterior_bayesian_coverage",
-        0xFE20_0008,
-        MedClass::Admg,
-        Mode::Bayesian,
-        MED_POSTERIOR,
-    );
+    sharing_base(|| {
+        {
+            med_measure(
+                "mediation_cpdag_given_bayesian_coverage",
+                0xFE20_0006,
+                MedClass::Cpdag,
+                Mode::Bayesian,
+                MED_GIVEN,
+            );
+        }
+        {
+            med_measure(
+                "mediation_cpdag_given_bayesian_coverage",
+                0xFE20_0006,
+                MedClass::Admg,
+                Mode::Bayesian,
+                MED_POSTERIOR,
+            );
+        }
+        {
+            med_measure(
+                "mediation_cpdag_given_bayesian_coverage",
+                0xFE20_0006,
+                MedClass::Cpdag,
+                Mode::Bayesian,
+                MED_POSTERIOR,
+            );
+        }
+    });
 }
 
 #[test]
@@ -1380,30 +1379,6 @@ fn mediation_temporal_admg_graph_posterior_bayesian_coverage() {
         "mediation_temporal_admg_graph_posterior_bayesian_coverage",
         0xFE20_000A,
         MedClass::TemporalAdmg,
-        Mode::Bayesian,
-        MED_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn mediation_cpdag_graph_posterior_frequentist_coverage() {
-    med_measure(
-        "mediation_cpdag_graph_posterior_frequentist_coverage",
-        0xFE20_000B,
-        MedClass::Cpdag,
-        Mode::Frequentist,
-        MED_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn mediation_cpdag_graph_posterior_bayesian_coverage() {
-    med_measure(
-        "mediation_cpdag_graph_posterior_bayesian_coverage",
-        0xFE20_000C,
-        MedClass::Cpdag,
         Mode::Bayesian,
         MED_POSTERIOR,
     );
@@ -1745,57 +1720,76 @@ const CW_GIVEN_ALL: [Variant; 6] = [
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn counterfactual_admg_graph_posterior_frequentist_coverage() {
-    let pin = cw_posterior_pin();
-    cw_measure(
-        "counterfactual_admg_graph_posterior_frequentist_coverage",
-        "cross_world_front_door_admg_atom",
-        0xFE30_0000,
-        Mode::Frequentist,
-        &CW_POSTERIOR_ALL,
-        &cw_front_door_counterfactual(&pin, Structure::Admg(cw_front_door_admg())),
-    );
+    sharing_base(|| {
+        {
+            let pin = cw_posterior_pin();
+            cw_measure(
+                "counterfactual_admg_graph_posterior_frequentist_coverage",
+                "cross_world_front_door_admg_atom",
+                0xFE30_0000,
+                Mode::Frequentist,
+                &CW_POSTERIOR_ALL,
+                &cw_front_door_counterfactual(&pin, Structure::Admg(cw_front_door_admg())),
+            );
+        }
+        {
+            let pin = cw_posterior_pin();
+            cw_measure(
+                "counterfactual_admg_graph_posterior_frequentist_coverage",
+                "cross_world_front_door_temporal_admg_atom",
+                0xFE30_0000,
+                Mode::Frequentist,
+                &CW_POSTERIOR_ALL,
+                &cw_front_door_counterfactual(
+                    &pin,
+                    Structure::ContemporaneousAdmg(cw_front_door_admg()),
+                ),
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn counterfactual_admg_graph_posterior_bayesian_coverage() {
-    let pin = cw_posterior_pin();
-    cw_measure(
-        "counterfactual_admg_graph_posterior_bayesian_coverage",
-        "cross_world_front_door_admg_atom",
-        0xFE30_0001,
-        Mode::Bayesian,
-        &CW_POSTERIOR_ALL,
-        &cw_front_door_counterfactual(&pin, Structure::Admg(cw_front_door_admg())),
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn counterfactual_temporal_admg_graph_posterior_frequentist_coverage() {
-    let pin = cw_posterior_pin();
-    cw_measure(
-        "counterfactual_temporal_admg_graph_posterior_frequentist_coverage",
-        "cross_world_front_door_temporal_admg_atom",
-        0xFE30_0002,
-        Mode::Frequentist,
-        &CW_POSTERIOR_ALL,
-        &cw_front_door_counterfactual(&pin, Structure::ContemporaneousAdmg(cw_front_door_admg())),
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn counterfactual_temporal_admg_graph_posterior_bayesian_coverage() {
-    let pin = cw_posterior_pin();
-    cw_measure(
-        "counterfactual_temporal_admg_graph_posterior_bayesian_coverage",
-        "cross_world_front_door_temporal_admg_atom",
-        0xFE30_0003,
-        Mode::Bayesian,
-        &CW_POSTERIOR_ALL,
-        &cw_front_door_counterfactual(&pin, Structure::ContemporaneousAdmg(cw_front_door_admg())),
-    );
+    sharing_base(|| {
+        {
+            let pin = cw_posterior_pin();
+            cw_measure(
+                "counterfactual_admg_graph_posterior_bayesian_coverage",
+                "cross_world_front_door_admg_atom",
+                0xFE30_0001,
+                Mode::Bayesian,
+                &CW_POSTERIOR_ALL,
+                &cw_front_door_counterfactual(&pin, Structure::Admg(cw_front_door_admg())),
+            );
+        }
+        {
+            let pin = cw_posterior_pin();
+            cw_measure(
+                "counterfactual_admg_graph_posterior_bayesian_coverage",
+                "cross_world_front_door_temporal_admg_atom",
+                0xFE30_0001,
+                Mode::Bayesian,
+                &CW_POSTERIOR_ALL,
+                &cw_front_door_counterfactual(
+                    &pin,
+                    Structure::ContemporaneousAdmg(cw_front_door_admg()),
+                ),
+            );
+        }
+        {
+            let pin = cw_class_pin();
+            cw_measure(
+                "counterfactual_admg_graph_posterior_bayesian_coverage",
+                "cross_world_front_door_admg",
+                0xFE30_0001,
+                Mode::Bayesian,
+                &CW_GIVEN_ALL,
+                &cw_front_door_counterfactual(&pin, Structure::Admg(cw_front_door_admg())),
+            );
+        }
+    });
 }
 
 #[test]
@@ -1815,29 +1809,30 @@ fn counterfactual_pag_graph_posterior_frequentist_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn counterfactual_pag_graph_posterior_bayesian_coverage() {
-    let pin = cw_posterior_pin();
-    cw_measure(
-        "counterfactual_pag_graph_posterior_bayesian_coverage",
-        "cross_world_side_path_pag_atom",
-        0xFE30_0005,
-        Mode::Bayesian,
-        &[(Posterior, RefuteSuite::None)],
-        &cw_side_path_counterfactual(&pin, Structure::Pag(cw_side_path_pag())),
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn counterfactual_admg_given_bayesian_coverage() {
-    let pin = cw_class_pin();
-    cw_measure(
-        "counterfactual_admg_given_bayesian_coverage",
-        "cross_world_front_door_admg",
-        0xFE30_0006,
-        Mode::Bayesian,
-        &CW_GIVEN_ALL,
-        &cw_front_door_counterfactual(&pin, Structure::Admg(cw_front_door_admg())),
-    );
+    sharing_base(|| {
+        {
+            let pin = cw_posterior_pin();
+            cw_measure(
+                "counterfactual_pag_graph_posterior_bayesian_coverage",
+                "cross_world_side_path_pag_atom",
+                0xFE30_0005,
+                Mode::Bayesian,
+                &[(Posterior, RefuteSuite::None)],
+                &cw_side_path_counterfactual(&pin, Structure::Pag(cw_side_path_pag())),
+            );
+        }
+        {
+            let pin = cw_class_pin();
+            cw_measure(
+                "counterfactual_pag_graph_posterior_bayesian_coverage",
+                "cross_world_side_path_pag",
+                0xFE30_0005,
+                Mode::Bayesian,
+                &[(Explicit, RefuteSuite::None), (Accepted, RefuteSuite::None)],
+                &cw_side_path_counterfactual(&pin, Structure::Pag(cw_side_path_pag())),
+            );
+        }
+    });
 }
 
 #[test]
@@ -1851,48 +1846,6 @@ fn counterfactual_temporal_admg_given_bayesian_coverage() {
         Mode::Bayesian,
         &CW_GIVEN_ALL,
         &cw_front_door_counterfactual(&pin, Structure::ContemporaneousAdmg(cw_front_door_admg())),
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn counterfactual_pag_given_bayesian_coverage() {
-    let pin = cw_class_pin();
-    cw_measure(
-        "counterfactual_pag_given_bayesian_coverage",
-        "cross_world_side_path_pag",
-        0xFE30_0008,
-        Mode::Bayesian,
-        &[(Explicit, RefuteSuite::None), (Accepted, RefuteSuite::None)],
-        &cw_side_path_counterfactual(&pin, Structure::Pag(cw_side_path_pag())),
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn nested_counterfactual_effect_admg_given_bayesian_coverage() {
-    let pin = cw_class_pin();
-    cw_measure(
-        "nested_counterfactual_effect_admg_given_bayesian_coverage",
-        "cross_world_front_door_mediator_admg",
-        0xFE30_0009,
-        Mode::Bayesian,
-        &CW_GIVEN_ALL,
-        &cw_front_door_direct(&pin, Structure::Admg(cw_mediator_admg())),
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn nested_counterfactual_effect_temporal_admg_given_bayesian_coverage() {
-    let pin = cw_class_pin();
-    cw_measure(
-        "nested_counterfactual_effect_temporal_admg_given_bayesian_coverage",
-        "cross_world_front_door_mediator_temporal_admg",
-        0xFE30_000A,
-        Mode::Bayesian,
-        &CW_GIVEN_ALL,
-        &cw_front_door_direct(&pin, Structure::ContemporaneousAdmg(cw_mediator_admg())),
     );
 }
 
@@ -1924,75 +1877,103 @@ fn nested_counterfactual_effect_pag_given_bayesian_coverage() {
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn nested_counterfactual_effect_cpdag_given_bayesian_coverage() {
-    let pin = cw_class_pin();
-    cw_measure(
-        "nested_counterfactual_effect_cpdag_given_bayesian_coverage",
-        "cross_world_two_mediators_cpdag",
-        0xFE30_000C,
-        Mode::Bayesian,
-        &CW_GIVEN_ALL,
-        &cw_two_mediators_direct(&pin, Structure::Cpdag(cw_two_mediators_cpdag())),
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage() {
-    let pin = cw_class_pin();
-    cw_measure(
-        "nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage",
-        "cross_world_front_door_mediator_dag_atom",
-        0xFE30_000D,
-        Mode::Bayesian,
-        &[(Posterior, RefuteSuite::None), (Posterior, RefuteSuite::Cheap)],
-        &cw_front_door_direct(
-            &pin,
-            Structure::Dag { nodes: 3, edges: vec![(0, 1), (0, 2), (1, 2)] },
-        ),
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn nested_counterfactual_effect_admg_graph_posterior_bayesian_coverage() {
-    let pin = cw_class_pin();
-    cw_measure(
-        "nested_counterfactual_effect_admg_graph_posterior_bayesian_coverage",
-        "cross_world_front_door_mediator_admg_atom",
-        0xFE30_000E,
-        Mode::Bayesian,
-        &CW_POSTERIOR_ALL,
-        &cw_front_door_direct(&pin, Structure::Admg(cw_mediator_admg())),
-    );
+    sharing_base(|| {
+        {
+            let pin = cw_class_pin();
+            cw_measure(
+                "nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage",
+                "cross_world_front_door_mediator_dag_atom",
+                0xFE30_000D,
+                Mode::Bayesian,
+                &[(Posterior, RefuteSuite::None), (Posterior, RefuteSuite::Cheap)],
+                &cw_front_door_direct(
+                    &pin,
+                    Structure::Dag { nodes: 3, edges: vec![(0, 1), (0, 2), (1, 2)] },
+                ),
+            );
+        }
+        {
+            let pin = cw_class_pin();
+            cw_measure(
+                "nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage",
+                "cross_world_front_door_mediator_admg",
+                0xFE30_000D,
+                Mode::Bayesian,
+                &CW_GIVEN_ALL,
+                &cw_front_door_direct(&pin, Structure::Admg(cw_mediator_admg())),
+            );
+        }
+        {
+            let pin = cw_class_pin();
+            cw_measure(
+                "nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage",
+                "cross_world_front_door_mediator_admg_atom",
+                0xFE30_000D,
+                Mode::Bayesian,
+                &CW_POSTERIOR_ALL,
+                &cw_front_door_direct(&pin, Structure::Admg(cw_mediator_admg())),
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn nested_counterfactual_effect_temporal_admg_graph_posterior_bayesian_coverage() {
-    let pin = cw_class_pin();
-    cw_measure(
-        "nested_counterfactual_effect_temporal_admg_graph_posterior_bayesian_coverage",
-        "cross_world_front_door_mediator_temporal_admg_atom",
-        0xFE30_000F,
-        Mode::Bayesian,
-        &CW_POSTERIOR_ALL,
-        &cw_front_door_direct(&pin, Structure::ContemporaneousAdmg(cw_mediator_admg())),
-    );
+    sharing_base(|| {
+        {
+            let pin = cw_class_pin();
+            cw_measure(
+                "nested_counterfactual_effect_temporal_admg_graph_posterior_bayesian_coverage",
+                "cross_world_front_door_mediator_temporal_admg_atom",
+                0xFE30_000F,
+                Mode::Bayesian,
+                &CW_POSTERIOR_ALL,
+                &cw_front_door_direct(&pin, Structure::ContemporaneousAdmg(cw_mediator_admg())),
+            );
+        }
+        {
+            let pin = cw_class_pin();
+            cw_measure(
+                "nested_counterfactual_effect_temporal_admg_graph_posterior_bayesian_coverage",
+                "cross_world_front_door_mediator_temporal_admg",
+                0xFE30_000F,
+                Mode::Bayesian,
+                &CW_GIVEN_ALL,
+                &cw_front_door_direct(&pin, Structure::ContemporaneousAdmg(cw_mediator_admg())),
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn nested_counterfactual_effect_cpdag_graph_posterior_bayesian_coverage() {
-    let pin = cw_class_pin();
-    cw_measure(
-        "nested_counterfactual_effect_cpdag_graph_posterior_bayesian_coverage",
-        "cross_world_two_mediators_cpdag_atom",
-        0xFE30_0010,
-        Mode::Bayesian,
-        &CW_POSTERIOR_ALL,
-        &cw_two_mediators_direct(&pin, Structure::Cpdag(cw_two_mediators_cpdag())),
-    );
+    sharing_base(|| {
+        {
+            let pin = cw_class_pin();
+            cw_measure(
+                "nested_counterfactual_effect_cpdag_graph_posterior_bayesian_coverage",
+                "cross_world_two_mediators_cpdag_atom",
+                0xFE30_0010,
+                Mode::Bayesian,
+                &CW_POSTERIOR_ALL,
+                &cw_two_mediators_direct(&pin, Structure::Cpdag(cw_two_mediators_cpdag())),
+            );
+        }
+        {
+            let pin = cw_class_pin();
+            cw_measure(
+                "nested_counterfactual_effect_cpdag_graph_posterior_bayesian_coverage",
+                "cross_world_two_mediators_cpdag",
+                0xFE30_0010,
+                Mode::Bayesian,
+                &CW_GIVEN_ALL,
+                &cw_two_mediators_direct(&pin, Structure::Cpdag(cw_two_mediators_cpdag())),
+            );
+        }
+    });
 }
 
 // ---------------------------------------------------------------- effects
@@ -2328,64 +2309,66 @@ fn gcomp_rank_pair(result: &StudyResult) -> IntervalPair {
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_admg_given_frequentist_coverage() {
-    ae_measure(
-        "average_effect_admg_given_frequentist_coverage",
-        0xFE40_0000,
-        &ae_frontdoor_design(false),
-        Mode::Frequentist,
-        &[
-            (Accepted, RefuteSuite::None),
-            (Explicit, RefuteSuite::Cheap),
-            (Accepted, RefuteSuite::Cheap),
-            (Explicit, RefuteSuite::Full),
-            (Accepted, RefuteSuite::Full),
-        ],
-    );
-}
-
-/// The ADMG front-door average effect, Frequentist, one-atom ADMG graph posterior.
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn average_effect_admg_graph_posterior_frequentist_coverage() {
-    ae_measure(
-        "average_effect_admg_graph_posterior_frequentist_coverage",
-        0xFE40_0001,
-        &ae_frontdoor_design(false),
-        Mode::Frequentist,
-        &[(Posterior, RefuteSuite::Cheap), (Posterior, RefuteSuite::Full)],
-    );
-}
-
-/// The ADMG front-door average effect, Bayesian-bootstrap posterior, given graph.
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn average_effect_admg_given_bayesian_coverage() {
-    ae_measure(
-        "average_effect_admg_given_bayesian_coverage",
-        0xFE40_0002,
-        &ae_frontdoor_design(false),
-        Mode::Bayesian,
-        &[
-            (Accepted, RefuteSuite::None),
-            (Explicit, RefuteSuite::Cheap),
-            (Accepted, RefuteSuite::Cheap),
-            (Explicit, RefuteSuite::Full),
-            (Accepted, RefuteSuite::Full),
-        ],
-    );
+    sharing_base(|| {
+        {
+            ae_measure(
+                "average_effect_admg_given_frequentist_coverage",
+                0xFE40_0000,
+                &ae_frontdoor_design(false),
+                Mode::Frequentist,
+                &[
+                    (Accepted, RefuteSuite::None),
+                    (Explicit, RefuteSuite::Cheap),
+                    (Accepted, RefuteSuite::Cheap),
+                    (Explicit, RefuteSuite::Full),
+                    (Accepted, RefuteSuite::Full),
+                ],
+            );
+        }
+        // The ADMG front-door average effect, Frequentist, one-atom ADMG graph posterior.
+        {
+            ae_measure(
+                "average_effect_admg_given_frequentist_coverage",
+                0xFE40_0000,
+                &ae_frontdoor_design(false),
+                Mode::Frequentist,
+                &[(Posterior, RefuteSuite::Cheap), (Posterior, RefuteSuite::Full)],
+            );
+        }
+    });
 }
 
 /// The ADMG front-door average effect, Bayesian, one-atom ADMG graph posterior.
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_admg_graph_posterior_bayesian_coverage() {
-    ae_measure(
-        "average_effect_admg_graph_posterior_bayesian_coverage",
-        0xFE40_0003,
-        &ae_frontdoor_design(false),
-        Mode::Bayesian,
-        &[(Posterior, RefuteSuite::Cheap), (Posterior, RefuteSuite::Full)],
-    );
+    sharing_base(|| {
+        {
+            ae_measure(
+                "average_effect_admg_graph_posterior_bayesian_coverage",
+                0xFE40_0003,
+                &ae_frontdoor_design(false),
+                Mode::Bayesian,
+                &[(Posterior, RefuteSuite::Cheap), (Posterior, RefuteSuite::Full)],
+            );
+        }
+        // The ADMG front-door average effect, Bayesian-bootstrap posterior, given graph.
+        {
+            ae_measure(
+                "average_effect_admg_graph_posterior_bayesian_coverage",
+                0xFE40_0003,
+                &ae_frontdoor_design(false),
+                Mode::Bayesian,
+                &[
+                    (Accepted, RefuteSuite::None),
+                    (Explicit, RefuteSuite::Cheap),
+                    (Accepted, RefuteSuite::Cheap),
+                    (Explicit, RefuteSuite::Full),
+                    (Accepted, RefuteSuite::Full),
+                ],
+            );
+        }
+    });
 }
 
 /// The Bayesian DAG average effect under `bayesian.gcomp` (the default estimator).
@@ -2429,37 +2412,38 @@ fn average_effect_dag_given_bayesian_functional_effect_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_temporal_admg_given_frequentist_coverage() {
-    ae_measure(
-        "average_effect_temporal_admg_given_frequentist_coverage",
-        0xFE40_0006,
-        &ae_frontdoor_design(true),
-        Mode::Frequentist,
-        &[
-            (Explicit, RefuteSuite::None),
-            (Accepted, RefuteSuite::None),
-            (Explicit, RefuteSuite::Cheap),
-            (Accepted, RefuteSuite::Cheap),
-            (Explicit, RefuteSuite::Full),
-            (Accepted, RefuteSuite::Full),
-        ],
-    );
-}
-
-/// The front-door average effect, Frequentist, one-atom `TemporalAdmg` graph posterior.
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn average_effect_temporal_admg_graph_posterior_frequentist_coverage() {
-    ae_measure(
-        "average_effect_temporal_admg_graph_posterior_frequentist_coverage",
-        0xFE40_0007,
-        &ae_frontdoor_design(true),
-        Mode::Frequentist,
-        &[
-            (Posterior, RefuteSuite::None),
-            (Posterior, RefuteSuite::Cheap),
-            (Posterior, RefuteSuite::Full),
-        ],
-    );
+    sharing_base(|| {
+        {
+            ae_measure(
+                "average_effect_temporal_admg_given_frequentist_coverage",
+                0xFE40_0006,
+                &ae_frontdoor_design(true),
+                Mode::Frequentist,
+                &[
+                    (Explicit, RefuteSuite::None),
+                    (Accepted, RefuteSuite::None),
+                    (Explicit, RefuteSuite::Cheap),
+                    (Accepted, RefuteSuite::Cheap),
+                    (Explicit, RefuteSuite::Full),
+                    (Accepted, RefuteSuite::Full),
+                ],
+            );
+        }
+        // The front-door average effect, Frequentist, one-atom `TemporalAdmg` graph posterior.
+        {
+            ae_measure(
+                "average_effect_temporal_admg_given_frequentist_coverage",
+                0xFE40_0006,
+                &ae_frontdoor_design(true),
+                Mode::Frequentist,
+                &[
+                    (Posterior, RefuteSuite::None),
+                    (Posterior, RefuteSuite::Cheap),
+                    (Posterior, RefuteSuite::Full),
+                ],
+            );
+        }
+    });
 }
 
 /// The front-door average effect on the contemporaneous `TemporalAdmg`, block Bayesian
@@ -2467,37 +2451,38 @@ fn average_effect_temporal_admg_graph_posterior_frequentist_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn average_effect_temporal_admg_given_bayesian_coverage() {
-    ae_measure(
-        "average_effect_temporal_admg_given_bayesian_coverage",
-        0xFE40_0008,
-        &ae_frontdoor_design(true),
-        Mode::Bayesian,
-        &[
-            (Explicit, RefuteSuite::None),
-            (Accepted, RefuteSuite::None),
-            (Explicit, RefuteSuite::Cheap),
-            (Accepted, RefuteSuite::Cheap),
-            (Explicit, RefuteSuite::Full),
-            (Accepted, RefuteSuite::Full),
-        ],
-    );
-}
-
-/// The front-door average effect, Bayesian, one-atom `TemporalAdmg` graph posterior.
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn average_effect_temporal_admg_graph_posterior_bayesian_coverage() {
-    ae_measure(
-        "average_effect_temporal_admg_graph_posterior_bayesian_coverage",
-        0xFE40_0009,
-        &ae_frontdoor_design(true),
-        Mode::Bayesian,
-        &[
-            (Posterior, RefuteSuite::None),
-            (Posterior, RefuteSuite::Cheap),
-            (Posterior, RefuteSuite::Full),
-        ],
-    );
+    sharing_base(|| {
+        {
+            ae_measure(
+                "average_effect_temporal_admg_given_bayesian_coverage",
+                0xFE40_0008,
+                &ae_frontdoor_design(true),
+                Mode::Bayesian,
+                &[
+                    (Explicit, RefuteSuite::None),
+                    (Accepted, RefuteSuite::None),
+                    (Explicit, RefuteSuite::Cheap),
+                    (Accepted, RefuteSuite::Cheap),
+                    (Explicit, RefuteSuite::Full),
+                    (Accepted, RefuteSuite::Full),
+                ],
+            );
+        }
+        // The front-door average effect, Bayesian, one-atom `TemporalAdmg` graph posterior.
+        {
+            ae_measure(
+                "average_effect_temporal_admg_given_bayesian_coverage",
+                0xFE40_0008,
+                &ae_frontdoor_design(true),
+                Mode::Bayesian,
+                &[
+                    (Posterior, RefuteSuite::None),
+                    (Posterior, RefuteSuite::Cheap),
+                    (Posterior, RefuteSuite::Full),
+                ],
+            );
+        }
+    });
 }
 
 /// The modifier-averaged conditional effect on the bow ADMG, Frequentist bootstrap-SE
@@ -2538,17 +2523,36 @@ fn conditional_effect_admg_given_bayesian_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn conditional_effect_admg_graph_posterior_bayesian_coverage() {
-    ae_measure(
-        "conditional_effect_admg_graph_posterior_bayesian_coverage",
-        0xFE40_000C,
-        &ae_conditional_design(false, true),
-        Mode::Bayesian,
-        &[
-            (Posterior, RefuteSuite::None),
-            (Posterior, RefuteSuite::Cheap),
-            (Posterior, RefuteSuite::Full),
-        ],
-    );
+    sharing_base(|| {
+        {
+            ae_measure(
+                "conditional_effect_admg_graph_posterior_bayesian_coverage",
+                0xFE40_000C,
+                &ae_conditional_design(false, true),
+                Mode::Bayesian,
+                &[
+                    (Posterior, RefuteSuite::None),
+                    (Posterior, RefuteSuite::Cheap),
+                    (Posterior, RefuteSuite::Full),
+                ],
+            );
+        }
+        // The modifier-averaged conditional effect, Bayesian, one-atom `TemporalAdmg` graph
+        // posterior.
+        {
+            ae_measure(
+                "conditional_effect_admg_graph_posterior_bayesian_coverage",
+                0xFE40_000C,
+                &ae_conditional_design(true, true),
+                Mode::Bayesian,
+                &[
+                    (Posterior, RefuteSuite::None),
+                    (Posterior, RefuteSuite::Cheap),
+                    (Posterior, RefuteSuite::Full),
+                ],
+            );
+        }
+    });
 }
 
 /// The modifier-averaged conditional effect on the contemporaneous `TemporalAdmg` of the
@@ -2568,24 +2572,6 @@ fn conditional_effect_temporal_admg_given_bayesian_coverage() {
             (Accepted, RefuteSuite::Cheap),
             (Explicit, RefuteSuite::Full),
             (Accepted, RefuteSuite::Full),
-        ],
-    );
-}
-
-/// The modifier-averaged conditional effect, Bayesian, one-atom `TemporalAdmg` graph
-/// posterior.
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn conditional_effect_temporal_admg_graph_posterior_bayesian_coverage() {
-    ae_measure(
-        "conditional_effect_temporal_admg_graph_posterior_bayesian_coverage",
-        0xFE40_000E,
-        &ae_conditional_design(true, true),
-        Mode::Bayesian,
-        &[
-            (Posterior, RefuteSuite::None),
-            (Posterior, RefuteSuite::Cheap),
-            (Posterior, RefuteSuite::Full),
         ],
     );
 }
@@ -3163,161 +3149,155 @@ fn rs_coverage(
 macro_rules! rs_coverage_tests {
     ($(
         $(#[$attr:meta])*
-        $name:ident: $family:literal, $law:ident, $class:ident, $query:ident, $mode:ident,
-        $record:ident [$(($via:ident, $suite:ident)),+ $(,)?];
+        $name:ident: $family:literal,
+        $(
+            $law:ident, $class:ident, $query:ident, $mode:ident,
+            $record:ident [$(($via:ident, $suite:ident)),+ $(,)?]
+        ),+;
     )+) => {$(
         $(#[$attr])*
         #[test]
         #[ignore = "calibration: run via scripts/measure_calibration.sh"]
         fn $name() {
-            rs_coverage(
-                stringify!($name),
-                $family,
-                (RsLaw::$law, RsClass::$class, RsQuery::$query),
-                Mode::$mode,
-                (BaseRecord::$record, &[$(($via, RefuteSuite::$suite)),+]),
-            );
+            sharing_base(|| {$(
+                rs_coverage(
+                    stringify!($name),
+                    $family,
+                    (RsLaw::$law, RsClass::$class, RsQuery::$query),
+                    Mode::$mode,
+                    (BaseRecord::$record, &[$(($via, RefuteSuite::$suite)),+]),
+                );
+            )+});
         }
     )+};
 }
 
 rs_coverage_tests! {
-    /// `E[Y | do(T = 1)] = 0.596` of the front-door table over a one-atom ADMG posterior:
-    /// the atom's plug-in bootstrap-SE interval.
-    intervention_response_admg_graph_posterior_frequentist_coverage:
-        0xFE50_0000, FrontDoor, Admg, Level, Frequentist, Recorded [
-        (Posterior, Cheap), (Posterior, Full),
-    ];
     /// `E[Y | do(T = 1)] = 0.596` over a one-atom ADMG posterior: the atom's
     /// Bayesian-bootstrap credible interval.
-    intervention_response_admg_graph_posterior_bayesian_coverage:
-        0xFE50_0001, FrontDoor, Admg, Level, Bayesian, Recorded [
-        (Posterior, Cheap), (Posterior, Full),
-    ];
+    intervention_response_admg_graph_posterior_bayesian_coverage: 0xFE50_0001,
+        FrontDoor, Admg, Level, Bayesian, Recorded [
+            (Posterior, Cheap), (Posterior, Full),
+        ],
+        // `E[Y | do(T = 1)] = 0.596` on the given front-door ADMG, Bayesian.
+        FrontDoor, Admg, Level, Bayesian, Recorded [
+            (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
+        ];
     /// `E[Y | do(T = 1)] = 0.596` on the given front-door ADMG (general ID,
     /// `functional.effect`).
-    intervention_response_admg_given_frequentist_functional_effect_coverage:
-        0xFE50_0002, FrontDoor, Admg, Level, Frequentist, Recorded [
-        (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
-    ];
+    intervention_response_admg_given_frequentist_functional_effect_coverage: 0xFE50_0002,
+        FrontDoor, Admg, Level, Frequentist, Recorded [
+            (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
+        ],
+        // `E[Y | do(T = 1)] = 0.596` of the front-door table over a one-atom ADMG posterior:
+        // the atom's plug-in bootstrap-SE interval.
+        FrontDoor, Admg, Level, Frequentist, Recorded [
+            (Posterior, Cheap), (Posterior, Full),
+        ];
     /// `E[Y | do(T = 1)] = 3` on the given ADMG `z -> t -> y` with no bidirected edge
     /// (adjustment, `response.intervention_gcomp`).
-    intervention_response_admg_given_frequentist_intervention_gcomp_coverage:
-        0xFE50_0003, Adjustable, Admg, Level, Frequentist, Recorded [
-        (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
-    ];
-    /// `E[Y | do(T = 1)] = 0.596` on the given front-door ADMG, Bayesian.
-    intervention_response_admg_given_bayesian_functional_effect_coverage:
-        0xFE50_0004, FrontDoor, Admg, Level, Bayesian, Recorded [
-        (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
-    ];
-    /// `E[Y | do(T = 1)] = 3` on the given adjustment-identified ADMG (`response.bayesian`).
-    intervention_response_admg_given_bayesian_response_bayesian_coverage:
-        0xFE50_0005, Adjustable, Admg, Level, Bayesian, Recorded [
-        (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
-    ];
-    /// `E[Y | do(T = 1)] = 0.596` over a one-atom `TemporalAdmg` posterior on the table.
-    intervention_response_temporal_admg_graph_posterior_frequentist_coverage:
-        0xFE50_0006, FrontDoor, TemporalAdmg, Level, Frequentist, Recorded [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
+    intervention_response_admg_given_frequentist_intervention_gcomp_coverage: 0xFE50_0003,
+        Adjustable, Admg, Level, Frequentist, Recorded [
+            (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
+        ],
+        // `E[Y | do(T = 1)] = 3` on the given adjustment-identified `TemporalAdmg` lift
+        // (`response.intervention_gcomp`).
+        Adjustable, TemporalAdmg, Level, Frequentist, Recorded [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
     /// `E[Y | do(T = 1)] = 0.596` over a one-atom `TemporalAdmg` posterior, Bayesian.
-    intervention_response_temporal_admg_graph_posterior_bayesian_coverage:
-        0xFE50_0007, FrontDoor, TemporalAdmg, Level, Bayesian, Recorded [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    /// The front-door curve `[0.314, 0.596]` over a one-atom `TemporalAdmg` posterior.
-    response_curve_temporal_admg_graph_posterior_frequentist_coverage:
-        0xFE50_0008, FrontDoor, TemporalAdmg, Curve, Frequentist, Recorded [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
+    intervention_response_temporal_admg_graph_posterior_bayesian_coverage: 0xFE50_0007,
+        FrontDoor, TemporalAdmg, Level, Bayesian, Recorded [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        // `E[Y | do(T = 1)] = 0.596` on the given `TemporalAdmg` lift, Bayesian.
+        FrontDoor, TemporalAdmg, Level, Bayesian, Recorded [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
     /// The front-door curve `[0.314, 0.596]` over a one-atom `TemporalAdmg` posterior,
     /// Bayesian.
-    response_curve_temporal_admg_graph_posterior_bayesian_coverage:
-        0xFE50_0009, FrontDoor, TemporalAdmg, Curve, Bayesian, Recorded [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
+    response_curve_temporal_admg_graph_posterior_bayesian_coverage: 0xFE50_0009,
+        FrontDoor, TemporalAdmg, Curve, Bayesian, Recorded [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        // The front-door curve `[0.314, 0.596]` on the given `TemporalAdmg` lift, Bayesian.
+        FrontDoor, TemporalAdmg, Curve, Bayesian, Recorded [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
     /// The front-door curve `[0.314, 0.596]` on the given `TemporalAdmg` lift
     /// (`functional.effect`).
-    response_curve_temporal_admg_given_frequentist_functional_effect_coverage:
-        0xFE50_000A, FrontDoor, TemporalAdmg, Curve, Frequentist, Recorded [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
+    response_curve_temporal_admg_given_frequentist_functional_effect_coverage: 0xFE50_000A,
+        FrontDoor, TemporalAdmg, Curve, Frequentist, Recorded [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        // The front-door curve `[0.314, 0.596]` over a one-atom `TemporalAdmg` posterior.
+        FrontDoor, TemporalAdmg, Curve, Frequentist, Recorded [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
     /// The curve `1 + 2a` at `a = -1, 0, 1` on the given adjustment-identified `TemporalAdmg`
     /// lift (`response.kennedy_dr`).
-    response_curve_temporal_admg_given_frequentist_kennedy_dr_coverage:
-        0xFE50_000B, Adjustable, TemporalAdmg, Curve, Frequentist, Recorded [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    /// The front-door curve `[0.314, 0.596]` on the given `TemporalAdmg` lift, Bayesian.
-    response_curve_temporal_admg_given_bayesian_functional_effect_coverage:
-        0xFE50_000C, FrontDoor, TemporalAdmg, Curve, Bayesian, Recorded [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
+    response_curve_temporal_admg_given_frequentist_kennedy_dr_coverage: 0xFE50_000B,
+        Adjustable, TemporalAdmg, Curve, Frequentist, Recorded [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        // The curve `1 + 2a` at `a = -1, 0, 1` on the given adjustment-identified ADMG
+        // (`response.kennedy_dr`).
+        Adjustable, Admg, Curve, Frequentist, Recorded [
+            (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
+        ];
     /// The curve `1 + 2a` at `a = -1, 0, 1` on the given adjustment-identified `TemporalAdmg`
     /// lift (`response.bayesian`).
-    response_curve_temporal_admg_given_bayesian_response_bayesian_coverage:
-        0xFE50_000D, Adjustable, TemporalAdmg, Curve, Bayesian, Recorded [
-        (Explicit, None), (Accepted, None),
-    ];
+    response_curve_temporal_admg_given_bayesian_response_bayesian_coverage: 0xFE50_000D,
+        Adjustable, TemporalAdmg, Curve, Bayesian, Recorded [
+            (Explicit, None), (Accepted, None),
+        ];
     /// `E[Y | do(T = 1)] = 0.596` on the given `TemporalAdmg` lift (`functional.effect`).
-    intervention_response_temporal_admg_given_frequentist_functional_effect_coverage:
-        0xFE50_000E, FrontDoor, TemporalAdmg, Level, Frequentist, Recorded [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    /// `E[Y | do(T = 1)] = 3` on the given adjustment-identified `TemporalAdmg` lift
-    /// (`response.intervention_gcomp`).
-    intervention_response_temporal_admg_given_frequentist_intervention_gcomp_coverage:
-        0xFE50_000F, Adjustable, TemporalAdmg, Level, Frequentist, Recorded [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
-    /// `E[Y | do(T = 1)] = 0.596` on the given `TemporalAdmg` lift, Bayesian.
-    intervention_response_temporal_admg_given_bayesian_functional_effect_coverage:
-        0xFE50_0010, FrontDoor, TemporalAdmg, Level, Bayesian, Recorded [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
+    intervention_response_temporal_admg_given_frequentist_functional_effect_coverage: 0xFE50_000E,
+        FrontDoor, TemporalAdmg, Level, Frequentist, Recorded [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        // `E[Y | do(T = 1)] = 0.596` over a one-atom `TemporalAdmg` posterior on the table.
+        FrontDoor, TemporalAdmg, Level, Frequentist, Recorded [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
     /// `E[Y | do(T = 1)] = 3` on the given adjustment-identified `TemporalAdmg` lift
     /// (`response.bayesian`).
-    intervention_response_temporal_admg_given_bayesian_response_bayesian_coverage:
-        0xFE50_0011, Adjustable, TemporalAdmg, Level, Bayesian, Recorded [
-        (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-        (Explicit, Full), (Accepted, Full),
-    ];
+    intervention_response_temporal_admg_given_bayesian_response_bayesian_coverage: 0xFE50_0011,
+        Adjustable, TemporalAdmg, Level, Bayesian, Recorded [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        // `E[Y | do(T = 1)] = 3` on the given adjustment-identified ADMG (`response.bayesian`).
+        Adjustable, Admg, Level, Bayesian, Recorded [
+            (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
+        ];
     /// The front-door curve `[0.314, 0.596]` over a one-atom ADMG posterior.
-    response_curve_admg_graph_posterior_frequentist_coverage:
-        0xFE50_0012, FrontDoor, Admg, Curve, Frequentist, Unrecorded [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
+    response_curve_admg_graph_posterior_frequentist_coverage: 0xFE50_0012,
+        FrontDoor, Admg, Curve, Frequentist, Unrecorded [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        // The front-door curve `[0.314, 0.596]` on the given front-door ADMG
+        // (`functional.effect`).
+        FrontDoor, Admg, Curve, Frequentist, Unrecorded [
+            (Explicit, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ];
     /// The front-door curve `[0.314, 0.596]` over a one-atom ADMG posterior, Bayesian.
-    response_curve_admg_graph_posterior_bayesian_coverage:
-        0xFE50_0013, FrontDoor, Admg, Curve, Bayesian, Unrecorded [
-        (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-    ];
-    /// The front-door curve `[0.314, 0.596]` on the given front-door ADMG
-    /// (`functional.effect`).
-    response_curve_admg_given_frequentist_functional_effect_coverage:
-        0xFE50_0014, FrontDoor, Admg, Curve, Frequentist, Unrecorded [
-        (Explicit, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
-    /// The curve `1 + 2a` at `a = -1, 0, 1` on the given adjustment-identified ADMG
-    /// (`response.kennedy_dr`).
-    response_curve_admg_given_frequentist_kennedy_dr_coverage:
-        0xFE50_0015, Adjustable, Admg, Curve, Frequentist, Recorded [
-        (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full),
-    ];
-    /// The front-door curve `[0.314, 0.596]` on the given front-door ADMG, Bayesian.
-    response_curve_admg_given_bayesian_coverage:
-        0xFE50_0016, FrontDoor, Admg, Curve, Bayesian, Unrecorded [
-        (Explicit, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
-        (Accepted, Full),
-    ];
+    response_curve_admg_graph_posterior_bayesian_coverage: 0xFE50_0013,
+        FrontDoor, Admg, Curve, Bayesian, Unrecorded [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        // The front-door curve `[0.314, 0.596]` on the given front-door ADMG, Bayesian.
+        FrontDoor, Admg, Curve, Bayesian, Unrecorded [
+            (Explicit, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
+            (Accepted, Full),
+        ];
 }
 // ---------------------------------------------------------------- temporal window
 //
@@ -3715,242 +3695,252 @@ fn tw_measure(test: &'static str, family: u64, mode: Mode, design: TwDesign, var
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn pulse_effect_temporal_admg_given_frequentist_coverage() {
-    tw_measure(
-        "pulse_effect_temporal_admg_given_frequentist_coverage",
-        0xFE60_0000,
-        Mode::Frequentist,
-        TwDesign::Pulse,
-        TW_GIVEN,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn pulse_effect_temporal_admg_given_bayesian_coverage() {
-    tw_measure(
-        "pulse_effect_temporal_admg_given_bayesian_coverage",
-        0xFE60_0001,
-        Mode::Bayesian,
-        TwDesign::Pulse,
-        TW_GIVEN,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sustained_effect_temporal_admg_given_frequentist_coverage() {
-    tw_measure(
-        "sustained_effect_temporal_admg_given_frequentist_coverage",
-        0xFE60_0002,
-        Mode::Frequentist,
-        TwDesign::Sustained,
-        TW_GIVEN,
-    );
+    sharing_base(|| {
+        {
+            tw_measure(
+                "sustained_effect_temporal_admg_given_frequentist_coverage",
+                0xFE60_0002,
+                Mode::Frequentist,
+                TwDesign::Sustained,
+                TW_GIVEN,
+            );
+        }
+        {
+            tw_measure(
+                "sustained_effect_temporal_admg_given_frequentist_coverage",
+                0xFE60_0002,
+                Mode::Frequentist,
+                TwDesign::Sustained,
+                TW_POSTERIOR,
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sustained_effect_temporal_admg_given_bayesian_coverage() {
-    tw_measure(
-        "sustained_effect_temporal_admg_given_bayesian_coverage",
-        0xFE60_0003,
-        Mode::Bayesian,
-        TwDesign::Sustained,
-        TW_GIVEN,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn temporal_conditional_pulse_temporal_admg_given_frequentist_coverage() {
-    tw_measure(
-        "temporal_conditional_pulse_temporal_admg_given_frequentist_coverage",
-        0xFE60_0004,
-        Mode::Frequentist,
-        TwDesign::ConditionalPulse,
-        TW_GIVEN,
-    );
+    sharing_base(|| {
+        {
+            tw_measure(
+                "sustained_effect_temporal_admg_given_bayesian_coverage",
+                0xFE60_0003,
+                Mode::Bayesian,
+                TwDesign::Sustained,
+                TW_GIVEN,
+            );
+        }
+        {
+            tw_measure(
+                "sustained_effect_temporal_admg_given_bayesian_coverage",
+                0xFE60_0003,
+                Mode::Bayesian,
+                TwDesign::Sustained,
+                TW_POSTERIOR,
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_conditional_pulse_temporal_admg_given_bayesian_coverage() {
-    tw_measure(
-        "temporal_conditional_pulse_temporal_admg_given_bayesian_coverage",
-        0xFE60_0005,
-        Mode::Bayesian,
-        TwDesign::ConditionalPulse,
-        TW_GIVEN,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn temporal_conditional_sustained_temporal_admg_given_frequentist_coverage() {
-    tw_measure(
-        "temporal_conditional_sustained_temporal_admg_given_frequentist_coverage",
-        0xFE60_0006,
-        Mode::Frequentist,
-        TwDesign::ConditionalSustained,
-        TW_GIVEN,
-    );
+    sharing_base(|| {
+        {
+            tw_measure(
+                "temporal_conditional_pulse_temporal_admg_given_bayesian_coverage",
+                0xFE60_0005,
+                Mode::Bayesian,
+                TwDesign::ConditionalPulse,
+                TW_GIVEN,
+            );
+        }
+        {
+            tw_measure(
+                "temporal_conditional_pulse_temporal_admg_given_bayesian_coverage",
+                0xFE60_0005,
+                Mode::Bayesian,
+                TwDesign::ConditionalPulse,
+                TW_POSTERIOR,
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_conditional_sustained_temporal_admg_given_bayesian_coverage() {
-    tw_measure(
-        "temporal_conditional_sustained_temporal_admg_given_bayesian_coverage",
-        0xFE60_0007,
-        Mode::Bayesian,
-        TwDesign::ConditionalSustained,
-        TW_GIVEN,
-    );
+    sharing_base(|| {
+        {
+            tw_measure(
+                "temporal_conditional_sustained_temporal_admg_given_bayesian_coverage",
+                0xFE60_0007,
+                Mode::Bayesian,
+                TwDesign::ConditionalSustained,
+                TW_GIVEN,
+            );
+        }
+        {
+            tw_measure(
+                "temporal_conditional_sustained_temporal_admg_given_bayesian_coverage",
+                0xFE60_0007,
+                Mode::Bayesian,
+                TwDesign::ConditionalSustained,
+                TW_POSTERIOR,
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_admg_graph_posterior_frequentist_coverage() {
-    tw_measure(
-        "pulse_effect_temporal_admg_graph_posterior_frequentist_coverage",
-        0xFE60_0008,
-        Mode::Frequentist,
-        TwDesign::Pulse,
-        TW_POSTERIOR,
-    );
+    sharing_base(|| {
+        {
+            tw_measure(
+                "pulse_effect_temporal_admg_graph_posterior_frequentist_coverage",
+                0xFE60_0008,
+                Mode::Frequentist,
+                TwDesign::Pulse,
+                TW_POSTERIOR,
+            );
+        }
+        {
+            tw_measure(
+                "pulse_effect_temporal_admg_graph_posterior_frequentist_coverage",
+                0xFE60_0008,
+                Mode::Frequentist,
+                TwDesign::Pulse,
+                TW_GIVEN,
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn pulse_effect_temporal_admg_graph_posterior_bayesian_coverage() {
-    tw_measure(
-        "pulse_effect_temporal_admg_graph_posterior_bayesian_coverage",
-        0xFE60_0009,
-        Mode::Bayesian,
-        TwDesign::Pulse,
-        TW_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn sustained_effect_temporal_admg_graph_posterior_frequentist_coverage() {
-    tw_measure(
-        "sustained_effect_temporal_admg_graph_posterior_frequentist_coverage",
-        0xFE60_000A,
-        Mode::Frequentist,
-        TwDesign::Sustained,
-        TW_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn sustained_effect_temporal_admg_graph_posterior_bayesian_coverage() {
-    tw_measure(
-        "sustained_effect_temporal_admg_graph_posterior_bayesian_coverage",
-        0xFE60_000B,
-        Mode::Bayesian,
-        TwDesign::Sustained,
-        TW_POSTERIOR,
-    );
+    sharing_base(|| {
+        {
+            tw_measure(
+                "pulse_effect_temporal_admg_graph_posterior_bayesian_coverage",
+                0xFE60_0009,
+                Mode::Bayesian,
+                TwDesign::Pulse,
+                TW_POSTERIOR,
+            );
+        }
+        {
+            tw_measure(
+                "pulse_effect_temporal_admg_graph_posterior_bayesian_coverage",
+                0xFE60_0009,
+                Mode::Bayesian,
+                TwDesign::Pulse,
+                TW_GIVEN,
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_conditional_pulse_temporal_admg_graph_posterior_frequentist_coverage() {
-    tw_measure(
-        "temporal_conditional_pulse_temporal_admg_graph_posterior_frequentist_coverage",
-        0xFE60_000C,
-        Mode::Frequentist,
-        TwDesign::ConditionalPulse,
-        TW_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn temporal_conditional_pulse_temporal_admg_graph_posterior_bayesian_coverage() {
-    tw_measure(
-        "temporal_conditional_pulse_temporal_admg_graph_posterior_bayesian_coverage",
-        0xFE60_000D,
-        Mode::Bayesian,
-        TwDesign::ConditionalPulse,
-        TW_POSTERIOR,
-    );
+    sharing_base(|| {
+        {
+            tw_measure(
+                "temporal_conditional_pulse_temporal_admg_graph_posterior_frequentist_coverage",
+                0xFE60_000C,
+                Mode::Frequentist,
+                TwDesign::ConditionalPulse,
+                TW_POSTERIOR,
+            );
+        }
+        {
+            tw_measure(
+                "temporal_conditional_pulse_temporal_admg_graph_posterior_frequentist_coverage",
+                0xFE60_000C,
+                Mode::Frequentist,
+                TwDesign::ConditionalPulse,
+                TW_GIVEN,
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_conditional_sustained_temporal_admg_graph_posterior_frequentist_coverage() {
-    tw_measure(
-        "temporal_conditional_sustained_temporal_admg_graph_posterior_frequentist_coverage",
-        0xFE60_000E,
-        Mode::Frequentist,
-        TwDesign::ConditionalSustained,
-        TW_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn temporal_conditional_sustained_temporal_admg_graph_posterior_bayesian_coverage() {
-    tw_measure(
-        "temporal_conditional_sustained_temporal_admg_graph_posterior_bayesian_coverage",
-        0xFE60_000F,
-        Mode::Bayesian,
-        TwDesign::ConditionalSustained,
-        TW_POSTERIOR,
-    );
+    sharing_base(|| {
+        {
+            tw_measure(
+                "temporal_conditional_sustained_temporal_admg_graph_posterior_frequentist_coverage",
+                0xFE60_000E,
+                Mode::Frequentist,
+                TwDesign::ConditionalSustained,
+                TW_POSTERIOR,
+            );
+        }
+        {
+            tw_measure(
+                "temporal_conditional_sustained_temporal_admg_graph_posterior_frequentist_coverage",
+                0xFE60_000E,
+                Mode::Frequentist,
+                TwDesign::ConditionalSustained,
+                TW_GIVEN,
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_mediation_effect_temporal_admg_given_frequentist_coverage() {
-    tw_measure(
-        "temporal_mediation_effect_temporal_admg_given_frequentist_coverage",
-        0xFE60_0010,
-        Mode::Frequentist,
-        TwDesign::MediationAdmg,
-        TW_GIVEN,
-    );
+    sharing_base(|| {
+        {
+            tw_measure(
+                "temporal_mediation_effect_temporal_admg_given_frequentist_coverage",
+                0xFE60_0010,
+                Mode::Frequentist,
+                TwDesign::MediationAdmg,
+                TW_GIVEN,
+            );
+        }
+        {
+            tw_measure(
+                "temporal_mediation_effect_temporal_admg_given_frequentist_coverage",
+                0xFE60_0010,
+                Mode::Frequentist,
+                TwDesign::MediationAdmg,
+                TW_POSTERIOR,
+            );
+        }
+    });
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn temporal_mediation_effect_temporal_admg_given_bayesian_coverage() {
-    tw_measure(
-        "temporal_mediation_effect_temporal_admg_given_bayesian_coverage",
-        0xFE60_0011,
-        Mode::Bayesian,
-        TwDesign::MediationAdmg,
-        TW_GIVEN,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn temporal_mediation_effect_temporal_admg_graph_posterior_frequentist_coverage() {
-    tw_measure(
-        "temporal_mediation_effect_temporal_admg_graph_posterior_frequentist_coverage",
-        0xFE60_0012,
-        Mode::Frequentist,
-        TwDesign::MediationAdmg,
-        TW_POSTERIOR,
-    );
-}
-
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn temporal_mediation_effect_temporal_admg_graph_posterior_bayesian_coverage() {
-    tw_measure(
-        "temporal_mediation_effect_temporal_admg_graph_posterior_bayesian_coverage",
-        0xFE60_0013,
-        Mode::Bayesian,
-        TwDesign::MediationAdmg,
-        TW_POSTERIOR,
-    );
+    sharing_base(|| {
+        {
+            tw_measure(
+                "temporal_mediation_effect_temporal_admg_given_bayesian_coverage",
+                0xFE60_0011,
+                Mode::Bayesian,
+                TwDesign::MediationAdmg,
+                TW_GIVEN,
+            );
+        }
+        {
+            tw_measure(
+                "temporal_mediation_effect_temporal_admg_given_bayesian_coverage",
+                0xFE60_0011,
+                Mode::Bayesian,
+                TwDesign::MediationAdmg,
+                TW_POSTERIOR,
+            );
+        }
+    });
 }
 
 /// The natural indirect effect on the window of the mediation template's `TemporalPag`.

@@ -995,17 +995,17 @@
     },
     {
       "path": "crates/antecedent/tests/common/grid_cell.rs",
-      "sha256": "5f6b31ad4ba94f20ff7149f8d5a271e66b30a885425c55505ce5146c99e1985b",
+      "sha256": "bfba890dfdba48ed029eca72f3fe98a2656c41d7100477a8be754dde882a6034",
       "labelled_calls": [
         {
-          "line": 252,
+          "line": 374,
           "call": ".labelled(",
           "argument": "label.clone()"
         }
       ],
       "constructor_calls": [
         {
-          "line": 247,
+          "line": 369,
           "call": "CoverageTally::for_record(",
           "argument": "key, level"
         }
@@ -1168,16 +1168,16 @@
     },
     {
       "path": "crates/antecedent/tests/grid_functional_effect_calibration.rs",
-      "sha256": "7e6784ef96932d6c0f74a8cbddd40909a82face66757178b0caea9c608c612d5",
+      "sha256": "4733630293f1529b5ef07ba02feed4a0174baa9be7eefdc2b812acfcee35ca72",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 539,
+          "line": 540,
           "call": "CoverageTally::for_record(",
           "argument": "key, level"
         }
       ],
-      "review": "One test per supported functional-effect coordinate through the shared sibling driver: the scored targets (labels and closed-form truths) are a caller-declared list handed to the driver before any replicate runs, at most three per test, at the two source-fixed levels; the sibling variants are the fixed validation modes and the accepted twin of the coordinate, never chosen from outcomes."
+      "review": "One test per group of supported functional-effect coordinates that report one interval, through the shared sibling driver: the coordinates sharing a measured base are a source-fixed list, each checked to report the base interval, truth and scope on the first replicates before it is scored on the base; the scored targets (labels and closed-form truths) are a caller-declared list handed to the driver before any replicate runs, at most three per coordinate, at the two source-fixed levels; the sibling variants are the fixed validation modes and the accepted twin of each coordinate, never chosen from outcomes."
     },
     {
       "path": "crates/antecedent/tests/joint_law_composed_interval_calibration.rs",

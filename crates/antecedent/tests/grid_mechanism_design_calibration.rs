@@ -78,7 +78,7 @@ use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{GRID_POINTS, gaussian, grid_n, stream_seed, unit_uniform};
 use common::reported::{posterior_pair, scalar_normal_pair};
 use common::static_dgp::{sigmoid, uniform};
-use grid_cell::{Cell, IntervalPair, Target, measure, measure_at};
+use grid_cell::{Cell, IntervalPair, Target, measure, measure_at, sharing_base};
 
 fn d(i: u32) -> DenseNodeId {
     DenseNodeId::from_raw(i)
@@ -1374,501 +1374,437 @@ fn interference(
 
 macro_rules! coverage_tests {
     ($(
-        $name:ident: $runner:ident($($arg:expr),+ $(,)?) [$(($via:ident, $suite:ident)),+ $(,)?];
+        $name:ident: $family:literal,
+        $($runner:ident($($arg:expr),+ $(,)?) [$(($via:ident, $suite:ident)),+ $(,)?]),+;
     )+) => {$(
         #[test]
         #[ignore = "calibration: run via scripts/measure_calibration.sh"]
         fn $name() {
-            $runner(stringify!($name), $($arg),+, &[$(($via, RefuteSuite::$suite)),+]);
+            sharing_base(|| {$(
+                $runner(
+                    stringify!($name),
+                    $family,
+                    $($arg),+,
+                    &[$(($via, RefuteSuite::$suite)),+],
+                );
+            )+});
         }
     )+};
 }
 
 coverage_tests! {
-    anomaly_attribution_dag_given_bayesian_coverage:
-        attribution(0x4D45_0000, AttrKind::Anomaly, Class::Dag, Mode::Bayesian) [
+    anomaly_attribution_dag_graph_posterior_bayesian_coverage: 0x4D45_0001,
+        attribution(AttrKind::Anomaly, Class::Dag, Mode::Bayesian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        attribution(AttrKind::Anomaly, Class::Dag, Mode::Bayesian) [
             (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
             (Accepted, Full),
         ];
-    anomaly_attribution_dag_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_0001, AttrKind::Anomaly, Class::Dag, Mode::Bayesian) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    anomaly_attribution_cpdag_given_bayesian_coverage:
-        attribution(0x4D45_0002, AttrKind::Anomaly, Class::Cpdag, Mode::Bayesian) [
+    anomaly_attribution_pag_given_bayesian_coverage: 0x4D45_0004,
+        attribution(AttrKind::Anomaly, Class::Pag, Mode::Bayesian) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
         ];
-    anomaly_attribution_cpdag_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_0003, AttrKind::Anomaly, Class::Cpdag, Mode::Bayesian) [
+    anomaly_attribution_cpdag_graph_posterior_bayesian_coverage: 0x4D45_0003,
+        attribution(AttrKind::Anomaly, Class::Cpdag, Mode::Bayesian) [
             (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    anomaly_attribution_pag_given_bayesian_coverage:
-        attribution(0x4D45_0004, AttrKind::Anomaly, Class::Pag, Mode::Bayesian) [
+        ],
+        attribution(AttrKind::Anomaly, Class::Cpdag, Mode::Bayesian) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
         ];
-    anomaly_attribution_pag_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_0005, AttrKind::Anomaly, Class::Pag, Mode::Bayesian) [
+    anomaly_attribution_pag_graph_posterior_bayesian_coverage: 0x4D45_0005,
+        attribution(AttrKind::Anomaly, Class::Pag, Mode::Bayesian) [
             (Posterior, None), (Posterior, Cheap), (Posterior, Full),
         ];
-    anomaly_attribution_admg_given_bayesian_coverage:
-        attribution(0x4D45_0006, AttrKind::Anomaly, Class::Admg, Mode::Bayesian) [
+    anomaly_attribution_admg_graph_posterior_bayesian_coverage: 0x4D45_0007,
+        attribution(AttrKind::Anomaly, Class::Admg, Mode::Bayesian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        attribution(AttrKind::Anomaly, Class::Admg, Mode::Bayesian) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
         ];
-    anomaly_attribution_admg_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_0007, AttrKind::Anomaly, Class::Admg, Mode::Bayesian) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    anomaly_attribution_temporal_dag_given_bayesian_coverage:
-        attribution(0x4D45_0008, AttrKind::Anomaly, Class::TemporalDag, Mode::Bayesian) [
+    anomaly_attribution_temporal_dag_given_frequentist_coverage: 0x4D45_0009,
+        attribution(AttrKind::Anomaly, Class::TemporalDag, Mode::Frequentist) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
         ];
-    anomaly_attribution_temporal_dag_given_frequentist_coverage:
-        attribution(0x4D45_0009, AttrKind::Anomaly, Class::TemporalDag, Mode::Frequentist) [
+    anomaly_attribution_temporal_cpdag_graph_posterior_bayesian_coverage: 0x4D45_000C,
+        attribution(AttrKind::Anomaly, Class::TemporalCpdag, Mode::Bayesian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        attribution(AttrKind::Anomaly, Class::TemporalDag, Mode::Bayesian) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        attribution(AttrKind::Anomaly, Class::TemporalDag, Mode::Bayesian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        attribution(AttrKind::Anomaly, Class::TemporalCpdag, Mode::Bayesian) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
         ];
-    anomaly_attribution_temporal_dag_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_000A, AttrKind::Anomaly, Class::TemporalDag, Mode::Bayesian) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    anomaly_attribution_temporal_cpdag_given_bayesian_coverage:
-        attribution(0x4D45_000B, AttrKind::Anomaly, Class::TemporalCpdag, Mode::Bayesian) [
+    anomaly_attribution_temporal_pag_given_bayesian_coverage: 0x4D45_000D,
+        attribution(AttrKind::Anomaly, Class::TemporalPag, Mode::Bayesian) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
         ];
-    anomaly_attribution_temporal_cpdag_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_000C, AttrKind::Anomaly, Class::TemporalCpdag, Mode::Bayesian) [
+    anomaly_attribution_temporal_pag_graph_posterior_bayesian_coverage: 0x4D45_000E,
+        attribution(AttrKind::Anomaly, Class::TemporalPag, Mode::Bayesian) [
             (Posterior, None), (Posterior, Cheap), (Posterior, Full),
         ];
-    anomaly_attribution_temporal_pag_given_bayesian_coverage:
-        attribution(0x4D45_000D, AttrKind::Anomaly, Class::TemporalPag, Mode::Bayesian) [
+    anomaly_attribution_temporal_admg_given_bayesian_coverage: 0x4D45_000F,
+        attribution(AttrKind::Anomaly, Class::TemporalAdmg, Mode::Bayesian) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
         ];
-    anomaly_attribution_temporal_pag_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_000E, AttrKind::Anomaly, Class::TemporalPag, Mode::Bayesian) [
+    anomaly_attribution_temporal_admg_graph_posterior_bayesian_coverage: 0x4D45_0010,
+        attribution(AttrKind::Anomaly, Class::TemporalAdmg, Mode::Bayesian) [
             (Posterior, None), (Posterior, Cheap), (Posterior, Full),
         ];
-    anomaly_attribution_temporal_admg_given_bayesian_coverage:
-        attribution(0x4D45_000F, AttrKind::Anomaly, Class::TemporalAdmg, Mode::Bayesian) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    anomaly_attribution_temporal_admg_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_0010, AttrKind::Anomaly, Class::TemporalAdmg, Mode::Bayesian) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    change_attribution_dag_given_bayesian_coverage:
-        attribution(0x4D45_0011, AttrKind::Change, Class::Dag, Mode::Bayesian) [
+    change_attribution_dag_graph_posterior_bayesian_coverage: 0x4D45_0012,
+        attribution(AttrKind::Change, Class::Dag, Mode::Bayesian) [
+            (Posterior, None),
+        ],
+        attribution(AttrKind::Change, Class::Dag, Mode::Bayesian) [
             (Accepted, None),
         ];
-    change_attribution_dag_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_0012, AttrKind::Change, Class::Dag, Mode::Bayesian) [
+    change_attribution_cpdag_graph_posterior_bayesian_coverage: 0x4D45_0014,
+        attribution(AttrKind::Change, Class::Cpdag, Mode::Bayesian) [
             (Posterior, None),
-        ];
-    change_attribution_cpdag_given_bayesian_coverage:
-        attribution(0x4D45_0013, AttrKind::Change, Class::Cpdag, Mode::Bayesian) [
+        ],
+        attribution(AttrKind::Change, Class::Cpdag, Mode::Bayesian) [
             (Explicit, None), (Accepted, None),
         ];
-    change_attribution_cpdag_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_0014, AttrKind::Change, Class::Cpdag, Mode::Bayesian) [
-            (Posterior, None),
-        ];
-    change_attribution_pag_given_bayesian_coverage:
-        attribution(0x4D45_0015, AttrKind::Change, Class::Pag, Mode::Bayesian) [
+    change_attribution_pag_given_bayesian_coverage: 0x4D45_0015,
+        attribution(AttrKind::Change, Class::Pag, Mode::Bayesian) [
             (Explicit, None), (Accepted, None),
         ];
-    change_attribution_pag_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_0016, AttrKind::Change, Class::Pag, Mode::Bayesian) [
+    change_attribution_pag_graph_posterior_bayesian_coverage: 0x4D45_0016,
+        attribution(AttrKind::Change, Class::Pag, Mode::Bayesian) [
             (Posterior, None),
         ];
-    change_attribution_admg_given_bayesian_coverage:
-        attribution(0x4D45_0017, AttrKind::Change, Class::Admg, Mode::Bayesian) [
+    change_attribution_admg_graph_posterior_bayesian_coverage: 0x4D45_0018,
+        attribution(AttrKind::Change, Class::Admg, Mode::Bayesian) [
+            (Posterior, None),
+        ],
+        attribution(AttrKind::Change, Class::Admg, Mode::Bayesian) [
             (Explicit, None), (Accepted, None),
         ];
-    change_attribution_admg_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_0018, AttrKind::Change, Class::Admg, Mode::Bayesian) [
+    change_attribution_temporal_dag_given_frequentist_coverage: 0x4D45_001A,
+        attribution(AttrKind::Change, Class::TemporalDag, Mode::Frequentist) [
+            (Explicit, None), (Accepted, None),
+        ];
+    change_attribution_temporal_dag_graph_posterior_bayesian_coverage: 0x4D45_001B,
+        attribution(AttrKind::Change, Class::TemporalDag, Mode::Bayesian) [
+            (Posterior, None),
+        ],
+        attribution(AttrKind::Change, Class::TemporalDag, Mode::Bayesian) [
+            (Explicit, None), (Accepted, None),
+        ],
+        attribution(AttrKind::Change, Class::TemporalCpdag, Mode::Bayesian) [
+            (Explicit, None), (Accepted, None),
+        ],
+        attribution(AttrKind::Change, Class::TemporalCpdag, Mode::Bayesian) [
             (Posterior, None),
         ];
-    change_attribution_temporal_dag_given_bayesian_coverage:
-        attribution(0x4D45_0019, AttrKind::Change, Class::TemporalDag, Mode::Bayesian) [
+    change_attribution_temporal_pag_given_bayesian_coverage: 0x4D45_001E,
+        attribution(AttrKind::Change, Class::TemporalPag, Mode::Bayesian) [
             (Explicit, None), (Accepted, None),
         ];
-    change_attribution_temporal_dag_given_frequentist_coverage:
-        attribution(0x4D45_001A, AttrKind::Change, Class::TemporalDag, Mode::Frequentist) [
-            (Explicit, None), (Accepted, None),
-        ];
-    change_attribution_temporal_dag_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_001B, AttrKind::Change, Class::TemporalDag, Mode::Bayesian) [
+    change_attribution_temporal_pag_graph_posterior_bayesian_coverage: 0x4D45_001F,
+        attribution(AttrKind::Change, Class::TemporalPag, Mode::Bayesian) [
             (Posterior, None),
         ];
-    change_attribution_temporal_cpdag_given_bayesian_coverage:
-        attribution(0x4D45_001C, AttrKind::Change, Class::TemporalCpdag, Mode::Bayesian) [
+    change_attribution_temporal_admg_given_bayesian_coverage: 0x4D45_0020,
+        attribution(AttrKind::Change, Class::TemporalAdmg, Mode::Bayesian) [
             (Explicit, None), (Accepted, None),
         ];
-    change_attribution_temporal_cpdag_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_001D, AttrKind::Change, Class::TemporalCpdag, Mode::Bayesian) [
+    change_attribution_temporal_admg_graph_posterior_bayesian_coverage: 0x4D45_0021,
+        attribution(AttrKind::Change, Class::TemporalAdmg, Mode::Bayesian) [
             (Posterior, None),
         ];
-    change_attribution_temporal_pag_given_bayesian_coverage:
-        attribution(0x4D45_001E, AttrKind::Change, Class::TemporalPag, Mode::Bayesian) [
-            (Explicit, None), (Accepted, None),
-        ];
-    change_attribution_temporal_pag_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_001F, AttrKind::Change, Class::TemporalPag, Mode::Bayesian) [
-            (Posterior, None),
-        ];
-    change_attribution_temporal_admg_given_bayesian_coverage:
-        attribution(0x4D45_0020, AttrKind::Change, Class::TemporalAdmg, Mode::Bayesian) [
-            (Explicit, None), (Accepted, None),
-        ];
-    change_attribution_temporal_admg_graph_posterior_bayesian_coverage:
-        attribution(0x4D45_0021, AttrKind::Change, Class::TemporalAdmg, Mode::Bayesian) [
-            (Posterior, None),
-        ];
-    counterfactual_dag_given_bayesian_coverage:
-        counterfactual(0x4D45_0022, Class::Dag, Mode::Bayesian) [
+    counterfactual_cpdag_graph_posterior_bayesian_coverage: 0x4D45_0026,
+        counterfactual(Class::Cpdag, Mode::Bayesian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        counterfactual(Class::Dag, Mode::Bayesian) [
             (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
             (Accepted, Full),
-        ];
-    counterfactual_dag_graph_posterior_bayesian_coverage:
-        counterfactual(0x4D45_0023, Class::Dag, Mode::Bayesian) [
+        ],
+        counterfactual(Class::Dag, Mode::Bayesian) [
             (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    counterfactual_dag_graph_posterior_frequentist_coverage:
-        counterfactual(0x4D45_0024, Class::Dag, Mode::Frequentist) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    counterfactual_cpdag_given_bayesian_coverage:
-        counterfactual(0x4D45_0025, Class::Cpdag, Mode::Bayesian) [
+        ],
+        counterfactual(Class::Cpdag, Mode::Bayesian) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
         ];
-    counterfactual_cpdag_graph_posterior_bayesian_coverage:
-        counterfactual(0x4D45_0026, Class::Cpdag, Mode::Bayesian) [
+    counterfactual_cpdag_graph_posterior_frequentist_coverage: 0x4D45_0027,
+        counterfactual(Class::Cpdag, Mode::Frequentist) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        counterfactual(Class::Dag, Mode::Frequentist) [
             (Posterior, None), (Posterior, Cheap), (Posterior, Full),
         ];
-    counterfactual_cpdag_graph_posterior_frequentist_coverage:
-        counterfactual(0x4D45_0027, Class::Cpdag, Mode::Frequentist) [
+    transport_dag_graph_posterior_bayesian_coverage: 0x4D45_002A,
+        transport(Class::Dag, Mode::Bayesian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        transport(Class::Cpdag, Mode::Bayesian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        transport(Class::Admg, Mode::Bayesian) [
             (Posterior, None), (Posterior, Cheap), (Posterior, Full),
         ];
-    transport_dag_given_bayesian_coverage:
-        transport(0x4D45_0028, Class::Dag, Mode::Bayesian) [
+    transport_cpdag_graph_posterior_frequentist_coverage: 0x4D45_002F,
+        transport(Class::Cpdag, Mode::Frequentist) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        transport(Class::Dag, Mode::Frequentist) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
-        ];
-    transport_dag_given_frequentist_coverage:
-        transport(0x4D45_0029, Class::Dag, Mode::Frequentist) [
+        ],
+        transport(Class::Dag, Mode::Frequentist) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        transport(Class::Cpdag, Mode::Frequentist) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
-        ];
-    transport_dag_graph_posterior_bayesian_coverage:
-        transport(0x4D45_002A, Class::Dag, Mode::Bayesian) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    transport_dag_graph_posterior_frequentist_coverage:
-        transport(0x4D45_002B, Class::Dag, Mode::Frequentist) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    transport_cpdag_given_bayesian_coverage:
-        transport(0x4D45_002C, Class::Cpdag, Mode::Bayesian) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    transport_cpdag_given_frequentist_coverage:
-        transport(0x4D45_002D, Class::Cpdag, Mode::Frequentist) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    transport_cpdag_graph_posterior_bayesian_coverage:
-        transport(0x4D45_002E, Class::Cpdag, Mode::Bayesian) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    transport_cpdag_graph_posterior_frequentist_coverage:
-        transport(0x4D45_002F, Class::Cpdag, Mode::Frequentist) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    transport_pag_given_bayesian_coverage:
-        transport(0x4D45_0030, Class::Pag, Mode::Bayesian) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    transport_pag_given_frequentist_coverage:
-        transport(0x4D45_0031, Class::Pag, Mode::Frequentist) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    transport_pag_graph_posterior_bayesian_coverage:
-        transport(0x4D45_0032, Class::Pag, Mode::Bayesian) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    transport_pag_graph_posterior_frequentist_coverage:
-        transport(0x4D45_0033, Class::Pag, Mode::Frequentist) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    transport_admg_given_bayesian_coverage:
-        transport(0x4D45_0034, Class::Admg, Mode::Bayesian) [
+        ],
+        transport(Class::Admg, Mode::Frequentist) [
             (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
             (Accepted, Full),
+        ],
+        transport(Class::Admg, Mode::Frequentist) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
         ];
-    transport_admg_given_frequentist_coverage:
-        transport(0x4D45_0035, Class::Admg, Mode::Frequentist) [
+    transport_pag_given_bayesian_coverage: 0x4D45_0030,
+        transport(Class::Pag, Mode::Bayesian) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    transport_pag_graph_posterior_bayesian_coverage: 0x4D45_0032,
+        transport(Class::Pag, Mode::Bayesian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ];
+    transport_pag_graph_posterior_frequentist_coverage: 0x4D45_0033,
+        transport(Class::Pag, Mode::Frequentist) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        transport(Class::Pag, Mode::Frequentist) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ];
+    transport_admg_given_bayesian_coverage: 0x4D45_0034,
+        transport(Class::Admg, Mode::Bayesian) [
             (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
             (Accepted, Full),
-        ];
-    transport_admg_graph_posterior_bayesian_coverage:
-        transport(0x4D45_0036, Class::Admg, Mode::Bayesian) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    transport_admg_graph_posterior_frequentist_coverage:
-        transport(0x4D45_0037, Class::Admg, Mode::Frequentist) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    transport_temporal_admg_given_bayesian_coverage:
-        transport(0x4D45_0038, Class::TemporalAdmg, Mode::Bayesian) [
+        ],
+        transport(Class::Dag, Mode::Bayesian) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        transport(Class::Cpdag, Mode::Bayesian) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
         ];
-    transport_temporal_admg_given_frequentist_coverage:
-        transport(0x4D45_0039, Class::TemporalAdmg, Mode::Frequentist) [
+    transport_temporal_admg_given_bayesian_coverage: 0x4D45_0038,
+        transport(Class::TemporalAdmg, Mode::Bayesian) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
         ];
-    transport_temporal_admg_graph_posterior_bayesian_coverage:
-        transport(0x4D45_003A, Class::TemporalAdmg, Mode::Bayesian) [
+    transport_temporal_admg_given_frequentist_coverage: 0x4D45_0039,
+        transport(Class::TemporalAdmg, Mode::Frequentist) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        transport(Class::TemporalAdmg, Mode::Frequentist) [
             (Posterior, None), (Posterior, Cheap), (Posterior, Full),
         ];
-    transport_temporal_admg_graph_posterior_frequentist_coverage:
-        transport(0x4D45_003B, Class::TemporalAdmg, Mode::Frequentist) [
+    transport_temporal_admg_graph_posterior_bayesian_coverage: 0x4D45_003A,
+        transport(Class::TemporalAdmg, Mode::Bayesian) [
             (Posterior, None), (Posterior, Cheap), (Posterior, Full),
         ];
-    interference_dag_given_bayesian_gaussian_coverage:
-        interference(0x4D45_003C, Class::Dag, Design::BayesianGaussian) [
+    interference_dag_given_bayesian_gaussian_coverage: 0x4D45_003C,
+        interference(Class::Dag, Design::BayesianGaussian) [
             (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
             (Accepted, Full),
+        ],
+        interference(Class::Dag, Design::BayesianGaussian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Cpdag, Design::BayesianGaussian) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::Cpdag, Design::BayesianGaussian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Pag, Design::BayesianGaussian) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::Pag, Design::BayesianGaussian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Admg, Design::BayesianGaussian) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::Admg, Design::BayesianGaussian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::TemporalAdmg, Design::BayesianGaussian) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::TemporalAdmg, Design::BayesianGaussian) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
         ];
-    interference_dag_given_cluster_bayesian_bootstrap_coverage:
-        interference(0x4D45_003D, Class::Dag, Design::ClusterBootstrap) [
+    interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage: 0x4D45_0056,
+        interference(Class::Pag, Design::ClusterBootstrap) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Dag, Design::ClusterBootstrap) [
             (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
             (Accepted, Full),
+        ],
+        interference(Class::Dag, Design::ClusterBootstrap) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Cpdag, Design::ClusterBootstrap) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::Cpdag, Design::ClusterBootstrap) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Pag, Design::ClusterBootstrap) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::Admg, Design::ClusterBootstrap) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::Admg, Design::ClusterBootstrap) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::TemporalAdmg, Design::ClusterBootstrap) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::TemporalAdmg, Design::ClusterBootstrap) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
         ];
-    interference_dag_given_ht_hajek_coverage:
-        interference(0x4D45_003E, Class::Dag, Design::HtHajek) [
+    interference_admg_given_observational_ipw_coverage: 0x4D45_005E,
+        interference(Class::Admg, Design::Observational) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::Dag, Design::Observational) [
             (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
             (Accepted, Full),
+        ],
+        interference(Class::Dag, Design::Observational) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Cpdag, Design::Observational) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::Cpdag, Design::Observational) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Pag, Design::Observational) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::Pag, Design::Observational) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Admg, Design::Observational) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::TemporalAdmg, Design::Observational) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::TemporalAdmg, Design::Observational) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
         ];
-    interference_dag_given_cluster_neyman_coverage:
-        interference(0x4D45_003F, Class::Dag, Design::ClusterNeyman) [
+    interference_temporal_admg_graph_posterior_ht_hajek_coverage: 0x4D45_006B,
+        interference(Class::TemporalAdmg, Design::HtHajek) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Dag, Design::HtHajek) [
             (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
             (Accepted, Full),
+        ],
+        interference(Class::Dag, Design::HtHajek) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Cpdag, Design::HtHajek) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::Cpdag, Design::HtHajek) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Pag, Design::HtHajek) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::Pag, Design::HtHajek) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Admg, Design::HtHajek) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
+        ],
+        interference(Class::Admg, Design::HtHajek) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::TemporalAdmg, Design::HtHajek) [
+            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
+            (Explicit, Full), (Accepted, Full),
         ];
-    interference_dag_given_observational_ipw_coverage:
-        interference(0x4D45_0040, Class::Dag, Design::Observational) [
+    interference_temporal_admg_graph_posterior_cluster_neyman_coverage: 0x4D45_006C,
+        interference(Class::TemporalAdmg, Design::ClusterNeyman) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Dag, Design::ClusterNeyman) [
             (Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full),
             (Accepted, Full),
-        ];
-    interference_dag_graph_posterior_bayesian_gaussian_coverage:
-        interference(0x4D45_0041, Class::Dag, Design::BayesianGaussian) [
+        ],
+        interference(Class::Dag, Design::ClusterNeyman) [
             (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_dag_graph_posterior_cluster_bayesian_bootstrap_coverage:
-        interference(0x4D45_0042, Class::Dag, Design::ClusterBootstrap) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_dag_graph_posterior_ht_hajek_coverage:
-        interference(0x4D45_0043, Class::Dag, Design::HtHajek) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_dag_graph_posterior_cluster_neyman_coverage:
-        interference(0x4D45_0044, Class::Dag, Design::ClusterNeyman) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_dag_graph_posterior_observational_ipw_coverage:
-        interference(0x4D45_0045, Class::Dag, Design::Observational) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_cpdag_given_bayesian_gaussian_coverage:
-        interference(0x4D45_0046, Class::Cpdag, Design::BayesianGaussian) [
+        ],
+        interference(Class::Cpdag, Design::ClusterNeyman) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
-        ];
-    interference_cpdag_given_cluster_bayesian_bootstrap_coverage:
-        interference(0x4D45_0047, Class::Cpdag, Design::ClusterBootstrap) [
+        ],
+        interference(Class::Cpdag, Design::ClusterNeyman) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Pag, Design::ClusterNeyman) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
-        ];
-    interference_cpdag_given_ht_hajek_coverage:
-        interference(0x4D45_0048, Class::Cpdag, Design::HtHajek) [
+        ],
+        interference(Class::Pag, Design::ClusterNeyman) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::Admg, Design::ClusterNeyman) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
-        ];
-    interference_cpdag_given_cluster_neyman_coverage:
-        interference(0x4D45_0049, Class::Cpdag, Design::ClusterNeyman) [
+        ],
+        interference(Class::Admg, Design::ClusterNeyman) [
+            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
+        ],
+        interference(Class::TemporalAdmg, Design::ClusterNeyman) [
             (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
             (Explicit, Full), (Accepted, Full),
-        ];
-    interference_cpdag_given_observational_ipw_coverage:
-        interference(0x4D45_004A, Class::Cpdag, Design::Observational) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_cpdag_graph_posterior_bayesian_gaussian_coverage:
-        interference(0x4D45_004B, Class::Cpdag, Design::BayesianGaussian) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_cpdag_graph_posterior_cluster_bayesian_bootstrap_coverage:
-        interference(0x4D45_004C, Class::Cpdag, Design::ClusterBootstrap) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_cpdag_graph_posterior_ht_hajek_coverage:
-        interference(0x4D45_004D, Class::Cpdag, Design::HtHajek) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_cpdag_graph_posterior_cluster_neyman_coverage:
-        interference(0x4D45_004E, Class::Cpdag, Design::ClusterNeyman) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_cpdag_graph_posterior_observational_ipw_coverage:
-        interference(0x4D45_004F, Class::Cpdag, Design::Observational) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_pag_given_bayesian_gaussian_coverage:
-        interference(0x4D45_0050, Class::Pag, Design::BayesianGaussian) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_pag_given_cluster_bayesian_bootstrap_coverage:
-        interference(0x4D45_0051, Class::Pag, Design::ClusterBootstrap) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_pag_given_ht_hajek_coverage:
-        interference(0x4D45_0052, Class::Pag, Design::HtHajek) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_pag_given_cluster_neyman_coverage:
-        interference(0x4D45_0053, Class::Pag, Design::ClusterNeyman) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_pag_given_observational_ipw_coverage:
-        interference(0x4D45_0054, Class::Pag, Design::Observational) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_pag_graph_posterior_bayesian_gaussian_coverage:
-        interference(0x4D45_0055, Class::Pag, Design::BayesianGaussian) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage:
-        interference(0x4D45_0056, Class::Pag, Design::ClusterBootstrap) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_pag_graph_posterior_ht_hajek_coverage:
-        interference(0x4D45_0057, Class::Pag, Design::HtHajek) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_pag_graph_posterior_cluster_neyman_coverage:
-        interference(0x4D45_0058, Class::Pag, Design::ClusterNeyman) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_pag_graph_posterior_observational_ipw_coverage:
-        interference(0x4D45_0059, Class::Pag, Design::Observational) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_admg_given_bayesian_gaussian_coverage:
-        interference(0x4D45_005A, Class::Admg, Design::BayesianGaussian) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_admg_given_cluster_bayesian_bootstrap_coverage:
-        interference(0x4D45_005B, Class::Admg, Design::ClusterBootstrap) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_admg_given_ht_hajek_coverage:
-        interference(0x4D45_005C, Class::Admg, Design::HtHajek) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_admg_given_cluster_neyman_coverage:
-        interference(0x4D45_005D, Class::Admg, Design::ClusterNeyman) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_admg_given_observational_ipw_coverage:
-        interference(0x4D45_005E, Class::Admg, Design::Observational) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_admg_graph_posterior_bayesian_gaussian_coverage:
-        interference(0x4D45_005F, Class::Admg, Design::BayesianGaussian) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_admg_graph_posterior_cluster_bayesian_bootstrap_coverage:
-        interference(0x4D45_0060, Class::Admg, Design::ClusterBootstrap) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_admg_graph_posterior_ht_hajek_coverage:
-        interference(0x4D45_0061, Class::Admg, Design::HtHajek) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_admg_graph_posterior_cluster_neyman_coverage:
-        interference(0x4D45_0062, Class::Admg, Design::ClusterNeyman) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_admg_graph_posterior_observational_ipw_coverage:
-        interference(0x4D45_0063, Class::Admg, Design::Observational) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_temporal_admg_given_bayesian_gaussian_coverage:
-        interference(0x4D45_0064, Class::TemporalAdmg, Design::BayesianGaussian) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_temporal_admg_given_cluster_bayesian_bootstrap_coverage:
-        interference(0x4D45_0065, Class::TemporalAdmg, Design::ClusterBootstrap) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_temporal_admg_given_ht_hajek_coverage:
-        interference(0x4D45_0066, Class::TemporalAdmg, Design::HtHajek) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_temporal_admg_given_cluster_neyman_coverage:
-        interference(0x4D45_0067, Class::TemporalAdmg, Design::ClusterNeyman) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_temporal_admg_given_observational_ipw_coverage:
-        interference(0x4D45_0068, Class::TemporalAdmg, Design::Observational) [
-            (Explicit, None), (Accepted, None), (Explicit, Cheap), (Accepted, Cheap),
-            (Explicit, Full), (Accepted, Full),
-        ];
-    interference_temporal_admg_graph_posterior_bayesian_gaussian_coverage:
-        interference(0x4D45_0069, Class::TemporalAdmg, Design::BayesianGaussian) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_temporal_admg_graph_posterior_cluster_bayesian_bootstrap_coverage:
-        interference(0x4D45_006A, Class::TemporalAdmg, Design::ClusterBootstrap) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_temporal_admg_graph_posterior_ht_hajek_coverage:
-        interference(0x4D45_006B, Class::TemporalAdmg, Design::HtHajek) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_temporal_admg_graph_posterior_cluster_neyman_coverage:
-        interference(0x4D45_006C, Class::TemporalAdmg, Design::ClusterNeyman) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
-        ];
-    interference_temporal_admg_graph_posterior_observational_ipw_coverage:
-        interference(0x4D45_006D, Class::TemporalAdmg, Design::Observational) [
-            (Posterior, None), (Posterior, Cheap), (Posterior, Full),
         ];
 }

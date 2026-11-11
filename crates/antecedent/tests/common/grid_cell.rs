@@ -11,6 +11,13 @@
 //! own execution (its own runtime match key and validation mode), and scored on the
 //! intervals that check proved it reports.
 //!
+//! Coordinates of other graph classes and structure routes can report that interval too:
+//! one data law, one identifying functional, one estimator. A test measures such
+//! coordinates together inside [`sharing_base`]: the first measurement is the base, and
+//! every later one is held to the same check (each of its executions, on the first
+//! [`SIBLING_REPLICATES`] replicates, must report the base interval bit for bit on the
+//! same sample and scope) and recorded the same way.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
@@ -18,16 +25,20 @@
     reason = "each integration test binary includes this module and uses a subset of it"
 )]
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use antecedent::{Study, StudyResult};
 
 use crate::common::calibration::{
-    Construction, CoverageTally, GRID_POINTS, RecordKey, ScopeFacts, map_replicates, n_sim,
+    Construction, CoverageTally, GRID_POINTS, RecordKey, ScopeFacts, map_replicates,
+    map_replicates_from, n_sim,
 };
 use crate::common::calibration_bind::constructions;
 use crate::common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate_at};
 
 /// Replicates on which every sibling is executed and compared with the base.
-pub const SIBLING_REPLICATES: u64 = 2;
+pub const SIBLING_REPLICATES: u32 = 2;
 
 /// `[reported level, gate level]` intervals of one scored target.
 pub type IntervalPair = [Option<(f64, f64)>; 2];
@@ -74,6 +85,56 @@ type Reported = Vec<(Construction, ScopeFacts, &'static str)>;
 
 fn reported(study: &Study, result: &StudyResult) -> Reported {
     constructions(&study.inspect().expect("inspect"), result)
+}
+
+/// One replicate of a base execution.
+struct Replicate {
+    /// The base execution's match key, scope and validation mode.
+    base: (Construction, ScopeFacts, &'static str),
+    intervals: Vec<IntervalPair>,
+    truth: Vec<f64>,
+}
+
+/// A base execution measured on every replicate.
+struct Base {
+    test: &'static str,
+    labels: Vec<Option<String>>,
+    replicates: Vec<Replicate>,
+}
+
+/// The measurements of one [`sharing_base`] scope.
+struct Shared {
+    base: Option<Rc<Base>>,
+    /// Variants measured so far: the next measurement's tallies are numbered from here.
+    variants: usize,
+}
+
+thread_local! {
+    static SHARED: RefCell<Option<Shared>> = const { RefCell::new(None) };
+}
+
+/// Measure several coordinates that report one interval on one base execution.
+///
+/// `coordinates` calls the measuring functions of this module once per coordinate, each
+/// with this test's name and the same replicate datasets. The first call measures its
+/// base variant on every replicate, as it would alone. Every later call executes each of
+/// its recorded variants on the first [`SIBLING_REPLICATES`] replicates only, requires
+/// the base interval bit for bit on the base's truths and scope, and records each variant
+/// under its own match key and validation mode, scored on the base's intervals.
+///
+/// # Panics
+///
+/// When scopes nest or `coordinates` measures nothing, and as [`measure`].
+pub fn sharing_base(coordinates: impl FnOnce()) {
+    let outer = SHARED.with(|shared| shared.replace(Some(Shared { base: None, variants: 0 })));
+    assert!(outer.is_none(), "a shared base does not nest");
+    coordinates();
+    let shared = SHARED.with(RefCell::take).expect("the scope is open");
+    assert!(shared.base.is_some(), "a shared base measures at least one coordinate");
+}
+
+fn bits(truth: &[f64]) -> Vec<u64> {
+    truth.iter().map(|value| value.to_bits()).collect()
 }
 
 fn same_bits(a: &[IntervalPair], b: &[IntervalPair]) -> bool {
@@ -170,103 +231,160 @@ fn measure_inner(
     assert!(cell.variants >= 1, "{}: a cell has its base variant", cell.test);
     assert!(first_recorded < cell.variants, "{}: some variant is recorded", cell.test);
     assert_eq!(targets.len(), measured.len(), "{}: one boundary entry per target", cell.test);
-    let key = RecordKey { test: cell.test, dgp: cell.dgp, interval: cell.interval };
-    let runs = map_replicates(n_sim(), |rep| {
-        let (study, result) = run(rep, 0);
-        let intervals = score(&result);
-        assert_eq!(intervals.len(), targets.len(), "{}: one interval pair per target", cell.test);
-        if rep == 0 {
-            assert_eq!(
-                result.logical_plan.estimator.as_deref(),
-                Some(cell.estimator),
-                "{}: estimator target",
-                cell.test
-            );
-            assert!(
-                intervals.iter().all(|pair| pair[0].is_some()),
-                "{}: the base execution must publish every scored interval",
-                cell.test
-            );
-        }
-        let base = reported(&study, &result);
-        drop((study, result));
-        let siblings: Vec<Reported> = if rep < SIBLING_REPLICATES {
-            (1..cell.variants)
-                .map(|variant| {
-                    let (study, result) = run(rep, variant);
-                    assert_eq!(
-                        result.logical_plan.estimator.as_deref(),
-                        Some(cell.estimator),
-                        "{}: variant {variant} estimator target",
-                        cell.test
-                    );
-                    assert!(
-                        same_bits(&score(&result), &intervals),
-                        "{}: variant {variant} does not report the base interval on replicate {rep}",
-                        cell.test
-                    );
-                    reported(&study, &result)
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
-        let truth = truths(rep);
-        assert_eq!(truth.len(), targets.len(), "{}: one truth per target", cell.test);
-        (base, intervals, siblings, truth)
-    });
-
-    // Each sibling's match key, from its own executions; stable across them.
     let pick = |reported: &Reported| {
         reported
             .iter()
             .find(|(construction, _, _)| construction.interval_method == cell.interval)
-            .map(|(construction, _, validation)| (construction.clone(), *validation))
+            .cloned()
             .unwrap_or_else(|| panic!("{}: no {} interval was reported", cell.test, cell.interval))
     };
+    // One execution of a variant that must report `intervals`.
+    let sibling = |rep: u64, variant: usize, intervals: &[IntervalPair]| {
+        let (study, result) = run(rep, variant);
+        assert_eq!(
+            result.logical_plan.estimator.as_deref(),
+            Some(cell.estimator),
+            "{}: variant {variant} estimator target",
+            cell.test
+        );
+        assert!(
+            same_bits(&score(&result), intervals),
+            "{}: variant {variant} does not report the base interval on replicate {rep}",
+            cell.test
+        );
+        pick(&reported(&study, &result))
+    };
+
+    let (shared, offset) = SHARED.with(|shared| {
+        shared.borrow().as_ref().map_or((None, 0), |shared| (shared.base.clone(), shared.variants))
+    });
+    // `executed[replicate]`: the match key of each variant from `first_executed` on.
+    let (base, first_executed, executed) = match shared {
+        None => {
+            let runs = map_replicates(n_sim(), |rep| {
+                let (study, result) = run(rep, 0);
+                let intervals = score(&result);
+                assert_eq!(
+                    intervals.len(),
+                    targets.len(),
+                    "{}: one interval pair per target",
+                    cell.test
+                );
+                if rep == 0 {
+                    assert_eq!(
+                        result.logical_plan.estimator.as_deref(),
+                        Some(cell.estimator),
+                        "{}: estimator target",
+                        cell.test
+                    );
+                    assert!(
+                        intervals.iter().all(|pair| pair[0].is_some()),
+                        "{}: the base execution must publish every scored interval",
+                        cell.test
+                    );
+                }
+                let base = pick(&reported(&study, &result));
+                drop((study, result));
+                let siblings: Vec<_> = if rep < u64::from(SIBLING_REPLICATES) {
+                    (1..cell.variants).map(|variant| sibling(rep, variant, &intervals)).collect()
+                } else {
+                    Vec::new()
+                };
+                let truth = truths(rep);
+                assert_eq!(truth.len(), targets.len(), "{}: one truth per target", cell.test);
+                (Replicate { base, intervals, truth }, siblings)
+            });
+            let (replicates, executed): (Vec<_>, Vec<_>) = runs.into_iter().unzip();
+            let base = Rc::new(Base {
+                test: cell.test,
+                labels: targets.iter().map(|target| target.label.clone()).collect(),
+                replicates,
+            });
+            (base, 1, executed)
+        }
+        Some(base) => {
+            assert_eq!(cell.test, base.test, "one test records every coordinate of its base");
+            assert!(
+                targets.iter().map(|target| &target.label).eq(&base.labels),
+                "{}: the coordinates of a shared base score the same targets",
+                cell.test
+            );
+            let replicates = base.replicates.as_slice();
+            let executed = map_replicates_from(0, n_sim().min(SIBLING_REPLICATES), |rep| {
+                let shared = &replicates[usize::try_from(rep).expect("replicate index")];
+                assert_eq!(
+                    bits(&truths(rep)),
+                    bits(&shared.truth),
+                    "{}: a shared base has one truth per target",
+                    cell.test
+                );
+                (first_recorded..cell.variants)
+                    .map(|variant| {
+                        let found = sibling(rep, variant, &shared.intervals);
+                        assert_eq!(
+                            found.1, shared.base.1,
+                            "{}: variant {variant} does not report the base scope on replicate {rep}",
+                            cell.test
+                        );
+                        found
+                    })
+                    .collect()
+            });
+            (base, first_recorded, executed)
+        }
+    };
+    SHARED.with(|shared| {
+        if let Some(shared) = shared.borrow_mut().as_mut() {
+            shared.base.get_or_insert_with(|| Rc::clone(&base));
+            shared.variants += cell.variants;
+        }
+    });
+
+    // Each executed variant's match key, from its own executions; stable across them.
     let mut keys: Vec<(Construction, &'static str)> = Vec::new();
-    for (_, _, siblings, _) in &runs {
-        for (i, sibling) in siblings.iter().enumerate() {
-            let found = pick(sibling);
+    for variants in &executed {
+        for (i, (construction, _, validation)) in variants.iter().enumerate() {
+            let found = (construction.clone(), *validation);
             match keys.get(i) {
                 Some(seen) => assert_eq!(seen, &found, "{}: sibling match key", cell.test),
                 None => keys.push(found),
             }
         }
     }
-    assert_eq!(keys.len(), cell.variants - 1, "{}: every sibling was executed", cell.test);
+    assert_eq!(
+        keys.len(),
+        cell.variants - first_executed,
+        "{}: every sibling was executed",
+        cell.test
+    );
 
+    let key = RecordKey { test: cell.test, dgp: cell.dgp, interval: cell.interval };
     let mut tallies: Vec<CoverageTally> = Vec::new();
     let mut boundaries = Vec::new();
-    // `tallies` grows by `targets.len() * 2` per recorded variant, in (target, level) order, so
-    // the target index below is the same whichever variant recording starts at.
     for variant in first_recorded..cell.variants {
-        for (target, measured) in targets.iter().zip(measured) {
+        for (index, (target, measured)) in targets.iter().zip(measured).enumerate() {
             for (level, measured) in [REPORTED_LEVEL, GATE_LEVEL].into_iter().zip(measured) {
-                // A sibling's tally keeps its own state and decision under its own name.
+                // Every execution but the base keeps its own state and decision under its own
+                // name.
                 let mut tally = CoverageTally::for_record(key, level);
-                if variant > 0 {
-                    tally = tally.named(format!("{}#v{variant}", cell.test));
+                if offset + variant > 0 {
+                    tally = tally.named(format!("{}#v{}", cell.test, offset + variant));
                 }
                 if let Some(label) = &target.label {
                     tally = tally.labelled(label.clone());
                 }
-                for (base, intervals, _, truth) in &runs {
-                    let (construction, scope, validation) = base
-                        .iter()
-                        .find(|(construction, _, _)| construction.interval_method == cell.interval)
-                        .unwrap_or_else(|| {
-                            panic!("{}: no {} interval was reported", cell.test, cell.interval)
-                        });
-                    match variant {
-                        0 => tally.bind_validation(construction, *scope, validation),
-                        v => tally.bind_validation(&keys[v - 1].0, *scope, keys[v - 1].1),
+                for replicate in &base.replicates {
+                    let (construction, scope, validation) = &replicate.base;
+                    if variant < first_executed {
+                        tally.bind_validation(construction, *scope, validation);
+                    } else {
+                        let (construction, validation) = &keys[variant - first_executed];
+                        tally.bind_validation(construction, *scope, validation);
                     }
-                    let index = tallies.len() % (targets.len() * 2) / 2;
-                    let pair = intervals[index];
+                    let pair = replicate.intervals[index];
                     tally.record(
                         if level == REPORTED_LEVEL { pair[0] } else { pair[1] },
-                        truth[index],
+                        replicate.truth[index],
                     );
                 }
                 tallies.push(tally);

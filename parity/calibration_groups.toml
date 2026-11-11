@@ -1,6 +1,7 @@
 # The calibration gate's groups, in gate order: a group's 1-based position is its
 # identity (record logs, the frozen family roster and probes name groups by label and
-# position), so a new group is appended and none is ever reordered or removed.
+# position), so a new group is appended and no measured group is ever reordered or
+# removed. A test may measure several coordinates that report one interval.
 #
 # label     `<head>: <filter>`; the log of a group is its label with ` /:` as `_`
 # package   the Cargo package of the test binary
@@ -6498,60 +6499,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: path_specific_cpdag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["path_specific_cpdag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: path_specific_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["path_specific_cpdag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: path_specific_pag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["path_specific_pag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: path_specific_pag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["path_specific_pag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: path_specific_dag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["path_specific_dag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: path_specific_dag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["path_specific_dag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: path_specific_admg_graph_posterior_frequentist_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
@@ -6584,42 +6531,6 @@ package = "antecedent"
 target = "grid_functional_effect_calibration"
 features = ["calibration-internal"]
 tests = ["path_specific_temporal_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: path_specific_cpdag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["path_specific_cpdag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: path_specific_cpdag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["path_specific_cpdag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: path_specific_pag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["path_specific_pag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: path_specific_pag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["path_specific_pag_graph_posterior_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -6678,24 +6589,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: mediation_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["mediation_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: mediation_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["mediation_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: mediation_temporal_admg_graph_posterior_frequentist_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
@@ -6710,24 +6603,6 @@ package = "antecedent"
 target = "grid_functional_effect_calibration"
 features = ["calibration-internal"]
 tests = ["mediation_temporal_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: mediation_cpdag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["mediation_cpdag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: mediation_cpdag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["mediation_cpdag_graph_posterior_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -6768,24 +6643,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: counterfactual_temporal_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["counterfactual_temporal_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: counterfactual_temporal_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["counterfactual_temporal_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: counterfactual_pag_graph_posterior_frequentist_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
@@ -6804,47 +6661,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: counterfactual_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["counterfactual_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: counterfactual_temporal_admg_given_bayesian_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
 features = ["calibration-internal"]
 tests = ["counterfactual_temporal_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: counterfactual_pag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["counterfactual_pag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: nested_counterfactual_effect_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["nested_counterfactual_effect_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: nested_counterfactual_effect_temporal_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["nested_counterfactual_effect_temporal_admg_given_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -6858,29 +6679,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: nested_counterfactual_effect_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["nested_counterfactual_effect_cpdag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
 features = ["calibration-internal"]
 tests = ["nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: nested_counterfactual_effect_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["nested_counterfactual_effect_admg_graph_posterior_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -6908,24 +6711,6 @@ package = "antecedent"
 target = "grid_functional_effect_calibration"
 features = ["calibration-internal"]
 tests = ["average_effect_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: average_effect_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["average_effect_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: average_effect_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["average_effect_admg_given_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -6966,29 +6751,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: average_effect_temporal_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["average_effect_temporal_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: average_effect_temporal_admg_given_bayesian_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
 features = ["calibration-internal"]
 tests = ["average_effect_temporal_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: average_effect_temporal_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["average_effect_temporal_admg_graph_posterior_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -7029,33 +6796,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: conditional_effect_temporal_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["conditional_effect_temporal_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: pulse_effect_temporal_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["pulse_effect_temporal_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: pulse_effect_temporal_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["pulse_effect_temporal_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: sustained_effect_temporal_admg_given_frequentist_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
@@ -7074,29 +6814,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: temporal_conditional_pulse_temporal_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["temporal_conditional_pulse_temporal_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: temporal_conditional_pulse_temporal_admg_given_bayesian_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
 features = ["calibration-internal"]
 tests = ["temporal_conditional_pulse_temporal_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: temporal_conditional_sustained_temporal_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["temporal_conditional_sustained_temporal_admg_given_frequentist_coverage"]
 ignored = true
 grid = true
 
@@ -7128,24 +6850,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: sustained_effect_temporal_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["sustained_effect_temporal_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: sustained_effect_temporal_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["sustained_effect_temporal_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: temporal_conditional_pulse_temporal_admg_graph_posterior_frequentist_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
@@ -7155,29 +6859,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: temporal_conditional_pulse_temporal_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["temporal_conditional_pulse_temporal_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: temporal_conditional_sustained_temporal_admg_graph_posterior_frequentist_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
 features = ["calibration-internal"]
 tests = ["temporal_conditional_sustained_temporal_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: temporal_conditional_sustained_temporal_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["temporal_conditional_sustained_temporal_admg_graph_posterior_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -7200,24 +6886,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: temporal_mediation_effect_temporal_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["temporal_mediation_effect_temporal_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: temporal_mediation_effect_temporal_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["temporal_mediation_effect_temporal_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: temporal_mediation_effect_temporal_pag_given_frequentist_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
@@ -7232,15 +6900,6 @@ package = "antecedent"
 target = "grid_functional_effect_calibration"
 features = ["calibration-internal"]
 tests = ["temporal_mediation_effect_temporal_pag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: intervention_response_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["intervention_response_admg_graph_posterior_frequentist_coverage"]
 ignored = true
 grid = true
 
@@ -7272,47 +6931,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: intervention_response_admg_given_bayesian_functional_effect_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["intervention_response_admg_given_bayesian_functional_effect_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: intervention_response_admg_given_bayesian_response_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["intervention_response_admg_given_bayesian_response_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: intervention_response_temporal_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["intervention_response_temporal_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: intervention_response_temporal_admg_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
 features = ["calibration-internal"]
 tests = ["intervention_response_temporal_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: response_curve_temporal_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["response_curve_temporal_admg_graph_posterior_frequentist_coverage"]
 ignored = true
 grid = true
 
@@ -7344,15 +6967,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_functional_effect_calibration: response_curve_temporal_admg_given_bayesian_functional_effect_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["response_curve_temporal_admg_given_bayesian_functional_effect_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_functional_effect_calibration: response_curve_temporal_admg_given_bayesian_response_bayesian_coverage"
 package = "antecedent"
 target = "grid_functional_effect_calibration"
@@ -7367,24 +6981,6 @@ package = "antecedent"
 target = "grid_functional_effect_calibration"
 features = ["calibration-internal"]
 tests = ["intervention_response_temporal_admg_given_frequentist_functional_effect_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: intervention_response_temporal_admg_given_frequentist_intervention_gcomp_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["intervention_response_temporal_admg_given_frequentist_intervention_gcomp_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: intervention_response_temporal_admg_given_bayesian_functional_effect_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["intervention_response_temporal_admg_given_bayesian_functional_effect_coverage"]
 ignored = true
 grid = true
 
@@ -7412,33 +7008,6 @@ package = "antecedent"
 target = "grid_functional_effect_calibration"
 features = ["calibration-internal"]
 tests = ["response_curve_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: response_curve_admg_given_frequentist_functional_effect_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["response_curve_admg_given_frequentist_functional_effect_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: response_curve_admg_given_frequentist_kennedy_dr_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["response_curve_admg_given_frequentist_kennedy_dr_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_functional_effect_calibration: response_curve_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_functional_effect_calibration"
-features = ["calibration-internal"]
-tests = ["response_curve_admg_given_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -8712,47 +8281,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: point_derivative_dag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_dag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: point_derivative_dag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_dag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: point_derivative_dag_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
 features = ["calibration-internal"]
 tests = ["point_derivative_dag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: point_derivative_cpdag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_cpdag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: point_derivative_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_cpdag_given_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -8766,83 +8299,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: point_derivative_cpdag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_cpdag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: point_derivative_pag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_pag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: point_derivative_pag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_pag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: point_derivative_pag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_pag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: point_derivative_pag_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
 features = ["calibration-internal"]
 tests = ["point_derivative_pag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: point_derivative_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: point_derivative_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: point_derivative_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: point_derivative_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_admg_graph_posterior_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -8865,24 +8326,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: plain_elasticity_dag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_dag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: plain_elasticity_dag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_dag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: plain_elasticity_dag_graph_posterior_frequentist_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
@@ -8901,33 +8344,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: plain_elasticity_cpdag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_cpdag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: plain_elasticity_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_cpdag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: plain_elasticity_cpdag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_cpdag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: plain_elasticity_cpdag_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
@@ -8937,56 +8353,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: plain_elasticity_pag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_pag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: plain_elasticity_pag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_pag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: plain_elasticity_pag_graph_posterior_frequentist_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
 features = ["calibration-internal"]
 tests = ["plain_elasticity_pag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: plain_elasticity_pag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_pag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: plain_elasticity_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: plain_elasticity_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_admg_given_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -9009,24 +8380,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: plain_elasticity_temporal_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_temporal_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: plain_elasticity_temporal_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_temporal_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: semi_elasticity_dag_given_frequentist_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
@@ -9036,56 +8389,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: semi_elasticity_dag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_dag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: semi_elasticity_dag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_dag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: semi_elasticity_dag_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
 features = ["calibration-internal"]
 tests = ["semi_elasticity_dag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: semi_elasticity_cpdag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_cpdag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: semi_elasticity_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_cpdag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: semi_elasticity_cpdag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_cpdag_graph_posterior_frequentist_coverage"]
 ignored = true
 grid = true
 
@@ -9108,69 +8416,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: semi_elasticity_pag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_pag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: semi_elasticity_pag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_pag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: semi_elasticity_pag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_pag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: semi_elasticity_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: semi_elasticity_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: semi_elasticity_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: semi_elasticity_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: semi_elasticity_temporal_admg_graph_posterior_frequentist_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
@@ -9185,24 +8430,6 @@ package = "antecedent"
 target = "grid_response_calibration"
 features = ["calibration-internal"]
 tests = ["semi_elasticity_temporal_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: average_derivative_dag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_dag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: average_derivative_dag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_dag_given_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -9234,24 +8461,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: average_derivative_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_cpdag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: average_derivative_cpdag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_cpdag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: average_derivative_cpdag_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
@@ -9261,110 +8470,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: average_derivative_pag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_pag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: average_derivative_pag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_pag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: average_derivative_pag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_pag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: average_derivative_pag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_pag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: average_derivative_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: average_derivative_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: average_derivative_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: average_derivative_admg_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
 features = ["calibration-internal"]
 tests = ["average_derivative_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: average_derivative_temporal_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_temporal_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: average_derivative_temporal_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_temporal_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_dag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_dag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_dag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_dag_given_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -9396,101 +8506,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: response_jacobian_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_cpdag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_cpdag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_cpdag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_cpdag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_cpdag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_pag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_pag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_pag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_pag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_pag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_pag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: response_jacobian_pag_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
 features = ["calibration-internal"]
 tests = ["response_jacobian_pag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_admg_graph_posterior_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -9513,24 +8533,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: directional_derivative_dag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_dag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: directional_derivative_dag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_dag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: directional_derivative_dag_graph_posterior_frequentist_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
@@ -9549,60 +8551,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: directional_derivative_cpdag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_cpdag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: directional_derivative_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_cpdag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: directional_derivative_cpdag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_cpdag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: directional_derivative_cpdag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_cpdag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: directional_derivative_pag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_pag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: directional_derivative_pag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_pag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: directional_derivative_pag_graph_posterior_frequentist_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
@@ -9617,51 +8565,6 @@ package = "antecedent"
 target = "grid_response_calibration"
 features = ["calibration-internal"]
 tests = ["directional_derivative_pag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: directional_derivative_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: directional_derivative_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: directional_derivative_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: directional_derivative_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: directional_derivative_temporal_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_temporal_admg_graph_posterior_frequentist_coverage"]
 ignored = true
 grid = true
 
@@ -9729,60 +8632,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: point_derivative_temporal_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_temporal_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: point_derivative_temporal_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["point_derivative_temporal_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: plain_elasticity_temporal_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_temporal_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: plain_elasticity_temporal_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["plain_elasticity_temporal_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: semi_elasticity_temporal_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_temporal_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: semi_elasticity_temporal_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["semi_elasticity_temporal_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: average_derivative_temporal_admg_given_frequentist_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
@@ -9792,47 +8641,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_response_calibration: average_derivative_temporal_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["average_derivative_temporal_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_temporal_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_temporal_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: response_jacobian_temporal_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["response_jacobian_temporal_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_response_calibration: directional_derivative_temporal_admg_given_frequentist_coverage"
 package = "antecedent"
 target = "grid_response_calibration"
 features = ["calibration-internal"]
 tests = ["directional_derivative_temporal_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_response_calibration: directional_derivative_temporal_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_response_calibration"
-features = ["calibration-internal"]
-tests = ["directional_derivative_temporal_admg_given_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -11808,29 +10621,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_mechanism_design_calibration: anomaly_attribution_dag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["anomaly_attribution_dag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_mechanism_design_calibration: anomaly_attribution_dag_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_mechanism_design_calibration"
 features = ["calibration-internal"]
 tests = ["anomaly_attribution_dag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: anomaly_attribution_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["anomaly_attribution_cpdag_given_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -11862,15 +10657,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_mechanism_design_calibration: anomaly_attribution_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["anomaly_attribution_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_mechanism_design_calibration: anomaly_attribution_admg_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_mechanism_design_calibration"
@@ -11880,38 +10666,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_mechanism_design_calibration: anomaly_attribution_temporal_dag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["anomaly_attribution_temporal_dag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_mechanism_design_calibration: anomaly_attribution_temporal_dag_given_frequentist_coverage"
 package = "antecedent"
 target = "grid_mechanism_design_calibration"
 features = ["calibration-internal"]
 tests = ["anomaly_attribution_temporal_dag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: anomaly_attribution_temporal_dag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["anomaly_attribution_temporal_dag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: anomaly_attribution_temporal_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["anomaly_attribution_temporal_cpdag_given_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -11961,29 +10720,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_mechanism_design_calibration: change_attribution_dag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["change_attribution_dag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_mechanism_design_calibration: change_attribution_dag_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_mechanism_design_calibration"
 features = ["calibration-internal"]
 tests = ["change_attribution_dag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: change_attribution_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["change_attribution_cpdag_given_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -12015,29 +10756,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_mechanism_design_calibration: change_attribution_admg_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["change_attribution_admg_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_mechanism_design_calibration: change_attribution_admg_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_mechanism_design_calibration"
 features = ["calibration-internal"]
 tests = ["change_attribution_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: change_attribution_temporal_dag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["change_attribution_temporal_dag_given_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -12056,24 +10779,6 @@ package = "antecedent"
 target = "grid_mechanism_design_calibration"
 features = ["calibration-internal"]
 tests = ["change_attribution_temporal_dag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: change_attribution_temporal_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["change_attribution_temporal_cpdag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: change_attribution_temporal_cpdag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["change_attribution_temporal_cpdag_graph_posterior_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -12114,42 +10819,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_mechanism_design_calibration: counterfactual_dag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["counterfactual_dag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: counterfactual_dag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["counterfactual_dag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: counterfactual_dag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["counterfactual_dag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: counterfactual_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["counterfactual_cpdag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_mechanism_design_calibration: counterfactual_cpdag_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_mechanism_design_calibration"
@@ -12168,65 +10837,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_mechanism_design_calibration: transport_dag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["transport_dag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: transport_dag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["transport_dag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_mechanism_design_calibration: transport_dag_graph_posterior_bayesian_coverage"
 package = "antecedent"
 target = "grid_mechanism_design_calibration"
 features = ["calibration-internal"]
 tests = ["transport_dag_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: transport_dag_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["transport_dag_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: transport_cpdag_given_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["transport_cpdag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: transport_cpdag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["transport_cpdag_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: transport_cpdag_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["transport_cpdag_graph_posterior_bayesian_coverage"]
 ignored = true
 grid = true
 
@@ -12245,15 +10860,6 @@ package = "antecedent"
 target = "grid_mechanism_design_calibration"
 features = ["calibration-internal"]
 tests = ["transport_pag_given_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: transport_pag_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["transport_pag_given_frequentist_coverage"]
 ignored = true
 grid = true
 
@@ -12285,33 +10891,6 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_mechanism_design_calibration: transport_admg_given_frequentist_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["transport_admg_given_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: transport_admg_graph_posterior_bayesian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["transport_admg_graph_posterior_bayesian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: transport_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["transport_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_mechanism_design_calibration: transport_temporal_admg_given_bayesian_coverage"
 package = "antecedent"
 target = "grid_mechanism_design_calibration"
@@ -12339,245 +10918,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_mechanism_design_calibration: transport_temporal_admg_graph_posterior_frequentist_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["transport_temporal_admg_graph_posterior_frequentist_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_mechanism_design_calibration: interference_dag_given_bayesian_gaussian_coverage"
 package = "antecedent"
 target = "grid_mechanism_design_calibration"
 features = ["calibration-internal"]
 tests = ["interference_dag_given_bayesian_gaussian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_dag_given_cluster_bayesian_bootstrap_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_dag_given_cluster_bayesian_bootstrap_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_dag_given_ht_hajek_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_dag_given_ht_hajek_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_dag_given_cluster_neyman_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_dag_given_cluster_neyman_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_dag_given_observational_ipw_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_dag_given_observational_ipw_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_dag_graph_posterior_bayesian_gaussian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_dag_graph_posterior_bayesian_gaussian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_dag_graph_posterior_cluster_bayesian_bootstrap_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_dag_graph_posterior_cluster_bayesian_bootstrap_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_dag_graph_posterior_ht_hajek_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_dag_graph_posterior_ht_hajek_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_dag_graph_posterior_cluster_neyman_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_dag_graph_posterior_cluster_neyman_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_dag_graph_posterior_observational_ipw_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_dag_graph_posterior_observational_ipw_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_cpdag_given_bayesian_gaussian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_cpdag_given_bayesian_gaussian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_cpdag_given_cluster_bayesian_bootstrap_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_cpdag_given_cluster_bayesian_bootstrap_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_cpdag_given_ht_hajek_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_cpdag_given_ht_hajek_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_cpdag_given_cluster_neyman_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_cpdag_given_cluster_neyman_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_cpdag_given_observational_ipw_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_cpdag_given_observational_ipw_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_cpdag_graph_posterior_bayesian_gaussian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_cpdag_graph_posterior_bayesian_gaussian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_cpdag_graph_posterior_cluster_bayesian_bootstrap_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_cpdag_graph_posterior_cluster_bayesian_bootstrap_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_cpdag_graph_posterior_ht_hajek_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_cpdag_graph_posterior_ht_hajek_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_cpdag_graph_posterior_cluster_neyman_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_cpdag_graph_posterior_cluster_neyman_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_cpdag_graph_posterior_observational_ipw_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_cpdag_graph_posterior_observational_ipw_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_pag_given_bayesian_gaussian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_pag_given_bayesian_gaussian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_pag_given_cluster_bayesian_bootstrap_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_pag_given_cluster_bayesian_bootstrap_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_pag_given_ht_hajek_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_pag_given_ht_hajek_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_pag_given_cluster_neyman_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_pag_given_cluster_neyman_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_pag_given_observational_ipw_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_pag_given_observational_ipw_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_pag_graph_posterior_bayesian_gaussian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_pag_graph_posterior_bayesian_gaussian_coverage"]
 ignored = true
 grid = true
 
@@ -12591,182 +10936,11 @@ ignored = true
 grid = true
 
 [[group]]
-label = "grid_mechanism_design_calibration: interference_pag_graph_posterior_ht_hajek_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_pag_graph_posterior_ht_hajek_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_pag_graph_posterior_cluster_neyman_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_pag_graph_posterior_cluster_neyman_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_pag_graph_posterior_observational_ipw_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_pag_graph_posterior_observational_ipw_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_admg_given_bayesian_gaussian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_admg_given_bayesian_gaussian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_admg_given_cluster_bayesian_bootstrap_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_admg_given_cluster_bayesian_bootstrap_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_admg_given_ht_hajek_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_admg_given_ht_hajek_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_admg_given_cluster_neyman_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_admg_given_cluster_neyman_coverage"]
-ignored = true
-grid = true
-
-[[group]]
 label = "grid_mechanism_design_calibration: interference_admg_given_observational_ipw_coverage"
 package = "antecedent"
 target = "grid_mechanism_design_calibration"
 features = ["calibration-internal"]
 tests = ["interference_admg_given_observational_ipw_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_admg_graph_posterior_bayesian_gaussian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_admg_graph_posterior_bayesian_gaussian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_admg_graph_posterior_cluster_bayesian_bootstrap_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_admg_graph_posterior_cluster_bayesian_bootstrap_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_admg_graph_posterior_ht_hajek_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_admg_graph_posterior_ht_hajek_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_admg_graph_posterior_cluster_neyman_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_admg_graph_posterior_cluster_neyman_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_admg_graph_posterior_observational_ipw_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_admg_graph_posterior_observational_ipw_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_temporal_admg_given_bayesian_gaussian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_temporal_admg_given_bayesian_gaussian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_temporal_admg_given_cluster_bayesian_bootstrap_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_temporal_admg_given_cluster_bayesian_bootstrap_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_temporal_admg_given_ht_hajek_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_temporal_admg_given_ht_hajek_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_temporal_admg_given_cluster_neyman_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_temporal_admg_given_cluster_neyman_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_temporal_admg_given_observational_ipw_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_temporal_admg_given_observational_ipw_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_temporal_admg_graph_posterior_bayesian_gaussian_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_temporal_admg_graph_posterior_bayesian_gaussian_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_temporal_admg_graph_posterior_cluster_bayesian_bootstrap_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_temporal_admg_graph_posterior_cluster_bayesian_bootstrap_coverage"]
 ignored = true
 grid = true
 
@@ -12785,14 +10959,5 @@ package = "antecedent"
 target = "grid_mechanism_design_calibration"
 features = ["calibration-internal"]
 tests = ["interference_temporal_admg_graph_posterior_cluster_neyman_coverage"]
-ignored = true
-grid = true
-
-[[group]]
-label = "grid_mechanism_design_calibration: interference_temporal_admg_graph_posterior_observational_ipw_coverage"
-package = "antecedent"
-target = "grid_mechanism_design_calibration"
-features = ["calibration-internal"]
-tests = ["interference_temporal_admg_graph_posterior_observational_ipw_coverage"]
 ignored = true
 grid = true
