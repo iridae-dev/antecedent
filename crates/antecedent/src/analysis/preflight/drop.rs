@@ -159,9 +159,11 @@ pub(in crate::analysis) fn verify_span_preserved(
     if retained_rank != design.len() || retained_rank != plan.numerical_rank {
         return Err(rank_drop_refusal(
             &frame.subject,
-            "rank_drop_estimate.span_not_preserved: the retained design does not span the \
-             original column space (its numerical rank differs from the original's or it is \
-             still rank deficient)",
+            &format!(
+                "{}: the retained design does not span the original column space (its \
+                 numerical rank differs from the original's or it is still rank deficient)",
+                antecedent_core::reason_details::rank_drop_estimate::SPAN_NOT_PRESERVED
+            ),
             Vec::new(),
             "the drop would change the fitted projection; keep the original adjustment set",
         ));
@@ -181,8 +183,10 @@ pub(in crate::analysis) fn verify_span_preserved(
     if worst > SPAN_SLACK * tol {
         return Err(rank_drop_refusal(
             &frame.subject,
-            "rank_drop_estimate.span_not_preserved: a dropped column is not an exact linear \
-             combination of the retained columns",
+            &format!(
+                "{}: a dropped column is not an exact linear combination of the retained columns",
+                antecedent_core::reason_details::rank_drop_estimate::SPAN_NOT_PRESERVED
+            ),
             vec![worst_column],
             "the drop would change the fitted projection; keep the original adjustment set",
         ));

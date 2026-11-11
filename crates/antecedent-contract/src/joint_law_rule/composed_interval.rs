@@ -208,7 +208,7 @@ pub fn check_composed_interval(
     if record.coordinate_id != coordinate.id() {
         return Err(refuse(
             code,
-            "joint_law_propagation.coverage_record_coordinate_mismatch",
+            antecedent_core::reason_details::joint_law_propagation::COVERAGE_RECORD_COORDINATE_MISMATCH,
             record.record_id.clone(),
             "a coverage record is about one composed coordinate (operation, route and input roles); measure coverage at this coordinate, or report the labelled spread",
         )
@@ -218,7 +218,7 @@ pub fn check_composed_interval(
     if record.construction != construction {
         return Err(refuse(
             code,
-            "joint_law_propagation.coverage_record_construction_mismatch",
+            antecedent_core::reason_details::joint_law_propagation::COVERAGE_RECORD_CONSTRUCTION_MISMATCH,
             record.record_id.clone(),
             "a coverage record is about one interval construction; build the interval with the construction the record was measured for",
         )
