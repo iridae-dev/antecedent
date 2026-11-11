@@ -122,21 +122,42 @@ pub fn form_xty(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], xty: 
 
 /// Accumulate `XᵀX` into an existing symmetric Gram (row-major) from column-major `X`.
 ///
-/// Used by incremental OLS sufficient statistics.
+/// Used by incremental OLS sufficient statistics. Each entry is the left-to-right sum of
+/// its row products. Four entries of one Gram row are summed side by side: every entry
+/// keeps its own order of additions, and the four independent sums do not wait on one
+/// another.
 pub(crate) fn accumulate_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
     debug_assert!(xtx.len() >= ncols * ncols);
+    let column = |c: usize| &x_colmajor[c * nrows..(c + 1) * nrows];
+    let mut store = |c1: usize, c2: usize, acc: f64| {
+        xtx[c1 * ncols + c2] += acc;
+        if c1 != c2 {
+            xtx[c2 * ncols + c1] += acc;
+        }
+    };
     for c1 in 0..ncols {
-        for c2 in c1..ncols {
+        let col1 = column(c1);
+        let mut c2 = c1;
+        while c2 + 4 <= ncols {
+            let (a, b, c, d) = (column(c2), column(c2 + 1), column(c2 + 2), column(c2 + 3));
+            let mut acc = [0.0_f64; 4];
+            for ((((&v, &a), &b), &c), &d) in col1.iter().zip(a).zip(b).zip(c).zip(d) {
+                acc[0] += v * a;
+                acc[1] += v * b;
+                acc[2] += v * c;
+                acc[3] += v * d;
+            }
+            for (offset, &acc) in acc.iter().enumerate() {
+                store(c1, c2 + offset, acc);
+            }
+            c2 += 4;
+        }
+        for c2 in c2..ncols {
             let mut acc = 0.0;
-            let col1 = &x_colmajor[c1 * nrows..(c1 + 1) * nrows];
-            let col2 = &x_colmajor[c2 * nrows..(c2 + 1) * nrows];
-            for r in 0..nrows {
-                acc += col1[r] * col2[r];
+            for (&v, &w) in col1.iter().zip(column(c2)) {
+                acc += v * w;
             }
-            xtx[c1 * ncols + c2] += acc;
-            if c1 != c2 {
-                xtx[c2 * ncols + c1] += acc;
-            }
+            store(c1, c2, acc);
         }
     }
 }
