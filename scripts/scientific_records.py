@@ -572,6 +572,8 @@ def cmd_refine(root: Path, args: argparse.Namespace) -> int:
         write_records(root, records)
         for rel in stores:
             path = root / rel
+            if not path.is_file():
+                continue
             text = path.read_text(encoding="utf-8")
             for old, new in moved.items():
                 text = text.replace(f'dependency_manifest = "{old}"', f'dependency_manifest = "{new}"')
