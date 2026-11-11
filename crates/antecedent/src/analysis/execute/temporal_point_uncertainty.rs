@@ -625,22 +625,6 @@ pub(super) fn point_posterior_draws(
     })
 }
 
-/// Linear-interpolated empirical quantile of sorted values (`p` in `[0, 1]`).
-fn quantile(sorted: &[f64], p: f64) -> f64 {
-    if sorted.is_empty() {
-        return f64::NAN;
-    }
-    let position = p.clamp(0.0, 1.0) * (sorted.len() - 1) as f64;
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "the clamped position lies in [0, len - 1], so its floor and ceiling are valid indices"
-    )]
-    let (low, high) = (position.floor() as usize, position.ceil() as usize);
-    let fraction = position - low as f64;
-    sorted[low] + (sorted[high] - sorted[low]) * fraction
-}
-
 /// Mean, SD and the equal-tailed `level` interval of a draw column.
 pub(super) fn draw_summary(values: &[f64], level: f64) -> (f64, f64, f64, f64) {
     let n = values.len() as f64;
@@ -648,8 +632,12 @@ pub(super) fn draw_summary(values: &[f64], level: f64) -> (f64, f64, f64, f64) {
     let variance = values.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / (n - 1.0).max(1.0);
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
-    let tail = (1.0 - level) / 2.0;
-    (mean, variance.sqrt(), quantile(&sorted, tail), quantile(&sorted, 1.0 - tail))
+    let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+        &sorted,
+        level,
+        antecedent_stats::QuantileRule::ExchangeableRank,
+    );
+    (mean, variance.sqrt(), lower, upper)
 }
 
 /// A one-column effect posterior from scalar `draws`, labelled with the slope
@@ -965,13 +953,13 @@ pub(super) fn attach_posterior_response_band(
 
 #[cfg(test)]
 mod tests {
-    use super::{draw_summary, quantile, weighted_outputs};
+    use super::{draw_summary, weighted_outputs};
 
     #[test]
-    fn quantiles_interpolate_and_summaries_bracket_the_mean() {
-        let sorted = [0.0, 1.0, 2.0, 3.0, 4.0];
-        assert!((quantile(&sorted, 0.5) - 2.0).abs() < 1e-12);
-        assert!((quantile(&sorted, 0.125) - 0.5).abs() < 1e-12);
+    fn summaries_use_exchangeable_rank_quantiles_and_bracket_the_mean() {
+        // Ranks p (d + 1) of five draws at the 0.5 level: 1.5 and 4.5.
+        let (_, _, lower, upper) = draw_summary(&[4.0, 0.0, 2.0, 1.0, 3.0], 0.5);
+        assert!((lower - 0.5).abs() < 1e-12 && (upper - 3.5).abs() < 1e-12);
         let (mean, sd, lower, upper) = draw_summary(&[4.0, 0.0, 2.0, 1.0, 3.0], 0.5);
         assert!((mean - 2.0).abs() < 1e-12);
         assert!(sd > 0.0 && lower < mean && mean < upper);
