@@ -775,6 +775,12 @@ fn decision_margin_centered_cuped_cluster_delta_interval() {
 }
 
 /// Registered but `not_measured` coverage design for the joint matched-pair margin.
+///
+/// The runtime's matched-pair variance treats the pairs as i.i.d. draws from a superpopulation,
+/// so each replicate draws its pairs afresh: a pair level `u ~ 0.2 + Uniform(-1, 1)`, a unit
+/// deviation `0.2 * (Uniform(0, 1) - 0.5)` shared by both components of a unit, independent
+/// outcome noise `0.3 * (Uniform(0, 1) - 0.5)` on each component, and the within-pair coin flip.
+/// The truth is the population margin, with `E[base] = 0.2` in place of the sample average.
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn decision_margin_matched_pair_delta_interval() {
@@ -808,10 +814,14 @@ fn decision_margin_matched_pair_delta_interval() {
         horizon: 1,
         target: Target::ExperimentalContrast,
     };
-    let base: Vec<f64> =
-        (0..n).map(|i| ((i / 2) as f64 * 0.19).sin() + 0.1 * (i as f64 * 0.37).cos()).collect();
-    let avg = base.iter().sum::<f64>() / n as f64;
-    let truth = (2.3 + avg) * (4.5 + 0.5 * avg) - (2.0 + avg) * (4.0 + 0.5 * avg);
+    // Unit outcomes are `a = 2.0 + base + 0.3 T + e_a` and `b = 4.0 + 0.5 base + 0.5 T + e_b`,
+    // with `base = u + d`: the pair level `u` (mean 0.2), the unit deviation `d` and the outcome
+    // noises `e_a`, `e_b` (each mean zero) are independent of the assignment. So the arm means of
+    // the population are `E[a(1)] = 2.3 + mu`, `E[b(1)] = 4.5 + 0.5 mu`, `E[a(0)] = 2.0 + mu`,
+    // `E[b(0)] = 4.0 + 0.5 mu` with `mu = E[base] = 0.2`, and the margin (a difference of products
+    // of arm means) is `2.5 * 4.6 - 2.2 * 4.1 = 2.48` exactly.
+    let mu = 0.2;
+    let truth = (2.3 + mu) * (4.5 + 0.5 * mu) - (2.0 + mu) * (4.0 + 0.5 * mu);
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test: "decision_margin_matched_pair_delta_interval",
@@ -829,10 +839,26 @@ fn decision_margin_matched_pair_delta_interval() {
             assigned[2 * i] = rng.next_f64() < 0.5;
             assigned[2 * i + 1] = !assigned[2 * i];
         }
-        let a: Vec<f64> =
-            (0..n).map(|i| 2.0 + base[i] + if assigned[i] { 0.3 } else { 0.0 }).collect();
-        let b: Vec<f64> =
-            (0..n).map(|i| 4.0 + 0.5 * base[i] + if assigned[i] { 0.5 } else { 0.0 }).collect();
+        // The pairs of this replicate, on a stream apart from the assignment's.
+        let mut draw = ExecutionContext::for_tests(grid_seed(0x8810_0000 + rep))
+            .rng
+            .stream_for(StreamDomain::Test, 0x8811);
+        let level: Vec<f64> = (0..pairs).map(|_| mu + 2.0 * draw.next_f64() - 1.0).collect();
+        let base: Vec<f64> = (0..n).map(|i| level[i / 2] + 0.2 * (draw.next_f64() - 0.5)).collect();
+        let a: Vec<f64> = (0..n)
+            .map(|i| {
+                2.0 + base[i]
+                    + (if assigned[i] { 0.3 } else { 0.0 })
+                    + 0.3 * (draw.next_f64() - 0.5)
+            })
+            .collect();
+        let b: Vec<f64> = (0..n)
+            .map(|i| {
+                4.0 + 0.5 * base[i]
+                    + (if assigned[i] { 0.5 } else { 0.0 })
+                    + 0.3 * (draw.next_f64() - 0.5)
+            })
+            .collect();
         let components = ["frequency", "value"]
             .into_iter()
             .map(|v| OutcomeComponent { name: v.into(), variable_id: v.into(), units: "u".into() })
@@ -1076,15 +1102,24 @@ fn decision_margin_lagged_excursion_delta_interval() {
 }
 
 /// Registered, `not_measured` joint whole-subject regime bootstrap margin design.
+///
+/// The whole-subject bootstrap resamples the confounder with the subject, so each replicate
+/// draws it afresh: `x ~ 0.3 + Uniform(-1, 1)` i.i.d., with the Bernoulli(1/2) assignment and
+/// the outcome noise. The truth is the population margin, with `E[x] = 0.3` in place of the
+/// sample mean.
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn decision_margin_static_regime_bootstrap_delta_interval() {
     use antecedent::decision_evidence::*;
     let n = grid_n(100);
     let unit_ids: Vec<String> = (0..n).map(|i| format!("u-{i}")).collect();
-    let x: Vec<f64> = (0..n).map(|i| (i as f64 * 0.19).sin()).collect();
-    let mean_x = x.iter().sum::<f64>() / n as f64;
-    let truth = (2.5 + mean_x) * (4.8 + 0.5 * mean_x) - (2.0 + mean_x) * (4.0 + 0.5 * mean_x);
+    // Outcomes are `y = 2.0 + x + 0.5 A + 0.2 e` and `z = 4.0 + 0.5 x + 0.8 A + 0.3 e`, with
+    // `x` (mean 0.3) and the noise `e ~ Uniform(-0.5, 0.5)` (mean zero) independent of `A`. So the
+    // regime means of the population are `E[y(on)] = 2.5 + mu`, `E[z(on)] = 4.8 + 0.5 mu`,
+    // `E[y(off)] = 2.0 + mu`, `E[z(off)] = 4.0 + 0.5 mu` with `mu = E[x] = 0.3`, and the margin is
+    // `2.8 * 4.95 - 2.3 * 4.15 = 4.315` exactly.
+    let mu = 0.3;
+    let truth = (2.5 + mu) * (4.8 + 0.5 * mu) - (2.0 + mu) * (4.0 + 0.5 * mu);
     let quantity = DerivedQuantity {
         name: "static_regime_margin".into(),
         units: "u".into(),
@@ -1117,6 +1152,9 @@ fn decision_margin_static_regime_bootstrap_delta_interval() {
         let mut rng = ctx.rng.stream_for(StreamDomain::Test, 0x8840);
         let assigned: Vec<bool> = (0..n).map(|_| rng.next_f64() < 0.5).collect();
         let noise: Vec<f64> = (0..n).map(|_| rng.next_f64() - 0.5).collect();
+        // The subjects' confounder, on a stream apart from the assignment and noise.
+        let mut draw = ctx.rng.stream_for(StreamDomain::Test, 0x8841);
+        let x: Vec<f64> = (0..n).map(|_| mu + 2.0 * draw.next_f64() - 1.0).collect();
         let y: Vec<f64> = (0..n)
             .map(|i| 2.0 + x[i] + (if assigned[i] { 0.5 } else { 0.0 }) + 0.2 * noise[i])
             .collect();
@@ -1172,6 +1210,15 @@ fn decision_margin_static_regime_bootstrap_delta_interval() {
 }
 
 /// Registered, `not_measured` coverage design for finite-history adaptive-policy jackknife margins.
+///
+/// Each replicate draws its episodes i.i.d.: `a ~ Bernoulli(1/2)`, the state
+/// `s ~ Bernoulli(0.75 if a else 0.25)`, `b ~ Bernoulli(1/2)` and the outcome noises. The truth
+/// is the population margin: the adaptive policy (`a = 1`, `b = s`) has `E[y] = 4 + 8 * 0.75 = 10`
+/// and `E[z] = 5 + 0.5 * 10 = 10`, the reference (`a = b = 0`) has `E[y] = 2 + 4 * 0.25 = 3` and
+/// `E[z] = 6.5`, so the margin is `10 * 10 - 3 * 6.5 = 80.5`. The base of 320 episodes keeps the
+/// rarest policy-history cells, `(a, s, b) = (0, 1, 0)` and `(1, 0, 0)` at probability 1/16, at
+/// an expected 10 or more episodes at the smallest grid point, so their leave-one-out cells are
+/// not left empty.
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn decision_margin_adaptive_regime_jackknife_delta_interval() {
@@ -1179,7 +1226,7 @@ fn decision_margin_adaptive_regime_jackknife_delta_interval() {
     use antecedent_estimate::joint_design::adaptive_regime::{
         AdaptiveAction, AdaptiveEpisode, AdaptivePolicy, JointAdaptiveRegimeRecipe,
     };
-    let n = grid_n(160);
+    let n = grid_n(320);
     let request = Request {
         population_id: "pop".into(),
         treated_regime_id: "adaptive".into(),
