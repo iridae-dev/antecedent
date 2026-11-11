@@ -260,12 +260,30 @@ impl CheckedAttributionOperation {
                 (format!("mean_anomaly_score[{}]", score.target.raw()), Vec::with_capacity(draws))
             })
             .collect::<Vec<_>>();
-        let registry = crate::gcm::MechanismRegistry::standard();
+        // The per-row IT scores and the scored rows depend only on the data, the reference
+        // and the resolved unit rows, never on the mechanisms (`score_anomalies_grouped`), so a
+        // per-draw mechanism refit and rescoring would reproduce them every draw. The observed
+        // scores serve every draw unless `execute_anomaly` scored them under another query
+        // (the full query on a lag-aligned unfolding outside a series run); the draws' rows are
+        // then scored once on the fitted model.
         let scorer_query = if self.temporal_input.is_some() {
             query.clone()
         } else {
             antecedent_core::AnomalyAttributionQuery::new(query.targets.clone(), query.max_units)
                 .with_reference(query.reference)
+        };
+        let observed_query = if self.lag_aligned.is_some() { query } else { &scorer_query };
+        let rescored;
+        let draw_scores = if *observed_query == scorer_query {
+            observed_scores
+        } else {
+            rescored = self.score_anomalies(&fitted.model, data, &scorer_query, ctx)?;
+            if rescored.len() != columns.len() {
+                return Err(CausalError::Compile {
+                    message: "Bayesian anomaly draw changed target set".into(),
+                });
+            }
+            &rescored[..]
         };
         let mut rng = ctx.rng.stream_for(antecedent_core::StreamDomain::Attribution, 0xA110_7A7E);
         for replicate in 0..draws {
@@ -281,30 +299,10 @@ impl CheckedAttributionOperation {
                 replicate as u64,
                 ctx,
             )?;
-            let store = registry
-                .refit_weighted(&fitted.model, data, &fitted.assignments, &weights)
-                .map_err(|error| {
-                    if self.temporal_input.is_some() {
-                        CausalError::from(error)
-                    } else {
-                        CausalError::rejected(error)
-                    }
-                })?;
-            let draw_scores = self.score_anomalies(
-                &fitted.model.clone().with_mechanisms(store),
-                data,
-                &scorer_query,
-                ctx,
-            )?;
-            if draw_scores.len() != columns.len() {
-                return Err(CausalError::Compile {
-                    message: "Bayesian anomaly draw changed target set".into(),
-                });
-            }
             for (column, score) in columns.iter_mut().zip(draw_scores) {
                 // Bayesian bootstrap of the mean anomaly score under the shared Dirichlet
                 // row weights, for both references: the factual scores do not depend on the
-                // mechanism refit, so an unweighted mean would be identical every draw (a
+                // mechanisms, so an unweighted mean would be identical every draw (a
                 // degenerate posterior). See `execute_anomaly` for the full rationale.
                 column.1.push(super::super::attribution_path::dirichlet_weighted_mean(
                     &score.scores,

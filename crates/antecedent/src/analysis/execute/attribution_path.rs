@@ -738,7 +738,6 @@ impl super::Study {
                     )
                 })
                 .collect();
-            let registry = crate::gcm::MechanismRegistry::standard();
             let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0xA110_7A7E);
             for _ in 0..n_draws {
                 if ctx.cancellation.is_cancelled() {
@@ -747,29 +746,15 @@ impl super::Study {
                     });
                 }
                 let weights = dirichlet_row_weights(data.row_count(), &mut rng);
-                let store = registry
-                    .refit_weighted(&fitted.model, data, &fitted.assignments, &weights)
-                    .map_err(CausalError::rejected)?;
-                let draw_scores = anomaly_attribution_query_with(
-                    &fitted.model.clone().with_mechanisms(store),
-                    data,
-                    &scorer_query,
-                    ctx,
-                )?;
-                if draw_scores.len() != columns.len() {
-                    return Err(CausalError::Compile {
-                        message: "Bayesian anomaly draw changed target set".into(),
-                    });
-                }
-                for (column, score) in columns.iter_mut().zip(draw_scores) {
+                for (column, score) in columns.iter_mut().zip(&scores) {
                     // The per-draw mean anomaly score is the Bayesian bootstrap of the
                     // population mean: the shared Dirichlet(1,…,1) row weights reweight the
-                    // per-row scores. This holds for both references — the factual scores
-                    // depend only on the data and the reference, not the mechanism refit, so
-                    // an *unweighted* mean would be identical every draw (a degenerate,
-                    // zero-width posterior). With a fixed reference the target of that
-                    // posterior is the fixed functional μ_A; with the empirical reference it
-                    // is the observed-sample-reference mean.
+                    // observed per-row scores. This holds for both references — the factual
+                    // scores depend only on the data and the reference, not the mechanisms, so
+                    // a mechanism refit per draw would reproduce them and an *unweighted* mean
+                    // would be identical every draw (a degenerate, zero-width posterior). With a
+                    // fixed reference the target of that posterior is the fixed functional μ_A;
+                    // with the empirical reference it is the observed-sample-reference mean.
                     column.1.push(dirichlet_weighted_mean(&score.scores, &score.rows, &weights));
                 }
             }
@@ -787,10 +772,10 @@ impl super::Study {
             )?);
             let disclosure = match scorer_query.reference {
                 antecedent_core::AnomalyReference::Empirical => {
-                    "Posterior is the Bayesian bootstrap of the mean anomaly score: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector (mechanisms are also refit under those weights for the accompanying attributions), conditional on mechanism-family selection from the original unweighted data. The anomaly marginal reference (median / 1.4826·MAD) is held at the observed data values, so the interval is a credible interval for the mean anomaly score relative to that realized sample's reference, not for a fixed population functional; inject a fixed reference for the latter."
+                    "Posterior is the Bayesian bootstrap of the mean anomaly score: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector, conditional on mechanism-family selection from the original unweighted data. The anomaly marginal reference (median / 1.4826·MAD) is held at the observed data values, so the interval is a credible interval for the mean anomaly score relative to that realized sample's reference, not for a fixed population functional; inject a fixed reference for the latter."
                 }
                 antecedent_core::AnomalyReference::Fixed { .. } => {
-                    "Posterior is the Bayesian bootstrap of the population mean anomaly score against the injected fixed reference (center, scale): each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector (mechanisms are also refit under those weights for the accompanying attributions). Because the reference is held at the injected values rather than estimated from the sample, the mean anomaly score is a fixed functional of the target's law, μ_A = E_Y[−log 2Φ(−|Y − center|/scale)], and the interval is a credible interval for that functional over the observed units."
+                    "Posterior is the Bayesian bootstrap of the population mean anomaly score against the injected fixed reference (center, scale): each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector. Because the reference is held at the injected values rather than estimated from the sample, the mean anomaly score is a fixed functional of the target's law, μ_A = E_Y[−log 2Φ(−|Y − center|/scale)], and the interval is a credible interval for that functional over the observed units."
                 }
             };
             result.diagnostics.push(Diagnostic::new(
