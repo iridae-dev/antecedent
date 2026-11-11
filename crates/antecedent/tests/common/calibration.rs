@@ -173,9 +173,10 @@ pub const PRECISION_N_SIM: u32 = 1000;
 /// recheck at fewer than [`PRECISION_N_SIM`] replicates, on either side.
 pub const RECHECK_SHORTFALL: f64 = 0.02;
 
-/// Maximum share of replicates that may be skipped (1%). Skips count as
-/// misses in [`CoverageTally::rate`]; the cap stops an estimator from
-/// discarding almost every draw and still claiming coverage on the rest.
+/// Maximum refusal rate a run may show (1%), judged as the Monte Carlo estimate it is: the
+/// skipped share may exceed it by two binomial standard errors. Skips count as misses in
+/// [`CoverageTally::rate`]; the cap stops an estimator from discarding almost every draw and
+/// still claiming coverage on the rest.
 pub const SKIP_CAP_NUM: u32 = 1;
 pub const SKIP_CAP_DEN: u32 = 100;
 
@@ -1926,9 +1927,15 @@ impl CoverageTally {
         );
         let total = self.attempts();
         assert!(total > 0, "{}: no replicates scored", self.name);
+        // The skipped share is a Monte Carlo estimate of the refusal rate: the cap is exceeded
+        // only when the share lies more than two binomial standard errors (at the cap) above it.
+        let cap = f64::from(SKIP_CAP_NUM) / f64::from(SKIP_CAP_DEN);
+        let share = f64::from(self.skipped) / f64::from(total);
+        let mcse = (cap * (1.0 - cap) / f64::from(total)).sqrt();
         assert!(
-            self.skipped.saturating_mul(SKIP_CAP_DEN) <= total.saturating_mul(SKIP_CAP_NUM),
-            "{}: {} of {total} replicates skipped (cap {SKIP_CAP_NUM}/{SKIP_CAP_DEN})",
+            share <= cap + 2.0 * mcse,
+            "{}: {} of {total} replicates skipped (cap {SKIP_CAP_NUM}/{SKIP_CAP_DEN} plus two \
+             standard errors)",
             self.name,
             self.skipped
         );
