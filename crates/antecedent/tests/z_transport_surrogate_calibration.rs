@@ -220,7 +220,7 @@ fn surrogate_cited_margin_nominal_coverage() {
     for row in rows {
         match row {
             Some((replicates_ok, band)) => {
-                tally.bind(
+                tally.bind_validation(
                     &construction(),
                     ScopeFacts {
                         row_count: n as u64,
@@ -228,6 +228,7 @@ fn surrogate_cited_margin_nominal_coverage() {
                         posterior_draws: None,
                         unidentified_mass: 0.0,
                     },
+                    "not_applicable",
                 );
                 tally.record(band, TRUTH);
             }
