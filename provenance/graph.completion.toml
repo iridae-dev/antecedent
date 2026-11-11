@@ -43,7 +43,7 @@ record_sha256 = "7201e3fc7d502e55dbb9cb1ffcfc7f8896cbf5485fe1e67a06d12cc1d102512
 role = "implementation"
 path = "crates/antecedent-graph/src/completion.rs"
 items = ["const DEFAULT_COMPLETION_OPERATIONS", "fn ancestral_up_to_open_marks", "fn as_admg", "fn classify", "fn default_completion_search", "fn get", "fn graph_bytes", "fn hit_cap", "fn increment", "fn is_ancestral_orientation", "fn is_maximal_ancestral_graph", "fn live_bytes", "fn m_separation_model_matches", "fn m_separation_signature", "fn max_completions", "fn n_circle_sites", "fn new", "fn next", "fn preserves_unshielded_colliders", "fn push", "fn restore_circle", "fn run", "fn search_stop", "fn set_endpoint", "fn signature_bytes", "fn signature_fits_budget", "fn signature_queries", "fn subtree_assignments", "fn validation_report", "fn visit_m_separation_model", "fn with_budget", "fn with_projection", "struct CompletionSampler", "struct CompletionValidationReport", "struct PagCompletion", "struct SeparationSignature", "struct Walk", "type CircleSite", "type Item"]
-sha256 = "c6db3ed53ebf5e77945e28ac1289ca8e7436bfd8db8f91b93a464208d3212e1c"
+sha256 = "54123906318c780a30bb2803978a685a40f596bca73e3be360694f6c653eea01"
 
 [[method_review.artifacts]]
 role = "assertion"

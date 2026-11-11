@@ -1244,7 +1244,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "29d5551ed2d14cec10b30b7a7cb4ebe10eadd32a692772b2c3244859dfb75b02"
 recorded_at = "2026-11-09T15:54:46Z"
-dependency_manifest = "cd4d671eb3c942636aca37a48b459d83b8249940b0a88b971319ce0f84035b72"
+dependency_manifest = "c7b46c01add420a49c3ebccfeb9e0b402487d985ca2e2b4f846d4f83fc259e77"
 
 [[record]]
 test = "antecedent-discovery::suite_01::discovery_pcmci_lag1::discovery_pcmci_lag1_exact_parents"
@@ -1254,7 +1254,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "cd2afc546bc6099995f39c5748de928f0f8e8db23b00e190dba126db8d7ab0be"
 recorded_at = "2026-11-09T15:54:46Z"
-dependency_manifest = "19bc2507e29e889d94fb0bc0b46a22c48ff13b47657f6fe05545dea16e6cb044"
+dependency_manifest = "396072d0f5021dd4eba7b26b2fa16a6ad87c9aabf1d072333452d1c9bae96a18"
 
 [[record]]
 test = "antecedent-discovery::suite_01::discovery_pcmci_plus_lag0::discovery_pcmci_plus_lag0_edge_equality"
@@ -1264,7 +1264,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "6cf305d865dd303de84ce69786686cc1bb2eb79b8cc2804a1ceb19cdbeb07066"
 recorded_at = "2026-11-09T15:54:46Z"
-dependency_manifest = "b42c832bce03987ab89c1731cc118256de20ffeccc564c74c5422cdff34342e8"
+dependency_manifest = "7922ea0e7210c3809eb6b84b5021d54875b616850a4097f3d6fbd76f647bb90a"
 
 [[record]]
 test = "antecedent-discovery::suite_01::discovery_vector_vars_pcmci::vector_vars_pcmci_exact_logical_parents"
@@ -1274,7 +1274,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "09ca2a59721764c4f329819a6d5b632f448ab78295dc32b86553bd69411f65a7"
 recorded_at = "2026-11-09T15:54:46Z"
-dependency_manifest = "64bcdcccff65498f234370a13f5cff0a94d252ce085a06d6b61984a5f93c8ef1"
+dependency_manifest = "e0e1d9e7aa82707d44fe25f40418b628d07553a94e6c041ac9fd69de153537be"
 
 [[record]]
 test = "antecedent-discovery::suite_01::graph_posterior_wide::published_conditions_clear_the_gate_on_independent_colliders_at_ten_variables"
@@ -3462,7 +3462,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "7e24334bdb1cdb9110104452f92f67b20e54eed9450fafcb72977f92df1fdcb1"
 recorded_at = "2026-11-09T21:16:53Z"
-dependency_manifest = "2ec09602c5bcfc5fb9509762621d1467697b46cdfc4ec53a497926b441a3d486"
+dependency_manifest = "74aec482d05e8cec387798a77917f0d2ef376365f38588fb7a973da7206714c9"
 
 [[record]]
 test = "antecedent-io::suite_01::distribution_artifact::fresh_process_consumer_recomputes_enumerated_joint_truth"
@@ -4182,7 +4182,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "4667630a73deabd2c1f97379978c81e959bcb2cf3d0dfc2dc09ec538e1860577"
 recorded_at = "2026-11-09T15:54:35Z"
-dependency_manifest = "09ac5660b27943841ed5f70b06d923221e0f1a4c5a9183032baaeca8fd233019"
+dependency_manifest = "17a2649279ef4f01e444d94b4541519c3c60c7f2d5341d64675b32d4f5350746"
 
 [[record]]
 test = "antecedent-stats::foundations_oracle::descriptive_reductions_match_frozen_numpy_outputs"
@@ -4812,7 +4812,7 @@ commit = "4c3ee6bd8b27de4a7988f061858f33d47f0aa4c4"
 dirty = false
 fingerprint = "07fbb43a42dc842a4025171a0c5219c4e5539be00c1fa7288f1fda70d637016e"
 recorded_at = "2026-11-09T10:51:02Z"
-dependency_manifest = "0a22af51d0aa5d1df27b7707feedb174f1596606b9651e7ac6259cf663ff3960"
+dependency_manifest = "0c010f955b4d9436cdac9ba29457922809f3bdd5ed4da931be16b70c01cdcd28"
 
 [[record]]
 test = "antecedent::callback_downstream_exact::a_callback_law_is_offered_exactly_when_replayable_complete_and_attested_or_confirmed"
@@ -4842,7 +4842,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "e746f8e3a5240e10be5653c14fcf9404b789c0e93e387863ed6ccb47f45e6eed"
 recorded_at = "2026-11-10T08:23:12Z"
-dependency_manifest = "464f2be79abbcc2ecddaca451bc498656ed629ce6941dae07a2641d70c5c8964"
+dependency_manifest = "5b3e26e62ed596a55f2b230cd0ce2907a396d6ea3731b8572aafc659afe3ca65"
 
 [[record]]
 test = "antecedent::checked_temporal_class_effect_route_evidence::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"
@@ -4852,7 +4852,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "adf8f4cac5e6d1fe373f1f371d6d9835957e91d07543cbfc51489d619387902a"
 recorded_at = "2026-11-10T08:19:20Z"
-dependency_manifest = "f57a3f36911dc314e0c957c9901de834563d28f38f7f53ea5547b9e9d32b50ef"
+dependency_manifest = "f7b2f64502bfb2f222fd5b0f70d93aa429959663ad1c69113c5bdcbf08c265b8"
 
 [[record]]
 test = "antecedent::checked_temporal_graph_posterior_effect_route_evidence::all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs"
@@ -4862,7 +4862,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "59bf174dc54e04b59a705cbc02017dfe23bfbc28c4a37702b09b1db676b8e030"
 recorded_at = "2026-11-10T08:16:00Z"
-dependency_manifest = "0f0d384a8e74ab4373ce7c8ba00feef70112266c219936bfd14ee699cfecd922"
+dependency_manifest = "7691a982c744c21d5c071e55a68f58f1215976d1c84d483fb5c4916e132ff565"
 
 [[record]]
 test = "antecedent::class_attribution_known_truth::class_anomaly_attribution_known_truth"
@@ -5072,7 +5072,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "72c957eced6325feed21e8b7f2b6378909a4aaa4b1bcad579491ac5e6ab220a2"
 recorded_at = "2026-11-09T21:14:56Z"
-dependency_manifest = "5021fb07d2c5cf9c7f1e5f0f963ffd050c5d99ba889cfa2b44c5681d9cb98297"
+dependency_manifest = "7f5548d571039278a783d0495d9585cc52eed63146436bf46c097e4e23b7a08f"
 
 [[record]]
 test = "antecedent::counterfactual_accepted_known_truth::accepted_counterfactual_matches_the_closed_form_mean_effect"
@@ -5292,7 +5292,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "c018a03d305b569820e2d3d782f2ecde3fed5bb24a4825a7b8e749f93eb79875"
 recorded_at = "2026-11-10T09:40:49Z"
-dependency_manifest = "24ad636883a95274b4a246301de1cb72977b6d7ab060191a7794438aaf029ed1"
+dependency_manifest = "999a205d53a3dadf0e5802e07de504d990581cd0812ccfa1e7fbcbc08e6fd3d9"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_admg_accepted_bayesian_full"
@@ -5302,7 +5302,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "c018a03d305b569820e2d3d782f2ecde3fed5bb24a4825a7b8e749f93eb79875"
 recorded_at = "2026-11-10T09:40:49Z"
-dependency_manifest = "0ad1ef623b6edb873dc35d0699b7e11da5b8460bfdc88ffbd69749baa2204c07"
+dependency_manifest = "71801fee65ba52e6a15652baf95cc732f567d19a765e290a1d4d699c95fd61e4"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_admg_accepted_frequentist_cheap"
@@ -5312,7 +5312,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "6eddffa7474cb8b1f241ebd82b88561d318da3853a5673671f89b48d7239023a"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "0c228f181ee460aac68f4b0008da75610eb9ed661b113dfae5bf379d870f1e95"
+dependency_manifest = "6e53d0c1e34be10744ab296edf636097cf444c68d79e6e1b415cef118a4a8d5a"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_admg_accepted_frequentist_full"
@@ -5322,7 +5322,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "6eddffa7474cb8b1f241ebd82b88561d318da3853a5673671f89b48d7239023a"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "dc4b24d954d2226e8b4c7cffb9967d2b31212f19cf5f7325923cec297bc328c8"
+dependency_manifest = "c8aaa1ac96ba3d6940e6c66e8c16b6eb79113f3a4e3924adf8825fe5f2ab23aa"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_admg_explicit_bayesian_cheap"
@@ -5332,7 +5332,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "c018a03d305b569820e2d3d782f2ecde3fed5bb24a4825a7b8e749f93eb79875"
 recorded_at = "2026-11-10T09:40:49Z"
-dependency_manifest = "0c242fed99567e1923d3dcd3f14024d4b52faaef1bbfe5374f6f9f98d2bfad3f"
+dependency_manifest = "b66eb2a319be1330c6d6c44ea49dd741557c6e831b59515be8c940b72f67635e"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_admg_explicit_bayesian_full"
@@ -5342,7 +5342,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "c018a03d305b569820e2d3d782f2ecde3fed5bb24a4825a7b8e749f93eb79875"
 recorded_at = "2026-11-10T09:40:49Z"
-dependency_manifest = "b04111c9e9e0a93cc586ddd18d269fa809c764d79fed68a85b2e5e6403050ae7"
+dependency_manifest = "d1567c449ae4e7b2dab67c76e07cb671eb89ffcf970a78adb155f1ed44299443"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_admg_explicit_frequentist_cheap"
@@ -5352,7 +5352,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "6eddffa7474cb8b1f241ebd82b88561d318da3853a5673671f89b48d7239023a"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "4b6379bb855bf271b68bd91e9e99fcd096a64afdc32bbe5bb114c28e5f20cdc9"
+dependency_manifest = "4277695c0f1498898a1cf4da12fec2720d0b492f50cb0899d6d21d362293b993"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_admg_explicit_frequentist_full"
@@ -5362,7 +5362,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "6eddffa7474cb8b1f241ebd82b88561d318da3853a5673671f89b48d7239023a"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "2d0ebfb3d8019bb18aee6379835729e7b7856ea77c4e923865a309bb07260ae8"
+dependency_manifest = "713fa565489a0c9bafa36151299d68cd075c2acadea0e2fbe7d0dc31ac7df2db"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_cpdag_accepted_bayesian_cheap"
@@ -5372,7 +5372,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "1988501203dbc5027cf429a11e9b587c5396ee4af34d488241ba65027cb109d3"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "c7beae8a60660a00cfbaf6249db0550de64cd67adb3cabdc185b678edcb178b1"
+dependency_manifest = "34e138be6532753154df83fe6a622e8e4fbabb9e017f0c951f708dcdaef6a475"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_cpdag_accepted_bayesian_full"
@@ -5382,7 +5382,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "1988501203dbc5027cf429a11e9b587c5396ee4af34d488241ba65027cb109d3"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "d9a3e77c0f403bb1a32088486617ec3d4aeb5394aa954041bcb5b6c52e75a6e0"
+dependency_manifest = "913c281e9ea63fc1109310e29fe4940aa03e5ab39176f93532f1b27be97bfe0b"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_cpdag_accepted_frequentist_cheap"
@@ -5392,7 +5392,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "1988501203dbc5027cf429a11e9b587c5396ee4af34d488241ba65027cb109d3"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "5857aa4aadc5d322628e80f459c3a72e606f6df9add79980c2cc30af24a3b307"
+dependency_manifest = "5da8981a813ef929a7150af73e6ae14dad456d2f66afb3690bd43dd4772ee083"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_cpdag_accepted_frequentist_full"
@@ -5402,7 +5402,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "1988501203dbc5027cf429a11e9b587c5396ee4af34d488241ba65027cb109d3"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "b427e2e7e2551ecc1ea3bb763a5136509777b9fadfe2e3d994cf4419c2938cdb"
+dependency_manifest = "8ceab2b144839b016afb8c899a1b0a3f07cebdbcf505e41128c84160097b53ea"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_cpdag_explicit_bayesian_cheap"
@@ -5412,7 +5412,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "1988501203dbc5027cf429a11e9b587c5396ee4af34d488241ba65027cb109d3"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "549f466350e839dd7a6fdcc74d67f64ecf0577445a1ef7c6a29d19a302f89e10"
+dependency_manifest = "6870a1214dd2c1293a8a61ec176465f2c15fa01f037ef9ed5062d8eada3a4665"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_cpdag_explicit_bayesian_full"
@@ -5422,7 +5422,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "1988501203dbc5027cf429a11e9b587c5396ee4af34d488241ba65027cb109d3"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "a58dfe97cb557bb5b35f3203fdc33263bf0cd8f1f8692e72dc515aa36fe805a9"
+dependency_manifest = "1c58d4e6c64b326be29a4cd3dafd96cc0f1f03dead9fa8fdf413d5dc61c0713f"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_cpdag_explicit_frequentist_cheap"
@@ -5432,7 +5432,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "1988501203dbc5027cf429a11e9b587c5396ee4af34d488241ba65027cb109d3"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "86244d83800d83580b1f29fd96ab946e5e0b8ce7eaa9e9ff55267b185c6607ae"
+dependency_manifest = "b129c00f81e9d489a92d3af9bfcfaceb64a11f0818f035ab594a798bc7e749f1"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_cpdag_explicit_frequentist_full"
@@ -5442,7 +5442,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "1988501203dbc5027cf429a11e9b587c5396ee4af34d488241ba65027cb109d3"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "227dc8afcfc88ab22e93ea825b1d0d900edb60b50c6fc1ebdca98a7cb8a1aac2"
+dependency_manifest = "b93e9bfce8698e754134afd3e9957a2b4d4d061234bbb1278422550b85f68644"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_pag_accepted_bayesian_cheap"
@@ -5452,7 +5452,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "fd777f37d9c814128d0cc6cb050c523467d2f27bae7eedd65a2bd3d69aae5d69"
 recorded_at = "2026-11-10T09:40:49Z"
-dependency_manifest = "8e2e8d70c068347275ef55f178d9c76595e785d5efd16c521cba93c23524dbb4"
+dependency_manifest = "63df31869e2043d992d142588546614bea3b0e103135530141d8182387b68d93"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_pag_accepted_bayesian_full"
@@ -5462,7 +5462,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "fd777f37d9c814128d0cc6cb050c523467d2f27bae7eedd65a2bd3d69aae5d69"
 recorded_at = "2026-11-10T09:40:49Z"
-dependency_manifest = "08b3a0f384b2ef3bc578feab31b5bc62c421abd2c5becf1e196713229bb24acc"
+dependency_manifest = "8fc743c8467fa60110c5acb2a64ee44312b9953da784776756eefa9953b4c0de"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_pag_accepted_frequentist_cheap"
@@ -5472,7 +5472,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "fd777f37d9c814128d0cc6cb050c523467d2f27bae7eedd65a2bd3d69aae5d69"
 recorded_at = "2026-11-10T09:40:49Z"
-dependency_manifest = "2d3ae8448d391c1419f97902ec05eaf80803bbc5466bbc2e08f36c61f74fdeda"
+dependency_manifest = "b0ea1501eacd987a3b7731a49afc6758bf8f73c9f86eff3e1f83ef6f4527f5c7"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_pag_accepted_frequentist_full"
@@ -5482,7 +5482,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "fd777f37d9c814128d0cc6cb050c523467d2f27bae7eedd65a2bd3d69aae5d69"
 recorded_at = "2026-11-10T09:40:49Z"
-dependency_manifest = "f9525cab1527243337512eed71632130f067c1fd7f74d6d41462fb36e870b6b7"
+dependency_manifest = "689f1ff75e91186425e3525e142b2141368bdaec93fab40ad47025d86e32ec9a"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_pag_explicit_bayesian_cheap"
@@ -5492,7 +5492,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "fd777f37d9c814128d0cc6cb050c523467d2f27bae7eedd65a2bd3d69aae5d69"
 recorded_at = "2026-11-10T09:40:49Z"
-dependency_manifest = "6be1b747e91e9d8b811a1e19486eaa61767964b5e69390c843af516cc7403c27"
+dependency_manifest = "6412d1db395efaa8f52a0faacb30722150bedfb7aff0a07bb6ef515dd0b8a237"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_pag_explicit_bayesian_full"
@@ -5502,7 +5502,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "fd777f37d9c814128d0cc6cb050c523467d2f27bae7eedd65a2bd3d69aae5d69"
 recorded_at = "2026-11-10T09:40:49Z"
-dependency_manifest = "13fd44d8c2ec83dec44ec2c0407b78968136483bbadcb38e6bd0969ac2d885d3"
+dependency_manifest = "80720507c7886a020498c41f54f65e430b585d377dffd6e47082f7ad740e414d"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_pag_explicit_frequentist_cheap"
@@ -5512,7 +5512,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "fd777f37d9c814128d0cc6cb050c523467d2f27bae7eedd65a2bd3d69aae5d69"
 recorded_at = "2026-11-10T09:40:49Z"
-dependency_manifest = "756570cbe795021e3faf99fbf7efa45b44db2d38e3ec5f6220d306547689b2b1"
+dependency_manifest = "93bc508a819ee74f82fd5fefa394396409bc01546824b6e993c93f0a82c75a7f"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_pag_explicit_frequentist_full"
@@ -5522,7 +5522,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "fd777f37d9c814128d0cc6cb050c523467d2f27bae7eedd65a2bd3d69aae5d69"
 recorded_at = "2026-11-10T09:40:49Z"
-dependency_manifest = "765493efd362dcbe4f8b59448884600e8248c0dcc102ccb6c02fe14b08c25575"
+dependency_manifest = "66e4a5a178b7641ceb67629275b22bfe373d37a282f008e3f3d37cb28f294bf3"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_temporal_admg_accepted_bayesian_cheap"
@@ -5532,7 +5532,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "6eddffa7474cb8b1f241ebd82b88561d318da3853a5673671f89b48d7239023a"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "92b052a6d1895100eb755e86e5b160ab15bc3b6e860fa21c3daab21b431045de"
+dependency_manifest = "74505d5670187f1db5958bf20da1e2f76c96c02f166875fccfd99b26d54c5f63"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_temporal_admg_accepted_bayesian_full"
@@ -5542,7 +5542,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "6eddffa7474cb8b1f241ebd82b88561d318da3853a5673671f89b48d7239023a"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "b94ccb99c77b524558e1aaea07b961772c6ec218e747a73972f82672231f7f10"
+dependency_manifest = "c1a8eb7c9b5de15380559013a68031937c082d8b992c408bf5c2d6847ac8ebe8"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_temporal_admg_accepted_frequentist_cheap"
@@ -5552,7 +5552,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "6eddffa7474cb8b1f241ebd82b88561d318da3853a5673671f89b48d7239023a"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "ea6cc2fdbe5f06e4bfe63bc424bfcfc74aa2875dd96d43e9fce569498b2e879b"
+dependency_manifest = "e7496a3fe5cf8d66531b678bc11717d1aecd37a21188eb868fb9318ea944ebde"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_temporal_admg_accepted_frequentist_full"
@@ -5562,7 +5562,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "6eddffa7474cb8b1f241ebd82b88561d318da3853a5673671f89b48d7239023a"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "871d53e7d202eb270fdfc160864cf1d4b95cfa7b54b42d62312b9b48d122e12e"
+dependency_manifest = "c3be05dcdbb22897bbff5d65538ad8c874f23f3faf869a0ceb00f2e4f02cfa46"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_temporal_admg_explicit_bayesian_cheap"
@@ -5572,7 +5572,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "6eddffa7474cb8b1f241ebd82b88561d318da3853a5673671f89b48d7239023a"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "15005a67d7905b8860cd2a7cbfaecd0cf4e632a34fcf67c7c1129f895b7a9765"
+dependency_manifest = "a4f67d4d19b2f3dd6680df94ebe95528955636597004c94075b9f448654827f1"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_temporal_admg_explicit_bayesian_full"
@@ -5582,7 +5582,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "6eddffa7474cb8b1f241ebd82b88561d318da3853a5673671f89b48d7239023a"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "470e87249b5cdd2c2692d47207de27f8e5d35129e1996eb4081fb2c06c0dce44"
+dependency_manifest = "124a9126aeee94b1dc224f1aa1464477b020ba3f9885b784f1eaf811ccab076b"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_temporal_admg_explicit_frequentist_cheap"
@@ -5592,7 +5592,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "6eddffa7474cb8b1f241ebd82b88561d318da3853a5673671f89b48d7239023a"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "dc4e233de0e3a6a98b66c49a66beebb456ece5a0a9817591888782d5205d4d95"
+dependency_manifest = "8b16ea42182ed4602b7cfe15999d4ae112d9beb6571be156158c5cb4c2f1c5c9"
 
 [[record]]
 test = "antecedent::distribution_validation_route_evidence::distribution_temporal_admg_explicit_frequentist_full"
@@ -5602,7 +5602,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "6eddffa7474cb8b1f241ebd82b88561d318da3853a5673671f89b48d7239023a"
 recorded_at = "2026-11-09T14:25:35Z"
-dependency_manifest = "71cf4a1379ef9e94f0ec963a128fc79e979d6ddef6f3a2859bee5ab16be103de"
+dependency_manifest = "e8b657b39b9ec2076bba4f645ad7587beee737ae627e234cb0d8f81d82e0f895"
 
 [[record]]
 test = "antecedent::estimate_uncertainty_reference::the_critical_value_and_interval_match_the_exact_quantiles"
@@ -5682,7 +5682,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "51c4ec6e8bbc065ddc19cb0e3cdff0d34f059b096edb5499a40c3c29ae8c5a7f"
 recorded_at = "2026-11-09T15:55:03Z"
-dependency_manifest = "1271eab56789d04f710830ba61b6197e585c44d6d213dad60d5c92c92b0b8230"
+dependency_manifest = "79fc7c0e31b888f2a6e6c50512a2316b30cb72ba17a9bcdc94020563ad18b647"
 
 [[record]]
 test = "antecedent::gcm::gcm_fit_intervene"
@@ -5692,7 +5692,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "481fdb788af7fe1ba1a12d8055d54d0c49348626a1388510614475318b992552"
 recorded_at = "2026-11-09T15:55:03Z"
-dependency_manifest = "88dbf5aeae70c1578532344a98f6a4edc9d18ad630077b9e21bf84e81269152f"
+dependency_manifest = "b5347e6e0a0d27e329d19ea77cbac181b9e287c1de8c1acf1d0cd78ccd861ef7"
 
 [[record]]
 test = "antecedent::gcm::gcm_shift_intervention_differs_from_hard_set"
@@ -5762,7 +5762,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "d0031c8fa46109b0bd15f53d96edd29699750fa86a530d5aabeb2fbb45d4737b"
 recorded_at = "2026-11-09T13:47:28Z"
-dependency_manifest = "339dcd4ac2f5985b4d53d8b3d83cc1750c54ab885bb004b63eb1c2e672b53b14"
+dependency_manifest = "15e34fcc05907fd6727cbfd6fda0409d625d300db03d0c2ad8a3ab0f535e1e68"
 
 [[record]]
 test = "antecedent::interventional_distribution_class_route_evidence::distribution_cpdag_accepted_frequentist_none"
@@ -5772,7 +5772,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "d0031c8fa46109b0bd15f53d96edd29699750fa86a530d5aabeb2fbb45d4737b"
 recorded_at = "2026-11-09T13:47:28Z"
-dependency_manifest = "14d06b0830032cc5e07c60b41ff60ff5013d174a827e5d83c2ed4719093351c5"
+dependency_manifest = "88b032d93ee59c729c8ad023d9f6f141ef3d36acff21cca015cfcda543976054"
 
 [[record]]
 test = "antecedent::interventional_distribution_class_route_evidence::distribution_cpdag_explicit_bayesian_none"
@@ -5782,7 +5782,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "d0031c8fa46109b0bd15f53d96edd29699750fa86a530d5aabeb2fbb45d4737b"
 recorded_at = "2026-11-09T13:47:28Z"
-dependency_manifest = "30110d613cfb8a628c98ee97c3776f4e4319a686d53e8e91f1eb5747d06a7101"
+dependency_manifest = "6f03a20dad9daef573553011422ca327f645a057e6df6d05b9b9cd3285bbcc50"
 
 [[record]]
 test = "antecedent::interventional_distribution_class_route_evidence::distribution_cpdag_explicit_frequentist_none"
@@ -5792,7 +5792,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "d0031c8fa46109b0bd15f53d96edd29699750fa86a530d5aabeb2fbb45d4737b"
 recorded_at = "2026-11-09T13:47:28Z"
-dependency_manifest = "74208989b3977262286144010f4fc48b9e344ef2821fabf6b2685ea4fe76373b"
+dependency_manifest = "ea4e624bfd53e4c90d8d366873c7212a39e5a85580610acdd79a557d27a771e8"
 
 [[record]]
 test = "antecedent::interventional_distribution_class_route_evidence::distribution_pag_accepted_bayesian_none"
@@ -5802,7 +5802,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "6ef38778e28ee8bd6d1cf044e01cd272da06929520038f13fc09c461e25381c1"
 recorded_at = "2026-11-10T09:05:49Z"
-dependency_manifest = "65ba9cda2eba9cd2a1cfa0926c0117ed208dd4aca2baaff02397511505bd2ced"
+dependency_manifest = "5e71d56e57513d16b865819dae38cb1899cc45f357f64b2c0eb038858437d91a"
 
 [[record]]
 test = "antecedent::interventional_distribution_class_route_evidence::distribution_pag_accepted_frequentist_none"
@@ -5812,7 +5812,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "6ef38778e28ee8bd6d1cf044e01cd272da06929520038f13fc09c461e25381c1"
 recorded_at = "2026-11-10T09:05:49Z"
-dependency_manifest = "407b36315d0e1f4dbdeef3a0b556aa94bd2d06f0fb3867bedd6c70e71f88967b"
+dependency_manifest = "7de8e5a5c3823f36c3e28bfa1595248dfe88525b929069ad7fe3c1147497ee7e"
 
 [[record]]
 test = "antecedent::interventional_distribution_class_route_evidence::distribution_pag_explicit_bayesian_none"
@@ -5822,7 +5822,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "6ef38778e28ee8bd6d1cf044e01cd272da06929520038f13fc09c461e25381c1"
 recorded_at = "2026-11-10T09:05:49Z"
-dependency_manifest = "619d0e716ffb32cc81ec9503230d123df5bc7784d68a1b91858137101218e4ec"
+dependency_manifest = "22d558cd6423ccacaa0bbafae3f292e7b7a53b377be9089ed1927b1838eb2ba1"
 
 [[record]]
 test = "antecedent::interventional_distribution_class_route_evidence::distribution_pag_explicit_frequentist_none"
@@ -5832,7 +5832,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "6ef38778e28ee8bd6d1cf044e01cd272da06929520038f13fc09c461e25381c1"
 recorded_at = "2026-11-10T09:05:49Z"
-dependency_manifest = "10515984aa33a25bca57e9008f918cef0524c789f8f36938eac0c31c92a7b4b9"
+dependency_manifest = "a213ef21e93864eb9f7d7063d10696f54a89293ba041dc0d6a316679652ae488"
 
 [[record]]
 test = "antecedent::joint_sensitivity_calibration::the_calibration_truths_are_the_extremal_vertex_of_the_true_law"
@@ -6032,7 +6032,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "91444e698ac108d49fb25a0d39167e831e076a53013bd0bee0965081d03ba391"
 recorded_at = "2026-11-10T08:47:14Z"
-dependency_manifest = "0274b21cde1ce1523f85381e6ddb767f7613ab87258fa2addee2654ec2eda48a"
+dependency_manifest = "68ed105db936702050761c004383c82a347b088d3b034ab825cae81b6aa40eff"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_accepted_bayesian_cheap"
@@ -6042,7 +6042,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "b5e2a5df3efb6e1a49a3395e6216ee95cfeb0abced88134c73fa06906300b819"
+dependency_manifest = "4f59bb8a3c445c01311e845f706a5abfa44e1648b70f63b3c4d795f21c2b55ab"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_accepted_bayesian_full"
@@ -6052,7 +6052,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "9436021c34cff97f30b7c78c3aafad5b955fb7c84bf6f4cd9909609cc4c00e53"
+dependency_manifest = "44c94c7bc301f6614d1b133da61692c6dd8f7b6cdc62ea1d3c9b8dd95d6519da"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_accepted_bayesian_none"
@@ -6062,7 +6062,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "cf8e5df2a3e7ceddcf38cd6e917d4c03af6f4aae8b499eeff453b29ba1466a0d"
+dependency_manifest = "5922a0bb7f3214fee571e001acefb5ac8ed513cab3322458c02a5d8d1589ef50"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_accepted_frequentist_cheap"
@@ -6072,7 +6072,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "dcac18cee9e44ef45de13a58a8cb27d8c48c9bcc96ce3329fb55d89183c34030"
+dependency_manifest = "75aab9fa510aa50634bc049527e1531dc4122a7493aa4e0360442298c65bdd4f"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_accepted_frequentist_full"
@@ -6082,7 +6082,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "d3810fbc21997cf69a3d515fbc783c3bb4cff7a8e39197c54bcdd371587c8be3"
+dependency_manifest = "ce17c73dd8d5b4f42003a3525060a69610a2f2c61059758c9867916580b1cb4f"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_accepted_frequentist_none"
@@ -6092,7 +6092,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "08dc068bc0c7bd4ccbff8cf7e7871f02e91633755731bf872b4d4604f09589a9"
+dependency_manifest = "289f6a2e0715054ec93c5d1cd7349b2cbeee1e3169dbae53db4f90cb6508767b"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_explicit_bayesian_cheap"
@@ -6102,7 +6102,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "dbc6e48759eec0b850af6674b980274c58e0b4c2693e6a3fed75884d5271ed9e"
+dependency_manifest = "20344a747071a248672b3f023872ac038fd602f014dfd433b19636a15edd25b1"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_explicit_bayesian_full"
@@ -6112,7 +6112,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "8fcdd98683ae795baeb65936c84949b5b667892bfae5c20b34f9364fbe6da0b3"
+dependency_manifest = "7d3b2b9780e88c8686e9354d51b56feed528e176690a36841a60638a498f960c"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_explicit_bayesian_none"
@@ -6122,7 +6122,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "eca11982a084d41d35dda21c131541066911f1b924863cef1f52712c896be460"
+dependency_manifest = "e2c5a3336fcb74573fbd6ebf58927e2c41984915f372d4a9cc163dd8fbec03dd"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_explicit_frequentist_cheap"
@@ -6132,7 +6132,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "a021f3865765ad79cb8fa6d92240c824886f8fcd46e09d59eda632e88d7ec6e9"
+dependency_manifest = "6198f1b4ed2ca8e72e85bd4d2317e6b88030807562e8f869e5024fee82ddcd1a"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_explicit_frequentist_full"
@@ -6142,7 +6142,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "75d9f882dfbad0feff6546eed232be4070b0f42824e8afbb1b2d02eb86d1a18f"
+dependency_manifest = "693320188aa057d48c093ccf4463e9826623b11e5257a79dc3a66b424d352c18"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_explicit_frequentist_none"
@@ -6152,7 +6152,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "11167941685411867c8f83e3eb79b2ffea28f48b94f0568b0243141ec45d680f"
+dependency_manifest = "844b81b89286b803919cf40f9f70edf93eb914bdd5b778f41a7db1bca7988aca"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_accepted_bayesian_cheap"
@@ -6162,7 +6162,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "0cb754212f73a1f6a5fffc38e2927354c2665191efc076550bf830dac9c2b024"
+dependency_manifest = "ea13e9bdc96f1f22806c81a00f9b508432e1b9fc3fda165c02cd1901ef049b7f"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_accepted_bayesian_full"
@@ -6172,7 +6172,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "8a14e1a3f0d55ed255c9bb46ccc4a1bd33a32d74d9b832777315dcf6963dc401"
+dependency_manifest = "107be2dac46c5aa9778464527b8aa37d1c65530e922969d129c470556d57eeed"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_accepted_bayesian_none"
@@ -6182,7 +6182,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "ea3e5b9c9725b44f83b3f749623e45a13d9225a63a7202bcfb90e7bb7cda0df3"
+dependency_manifest = "05b552e6cd7cfdc00b10c8b7279443fb3258763b11aabeab5e08d94ec4458624"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_accepted_frequentist_cheap"
@@ -6192,7 +6192,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "0d072517356a6821d4def06a691c60a9fc1975023a30b88704f9cf3fa3866452"
+dependency_manifest = "ff88f7374fb55205abf5bf71ae6e9182c90b282a199206751410f1b70e23bd8a"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_accepted_frequentist_full"
@@ -6202,7 +6202,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "afbbdb707bd0db5aa088ca8c765ce280df729708708c8fc23290044a4f63d9ca"
+dependency_manifest = "1f7b39955608a7acd70c37a794ed8c018b215fcd9390190ff10dade571ab15ac"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_accepted_frequentist_none"
@@ -6212,7 +6212,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "2fe9b458f0c4105ae12ddfabeb34978d0b6323dadf99d787a520e69ac8f663a1"
+dependency_manifest = "4eb71aa1fe4dd7d43595efa5dcb1833b7a03f0e01ac396e7a39453900546ed75"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_explicit_bayesian_cheap"
@@ -6222,7 +6222,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "8252e595befe97beacdc55fed64b51c44b34721149c5968d035e1080c18ee8fc"
+dependency_manifest = "f4d9b8f5d30c1bc137ec72e96920ab2ce6ccb4718aa6bfd3989035e6e34b8523"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_explicit_bayesian_full"
@@ -6232,7 +6232,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "373ce818975fe6bd745c7bed5285bb398d5ac1f831306f659b3e219000c7663f"
+dependency_manifest = "f81c20740a9b3fb629f79843dc7c32f9a115ba940a5c6372d427d3ef8bfbe092"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_explicit_bayesian_none"
@@ -6242,7 +6242,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "29d33398b7a48d0ae14bd8c6d9dab0d5f66e4d758adeaad95e7b266bd29723cd"
+dependency_manifest = "8d47d7f032c2f9d3fb76186662e341e53204351d62f8ae7ca3747cb0410d98ae"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_explicit_frequentist_cheap"
@@ -6252,7 +6252,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "a4d7b123218efaadda453e1c1059e4c208b458ae495df196b18a01deb6480e65"
+dependency_manifest = "454d6817d5356a6964c1cd68cfde824c2085bc04d2efbd78e9030a4c656e92c1"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_explicit_frequentist_full"
@@ -6262,7 +6262,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "2a4a9e4a3853046f9fb9a1c95d0eeef476855fceaf703a167e65472b9806ea48"
+dependency_manifest = "bcc8638873e0247588a4280b5845c1e16f66d2dc47925574aa838ec7a8f62815"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_explicit_frequentist_none"
@@ -6272,7 +6272,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "cc409b27ac3bd54f1b25ebdc062650e6d58a8f1601bbb3a3bbfec1e00b991028"
+dependency_manifest = "6ee0e6f51257b72de0187792cc4982c2cf79480862ae5852ce83a891c02f59b2"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_accepted_bayesian_cheap"
@@ -6282,7 +6282,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "05cbaf46e7f5800d878f61cac32498ce08f1dfc1d7651a1973777dea5c4e9ee3"
 recorded_at = "2026-11-10T09:27:35Z"
-dependency_manifest = "39f256434606ce2ce5f15648fb7063b385f1603ba1e60b9bde27e46571a16b99"
+dependency_manifest = "d08798d304b880e474f164b26e4bbad976222931258b415a0ae4b9f51f0739bc"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_accepted_bayesian_full"
@@ -6292,7 +6292,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "05cbaf46e7f5800d878f61cac32498ce08f1dfc1d7651a1973777dea5c4e9ee3"
 recorded_at = "2026-11-10T09:27:35Z"
-dependency_manifest = "9af9bffb52439355e0c37a7c88f8d0a2f77dad08667523fc19af2c37e21f2298"
+dependency_manifest = "3848ca7069c9da91decd8ecca905a7c78b01f671cf768057644a411020315142"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_accepted_bayesian_none"
@@ -6302,7 +6302,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "05cbaf46e7f5800d878f61cac32498ce08f1dfc1d7651a1973777dea5c4e9ee3"
 recorded_at = "2026-11-10T09:27:35Z"
-dependency_manifest = "6cb2800476647f48467c909e8cfc2a37509151dd3009a311595ea10de7fdde8b"
+dependency_manifest = "1778b46988ef6327c0ebc8fe210f418d05ed237ac3e6c0caee5a4df05092bdae"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_accepted_frequentist_cheap"
@@ -6312,7 +6312,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "05cbaf46e7f5800d878f61cac32498ce08f1dfc1d7651a1973777dea5c4e9ee3"
 recorded_at = "2026-11-10T09:27:35Z"
-dependency_manifest = "a33f4a5b65a09144af3da8db4ad20f66f384ceda882ddd4acc32f96fe56128ef"
+dependency_manifest = "5ee2d0a7db528102d6fe9093d97076cbe28f738225302ecf597eec3a9b385fca"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_accepted_frequentist_full"
@@ -6322,7 +6322,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "05cbaf46e7f5800d878f61cac32498ce08f1dfc1d7651a1973777dea5c4e9ee3"
 recorded_at = "2026-11-10T09:27:35Z"
-dependency_manifest = "a13735300d9eb15a56eeeb6ad131dd41eae5714b0ebbff96e115a9b1a653ffdf"
+dependency_manifest = "2a4b3e7ab6af5ed4157a08fd2b83e8f0d475a19cf8aeee171863da42e2548740"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_accepted_frequentist_none"
@@ -6332,7 +6332,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "05cbaf46e7f5800d878f61cac32498ce08f1dfc1d7651a1973777dea5c4e9ee3"
 recorded_at = "2026-11-10T09:27:35Z"
-dependency_manifest = "e51d57c146978f5cb5ec98f2dc8b2e806cc7e601624cf3cf79a46b0d3d078c63"
+dependency_manifest = "55d271660765db36e9666c858e0bd0e2a8a5ff0f33545e03ed1fd676f6d27683"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_explicit_bayesian_cheap"
@@ -6342,7 +6342,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "05cbaf46e7f5800d878f61cac32498ce08f1dfc1d7651a1973777dea5c4e9ee3"
 recorded_at = "2026-11-10T09:27:35Z"
-dependency_manifest = "bb63b1ded1a3f0c782f67f139501e693f5aa7c71338ac3885d46bbd12f37e524"
+dependency_manifest = "bcdb766d4b0e0a22f4f62ece8596305374973591bbc99d4627b631e41a3f7ae1"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_explicit_bayesian_full"
@@ -6352,7 +6352,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "05cbaf46e7f5800d878f61cac32498ce08f1dfc1d7651a1973777dea5c4e9ee3"
 recorded_at = "2026-11-10T09:27:35Z"
-dependency_manifest = "bfe870033e1b4c17f4f2f1fe430f2f1717498e0b4889bb9a3ef0a0ae816be436"
+dependency_manifest = "0f048da677e101a7173ebfc9880c3f8b56a83d650f1b80671a0e48303ac82a63"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_explicit_bayesian_none"
@@ -6362,7 +6362,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "05cbaf46e7f5800d878f61cac32498ce08f1dfc1d7651a1973777dea5c4e9ee3"
 recorded_at = "2026-11-10T09:27:35Z"
-dependency_manifest = "fc38b24f617f3a61f20a77a90cc797175b2c333e5a4de7aa2ea2229be9e3d89b"
+dependency_manifest = "3535c4545c0efd1f0e93554e7716397c308f22faff072fde5aeefab1d6895f03"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_explicit_frequentist_cheap"
@@ -6372,7 +6372,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "05cbaf46e7f5800d878f61cac32498ce08f1dfc1d7651a1973777dea5c4e9ee3"
 recorded_at = "2026-11-10T09:27:35Z"
-dependency_manifest = "6f287f3a85c2df60d26804c1dcc6ab654594c696d0e6fdccaa140bbde2732bd3"
+dependency_manifest = "8054939a0a1d4aa92f8426d044e4b148728e317862fe42c66f953f635d498b3e"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_explicit_frequentist_full"
@@ -6382,7 +6382,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "05cbaf46e7f5800d878f61cac32498ce08f1dfc1d7651a1973777dea5c4e9ee3"
 recorded_at = "2026-11-10T09:27:35Z"
-dependency_manifest = "aaf32c28b37cc1a013fa2d0d85755f26d87db0b98129659333289397b5858607"
+dependency_manifest = "242eb00f8f0675449e785984d83ca8ba9338b41a21774aa8d341b26754555573"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_explicit_frequentist_none"
@@ -6392,7 +6392,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "05cbaf46e7f5800d878f61cac32498ce08f1dfc1d7651a1973777dea5c4e9ee3"
 recorded_at = "2026-11-10T09:27:35Z"
-dependency_manifest = "f592170cdb07687fecf160a0f0915762f34efdba81fba728d8545e53e3d6ff27"
+dependency_manifest = "ce41772a8f226fb6d28c1129c71640713a626f6a0eb0fe2819fc3349fb34beb3"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_accepted_bayesian_cheap"
@@ -6402,7 +6402,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "c58fa09b10b0c6a1d2a929d9124cbc520b1819b141974a96cf677639479a91f6"
+dependency_manifest = "4542f1f4f08d764e38edd25339db531504931fdf15deee7cdf856b662f5b7c67"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_accepted_bayesian_full"
@@ -6412,7 +6412,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "ea636e4d4862ce51915e89907a1320069bee25cbc6b09fcd18edd0cc9d7e18a9"
+dependency_manifest = "2e41fa70b86192c28b4d31f663318caf4aaf39990c68941bff27f0cb0218992d"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_accepted_bayesian_none"
@@ -6422,7 +6422,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "39d9f3a03816121bc43fdb4369e1296a73b913184a35c263292ff894bdb867eb"
+dependency_manifest = "464f3464555add19669cb1cb1e7611734c3ce23ce5b566a9a38c0a409b4a8f53"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_accepted_frequentist_cheap"
@@ -6432,7 +6432,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "2e328d2d07757a0a9e89ef65c787efb4d9486a567faa8103586c722fa272b47a"
+dependency_manifest = "e5c9a7f300b70cf1612b7d0db7e5e10efdf5554e2bad35286d4f769f8f661d67"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_accepted_frequentist_full"
@@ -6442,7 +6442,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "44d636be31bf76fec2cf7787969509dfc83031d17d3c3e184fb16583b60b8b39"
+dependency_manifest = "03511a9f36940e46e2c20b216910260546b0ab7bd3360f71a3093a828ecfe50a"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_accepted_frequentist_none"
@@ -6452,7 +6452,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "5b8d369644b12e53ffb93ecf5a518c302ebc6dcf2290f89a3c39d3084d38844e"
+dependency_manifest = "f3142426ccab1bd3e325aec82c9dd5edbe05215126aaebb7a44e20a6c62ec258"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_explicit_bayesian_cheap"
@@ -6462,7 +6462,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "e24bda1878cff4145210afdfcd4dd988188ba9ec421e46edf25061720358a79e"
+dependency_manifest = "424f4c7d4f90b901ce2907d1ed0ab6234579abae942db681c10bc1fb1305d4b1"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_explicit_bayesian_full"
@@ -6472,7 +6472,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "d0605dc2ad171a261e1595e4031cdd273636ace8b221c66cd22f8e98b95f2347"
+dependency_manifest = "83785b7d7a74eddfdbeaac1540f45c4df68efc49280aeca6f07f704d5b2aa3bb"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_explicit_bayesian_none"
@@ -6482,7 +6482,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "fe792e10946d1a76f6704a414369ed6bc9645570f5a2c01f87cf78cd94ce017d"
+dependency_manifest = "18ae31bee80da87e217326a2df11ac6e214caf7a3d44b9a3d89d292d7bdb55e4"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_explicit_frequentist_cheap"
@@ -6492,7 +6492,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "36e05f437dcaf2d6dd02e85acec645cbf7d4bf4d1591581201c80a842cf360a0"
+dependency_manifest = "17a11821355a913e4411c2695b7f092664f9ae3691180a3f89aa7b7ebfaa385b"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_explicit_frequentist_full"
@@ -6502,7 +6502,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "04e80e823c9ea86326a0d130b544220d61dda3fd61a4e0d32713d915bf9e7b45"
+dependency_manifest = "394319e0475a770cf2932f69edef3889a654770fa78cd86eaa9931b71ba709e6"
 
 [[record]]
 test = "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_explicit_frequentist_none"
@@ -6512,7 +6512,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "0342a460d56f3a832aa19ba51162e6e09bd587eb93a3e10c8fcba00ae5454bcd"
 recorded_at = "2026-11-09T16:01:43Z"
-dependency_manifest = "113e9e51923a4631f831f88dcf6f54e8e34ba29f029e73553df2d483fe472ee4"
+dependency_manifest = "0bf71f016840d0b0a37e21fb0446711bda0ff50b7d72b6e4bfe521e8051bbf2a"
 
 [[record]]
 test = "antecedent::native_response_claims_exact::retained_draws_give_the_hand_derived_aligned_expected_utilities_and_probability"
@@ -6542,7 +6542,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "9553b9e859fdd227c39385c543acbacfbe54ff8a8345a7b02c1077e64936b137"
+dependency_manifest = "f04c35fca8d6f4ba4229478159c91c7ef913d44aba6db0eb8baec85d8bbd4e02"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_admg_accepted_bayesian_full"
@@ -6552,7 +6552,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "d55ee06fc53201e8a3b0a488c4d5783a185a3508ef12cc14c86255ffc6d69a1e"
+dependency_manifest = "fdbe8ad6874eb847edb40f8551a6f446636f69968112b931e05fba3f2fd7161b"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_admg_accepted_bayesian_none"
@@ -6562,7 +6562,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "b32c689f76781d94cd8aa04207b27c6b749bd4b0cd67bdaead7fd7be6f1a10c2"
+dependency_manifest = "2895f38f18645a67d4c1aa8fefa0e8ccc8d3d6e9949e9ccd94425593dee695c5"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_admg_accepted_frequentist_cheap"
@@ -6572,7 +6572,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "811002427f70fe6fa164014d23ffd5a2b0645493c331b8bc2c88ad9bbf354e56"
+dependency_manifest = "140a5779da0a2d596929e537427688929cb88bd9a9f7d0f137028a99c082135b"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_admg_accepted_frequentist_full"
@@ -6582,7 +6582,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "206b767f4705cca3e109c4b6fb1ac08b3c772ae3e4c8b5993cdfbf14bc0af444"
+dependency_manifest = "19c9f4b5cf3c479ed2d13e840ab159620480483233924532eb4c555eb3450127"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_admg_accepted_frequentist_none"
@@ -6592,7 +6592,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "8097435ef24f2f5a4e72a23c87a81ed9e11fb9cb63c0f5a3a35ac6282669cae6"
+dependency_manifest = "a734964a695a6b4812de9a6f7a2373a7df9c8eb327e3c4308d120a917d710eef"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_admg_explicit_bayesian_cheap"
@@ -6602,7 +6602,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "d1c541c75d3a7d3c8360e39aa4b8a06fe6a98324663b4ebb642a493ceb864e73"
+dependency_manifest = "8fe4cd69e530aa51bb8f22710dfce9ca54d5a81fae90245c50c9016d9cfd72ba"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_admg_explicit_bayesian_full"
@@ -6612,7 +6612,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "67480459ecdfff3335d27cb4914d3d73e745cbd8555494d0ad61702578beb889"
+dependency_manifest = "d01e4a9f0a9c99d4bd478da306adc591ab3423271344650d5d03b805cbb52a34"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_admg_explicit_bayesian_none"
@@ -6622,7 +6622,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "f1fcf316fefd5489c951321b2a5e44fcdd1983dcad4066afebb162a8e219b16a"
+dependency_manifest = "80483a39cf2f94b354ceab3915cdc082e7f04f1b9da9f0421f311112bbd171eb"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_admg_explicit_frequentist_cheap"
@@ -6632,7 +6632,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "a923171ef4a89f59fa8b89b7e5006131e04a37daf2e6a9d22d5610fb5d7625db"
+dependency_manifest = "f06198abe069570d3c008db3a1f91c17553e81aa28de460307b546e6278cef20"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_admg_explicit_frequentist_full"
@@ -6642,7 +6642,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "61a6be4fd31d49402095bf6fa620758ab8351de21999126067b9e643700f3d3b"
+dependency_manifest = "7f40a3f40e4778577f982bc98df58c5393a9a90edd5602791070f6849828f9c4"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_admg_explicit_frequentist_none"
@@ -6652,7 +6652,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "0a0fa714f73c89febcd95b748a39c8f00b3345e76641f68c9789f96af46c339d"
+dependency_manifest = "9033c746f105162f780276c96bd20aab0b6e58915df49208c34ce2729cca2b31"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_accepted_bayesian_cheap"
@@ -6662,7 +6662,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "0564ff230aa403ecef6b1297d9f1d3af4c6ee74361f15feb0455e580aadea5ab"
+dependency_manifest = "f11e5ff788eddee77f5d6676b0b3a4bd6d47b98437bd42e85f90156a04ff6b53"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_accepted_bayesian_full"
@@ -6672,7 +6672,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "324f0308bd4239ffdf48aac9d7d4e635534d0a368c396395b3c9306c2de10bfb"
+dependency_manifest = "f03709b48c2cc68dbc6b9f903ca555eb5ea34ad18466dae8d9a81bd3df71d67c"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_accepted_bayesian_none"
@@ -6682,7 +6682,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "090e85fe2045a8b00aa6c454c077ff47a8a393eba72fa8d57d4b71b7ab77b264"
+dependency_manifest = "e5beb5f12e64f80739ee54adbd57050948293e0f0425266b9f16d3d96201c954"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_accepted_frequentist_cheap"
@@ -6692,7 +6692,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "763f2dcd2fd29317cc38460754609dc2e40da98c776b51e12e5e3e2b7f83d7a7"
+dependency_manifest = "305db4cf27ef212961697bba47c5b1616093da15624f2a9fe102bf57c63ff693"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_accepted_frequentist_full"
@@ -6702,7 +6702,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "87c3e8f11758d069ab86cffbf0a6a577a1796e85293e88ba2f9997f286e21aaf"
+dependency_manifest = "26fbe4b7e8118fd715a3e21582e7bc82710b86ac67aa9486d6b132c7812c8ac0"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_accepted_frequentist_none"
@@ -6712,7 +6712,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "9a102fd28ae08971f49b71eb6b748c13dbac16508d7ff2a227edd3cde8a013fe"
+dependency_manifest = "1f3f34ba70f28e908ab10b5d2c848059705f4025f434fed2faa04733a8030601"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_explicit_bayesian_cheap"
@@ -6722,7 +6722,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "7456ce44a950617f6e2ac6de8a9a4d53411c0009abdf1d37725143882eafbec8"
+dependency_manifest = "561f4ccce2990fdb477d59fd8d639f6fc850a52999952defb4fe9b847baf19d6"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_explicit_bayesian_full"
@@ -6732,7 +6732,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "beee6dae9478039659a8d48548273204305efefb5affa8f6d15ffd8906806da7"
+dependency_manifest = "4e5f6560f3010e66261f86566000a735bce22ca39a17e000237a117268b33858"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_explicit_bayesian_none"
@@ -6742,7 +6742,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "635f955f02e2127e8729875750bd86fcb0f591de0c875026e3ee3471029efa43"
+dependency_manifest = "d87bf9f37e980e8b47bfdd8920fa8bf45fd9c3f6e90f2f166565aabb68e23e4e"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_explicit_frequentist_cheap"
@@ -6752,7 +6752,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "e5e28392a8f50cec6fdfe94cbe70552d8ef4da02a98a4571d0e2dfb485e54931"
+dependency_manifest = "27dc29b6e6c1f690b2134dd7ad0c77318281bc401c38e8fd1335e2d98e8600a3"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_explicit_frequentist_full"
@@ -6762,7 +6762,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "8a693b150be20aa39422ab707c0224cb2c48ad66ffa25606cffc5bd376497f01"
+dependency_manifest = "341032735c934944dcadb31aa2aedd44ef55449f6dab2d4bfa583a71ef6b0816"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_explicit_frequentist_none"
@@ -6772,7 +6772,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "a7a747c3621afb3372be776110b77801e054ecec0dc7cbeeb3325364f8b4ded3"
+dependency_manifest = "101d508033f7d30e1022db735845556e16dc28abc7e3a8fbe12f0589ba57568e"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_pag_accepted_bayesian_cheap"
@@ -6782,7 +6782,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "9622e447b7c178fc358451b77e4abf0209488250ccee54cc6201da90411295d3"
+dependency_manifest = "2b95a57c96f7ec4ecc0cc1fa616ad15022da15a1a0e550b6408b9af0b9e59175"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_pag_accepted_bayesian_full"
@@ -6792,7 +6792,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "f9d952e31bb784d75c36818db4a74ec3daada3827344e7060f2193fd01fb5194"
+dependency_manifest = "3150ec69f2b8b494c7b86527637f658a47e3f8ec797309324221d2fe6ea64f5a"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_pag_accepted_bayesian_none"
@@ -6802,7 +6802,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "21ab87dbdb545f8a6af3f108686c26a4d0a8eb7507313e554abf5072b5ddc6b5"
+dependency_manifest = "73aa792cf652be0b8c4b9a5070efa34247e2634b843c29bf6b093596e898bc76"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_pag_accepted_frequentist_cheap"
@@ -6812,7 +6812,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "20e0079992803f4f8462f936605ab13c41b3aa1bbc1748734bc2d885dcc56fc0"
+dependency_manifest = "8eb81a45278b4f84dcf1dfbcabcc0cefebde30159142763113d533c7b48a678f"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_pag_accepted_frequentist_full"
@@ -6822,7 +6822,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "0d819715a1a0bfbaa8fb27864d8c7e3f409f627e5e17aa1224e7a709882e7cbb"
+dependency_manifest = "6ba7fb386352926990a0389d4e95ba7e9cc22251287696719fa83d94dda62df4"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_pag_accepted_frequentist_none"
@@ -6832,7 +6832,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "2f6b158bd5e2d0063d78fd8efd1eed9ca7e871c486e31dcf22b86a5ef8fc08ec"
+dependency_manifest = "98dcbe6cec3c6d30cb4dfbd2e05aeba2dd217e96270db3dfb2b92f39482da22a"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_pag_explicit_bayesian_cheap"
@@ -6842,7 +6842,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "2165854868baf59d98d750eb6db715d8a6a5a901997edcb66178d5f85eaf26e7"
+dependency_manifest = "0bc3cffd768adf153f9068ae744f96974e2b4921388c15002d94c68629e1edba"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_pag_explicit_bayesian_full"
@@ -6852,7 +6852,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "0181c6b64477035cdb0c11f9b192289c72af063042355180240c993c9ee25e72"
+dependency_manifest = "fc11de6ea926748de973f06d4674ac53e19769d6c60e13a724731886c2af2377"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_pag_explicit_bayesian_none"
@@ -6862,7 +6862,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "043eb11e550430d3790ae974786ff67feea4b46879f21b8a7f39510139744b68"
+dependency_manifest = "d4f05a4110947e13d6e1eb38cfd6c71dcdeaa7859447eacd65a17ea9c342a962"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_pag_explicit_frequentist_cheap"
@@ -6872,7 +6872,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "b912c7d9d562579894daac87a2ce97a6139b9f2af7580785c9f501170fb28b73"
+dependency_manifest = "cc2146a4c8ae9a7f5a4212a5ea21ada5b02f0e576c6ec79db16da29c60ed5a60"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_pag_explicit_frequentist_full"
@@ -6882,7 +6882,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "b672b18829750c1c5bb232317e1ab99f85f76c119f23befe36b7a594faa2f91e"
+dependency_manifest = "4becab4cffebfc46263282260b2f9ad8a1cab4ea5a4da2ab14ca19e38bd175c7"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_pag_explicit_frequentist_none"
@@ -6892,7 +6892,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "ac128975c2d695e5e5a47a4f5510658e391f737a3c7fa79b31abcbef6ce8d42a"
 recorded_at = "2026-11-10T09:34:32Z"
-dependency_manifest = "711900f1c1c5955ebdf6d80815e83b6f221008c48018bdff9f2c6a6988d3c381"
+dependency_manifest = "e9a44e2ceee531dad7727f79edf7325c372e37b919670eb68b68084d79c2adb9"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_accepted_bayesian_cheap"
@@ -6902,7 +6902,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "08e465e391dae99411a506ba447a8a48b0d172c305f81024bfe0d7fa4614f07d"
+dependency_manifest = "dfddc97602a6afcb238c622934de35970e4a57027f88a6a1dee40b1d17423142"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_accepted_bayesian_full"
@@ -6912,7 +6912,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "7ba29e4260dda4e54d8b7484ebe8b63616897b932023e2ca8754c081ea738430"
+dependency_manifest = "2913449d97c31fda654506f0ce9f515f3ca704ee6f26cdd2d30743dd293dc80d"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_accepted_bayesian_none"
@@ -6922,7 +6922,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "f49ffe5200bf53cabc28310a65b1e3288b5005973e2215ab5a546297514307b1"
+dependency_manifest = "a3ece9f38386f34a80bbcb34ebb4d6d9dbf076d56bd66217c78952a8e2be74e4"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_accepted_frequentist_cheap"
@@ -6932,7 +6932,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "c55c664bd54cb337dd7a57aa2a82020ba7e6ebce1e90a1ed97228ee9127e9484"
+dependency_manifest = "18a81bfe4c38c8c70cdb86c1183e7c251d5ee0fc5e222b247330fe7b56677f9d"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_accepted_frequentist_full"
@@ -6942,7 +6942,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "f39d403d2d10cd15412cd758ed4ca1a0eae5b773174ce21361844ac14475d572"
+dependency_manifest = "2998f9b2a676d04229da16f436415eba037cd67b7f4ca3ba94f554c5a558173d"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_accepted_frequentist_none"
@@ -6952,7 +6952,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "280ad4783f68b80a517d8fc091d5975acc720ff9015e68bc7ec2de6faba4a88a"
+dependency_manifest = "f8a51a5f47564b0b7fd4582efee6e96257c845b3028305d807c2fef662df366c"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_explicit_bayesian_cheap"
@@ -6962,7 +6962,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "d6ba8bfc42fe6fe84c2a13c7262f751f26aa13d41e07cd122bd6cd7fbe23f4ad"
+dependency_manifest = "014dd23261c0598b1e4619aa2b3e0e279da6c90e093d638ace3a7f37f246309e"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_explicit_bayesian_full"
@@ -6972,7 +6972,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "7eb975b9d0d81d5476eb503014e4dd02f0fea5151aa87f1adf7e7cf622217950"
+dependency_manifest = "9d8ae1c3dc12951e87a1914daa1cf83b29a8e2c2dda029be7fb83eb58b808b64"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_explicit_bayesian_none"
@@ -6982,7 +6982,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "59444f4117bf12b3cb755fc53cff322e1c091c59a3b4ab1d3ffa7412dd8d3dc1"
+dependency_manifest = "92e16dad97f9421f52774383691f91bc75e3884aa3dcc60d64b8edfa37e471d6"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_explicit_frequentist_cheap"
@@ -6992,7 +6992,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "b5fda284e9631f528c4f27ef320006d80b1a898dc0efad1f63a715ee86725e2f"
+dependency_manifest = "b5891e11c31897192f5da96e024fe823184590af35003a1e42429ae85991bc2d"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_explicit_frequentist_full"
@@ -7002,7 +7002,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "194b03263944e94a9ec978e1e01f2a25d778900b88c9077a3413bae2feaa829e"
+dependency_manifest = "4f39bc05bb1db6610f94ea444b54c764c8be6e06d01f5d3f2711af1b1733533a"
 
 [[record]]
 test = "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_explicit_frequentist_none"
@@ -7012,7 +7012,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "34750e49cafbbdca0b0d0d6fc186fa88e92dcd31ad045f55c197c103e7da19be"
 recorded_at = "2026-11-09T16:09:49Z"
-dependency_manifest = "405bbea25f0f9ee7d019a9224a8135ff021221f4c9f0e0e3d94650cd50e22b9f"
+dependency_manifest = "d2928ead67d1b4cebd4e7b0e0490163b46888604f3ef031404bf05073fe8d1bf"
 
 [[record]]
 test = "antecedent::period_refresh_reference::every_period_outcome_matches_the_exact_replay"
@@ -7322,7 +7322,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "d712b4b11ae02fbceb7b0b0f6934fc74642a21c33935c3cd26ff189f93c4692f"
 recorded_at = "2026-11-09T21:15:22Z"
-dependency_manifest = "9c185bd6da70f1e084a5135e687629ea9240abb56cb2b4413cdcfda7d9d99336"
+dependency_manifest = "ebb617b80382071134542b7630e09e192957bab9458cbec7f3e275852fd299d3"
 
 [[record]]
 test = "antecedent::staged_derivatives::staged_derivatives_known_truth"
@@ -7422,7 +7422,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "fcea2f235eb8b7957984e401ed3ea0e03a22c61e4e49421b0896bafad00bbfaa"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "8aabe66bfb05ae4b2fd1652722fb3ceedaca35d0ed68b62581442d27272d902a"
+dependency_manifest = "f20ca655e954b6b0baff9740784f1b85d010adffe482ceec43920993f2a24efc"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::graph_effect_envelope"
@@ -7432,7 +7432,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "c5e0481e759baedec07ebe1dfd5e438a6847fd52407bf4477bc6e78b4016c92e"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "28140a7087f8b4adcd05d7ccbc1882c4e2b50eac2db6552f796318a7a0de401f"
+dependency_manifest = "6659b932fa840601e4e181a5bfb26a72e7aeb052a3d5048a92b7459cbd908630"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::laplace_glm"
@@ -7442,7 +7442,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "1b71709f2a80dd47ca33391b87e49c109c0e6db16f20593026d74e45b4bc8bf3"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "ecf057721fa5cd4f732dd607e266fd374ea5381373526b9c6bf99754540ee1b9"
+dependency_manifest = "e1baa23299c46b126c26aecefe1de4a893f6a447cdb82e4581e9e6d2bf3a3a9d"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::prior_bank_ess_accounting"
@@ -7452,7 +7452,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "46a52e6adeff315ccb91cef80ef432f8be817a4d73408b5a2785590a0648cba6"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "2d24f1ac1d40af4a4dc90607209dd3684336de999c1b3dcf4609886c093b2b9a"
+dependency_manifest = "39084beca093a92865d90b581c690762cde86724151ebe9d6db0635d41dfe2cd"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::prior_bank_power_mixture"
@@ -7462,7 +7462,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "6cacae5726e2397b80cc74f568206066c228b3c2bde44e443a81f4191b129e85"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "b2e719a5508595bccd7ac6b6b20f595c79e68bb39ec605cfe1f6cadb7edc6ce7"
+dependency_manifest = "4d98b2cebfdb6902cacf873a0e43af6487a848591f39766056b9cbda3ae32493"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::prior_conjugate_moment_match"
@@ -7472,7 +7472,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "9696c77cb649c47d027907cf4e54c146bc74de7b329c1bb661a83e5fdfcec170"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "7f016f1665522501b93f185ca2091f6cc41e7a8f44d112e8edb2754621f4767c"
+dependency_manifest = "a05469fa68093b55a3630863e9b073bc7e822562111cc78330acf7002585d196"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::temporal_pulse"
@@ -7482,7 +7482,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "3fa6129792956726f2a99904838cd07f50b4833ed55dc5a7492e51f94bcfbb2f"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "e98042f7069641a02dc3beac056bfa9fa0a57f1e5b07b3a8679f0b070de7578e"
+dependency_manifest = "01e1fbc34468df3225844db1a1d0e357e551c37fb15eed2412ee600166b1ce46"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::temporal_pulse_staged_all_structures_and_suites"
@@ -7492,7 +7492,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "3fa6129792956726f2a99904838cd07f50b4833ed55dc5a7492e51f94bcfbb2f"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "51b93c1c964dee23c4afd55ca0f0688362ef57221402263a33756dec1bcc5a26"
+dependency_manifest = "1ef432c045f66aa2c2baa4156be737a540eabad2536d84a51164933f9f1138f6"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::temporal_sustained_accepted_cheap"
@@ -7502,7 +7502,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "6b35dd2b02c5474d6767b427307e08cb345e8b7e7aa1dff0c776076694f8c324"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "4de1d3b0f301f60a71bdc7078194a210ef4955338aa62d9662180629ae0807da"
+dependency_manifest = "6eca584259d99d7453ad3eb131f88c1a92fb133f2578f0fb15664d4ad96559c5"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::temporal_sustained_accepted_full_completes_with_data_subset_refuter"
@@ -7512,7 +7512,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "6b35dd2b02c5474d6767b427307e08cb345e8b7e7aa1dff0c776076694f8c324"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "69bd6470964a22a6a64713646fa5dc1c17cb08c5f67eba0ab16456e34d3cc786"
+dependency_manifest = "b22b2bfaae821b92b4bde471d34a6d8799be1567e523c1a126d3c9340f12e9ae"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::temporal_sustained_accepted_none"
@@ -7522,7 +7522,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "6b35dd2b02c5474d6767b427307e08cb345e8b7e7aa1dff0c776076694f8c324"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "73d961cb01eb59943a81eb486d4818075127dbba966bd79c971717c79e62ae89"
+dependency_manifest = "b7670b101d0be97898e07af38354908f4305d6a5d7b20451794cd53425f5f4ed"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::temporal_sustained_explicit_cheap"
@@ -7532,7 +7532,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "6b35dd2b02c5474d6767b427307e08cb345e8b7e7aa1dff0c776076694f8c324"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "be5b79a02c8f32baa2e48cbfa43e0af946607b2a33bb806f5f924e1a1e2fa081"
+dependency_manifest = "12b36ee17d847411674a3838e720048e265a32bca0be2fa77559ec4be900d677"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::temporal_sustained_explicit_full_completes_with_data_subset_refuter"
@@ -7542,7 +7542,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "6b35dd2b02c5474d6767b427307e08cb345e8b7e7aa1dff0c776076694f8c324"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "67655468769961d1a72b59464a59b5c8b376bdf48d7bbf278045ca0d733b16b4"
+dependency_manifest = "218e76a07ced4c24035ade6d47071d53addf1e88a6692e53db32169dd26acd80"
 
 [[record]]
 test = "antecedent::suite_01::bayesian::temporal_sustained_explicit_none"
@@ -7552,7 +7552,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "6b35dd2b02c5474d6767b427307e08cb345e8b7e7aa1dff0c776076694f8c324"
 recorded_at = "2026-11-09T15:56:59Z"
-dependency_manifest = "cade9258d771118fbcb876b8a3cf2291e112d2828511a8d75f31751bd061b8b3"
+dependency_manifest = "1aef4257a95c8a3e55ab0b71d27ada5203fc955d97823f8c38e32af9936f00cb"
 
 [[record]]
 test = "antecedent::suite_01::bayesian_design_routes::local_ratio_recovers_the_known_ratio_and_withholds_the_interval_when_weak"
@@ -7562,7 +7562,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "5c5f476eb62082b5c7b75a996004463d74dd0de3752ee9e3d7c9f438a3cc02c2"
 recorded_at = "2026-11-10T08:16:10Z"
-dependency_manifest = "a8e46984a8abe818040e7bbd1f16ec8b73d03bff55ea34404614fb1bc4119a76"
+dependency_manifest = "5ef7d8a68fcaff08f223394ccc1fde94317faf42fd00ad479654ad3991cc605a"
 
 [[record]]
 test = "antecedent::suite_01::bayesian_design_routes::panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared"
@@ -7572,7 +7572,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "50301641672a8fe2ff0839863423516583574206c2cbb56950d5af0efa48797f"
 recorded_at = "2026-11-09T14:32:36Z"
-dependency_manifest = "f94569c17b7b7ea1e85b95a2d9bc9767408541049d291f47c9f419f432f20f27"
+dependency_manifest = "63ff16122db0f70eb03b23d882fa01c014578cf6158583afc8c2334acf7059de"
 
 [[record]]
 test = "antecedent::suite_01::bayesian_design_routes::synthetic_control_posterior_recovers_the_effect_and_records_convergence"
@@ -7582,7 +7582,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "75bdfea6a6fe7f057ae3029e795f070551cbe10bd2f0887c9a73ed0ab6bf8526"
 recorded_at = "2026-11-09T14:32:36Z"
-dependency_manifest = "adf361f1af6c21e5cf2522107fd1ea77f62d3b617cc88a7db4c9c8656064b629"
+dependency_manifest = "a6366e1056f9c5a81e12e322a3b725472536b59cd01265b65727f4486fed3c76"
 
 [[record]]
 test = "antecedent::suite_01::bayesian_functional_routes::admg_frontdoor_bayesian_all_structures_and_validation"
@@ -7632,7 +7632,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "24abbe5b497d3e4d371c312950c574532423fddcebcba4c4231d52e327369fca"
 recorded_at = "2026-11-09T14:32:36Z"
-dependency_manifest = "9184adb13753c1a8e7c00a1aa8244f6b868c9dd6d21699654e0027378463fe47"
+dependency_manifest = "c024b7a707ef12bbfa21bc40ec8b5d98ac27ba89b563edc1cf034dbf8785d92d"
 
 [[record]]
 test = "antecedent::suite_01::bayesian_iv_rd_staged::bayesian_rd_executes_staged_and_checks_bandwidth_conditioning"
@@ -7642,7 +7642,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "e35d09e7110065579fbb58511d7c88f7bb92b4af1901ee1f4e4a2a4379faabd7"
 recorded_at = "2026-11-09T14:32:36Z"
-dependency_manifest = "9a6a2f5b7d4c013798b29e30e7879c09eb872cfc5f8607062032e5db7a8963fd"
+dependency_manifest = "3bbb90da56191450e95c0cc925e0c3c8405333730fa356328690792a522de2e5"
 
 [[record]]
 test = "antecedent::suite_01::bayesian_randomized_routes::supported_ipow_posterior_recovers_the_causal_target_and_declared_prior_update"
@@ -7662,7 +7662,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "27a976b3ea2e417c9e4a7252049f8eff1a93ed593d05767c235ca2b852dfa937"
 recorded_at = "2026-11-09T14:32:36Z"
-dependency_manifest = "c9aba928bec1a355de70829f00b057d0bffbb84d4bd3d89659fd42d66309b4cd"
+dependency_manifest = "6b6bd16a30f65a8bf4714e9c9557b124ab236b1476064fdda24e3a081a8fc0e5"
 
 [[record]]
 test = "antecedent::suite_01::bayesian_trial_transport::bayesian_trial_transport_matches_two_source_row_dirichlet_moments"
@@ -7722,7 +7722,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "f2f3ad62d4570ecb78ed684d7e74af8081639e7b5fd397abfe44749e51c7a3f8"
 recorded_at = "2026-11-09T13:05:20Z"
-dependency_manifest = "992f76eaeec57f9fe3c576535223940d67a5140e9368987d63d8b394fb80772f"
+dependency_manifest = "ad9e64eaae211f5a37a7c6d425742ec34564ed8cdf0832d03486e8e0b9f1bbfc"
 
 [[record]]
 test = "antecedent::suite_02::checked_temporal_class_mediation_route_evidence::checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordinates"
@@ -7732,7 +7732,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "3d28d5e783a27b892beb4e834f53d45e7dbde21f5113f60a9e259069425614d7"
 recorded_at = "2026-11-09T13:05:20Z"
-dependency_manifest = "ae6a061ef5eea47773555577552f83d90b1b74f270f7858fd58df853c6f8b091"
+dependency_manifest = "f33d59d5caa15b173c9dadef030c222f8371c6012f7afbded1d08131ab62bd4b"
 
 [[record]]
 test = "antecedent::suite_03::checked_temporal_graph_posterior_response_route_evidence::all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms"
@@ -7742,7 +7742,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "1a7d8700ac5cbbead07a14a6a7baba8946aeb4975956bcde7e187123e6285acd"
 recorded_at = "2026-11-10T08:27:32Z"
-dependency_manifest = "2f759886518eab727a2a90770bfa789a61222a8389aadeded32e4893fe07a056"
+dependency_manifest = "de5a4ad29b7603e82e1da09dd999948accba69719b87f3870b38f17f8559285e"
 
 [[record]]
 test = "antecedent::suite_03::checked_temporal_mediation_route_evidence::checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates"
@@ -7752,7 +7752,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "69704912310814d5f9165dc7458d6e224385faf7f04ff9ebaf851627da15aa28"
 recorded_at = "2026-11-09T13:44:45Z"
-dependency_manifest = "b4dc2dd5a475ddce7bd92825dad845e74da59c747ac80f9f1de5baba3b0cb8b0"
+dependency_manifest = "4a3721651c19439c940302604bdeef7ec2ee09d5eea95f8a97aec105cecd21f1"
 
 [[record]]
 test = "antecedent::suite_03::class_aware_conditional_numeric_pins::class_aware_conditional_pins_z_conditional_effect"
@@ -7832,7 +7832,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "c6d02e8547eabca2302a15da3264ab2f6238464430e2f3da36621fd2ea7a0a27"
 recorded_at = "2026-11-09T15:54:52Z"
-dependency_manifest = "36ac4e8eb8abf7c4bb4bc734a0df00352866bf4337d169ba2d5fb28a34bf4cc2"
+dependency_manifest = "d94a5532942822c53928c539e5ceb91869226bef2dfe5b15b9411c225368ba3c"
 
 [[record]]
 test = "antecedent::suite_03::context_effects::prediction_smoke_pin"
@@ -7842,7 +7842,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "27f223b1c2ab0faa113cce67929671c48a245439c0eaea75e425e795d4ddc60f"
 recorded_at = "2026-11-09T15:54:52Z"
-dependency_manifest = "980929e222ca60d5e664877de38bbcd7e8e4021b62fa53b0d7b08549fc6513db"
+dependency_manifest = "c06ba9497b33ac6eb9678929832e158a99ada37232b3cc8d573d3770785874b8"
 
 [[record]]
 test = "antecedent::suite_03::cost_expansion_cells::batch_retarget_cost_is_zero_fits_and_counts_claims_contrasts_and_rows"
@@ -7902,7 +7902,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "2807f68286a2c3209f202dc656eb899f14a01b7c14d3abc448cfaf0c5e73ce7e"
 recorded_at = "2026-11-09T13:44:45Z"
-dependency_manifest = "ed2e625bbaffbe2f9750534988f877ad2c163a2eb2be73b68bc38e9ad0f28598"
+dependency_manifest = "8206ea45c58a00395de524f7015e2e11d127d0c7ed304d94ca67682a5b3e1113"
 
 [[record]]
 test = "antecedent::suite_04::dbn_posterior_atom_identity::lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effects"
@@ -7982,7 +7982,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "5fb60d5074796e3e3f46341f2a179879b0b1c9d2b09eca6c801eec0d365f2bc0"
 recorded_at = "2026-11-09T15:55:34Z"
-dependency_manifest = "3bfc35e153cd0dfdae09dab637f1dea7f3958888d55e2d1d77bcbd39ced3c8a7"
+dependency_manifest = "b21d8e4c6dfc42e5679c4d578824b095608f071ac802c4857904c09002ba6021"
 
 [[record]]
 test = "antecedent::suite_04::estimate_conformance::estimate_distance_matching_recovers_att"
@@ -7992,7 +7992,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "784478aaa2ca9e6fa5f0d900592518476446e5f0a7544bfa39c1f449055ef519"
 recorded_at = "2026-11-09T15:55:34Z"
-dependency_manifest = "2c0c51be7f7fe2b64c516c8ce9e0dc4b6f5ff5cf1bb5120fc10ecbb604f1245c"
+dependency_manifest = "324d0c4fc898db1219f7d62b7e32345fe8c1c9e1d570592bdf5f59837db4cfab"
 
 [[record]]
 test = "antecedent::suite_04::estimate_conformance::estimate_efficient_backdoor_ipw_recovers_ate"
@@ -8002,7 +8002,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "7bac767572565921b45b350f18a31a3361c527f3cb1e59069ed2c17b6d2d4de4"
 recorded_at = "2026-11-09T15:55:34Z"
-dependency_manifest = "1da23d15508b0d603f08f92863b6e9bb9ac95a692151c981e5b6d3ddfe0c1694"
+dependency_manifest = "76fa7034693764687f4dbfd4ad9dfab23867cae66780c193b1bcdfd41fdac308"
 
 [[record]]
 test = "antecedent::suite_04::estimate_conformance::estimate_frontdoor_functional_matches_enumerated_truth_where_path_product_does_not"
@@ -8012,7 +8012,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "18e74508ad76fc5b94710f5800794d4943d4a4e392804232605c6ad5a105ca63"
 recorded_at = "2026-11-09T15:55:34Z"
-dependency_manifest = "ac41dc01898829fb41052975d1e74c57ff4f1e088325395f2117679e01c75da6"
+dependency_manifest = "5ecffe89d1dc942d942c494c7358c7210f54e5d7e145fa62a4f686f125e6b239"
 
 [[record]]
 test = "antecedent::suite_04::estimate_conformance::estimate_glm_adjustment_recovers_positive_ate"
@@ -8022,7 +8022,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "7ab5472cb1cd5f27f73616c5261bbf823951a2a138a647597775c9e497f87a7a"
 recorded_at = "2026-11-09T15:55:34Z"
-dependency_manifest = "5678326d626fd002ca0b09ef2f4da688fdf6ad9df01e43e90c35fbf3e733e1b9"
+dependency_manifest = "87f497dd995555ddd71fdcf28e75dc7d6e8415212a2736e556323a0346320fea"
 
 [[record]]
 test = "antecedent::suite_04::estimate_conformance::estimate_iv_2sls_recovers_structural_effect"
@@ -8042,7 +8042,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "fb1bb82092231b2ace2ba2c6a95a4365024ba725dc8573187c623be5c6f96c35"
 recorded_at = "2026-11-09T15:55:34Z"
-dependency_manifest = "0887e79bcac659f2f63678ac63f646a5046f6a0e1fbf737c202aa9cd3e07ce91"
+dependency_manifest = "febca28d45fd1da2d760e694637efce7d5d66b7bf1d9906c748d62fec628b80e"
 
 [[record]]
 test = "antecedent::suite_04::estimate_conformance::estimate_rd_sharp_recovers_jump"
@@ -8052,7 +8052,7 @@ commit = "052027bb70cf03c9081ac0a4d219e4426f52ea3d"
 dirty = false
 fingerprint = "c8f9a267e590d160f7d052a34243966b0e93a64f738d3d603c48ea321112832a"
 recorded_at = "2026-11-09T15:55:34Z"
-dependency_manifest = "2fcee70c8d0398dba5c52a11bddb1b27c62826fa792fe4cbe3941d1f379c5a1f"
+dependency_manifest = "7489dac16b4489d23a5105b996d2096a8317342e7676943f5391e3ad26174aad"
 
 [[record]]
 test = "antecedent::suite_04::estimate_linear_gaussian_ate::estimate_linear_gaussian_ate_stable_float"
@@ -8382,7 +8382,7 @@ commit = "7891a6f7e0776d5b503e5b55d35ce34fc58c4dff"
 dirty = false
 fingerprint = "7c4f606165aa226e260b5e8765e2b7edbbebbd15aa050caf6179420e53237e02"
 recorded_at = "2026-11-10T09:24:34Z"
-dependency_manifest = "017e2a89f881632c9f2c372dc034c3ec18ec7c59bb3aaffed391184e7ce56b99"
+dependency_manifest = "d9aa188d8f0ff84680b7cf245a8d47483d263077baa9c4faf959b0f4b65913d1"
 
 [[record]]
 test = "antecedent::suite_05::pag_identified_envelope_numeric_pins::pag_identified_envelope_conditional_effect_pins"
@@ -8502,7 +8502,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "b0e281aedb172b0ad24a293534ba3b02f3f7546deda94be12f548575f2d322e5"
 recorded_at = "2026-11-09T21:26:05Z"
-dependency_manifest = "2dd1fded27c6aabb95ce6b300af81c0eea3fa04b5ff82836d8b24e9ca2876e20"
+dependency_manifest = "8ffb6d18f477df5fe669fb9e232fc71155533bfdf6ac6b8f26aef11be91e2349"
 
 [[record]]
 test = "antecedent::suite_06::recalc_design::design_first_fits_match_iv_rd_frontdoor_structural_and_covariance_truth"
@@ -8532,7 +8532,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "fff0edc4f6cfa6a836590e72a00f98e449408bddd8b9b984ec5ed509727278ba"
 recorded_at = "2026-11-09T21:26:05Z"
-dependency_manifest = "0beb1267e9dc165e393aebc045434f1354cf30d7b7a40f2ef28604230d1f5145"
+dependency_manifest = "0e3a9dcd48f99b1827ec5d63c95be2592f944480d6fdc486014d6ba198ee3a19"
 
 [[record]]
 test = "antecedent::suite_06::recalc_temporal::temporal_history_response_and_effect_match_enumerated_longitudinal_truth"
@@ -8692,7 +8692,7 @@ commit = "e8206994c124ce483f525419f6e5ff5c920d028b"
 dirty = false
 fingerprint = "9359b23318dc4549eaf0b6c4ce69441c610a6e013310a3b43bbad3b4566f6a98"
 recorded_at = "2026-11-09T21:49:42Z"
-dependency_manifest = "1fd5d3793e7cfdff30c053df285d718a70c58c7fb2da55df71c9e824c2b834b9"
+dependency_manifest = "dab25466d6f8c4f1a9e1d880626a119fdf95d4f769d2246216b6ec21d69bbb02"
 
 [[record]]
 test = "antecedent::suite_07::specification_conformance::the_clean_room_consumer_agrees_with_the_implementation_on_every_distinct_identity"
@@ -8702,7 +8702,7 @@ commit = "e8206994c124ce483f525419f6e5ff5c920d028b"
 dirty = false
 fingerprint = "18ea8f6e1b24ae2bc23c6aeac9a359932eb35594e6959d8dc884305a5791ab9b"
 recorded_at = "2026-11-09T21:49:42Z"
-dependency_manifest = "a4ade83115a86fa07f99d60b406d90cfc931c1f1faa8732591eb67455ea93986"
+dependency_manifest = "854b79efdb75c7da7ca0327b190ed79b2ac7cc7ffa6c05453de826d0a4d5dd55"
 
 [[record]]
 test = "antecedent::suite_07::staged_attribution_transport_interference::accepted_dag_attribution_known_truth"
@@ -8782,7 +8782,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "28cd2122e147c151221d7aa5b057fb23de7a42fd58f3213209c3de9250debbee"
 recorded_at = "2026-11-09T14:14:44Z"
-dependency_manifest = "2a8847c5595aa7eb9bcd80b38a0720680fdc6cb4295be31770df15cf6da3d483"
+dependency_manifest = "0efcec8a8f9a8381f047fd70ea767884f5648661bf2d6346f959d2762dbbd50f"
 
 [[record]]
 test = "antecedent::suite_07::temporal_admg_route_evidence::temporal_admg_average_effect_graph_posterior"
@@ -8792,7 +8792,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "28cd2122e147c151221d7aa5b057fb23de7a42fd58f3213209c3de9250debbee"
 recorded_at = "2026-11-09T14:14:44Z"
-dependency_manifest = "120b73f2d4b32c66c862968f9022fcf8564f1020e52de6387d185ecad6ba0b57"
+dependency_manifest = "71c77574f46f7ad065c2dbe9c82d38b85e1d34b2b557ed741d7d296eab68f408"
 
 [[record]]
 test = "antecedent::suite_07::temporal_admg_route_evidence::temporal_admg_intervention_response_explicit_and_accepted"
@@ -8802,7 +8802,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "28cd2122e147c151221d7aa5b057fb23de7a42fd58f3213209c3de9250debbee"
 recorded_at = "2026-11-09T14:14:44Z"
-dependency_manifest = "a5d8d6470faf29d5663df37e9e22cd27dc44b5b4b000cb016b1029b6d41861cb"
+dependency_manifest = "8cfb350ac429033a9dfab7d2f62d3b1a14e24c16d18189710f508ebe3dfd15c1"
 
 [[record]]
 test = "antecedent::suite_07::temporal_admg_route_evidence::temporal_admg_intervention_response_graph_posterior"
@@ -8812,7 +8812,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "28cd2122e147c151221d7aa5b057fb23de7a42fd58f3213209c3de9250debbee"
 recorded_at = "2026-11-09T14:14:44Z"
-dependency_manifest = "154cfec0b6052f875c85c29b7a90f55a46c6b395df548e68a28f307745710407"
+dependency_manifest = "85c5712691406c79a9cedb4d1bb2d3488c065a7a651a0f74872accc890e7e7f6"
 
 [[record]]
 test = "antecedent::suite_07::temporal_admg_route_evidence::temporal_admg_interventional_distribution_explicit_and_accepted"
@@ -8822,7 +8822,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "94b09e796c4ded15e5d4439bb437d12c5b5146a80108a7412c065f80fdbf498c"
 recorded_at = "2026-11-09T14:14:44Z"
-dependency_manifest = "bffaeadcf077f5b902f39ccb252b6d83c15c190ec0bbd172a5beb1ef578e97cd"
+dependency_manifest = "1ca8496b95c128fcdaa0bb679aab9148e24dc4b47eb189bef7c88e4271caf56f"
 
 [[record]]
 test = "antecedent::suite_07::temporal_admg_route_evidence::temporal_admg_response_curve_explicit_and_accepted"
@@ -8832,7 +8832,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "28cd2122e147c151221d7aa5b057fb23de7a42fd58f3213209c3de9250debbee"
 recorded_at = "2026-11-09T14:14:44Z"
-dependency_manifest = "ec4cafa31df2a68df9974b9e66d9daaf374b7d96f346fb80bdc702672ef48b9d"
+dependency_manifest = "4809921f77f9a1b381c9ab12bdc9d93c06d3a6ff06b71ebcfc94e9699bafcd7d"
 
 [[record]]
 test = "antecedent::suite_07::temporal_admg_route_evidence::temporal_admg_response_curve_graph_posterior"
@@ -8842,7 +8842,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "28cd2122e147c151221d7aa5b057fb23de7a42fd58f3213209c3de9250debbee"
 recorded_at = "2026-11-09T14:14:44Z"
-dependency_manifest = "285b8619fbd42f28df59b8917d90e790550fe156ad2224c78e9dd1b3b73b59d3"
+dependency_manifest = "c5707a40cac16786f462adb6afcb4f63cb72d34a0dab44215d1f9603be5f746b"
 
 [[record]]
 test = "antecedent::suite_07::temporal_admg_route_evidence::temporal_admg_transport_explicit"
@@ -8852,7 +8852,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "fd5512c0ce695f525dfd41265cd499a3457db0326a4a88dd23c2cc534a9c27b0"
 recorded_at = "2026-11-09T14:14:44Z"
-dependency_manifest = "341bab1d8d5f9bc3f4b52dc7c5fe35c4db0985164efd9883dcbee0a166bff112"
+dependency_manifest = "84c05462285267d35b12409e50884d3ace32977c3728730c9d57226cbe102c92"
 
 [[record]]
 test = "antecedent::suite_07::temporal_attribution_route_evidence::temporal_accepted_attribution_known_truth"
@@ -8872,7 +8872,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "149701cbdc8c2e626e4e3b304d397bad58d25db16722033ded222e992637f69d"
 recorded_at = "2026-11-09T14:14:44Z"
-dependency_manifest = "35f478928857eb6a00a4cf49dab5ef877b77bc68e2b929f0cc14b215ae004748"
+dependency_manifest = "5778f78d3932e061fab2fffc63938b27bb9bfcc3ea3e473e5cb62cb775c106d2"
 
 [[record]]
 test = "antecedent::suite_07::temporal_attribution_route_evidence::temporal_attribution_frequentist_known_truth"
@@ -8882,7 +8882,7 @@ commit = "847158d1b80b77c80af0c1853cdb84f547607117"
 dirty = false
 fingerprint = "149701cbdc8c2e626e4e3b304d397bad58d25db16722033ded222e992637f69d"
 recorded_at = "2026-11-09T14:14:44Z"
-dependency_manifest = "5b4eb3ce6679cd98715e4c4d7ce78b3e903b26285082e9555467074a3fb3c809"
+dependency_manifest = "758314c424fae19d62b559599f47ff20ad20287acf337d5c2462c44aee793a3b"
 
 [[record]]
 test = "antecedent::suite_07::temporal_class_bayesian_envelope::temporal_class_bayesian_pulse_with_class_prior_mixes"
@@ -9182,7 +9182,7 @@ commit = "e40c5694281e9da584d10c1604c4b7d2a94d4527"
 dirty = false
 fingerprint = "bb5f1f3fd919e3d0d8f92d73ff1e6ff334959f219573f210a7b4aeb4220bf05f"
 recorded_at = "2026-11-11T10:54:23Z"
-dependency_manifest = "3e0ffca11cbc580325457b439e54addcc88ede16edab0540c45c8679929fc1fd"
+dependency_manifest = "b354d674c11d7193d94b725f4062cc8c4643d7d60e4a0d2e9cd3ba2f0ed1ece1"
 
 [[record]]
 test = "antecedent::supported_compiler::sampled_supported_cells_replay_to_the_published_number"
@@ -9192,7 +9192,7 @@ commit = "e40c5694281e9da584d10c1604c4b7d2a94d4527"
 dirty = false
 fingerprint = "bb5f1f3fd919e3d0d8f92d73ff1e6ff334959f219573f210a7b4aeb4220bf05f"
 recorded_at = "2026-11-11T10:54:23Z"
-dependency_manifest = "4272ed39106eae403a76f51b15beb409ad0b4d1cab7a944ef814ac57132d0a13"
+dependency_manifest = "5c831d30005bf1cda022b0ead58e52329c6e11643a3554b6173b86b7b587bfca"
 
 [[record]]
 test = "antecedent::supported_static_cells::average_effect_dag_bayesian_known_truth_all_structures_and_suites"

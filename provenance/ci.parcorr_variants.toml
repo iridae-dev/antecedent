@@ -40,7 +40,7 @@ record_sha256 = "5761689ef9e90411bfc41da09028f60925372120d63fd13af74c200d712f246
 role = "implementation"
 path = "crates/antecedent-stats/src/ci/parcorr_variants.rs"
 items = ["const BLOCK_PIVOT_MIN", "const PERFECT_DEPENDENCE_EIGEN", "fn leading_psd_eigenvalue", "fn new", "fn residual_canonical", "fn residualize_block", "fn test_blocks", "struct BlockTest", "struct MultivariatePartialCorrelation", "struct ResidualCanonical", "struct RobustPartialCorrelation", "struct WeightedPartialCorrelation"]
-sha256 = "53d4a40f943c645a6f734330714ae122500e2ac89b4863fb0cc1fe2f91baf86c"
+sha256 = "8f36f7404643fda7d916d056dd50e70989539b689a5cccf39706c22c476cb772"
 
 [[method_review.artifacts]]
 role = "assertion"

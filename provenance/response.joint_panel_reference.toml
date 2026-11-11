@@ -32,7 +32,7 @@ record_sha256 = "c8729dd743a2155b7361b2cb917247e8195d1339af672404b1a08e7000bc348
 role = "implementation"
 path = "conformance/response/joint_panel/reference.py"
 items = ["fn artifacts", "fn carryover", "fn csv_text", "fn interaction_identity_problems", "fn main", "fn matches_artifact", "fn mean_outcome", "fn panel", "fn reference", "fn regime_paths", "fn same_truth", "fn saturation", "fn whole_program_panel"]
-sha256 = "5f66cd12ebe888a91397dcad7d4207203d9be180f4bdfa3d07eb60290ca912a7"
+sha256 = "b97f497cdba851734c95d6ad1735500e88e53b0ee7614401c6b891cd983af4bb"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

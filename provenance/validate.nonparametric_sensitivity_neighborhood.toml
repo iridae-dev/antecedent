@@ -37,14 +37,14 @@ historical_exposure = "Historical author exposure cannot be independently establ
 redistribution = "The reference script, frozen output and Rust test are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency. The cited papers are linked or named, not redistributed."
 limitations = "The four cited sources (Nadaraya, Watson, Silverman and the Cinelli-Hazlett paper) were not retrieved; none is used as an oracle. The comparison covers eight designs (one to three covariate dimensions, rows repeated so cells hold several rows, neighbour counts from 1 to more than the number of cells, bandwidths from 1e-3 to 25, a two-row sample of identical rows) at 1e-10 relative, and the refusal of a one-row sample. It does not run the full refuter (grid, tipping value) against an independent reference in this record, does not assess the bias of the truncation relative to the exact smoother at the default 256 neighbours, and does not test the work cap or the memory refusal. Distance ties at the neighbour-count boundary depend on the k-d tree and are not pinned."
 sources = ["https://mpmath.org/doc/1.3.0/", "https://docs.python.org/3/library/fractions.html"]
-findings_resolved = ["The cell grouping, neighbour selection, own-cell removal, weight shift and multiplicity-weighted means agree with the brute-force reference on every design; the neighbour count changes the prediction. No defect found in the reviewed smoother."]
+findings_resolved = ["The cell grouping, neighbour selection, own-cell removal, weight shift and multiplicity-weighted means agree with the brute-force reference on every design; the neighbour count changes the prediction. No defect found in the reviewed smoother.", "Re-read after the smoother gained a resource check: before any work it refuses with a typed resource limit when the n x (dim + 14) f64 working set exceeds the context memory limit, and otherwise computes exactly as before."]
 record_sha256 = "1cbb4553d23077f9143d807ec8bfe2350429367e021c5cfe0c36c4f7503eddd6"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/sensitivity.rs"
 items = ["const NEIGHBORHOOD_CELL_CHUNK", "fn adjustment_design", "fn default", "fn fill_bounded", "fn len", "fn neighborhood_loo_predict_pair", "fn new", "fn orthogonalize_confounder", "fn residual_sd_given_design", "fn residual_sd_pair_on_adjustment", "fn rows_of", "fn valid_partial_r2_count", "fn validate_partial_r2_grid", "struct CovariateCells", "struct NeighborhoodSensitivity"]
-sha256 = "d39d71eec72a28bbd1cb3c5e83b40a35f3e2897e64a314dd5da044b7e9746b77"
+sha256 = "67ba6a8e9a8cce33c489144d769a8d306290843f5670b824fd080fc3e72e4a25"
 
 [[method_review.artifacts]]
 role = "assertion"

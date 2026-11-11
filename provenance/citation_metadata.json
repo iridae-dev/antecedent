@@ -1351,6 +1351,19 @@
     "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1972.tb00899.x",
     "year": 1972
   },
+  "10.1111/j.2517-6161.1988.tb01735.x": {
+    "authors": [
+      "Peter Hall",
+      "Simon J. Sheather"
+    ],
+    "doi": "10.1111/j.2517-6161.1988.tb01735.x",
+    "response_sha256": "55f42f9b9b2b02bc962c9e38e3d0f1d469b0bef60a3a8a31e66875cd263b22a3",
+    "titles": [
+      "On the Distribution of a Studentized Quantile"
+    ],
+    "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1988.tb01735.x",
+    "year": 1988
+  },
   "10.1111/j.2517-6161.1995.tb02031.x": {
     "authors": [
       "Yoav Benjamini",
@@ -2290,6 +2303,19 @@
     ],
     "url": "https://api.crossref.org/works/10.1214/ss/1038425655",
     "year": 1996
+  },
+  "10.1214/ss/1177011136": {
+    "authors": [
+      "Andrew Gelman",
+      "Donald B. Rubin"
+    ],
+    "doi": "10.1214/ss/1177011136",
+    "response_sha256": "fcd396681a38d3fe119aee69c94b6e6b9582324b1b48dca673ef1dd7dabe3a20",
+    "titles": [
+      "Inference from Iterative Simulation Using Multiple Sequences"
+    ],
+    "url": "https://api.crossref.org/works/10.1214/ss/1177011136",
+    "year": 1992
   },
   "10.1214/ss/1177011137": {
     "authors": [

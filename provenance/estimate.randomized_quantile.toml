@@ -18,17 +18,24 @@ modules = ["crates/antecedent-estimate/src/randomized_quantile.rs"]
 # inversion of that function (the inversion every quantile route shares,
 # crate::quantile::invert_cdf_quantile). The influence of an arm distribution function at a
 # threshold is the ratio-estimator influence (1{T = a} / p_a)(1{Y <= c} - F_a(c)), the influence
-# of the quantile is minus that over the local finite-difference density, and the effect's
+# of the quantile is minus that over the arm's density at its quantile, and the effect's
 # standard error is the iid standard error of the row difference of the two quantile influences.
+# The density is the Siddiqui sparsity estimate 2h / (Q(tau + h) - Q(tau - h)) from the type-7
+# empirical quantiles of the arm's own outcomes, with the Hall-Sheather bandwidth
+# h = (z_0.975^2 * 1.5 phi(z_tau)^2 / ((2 z_tau^2 + 1) n_a))^(1/3), shrunk to 0.9 of
+# min(tau, 1 - tau) so tau -/+ h stay inside (0, 1); the grid influence is rescaled by the
+# grid density over this density.
 # The interval is the 95 percent normal interval around the difference.
 papers = [
  { title = "Asymptotic Statistics", doi = "10.1017/CBO9780511802256", sections = ["Chapter 21: quantile functional of a distribution function; influence -phi_F(q)/f(q)"] },
+ { title = "On the Distribution of a Studentized Quantile", doi = "10.1111/j.2517-6161.1988.tb01735.x", sections = ["Hall and Sheather, JRSS B 50:381-391: bandwidth for the sparsity function estimate"] },
+ { title = "Distribution of Quantiles in Samples from a Bivariate Population (Siddiqui, Journal of Research of the National Bureau of Standards 64B:145-150)", sections = ["difference-quotient estimate of the sparsity 1/f at a quantile"] },
  { title = "Efficient Semiparametric Estimation of Quantile Treatment Effects (Firpo, Econometrica 75:259-276)", sections = ["the quantile treatment effect estimand under unconfoundedness"] },
 ]
 
 implementation_deviations = [
  "The arm distribution functions are empirical on a grid and inverted piecewise linearly, not the order statistics of the unbinned sample; inference conditions on the grid, and grid selection and interpolation bias are excluded, as in the cross-fitted quantile cell.",
- "The density in the influence is the finite difference of the grid distribution function over the crossing bracket, with the shared span-normalised floor of 1e-3; a level outside the grid distribution function of an arm, or a bracket below the floor, refuses.",
+ "The density in the influence is the Siddiqui sparsity estimate on each arm's own outcomes with the Hall-Sheather bandwidth at the two-sided 95 percent normal point, not the finite difference of the coarse grid distribution function (whose bracket width made the standard error depend on the grid spacing). The bandwidth is capped at 0.9 of min(tau, 1 - tau); an arm with no spread across the sparsity window, or a level outside the grid distribution function of an arm, refuses.",
  "The treatment must be unconfounded (an empty adjustment set) and coded exactly 0/1, and each arm must carry at least ten rows; confounded designs are answered by the cross-fitted AIPW quantile, not here.",
  "Only the refute=none suite is supported: the mean-effect refuters do not validate a quantile treatment effect.",
  "The interval is the first-order normal interval around the difference; the sampling distribution of a quantile in small arms is not normal, and no repeated-sampling coverage is claimed.",

@@ -7,12 +7,15 @@ copied_tests = false
 
 papers = [
  { title = "Being Bayesian About Network Structure. A Bayesian Approach to Structure Discovery in Bayesian Networks", doi = "10.1023/A:1020249912095", sections = ["order-MCMC over topological orders and compatible edge subsets"] },
+ { title = "Inference from Iterative Simulation Using Multiple Sequences", doi = "10.1214/ss/1177011136", sections = ["overdispersed starting points for parallel chains"] },
  { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term used by the Gaussian score"] },
 ]
 
 implementation_deviations = [
  "The chain state is a single DAG plus compatible topological order, with edge flips and order transpositions corrected by the DAG's number of topological orders; it does not implement Friedman and Koller's order score that sums over all compatible parent sets.",
  "The target uses continuous Gaussian BIC rather than an exact modular Bayesian marginal likelihood.",
+ "Under a parent cap, an edge flip that would give a node at the cap one parent too many exchanges a uniformly chosen existing parent for the new one; the move is its own reverse from the other state, so the proposal stays symmetric and the Metropolis-Hastings ratio is unchanged.",
+ "Chains after the first start overdispersed (Gelman and Rubin): a uniformly random topological order compatible with the required edges, with each forward edge included at the prior inclusion rate (0.5 under the uniform prior) subject to the parent cap and the forbidden edges. The first chain starts at the required-edge graph as before.",
  "Sampling is finite and empirical, the four-word adjacency representation limits the method to at most 16 variables (240 directed-edge bits), and the per-step topological-order correction is a 2^n-state dynamic program, so the cost of a step doubles with each variable.",
 ]
 
@@ -34,14 +37,14 @@ historical_exposure = "Historical author exposure to upstream implementations ca
 redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), itertools and random from the Python standard library, imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
 limitations = "Four four-node data sets (uniform prior; Bernoulli(0.2) prior with a parent cap of two; forbidden and required edges; a near-collinear pair of nodes) enumerated over all 543 DAGs with 60-digit scores. The tolerance of 0.03 plus five standard errors would not detect a bias of a few hundredths in a marginal. Graphs above four nodes, long mixing times, tiers and lagged links are not covered by this reference; the wide-graph tests cover five to eighteen variables. The reference script is not run in a locked, isolated environment and is not wired into any gate."
 sources = ["https://www.jmlr.org/papers/volume5/koivisto04a/koivisto04a.pdf", "https://mpmath.org/"]
-findings_resolved = ["All 48 marginals (16 cells on each of the four data sets, minus the zero diagonal) agree with the multiprecision enumeration within the band for both samplers, under the Bernoulli prior, the parent cap, and the forbidden and required edges. No defect found."]
-record_sha256 = "2e400cb68ba3180e9ef2b137d6d75caf0bd8af04d56acde640eaed618e295c58"
+findings_resolved = ["All 48 marginals (16 cells on each of the four data sets, minus the zero diagonal) agree with the multiprecision enumeration within the band for both samplers, under the Bernoulli prior, the parent cap, and the forbidden and required edges. No defect found.", "Defect repaired: under a parent cap a flip that would exceed the cap was always rejected, so a capped node changed parents only through a lower-scoring state with one parent fewer; at cap two on ten variables the diagnostics gate published 64 of 100 replicates. The parent exchange removes that barrier, and the closed-form rooted-forest law test (every node capped at one parent) now runs it.", "Defect repaired: every chain started at the same state, so chains that had not crossed between posterior modes agreed and passed R-hat; with the exchange alone a ten-variable run at cap two published a skeleton marginal of 0.056 against an exact 0.017. With overdispersed starts that replicate matches the exact posterior, and a twelve-variable run whose chains still disagree is withheld by the gate rather than published. The four-node enumeration comparison above is re-run by the scientific record for this file."]
+record_sha256 = "8a7246a056e996d1193712b900a00f797a1d5bb37790c85faad1ef5fb180114a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/order_mcmc.rs"
 items = ["const ORDER_DP_MAX_STATES", "fn default", "fn log_topological_order_count", "fn new", "fn order_dp_max_nodes", "fn run", "fn run_via_structure_mcmc", "fn schedule", "fn with_diagnostics_gate", "fn with_schedule", "struct OrderMcmc", "struct OrderWalker"]
-sha256 = "cf091c5bb6b92a4564dc1208b90d9aed4c15a897ce807682aae91094da76b974"
+sha256 = "f1a9f387880c211d282c1243cd724caf4deceb0e0f566aa3e4e047456beab6c5"
 
 [[method_review.artifacts]]
 role = "assertion"

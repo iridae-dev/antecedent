@@ -45,7 +45,7 @@ record_sha256 = "f60831815ee34f9d3a70f889d0f865957064b59bb48a130c997e8eec8d22c38
 role = "implementation"
 path = "crates/antecedent-validate/src/sensitivity.rs"
 items = ["const VANISHED_EFFECT_FRACTION", "fn adjustment_design", "fn assemble_perturbed_normal_eq", "fn ate_at", "fn compile", "fn data_pass_ate", "fn default", "fn estimate_explained_away", "fn estimate_vanished", "fn fill_bounded", "fn gram_applicable", "fn grid_failure_text", "fn grid_report", "fn grid_robustness_value", "fn len", "fn new", "fn orthogonalize_confounder", "fn probed_partial_r2", "fn refute", "fn residual_sd_given_design", "fn residual_sd_pair_on_adjustment", "fn robustness_passes", "fn run_grid", "fn run_grid_data_pass", "fn try_run_grid_gram", "fn valid_partial_r2_count", "fn validate_partial_r2_grid", "fn validate_partial_r2_options", "fn with_temporal_diagnostic_rows", "struct GridSetup", "struct LinearSensitivity", "struct NonparametricSensitivity", "struct PartialLinearSensitivity", "struct SensitivityGram"]
-sha256 = "53e90be481dd4ade0ccb957ad5aa784d25a0109b2c008c8b89f0ea7b9f9c71c3"
+sha256 = "b37ca71c7b308d7acf7cb88e5bfb11348919af4da4e70781ebdf3ac10c9c4ea0"
 
 [[method_review.artifacts]]
 role = "assertion"
