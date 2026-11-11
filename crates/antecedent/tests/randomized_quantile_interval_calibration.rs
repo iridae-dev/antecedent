@@ -3,7 +3,9 @@
 //!
 //! The procedure scored is the estimator as the facade runs it on a supplied Dag `t -> y`
 //! with no adjustment set: the piecewise-linear inversion of the arm distribution functions
-//! at the declared quantile, the influence-function standard error and the normal interval
+//! at the declared quantile, the influence-function standard error with each arm's density
+//! taken as its Siddiqui (1960) sparsity estimate at the Hall and Sheather (1988) bandwidth
+//! (not the slope of the pooled grid bracket), and the normal interval
 //! `estimate +- 1.959963984540054 * se` (`analytic_se`). Its estimate, standard error and
 //! interval are pinned against a hand-derived table in
 //! `randomized_quantile_known_truth.rs`; this file measures whether the interval covers.

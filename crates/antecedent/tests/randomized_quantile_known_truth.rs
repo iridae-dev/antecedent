@@ -6,12 +6,25 @@
 //! arm 3, 4, ..., 22 under the graph `t -> y` (no adjustment). The treated law is the control
 //! law shifted by two, so the median effect is exactly 2. On the pooled-outcome grid (the
 //! integers 3, ..., 20) the arm distribution functions are `F0(c) = c / 20` and
-//! `F1(c) = (c - 2) / 20`, the piecewise-linear inversion at 1/2 gives the quantiles 10 and 12,
-//! and every row influence of the difference is +-20, so the standard error is
-//! `sqrt(40 * 400 / (39 * 40)) = 20 / sqrt(39)` and the interval is the estimate plus and minus
-//! 1.959963984540054 times that. The full derivation, including the declared-grid case, is in
-//! `crates/antecedent-estimate/tests/randomized_quantile_reference.rs`. The expected values here
-//! are written out from that table, never read from the library, and compared to 1e-9.
+//! `F1(c) = (c - 2) / 20`, and the piecewise-linear inversion at 1/2 lands exactly on a grid
+//! point (bracket weight 1), giving the quantiles 10 and 12. The grid influence of each arm's
+//! distribution function at its quantile is `(1{Y <= q} - 1/2) / (1/2) = +-1` on the arm's rows.
+//!
+//! The density dividing that influence is each arm's Siddiqui sparsity estimate. With
+//! `n_a = 20` rows and `tau = 1/2`, `Phi^-1(1/2) = 0` and `phi(0)^2 = 1 / (2 pi)`, so the
+//! Hall-Sheather bandwidth is `h = (z^2 * 1.5 / (2 pi) / 20)^(1/3)` with
+//! `z = 1.959963984540054`: `z^2 = 3.8414588206941254`, times `1.5 / (2 pi) = 0.238732414637843`
+//! is `0.917079...`, over 20 is `0.045854...`, whose cube root is `h = 0.357925...`. That is below
+//! the edge cap `0.9 * 1/2 = 0.45`, so `tau -/+ h = 0.142075..., 0.857925...`. Each arm is 20
+//! equally spaced integers, so its type-7 empirical quantile is linear on [0, 1]:
+//! `Q0(p) = 1 + 19 p` (zero-based rank `19 p` into 1, ..., 20) and `Q1(p) = 3 + 19 p`. The spread
+//! is `Q(1/2 + h) - Q(1/2 - h) = 19 * 2h` in both arms (3.699... to 17.300... for control), so the
+//! sparsity density is `2h / (38 h) = 1/19` whatever `h` is. Every row influence of the
+//! difference is therefore `+-1 / (1/19) = +-19`, with mean zero, so the standard error is
+//! `sqrt(40 * 361 / (39 * 40)) = 19 / sqrt(39) = 3.042434922296655...` and the interval is the
+//! estimate plus and minus 1.959963984540054 times that. The expected values here are written
+//! out from this derivation, never read from the library, and compared to 1e-9 (the only
+//! inexactness is the floating cancellation of `h` in `2h / (38 h)` and the bracket weight).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -84,7 +97,8 @@ fn verify_coordinate(coordinate: &str, accepted: bool) {
     let result = prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
     let effect = result.estimate().as_effect().unwrap();
     assert!((effect.ate - 2.0).abs() < 1e-9, "{coordinate}: estimate {} vs 2", effect.ate);
-    let se = 20.0 / 39.0_f64.sqrt();
+    // Sparsity density 1/19 in each arm, every row influence +-19 (derivation above).
+    let se = 19.0 / 39.0_f64.sqrt();
     assert!(
         (effect.uncertainty.analytic.se - se).abs() < 1e-9,
         "{coordinate}: se {} vs {se}",
