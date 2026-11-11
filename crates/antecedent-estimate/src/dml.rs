@@ -1542,23 +1542,30 @@ mod tests {
         .unwrap()
     }
 
+    use super::calibration_harness as calibration;
+
     #[test]
     #[ignore = "calibration: run the complete learner ATE coverage measurement on the frozen candidate"]
     fn learner_ate_known_truth_coverage() {
         // Independent SCM draws; population ATE=2, Gaussian outcome noise,
-        // logistic confounding. Fixed seeds make this measurement reproducible.
+        // logistic confounding. Each replicate's seed is the fixture's start plus
+        // its index; the replicate count is the suite's registered look.
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
             "../../../conformance/estimate/learner_ate/fixture.json"
         ))
         .unwrap();
-        let reps = fixture["replicates"].as_u64().unwrap();
         let n = usize::try_from(fixture["n"].as_u64().unwrap()).unwrap();
         let truth = fixture["ate"].as_f64().unwrap();
+        let level = fixture["nominal_coverage"].as_f64().unwrap();
         let seed_start = fixture["seed_start"].as_u64().unwrap();
-        for method in 0..4 {
-            let mut covered = 0;
-            let mut bias = 0.0;
-            for seed in 0..reps {
+        let reps = calibration::n_sim();
+        let names = ["dml_irm", "dml_partially_linear", "dr_learner", "causal_forest"];
+        for (method, name) in names.iter().enumerate() {
+            let mut tally = calibration::CoverageTally::new(
+                format!("learner_ate_known_truth_coverage {name}"),
+                level,
+            );
+            let fits = calibration::map_replicates(reps, |seed| {
                 let (t, y, z) = confounded_columns(n, seed_start + seed);
                 let (data, estimand) = build_dataset(t, y, z);
                 let query = AverageEffectQuery::binary_ate(
@@ -1572,17 +1579,20 @@ mod tests {
                 let influence = effect.scores.influence.as_ref().unwrap();
                 assert!(influence.iter().sum::<f64>().abs() < 1e-7);
                 assert!((iid_se(influence) - effect.se_analytic()).abs() < 1e-10);
-                covered += usize::from(
-                    (effect.ate - truth).abs()
-                        <= antecedent_stats::NORMAL_Q975 * effect.se_analytic(),
-                );
-                bias += effect.ate - truth;
+                (effect.ate, effect.se_analytic())
+            });
+            let mut bias = 0.0;
+            for &(ate, se) in &fits {
+                let half = antecedent_stats::NORMAL_Q975 * se;
+                tally.record(Some((ate - half, ate + half)), truth);
+                bias += ate - truth;
             }
-            let coverage = covered as f64 / reps as f64;
-            let bias = bias / reps as f64;
+            let coverage = tally.rate();
+            let bias = bias / fits.len() as f64;
             eprintln!(
                 "learner_coverage method={method} n={n} replicates={reps} coverage={coverage} bias={bias}"
             );
+            tally.assert();
             assert!(
                 (fixture["coverage_acceptance"][0].as_f64().unwrap()
                     ..=fixture["coverage_acceptance"][1].as_f64().unwrap())
@@ -1596,6 +1606,10 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../antecedent/tests/common/calibration.rs"]
+mod calibration_harness;
 
 thread_local! { static AIPW_SCORE_BUILDS:std::cell::Cell<u64>=const {std::cell::Cell::new(0)}; }
 /// Observe actual successful AIPW score table constructions, including nested scopes.

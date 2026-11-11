@@ -451,3 +451,129 @@ impl<'a> ContrastRows<'a> {
         self.sampling.as_ref().map(|s| &*s.weights)
     }
 }
+
+/// Largest leverage the influence correction divides by: a row whose leverage reaches it is
+/// inflated by `1 / (1 − 0.99)` rather than by an unbounded factor.
+pub(super) const MAX_INFLUENCE_LEVERAGE: f64 = 0.99;
+
+/// Weighted least-squares leverage of each used row in its own treatment arm,
+/// `h_i = m_i x_i' (X_a' M_a X_a)⁻¹ x_i` for the arm `a` of row `i` (`design` column-major,
+/// `nrows × ncols`, `weights` the sampling weights `m`). An arm whose weighted Gram is not
+/// positive definite contributes no outcome leverage (zero), leaving the case-mass term.
+pub(super) fn arm_outcome_leverage(
+    design: &[f64],
+    nrows: usize,
+    ncols: usize,
+    treatment: &[f64],
+    weights: &[f64],
+) -> Vec<f64> {
+    let mut leverage = vec![0.0; nrows];
+    for treated in [false, true] {
+        let rows: Vec<usize> = (0..nrows)
+            .filter(|&i| TreatmentArm::is_treated_indicator(treatment[i]) == treated)
+            .collect();
+        let mut gram = vec![0.0; ncols * ncols];
+        for &i in &rows {
+            for a in 0..ncols {
+                let xa = design[a * nrows + i];
+                for b in 0..=a {
+                    gram[a * ncols + b] += weights[i] * xa * design[b * nrows + i];
+                }
+            }
+        }
+        for a in 0..ncols {
+            for b in 0..a {
+                gram[b * ncols + a] = gram[a * ncols + b];
+            }
+        }
+        let mut chol = vec![0.0; ncols * ncols];
+        if antecedent_kernels::cholesky_spd_into(&gram, ncols, &mut chol).is_err() {
+            continue;
+        }
+        let mut solved = vec![0.0; ncols];
+        for &i in &rows {
+            // ‖L⁻¹ x_i‖² by forward substitution.
+            for a in 0..ncols {
+                let s: f64 = (0..a).map(|b| chol[a * ncols + b] * solved[b]).sum();
+                solved[a] = (design[a * nrows + i] - s) / chol[a * ncols + a];
+            }
+            leverage[i] = weights[i] * solved.iter().map(|v| v * v).sum::<f64>();
+        }
+    }
+    leverage
+}
+
+/// Leverage-corrected influence values (HC3-style): each centred value is divided by
+/// `1 − h_i`, with `h_i` capped at [`MAX_INFLUENCE_LEVERAGE`], and the mean restored, so the
+/// variance reader (which centres by the mean) sees `(ψ_i − ψ̄) / (1 − h_i)`.
+pub(super) fn leverage_correct_influence(psi: &mut [f64], leverage: &[f64]) {
+    debug_assert_eq!(psi.len(), leverage.len());
+    let mean = psi.iter().sum::<f64>() / psi.len() as f64;
+    for (value, &h) in psi.iter_mut().zip(leverage) {
+        *value = mean + (*value - mean) / (1.0 - h.clamp(0.0, MAX_INFLUENCE_LEVERAGE));
+    }
+}
+
+/// Leverage-correct the influence values of a full-sample fit under the iid standard
+/// error, in the manner of the HC3 jackknife-type correction.
+///
+/// The plug-in sample variance of the influence values is biased low at practitioner sizes
+/// when a few rows carry most of the variance, as under informative sampling weights,
+/// where the influence values are heavy-tailed. Each centred influence value is divided by
+/// `1 − h_i`, with `h_i` the larger of the row's mass share `m_i / Σ m` (`1 / n` without
+/// weights) and its weighted least-squares leverage in the outcome arm the score uses for
+/// it (both arms for the ATE, the control arm for the ATT, the treated arm for the ATC).
+/// Every `h_i → 0` as `n` grows, so the asymptotic variance is unchanged. The
+/// caller applies it under the iid kind only: the dependence-robust kinds read the influence
+/// uncorrected.
+pub(super) fn correct_influence_leverage(
+    problem: &PreparedPropensityProblem,
+    rows: &ContrastRows<'_>,
+    psi: &mut [f64],
+) {
+    let used = rows.treatment.len();
+    let unit;
+    let weights = if let Some(weights) = rows.weights() {
+        weights
+    } else {
+        unit = vec![1.0; used];
+        &unit
+    };
+    let mut arm =
+        arm_outcome_leverage(&rows.design, used, problem.design_ncols, &rows.treatment, weights);
+    // The ATT score reads only the control-arm regression, the ATC only the treated one.
+    let unused_arm_is_treated = match problem.target_population {
+        TargetPopulation::Treated => Some(true),
+        TargetPopulation::Untreated => Some(false),
+        _ => None,
+    };
+    if let Some(unused_treated) = unused_arm_is_treated {
+        for (h, &t) in arm.iter_mut().zip(rows.treatment.iter()) {
+            if crate::arm::TreatmentArm::is_treated_indicator(t) == unused_treated {
+                *h = 0.0;
+            }
+        }
+    }
+    let leverage: Vec<f64> = if psi.len() == used {
+        let total: f64 = weights.iter().sum();
+        arm.iter().zip(weights).map(|(&h, &m)| h.max(m / total)).collect()
+    } else if let Some(retained) = rows.retained.as_deref()
+        && psi.len() == problem.nrows
+    {
+        // A trimmed ATE carries an influence value for every row of the problem: the
+        // trimmed rows carry their propensity term and their mass share only.
+        let all: Vec<f64> = match problem.sampling_weights.as_ref() {
+            Some(sampling) => sampling.weights.to_vec(),
+            None => vec![1.0; problem.nrows],
+        };
+        let total: f64 = all.iter().sum();
+        let mut leverage: Vec<f64> = all.iter().map(|&m| m / total).collect();
+        for (&row, &h) in retained.iter().zip(&arm) {
+            leverage[row] = leverage[row].max(h);
+        }
+        leverage
+    } else {
+        return;
+    };
+    leverage_correct_influence(psi, &leverage);
+}

@@ -986,6 +986,9 @@ impl AipwAte {
         let rows = ContrastRows::select(problem, &model)?;
         let ate = self.score_contrast(problem, &rows, workspace)?;
         self.adjust_influence(problem, &model, &rows, workspace, ate)?;
+        if matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic) {
+            scores::correct_influence_leverage(problem, &rows, &mut workspace.psi);
+        }
         self.assemble_full_sample(problem, &model, &rows, workspace, ate, assumptions)
     }
 

@@ -33,4 +33,4 @@ record_sha256 = "e6004b0da34c749bd62799d9944d68ca4ba68aab13ece3a863a64cbdefea27f
 role = "implementation"
 path = "crates/antecedent-estimate/src/calibration_coverage.rs"
 items = ["module"]
-sha256 = "de904690b648232028400f78a22bf7b2953bf9e1da00b2c958d9e2d7824f97c9"
+sha256 = "f2956adececa45280847dd68521f45ef0677216537aa0f64d3636325245b6a93"

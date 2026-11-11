@@ -1,5 +1,12 @@
 //! Frozen diagnostic measurements, distinct from interval coverage and activation.
 //! Gate logs retain actual counts and metrics; no audit file or covariance CI is minted.
+//!
+//! The error-rate checks against the nominal level (the Wald size under the global null,
+//! Holm's family-wise false rejection, the ordered-null rejection rate) are scored as
+//! coverage of `1 − α` (a non-rejection covers) and decided by the suite's family decision
+//! when the runner supplies its frozen context; without one the fixed slack below applies.
+//! Power, covariance and mean-error tolerances are not nominal-compatibility claims and stay
+//! fixed rules.
 #![allow(clippy::cast_precision_loss, reason = "bounded calibration counts")]
 use serde_json::json;
 
@@ -23,6 +30,17 @@ pub struct MetricDesign<'a> {
     pub true_contrasts: [f64; 3],
     pub true_contrast_variance: [f64; 3],
 }
+/// The suite's family decision on an error rate scored as coverage of `1 − α` (`held`
+/// of `attempts` replicates did not reject); `None` without the runner's frozen context.
+fn rate_decision(name: String, held: usize, attempts: usize, lower_only: bool) -> Option<bool> {
+    let mut tally = crate::calibration::CoverageTally::new(name, 0.95);
+    for replicate in 0..attempts {
+        let truth = if replicate < held { 0.5 } else { 2.0 };
+        tally.record(Some((0., 1.)), truth);
+    }
+    tally.decide(lower_only)
+}
+
 fn complete_sample<'a>(
     design: MetricDesign<'_>,
     attempts: usize,
@@ -137,12 +155,31 @@ pub fn assess(design: MetricDesign<'_>, attempts: usize, results: &[Option<FitMe
     let power = complete_power as f64 / r;
     let global_null = design.true_coefficients.iter().all(|x| x.abs() < f64::EPSILON);
     let has_alternative = design.true_contrasts.iter().any(|x| x.abs() >= f64::EPSILON);
+    let has_null = design.true_contrasts.iter().any(|x| x.abs() < f64::EPSILON);
+    let label = format!("{} {} n{}", design.test, design.method, design.n);
+    let holm_ok = if has_null {
+        rate_decision(
+            format!("{label} Holm false rejection"),
+            attempts - false_holm,
+            attempts,
+            true,
+        )
+        .unwrap_or(family_rate <= alpha + slack)
+    } else {
+        family_rate <= alpha + slack
+    };
+    let joint_ok = if global_null {
+        rate_decision(format!("{label} Wald size"), attempts - joint_rejections, attempts, false)
+            .unwrap_or((joint_rate - alpha).abs() <= slack)
+    } else {
+        joint_rate >= 0.9
+    };
     let pass = covariance_error <= 0.15
         && empirical_error <= 0.15
         && contrast_error <= 0.15
         && mean_z <= 5.
-        && family_rate <= alpha + slack
-        && (if global_null { (joint_rate - alpha).abs() <= slack } else { joint_rate >= 0.9 })
+        && holm_ok
+        && joint_ok
         && (!has_alternative || power >= 0.9);
     println!(
         "INFERENCE_DIAGNOSTIC_RECORD {}",
@@ -183,7 +220,16 @@ pub fn assess_monotonicity(
         + if alternative { 0 } else { failed + invalid };
     let rate = rejected as f64 / attempts as f64;
     let bound = 0.05 + 3. * (0.05 * 0.95 / attempts as f64).sqrt();
-    let pass = failed == 0 && invalid == 0 && if alternative { rate >= 0.9 } else { rate <= bound };
+    let null_ok = || {
+        rate_decision(
+            format!("{test} {method} n{n} ordered-null rejection"),
+            attempts - rejected,
+            attempts,
+            true,
+        )
+        .unwrap_or(rate <= bound)
+    };
+    let pass = failed == 0 && invalid == 0 && if alternative { rate >= 0.9 } else { null_ok() };
     println!(
         "INFERENCE_DIAGNOSTIC_RECORD {}",
         json!({"kind":"ordered_null_monotonicity",

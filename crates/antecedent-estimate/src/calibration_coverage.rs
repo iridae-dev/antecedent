@@ -1573,7 +1573,8 @@ fn score_learner_replicate(
     skipped: &mut u32,
 ) {
     if let Ok(effect) = result {
-        tally.bind(
+        // An estimator-level fit runs no study and no refutation suite: validation does not apply.
+        tally.bind_validation(
             construction,
             ScopeFacts {
                 row_count: rows as u64,
@@ -1581,6 +1582,7 @@ fn score_learner_replicate(
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+            "not_applicable",
         );
         let interval = (effect.se_analytic().is_finite() && effect.se_analytic() > 0.0).then_some(
             (effect.ate - Z95 * effect.se_analytic(), effect.ate + Z95 * effect.se_analytic()),

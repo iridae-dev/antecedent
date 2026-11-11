@@ -15,15 +15,22 @@ and the average; the estimate is the mean over the kept rows R of
 phi = mu_1 - mu_0 + T (y - mu_1)/e - (1 - T)(y - mu_0)/(1 - e).  Its variance is not written as an
 influence formula: the whole fit (propensity on every row, arm regressions on R, the mean over R,
 membership of R held fixed) is a function of case masses m_i, the derivative d_i of the estimate
-with respect to every row's mass is taken by central difference at step 1e-30, and
-SE^2 = n/(n-1) sum_i d_i^2 over ALL n rows, so the rows trimmed from the average still enter
-through the propensity they helped fit.  (The influence of the kept rows alone, which leaves those
-rows out, differs by up to a percent on these tables and is reported as "kept_rows_only".)
+with respect to every row's mass is taken by central difference at step 1e-30, and the influence
+over ALL n rows is n d_i, so the rows trimmed from the average still enter through the propensity
+they helped fit.  The plug-in SE^2 = n/(n-1) sum_i d_i^2 is reported as "se_plug_in"; the
+published "se" is leverage-corrected (HC3-style): each influence value is divided by 1 - h_i, with
+h_i the larger of 1/n and the row's least-squares leverage x_i'(X_a'X_a)^-1 x_i in its arm's
+regression on R (trimmed rows: 1/n), and SE is the sample standard deviation of the corrected
+values over sqrt(n).  (The influence of the kept rows alone, which leaves those rows out, differs
+by up to a percent on these tables and is reported, uncorrected, as "kept_rows_only".)
 
 ATT / ATC.  The estimate is the mean over the treated (controls) of the doubly robust score
 (T/pi)(y - mu_0) - ((1-T)/pi) e/(1-e) (y - mu_0) for ATT, pi the treated share, and the mirror
-for ATC with mu_1; the standard error is the sample standard deviation of the centred efficient
-influence function psi - tau T/pi (psi - tau (1-T)/pi) divided by sqrt(n).  Values are written as
+for ATC with mu_1; the plug-in standard error ("se_plug_in") is the sample standard deviation of
+the centred efficient influence function psi - tau T/pi (psi - tau (1-T)/pi) divided by sqrt(n),
+and the published "se" divides each centred value by 1 - h_i first, h_i the larger of 1/n and the
+row's leverage in the one arm regression the score uses (the controls for ATT, the treated for
+ATC; 1/n for the other arm).  Values are written as
 nearest binary64.  Repository-authored (MIT OR Apache-2.0).
 """
 import json
@@ -49,6 +56,30 @@ def wls(rows, y, mass):
                 A[a, c] += m * r[a] * r[c]
     beta = lu_solve(A, b)
     return lambda r: sum(beta[k] * r[k] for k in range(p))
+
+
+def leverage(rows):
+    """Least-squares leverage x_i' (X'X)^-1 x_i of each row of one arm's regression."""
+    p = len(rows[0])
+    A = matrix(p, p)
+    for r in rows:
+        for a in range(p):
+            for c in range(p):
+                A[a, c] += r[a] * r[c]
+    out = []
+    for r in rows:
+        s = lu_solve(A, matrix(list(r)))
+        out.append(sum(r[k] * s[k] for k in range(p)))
+    return out
+
+
+def corrected_se(influence, lev):
+    """Sample SD over sqrt(n) of the centred influence values divided by 1 - h_i."""
+    n = len(influence)
+    mean = sum(influence) / n
+    j = [(v - mean) / (1 - min(h, mpf("0.99"))) for v, h in zip(influence, lev)]
+    jm = sum(j) / n
+    return sqrt(sum((v - jm) ** 2 for v in j) / (n - 1) / n)
 
 
 def logit(rows, t, mass):
@@ -130,8 +161,14 @@ def case(name, t, y, x, clip, trim):
         nf = mpf(n)
         se_all = sqrt(nf / (nf - 1) * sum(v * v for v in d))
         se_kept = sqrt(m / (m - 1) * sum(d[i] ** 2 for i in keep))
-        out["trimmed_ate"] = {"ate": float(est), "se": float(se_all), "kept_rows_only": float(se_kept),
-                              "kept": len(keep)}
+        lev = [1 / nf] * n
+        for arm in (0, 1):
+            idx = [i for i in keep if (t[i] > 0.5) == (arm == 1)]
+            for i, h in zip(idx, leverage([X[i] for i in idx])):
+                lev[i] = max(lev[i], h)
+        se = corrected_se([nf * v for v in d], lev)
+        out["trimmed_ate"] = {"ate": float(est), "se": float(se), "se_plug_in": float(se_all),
+                              "kept_rows_only": float(se_kept), "kept": len(keep)}
     return out
 
 
@@ -145,7 +182,13 @@ def pop_case(name, t, y, x, clip):
         centred = [psi[i] - tau * share[i] for i in range(n)]
         mean = sum(centred) / n
         var = sum((v - mean) ** 2 for v in centred) / (n - 1)
-        out[target] = {"ate": float(tau), "se": float(sqrt(var / n))}
+        arm = 0 if target == "att" else 1  # the one arm regression the score uses
+        idx = [i for i in range(n) if (t[i] > 0.5) == (arm == 1)]
+        lev = [1 / mpf(n)] * n
+        for i, h in zip(idx, leverage([X[i] for i in idx])):
+            lev[i] = max(lev[i], h)
+        out[target] = {"ate": float(tau), "se": float(corrected_se(centred, lev)),
+                       "se_plug_in": float(sqrt(var / n))}
     return out
 
 

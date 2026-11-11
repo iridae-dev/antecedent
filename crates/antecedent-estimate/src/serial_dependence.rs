@@ -146,18 +146,24 @@ const MAX_KAPPA_LOG_SD: f64 = 1.0;
 /// delta-method gradient and the observed-information Hessian.
 const DELTA_STEP: f64 = 1e-3;
 
-/// Nelder–Mead initial simplex edge in the unbounded partial-autocorrelation
-/// coordinates `z = artanh(r / 0.97)`.
-const SIMPLEX_STEP: f64 = 0.2;
+/// Largest coordinate move of one optimizer or polish step in the unbounded
+/// partial-autocorrelation coordinates `z = artanh(r / 0.97)`.
+const MAX_STEP: f64 = 0.2;
 
-/// Nelder–Mead convergence: objective range and simplex extent.
-const SIMPLEX_F_TOL: f64 = 1e-12;
-const SIMPLEX_X_TOL: f64 = 1e-8;
+/// Quasi-Newton (BFGS) search for each order's REML optimum: at most this many
+/// iterations per coordinate, a central-difference gradient of step
+/// `GRADIENT_STEP`, and convergence once no gradient coordinate exceeds
+/// `GRADIENT_TOL` (the Newton polish then pins the optimum to rounding).
+/// Each iteration costs `2q` likelihood evaluations plus its line search, so an
+/// order costs `O(q)` evaluations per iteration.
+const BFGS_ITERATIONS_PER_DIM: usize = 50;
+const GRADIENT_STEP: f64 = 1e-5;
+const GRADIENT_TOL: f64 = 1e-4;
+/// Armijo backtracking: sufficient-decrease constant and at most this many halvings.
+const ARMIJO: f64 = 1e-4;
+const LINE_SEARCH_HALVINGS: usize = 40;
 
-/// Nelder–Mead iteration budget per coordinate.
-const SIMPLEX_ITERATIONS_PER_DIM: usize = 500;
-
-/// Newton polish of each order's simplex optimum: at most this many
+/// Newton polish of each order's quasi-Newton optimum: at most this many
 /// fixed-Hessian steps, stopping once a step moves no coordinate by more than
 /// `NEWTON_POLISH_TOL`; a step is accepted only if it does not lower the
 /// likelihood by more than `NEWTON_POLISH_SLACK` of its magnitude (rounding).
@@ -855,6 +861,25 @@ fn pacf_to_phi_into(r: &[f64], phi: &mut [f64]) {
     }
 }
 
+/// AR coefficients to partial autocorrelations (Levinson step-down); `None`
+/// unless every `|r_k| < 1`, the coefficients of a stationary process.
+fn phi_to_pacf(phi: &[f64]) -> Option<Vec<f64>> {
+    let q = phi.len();
+    let mut r = vec![0.0; q];
+    let mut cur = phi.to_vec();
+    for k in (0..q).rev() {
+        let rk = cur[k];
+        if !(rk.is_finite() && rk.abs() < 1.0) {
+            return None;
+        }
+        r[k] = rk;
+        let denom = 1.0 - rk * rk;
+        let prev: Vec<f64> = (0..k).map(|j| (cur[j] + rk * cur[k - 1 - j]) / denom).collect();
+        cur[..k].copy_from_slice(&prev);
+    }
+    Some(r)
+}
+
 fn z_to_phi(z: &[f64]) -> Vec<f64> {
     let r: Vec<f64> = z.iter().map(|v| MAX_PARTIAL_AUTOCORRELATION * v.tanh()).collect();
     pacf_to_phi(&r)
@@ -863,77 +888,77 @@ fn z_to_phi(z: &[f64]) -> Vec<f64> {
 /// Whitening transform `L` of a stationary AR(q) with unit innovations
 /// (`Γ⁻¹ = L'L`): rows `t < q` are the inverse Cholesky factor of the
 /// stationary `q × q` autocovariance, rows `t ≥ q` the AR filter.
+///
+/// The leading rows come from the Durbin–Levinson recursion on the partial
+/// autocorrelations: row `t < q` is the order-`t` one-step prediction error
+/// `(y_t − Σ_{j=1}^{t} φ^{(t)}_j y_{t−j}) / √P_t`, with prediction variance
+/// `P_t = γ₀ Π_{j≤t} (1 − r_j²)`. That is the Cholesky factorization
+/// `Γ_q = C C'` written as `C⁻¹ = D^{−1/2} M` (`M` unit lower triangular), so
+/// building a model costs `O(q²)`, not the `O(q³)` of solving the Yule–Walker
+/// system and factoring `Γ_q`.
 #[derive(Debug)]
 struct Whitener {
     q: usize,
     /// AR coefficients `φ₁ … φ_q`.
     phi: Vec<f64>,
-    /// Lower Cholesky factor `C` of the `q × q` stationary autocovariance (row-major).
-    chol: Vec<f64>,
-    /// `log|Γ| = 2 Σ log diag(C)`.
+    /// Prediction coefficients of the leading rows, packed: row `t < q` holds
+    /// `φ^{(t)}_1 … φ^{(t)}_t` starting at `t (t − 1) / 2`.
+    predict: Vec<f64>,
+    /// `√P_t` for the leading rows `t < q`.
+    scale: Vec<f64>,
+    /// `log|Γ_q| = Σ_{t<q} log P_t`.
     log_det: f64,
     /// Marginal variance `γ₀` of the process with unit innovations.
     gamma0: f64,
 }
 
 impl Whitener {
-    /// `None` when the implied autocovariance is not positive definite.
+    /// `None` when the coefficients are not those of a stationary process.
     fn new(phi: &[f64]) -> Option<Self> {
-        Self::from_coefficients(phi.to_vec())
+        Self::from_pacf(&phi_to_pacf(phi)?)
     }
 
     /// The whitener of the model at partial-autocorrelation coordinates `z`.
     fn from_z(z: &[f64]) -> Option<Self> {
         let r: Vec<f64> = z.iter().map(|v| MAX_PARTIAL_AUTOCORRELATION * v.tanh()).collect();
-        Self::from_coefficients(pacf_to_phi(&r))
+        Self::from_pacf(&r)
     }
 
-    fn from_coefficients(phi: Vec<f64>) -> Option<Self> {
-        let q = phi.len();
-        let mut chol = vec![0.0; q * q];
-        if q == 0 {
-            return Some(Self { q, phi, chol, log_det: 0.0, gamma0: 1.0 });
-        }
-        // Yule–Walker: ρ_k = Σ_j φ_j ρ_{|k−j|}, k = 1..q, with ρ_0 = 1.
-        let mut a = vec![0.0; q * q];
-        let mut rho = vec![0.0; q];
-        for k in 1..=q {
-            for j in 1..=q {
-                let idx = k.abs_diff(j);
-                if idx == 0 {
-                    rho[k - 1] -= phi[j - 1];
-                } else {
-                    a[(k - 1) * q + idx - 1] += phi[j - 1];
-                }
-            }
-            a[(k - 1) * q + k - 1] -= 1.0;
-        }
-        // `A` is neither symmetric nor positive definite (a Toeplitz-plus-Hankel system), so
-        // it is solved through the shared equilibrated inverse rather than a Cholesky.
-        let inverse = antecedent_stats::invert_square(&a, q)?;
-        let rhs = rho.clone();
-        for (k, r) in rho.iter_mut().enumerate() {
-            *r = (0..q).map(|j| inverse[k * q + j] * rhs[j]).sum();
-        }
-        if !rho[..q].iter().all(|v| v.is_finite()) {
-            return None;
-        }
-        let gamma0 = 1.0 / (1.0 - phi[..q].iter().zip(&rho).map(|(f, r)| f * r).sum::<f64>());
+    /// Durbin–Levinson from partial autocorrelations `r` (`|r_k| < 1`), `O(q²)`.
+    fn from_pacf(r: &[f64]) -> Option<Self> {
+        let q = r.len();
+        let gamma0 = 1.0 / r.iter().map(|v| 1.0 - v * v).product::<f64>();
         if !gamma0.is_finite() || gamma0 <= 0.0 {
             return None;
         }
-        let mut cov = vec![0.0; q * q];
-        for i in 0..q {
-            for j in 0..q {
-                let lag = i.abs_diff(j);
-                cov[i * q + j] = gamma0 * if lag == 0 { 1.0 } else { rho[lag - 1] };
+        let mut predict = Vec::with_capacity(q * q.saturating_sub(1) / 2);
+        let mut scale = Vec::with_capacity(q);
+        let mut log_det = 0.0;
+        let mut phi = vec![0.0; q];
+        let mut next = vec![0.0; q];
+        let mut variance = gamma0;
+        for (m, &k) in r.iter().enumerate() {
+            // Row m predicts from the order-m coefficients, before the step up.
+            predict.extend_from_slice(&phi[..m]);
+            if !(variance.is_finite() && variance > 0.0) {
+                return None;
             }
+            scale.push(variance.sqrt());
+            log_det += variance.ln();
+            for j in 0..m {
+                next[j] = phi[j] - k * phi[m - 1 - j];
+            }
+            next[m] = k;
+            phi[..=m].copy_from_slice(&next[..=m]);
+            variance *= 1.0 - k * k;
         }
-        if !cholesky_into(&cov, &mut chol, q) {
-            return None;
-        }
-        let log_det = 2.0 * (0..q).map(|i| chol[i * q + i].ln()).sum::<f64>();
-        Some(Self { q, phi, chol, log_det, gamma0 })
+        Some(Self { q, phi, predict, scale, log_det, gamma0 })
+    }
+
+    /// Prediction coefficients `φ^{(t)}_1 … φ^{(t)}_t` of leading row `t < q`.
+    fn predictor(&self, t: usize) -> &[f64] {
+        let start = t * t.saturating_sub(1) / 2;
+        &self.predict[start..start + t]
     }
 
     fn order(&self) -> usize {
@@ -950,10 +975,10 @@ impl Whitener {
         let q = self.order();
         let n = v.len();
         let mut u = vec![0.0; n];
-        // Forward substitution C u_top = v_top.
-        for i in 0..q.min(n) {
-            let s: f64 = (0..i).map(|j| self.chol[i * q + j] * u[j]).sum();
-            u[i] = (v[i] - s) / self.chol[i * q + i];
+        // Leading rows: the order-t prediction errors over √P_t.
+        for t in 0..q.min(n) {
+            let s: f64 = self.predictor(t).iter().enumerate().map(|(j, f)| f * v[t - 1 - j]).sum();
+            u[t] = (v[t] - s) / self.scale[t];
         }
         for t in q..n {
             u[t] = v[t]
@@ -979,8 +1004,10 @@ impl Whitener {
     fn solve_into(&self, u: &[f64], v: &mut [f64]) {
         let q = self.order();
         let n = u.len();
-        for (i, vi) in v.iter_mut().enumerate().take(q.min(n)) {
-            *vi = (0..=i).map(|j| self.chol[i * q + j] * u[j]).sum();
+        // Leading rows: v_t = √P_t u_t + Σ_j φ^{(t)}_j v_{t−1−j}.
+        for t in 0..q.min(n) {
+            let s: f64 = self.predictor(t).iter().enumerate().map(|(j, f)| f * v[t - 1 - j]).sum();
+            v[t] = self.scale[t] * u[t] + s;
         }
         // v_t = u_t + Σ_j φ_j v_{t−1−j} for t ≥ q.
         match q {
@@ -1018,9 +1045,16 @@ impl Whitener {
             }
             *r = s;
         }
-        // z_top = C' rhs.
+        // z_top = C' rhs: back substitution M' w = rhs, then z = D^{1/2} w.
+        for i in (0..top).rev() {
+            let mut w = rhs[i];
+            for t in i + 1..top {
+                w += self.predictor(t)[t - 1 - i] * rhs[t];
+            }
+            rhs[i] = w;
+        }
         for (i, zi) in z.iter_mut().enumerate().take(top) {
-            *zi = (i..top).map(|j| self.chol[j * q + i] * rhs[j]).sum();
+            *zi = self.scale[i] * rhs[i];
         }
     }
 
@@ -1141,6 +1175,11 @@ struct RemlKernel {
     /// `S_jk` for `0 ≤ j ≤ k ≤ max_order`, each an `m × m` row-major block at
     /// `block(j, k)`.
     lagged: Vec<f64>,
+    /// Prefix lag products of the leading rows, `R_d(S)[a][b] = Σ_{s<S} a_s[a] a_{s+d}[b]`
+    /// for `0 ≤ d, S ≤ max_order` (each an `m × m` block at `(d (max_order + 1) + S) m²`):
+    /// the filter rows `q ≤ t < max_order` of any order `q` are differences of two of them,
+    /// so an evaluation does not grow with `max_order`.
+    prefix: Vec<f64>,
     /// Per-evaluation scratch: the whitened Gram (`m × m`), its `p × p`
     /// leading block, the factor, `X̃'ẽ`, `β̃` and the
     /// forward-substitution scratch.
@@ -1158,6 +1197,7 @@ fn reml_kernel_bytes(n: usize, p: usize) -> Option<usize> {
         .checked_mul(m)?
         .checked_add(q.checked_add(1)?.checked_mul(m2)?)?
         .checked_add(blocks.checked_mul(m2)?)?
+        .checked_add(q.checked_add(1)?.checked_mul(q.checked_add(1)?)?.checked_mul(m2)?)?
         .checked_add(m2)?
         .checked_add(p.checked_mul(p)?.checked_mul(2)?)?
         .checked_add(p.checked_mul(3)?)?;
@@ -1227,8 +1267,25 @@ impl RemlKernel {
                 }
             }
         }
+        let stride = big_q + 1;
+        let mut prefix = vec![0.0; stride * stride * m * m];
+        for d in 0..=big_q {
+            reml_poll()?;
+            for s in 0..big_q {
+                let (from, to) = ((d * stride + s) * m * m, (d * stride + s + 1) * m * m);
+                prefix.copy_within(from..to, to);
+                if s + d < big_q {
+                    for a in 0..m {
+                        let u = top[s * m + a];
+                        for b in 0..m {
+                            prefix[to + a * m + b] += u * top[(s + d) * m + b];
+                        }
+                    }
+                }
+            }
+        }
         let scratch = std::cell::RefCell::new(vec![0.0; m * m + 2 * p * p + 3 * p]);
-        Ok(Self { n, p, m, max_order: big_q, top, lagged, scratch, _admission: admission })
+        Ok(Self { n, p, m, max_order: big_q, top, lagged, prefix, scratch, _admission: admission })
     }
 
     /// Index of block `(j, k)`, `j ≤ k ≤ q`, in the packed upper triangle.
@@ -1260,25 +1317,36 @@ impl RemlKernel {
                 }
             }
         }
-        // Filter rows q ≤ t < Q from the stored leading rows.
-        for t in q..big_q {
-            for a in 0..m {
-                let ra: f64 = (0..=q).map(|j| psi[j] * self.top[(t - j) * m + a]).sum();
-                for b in 0..m {
-                    let rb: f64 = (0..=q).map(|j| psi[j] * self.top[(t - j) * m + b]).sum();
-                    g[a * m + b] += ra * rb;
+        // Filter rows q ≤ t < Q: Σ_t (Σ_j ψ_j a_{t−j})(Σ_k ψ_k a_{t−k})', each lag pair a
+        // difference of two prefix lag products (O(q² m²), whatever Q is).
+        let stride = big_q + 1;
+        for j in 0..=q {
+            for k in 0..=q {
+                let c = psi[j] * psi[k];
+                // With s = t − max(j, k) and d = |k − j|, the pair sums s over [q − max, Q − max).
+                let (d, hi, transpose) = if k >= j { (k - j, k, true) } else { (j - k, j, false) };
+                let upper = (d * stride + big_q - hi) * m * m;
+                let lower = (d * stride + q - hi) * m * m;
+                for a in 0..m {
+                    for b in 0..m {
+                        let at = if transpose { b * m + a } else { a * m + b };
+                        g[a * m + b] += c * (self.prefix[upper + at] - self.prefix[lower + at]);
+                    }
                 }
             }
         }
-        // Cholesky-whitened rows t < q: U = C⁻¹ A_top, G += U'U.
+        // Leading rows t < q: U = C⁻¹ A_top (order-t prediction errors over √P_t), G += U'U.
         if q > 0 {
-            let mut u = vec![0.0; q];
             let mut top = vec![0.0; q * m];
-            for c in 0..m {
-                for i in 0..q {
-                    let s: f64 = (0..i).map(|j| w.chol[i * q + j] * u[j]).sum();
-                    u[i] = (self.top[i * m + c] - s) / w.chol[i * q + i];
-                    top[i * m + c] = u[i];
+            for i in 0..q {
+                let predictor = w.predictor(i);
+                for c in 0..m {
+                    let s: f64 = predictor
+                        .iter()
+                        .enumerate()
+                        .map(|(j, f)| f * self.top[(i - 1 - j) * m + c])
+                        .sum();
+                    top[i * m + c] = (self.top[i * m + c] - s) / w.scale[i];
                 }
             }
             for i in 0..q {
@@ -1324,70 +1392,102 @@ fn reml_log_likelihood(z: &[f64], kernel: &RemlKernel) -> f64 {
     -0.5 * w.log_det - 0.5 * log_det_g - 0.5 * dof * (rss / dof).ln()
 }
 
-/// A Nelder–Mead vertex: coordinates (one per dimension) and objective.
-type Vertex = (Vec<f64>, f64);
+/// Central-difference gradient of `f` at `x` (step `GRADIENT_STEP`).
+fn gradient(f: &impl Fn(&[f64]) -> f64, x: &[f64]) -> Vec<f64> {
+    let mut shifted = x.to_vec();
+    (0..x.len())
+        .map(|i| {
+            shifted[i] = x[i] + GRADIENT_STEP;
+            let plus = f(&shifted);
+            shifted[i] = x[i] - GRADIENT_STEP;
+            let minus = f(&shifted);
+            shifted[i] = x[i];
+            (plus - minus) / (2.0 * GRADIENT_STEP)
+        })
+        .collect()
+}
 
-/// Nelder–Mead minimization of `f` from `x0` (initial simplex edge `SIMPLEX_STEP`).
-fn nelder_mead(f: impl Fn(&[f64]) -> f64, x0: &[f64]) -> (Vec<f64>, f64) {
+/// BFGS minimization of `f` from `x0` with an Armijo backtracking line search and steps
+/// capped at `MAX_STEP` per coordinate. A non-finite objective rejects a trial point; a
+/// non-descent direction restarts from steepest descent.
+fn quasi_newton(f: impl Fn(&[f64]) -> f64, x0: &[f64]) -> (Vec<f64>, f64) {
     let dim = x0.len();
-    let eval = |v: &[f64]| f(v);
-    let origin = x0.to_vec();
-    let mut simplex: Vec<Vertex> = Vec::with_capacity(dim + 1);
-    simplex.push((origin.clone(), eval(&origin)));
-    for i in 0..dim {
-        let mut v = origin.clone();
-        v[i] += SIMPLEX_STEP;
-        let fv = eval(&v);
-        simplex.push((v, fv));
+    let mut x = x0.to_vec();
+    let mut fx = f(&x);
+    if dim == 0 || !fx.is_finite() {
+        return (x, fx);
     }
-    let order = |s: &mut Vec<Vertex>| {
-        s.sort_by(|a, b| a.1.total_cmp(&b.1));
+    let identity = |scale: f64| -> Vec<f64> {
+        let mut h = vec![0.0; dim * dim];
+        for i in 0..dim {
+            h[i * dim + i] = scale;
+        }
+        h
     };
-    order(&mut simplex);
-    for _ in 0..SIMPLEX_ITERATIONS_PER_DIM * dim {
-        let f_range = simplex[dim].1 - simplex[0].1;
-        let x_range = simplex[1..]
-            .iter()
-            .flat_map(|(v, _)| v.iter().zip(&simplex[0].0).map(|(a, b)| (a - b).abs()))
-            .fold(0.0_f64, f64::max);
-        if f_range.abs() <= SIMPLEX_F_TOL && x_range <= SIMPLEX_X_TOL {
+    let mut h = identity(1.0);
+    // Whether `h` has taken its first curvature scaling since the last (re)start.
+    let mut scaled = false;
+    let mut g = gradient(&f, &x);
+    let mut trial = vec![0.0; dim];
+    for _ in 0..BFGS_ITERATIONS_PER_DIM * dim {
+        if g.iter().any(|v| !v.is_finite()) || g.iter().all(|v| v.abs() <= GRADIENT_TOL) {
             break;
         }
-        let mut centroid = vec![0.0; dim];
-        for k in 0..dim {
-            centroid[k] = simplex[..dim].iter().map(|(v, _)| v[k]).sum::<f64>() / dim as f64;
+        let mut direction: Vec<f64> =
+            (0..dim).map(|i| -(0..dim).map(|j| h[i * dim + j] * g[j]).sum::<f64>()).collect();
+        let mut slope: f64 = direction.iter().zip(&g).map(|(d, v)| d * v).sum();
+        if slope.is_nan() || slope >= 0.0 {
+            scaled = false;
+            h = identity(1.0);
+            direction = g.iter().map(|v| -v).collect();
+            slope = -g.iter().map(|v| v * v).sum::<f64>();
         }
-        let worst = simplex[dim].clone();
-        let point = |coef: f64| -> Vec<f64> {
-            (0..dim).map(|k| centroid[k] + coef * (centroid[k] - worst.0[k])).collect()
-        };
-        let reflected = point(1.0);
-        let fr = eval(&reflected);
-        if fr < simplex[0].1 {
-            let expanded = point(2.0);
-            let fe = eval(&expanded);
-            simplex[dim] = if fe < fr { (expanded, fe) } else { (reflected, fr) };
-        } else if fr < simplex[dim - 1].1 {
-            simplex[dim] = (reflected, fr);
-        } else {
-            let contracted = if fr < worst.1 { point(0.5) } else { point(-0.5) };
-            let fc = eval(&contracted);
-            if fc < fr.min(worst.1) {
-                simplex[dim] = (contracted, fc);
-            } else {
-                let best = simplex[0].0.clone();
-                for entry in simplex.iter_mut().skip(1) {
-                    for (v, b) in entry.0.iter_mut().zip(&best) {
-                        *v = b + 0.5 * (*v - b);
-                    }
-                    entry.1 = eval(&entry.0);
+        let largest = direction.iter().fold(0.0_f64, |m, d| m.max(d.abs()));
+        let mut alpha = if largest > MAX_STEP { MAX_STEP / largest } else { 1.0 };
+        let mut accepted = None;
+        for _ in 0..LINE_SEARCH_HALVINGS {
+            for ((t, xi), d) in trial.iter_mut().zip(&x).zip(&direction) {
+                *t = xi + alpha * d;
+            }
+            let ft = f(&trial);
+            if ft.is_finite() && ft <= fx + ARMIJO * alpha * slope {
+                accepted = Some(ft);
+                break;
+            }
+            alpha *= 0.5;
+        }
+        let Some(ft) = accepted else { break };
+        let s: Vec<f64> = trial.iter().zip(&x).map(|(a, b)| a - b).collect();
+        let g_new = gradient(&f, &trial);
+        let y: Vec<f64> = g_new.iter().zip(&g).map(|(a, b)| a - b).collect();
+        let sy: f64 = s.iter().zip(&y).map(|(a, b)| a * b).sum();
+        let improved = fx - ft;
+        x.clone_from(&trial);
+        fx = ft;
+        g = g_new;
+        if sy > f64::EPSILON * s.iter().map(|v| v * v).sum::<f64>().sqrt() {
+            if !scaled {
+                scaled = true;
+                let yy: f64 = y.iter().map(|v| v * v).sum();
+                h = identity(sy / yy);
+            }
+            // H ← (I − ρ s y') H (I − ρ y s') + ρ s s', ρ = 1 / (y's).
+            let rho = 1.0 / sy;
+            let hy: Vec<f64> =
+                (0..dim).map(|i| (0..dim).map(|j| h[i * dim + j] * y[j]).sum()).collect();
+            let yhy: f64 = y.iter().zip(&hy).map(|(a, b)| a * b).sum();
+            for i in 0..dim {
+                for j in 0..dim {
+                    h[i * dim + j] += -rho * (hy[i] * s[j] + s[i] * hy[j])
+                        + (rho * rho * yhy + rho) * s[i] * s[j];
                 }
             }
         }
-        order(&mut simplex);
+        if improved <= f64::EPSILON * fx.abs().max(1.0) {
+            break;
+        }
     }
-    let (v, fv) = simplex.swap_remove(0);
-    (v, fv)
+    (x, fx)
 }
 
 /// REML AR(q) fit of the residual process at the BIC-selected order
@@ -1406,7 +1506,7 @@ fn reml_autoregression(kernel: &RemlKernel) -> ArErrorModel {
         }
         let mut start = prev.clone();
         start.push(0.0);
-        let (mut z, mut neg_ll) = nelder_mead(|z| -reml_log_likelihood(z, kernel), &start);
+        let (mut z, mut neg_ll) = quasi_newton(|z| -reml_log_likelihood(z, kernel), &start);
         if !neg_ll.is_finite() {
             break;
         }
@@ -1421,19 +1521,18 @@ fn reml_autoregression(kernel: &RemlKernel) -> ArErrorModel {
     best
 }
 
-/// Newton polish of a REML optimum found by the simplex.
+/// Newton polish of a REML optimum found by the quasi-Newton search.
 ///
-/// The simplex stops on a likelihood range of `SIMPLEX_F_TOL`, which on a
-/// likelihood of curvature `~n` leaves `z` uncertain to `~√(2·10⁻¹²/n)`
-/// (`10⁻⁷` at `n = 400`) and `κ̂` to the same relative order: any change in
-/// the rounding of the likelihood then lands the simplex elsewhere in that
-/// basin. Fixed-Hessian Newton steps (the observed information at the simplex
-/// point, and a Richardson-extrapolated central-difference gradient whose
-/// truncation error is `O(h⁴)`) contract the remaining error by the relative
+/// The search stops on a gradient tolerance, which on a likelihood of curvature
+/// `~n` leaves `z` uncertain to `~GRADIENT_TOL / n` and `κ̂` to the same relative
+/// order: any change in the rounding of the likelihood then lands the search
+/// elsewhere in that basin. Fixed-Hessian Newton steps (the observed information
+/// at the search point, and a Richardson-extrapolated central-difference gradient
+/// whose truncation error is `O(h⁴)`) contract the remaining error by the relative
 /// error of the finite-difference Hessian (`~10⁻⁶`) per step, so two steps pin
-/// `z`, and with it `κ̂`, to rounding. A step is taken only while it improves
-/// the likelihood beyond its own rounding; on a boundary or a non-definite
-/// Hessian the simplex point stands.
+/// `z`, and with it `κ̂`, to rounding. A step is taken only while it improves the
+/// likelihood beyond its own rounding; on a boundary or a non-definite Hessian the
+/// search point stands.
 fn newton_polish(z: &mut Vec<f64>, neg_ll: &mut f64, kernel: &RemlKernel) {
     let q = z.len();
     if q == 0 {
@@ -1463,7 +1562,7 @@ fn newton_polish(z: &mut Vec<f64>, neg_ll: &mut f64, kernel: &RemlKernel) {
         }
         let step = cholesky_solve(&l, &gradient, q);
         let size = step.iter().fold(0.0_f64, |m, s| m.max(s.abs()));
-        if !size.is_finite() || size > SIMPLEX_STEP {
+        if !size.is_finite() || size > MAX_STEP {
             return;
         }
         for (s, d) in shifted.iter_mut().zip(z.iter().zip(&step)) {
@@ -1957,11 +2056,10 @@ mod tests {
         assert_eq!(direct.df_loss, first.df_loss);
     }
 
-    /// The simplex alone leaves `z` uncertain to `~√(2 SIMPLEX_F_TOL / n)`; the
-    /// Newton polish makes the optimum a function of the design, not of the path
-    /// the simplex took to it.
+    /// The quasi-Newton search stops on a gradient tolerance; the Newton polish makes
+    /// the optimum a function of the design, not of the path the search took to it.
     #[test]
-    fn the_polished_reml_optimum_does_not_depend_on_the_simplex_path() {
+    fn the_polished_reml_optimum_does_not_depend_on_the_search_path() {
         for (n, rho, seed) in [(200, 0.7, 11), (400, 0.9, 12), (2000, 0.5, 13)] {
             let d = design(n, rho, seed);
             let fit = ResidualFit::new(&d).unwrap();
@@ -1970,13 +2068,14 @@ mod tests {
             assert!(!fit.model.z.is_empty(), "n={n}: {:?}", fit.model);
             for shift in [0.15, -0.3] {
                 let start: Vec<f64> = fit.model.z.iter().map(|z| z + shift).collect();
-                let (mut z, mut neg_ll) = nelder_mead(|z| -reml_log_likelihood(z, &kernel), &start);
+                let (mut z, mut neg_ll) =
+                    quasi_newton(|z| -reml_log_likelihood(z, &kernel), &start);
                 let unpolished = z.clone();
                 newton_polish(&mut z, &mut neg_ll, &kernel);
                 for ((a, b), raw) in z.iter().zip(&fit.model.z).zip(&unpolished) {
                     assert!(
                         (a - b).abs() < 1e-10,
-                        "n={n} shift={shift}: polished {z:?} vs fitted {:?} (simplex {raw})",
+                        "n={n} shift={shift}: polished {z:?} vs fitted {:?} (search {raw})",
                         fit.model.z
                     );
                 }
@@ -2175,16 +2274,17 @@ mod tests {
         let ar2 = Whitener::new(&[phi1, phi2]).unwrap();
         let expected = (1.0 - phi2) / ((1.0 + phi2) * ((1.0 - phi2).powi(2) - phi1 * phi1));
         assert!((ar2.gamma0 - expected).abs() < 1e-12, "{} vs {expected}", ar2.gamma0);
-        // The 2x2 covariance block's off-diagonal is gamma0 * rho_1 with the closed form.
+        // The 2x2 covariance block's off-diagonal is gamma0 * rho_1 with the closed form:
+        // the order-one predictor is rho_1 and the order-zero prediction variance gamma0.
         let rho1 = phi1 / (1.0 - phi2);
-        let l = &ar2.chol;
-        assert!((l[2] * l[0] - expected * rho1).abs() < 1e-12, "{}", l[2] * l[0]);
+        let off = ar2.predictor(1)[0] * ar2.scale[0] * ar2.scale[0];
+        assert!((off - expected * rho1).abs() < 1e-12, "{off}");
     }
 
     #[test]
     fn a_unit_root_is_refused_rather_than_solved() {
-        // phi = 1 makes the Yule-Walker system singular; the shared equilibrated inverse
-        // refuses it where the former absolute 1e-300 pivot test would divide by noise.
+        // phi = 1 is a unit root: its partial autocorrelation is 1, so the step-down
+        // refuses it instead of building a covariance that is not positive definite.
         assert!(Whitener::new(&[1.0]).is_none());
         assert!(Whitener::new(&[1.0 - 1e-6]).is_some());
     }

@@ -8,6 +8,7 @@ copied_tests = false
 papers = [
  { title = "Double/debiased machine learning for treatment and structural parameters", doi = "10.1111/ectj.12097", sections = ["AIPW / Neyman-orthogonal score"] },
  { title = "Doubly Robust Estimation of Causal Effects", doi = "10.1093/aje/kwq439", sections = ["Doubly robust estimator"] },
+ { title = "Some heteroskedasticity-consistent covariance matrix estimators with improved finite sample properties", doi = "10.1016/0304-4076(85)90158-7", sections = ["HC3: residuals divided by one minus the leverage"] },
 ]
 
 # Derived from the AIPW/Neyman-orthogonal score, NOT the exact estimator analyzed
@@ -18,10 +19,14 @@ papers = [
 # convergence-rate and Donsker-free guarantees do not transfer (Funk et al. (2011) is the
 # applicable citation). Their analytic SE adds the exact stacked-M terms for the logistic
 # and per-arm OLS fits for ATE-type targets, and the efficient-influence-function form,
-# valid only when both nuisances are consistent, for ATT/ATC.
+# valid only when both nuisances are consistent, for ATT/ATC. Under the default iid SE those
+# full-sample influence values are leverage-corrected (HC3-style) before the variance: each
+# centred value is divided by 1 - h_i, h_i the larger of the row's mass share m_i / sum m (1/n
+# unweighted) and its weighted least-squares leverage in the outcome arm the score uses for it.
 implementation_deviations = [
  "no cross-fitting on the ATT/ATC, trimmed, and predicate-target paths: propensity and outcome nuisances are fit on the full sample, so Chernozhukov et al.'s sample-splitting premise is not met there and its rate conditions are not inherited",
  "nuisance families are fixed GLM (propensity) and OLS (outcome), not the arbitrary ML learners the DML analysis admits",
+ "on the full-sample paths under the iid SE kind the influence values are leverage-corrected before the variance (HC3-style, MacKinnon and White 1985): each centred value is divided by 1 - h_i, h_i = max(m_i / sum m, weighted OLS leverage of the row in the outcome arm the score uses: both arms for the ATE, the control arm for the ATT, the treated arm for the ATC), capped at 0.99. The plug-in variance of heavy-tailed influence values (sampling weights under informative selection) is biased low at practitioner sizes; every h_i tends to zero, so the asymptotic variance is unchanged. The propensity fit's own leverage is not included. Cross-fitted routes and the cluster, multiway and HAC kinds read the influence uncorrected",
 ]
 
 upstream_implementations_observed = [
@@ -29,7 +34,7 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "crates/antecedent-estimate/tests/aipw_reference.rs (60-digit trimmed ATE with the case-mass derivative over every row, ATT and ATC efficient influence function, and the cross-fitted ATE on recorded folds)",
+ "crates/antecedent-estimate/tests/aipw_reference.rs (60-digit trimmed ATE with the case-mass derivative over every row, ATT and ATC efficient influence function, each with the leverage-corrected standard error, and the cross-fitted ATE on recorded folds)",
  "independently generated synthetic confounded SCM with known ATE (shared with propensity estimators)",
  "conformance/estimate/aipw (synthetic known-truth fixture: the point estimate is checked against true_effect within tolerance; its recorded DoWhy block ran backdoor.propensity_score_weighting, not AIPW, so no external AIPW estimate or SE is compared)",
 ]
@@ -42,20 +47,20 @@ historical_exposure = "Historical author exposure to upstream implementations ca
 redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
 limitations = "The trimmed ATE is compared on four tables of 60 to 80 rows (a trim at 0.1 and 0.15, a trim with a clip at 0.2, an outcome offset of 1e7, strong selection), the ATT and ATC on three tables of 60 to 80 rows (a clip at 0.1 and an outcome offset of 1e7), and the cross-fitted ATE on the five untrimmed five-fold tables of the DML reference (recorded folds, clips, offsets, near-collinear covariates). Effects are asserted to 1e-8 (1e-6 for the cross-fitted route, whose logistic solver stops near 1e-8) and standard errors to 1e-6 (1e-5). The n/(n-1) divisor over all rows is the product's convention for the trimmed route and is reproduced. The ATT and ATC variance is compared with the stated efficient influence function, not with the exact case-mass derivative, which it is not under a misspecified model. Nothing here bears on coverage or on the other nuisance families. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
 sources = ["https://doi.org/10.1111/ectj.12097", "https://doi.org/10.1093/aje/kwq439", "https://mpmath.org/"]
-findings_resolved = ["Defect repaired: for a trimmed ATE the logistic propensity is fitted on every row but its stacked-equation correction used only the retained rows (the score, the information and the influence vector), so the rows trimmed from the average were missing from the variance although they shape the propensity. The influence is now formed over every row of the problem with the propensity block from all rows and the outcome blocks from the retained rows, and equals the case-mass derivative of the whole refitted estimator; the standard error moved by 0.3 to 0.9 percent on the reference tables.", "The ATT and ATC effects and centred efficient-influence standard errors equal the multiprecision references, including a clip at 0.1 and an outcome offset of 1e7.", "The untrimmed ATE equals the cross-fitted reference on a recorded fold assignment, for effect and standard error, with clips, offsets and near-collinear covariates."]
-record_sha256 = "f8819b29dceb32866dfbe2772676626eee0ca5525d33ee40bc123512007ddb8f"
+findings_resolved = ["Defect repaired: for a trimmed ATE the logistic propensity is fitted on every row but its stacked-equation correction used only the retained rows (the score, the information and the influence vector), so the rows trimmed from the average were missing from the variance although they shape the propensity. The influence is now formed over every row of the problem with the propensity block from all rows and the outcome blocks from the retained rows, and equals the case-mass derivative of the whole refitted estimator; the standard error moved by 0.3 to 0.9 percent on the reference tables.", "Defect repaired: the full-sample influence standard error under-covered under informative sampling weights (a trimmed weighted ATE covered 1834 of 2000 replicates at 600 rows): the weights make the influence values heavy-tailed, and their plug-in sample variance ran about 14 percent below the estimator's spread, untrimmed or trimmed. The influence values are now leverage-corrected (HC3-style) before the variance; a replica of the estimator covered 0.949 to 0.957 at 600 rows. The references state both the plug-in (case-mass derivative or centred efficient influence) and the corrected standard error.", "The ATT and ATC effects and centred efficient-influence standard errors equal the multiprecision references, including a clip at 0.1 and an outcome offset of 1e7.", "The untrimmed ATE equals the cross-fitted reference on a recorded fold assignment, for effect and standard error, with clips, offsets and near-collinear covariates."]
+record_sha256 = "14c356a241df9cb03c4ac4747fac80046ce6cfe49063a6371af6da9eec879964"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/aipw.rs"
 items = ["fn adjust_influence", "fn assemble_full_sample", "fn attach_bootstrap", "fn cluster_dml_se", "fn contrast_influence", "fn crossfit_table", "fn default", "fn fit", "fn fit_crossfit_scores", "fn fit_custom", "fn fit_full_sample", "fn fit_point", "fn has_second_units", "fn new", "fn prepare", "fn record_cluster_dml", "fn require_no_interval_request", "fn require_penalized_scope", "fn require_point_route", "fn require_weighted_scope", "fn robust_influence_se", "fn score_contrast", "fn unit_labels", "fn with_overlap", "fn with_sampling_weights", "struct AipwAte", "struct AipwWorkspace"]
-sha256 = "48f0f3df1ca7279c3ac7e3dd5c486a01b5f11e3ca8880f0633bf2cd52f282d7d"
+sha256 = "02df319c8fe7d23f3af5b85ffc3b0f5bf305edac5fb876ddba4797239c541cbc"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/aipw/scores.rs"
 items = ["module"]
-sha256 = "a9cd8ccf7e8cdf405bde6591a03bf01fae68c9d201279ab8213762b7882fe16e"
+sha256 = "71d4c47d441b0bab2d74126dc8f6b447dced748ad8a734ab1f080950265d7eb5"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -66,12 +71,12 @@ sha256 = "2b5615c5fc492ecab8c364fc2842798c89de3c5da35c1fea96634d563e1d0ee1"
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-estimate/tests/oracle_data/aipw_reference.py"
-sha256 = "578a03569a8057ff4b5fbefdb3868882128631f5aa38f6d52c8ab81f8f19ecbe"
+sha256 = "ea0a721a1734c49ec8d16d93dd323041839f2f055a28f5a2a51ded342d926dfa"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-estimate/tests/oracle_data/aipw_reference.json"
-sha256 = "881e34d590ed3029ec429d5cd88f98f11fbfdf247d7560c14c752b024de84819"
+sha256 = "5d6edb93071b9e7055a352f5121b4ee4d31e0638a45eea7893b1d58696998823"
 
 [[method_review.artifacts]]
 role = "fixture"

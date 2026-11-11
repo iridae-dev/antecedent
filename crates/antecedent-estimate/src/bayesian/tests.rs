@@ -1042,84 +1042,35 @@ fn pulse_graph() -> antecedent_graph::TemporalDag {
     g
 }
 
-/// Default replicate count for the coverage gate (matches
-/// `crates/antecedent/tests/common/calibration.rs`, which this crate cannot import).
-const CALIBRATION_N_SIM: u32 = 400;
+#[path = "../../../antecedent/tests/common/calibration.rs"]
+mod calibration;
 
-/// Replicate count, honoring `ANTECEDENT_CALIBRATION_NSIM` for local smoke runs.
-fn calibration_n_sim() -> u32 {
-    std::env::var("ANTECEDENT_CALIBRATION_NSIM")
-        .ok()
-        .and_then(|v| v.parse::<u32>().ok())
-        .filter(|&n| n > 0)
-        .unwrap_or(CALIBRATION_N_SIM)
+/// Equal-tailed posterior interval of the effect column at `level`, read at the
+/// rounded order-statistic index; `None` (a miss) with fewer than two finite draws.
+fn posterior_interval(post: &CausalPosterior, level: f64) -> Option<(f64, f64)> {
+    let eq = post.effect_column().unwrap();
+    let col = post.draws.column(eq).unwrap();
+    let mut v: Vec<f64> = col.iter().copied().filter(|x| x.is_finite()).collect();
+    if v.len() < 2 {
+        return None;
+    }
+    v.sort_by(f64::total_cmp);
+    let lo_p = (1.0 - level) / 2.0;
+    let last = (v.len() - 1) as f64;
+    // `q` is a probability and `last >= 0`, so the rounded product is a valid index.
+    #[allow(
+        clippy::cast_sign_loss,
+        reason = "the rounded index is clamped to [0, last] so it is non-negative and in range"
+    )]
+    let at = |q: f64| v[(last * q).round().clamp(0.0, last) as usize];
+    Some((at(lo_p), at(1.0 - lo_p)))
 }
 
-/// Two-sided coverage tally: `level ± 3·MCSE`, `MCSE = sqrt(level(1-level)/n)`.
-/// At 400 replicates and 90% that is `[0.855, 0.945]`, so under- and
-/// over-coverage both fail.
-struct CoverageGate {
-    name: &'static str,
-    level: f64,
-    covered: u32,
-    scored: u32,
-    length_sum: f64,
-}
-
-impl CoverageGate {
-    fn new(name: &'static str, level: f64) -> Self {
-        Self { name, level, covered: 0, scored: 0, length_sum: 0.0 }
-    }
-
-    /// Score the equal-tailed posterior interval of the effect column.
-    fn record(&mut self, post: &CausalPosterior, truth: f64) {
-        self.scored += 1;
-        let eq = post.effect_column().unwrap();
-        let col = post.draws.column(eq).unwrap();
-        let mut v: Vec<f64> = col.iter().copied().filter(|x| x.is_finite()).collect();
-        if v.len() < 2 {
-            return;
-        }
-        v.sort_by(f64::total_cmp);
-        let lo_p = (1.0 - self.level) / 2.0;
-        let last = (v.len() - 1) as f64;
-        // `q` is a probability and `last >= 0`, so the rounded product is a valid index.
-        #[allow(
-            clippy::cast_sign_loss,
-            reason = "the rounded index is clamped to [0, last] so it is non-negative and in range"
-        )]
-        let at = |q: f64| v[(last * q).round().clamp(0.0, last) as usize];
-        let (lo, hi) = (at(lo_p), at(1.0 - lo_p));
-        self.length_sum += hi - lo;
-        if truth >= lo && truth <= hi {
-            self.covered += 1;
-        }
-    }
-
-    fn assert(&self) {
-        let n = f64::from(self.scored);
-        let rate = f64::from(self.covered) / n;
-        let mcse = (self.level * (1.0 - self.level) / n).sqrt();
-        let lo = (self.level - 3.0 * mcse).max(0.0);
-        let hi = (self.level + 3.0 * mcse).min(1.0);
-        eprintln!(
-            "calibration {}: nominal={:.2} coverage={rate:.3} mcse={mcse:.4} band=[{lo:.3}, {hi:.3}] \
-             mean_length={:.4} ({}/{} covered)",
-            self.name,
-            self.level,
-            self.length_sum / n,
-            self.covered,
-            self.scored
-        );
-        assert!(
-            rate >= lo && rate <= hi,
-            "{} {:.0}% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({}/{})",
-            self.name,
-            self.level * 100.0,
-            self.covered,
-            self.scored
-        );
-    }
+/// The shared harness's two-sided coverage tally (`level ± 3·MCSE` at 400 replicates,
+/// `[0.855, 0.945]` at 90%, so under- and over-coverage both fail), gated by the
+/// suite's family decision when the runner supplies its frozen context.
+fn coverage_gate(name: &'static str, level: f64) -> calibration::CoverageTally {
+    calibration::CoverageTally::new(name, level)
 }
 
 #[test]
@@ -1130,9 +1081,9 @@ fn bayesian_pulse_conjugate_nominal_90_coverage() {
     use antecedent_graph::ensure_lagged;
     use antecedent_identify::TemporalBackdoorIdentifier;
 
-    let n_sim = calibration_n_sim();
+    let n_sim = calibration::n_sim();
     let n = 160usize;
-    let mut gate = CoverageGate::new("bayesian pulse (conjugate, direct estimator)", 0.9);
+    let mut gate = coverage_gate("bayesian pulse (conjugate, direct estimator)", 0.9);
     let g = pulse_graph();
     let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::pulse(-1))
@@ -1141,7 +1092,7 @@ fn bayesian_pulse_conjugate_nominal_90_coverage() {
     let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
     let estimand = id_res.result.estimands.first().unwrap();
     let temporal = TemporalLinearAdjustment::new();
-    for s in 0..n_sim {
+    let intervals = calibration::map_replicates(n_sim, |s| {
         // Vary the sampler seed per replicate: a fixed seed reuses one set of
         // posterior draws, so its Monte-Carlo quantile error is shared by every
         // replicate instead of averaging out.
@@ -1175,7 +1126,10 @@ fn bayesian_pulse_conjugate_nominal_90_coverage() {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap();
-        gate.record(&post, 0.8);
+        posterior_interval(&post, 0.9)
+    });
+    for interval in intervals {
+        gate.record(interval, 0.8);
     }
     gate.assert();
     let _ = ensure_lagged;
@@ -1188,9 +1142,9 @@ fn bayesian_sustained_single_step_conjugate_nominal_90_coverage() {
     use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
     use antecedent_identify::TemporalBackdoorIdentifier;
 
-    let n_sim = calibration_n_sim();
+    let n_sim = calibration::n_sim();
     let n = 160usize;
-    let mut gate = CoverageGate::new("bayesian single-step sustained (conjugate)", 0.9);
+    let mut gate = coverage_gate("bayesian single-step sustained (conjugate)", 0.9);
     let g = pulse_graph();
     let q =
         TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), -1, 1.0)
@@ -1200,7 +1154,7 @@ fn bayesian_sustained_single_step_conjugate_nominal_90_coverage() {
     let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
     let estimand = id_res.result.estimands.first().unwrap();
     let temporal = TemporalLinearAdjustment::new();
-    for s in 0..n_sim {
+    let intervals = calibration::map_replicates(n_sim, |s| {
         // Vary the sampler seed per replicate: a fixed seed reuses one set of
         // posterior draws, so its Monte-Carlo quantile error is shared by every
         // replicate instead of averaging out.
@@ -1234,7 +1188,10 @@ fn bayesian_sustained_single_step_conjugate_nominal_90_coverage() {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap();
-        gate.record(&post, 0.8);
+        posterior_interval(&post, 0.9)
+    });
+    for interval in intervals {
+        gate.record(interval, 0.8);
     }
     gate.assert();
 }
@@ -1246,9 +1203,9 @@ fn bayesian_sustained_multi_step_conjugate_nominal_90_coverage() {
     use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
     use antecedent_identify::TemporalBackdoorIdentifier;
 
-    let n_sim = calibration_n_sim();
+    let n_sim = calibration::n_sim();
     let n = 160usize;
-    let mut gate = CoverageGate::new("bayesian multi-step sustained (conjugate)", 0.9);
+    let mut gate = coverage_gate("bayesian multi-step sustained (conjugate)", 0.9);
     let g = pulse_graph();
     let q =
         TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), -2, 1.0)
@@ -1257,7 +1214,7 @@ fn bayesian_sustained_multi_step_conjugate_nominal_90_coverage() {
             .with_max_history_lag(Some(2));
     let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
     let estimand = id_res.result.estimands.first().unwrap();
-    for s in 0..n_sim {
+    let intervals = calibration::map_replicates(n_sim, |s| {
         // Vary the sampler seed per replicate: a fixed seed reuses one set of
         // posterior draws, so its Monte-Carlo quantile error is shared by every
         // replicate instead of averaging out.
@@ -1286,7 +1243,10 @@ fn bayesian_sustained_multi_step_conjugate_nominal_90_coverage() {
             &ExecutionContext::for_tests(1),
         )
         .unwrap();
-        gate.record(posterior.as_ref().unwrap(), 0.8);
+        posterior_interval(posterior.as_ref().unwrap(), 0.9)
+    });
+    for interval in intervals {
+        gate.record(interval, 0.8);
     }
     gate.assert();
 }
@@ -1378,10 +1338,10 @@ fn bayesian_panel_hierarchical_nominal_90_coverage() {
     use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
     use antecedent_identify::TemporalBackdoorIdentifier;
 
-    let n_sim = calibration_n_sim();
+    let n_sim = calibration::n_sim();
     let n_units = 24usize;
     let t_len = 40usize;
-    let mut gate = CoverageGate::new("bayesian panel hierarchical", 0.9);
+    let mut gate = coverage_gate("bayesian panel hierarchical", 0.9);
     let g = pulse_graph();
     let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::pulse(-1))
@@ -1390,7 +1350,7 @@ fn bayesian_panel_hierarchical_nominal_90_coverage() {
     let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
     let estimand = id_res.result.estimands.first().unwrap();
     let temporal = TemporalLinearAdjustment::new();
-    for s in 0..n_sim {
+    let intervals = calibration::map_replicates(n_sim, |s| {
         // Vary the sampler seed per replicate: a fixed seed reuses one set of
         // posterior draws, so its Monte-Carlo quantile error is shared by every
         // replicate instead of averaging out.
@@ -1428,7 +1388,10 @@ fn bayesian_panel_hierarchical_nominal_90_coverage() {
                 &ExecutionContext::for_tests(1),
             )
             .unwrap();
-        gate.record(&post, 0.8);
+        posterior_interval(&post, 0.9)
+    });
+    for interval in intervals {
+        gate.record(interval, 0.8);
     }
     gate.assert();
 }

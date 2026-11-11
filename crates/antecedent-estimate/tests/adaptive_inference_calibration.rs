@@ -561,11 +561,7 @@ fn anytime_valid_sequence_covers_the_arm_mean_at_every_look_l95() {
         tally.record(Some(if missed { (1.0, 2.0) } else { (-1.0, 1.0) }), 0.0);
     }
     // A confidence sequence is conservative by construction, so the claim is a floor.
-    assert!(
-        calibration::passes_one_sided(tally.attempts(), 0.95, tally.rate()),
-        "the anytime-valid sequence under-covers: {}",
-        tally.rate()
-    );
+    tally.assert_at_least();
 }
 
 /// The time-uniform interval of an arm mean or of the contrast, scored at ten
