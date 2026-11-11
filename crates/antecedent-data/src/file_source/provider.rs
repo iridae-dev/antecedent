@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use arrow_array::RecordBatch;
-use arrow_array::ffi_stream::ArrowArrayStreamReader;
+use arrow_array::ffi_stream::RecordBatchStreamReader;
 use arrow_schema::SchemaRef;
 
 use super::TableFileFormat;
@@ -480,10 +480,14 @@ fn ipc_open(
         super::ipc_scan::scan_file(path)?
     };
     let reader = BufReader::new(open_file(path)?);
+    // Both readers report the projected schema, so the stamp is projected the same way.
+    let expected = stamp
+        .schema
+        .project(projection)
+        .map_err(|_| changed(path, "the schema differs from open"))?;
     let projection = Some(projection.to_vec());
     let path = path.to_path_buf();
-    // Both readers report the file's full schema even when a projection is set.
-    let same = |seen: &arrow_schema::Schema| seen.fields() == stamp.schema.fields();
+    let same = |seen: &arrow_schema::Schema| seen.fields() == expected.fields();
     if stream {
         let reader = StreamReader::try_new(reader, projection)
             .map_err(|error| format_error(&path, &error))?;
@@ -515,12 +519,12 @@ fn ipc_open(
 
 /// Batches of an imported Arrow C stream, projected to `projection`.
 pub(crate) struct StreamBatches {
-    reader: ArrowArrayStreamReader,
+    reader: RecordBatchStreamReader,
     projection: Vec<usize>,
 }
 
 impl StreamBatches {
-    pub(crate) fn new(reader: ArrowArrayStreamReader, projection: Vec<usize>) -> Self {
+    pub(crate) fn new(reader: RecordBatchStreamReader, projection: Vec<usize>) -> Self {
         Self { reader, projection }
     }
 }

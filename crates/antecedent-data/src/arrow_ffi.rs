@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use antecedent_core::VariableId;
 use arrow_array::ffi::{FFI_ArrowArray, from_ffi, to_ffi};
-use arrow_array::ffi_stream::{ArrowArrayStreamReader, FFI_ArrowArrayStream};
+use arrow_array::ffi_stream::{FFI_ArrowArrayStream, RecordBatchStreamReader};
 use arrow_array::{Array, ArrayRef, Float64Array, RecordBatch, RecordBatchReader};
 use arrow_schema::SchemaRef;
 use arrow_schema::ffi::FFI_ArrowSchema;
@@ -180,8 +180,8 @@ impl ArrowCStream {
     /// Import the stream schema and return a reader that yields one batch at a time.
     ///
     /// The stream is released when the reader is dropped.
-    pub(crate) fn into_reader(self) -> Result<ArrowArrayStreamReader, DataError> {
-        ArrowArrayStreamReader::try_new(self.inner)
+    pub(crate) fn into_reader(self) -> Result<RecordBatchStreamReader, DataError> {
+        RecordBatchStreamReader::try_new(self.inner)
             .map_err(|e| DataError::external("Arrow stream schema import", e))
     }
 

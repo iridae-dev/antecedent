@@ -21,9 +21,9 @@ antecedent-io-core = { path = "../crates/antecedent-io-core" }
 antecedent-design = { path = "../crates/antecedent-design" }
 antecedent-expr = { path = "../crates/antecedent-expr" }
 antecedent-data = { path = "../crates/antecedent-data", features = ["arrow"] }
-arrow-array = { version = "54", default-features = false }
-arrow-buffer = { version = "54", default-features = false }
-arrow-schema = { version = "54", default-features = false }
+arrow-array = { version = "60", default-features = false }
+arrow-buffer = { version = "60", default-features = false }
+arrow-schema = { version = "60", default-features = false }
 
 [[bin]]
 name = "schema_names"

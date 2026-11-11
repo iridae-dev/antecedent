@@ -2,7 +2,7 @@
   "schema": 1,
   "policy": "nix-darwin-private-tmp-audit-v1",
   "target": "aarch64-apple-darwin",
-  "cargo_lock_sha256": "15df5baadf12136cc92d9ae9dac41e44c2f8d6f000748db4a26e41e053243d5f",
+  "cargo_lock_sha256": "9f92ed26f5ecb9c621ef81d7728d121a440924832ab26b6cb3e1cf859e8e641b",
   "scope": "Scoped source audit for ambient /private/tmp reads; trusted local Nix daemon, pinned Nix toolchain and signed-cache dependencies, macOS runtime, and the reviewed helper code are explicit assumptions. New units/features fail closed.",
   "audit_documents": [
     "nix/compile-time-audit.md",
@@ -811,6 +811,48 @@
         ],
         "projection": "reviewed-safe",
         "reason": "Reviewed package and its helper role do not select repository function text or source positions under the pinned Darwin graph and controlled build environment; registry and toolchain sources remain trusted inputs.",
+        "observed_package_source_inputs": []
+      },
+      "source_projection": "reviewed-safe"
+    },
+    {
+      "name": "flatbuffers",
+      "version": "25.12.19",
+      "mode": "build",
+      "target_kind": [
+        "custom-build"
+      ],
+      "target_path": "build.rs",
+      "features": [],
+      "platform": null,
+      "checksum": "35f6839d7b3b98adde531effaf34f0c2badc6f4735d26fe74709d8e513a96ef3",
+      "repo_source_review": {
+        "categories": [
+          "package-files-or-tool-process"
+        ],
+        "projection": "reviewed-safe",
+        "reason": "Build script queries the pinned rustc through rustc_version to emit a nightly cfg (the same script as 24.12.23 plus a check-cfg line); it reads no repository function text or source positions under the pinned Darwin graph and controlled build environment; registry and toolchain sources remain trusted inputs.",
+        "observed_package_source_inputs": []
+      },
+      "source_projection": "reviewed-safe"
+    },
+    {
+      "name": "flatbuffers",
+      "version": "25.12.19",
+      "mode": "run-custom-build",
+      "target_kind": [
+        "custom-build"
+      ],
+      "target_path": "build.rs",
+      "features": [],
+      "platform": null,
+      "checksum": "35f6839d7b3b98adde531effaf34f0c2badc6f4735d26fe74709d8e513a96ef3",
+      "repo_source_review": {
+        "categories": [
+          "package-files-or-tool-process"
+        ],
+        "projection": "reviewed-safe",
+        "reason": "Build script queries the pinned rustc through rustc_version to emit a nightly cfg (the same script as 24.12.23 plus a check-cfg line); it reads no repository function text or source positions under the pinned Darwin graph and controlled build environment; registry and toolchain sources remain trusted inputs.",
         "observed_package_source_inputs": []
       },
       "source_projection": "reviewed-safe"
@@ -3219,6 +3261,104 @@
       "source_projection": "reviewed-safe"
     },
     {
+      "name": "zstd-safe",
+      "version": "7.4.0",
+      "mode": "build",
+      "target_kind": [
+        "custom-build"
+      ],
+      "target_path": "build.rs",
+      "features": [
+        "arrays",
+        "legacy",
+        "std",
+        "zdict_builder"
+      ],
+      "platform": null,
+      "checksum": "1c8ea04668f5de8d8d51051714ba560c9536519cadcdb8829bba4fe2ad159b03",
+      "repo_source_review": {
+        "categories": [
+          "package-files-or-tool-process"
+        ],
+        "projection": "reviewed-safe",
+        "reason": "Build script reads only CARGO_CFG_TARGET_ARCH and CARGO_CFG_TARGET_OS to force the std feature on wasm32 or hermit (unchanged from 7.3.0); it reads no repository function text or source positions under the pinned Darwin graph and controlled build environment.",
+        "observed_package_source_inputs": []
+      },
+      "source_projection": "reviewed-safe"
+    },
+    {
+      "name": "zstd-safe",
+      "version": "7.4.0",
+      "mode": "run-custom-build",
+      "target_kind": [
+        "custom-build"
+      ],
+      "target_path": "build.rs",
+      "features": [
+        "arrays",
+        "legacy",
+        "std",
+        "zdict_builder"
+      ],
+      "platform": null,
+      "checksum": "1c8ea04668f5de8d8d51051714ba560c9536519cadcdb8829bba4fe2ad159b03",
+      "repo_source_review": {
+        "categories": [
+          "package-files-or-tool-process"
+        ],
+        "projection": "reviewed-safe",
+        "reason": "Build script reads only CARGO_CFG_TARGET_ARCH and CARGO_CFG_TARGET_OS to force the std feature on wasm32 or hermit (unchanged from 7.3.0); it reads no repository function text or source positions under the pinned Darwin graph and controlled build environment.",
+        "observed_package_source_inputs": []
+      },
+      "source_projection": "reviewed-safe"
+    },
+    {
+      "name": "zstd-safe",
+      "version": "8.2.0",
+      "mode": "build",
+      "target_kind": [
+        "custom-build"
+      ],
+      "target_path": "build.rs",
+      "features": [
+        "std"
+      ],
+      "platform": null,
+      "checksum": "ded520f16b29e1a9b771c722221b2b0a0398c2316d9bb3c42b458a5414d7434b",
+      "repo_source_review": {
+        "categories": [
+          "package-files-or-tool-process"
+        ],
+        "projection": "reviewed-safe",
+        "reason": "Build script reads only CARGO_CFG_TARGET_ARCH and CARGO_CFG_TARGET_OS to force the std feature on wasm32 or hermit (unchanged from 7.3.0); it reads no repository function text or source positions under the pinned Darwin graph and controlled build environment.",
+        "observed_package_source_inputs": []
+      },
+      "source_projection": "reviewed-safe"
+    },
+    {
+      "name": "zstd-safe",
+      "version": "8.2.0",
+      "mode": "run-custom-build",
+      "target_kind": [
+        "custom-build"
+      ],
+      "target_path": "build.rs",
+      "features": [
+        "std"
+      ],
+      "platform": null,
+      "checksum": "ded520f16b29e1a9b771c722221b2b0a0398c2316d9bb3c42b458a5414d7434b",
+      "repo_source_review": {
+        "categories": [
+          "package-files-or-tool-process"
+        ],
+        "projection": "reviewed-safe",
+        "reason": "Build script reads only CARGO_CFG_TARGET_ARCH and CARGO_CFG_TARGET_OS to force the std feature on wasm32 or hermit (unchanged from 7.3.0); it reads no repository function text or source positions under the pinned Darwin graph and controlled build environment.",
+        "observed_package_source_inputs": []
+      },
+      "source_projection": "reviewed-safe"
+    },
+    {
       "name": "zstd-sys",
       "version": "2.1.0+zstd.1.5.7",
       "mode": "build",
@@ -3266,6 +3406,60 @@
         ],
         "projection": "reviewed-safe",
         "reason": "Reviewed package and its helper role do not select repository function text or source positions under the pinned Darwin graph and controlled build environment; registry and toolchain sources remain trusted inputs.",
+        "observed_package_source_inputs": [
+          "registry:zstd-sys/zstd/**"
+        ]
+      },
+      "source_projection": "reviewed-safe"
+    },
+    {
+      "name": "zstd-sys",
+      "version": "2.1.2+zstd.1.5.7",
+      "mode": "build",
+      "target_kind": [
+        "custom-build"
+      ],
+      "target_path": "build.rs",
+      "features": [
+        "legacy",
+        "std",
+        "zdict_builder"
+      ],
+      "platform": null,
+      "checksum": "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3",
+      "repo_source_review": {
+        "categories": [
+          "package-files-or-tool-process"
+        ],
+        "projection": "reviewed-safe",
+        "reason": "Build script compiles the bundled zstd C sources from its own package with the toolchain C compiler; against 2.1.0 it adds only the ZSTD_SYS_NO_HIDE_SYMBOLS switch for symbol visibility and bindgen derive callbacks (bindgen is not an enabled feature). It reads no repository function text or source positions under the pinned Darwin graph and controlled build environment; registry and toolchain sources remain trusted inputs.",
+        "observed_package_source_inputs": [
+          "registry:zstd-sys/zstd/**"
+        ]
+      },
+      "source_projection": "reviewed-safe"
+    },
+    {
+      "name": "zstd-sys",
+      "version": "2.1.2+zstd.1.5.7",
+      "mode": "run-custom-build",
+      "target_kind": [
+        "custom-build"
+      ],
+      "target_path": "build.rs",
+      "features": [
+        "legacy",
+        "std",
+        "zdict_builder"
+      ],
+      "platform": null,
+      "checksum": "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3",
+      "repo_source_review": {
+        "categories": [
+          "package-files-or-tool-process"
+        ],
+        "projection": "reviewed-safe",
+        "reason": "Build script compiles the bundled zstd C sources from its own package with the toolchain C compiler; against 2.1.0 it adds only the ZSTD_SYS_NO_HIDE_SYMBOLS switch for symbol visibility and bindgen derive callbacks (bindgen is not an enabled feature). It reads no repository function text or source positions under the pinned Darwin graph and controlled build environment; registry and toolchain sources remain trusted inputs.",
         "observed_package_source_inputs": [
           "registry:zstd-sys/zstd/**"
         ]

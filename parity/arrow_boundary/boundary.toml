@@ -9,9 +9,9 @@ rust = "1.85"
 
 [pins]
 source = "Cargo.toml workspace.dependencies"
-arrow_array = "54"
-arrow_schema = "54"
-arrow_buffer = "54"
+arrow_array = "60"
+arrow_schema = "60"
+arrow_buffer = "60"
 pyo3 = "0.29"
 pyo3_build_config = "0.29"
 polars = "absent"

@@ -171,8 +171,9 @@ fn write_parquet(
         path: path.to_path_buf(),
         message: error.to_string(),
     })?;
-    let properties =
-        WriterProperties::builder().set_max_row_group_size(options.rows_per_group).build();
+    let properties = WriterProperties::builder()
+        .set_max_row_group_row_count(Some(options.rows_per_group))
+        .build();
     let mut writer = ArrowWriter::try_new(file, Arc::clone(schema), Some(properties))
         .map_err(|error| super::provider::format_error(path, &error))?;
     for batch in batches {

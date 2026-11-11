@@ -13,7 +13,7 @@ use super::{
 /// An Arrow C stream read once, in bounded chunks.
 pub struct TableStream {
     pub(super) view: SchemaView,
-    pub(super) reader: arrow_array::ffi_stream::ArrowArrayStreamReader,
+    pub(super) reader: arrow_array::ffi_stream::RecordBatchStreamReader,
 }
 
 impl fmt::Debug for TableStream {

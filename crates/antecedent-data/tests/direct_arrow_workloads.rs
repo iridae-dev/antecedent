@@ -198,7 +198,8 @@ fn write_parquet(path: &Path, batch: &RecordBatch, rows_per_group: usize) {
     use parquet::file::properties::WriterProperties;
 
     let file = std::fs::File::create(path).unwrap();
-    let props = WriterProperties::builder().set_max_row_group_size(rows_per_group).build();
+    let props =
+        WriterProperties::builder().set_max_row_group_row_count(Some(rows_per_group)).build();
     let mut writer = ArrowWriter::try_new(file, batch.schema(), Some(props)).unwrap();
     writer.write(batch).unwrap();
     writer.close().unwrap();

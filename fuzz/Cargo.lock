@@ -36,7 +36,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-contract"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "thiserror 2.0.19",
@@ -44,7 +44,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-core"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "blake3",
  "thiserror 2.0.19",
@@ -52,7 +52,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-counterfactual"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
@@ -64,7 +64,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-data"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -77,7 +77,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-design"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
@@ -95,7 +95,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-discovery"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -109,8 +109,9 @@ dependencies = [
 
 [[package]]
 name = "antecedent-estimate"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
+ "antecedent-contract",
  "antecedent-core",
  "antecedent-data",
  "antecedent-expr",
@@ -128,9 +129,10 @@ dependencies = [
 
 [[package]]
 name = "antecedent-expr"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
+ "antecedent-kernels",
 ]
 
 [[package]]
@@ -154,7 +156,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-graph"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "thiserror 2.0.19",
@@ -162,19 +164,20 @@ dependencies = [
 
 [[package]]
 name = "antecedent-identify"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
  "antecedent-expr",
  "antecedent-graph",
+ "antecedent-kernels",
  "serde",
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "antecedent-io"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
@@ -185,11 +188,13 @@ dependencies = [
  "antecedent-graph",
  "antecedent-identify",
  "antecedent-io-core",
+ "antecedent-kernels",
  "antecedent-learn",
  "antecedent-model",
  "antecedent-prob",
  "antecedent-stats",
  "antecedent-validate",
+ "blake3",
  "ciborium",
  "serde",
  "serde_json",
@@ -198,11 +203,12 @@ dependencies = [
 
 [[package]]
 name = "antecedent-io-core"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
  "antecedent-counterfactual",
+ "antecedent-data",
  "antecedent-discovery",
  "antecedent-expr",
  "antecedent-graph",
@@ -223,14 +229,14 @@ dependencies = [
 
 [[package]]
 name = "antecedent-kernels"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
 ]
 
 [[package]]
 name = "antecedent-learn"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -243,7 +249,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-model"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -251,21 +257,23 @@ dependencies = [
  "antecedent-kernels",
  "antecedent-learn",
  "antecedent-stats",
+ "serde",
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "antecedent-prob"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
+ "antecedent-stats",
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "antecedent-state"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -275,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-stats"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -285,7 +293,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-validate"
-version = "2.4.1"
+version = "3.0.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -296,8 +304,11 @@ dependencies = [
  "antecedent-identify",
  "antecedent-io-core",
  "antecedent-kernels",
+ "antecedent-learn",
  "antecedent-prob",
  "antecedent-stats",
+ "serde",
+ "serde_json",
  "thiserror 2.0.19",
 ]
 
@@ -321,9 +332,9 @@ checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 
 [[package]]
 name = "arrow-array"
-version = "54.3.1"
+version = "60.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a12fcdb3f1d03f69d3ec26ac67645a8fe3f878d77b5ebb0b15d64a116c212985"
+checksum = "0f3d22a41d3df78b71df0b685af219ae3a94188ab98d6fb29c958eb55c3247f4"
 dependencies = [
  "ahash",
  "arrow-buffer",
@@ -332,37 +343,42 @@ dependencies = [
  "chrono",
  "half",
  "hashbrown",
- "num",
+ "libc",
+ "num-complex",
+ "num-integer",
+ "num-traits",
 ]
 
 [[package]]
 name = "arrow-buffer"
-version = "54.3.1"
+version = "60.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "263f4801ff1839ef53ebd06f99a56cecd1dbaf314ec893d93168e2e860e0291c"
+checksum = "7bd46a530bc1a8e763102fc36c1dc0f51f3ffa150c78e7f5658ccb54b1458ade"
 dependencies = [
  "bytes",
  "half",
- "num",
+ "num-bigint",
+ "num-traits",
 ]
 
 [[package]]
 name = "arrow-data"
-version = "54.3.1"
+version = "60.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61cfdd7d99b4ff618f167e548b2411e5dd2c98c0ddebedd7df433d34c20a4429"
+checksum = "415b7fbc4cf56b080bb5677a4ae74211b5c79e571ed37a1d547633ec07f3b43b"
 dependencies = [
  "arrow-buffer",
  "arrow-schema",
  "half",
- "num",
+ "num-integer",
+ "num-traits",
 ]
 
 [[package]]
 name = "arrow-schema"
-version = "54.3.1"
+version = "60.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39cfaf5e440be44db5413b75b72c2a87c1f8f0627117d110264048f2969b99e9"
+checksum = "de2c8e714b466404cdc1189e89f892426efea614d938e16c15518c340cd43ba3"
 dependencies = [
  "bitflags",
 ]
@@ -954,9 +970,9 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.15.5"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
+checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "heck"
@@ -1183,24 +1199,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "num"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35bd024e8b2ff75562e5f34e7f4905839deb4b22955ef5e73d2fea1b9813cb23"
-dependencies = [
- "num-bigint",
- "num-complex",
- "num-integer",
- "num-iter",
- "num-rational",
- "num-traits",
-]
-
-[[package]]
 name = "num-bigint"
-version = "0.4.8"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367"
+checksum = "93e7820bc0a80a0238e650327316f929ba18d5be054b647490a3a6a339f3e7c0"
 dependencies = [
  "num-integer",
  "num-traits",
@@ -1222,27 +1224,6 @@ version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
 dependencies = [
- "num-traits",
-]
-
-[[package]]
-name = "num-iter"
-version = "0.1.46"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c92800bd69a1eac91786bcfe9da64a897eb72911b8dc3095decbd07429e8048b"
-dependencies = [
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-rational"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f83d14da390562dca69fc84082e73e548e1ad308d24accdedd2720017cb37824"
-dependencies = [
- "num-bigint",
- "num-integer",
  "num-traits",
 ]
 

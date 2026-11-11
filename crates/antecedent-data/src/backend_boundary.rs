@@ -97,18 +97,18 @@ mod tests {
     const DATA_CARGO: &str = include_str!("../Cargo.toml");
 
     #[test]
-    fn workspace_pins_arrow_array_54_and_pyo3_0_29() {
+    fn workspace_pins_arrow_array_60_and_pyo3_0_29() {
         assert!(
-            WORKSPACE_CARGO.contains("arrow-array = { version = \"54\""),
-            "workspace Cargo.toml must pin arrow-array to version 54"
+            WORKSPACE_CARGO.contains("arrow-array = { version = \"60\""),
+            "workspace Cargo.toml must pin arrow-array to version 60"
         );
         assert!(
-            WORKSPACE_CARGO.contains("arrow-schema = { version = \"54\""),
-            "workspace Cargo.toml must pin arrow-schema to version 54"
+            WORKSPACE_CARGO.contains("arrow-schema = { version = \"60\""),
+            "workspace Cargo.toml must pin arrow-schema to version 60"
         );
         assert!(
-            WORKSPACE_CARGO.contains("arrow-buffer = { version = \"54\""),
-            "workspace Cargo.toml must pin arrow-buffer to version 54"
+            WORKSPACE_CARGO.contains("arrow-buffer = { version = \"60\""),
+            "workspace Cargo.toml must pin arrow-buffer to version 60"
         );
         assert!(
             WORKSPACE_CARGO.contains("pyo3 = { version = \"0.29\""),
@@ -146,7 +146,7 @@ mod tests {
         assert!(line_names_polars_crate("polars = { version = \"0.55\" }"));
         assert!(line_names_polars_crate("[dependencies.polars]"));
         assert!(!line_names_polars_crate("# polars = \"0.55\""));
-        assert!(!line_names_polars_crate("arrow-array = { version = \"54\" }"));
+        assert!(!line_names_polars_crate("arrow-array = { version = \"60\" }"));
         assert!(!line_names_polars_crate("polars-arrow = \"1\""));
         let feature_only = "[features]\ndefault = [\"arrow\"]\npolars = []\n";
         assert!(!declares_polars_crate(feature_only));
