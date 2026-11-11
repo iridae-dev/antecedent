@@ -252,7 +252,7 @@ fn validate_over(
     ctx: &ExecutionContext,
 ) -> Result<StudyResult, CausalError> {
     let prepared = base.prepare(ctx)?;
-    match &base.data {
+    let mut result = match &base.data {
         DataInput::Tabular(data) => {
             let result = prepared.estimate(data, ctx)?;
             validate(study, &prepared, result, PreparedTargetData::Tabular(data), ctx)
@@ -269,7 +269,14 @@ fn validate_over(
             let result = prepared.estimate_multi_env(data, ctx)?;
             validate(study, &prepared, result, PreparedTargetData::MultiEnv(data), ctx)
         }
-    }
+    }?;
+    // The base handle estimated at validation none; the result is the validated execution.
+    // Stamp the handle's program under the suite this study requested, on the data it ran on,
+    // so the result's calibration and claim name the validation that actually ran (as the
+    // fresh-run dispatcher does). A study whose stamp cannot be built stays unstamped.
+    result.executed_contract =
+        prepared.executed_contract(&study.data, study.settings.refute, None).ok();
+    Ok(result)
 }
 
 // Keep set/graph-dependent point publication intact. Each report describes one
@@ -539,15 +546,13 @@ fn validate(
             }
         ),
     ));
-    // The handle's contract names a run with no validation, which does not describe this
-    // result. The result carries the status of the validated cell itself: supported when a row
-    // names it, refused otherwise.
+    // The result carries the status of the validated cell itself: supported when a row names
+    // it, refused otherwise. `validate_over` stamps the validated execution.
     result.support_status = Some(if supported {
         crate::support::CellStatus::Supported
     } else {
         crate::support::CellStatus::NotSupported
     });
-    result.executed_contract = None;
     let origin = if static_class_posterior_curve(study) {
         // The wire carries the full report but replay is unresolved; the scalar
         // summary must not be promoted to whole-target authority.
