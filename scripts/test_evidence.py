@@ -406,6 +406,33 @@ class StaticTest:
     problems: list[str]
 
 
+def rust_defining_file(path: Path, name: str) -> Path | None:
+    """The file that defines fn `name` for a citation of the Rust module file `path`.
+
+    A test may be cited by its module file even when it lives in a child module file that
+    file declares (`mod tests;` in `x.rs` lives in `x/tests.rs`). The defining file is
+    `path` itself when it defines the fn, else the one declared child module file that does;
+    None when neither does or two children do. Every reader that keys a citation (gates,
+    registries, records) resolves it here first, so a citation by module file and one by
+    defining file name the same test."""
+    if not path.is_file():
+        return None
+
+    def defines(file: Path) -> bool:
+        return any(it.kind == "fn" and it.name == name for it in rust_items(file)[1])
+
+    if defines(path):
+        return path
+    found = [child for child, _ in _declared_modules(path) if defines(child)]
+    if len(found) != 1:
+        return None
+    child = found[0]
+    try:
+        return ROOT / child.relative_to(ROOT.resolve())
+    except ValueError:
+        return child
+
+
 @source_cache
 def rust_test_features(path: Path, name: str) -> list[str]:
     """Cargo features a feature-gated test needs (on the fn or an enclosing module)."""

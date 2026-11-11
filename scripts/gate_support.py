@@ -386,6 +386,9 @@ def graphless_citation(row: dict) -> tuple[str, str, str] | None:
     if not isinstance(ref, str) or "::" not in ref:
         return None
     path, name = ref.split("::", 1)
+    defining = test_evidence.rust_defining_file(ROOT / path, name) if path.endswith(".rs") else None
+    if defining is not None:
+        path = defining.relative_to(ROOT).as_posix()
     return field_name, path, name
 
 
@@ -610,11 +613,17 @@ def graphless_cited() -> list[tuple[Path, str]]:
     )
     if not cited:
         sys.exit("graphless support evidence list is empty")
-    out = []
+    # A citation by module file resolves to the child module file that defines the test, the
+    # same file the generator's calibration-simulation exclusion keys on.
+    out = set()
     for citation in cited:
-        path, function = citation.split("::")
-        out.append((ROOT / path, function))
-    return out
+        source = graphless.citation_source(citation)
+        if source is None:
+            path, function = citation.split("::")
+            out.add((ROOT / path, function))
+        else:
+            out.add((ROOT / source[0], source[1]))
+    return sorted(out)
 
 
 def graphless_cited_problems(
@@ -635,17 +644,25 @@ def graphless_cited_problems(
 def graphless_self_test() -> None:
     """Stub the cargo listing so the fail-closed behaviour is checked without compiling: a cited
     name listed only under another module, or listed as ignored, must fail; the exact listing
-    must pass."""
+    must pass. A citation by module file resolves to the child module file that defines the
+    test, and a calibration simulation cited that way is still excluded."""
+    import generate_graphless_support as graphless
+
     cited = graphless_cited()
-    targets: dict[tuple[str, tuple[str, ...]], set[str]] = {}
+
+    def listing_key(path: Path, function: str) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
+        _, crate, target = test_evidence.target_root(path)
+        return crate, tuple(target), tuple(sorted(set(test_evidence.rust_test_features(path, function))))
+
+    targets: dict[tuple[str, tuple[str, ...], tuple[str, ...]], set[str]] = {}
     for path, function in cited:
-        root_file, crate, target = test_evidence.target_root(path)
-        targets.setdefault((crate, tuple(target)), set()).add(
+        root_file, _, _ = test_evidence.target_root(path)
+        targets.setdefault(listing_key(path, function), set()).add(
             test_evidence.libtest_name(path, function, root_file)
         )
     path0, function0 = cited[0]
-    root0, crate0, target0 = test_evidence.target_root(path0)
-    key0 = (crate0, tuple(target0))
+    root0, _, _ = test_evidence.target_root(path0)
+    key0 = listing_key(path0, function0)
     full0 = test_evidence.libtest_name(path0, function0, root0)
 
     def run(name: str, listing: dict, ignored: set[str], want_fail: bool) -> None:
@@ -668,6 +685,34 @@ def graphless_self_test() -> None:
     if not graphless_cited_problems([(path0, function0)], excluded):
         sys.exit("graphless self-test: excluded simulation must be incomplete")
     print("ok  excluded simulation is incomplete")
+
+    # A registered simulation that lives in a child module file, cited by its parent module
+    # file: the citation resolves to the defining file, and the exclusion applies to it there.
+    def parent_module(child: Path) -> Path:
+        return child.parent.parent / f"{child.parent.name}.rs"
+
+    simulation = next(
+        (
+            r
+            for r in test_evidence.registered_calibration_simulations()
+            if "/src/" in r["evidence_test"]
+            and Path(r["evidence_test"]).name != "mod.rs"
+            and (ROOT / parent_module(Path(r["evidence_test"]))).is_file()
+        ),
+        None,
+    )
+    if simulation is None:
+        sys.exit("graphless self-test: no registered simulation in a child module file to resolve")
+    child = Path(simulation["evidence_test"])
+    parent = parent_module(child)
+    name = simulation["evidence_assertion"]
+    citation = f"{parent.as_posix()}::{name}"
+    if graphless.citation_source(citation) != (child.as_posix(), name):
+        sys.exit(f"graphless self-test: {citation} must resolve to {child.as_posix()}")
+    print("ok  module-file citation resolves to its child module file")
+    if (child.as_posix(), name) not in graphless.calibration_simulations():
+        sys.exit(f"graphless self-test: {citation} must be a calibration simulation by its defining file")
+    print("ok  simulation cited by module file is excluded by its defining file")
     print("graphless support self-test: ok")
 
 

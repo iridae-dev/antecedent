@@ -762,3 +762,390 @@ fn finite_fixed_class_regret_refuses_unowned_selection_and_sparse_support() {
         .is_err()
     );
 }
+
+// Exact known truth over every assignment: each row has fixed potential outcomes and an
+// independent known assignment law, so averaging an estimator over every assignment, weighted
+// by its probability, is its exact expectation. A row score that depends only on the row's own
+// assignment has expectation equal to that row's true net value, and its independent-row
+// variance estimate has expectation equal to the estimator's variance plus the variation of
+// the per-row truths.
+
+const ENUM_Y0: [f64; 10] = [1.0, 2.5, 0.0, 3.0, 1.5, 4.0, 2.0, 0.5, 3.5, 1.0];
+const ENUM_TAU: [f64; 10] = [2.0, -1.0, 0.5, 1.5, 0.0, 3.0, -0.5, 2.5, 1.0, -2.0];
+const ENUM_P: [f64; 10] = [0.5, 0.3, 0.7, 0.4, 0.6, 0.5, 0.35, 0.65, 0.45, 0.55];
+const ENUM_ACTIONS: [bool; 10] = [true, false, true, true, false, false, true, false, true, false];
+const ENUM_REFERENCE: [bool; 10] =
+    [false, false, true, false, false, true, false, false, false, true];
+const ENUM_COST: f64 = 0.25;
+const ENUM_REFERENCE_COST: f64 = 0.1;
+
+fn assert_close(got: f64, want: f64, what: &str) {
+    assert!((got - want).abs() <= 1e-10 * (1.0 + want.abs()), "{what}: got {got}, want {want}");
+}
+
+fn mean_of(values: &[f64]) -> f64 {
+    values.iter().sum::<f64>() / values.len() as f64
+}
+
+// Expected independent-row variance estimate minus the estimator's variance.
+fn truth_variation(truth: &[f64]) -> f64 {
+    let n = truth.len() as f64;
+    let center = mean_of(truth);
+    truth.iter().map(|t| (t - center).powi(2)).sum::<f64>() / (n * (n - 1.0))
+}
+
+fn enum_potential(i: usize, treated: bool) -> f64 {
+    ENUM_Y0[i] + if treated { ENUM_TAU[i] } else { 0.0 }
+}
+
+fn enum_assignment(mask: usize) -> (Vec<bool>, f64) {
+    let assignment = (0..ENUM_Y0.len()).map(|i| (mask >> i) & 1 == 1).collect::<Vec<_>>();
+    let weight = assignment
+        .iter()
+        .zip(ENUM_P)
+        .map(|(&treated, p)| if treated { p } else { 1.0 - p })
+        .product::<f64>();
+    (assignment, weight)
+}
+
+fn enum_net_truth(recommended: &[bool], cost: f64) -> Vec<f64> {
+    (0..ENUM_Y0.len())
+        .map(|i| enum_potential(i, recommended[i]) - cost * f64::from(recommended[i]))
+        .collect()
+}
+
+// Policy, reference and incremental scores (IPW, or AIPW with frozen predictions that do
+// not depend on the evaluation assignment) and the frozen-rank uplift bins, over all 2^10
+// assignments of ten rows with row-aligned known probabilities.
+fn check_binary_policy_enumeration(nuisance: Option<(&[f64], &[f64])>) {
+    let n = ENUM_Y0.len();
+    let bins = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1];
+    let costs = [ENUM_COST];
+    let reference_costs = [ENUM_REFERENCE_COST];
+    let policy_truth = enum_net_truth(&ENUM_ACTIONS, ENUM_COST);
+    let reference_truth = enum_net_truth(&ENUM_REFERENCE, ENUM_REFERENCE_COST);
+    let incremental_truth =
+        policy_truth.iter().zip(&reference_truth).map(|(a, b)| a - b).collect::<Vec<_>>();
+    let bin_truth = |bin: usize| -> Vec<f64> {
+        (0..n).filter(|&i| bins[i] == bin).map(|i| ENUM_TAU[i]).collect()
+    };
+    let truths = [policy_truth, reference_truth, incremental_truth, bin_truth(0), bin_truth(1)];
+    // Per quantity: E[estimate], E[estimate^2], E[standard error^2].
+    let mut moments = [[0.0_f64; 3]; 5];
+    let mut total = 0.0;
+    for mask in 0_usize..(1 << n) {
+        let (assignment, weight) = enum_assignment(mask);
+        let outcome = (0..n).map(|i| enum_potential(i, assignment[i])).collect::<Vec<_>>();
+        let design = BinaryPolicyDesign {
+            assignment: &assignment,
+            actions: &ENUM_ACTIONS,
+            propensity: &ENUM_P,
+            reference: &ENUM_REFERENCE,
+            costs: &costs,
+            reference_costs: &reference_costs,
+        };
+        let scores = match nuisance {
+            Some((mu0, mu1)) => evaluate_policy_value_scores(&outcome, &design, mu0, mu1),
+            None => evaluate_policy_value_ipw_scores(&outcome, &design),
+        }
+        .unwrap();
+        let uplift = evaluate_uplift_bins(&outcome, &assignment, &ENUM_P, &bins, 2).unwrap();
+        let draws = [
+            (scores.policy_value, scores.policy_standard_error),
+            (scores.reference_value, scores.reference_standard_error),
+            (scores.incremental_value, scores.incremental_standard_error),
+            (uplift[0].effect, uplift[0].standard_error),
+            (uplift[1].effect, uplift[1].standard_error),
+        ];
+        for (moment, (estimate, standard_error)) in moments.iter_mut().zip(draws) {
+            moment[0] += weight * estimate;
+            moment[1] += weight * estimate * estimate;
+            moment[2] += weight * standard_error * standard_error;
+        }
+        total += weight;
+    }
+    assert_close(total, 1.0, "assignment law");
+    let labels =
+        ["policy value", "reference value", "incremental value", "uplift bin 0", "uplift bin 1"];
+    for ((moment, truth), label) in moments.iter().zip(&truths).zip(labels) {
+        assert_close(moment[0], mean_of(truth), &format!("{label} is unbiased"));
+        assert_close(
+            moment[2],
+            moment[1] - moment[0] * moment[0] + truth_variation(truth),
+            &format!("{label} variance estimate"),
+        );
+    }
+}
+
+#[test]
+fn binary_ipw_policy_scores_and_frozen_rank_uplift_bins_are_unbiased_over_every_assignment() {
+    check_binary_policy_enumeration(None);
+}
+
+#[test]
+fn held_out_aipw_policy_scores_and_uplift_bins_are_unbiased_over_every_assignment() {
+    // Frozen predictions trained on other subjects, deliberately wrong: the augmented scores
+    // stay exactly unbiased because the predictions do not depend on the evaluation draw.
+    let mu0 = [0.5, 3.0, -1.0, 2.0, 1.0, 5.0, 0.0, 1.5, 2.0, 2.5];
+    let mu1 = [4.0, 1.0, 0.0, 6.0, 1.0, 6.5, 3.0, 2.0, 3.0, 0.0];
+    check_binary_policy_enumeration(Some((mu0.as_slice(), mu1.as_slice())));
+}
+
+#[test]
+fn crossfit_aipw_policy_scores_are_unbiased_over_every_assignment() {
+    // Five folds of two rows. Each row's predictions are the other folds' observed arm means
+    // (zero when that arm is empty there), so they depend on the other rows' draws but never
+    // on the row's own assignment or outcome. Conditional on the other rows, each augmented
+    // score then has expectation equal to the row's true net value, so the cross-fitted
+    // estimates are exactly unbiased over every assignment.
+    const FOLDS: usize = 5;
+    let n = ENUM_Y0.len();
+    let costs = [ENUM_COST];
+    let reference_costs = [ENUM_REFERENCE_COST];
+    let policy_truth = mean_of(&enum_net_truth(&ENUM_ACTIONS, ENUM_COST));
+    let reference_truth = mean_of(&enum_net_truth(&ENUM_REFERENCE, ENUM_REFERENCE_COST));
+    let mut expected = [0.0_f64; 3];
+    let mut total = 0.0;
+    for mask in 0_usize..(1 << n) {
+        let (assignment, weight) = enum_assignment(mask);
+        let outcome = (0..n).map(|i| enum_potential(i, assignment[i])).collect::<Vec<_>>();
+        let out_of_fold_mean = |i: usize, arm: bool| {
+            let rows = (0..n)
+                .filter(|&j| j % FOLDS != i % FOLDS && assignment[j] == arm)
+                .map(|j| outcome[j])
+                .collect::<Vec<_>>();
+            if rows.is_empty() { 0.0 } else { mean_of(&rows) }
+        };
+        let mu0 = (0..n).map(|i| out_of_fold_mean(i, false)).collect::<Vec<_>>();
+        let mu1 = (0..n).map(|i| out_of_fold_mean(i, true)).collect::<Vec<_>>();
+        let scores = evaluate_policy_value_scores(
+            &outcome,
+            &BinaryPolicyDesign {
+                assignment: &assignment,
+                actions: &ENUM_ACTIONS,
+                propensity: &ENUM_P,
+                reference: &ENUM_REFERENCE,
+                costs: &costs,
+                reference_costs: &reference_costs,
+            },
+            &mu0,
+            &mu1,
+        )
+        .unwrap();
+        expected[0] += weight * scores.policy_value;
+        expected[1] += weight * scores.reference_value;
+        expected[2] += weight * scores.incremental_value;
+        total += weight;
+    }
+    assert_close(total, 1.0, "assignment law");
+    assert_close(expected[0], policy_truth, "cross-fitted policy value is unbiased");
+    assert_close(expected[1], reference_truth, "cross-fitted reference value is unbiased");
+    assert_close(
+        expected[2],
+        policy_truth - reference_truth,
+        "cross-fitted incremental value is unbiased",
+    );
+}
+
+#[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one exact enumeration over the policy, reference and every group contrast"
+)]
+fn multi_action_policy_scores_and_group_contrasts_are_unbiased_over_every_assignment() {
+    use std::sync::Arc;
+    // Rows 0..3 (group g0) and 3..6 (group g1) are enumerated over all 3^6 action draws.
+    // Rows 6..12 hold one row per group fixed at each action; their potential outcomes are
+    // zero under every action, so their scores are the same whatever they draw and fixing
+    // them only guarantees that every group observes every action.
+    const PROBABILITIES: [f64; 3] = [0.5, 0.3, 0.2];
+    let potential: [[f64; 3]; 12] = [
+        [1.0, 3.0, 2.0],
+        [2.0, 2.5, 4.0],
+        [0.5, 1.0, 3.5],
+        [3.0, 1.0, 5.0],
+        [1.5, 4.0, 0.0],
+        [2.5, 2.0, 3.0],
+        [0.0; 3],
+        [0.0; 3],
+        [0.0; 3],
+        [0.0; 3],
+        [0.0; 3],
+        [0.0; 3],
+    ];
+    let n = potential.len();
+    let group_of = |i: usize| usize::from((3..6).contains(&i) || i >= 9);
+    let fixed = [0, 1, 2, 0, 1, 2];
+    let actions = [1, 2, 0, 2, 1, 1, 0, 1, 2, 2, 0, 1];
+    let reference = [0, 0, 1, 0, 0, 2, 0, 0, 0, 1, 0, 0];
+    let costs = [0.0, 0.2, 0.5];
+    let reference_costs = [0.0, 0.1, 0.3];
+    let base = antecedent_core::MultiActionPolicyInputs {
+        action_labels: Arc::from([Arc::from("control"), Arc::from("A"), Arc::from("B")]),
+        assignment: Arc::from(vec![0; n]),
+        actions: Arc::from(actions),
+        reference: Arc::from(reference),
+        propensities: Arc::from((0..n).flat_map(|_| PROBABILITIES).collect::<Vec<_>>()),
+        available: Arc::from(vec![true; n * 3]),
+        costs: Arc::from(costs),
+        reference_costs: Arc::from(reference_costs),
+        capacities: Arc::from([n; 3]),
+        reference_capacities: Arc::from([n; 3]),
+        budget: None,
+        reference_budget: None,
+        cate_groups: Arc::from(
+            (0..n).map(|i| Arc::<str>::from(["g0", "g1"][group_of(i)])).collect::<Vec<_>>(),
+        ),
+    };
+    let policy_truth =
+        (0..n).map(|i| potential[i][actions[i]] - costs[actions[i]]).collect::<Vec<_>>();
+    let reference_truth = (0..n)
+        .map(|i| potential[i][reference[i]] - reference_costs[reference[i]])
+        .collect::<Vec<_>>();
+    let incremental_truth =
+        policy_truth.iter().zip(&reference_truth).map(|(a, b)| a - b).collect::<Vec<_>>();
+    let contrast_truth = |group: usize, action: usize| -> Vec<f64> {
+        (0..n)
+            .filter(|&i| group_of(i) == group)
+            .map(|i| potential[i][action] - potential[i][0])
+            .collect()
+    };
+    let truths = [
+        policy_truth,
+        reference_truth,
+        incremental_truth,
+        contrast_truth(0, 1),
+        contrast_truth(0, 2),
+        contrast_truth(1, 1),
+        contrast_truth(1, 2),
+    ];
+    // Per quantity: E[estimate], E[estimate^2], E[standard error^2].
+    let mut moments = [[0.0_f64; 3]; 7];
+    let mut total = 0.0;
+    for code in 0_usize..729 {
+        let mut assignment = vec![0_usize; n];
+        let mut rest = code;
+        for slot in assignment.iter_mut().take(6) {
+            *slot = rest % 3;
+            rest /= 3;
+        }
+        assignment[6..].copy_from_slice(&fixed);
+        let weight = assignment[..6].iter().map(|&a| PROBABILITIES[a]).product::<f64>();
+        let outcome = (0..n).map(|i| potential[i][assignment[i]]).collect::<Vec<_>>();
+        let mut policy = base.clone();
+        policy.assignment = Arc::from(assignment);
+        let scores = evaluate_multi_action_policy_value_scores(&outcome, &policy).unwrap();
+        let contrasts = evaluate_multi_action_cate(&outcome, &policy).unwrap();
+        assert_eq!(contrasts.len(), 4);
+        assert_eq!((contrasts[2].group.as_str(), contrasts[2].action.as_str()), ("g1", "A"));
+        let draws = [
+            (scores.policy_value, scores.policy_standard_error),
+            (scores.reference_value, scores.reference_standard_error),
+            (scores.incremental_value, scores.incremental_standard_error),
+            (contrasts[0].effect, contrasts[0].standard_error),
+            (contrasts[1].effect, contrasts[1].standard_error),
+            (contrasts[2].effect, contrasts[2].standard_error),
+            (contrasts[3].effect, contrasts[3].standard_error),
+        ];
+        for (moment, (estimate, standard_error)) in moments.iter_mut().zip(draws) {
+            moment[0] += weight * estimate;
+            moment[1] += weight * estimate * estimate;
+            moment[2] += weight * standard_error * standard_error;
+        }
+        total += weight;
+    }
+    assert_close(total, 1.0, "assignment law");
+    let labels = [
+        "policy value",
+        "reference value",
+        "incremental value",
+        "g0 A minus control",
+        "g0 B minus control",
+        "g1 A minus control",
+        "g1 B minus control",
+    ];
+    for ((moment, truth), label) in moments.iter().zip(&truths).zip(labels) {
+        assert_close(moment[0], mean_of(truth), &format!("{label} is unbiased"));
+        assert_close(
+            moment[2],
+            moment[1] - moment[0] * moment[0] + truth_variation(truth),
+            &format!("{label} variance estimate"),
+        );
+    }
+}
+
+#[test]
+fn finite_class_candidate_values_are_unbiased_and_regret_is_their_oracle_gap() {
+    // The first ten of 400 rows are enumerated over all 2^10 assignments. The other rows have
+    // zero potential outcomes and a fixed alternating assignment, so their scores are the
+    // same whatever they draw; they only supply each candidate's matching assignments.
+    const N: usize = 400;
+    const SELECTED: usize = 1;
+    let m = ENUM_Y0.len();
+    let cost = 0.2;
+    let propensity = (0..N).map(|i| if i < m { ENUM_P[i] } else { 0.5 }).collect::<Vec<_>>();
+    let candidates =
+        vec![vec![false; N], vec![true; N], (0..N).map(|i| i % 2 == 0).collect::<Vec<_>>()];
+    let potential = |i: usize, treated: bool| if i < m { enum_potential(i, treated) } else { 0.0 };
+    let row_truth =
+        |j: usize, i: usize| potential(i, candidates[j][i]) - cost * f64::from(candidates[j][i]);
+    let values = (0..candidates.len())
+        .map(|j| (0..N).map(|i| row_truth(j, i)).sum::<f64>() / N as f64)
+        .collect::<Vec<_>>();
+    let mut value_means = vec![0.0; candidates.len()];
+    // Per candidate contrast against the selected one: E[contrast], E[contrast^2], E[se^2].
+    let mut contrast_moments = vec![[0.0_f64; 3]; candidates.len()];
+    let mut regret_mean = 0.0;
+    let mut total = 0.0;
+    for mask in 0_usize..(1 << m) {
+        let (drawn, weight) = enum_assignment(mask);
+        let assignment =
+            (0..N).map(|i| if i < m { drawn[i] } else { i % 2 == 0 }).collect::<Vec<_>>();
+        let outcome = (0..N).map(|i| potential(i, assignment[i])).collect::<Vec<_>>();
+        let estimate = evaluate_fixed_candidate_regret(
+            &outcome,
+            &assignment,
+            &propensity,
+            &candidates,
+            SELECTED,
+            &[cost],
+            true,
+        )
+        .unwrap();
+        let best = estimate.candidate_values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        assert_close(
+            estimate.regret,
+            best - estimate.candidate_values[SELECTED],
+            "plug-in regret is the best candidate minus the selected one",
+        );
+        for j in 0..candidates.len() {
+            let contrast = estimate.candidate_values[j] - estimate.candidate_values[SELECTED];
+            value_means[j] += weight * estimate.candidate_values[j];
+            contrast_moments[j][0] += weight * contrast;
+            contrast_moments[j][1] += weight * contrast * contrast;
+            contrast_moments[j][2] += weight * estimate.contrast_standard_errors[j].powi(2);
+        }
+        regret_mean += weight * estimate.regret;
+        total += weight;
+    }
+    assert_close(total, 1.0, "assignment law");
+    for j in 0..candidates.len() {
+        assert_close(value_means[j], values[j], &format!("candidate {j} value is unbiased"));
+        let paired = (0..N).map(|i| row_truth(j, i) - row_truth(SELECTED, i)).collect::<Vec<_>>();
+        let moment = contrast_moments[j];
+        assert_close(moment[0], values[j] - values[SELECTED], &format!("contrast {j} is unbiased"));
+        assert_close(
+            moment[2],
+            moment[1] - moment[0] * moment[0] + truth_variation(&paired),
+            &format!("contrast {j} variance estimate"),
+        );
+    }
+    // The class oracle gap is the regret target; the plug-in maximum can only overshoot it
+    // in expectation.
+    let oracle_gap = values.iter().copied().fold(f64::NEG_INFINITY, f64::max) - values[SELECTED];
+    assert!(oracle_gap > 0.0, "the selected candidate is not the class oracle");
+    assert!(
+        regret_mean >= oracle_gap - 1e-12,
+        "E[regret] {regret_mean} below the gap {oracle_gap}"
+    );
+}

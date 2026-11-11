@@ -145,5 +145,66 @@ class CitedChecksAreRows(unittest.TestCase):
         self.assertEqual(cited - rows, set())
 
 
+class CitationsResolveToTheirDefiningFile(unittest.TestCase):
+    """The generator's calibration-simulation exclusion and the cited-test gate key a citation
+    on the file that defines the test, so a citation by module file and one by child module
+    file name the same test."""
+
+    def test_a_module_file_citation_resolves_to_the_child_module_file(self):
+        import tempfile
+        from pathlib import Path
+
+        import test_evidence
+
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = Path(tmp) / "value.rs"
+            parent.write_text("pub fn own() {}\n#[cfg(test)]\nmod tests;\nmod other;\n", encoding="utf-8")
+            (Path(tmp) / "value").mkdir()
+            (Path(tmp) / "value" / "tests.rs").write_text(
+                "use super::*;\n#[test]\nfn child_check() {}\n#[test]\nfn twice() {}\n",
+                encoding="utf-8",
+            )
+            (Path(tmp) / "value" / "other.rs").write_text("fn twice() {}\n", encoding="utf-8")
+            child = test_evidence.rust_defining_file(parent, "child_check")
+            self.assertEqual(child.resolve(), (Path(tmp) / "value" / "tests.rs").resolve())
+            self.assertEqual(test_evidence.rust_defining_file(parent, "own"), parent)
+            self.assertIsNone(test_evidence.rust_defining_file(parent, "twice"), "ambiguous child")
+            self.assertIsNone(test_evidence.rust_defining_file(parent, "absent"))
+
+    def test_the_generator_refuses_a_simulation_cited_by_its_module_file(self):
+        import test_evidence
+
+        import generate_graphless_support as graphless
+
+        simulation = next(
+            r for r in test_evidence.registered_calibration_simulations()
+            if r["evidence_test"] == "crates/antecedent-estimate/src/policy_value/tests.rs"
+        )
+        citation = f"crates/antecedent-estimate/src/policy_value.rs::{simulation['evidence_assertion']}"
+        source = graphless.citation_source(citation)
+        self.assertEqual(source, (simulation["evidence_test"], simulation["evidence_assertion"]))
+        self.assertIn(source, graphless.calibration_simulations())
+        row = next(r for r in graphless.load_rows() if r["family"] == "policy_value")
+        with patch.object(graphless, "load_toml", return_value={"support": [{**row, "known_truth_test": citation}]}):
+            with self.assertRaisesRegex(ValueError, "is a calibration simulation"):
+                graphless.load_rows()
+
+    def test_the_gate_resolves_and_excludes_by_the_defining_file(self):
+        import generate_graphless_support as graphless
+
+        cited = gate_support.graphless_cited()
+        self.assertEqual(len(cited), len(set(cited)))
+        for path, function in cited:
+            relative = path.relative_to(gate_support.ROOT).as_posix()
+            self.assertNotIn((relative, function), graphless.calibration_simulations(), relative)
+            self.assertEqual(gate_support.test_evidence.rust_defining_file(path, function), path)
+        simulation = sorted(graphless.calibration_simulations())[0]
+        found = gate_support.graphless_cited_problems(
+            [(gate_support.ROOT / simulation[0], simulation[1])], graphless.calibration_simulations()
+        )
+        self.assertEqual(len(found), 1)
+        self.assertIn("calibration simulation is excluded", found[0])
+
+
 if __name__ == "__main__":
     unittest.main()

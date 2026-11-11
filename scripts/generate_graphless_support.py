@@ -6,8 +6,8 @@ import argparse
 import functools
 import json
 import re
-from pathlib import Path
 
+import test_evidence
 from _repo import REPO_ROOT as ROOT
 from _repo import load_toml
 
@@ -43,30 +43,27 @@ BOOLEAN_REQUIREMENTS = (
 
 
 
-def defining_file(source: Path, function: str) -> Path | None:
-    """The file defining `function` in the Rust module `source`: the file itself or a child
-    module file it declares (`mod tests;` in `x.rs` lives in `x/tests.rs`)."""
-    if not source.is_file():
+def citation_source(citation: str) -> tuple[str, str] | None:
+    """(defining file relative to the repository, function) of a `path::function` citation.
+
+    A citation may name a Rust module file whose child module file defines the test; the
+    calibration-simulation exclusion and the cited-test gate key on the defining file
+    (`test_evidence.rust_defining_file`), so the two always agree."""
+    path, sep, function = citation.partition("::")
+    if not sep or not re.fullmatch(r"[a-zA-Z_][a-zA-Z_0-9]*", function):
         return None
-    text = source.read_text(encoding="utf-8")
-    pattern = rf"\bfn\s+{function}\s*\("
-    if re.search(pattern, text):
-        return source
-    base = source.parent if source.name in ("lib.rs", "main.rs", "mod.rs") else source.with_suffix("")
-    for child in re.findall(r"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z_0-9]*)\s*;", text, re.M):
-        for candidate in (base / f"{child}.rs", base / child / "mod.rs"):
-            if candidate.is_file() and re.search(pattern, candidate.read_text(encoding="utf-8")):
-                return candidate
-    return None
+    source = test_evidence.rust_defining_file(ROOT / path, function)
+    if source is None:
+        return None
+    return source.relative_to(ROOT).as_posix(), function
 
 
 @functools.cache
 def calibration_simulations() -> set[tuple[str, str]]:
-    """Registered repeated-sampling calibration simulations, as (test path, function)."""
+    """Registered repeated-sampling calibration simulations, as (defining file, function)."""
     return {
-        (row["path"], name)
-        for row in load_toml(ROOT / "parity/test_registry.toml").get("test", [])
-        for name in row.get("calibration_simulation_assertions", [])
+        (row["evidence_test"], row["evidence_assertion"])
+        for row in test_evidence.registered_calibration_simulations(ROOT)
     }
 
 
@@ -111,16 +108,17 @@ def load_rows() -> list[dict]:
             if type(row.get(field, False)) is not bool:
                 raise ValueError(f"{key}: {field} must be boolean")
         for evidence in ("known_truth_test", "retained_route_test"):
-            path, sep, function = row[evidence].partition("::")
+            _, sep, function = row[evidence].partition("::")
             if not sep or not re.fullmatch(r"[a-zA-Z_][a-zA-Z_0-9]*", function):
                 raise ValueError(f"{key}: invalid {evidence} citation")
-            source = defining_file(ROOT / path, function)
+            source = citation_source(row[evidence])
             if source is None:
                 raise ValueError(f"{key}: missing {evidence} function")
             # Known truth is a deterministic software-lane check. A repeated-sampling coverage
             # simulation is calibration evidence: it annotates the row's intervals through the
-            # coverage records and never decides whether the row runs.
-            if evidence == "known_truth_test" and (path, function) in calibration_simulations():
+            # coverage records and never decides whether the row runs. The check keys on the
+            # defining file, so citing the simulation by its parent module file cannot pass.
+            if evidence == "known_truth_test" and source in calibration_simulations():
                 raise ValueError(
                     f"{key}: known_truth_test {row[evidence]} is a calibration simulation; "
                     "cite a deterministic known-truth check"
