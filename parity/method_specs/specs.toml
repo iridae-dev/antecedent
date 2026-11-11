@@ -71,7 +71,7 @@ provenance = [
   "estimate.temporal_response.gcomp",
   "estimate.temporal_response.intervention_gcomp",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 30 of 30 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 22 of 22 public items reviewed"
 identifying_result = "PulseEffect identified by temporal.backdoor.unfolded"
 assumptions = "the identification premises of PulseEffect on the recorded route; the module documents no further premise"
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
@@ -419,7 +419,7 @@ decision_basis = "supported per the counterpart inventory; execution crates/ante
 provenance = [
   "estimate.aipw",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 22 of 22 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 23 of 23 public items reviewed"
 identifying_result = "ATT/ATC, trimmed, and predicate-target fits stay on the full-sample path and do not export that table."
 assumptions = "A declared GLM-to-penalized fallback re-runs the whole route with the penalized destination when the GLM propensity fit fails. That function accounts for the estimated propensity and arm share only when *both* nuisance models are consistent: the ATT/ATC point estimate stays doubly robust, but its analytic SE does not, because under a misspecified propensity or outcome model the estimator's influence function picks up nuisance-estimation terms the efficient influence function omits."
 sampling_units = "When the overlap policy sets a trim threshold, units whose raw propensity falls outside [trim, 1 − trim] are excluded from the outcome-model fits and the ψ average (the estimand becomes the common-support population, matching the overlap report)."
@@ -519,7 +519,7 @@ provenance = [
   "estimate.policy_value.ipw",
   "estimate.policy_value.multi_action_ipw",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 25 of 25 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 15 of 15 public items reviewed"
 identifying_result = "policy_value"
 assumptions = "the identification premises of policy_value on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -749,7 +749,7 @@ provenance = [
   "discovery.dbn_posterior",
   "discovery.graph_mcmc",
 ]
-api_review = "parity/public_api/antecedent-discovery.txt: 67 of 67 public items reviewed"
+api_review = "parity/public_api/antecedent-discovery.txt: 64 of 64 public items reviewed"
 identifying_result = "Discover"
 assumptions = "the identification premises of Discover on the recorded route; the module documents no further premise"
 sampling_units = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables and pag_mcmc over two to eight"
@@ -969,6 +969,7 @@ review_status = "admitted"
 admission = "supported"
 decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_response_facade.rs::temporal_dose_horizon_surface_matches_fixture_and_prepared_path; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
+  "estimate.temporal_observed_bayes",
   "estimate.temporal_response.gcomp",
   "estimate.temporal_response.intervention_gcomp",
 ]
@@ -1069,6 +1070,7 @@ review_status = "admitted"
 admission = "supported"
 decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_derivative_effect.rs::temporal_dag_derivatives_publish_the_linear_slope; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty design_aware_resampling (asserted_in_test)"
 provenance = [
+  "estimate.temporal_observed_bayes",
   "estimate.temporal_response.gcomp",
   "estimate.temporal_response.intervention_gcomp",
 ]
@@ -1220,7 +1222,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "estimate.smoothed_dose",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 38 of 38 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 39 of 39 public items reviewed"
 identifying_result = "The bandwidth and the kernel are part of the estimand: psi_h is a different target for each h."
 assumptions = "A randomized continuous source dose A drawn from a known conditional density pi(a | x) on a declared bounded support, a continuous outcome Y, complete baseline covariates X equal to the certified standardizers, and an overlap-supported target population. For each declared grid dose a, one declared bandwidth h and the Epanechnikov kernel K, the estimand is"
 sampling_units = "Every fold model is exported as a provider-independent PortablePredictor and every prediction - the point's and a consumer's replay - is made through it, which makes the point replayable bit for bit from the stored models."
@@ -2755,7 +2757,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "estimate.bayesian_synthetic_control",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 14 of 14 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 12 of 12 public items reviewed"
 identifying_result = "SyntheticControl"
 assumptions = "Checked path crates/antecedent/src/analysis/execute/checked_synthetic_control.rs. Placebo rank is uncalibrated."
 sampling_units = "graphless balanced panel; method=Control|DifferenceInDifferences"
@@ -2914,6 +2916,7 @@ provenance = [
   "estimate.response.temporal.bayesian",
   "estimate.temporal_design_excursion",
   "estimate.temporal_regime_survival",
+  "estimate.temporal_sequential",
   "inverse.cohort_forward_source",
   "inverse.composed_forward_source",
   "inverse.observational_scenarios",
@@ -3018,6 +3021,7 @@ provenance = [
   "estimate.response.temporal.bayesian",
   "estimate.temporal_design_excursion",
   "estimate.temporal_regime_survival",
+  "estimate.temporal_sequential",
   "inverse.cohort_forward_source",
   "inverse.composed_forward_source",
   "inverse.observational_scenarios",
@@ -3171,6 +3175,7 @@ provenance = [
   "estimate.response.temporal.bayesian",
   "estimate.temporal_design_excursion",
   "estimate.temporal_regime_survival",
+  "estimate.temporal_sequential",
   "inverse.cohort_forward_source",
   "inverse.composed_forward_source",
   "inverse.observational_scenarios",
@@ -3275,6 +3280,7 @@ provenance = [
   "estimate.response.temporal.bayesian",
   "estimate.temporal_design_excursion",
   "estimate.temporal_regime_survival",
+  "estimate.temporal_sequential",
   "inverse.cohort_forward_source",
   "inverse.composed_forward_source",
   "inverse.observational_scenarios",
@@ -3328,6 +3334,7 @@ provenance = [
   "estimate.response.point_derivative",
   "estimate.response.riesz_ade",
   "estimate.response.temporal.bayesian",
+  "estimate.temporal_observed_bayes",
   "estimate.temporal_response.gcomp",
   "estimate.temporal_response.intervention_gcomp",
   "estimate.transport.trial_bayesian_bootstrap",
@@ -3390,6 +3397,7 @@ review_status = "admitted"
 admission = "supported"
 decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_temporal_dag_response_route_evidence.rs::temporal_intervention_response_is_sealed_refreshable_and_has_precise_artifact_dependency; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
 provenance = [
+  "estimate.temporal_observed_bayes",
   "estimate.temporal_response.gcomp",
   "estimate.temporal_response.intervention_gcomp",
 ]
@@ -3483,7 +3491,7 @@ provenance = [
   "model.lgssm",
   "model.registry",
 ]
-api_review = "parity/public_api/antecedent.txt: 33 of 46 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 8 of 15 public items reviewed"
 identifying_result = "Counterfactual"
 assumptions = "the identification premises of Counterfactual on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -3510,7 +3518,7 @@ provenance = [
   "estimate.temporal_response.gcomp",
   "estimate.temporal_response.intervention_gcomp",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 30 of 30 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 22 of 22 public items reviewed"
 identifying_result = "Counterfactual identified by temporal.backdoor.unfolded"
 assumptions = "the identification premises of Counterfactual on the recorded route; the module documents no further premise"
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
@@ -4007,7 +4015,7 @@ provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 39 of 39 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 24 of 24 public items reviewed"
 identifying_result = "AverageEffect identified by general.id"
 assumptions = "The estimators here evaluate the functional at each observed value r of its free variables and report Σ_r P̂(r) θ̂(r) / Σ_r P̂(r) over the values at which every required empirical cell exists."
 sampling_units = "P̂(r) comes from the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws reweight it consistently."
@@ -4032,7 +4040,7 @@ provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 39 of 39 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 24 of 24 public items reviewed"
 identifying_result = "AverageEffect"
 assumptions = "The estimators here evaluate the functional at each observed value r of its free variables and report Σ_r P̂(r) θ̂(r) / Σ_r P̂(r) over the values at which every required empirical cell exists."
 sampling_units = "P̂(r) comes from the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws reweight it consistently."
@@ -4058,7 +4066,7 @@ provenance = [
   "estimate.functional_distribution",
   "estimate.functional_effect",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 39 of 39 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 24 of 24 public items reviewed"
 identifying_result = "TemporalAdmg functional.effect is the contemporaneous projection, not Pulse or Sustained"
 assumptions = "Same projection note on InterventionResponse.TemporalAdmg and ResponseCurve.TemporalAdmg."
 sampling_units = "P̂(r) comes from the same row law as the other factors, so bootstrap and Bayesian-bootstrap draws reweight it consistently."
@@ -4431,7 +4439,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "design.evsi",
 ]
-api_review = "parity/public_api/antecedent-design.txt: 44 of 44 public items reviewed"
+api_review = "parity/public_api/antecedent-design.txt: 22 of 22 public items reviewed"
 identifying_result = "ValueOfSampleInformation"
 assumptions = "Per-candidate expected value of sample information with declared integration, cost mapping, rank uncertainty, provider trust and source-overlap diagnostics. NetValueOfInformation = EVSI − StudyCostUtility is reported only when the caller supplies a CostToUtilityMap whose utility unit equals the decision's and whose cost unit equals every candidate's; otherwise value and cost are reported separately and incompatible units refuse."
 sampling_units = "A provider that supplies an observation law (native or external likelihood) is scored through the existing DesignObjective::ReduceDecisionRegret path of DesignRanker (one preposterior analysis per candidate, scheduled with map_indexed), with EVPI and the current Bayes action read from PreposteriorAnalysis."
@@ -4479,7 +4487,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "design.evsi",
 ]
-api_review = "parity/public_api/antecedent-design.txt: 44 of 44 public items reviewed"
+api_review = "parity/public_api/antecedent-design.txt: 22 of 22 public items reviewed"
 identifying_result = "ValueOfSampleInformation"
 assumptions = "Per-candidate expected value of sample information with declared integration, cost mapping, rank uncertainty, provider trust and source-overlap diagnostics. NetValueOfInformation = EVSI − StudyCostUtility is reported only when the caller supplies a CostToUtilityMap whose utility unit equals the decision's and whose cost unit equals every candidate's; otherwise value and cost are reported separately and incompatible units refuse."
 sampling_units = "A provider that supplies an observation law (native or external likelihood) is scored through the existing DesignObjective::ReduceDecisionRegret path of DesignRanker (one preposterior analysis per candidate, scheduled with map_indexed), with EVPI and the current Bayes action read from PreposteriorAnalysis."
