@@ -993,14 +993,16 @@ impl ContinuousResponseEstimator {
                     .map_err(|err| {
                         local_design_refusal(err, &samples[0].treatments, *at, bandwidth)
                     })?;
-                    out.scalar = transform_point_derivative(
-                        p.value,
-                        p.first_derivative,
-                        p.second_derivative,
-                        *at,
-                        *order,
-                        *scale,
-                    )?;
+                    out.scalar = log_scale_draw(p.value, *scale, || {
+                        transform_point_derivative(
+                            p.value,
+                            p.first_derivative,
+                            p.second_derivative,
+                            *at,
+                            *order,
+                            *scale,
+                        )
+                    })?;
                     let c = antecedent_stats::gaussian_local_quadratic_bias_corrected(
                         &samples[0].treatments,
                         &pseudo,
@@ -1011,14 +1013,16 @@ impl ContinuousResponseEstimator {
                     .map_err(|err| {
                         local_design_refusal(err, &samples[0].treatments, *at, bandwidth)
                     })?;
-                    out.corrected = transform_point_derivative(
-                        c.value,
-                        c.first_derivative,
-                        c.second_derivative,
-                        *at,
-                        *order,
-                        *scale,
-                    )?;
+                    out.corrected = log_scale_draw(c.value, *scale, || {
+                        transform_point_derivative(
+                            c.value,
+                            c.first_derivative,
+                            c.second_derivative,
+                            *at,
+                            *order,
+                            *scale,
+                        )
+                    })?;
                 }
                 ResponseFunctional::DirectionalDerivative { at, direction, .. } => {
                     for (s, sample) in samples.iter().enumerate() {
@@ -1222,6 +1226,24 @@ struct DerivativeInputs {
     target_designs: Vec<AdditiveDesign>,
 }
 
+/// A draw's transformed derivative on a log-outcome scale, or NaN when the draw's fitted
+/// response is not positive: such a draw lies outside the scale's parameter space (the scale
+/// presumes a positive response), so it carries no value of the estimand.
+fn log_scale_draw(
+    response: f64,
+    scale: antecedent_core::DerivativeScale,
+    transform: impl FnOnce() -> Result<f64, EstimationError>,
+) -> Result<f64, EstimationError> {
+    if matches!(
+        scale,
+        antecedent_core::DerivativeScale::LogOutcome | antecedent_core::DerivativeScale::LogLog
+    ) && response <= 0.0
+    {
+        return Ok(f64::NAN);
+    }
+    transform()
+}
+
 /// Value and credible uncertainty of a point derivative from its draws. The reported value is
 /// the posterior mean of the local-quadratic estimator; the interval and SD come from the
 /// bias-corrected draws on the same weights, and those are the retained draws.
@@ -1230,8 +1252,35 @@ fn summarize_point_derivative_draws(
     level: f64,
     support: &mut SupportReport,
 ) -> Result<(ResponseValue, ResponseUncertainty), EstimationError> {
-    let scalars: Vec<f64> = draws.iter().map(|d| d.scalar).collect();
-    let corrected_scalars: Vec<f64> = draws.iter().map(|d| d.corrected).collect();
+    // A log-outcome scale is defined only where the fitted response is positive, so the
+    // posterior is restricted to that region: draws outside it are dropped and disclosed. When
+    // they outweigh either tail of the credible interval, the restriction rather than the data
+    // would place an end of the interval, and the scale is refused.
+    let defined: Vec<&DerivativeDraw> =
+        draws.iter().filter(|d| d.scalar.is_finite() && d.corrected.is_finite()).collect();
+    let outside = draws.len() - defined.len();
+    if outside > 0 {
+        #[allow(clippy::cast_precision_loss, reason = "draw counts are far below 2^52")]
+        let share = outside as f64 / draws.len() as f64;
+        if share > (1.0 - level) / 2.0 {
+            return Err(EstimationError::unsupported(
+                "log-outcome derivative scale requires a positive fitted response: more of the \
+                 posterior lies at a non-positive response than either tail of the interval",
+            ));
+        }
+        let mut note = Diagnostic::new(
+            "response.derivative_posterior_positive_response",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "the log-outcome derivative posterior is restricted to a positive fitted response, \
+             where the scale is defined: draws whose fitted response was not positive were \
+             dropped",
+        );
+        note.fields = Arc::from(vec![(Arc::from("dropped_share"), Arc::from(share.to_string()))]);
+        support.warnings.push(note);
+    }
+    let scalars: Vec<f64> = defined.iter().map(|d| d.scalar).collect();
+    let corrected_scalars: Vec<f64> = defined.iter().map(|d| d.corrected).collect();
     let (mean, _, _, _) = summarize_scalar_draws(&scalars, level)?;
     let (corrected_mean, lo, hi, sd) = summarize_scalar_draws(&corrected_scalars, level)?;
     support.warnings.push(bias_corrected_interval_note(true, mean, corrected_mean));
