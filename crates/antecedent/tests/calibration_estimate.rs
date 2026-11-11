@@ -123,9 +123,12 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
         keyed(TEST, "glm_data", "bootstrap_se", REPORTED_LEVEL),
         keyed(TEST, "glm_data", "bootstrap_se", GATE_LEVEL),
     ];
+    // Both methods are scored at both levels in this one test; the analytic tallies are named
+    // apart so each tally's state is stored under its own key.
+    let analytic_name = format!("{TEST} [analytic_se]");
     let mut analytic = [
-        keyed(TEST, "glm_data", "analytic_se", REPORTED_LEVEL),
-        keyed(TEST, "glm_data", "analytic_se", GATE_LEVEL),
+        keyed(TEST, "glm_data", "analytic_se", REPORTED_LEVEL).named(analytic_name.clone()),
+        keyed(TEST, "glm_data", "analytic_se", GATE_LEVEL).named(analytic_name),
     ];
     let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0301, rep);
