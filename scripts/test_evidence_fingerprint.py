@@ -228,6 +228,23 @@ class EmbeddedAndRuntimeInputTests(_InputCase):
             fp.rust_test_side({"evidence_test": "crates/top/tests/cov.rs", "evidence_assertion": "cov_case"}, "top")
         self.assertIn(self.root / "parity/t.toml", used.data_reads(None))
 
+    def test_a_shared_directory_member_no_source_reads_is_reported_unread(self):
+        # A sibling test's oracle sits beside a shared helper module. It is hashed with the
+        # directory, but only the member this target embeds is one of its data reads.
+        self.write("crates/top/tests/oracle/support.rs", "pub fn helper() {}\n")
+        self.write("crates/top/tests/oracle/mine.json", "{}")
+        self.write("crates/top/tests/oracle/other.json", "{}")
+        self.write("crates/top/tests/oracle/other.py", "print()\n")
+        self.write("crates/top/tests/t.rs",
+                   '#[path = "oracle/support.rs"]\nmod support;\n'
+                   'const M: &str = include_str!("oracle/mine.json");\n#[test]\nfn a() {}\n')
+        fp = ef.Fingerprinter(self.root, self.metadata, "", platform=False, environ={})
+        with fp.tracking() as used:
+            fp.parts({"evidence_test": "crates/top/tests/t.rs", "evidence_assertion": "a"})
+        oracle = self.root / "crates/top/tests/oracle"
+        self.assertEqual(used.shared_tree_files - used.declared_files - used.data_reads(None),
+                         {oracle / "other.json", oracle / "other.py"})
+
     def test_host_metadata_in_a_read_directory_is_never_an_input(self):
         self.write("parity/data/a.toml", "a = 1\n")
         self.write("parity/data/.DS_Store", "finder")

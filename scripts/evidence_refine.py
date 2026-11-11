@@ -10,7 +10,8 @@ reads the earn-time analysis saw there, and rewrites the manifest's inputs:
 * `parity/fingerprint_inputs.toml` bound whole becomes the rows of the sources the row's
   dynamic reads consulted (`declarations`), and only those rows' globs stay;
 * a data file or directory listing read only at sites outside the executed items, and not
-  a fixed or declared input, is dropped;
+  a fixed or declared input, is dropped; so is a data file bound only as a member of a
+  shared test directory that no source of the target reads;
 * a Rust file bound whole by raw bytes is bound as code (`text = "rust"`), after checking
   the commit's bytes are the ones bound; one the build never compiled (outside every
   crate's `src/`, not a build script, not read as data) is dropped.
@@ -84,6 +85,9 @@ def refine(root: Path, tree: Path, manifest: dict, row: dict, fingerprinter) -> 
             except ValueError:
                 continue
     consumers = {Path(p).relative_to(tree).as_posix() for p in used.data_reads(None) if Path(p).is_relative_to(tree)}
+    unread_members = {Path(p).relative_to(tree).as_posix()
+                      for p in used.shared_tree_files - used.declared_files - used.data_reads(None)
+                      if Path(p).is_relative_to(tree)}
     spans, whole = _selected_spans(tree, inputs, checker.items.table)
     fixtures = set()
     for rel in row.get("fixtures", []):
@@ -119,7 +123,7 @@ def refine(root: Path, tree: Path, manifest: dict, row: dict, fingerprinter) -> 
         if kind in ("evidence_file", "membership") and path not in FIXED and path not in fixtures \
                 and not path.endswith("Cargo.toml") and not path.endswith(".rs"):
             reads = sites.get(path)
-            if reads and not any(selected(s, p) for s, p in reads):
+            if (path in unread_members and not reads) or (reads and not any(selected(s, p) for s, p in reads)):
                 changed = True
                 continue
         if kind == "evidence_file" and path.endswith(".rs") and entry.get("text") is None:

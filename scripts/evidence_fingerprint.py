@@ -890,6 +890,10 @@ class Usage:
     test_data_files: set[tuple[Path, Path]] = field(default_factory=set)
     # Sources whose `parity/fingerprint_inputs.toml` rows were consulted.
     declaration_sources: set[str] = field(default_factory=set)
+    # Data files hashed as members of a shared test directory, and files a declaration names.
+    # A member no source reads and no declaration names is not an input of the target.
+    shared_tree_files: set[Path] = field(default_factory=set)
+    declared_files: set[Path] = field(default_factory=set)
 
     def merge(self, other: Usage) -> None:
         self.files |= other.files
@@ -897,6 +901,8 @@ class Usage:
         self.data_files |= other.data_files
         self.test_data_files |= other.test_data_files
         self.declaration_sources |= other.declaration_sources
+        self.shared_tree_files |= other.shared_tree_files
+        self.declared_files |= other.declared_files
 
     def data_reads(self, test_crate: Path | None) -> set[Path]:
         """Files read as data by code compiled when `test_crate`'s unit tests (if any) are built."""
@@ -1134,7 +1140,7 @@ class Fingerprinter:
                     if hit.is_dir():
                         self._use(Usage(directories={hit}))
         # A record binds the rows of the sources it consulted, not the whole registry.
-        self._use(Usage(declaration_sources=consulted))
+        self._use(Usage(declaration_sources=consulted, declared_files=set(files)))
         rows_json = json.dumps(
             [{k: row.get(k) for k in ("source", "inputs", "env", "why")} for row in used], sort_keys=True
         )
@@ -1204,6 +1210,8 @@ class Fingerprinter:
         files = self.rust_test_files(row["evidence_test"], crate)
         scan = self.scan_rust([f for f in files if f.suffix == ".rs"], self.crate_dir(crate), test_build=True)
         declared, env = self.declared(scan.dynamic)
+        tests = self.root / "crates" / crate / "tests"
+        self._use(Usage(shared_tree_files={f for f in files if f.suffix != ".rs" and f.parent != tests}))
         scan = Scan(scan.files, scan.env | env, scan.markers, scan.dynamic, scan.directories, scan.data_files,
                     scan.test_data_files, scan.sites)
         return _sha(self._tree(files), self._scan_digest(scan), declared), scan

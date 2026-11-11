@@ -547,13 +547,36 @@ def cmd_refine(root: Path, args: argparse.Namespace) -> int:
         ref = record.get("dependency_manifest")
         if ref and selector in rows:
             work.append((record, checker.load(ref), rows[selector]))
+    # Calibration measurements and probe attestations are bound by the same rules, from the
+    # row of the measurement's test. A manifest is content-addressed and named nowhere but
+    # its record, so the reference is rewritten in place.
+    import _repo
+    from calibration_status import load_attestations
+    from evidence_fingerprint import coverage_row
+    coverage = {str(r.get("id")): r for r in _repo.load_toml(root / "parity/coverage_records.toml").get("record", [])}
+    stores = {"parity/coverage_records.toml": list(coverage.values()),
+              "parity/calibration_probe_attestations.toml":
+                  [r for r in load_attestations(root / "parity/calibration_probe_attestations.toml")
+                   if str(r.get("record_id")) in coverage]}
+    for rows_ in stores.values():
+        for row in rows_:
+            measured = coverage[str(row.get("record_id", row.get("id")))]
+            if row.get("dependency_manifest") and measured.get("test"):
+                work.append((row, checker.load(row["dependency_manifest"]),
+                             coverage_row(measured["test"], measured.get("dgp", ""))))
     moved = refine_records(root, work)
     if moved:
         for record in records.values():
             if record.get("dependency_manifest") in moved:
                 record["dependency_manifest"] = moved[record["dependency_manifest"]]
         write_records(root, records)
-    print(f"scientific records: refined {len(moved)} manifest(s) without running anything")
+        for rel in stores:
+            path = root / rel
+            text = path.read_text(encoding="utf-8")
+            for old, new in moved.items():
+                text = text.replace(f'dependency_manifest = "{old}"', f'dependency_manifest = "{new}"')
+            path.write_text(text, encoding="utf-8")
+    print(f"evidence records: refined {len(moved)} manifest(s) without running anything")
     return cmd_prune(root, args)
 
 

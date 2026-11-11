@@ -189,6 +189,10 @@ class Snapshot:
         for scan, _ in fp._file_scans.values():
             for source, position, target in scan.sites:
                 self.data_sites.setdefault(target.resolve(), set()).add((source.resolve(), position))
+        # Members of a shared test directory that no scanned source reads and no declaration
+        # names: another test's data, hashed with the directory, never an input of this target.
+        self.unread_members = {p.resolve() for p in used.shared_tree_files
+                               - used.declared_files - used.data_reads(test_crate)}
         env_names = {'ANTECEDENT_SCIENTIFIC_FEATURES', *parts.get('env', {}).get('hashed', {})}
         wrong = noncanonical_environment(os.environ, env_names)
         if wrong:
@@ -624,7 +628,9 @@ def select_items(snapshot: Snapshot, directory: Path, coverage: dict[str, set[tu
                 or target.suffix == '.rs'):
             return False
         sites = snapshot.data_sites.get(target)
-        return bool(sites) and not any(selected(source, position) for source, position in sites)
+        if not sites:
+            return target in snapshot.unread_members
+        return not any(selected(source, position) for source, position in sites)
 
     compiled = set(inventory.by_file) | {m['file'] for m in inventory.modules.values()}
 
