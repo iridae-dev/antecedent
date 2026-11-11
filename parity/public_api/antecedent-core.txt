@@ -15239,6 +15239,7 @@ pub variant antecedent_core::execution_facts::OutputRetention::DiskBacked
 pub variant antecedent_core::execution_facts::OutputRetention::FullReusable
 pub variant antecedent_core::execution_facts::OutputRetention::SummaryOnly
 pub variant antecedent_core::execution_facts::OutputRetention::Unmeasured
+pub variant antecedent_core::graph_imputation_contract::GraphSupport::PreTreatmentCovariates
 pub variant antecedent_core::graph_imputation_contract::GraphSupport::TreatmentDirectEffect
 pub variant antecedent_core::graph_imputation_contract::GraphSupport::TreatmentRootDirectEffect
 pub variant antecedent_core::identity::DependencyAxis::Design

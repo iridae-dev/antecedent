@@ -81,6 +81,12 @@ pub enum GraphSupport {
     /// Treatment has a direct arrow to the outcome and may have parents. Adjustment sets differ
     /// between graphs, so the mixture carries uncertainty about which variables confound.
     TreatmentDirectEffect,
+    /// As [`Self::TreatmentDirectEffect`], and every other variable is a pre-treatment covariate:
+    /// none is a descendant of the treatment. Without this background knowledge a confounder
+    /// graph is Markov equivalent to the graphs that orient the same covariate as a mediator or
+    /// a collider, which adjust for nothing; the declaration excludes them, so the mixture
+    /// carries uncertainty only about which covariates confound.
+    PreTreatmentCovariates,
 }
 
 impl GraphSupport {
@@ -90,6 +96,7 @@ impl GraphSupport {
         match self {
             Self::TreatmentRootDirectEffect => 1,
             Self::TreatmentDirectEffect => 2,
+            Self::PreTreatmentCovariates => 3,
         }
     }
     /// Inverse of [`Self::tag`].
@@ -98,6 +105,7 @@ impl GraphSupport {
         match tag {
             1 => Some(Self::TreatmentRootDirectEffect),
             2 => Some(Self::TreatmentDirectEffect),
+            3 => Some(Self::PreTreatmentCovariates),
             _ => None,
         }
     }
@@ -107,12 +115,13 @@ impl GraphSupport {
         match self {
             Self::TreatmentRootDirectEffect => "treatment_root_direct_effect",
             Self::TreatmentDirectEffect => "treatment_direct_effect",
+            Self::PreTreatmentCovariates => "pre_treatment_covariates",
         }
     }
     /// Inverse of [`Self::as_str`].
     #[must_use]
     pub fn from_label(label: &str) -> Option<Self> {
-        [Self::TreatmentRootDirectEffect, Self::TreatmentDirectEffect]
+        [Self::TreatmentRootDirectEffect, Self::TreatmentDirectEffect, Self::PreTreatmentCovariates]
             .into_iter()
             .find(|support| support.as_str() == label)
     }

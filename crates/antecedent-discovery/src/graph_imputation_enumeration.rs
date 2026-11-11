@@ -55,7 +55,32 @@ pub fn graph_imputation_supported_mask(
                 (0..n).all(|parent| parent == treatment || !mask.has_edge(n, parent, treatment))
             }
             GraphSupport::TreatmentDirectEffect => true,
+            GraphSupport::PreTreatmentCovariates => {
+                no_covariate_descends_from_treatment(mask, n, treatment, outcome)
+            }
         }
+}
+
+/// Whether every variable other than the treatment and the outcome is a non-descendant of the
+/// treatment: a pre-treatment covariate. The outcome is a child of the treatment, so this also
+/// forbids an arrow from the outcome into a covariate.
+fn no_covariate_descends_from_treatment(
+    mask: &AdjacencyMask,
+    n: usize,
+    treatment: usize,
+    outcome: usize,
+) -> bool {
+    let mut descendant = vec![false; n];
+    let mut stack = vec![treatment];
+    while let Some(node) = stack.pop() {
+        for child in 0..n {
+            if child != node && !descendant[child] && mask.has_edge(n, node, child) {
+                descendant[child] = true;
+                stack.push(child);
+            }
+        }
+    }
+    (0..n).all(|node| node == treatment || node == outcome || !descendant[node])
 }
 
 /// Every labeled DAG on `n` nodes as an adjacency word, in increasing order, generated directly.
@@ -325,6 +350,31 @@ mod graph_imputation_budget_tests {
             graph_imputation_supported_masks(9, 0, 1, GraphSupport::TreatmentDirectEffect)
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn pre_treatment_covariates_exclude_every_graph_where_a_covariate_descends_from_treatment() {
+        let support = GraphSupport::PreTreatmentCovariates;
+        let masks = |n| graph_imputation_supported_masks(n, 0, 1, support);
+        // Three variables: X may point into T, into Y, both or neither; the mediator
+        // (T -> X -> Y) and collider (T -> X <- Y) orientations of the confounder are excluded.
+        assert_eq!(masks(2).len(), 1);
+        assert_eq!(masks(3).len(), 4);
+        // Four variables: a DAG on the two covariates (three) times each covariate's arrows
+        // into T and Y (four each).
+        assert_eq!(masks(4).len(), 48);
+        for n in 3..=4 {
+            for &word in &masks(n) {
+                let mask = AdjacencyMask::from_word(word);
+                for covariate in 2..n {
+                    assert!(!mask.has_edge(n, 0, covariate), "treatment into a covariate");
+                    assert!(!mask.has_edge(n, 1, covariate), "outcome into a covariate");
+                }
+            }
+        }
+        // Every retained graph is a direct-effect graph.
+        let direct = graph_imputation_supported_masks(4, 0, 1, GraphSupport::TreatmentDirectEffect);
+        assert!(masks(4).iter().all(|word| direct.contains(word)));
     }
 
     #[test]

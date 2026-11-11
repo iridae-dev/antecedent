@@ -119,10 +119,13 @@ fn prior_predictive_cell(
     confounding: f64,
     seed_base: u64,
 ) {
+    // Where the covariates confound, the declared background knowledge is that they are
+    // pre-treatment: without it the confounder graph is Markov equivalent to its mediator and
+    // collider orientations, which adjust for nothing, and no fixed-graph truth is covered.
     let support = if confounding == 0.0 {
         GraphImputationSupport::TreatmentRootDirectEffect
     } else {
-        GraphImputationSupport::TreatmentDirectEffect
+        GraphImputationSupport::PreTreatmentCovariates
     };
     let n = grid_n(200);
     let results = map_replicates(n_sim(), |replicate| {
@@ -168,8 +171,9 @@ fn graph_imputation_prior_predictive_uniform_effect_candidate() {
     );
 }
 
-/// Three variables, the covariate confounds: adjustment sets differ between graphs. Every graph
-/// has a unique minimal back-door set, so the support rule excludes none.
+/// Three variables, the covariate confounds and is declared pre-treatment: adjustment sets differ
+/// between graphs. Every graph has a unique minimal back-door set, so the support rule excludes
+/// none.
 #[test]
 #[ignore = "calibration: run through scripts/measure_calibration.sh"]
 fn graph_imputation_prior_predictive_confounded_candidate() {
@@ -195,9 +199,9 @@ fn graph_imputation_prior_predictive_four_variable_candidate() {
     );
 }
 
-/// Four variables, both covariates confound: the largest graph with differing adjustment sets.
-/// The support is the direct-effect graphs whose treatment-to-outcome effect has a unique minimal
-/// back-door adjustment set; graphs with two minimal sets are excluded and the mixture weights
+/// Four variables, both covariates confound and are declared pre-treatment: the largest graph
+/// with differing adjustment sets. The support is the pre-treatment-covariate graphs whose
+/// treatment-to-outcome effect has a unique minimal back-door adjustment set; graphs with two minimal sets are excluded and the mixture weights
 /// the retained graphs only, so a record measured here covers that support rule and no other.
 #[test]
 #[ignore = "calibration: run through scripts/measure_calibration.sh"]

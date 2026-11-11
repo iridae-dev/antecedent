@@ -193,6 +193,7 @@ pub(crate) fn lower(
     declaration.text(match input.support {
         GraphSupport::TreatmentRootDirectEffect => "treatment_root_direct_effect.v1",
         GraphSupport::TreatmentDirectEffect => "treatment_direct_effect.v1",
+        GraphSupport::PreTreatmentCovariates => "pre_treatment_covariates.v1",
     });
     declaration
         .text(antecedent_core::graph_imputation_contract::SUPPORT_RULE)
