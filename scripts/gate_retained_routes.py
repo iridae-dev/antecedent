@@ -229,7 +229,7 @@ REENTRY_GUARDED = (
 # Entries that require the plan's lowered program and run inside its dispatch scope.
 DISPATCH_ENTRIES = (
     (f"{ANALYSIS}/execute/dispatch.rs", "fn execute_on("),
-    (f"{ANALYSIS}/execute/dispatch.rs", "fn execute_tabular("),
+    (f"{ANALYSIS}/execute/dispatch/tabular.rs", "fn execute_tabular("),
     (f"{ANALYSIS}/prepared/estimate.rs", "fn estimate_with_shared_unnamed("),
     (f"{ANALYSIS}/prepared/lifecycle.rs", "fn run_sealed_series("),
 )

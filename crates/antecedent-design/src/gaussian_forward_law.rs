@@ -1,8 +1,6 @@
 //! Analytic univariate intervention laws, conditional on composed mechanism parameters.
 //! Outcome variance is retained; no parameter posterior or calibrated sampling interval is implied.
 
-#![allow(clippy::float_cmp, reason = "exact zeros select polynomial degree and degenerate laws")]
-
 use crate::decision_contract::{DecisionContract, DecisionFunctional, Tail, UtilityExpr};
 use crate::decision_eval::{DecisionEvalError, SourceReceipt};
 use antecedent_contract::ScientificQuantity;
@@ -65,6 +63,10 @@ impl GaussianForwardLaw {
     ///
     /// # Errors
     /// Invalid law, missing coordinate, unsupported expression, or non-finite arithmetic.
+    #[allow(
+        clippy::float_cmp,
+        reason = "an exact zero coefficient or spread selects a degenerate law"
+    )]
     pub fn evaluate(
         &self,
         contract: &DecisionContract,
@@ -129,6 +131,7 @@ impl GaussianForwardLaw {
     }
 }
 
+#[allow(clippy::float_cmp, reason = "exact zero coefficients select the polynomial degree")]
 fn polynomial(expr: &UtilityExpr) -> Option<[f64; 3]> {
     use UtilityExpr as U;
     let out = match expr {
