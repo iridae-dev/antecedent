@@ -93,6 +93,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -890,6 +891,14 @@ def toml_value(key: str, value) -> str:
 FINGERPRINT_INPUTS = ("crates", "python", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "rust-toolchain")
 
 
+_BIND = None
+
+
+def _bind_forked(rid: str):
+    """Pool entry point: the binder `stamp_fingerprints` set before forking."""
+    return _BIND(rid)
+
+
 def stamp_fingerprints(records: dict[str, dict], sha: str, log_dir: Path = LOG_DIR) -> None:
     """Stamp each record with the fingerprint of its test target in the tree.
 
@@ -916,20 +925,43 @@ def stamp_fingerprints(records: dict[str, dict], sha: str, log_dir: Path = LOG_D
     fp = calibration_status.tree_fingerprinter()
     fingerprints = calibration_status.identity_fingerprints(list(records.values()), fp)
     runs = record_runs(log_dir)
-    allowed: dict[str, str] = {}
-    for rid, rec in records.items():
-        if not fingerprints.get(rid):
-            continue
-        rec["fingerprint"] = fingerprints[rid]
-        # Bind the record to the Nix-built binary that measured it and to the items
-        # its runs executed, as a scientific record is (`publish_executed`).
+    import evidence_earning
+    # Each record's manifest is independent and content-addressed, so records are bound in
+    # parallel: workers forked after the first record share its warm source scans, build
+    # their manifests without writing (every record checks the checkout is clean), and the
+    # stores are written once all are built.
+    stored_writes: list[tuple[Path, str, bytes]] = []
+    real_write = evidence_earning._write_addressed
+
+    def recording_write(directory: Path, address: str, data: bytes, root: Path) -> str:
+        stored_writes.append((directory, address, data))
+        return str((directory / f"{address}.json").relative_to(root))
+
+    def bind(rid: str) -> tuple[str, str, list]:
+        stored_writes.clear()
+        rec = records[rid]
         built, coverage = run_evidence(ROOT, log_dir, runs.get(rid, set()))
         snapshot = Snapshot(ROOT, coverage_row(rec['test'], rec.get('dgp', '')),
-                            measurement_binding(rec), fp, nix_build=built, allowed_outputs=allowed)
+                            measurement_binding(rec), fp, nix_build=built, allowed_outputs={})
         snapshot.verify_commit(sha)
-        rec['dependency_manifest'] = publish_executed(snapshot, built, coverage)
-        for output in snapshot.outputs:
-            _remember_nix_output(ROOT, allowed, output)
+        return rid, publish_executed(snapshot, built, coverage), list(stored_writes)
+
+    evidence_earning._write_addressed = recording_write
+    todo = [rid for rid in records if fingerprints.get(rid)]
+    for rid in todo:
+        records[rid]["fingerprint"] = fingerprints[rid]
+    results = [bind(todo[0])] if todo else []
+    if len(todo) > 1:
+        import multiprocessing
+        global _BIND
+        _BIND = bind
+        with multiprocessing.get_context("fork").Pool(os.cpu_count() or 4) as pool:
+            results += pool.map(_bind_forked, todo[1:], chunksize=4)
+    evidence_earning._write_addressed = real_write
+    for rid, ref, writes in results:
+        records[rid]['dependency_manifest'] = ref
+        for directory, address, data in writes:
+            real_write(directory, address, data, ROOT)
 
 
 def existing_records() -> dict[str, dict]:

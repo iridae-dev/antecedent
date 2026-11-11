@@ -140,6 +140,23 @@ def untracked(root: Path, paths: list[str]) -> list[str]:
     return sorted(set(found))
 
 
+
+def _commit_state(root: Path, sha: str) -> tuple[frozenset, frozenset]:
+    """The tracked paths, and the paths that differ from `sha`, read once per checkout state.
+
+    A collection checks every record's inputs against one commit while nothing is written;
+    the key includes `git status`, so any change to the checkout reads both sets again."""
+    status = subprocess.check_output(['git', 'status', '--porcelain=v1', '-z', '--untracked-files=all'], cwd=root)
+    key = (str(root), sha, status)
+    if key not in _COMMIT_STATES:
+        tracked = frozenset(subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).decode().split('\0'))
+        changed = frozenset(subprocess.check_output(['git', 'diff', '--name-only', '-z', sha], cwd=root).decode().split('\0'))
+        _COMMIT_STATES[key] = (tracked, changed)
+    return _COMMIT_STATES[key]
+
+
+_COMMIT_STATES: dict[tuple, tuple[frozenset, frozenset]] = {}
+
 class Snapshot:
     """The inputs of one evidence record, taken before it executes.
 
@@ -411,14 +428,11 @@ class Snapshot:
     def verify_commit(self, sha: str) -> None:
         """Collected logs may attest only inputs actually present in their commit."""
         files = [i['path'] for i in self.manifest['inputs'] if i['kind'] == 'evidence_file' and (self.root / i['path']).is_file()]
-        for offset in range(0, len(files), 100):
-            batch = files[offset:offset + 100]
-            tracked = set(subprocess.check_output(['git', 'ls-files', '-z', '--', *batch], cwd=self.root).decode().split('\0'))
-            if any(path not in tracked for path in batch):
-                raise RuntimeError('measurement inputs are not all tracked at the measured commit')
-            changed = subprocess.run(['git', 'diff', '--quiet', sha, '--', *batch], cwd=self.root).returncode
-            if changed:
-                raise RuntimeError('measurement inputs differ from the measured commit')
+        tracked, changed = _commit_state(self.root, sha)
+        if any(path not in tracked for path in files):
+            raise RuntimeError('measurement inputs are not all tracked at the measured commit')
+        if any(path in changed for path in files):
+            raise RuntimeError('measurement inputs differ from the measured commit')
 
     def publish(self) -> str:
         if self.nix_build is not None and not self.nix_executed:
