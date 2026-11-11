@@ -859,6 +859,8 @@ impl core::clone::Clone for antecedent_io_core::sensitivity_artifact::SourceTipp
 impl core::clone::Clone for antecedent_io_core::sensitivity_artifact::SurfaceQuantity
 impl core::clone::Clone for antecedent_io_core::sensitivity_artifact::UncertaintyRelationship
 impl core::clone::Clone for antecedent_io_core::sensitivity_artifact::UtilityTerm
+impl core::clone::Clone for antecedent_io_core::staleness_artifact::GraphImplicationsWire
+impl core::clone::Clone for antecedent_io_core::staleness_artifact::ImpliedIndependenceWire
 impl core::clone::Clone for antecedent_io_core::staleness_artifact::JointProfileWire
 impl core::clone::Clone for antecedent_io_core::staleness_artifact::LevelCountWire
 impl core::clone::Clone for antecedent_io_core::staleness_artifact::MissingPatternWire
@@ -2128,6 +2130,8 @@ impl core::cmp::PartialEq for antecedent_io_core::sensitivity_artifact::SourceTi
 impl core::cmp::PartialEq for antecedent_io_core::sensitivity_artifact::SurfaceQuantity
 impl core::cmp::PartialEq for antecedent_io_core::sensitivity_artifact::UncertaintyRelationship
 impl core::cmp::PartialEq for antecedent_io_core::sensitivity_artifact::UtilityTerm
+impl core::cmp::PartialEq for antecedent_io_core::staleness_artifact::GraphImplicationsWire
+impl core::cmp::PartialEq for antecedent_io_core::staleness_artifact::ImpliedIndependenceWire
 impl core::cmp::PartialEq for antecedent_io_core::staleness_artifact::JointProfileWire
 impl core::cmp::PartialEq for antecedent_io_core::staleness_artifact::LevelCountWire
 impl core::cmp::PartialEq for antecedent_io_core::staleness_artifact::MissingPatternWire
@@ -3143,6 +3147,8 @@ impl core::fmt::Debug for antecedent_io_core::sensitivity_artifact::SourceTippin
 impl core::fmt::Debug for antecedent_io_core::sensitivity_artifact::SurfaceQuantity
 impl core::fmt::Debug for antecedent_io_core::sensitivity_artifact::UncertaintyRelationship
 impl core::fmt::Debug for antecedent_io_core::sensitivity_artifact::UtilityTerm
+impl core::fmt::Debug for antecedent_io_core::staleness_artifact::GraphImplicationsWire
+impl core::fmt::Debug for antecedent_io_core::staleness_artifact::ImpliedIndependenceWire
 impl core::fmt::Debug for antecedent_io_core::staleness_artifact::JointProfileWire
 impl core::fmt::Debug for antecedent_io_core::staleness_artifact::LevelCountWire
 impl core::fmt::Debug for antecedent_io_core::staleness_artifact::MissingPatternWire
@@ -4181,6 +4187,8 @@ impl core::marker::Freeze for antecedent_io_core::sensitivity_artifact::SourceTi
 impl core::marker::Freeze for antecedent_io_core::sensitivity_artifact::SurfaceQuantity [auto]
 impl core::marker::Freeze for antecedent_io_core::sensitivity_artifact::UncertaintyRelationship [auto]
 impl core::marker::Freeze for antecedent_io_core::sensitivity_artifact::UtilityTerm [auto]
+impl core::marker::Freeze for antecedent_io_core::staleness_artifact::GraphImplicationsWire [auto]
+impl core::marker::Freeze for antecedent_io_core::staleness_artifact::ImpliedIndependenceWire [auto]
 impl core::marker::Freeze for antecedent_io_core::staleness_artifact::JointProfileWire [auto]
 impl core::marker::Freeze for antecedent_io_core::staleness_artifact::LevelCountWire [auto]
 impl core::marker::Freeze for antecedent_io_core::staleness_artifact::MissingPatternWire [auto]
@@ -5037,6 +5045,8 @@ impl core::marker::Send for antecedent_io_core::sensitivity_artifact::SurfaceQua
 impl core::marker::Send for antecedent_io_core::sensitivity_artifact::UncertaintyRelationship [auto]
 impl core::marker::Send for antecedent_io_core::sensitivity_artifact::UtilityTerm [auto]
 impl core::marker::Send for antecedent_io_core::staleness_artifact::AdmittedStalenessBaseline [auto]
+impl core::marker::Send for antecedent_io_core::staleness_artifact::GraphImplicationsWire [auto]
+impl core::marker::Send for antecedent_io_core::staleness_artifact::ImpliedIndependenceWire [auto]
 impl core::marker::Send for antecedent_io_core::staleness_artifact::JointProfileWire [auto]
 impl core::marker::Send for antecedent_io_core::staleness_artifact::LevelCountWire [auto]
 impl core::marker::Send for antecedent_io_core::staleness_artifact::MissingPatternWire [auto]
@@ -5840,6 +5850,8 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::sensitivity_artif
 impl core::marker::StructuralPartialEq for antecedent_io_core::sensitivity_artifact::SurfaceQuantity
 impl core::marker::StructuralPartialEq for antecedent_io_core::sensitivity_artifact::UncertaintyRelationship
 impl core::marker::StructuralPartialEq for antecedent_io_core::sensitivity_artifact::UtilityTerm
+impl core::marker::StructuralPartialEq for antecedent_io_core::staleness_artifact::GraphImplicationsWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::staleness_artifact::ImpliedIndependenceWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::staleness_artifact::JointProfileWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::staleness_artifact::LevelCountWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::staleness_artifact::MissingPatternWire
@@ -6688,6 +6700,8 @@ impl core::marker::Sync for antecedent_io_core::sensitivity_artifact::SurfaceQua
 impl core::marker::Sync for antecedent_io_core::sensitivity_artifact::UncertaintyRelationship [auto]
 impl core::marker::Sync for antecedent_io_core::sensitivity_artifact::UtilityTerm [auto]
 impl core::marker::Sync for antecedent_io_core::staleness_artifact::AdmittedStalenessBaseline [auto]
+impl core::marker::Sync for antecedent_io_core::staleness_artifact::GraphImplicationsWire [auto]
+impl core::marker::Sync for antecedent_io_core::staleness_artifact::ImpliedIndependenceWire [auto]
 impl core::marker::Sync for antecedent_io_core::staleness_artifact::JointProfileWire [auto]
 impl core::marker::Sync for antecedent_io_core::staleness_artifact::LevelCountWire [auto]
 impl core::marker::Sync for antecedent_io_core::staleness_artifact::MissingPatternWire [auto]
@@ -7544,6 +7558,8 @@ impl core::marker::Unpin for antecedent_io_core::sensitivity_artifact::SurfaceQu
 impl core::marker::Unpin for antecedent_io_core::sensitivity_artifact::UncertaintyRelationship [auto]
 impl core::marker::Unpin for antecedent_io_core::sensitivity_artifact::UtilityTerm [auto]
 impl core::marker::Unpin for antecedent_io_core::staleness_artifact::AdmittedStalenessBaseline [auto]
+impl core::marker::Unpin for antecedent_io_core::staleness_artifact::GraphImplicationsWire [auto]
+impl core::marker::Unpin for antecedent_io_core::staleness_artifact::ImpliedIndependenceWire [auto]
 impl core::marker::Unpin for antecedent_io_core::staleness_artifact::JointProfileWire [auto]
 impl core::marker::Unpin for antecedent_io_core::staleness_artifact::LevelCountWire [auto]
 impl core::marker::Unpin for antecedent_io_core::staleness_artifact::MissingPatternWire [auto]
@@ -8400,6 +8416,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::sensitivity
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::sensitivity_artifact::UncertaintyRelationship [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::sensitivity_artifact::UtilityTerm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::staleness_artifact::AdmittedStalenessBaseline [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::staleness_artifact::GraphImplicationsWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::staleness_artifact::ImpliedIndependenceWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::staleness_artifact::JointProfileWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::staleness_artifact::LevelCountWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::staleness_artifact::MissingPatternWire [auto]
@@ -9255,6 +9273,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::sensitivity_ar
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::sensitivity_artifact::UncertaintyRelationship [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::sensitivity_artifact::UtilityTerm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::staleness_artifact::AdmittedStalenessBaseline [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::staleness_artifact::GraphImplicationsWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::staleness_artifact::ImpliedIndependenceWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::staleness_artifact::JointProfileWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::staleness_artifact::LevelCountWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::staleness_artifact::MissingPatternWire [auto]
@@ -9919,6 +9939,8 @@ impl serde_core::ser::Serialize for antecedent_io_core::sensitivity_artifact::Se
 impl serde_core::ser::Serialize for antecedent_io_core::sensitivity_artifact::SourceTipping
 impl serde_core::ser::Serialize for antecedent_io_core::sensitivity_artifact::UncertaintyRelationship
 impl serde_core::ser::Serialize for antecedent_io_core::sensitivity_artifact::UtilityTerm
+impl serde_core::ser::Serialize for antecedent_io_core::staleness_artifact::GraphImplicationsWire
+impl serde_core::ser::Serialize for antecedent_io_core::staleness_artifact::ImpliedIndependenceWire
 impl serde_core::ser::Serialize for antecedent_io_core::staleness_artifact::JointProfileWire
 impl serde_core::ser::Serialize for antecedent_io_core::staleness_artifact::LevelCountWire
 impl serde_core::ser::Serialize for antecedent_io_core::staleness_artifact::MissingPatternWire
@@ -10680,6 +10702,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::sensitivity_a
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::sensitivity_artifact::SourceTipping
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::sensitivity_artifact::UncertaintyRelationship
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::sensitivity_artifact::UtilityTerm
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::staleness_artifact::GraphImplicationsWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::staleness_artifact::ImpliedIndependenceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::staleness_artifact::JointProfileWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::staleness_artifact::LevelCountWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::staleness_artifact::MissingPatternWire
@@ -11031,6 +11055,7 @@ pub const antecedent_io_core::staleness_artifact::STALENESS_BASELINE_MAGIC: &[u8
 pub const antecedent_io_core::staleness_artifact::STALENESS_BASELINE_MAX_BYTES: usize
 pub const antecedent_io_core::staleness_artifact::STALENESS_BASELINE_VERSION: u32
 pub const antecedent_io_core::staleness_artifact::STALENESS_BASELINE_WIDE_VERSION: u32
+pub const antecedent_io_core::staleness_artifact::STALENESS_IMPLICATIONS_FEATURE: &str
 pub const antecedent_io_core::temporal_counterfactual_artifact::MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES: usize
 pub const antecedent_io_core::temporal_counterfactual_artifact::TEMPORAL_COUNTERFACTUAL_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::temporal_counterfactual_artifact::TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION: u16
@@ -14484,6 +14509,14 @@ pub field antecedent_io_core::sensitivity_artifact::SurfaceQuantity::upper: allo
 pub field antecedent_io_core::sensitivity_artifact::UncertaintyRelationship::assumption_range: antecedent_io_core::sensitivity_artifact::AssumptionRangeStatement
 pub field antecedent_io_core::sensitivity_artifact::UncertaintyRelationship::identified_bound: core::option::Option<antecedent_io_core::sensitivity_artifact::IdentifiedBound>
 pub field antecedent_io_core::sensitivity_artifact::UncertaintyRelationship::sampling: antecedent_io_core::sensitivity_artifact::SamplingStatus
+pub field antecedent_io_core::staleness_artifact::GraphImplicationsWire::items: alloc::vec::Vec<antecedent_io_core::staleness_artifact::ImpliedIndependenceWire>
+pub field antecedent_io_core::staleness_artifact::GraphImplicationsWire::test: alloc::string::String
+pub field antecedent_io_core::staleness_artifact::GraphImplicationsWire::unavailable: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::staleness_artifact::ImpliedIndependenceWire::given: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::staleness_artifact::ImpliedIndependenceWire::p_value: core::option::Option<f64>
+pub field antecedent_io_core::staleness_artifact::ImpliedIndependenceWire::statistic: core::option::Option<f64>
+pub field antecedent_io_core::staleness_artifact::ImpliedIndependenceWire::x: alloc::string::String
+pub field antecedent_io_core::staleness_artifact::ImpliedIndependenceWire::y: alloc::string::String
 pub field antecedent_io_core::staleness_artifact::JointProfileWire::columns: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io_core::staleness_artifact::JointProfileWire::m2: alloc::vec::Vec<f64>
 pub field antecedent_io_core::staleness_artifact::JointProfileWire::mean: alloc::vec::Vec<f64>
@@ -14527,6 +14560,7 @@ pub field antecedent_io_core::staleness_artifact::StalenessBaselineWire::bayesia
 pub field antecedent_io_core::staleness_artifact::StalenessBaselineWire::checks: alloc::vec::Vec<antecedent_io_core::staleness_artifact::RecordedCheckWire>
 pub field antecedent_io_core::staleness_artifact::StalenessBaselineWire::columns: alloc::vec::Vec<antecedent_io_core::staleness_artifact::StalenessColumnWire>
 pub field antecedent_io_core::staleness_artifact::StalenessBaselineWire::complete_rows: u64
+pub field antecedent_io_core::staleness_artifact::StalenessBaselineWire::implications: core::option::Option<antecedent_io_core::staleness_artifact::GraphImplicationsWire>
 pub field antecedent_io_core::staleness_artifact::StalenessBaselineWire::joint: core::option::Option<antecedent_io_core::staleness_artifact::JointProfileWire>
 pub field antecedent_io_core::staleness_artifact::StalenessBaselineWire::kind: alloc::string::String
 pub field antecedent_io_core::staleness_artifact::StalenessBaselineWire::missing: core::option::Option<antecedent_io_core::staleness_artifact::MissingPatternWire>
@@ -15684,6 +15718,7 @@ pub fn <antecedent_io_core::staleness_artifact::AdmittedStalenessBaseline>::cons
 pub fn <antecedent_io_core::staleness_artifact::MissingPatternWire>::fn word_patterns(&self) -> alloc::vec::Vec<(alloc::vec::Vec<u64>, u64)>
 pub fn <antecedent_io_core::staleness_artifact::StalenessBaselineWire>::fn consume(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::staleness_artifact::StalenessBaselineWire>::fn consume_admitted(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::staleness_artifact::AdmittedStalenessBaseline, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::staleness_artifact::StalenessBaselineWire>::fn expected_features(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn <antecedent_io_core::staleness_artifact::StalenessBaselineWire>::fn expected_seal(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::staleness_artifact::StalenessBaselineWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::staleness_artifact::StalenessBaselineWire>::fn sealed(self) -> core::result::Result<Self, antecedent_io_core::IoError>
@@ -16899,6 +16934,8 @@ pub struct antecedent_io_core::sensitivity_artifact::SurfaceQuantity
 pub struct antecedent_io_core::sensitivity_artifact::UncertaintyRelationship
 pub struct antecedent_io_core::staleness_artifact::AdmittedStalenessBaseline
 pub struct antecedent_io_core::staleness_artifact::AdmittedStalenessBaseline has private fields
+pub struct antecedent_io_core::staleness_artifact::GraphImplicationsWire
+pub struct antecedent_io_core::staleness_artifact::ImpliedIndependenceWire
 pub struct antecedent_io_core::staleness_artifact::JointProfileWire
 pub struct antecedent_io_core::staleness_artifact::LevelCountWire
 pub struct antecedent_io_core::staleness_artifact::MissingPatternWire

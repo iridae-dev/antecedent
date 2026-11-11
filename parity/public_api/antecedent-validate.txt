@@ -226,6 +226,8 @@ impl core::clone::Clone for antecedent_validate::predictive_assessment::ScoreKin
 impl core::clone::Clone for antecedent_validate::predictive_assessment::ScoreSummary
 impl core::clone::Clone for antecedent_validate::predictive_assessment::ValidationDesign
 impl core::clone::Clone for antecedent_validate::rosenbaum::SignedRankStatistic
+impl core::clone::Clone for antecedent_validate::staleness::implications::GraphImplications
+impl core::clone::Clone for antecedent_validate::staleness::implications::ImpliedIndependence
 impl core::clone::Clone for antecedent_validate::target_native::DerivativeCheckPoint
 impl core::clone::Clone for antecedent_validate::target_native::DerivativeConsistency
 impl core::clone::Clone for antecedent_validate::target_native::JointStatistic
@@ -294,6 +296,8 @@ impl core::cmp::Eq for antecedent_validate::predictive_assessment::ProviderIdent
 impl core::cmp::Eq for antecedent_validate::predictive_assessment::ProviderTrustLabel
 impl core::cmp::Eq for antecedent_validate::predictive_assessment::ScoreKind
 impl core::cmp::Eq for antecedent_validate::predictive_assessment::ValidationDesign
+impl core::cmp::Eq for antecedent_validate::staleness::implications::GraphImplications
+impl core::cmp::Eq for antecedent_validate::staleness::implications::ImpliedIndependence
 impl core::cmp::Eq for antecedent_validate::target_native::JointStatisticKind
 impl core::cmp::Eq for antecedent_validate::target_native::RefuterExpectation
 impl core::cmp::Eq for antecedent_validate::target_native::TargetRefitError
@@ -452,6 +456,8 @@ impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ScoreK
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ScoreSummary
 impl core::cmp::PartialEq for antecedent_validate::predictive_assessment::ValidationDesign
 impl core::cmp::PartialEq for antecedent_validate::rosenbaum::SignedRankStatistic
+impl core::cmp::PartialEq for antecedent_validate::staleness::implications::GraphImplications
+impl core::cmp::PartialEq for antecedent_validate::staleness::implications::ImpliedIndependence
 impl core::cmp::PartialEq for antecedent_validate::target_native::DerivativeCheckPoint
 impl core::cmp::PartialEq for antecedent_validate::target_native::DerivativeConsistency
 impl core::cmp::PartialEq for antecedent_validate::target_native::JointStatistic
@@ -718,6 +724,8 @@ impl core::fmt::Debug for antecedent_validate::predictive_assessment::ScoreKind
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::ScoreSummary
 impl core::fmt::Debug for antecedent_validate::predictive_assessment::ValidationDesign
 impl core::fmt::Debug for antecedent_validate::rosenbaum::SignedRankStatistic
+impl core::fmt::Debug for antecedent_validate::staleness::implications::GraphImplications
+impl core::fmt::Debug for antecedent_validate::staleness::implications::ImpliedIndependence
 impl core::fmt::Debug for antecedent_validate::target_native::DerivativeCheckPoint
 impl core::fmt::Debug for antecedent_validate::target_native::DerivativeConsistency
 impl core::fmt::Debug for antecedent_validate::target_native::JointStatistic
@@ -1044,6 +1052,8 @@ impl core::marker::Freeze for antecedent_validate::predictive_assessment::ScoreK
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::ScoreSummary [auto]
 impl core::marker::Freeze for antecedent_validate::predictive_assessment::ValidationDesign [auto]
 impl core::marker::Freeze for antecedent_validate::rosenbaum::SignedRankStatistic [auto]
+impl core::marker::Freeze for antecedent_validate::staleness::implications::GraphImplications [auto]
+impl core::marker::Freeze for antecedent_validate::staleness::implications::ImpliedIndependence [auto]
 impl core::marker::Freeze for antecedent_validate::target_native::DerivativeCheckPoint [auto]
 impl core::marker::Freeze for antecedent_validate::target_native::DerivativeConsistency [auto]
 impl core::marker::Freeze for antecedent_validate::target_native::JointStatistic [auto]
@@ -1250,6 +1260,8 @@ impl core::marker::Send for antecedent_validate::predictive_assessment::ScoreKin
 impl core::marker::Send for antecedent_validate::predictive_assessment::ScoreSummary [auto]
 impl core::marker::Send for antecedent_validate::predictive_assessment::ValidationDesign [auto]
 impl core::marker::Send for antecedent_validate::rosenbaum::SignedRankStatistic [auto]
+impl core::marker::Send for antecedent_validate::staleness::implications::GraphImplications [auto]
+impl core::marker::Send for antecedent_validate::staleness::implications::ImpliedIndependence [auto]
 impl core::marker::Send for antecedent_validate::target_native::DerivativeCheckPoint [auto]
 impl core::marker::Send for antecedent_validate::target_native::DerivativeConsistency [auto]
 impl core::marker::Send for antecedent_validate::target_native::JointStatistic [auto]
@@ -1410,6 +1422,8 @@ impl core::marker::StructuralPartialEq for antecedent_validate::predictive_asses
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ScoreSummary
 impl core::marker::StructuralPartialEq for antecedent_validate::predictive_assessment::ValidationDesign
 impl core::marker::StructuralPartialEq for antecedent_validate::rosenbaum::SignedRankStatistic
+impl core::marker::StructuralPartialEq for antecedent_validate::staleness::implications::GraphImplications
+impl core::marker::StructuralPartialEq for antecedent_validate::staleness::implications::ImpliedIndependence
 impl core::marker::StructuralPartialEq for antecedent_validate::target_native::DerivativeCheckPoint
 impl core::marker::StructuralPartialEq for antecedent_validate::target_native::DerivativeConsistency
 impl core::marker::StructuralPartialEq for antecedent_validate::target_native::JointStatistic
@@ -1616,6 +1630,8 @@ impl core::marker::Sync for antecedent_validate::predictive_assessment::ScoreKin
 impl core::marker::Sync for antecedent_validate::predictive_assessment::ScoreSummary [auto]
 impl core::marker::Sync for antecedent_validate::predictive_assessment::ValidationDesign [auto]
 impl core::marker::Sync for antecedent_validate::rosenbaum::SignedRankStatistic [auto]
+impl core::marker::Sync for antecedent_validate::staleness::implications::GraphImplications [auto]
+impl core::marker::Sync for antecedent_validate::staleness::implications::ImpliedIndependence [auto]
 impl core::marker::Sync for antecedent_validate::target_native::DerivativeCheckPoint [auto]
 impl core::marker::Sync for antecedent_validate::target_native::DerivativeConsistency [auto]
 impl core::marker::Sync for antecedent_validate::target_native::JointStatistic [auto]
@@ -1824,6 +1840,8 @@ impl core::marker::Unpin for antecedent_validate::predictive_assessment::ScoreKi
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::ScoreSummary [auto]
 impl core::marker::Unpin for antecedent_validate::predictive_assessment::ValidationDesign [auto]
 impl core::marker::Unpin for antecedent_validate::rosenbaum::SignedRankStatistic [auto]
+impl core::marker::Unpin for antecedent_validate::staleness::implications::GraphImplications [auto]
+impl core::marker::Unpin for antecedent_validate::staleness::implications::ImpliedIndependence [auto]
 impl core::marker::Unpin for antecedent_validate::target_native::DerivativeCheckPoint [auto]
 impl core::marker::Unpin for antecedent_validate::target_native::DerivativeConsistency [auto]
 impl core::marker::Unpin for antecedent_validate::target_native::JointStatistic [auto]
@@ -2021,6 +2039,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ScoreSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::predictive_assessment::ValidationDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::rosenbaum::SignedRankStatistic [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::staleness::implications::GraphImplications [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::staleness::implications::ImpliedIndependence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::DerivativeCheckPoint [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::DerivativeConsistency [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::target_native::JointStatistic [auto]
@@ -2218,6 +2238,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_as
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ScoreSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::predictive_assessment::ValidationDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::rosenbaum::SignedRankStatistic [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::staleness::implications::GraphImplications [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::staleness::implications::ImpliedIndependence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::DerivativeCheckPoint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::DerivativeConsistency [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::target_native::JointStatistic [auto]
@@ -2496,6 +2518,8 @@ pub const antecedent_validate::predictive_assessment::detail::TARGET_MISMATCH: &
 pub const antecedent_validate::predictive_assessment::detail::TOO_FEW_CLUSTERS: &str
 pub const antecedent_validate::rosenbaum::DEFAULT_GAMMA_GRID: [f64; 10]
 pub const antecedent_validate::rosenbaum::EXACT_WORK_LIMIT: u64
+pub const antecedent_validate::staleness::implications::MAX_CLASS_MEMBERS: usize
+pub const antecedent_validate::staleness::implications::MAX_IMPLICATION_NODES: usize
 pub const antecedent_validate::target_native::TARGET_NATIVE_NEXT_ATTEMPT: &str
 pub const fn antecedent_validate::predictive_assessment::dependence_label(dependence: core::option::Option<&antecedent_validate::predictive_assessment::DependenceDeclaration>) -> &'static str
 pub enum antecedent_validate::ComponentModel
@@ -2547,6 +2571,7 @@ pub enum antecedent_validate::predictive_assessment::OverlapStatus
 pub enum antecedent_validate::predictive_assessment::ProviderTrustLabel
 pub enum antecedent_validate::predictive_assessment::ScoreKind
 pub enum antecedent_validate::predictive_assessment::ValidationDesign
+pub enum antecedent_validate::staleness::implications::GraphImplications
 pub enum antecedent_validate::target_native::JointStatisticKind
 pub enum antecedent_validate::target_native::RefuterExpectation
 pub enum antecedent_validate::target_native::TargetPerturbation
@@ -2973,15 +2998,19 @@ pub field antecedent_validate::StalenessFinding::threshold: f64
 pub field antecedent_validate::StalenessFinding::threshold_name: &'static str
 pub field antecedent_validate::StalenessPlan::adjustment: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_validate::StalenessPlan::bayesian: bool
+pub field antecedent_validate::StalenessPlan::implications: core::option::Option<antecedent_validate::staleness::implications::GraphImplications>
 pub field antecedent_validate::StalenessPlan::outcome: core::option::Option<alloc::string::String>
 pub field antecedent_validate::StalenessPlan::plan_identity: alloc::string::String
 pub field antecedent_validate::StalenessPlan::treatment: core::option::Option<alloc::string::String>
 pub field antecedent_validate::StalenessPolicy::alpha: f64
 pub field antecedent_validate::StalenessPolicy::balance_threshold: f64
 pub field antecedent_validate::StalenessPolicy::bins: usize
+pub field antecedent_validate::StalenessPolicy::implication_test: alloc::string::String
+pub field antecedent_validate::StalenessPolicy::implication_threshold: f64
 pub field antecedent_validate::StalenessPolicy::mahalanobis_threshold: f64
 pub field antecedent_validate::StalenessPolicy::max_condition: f64
 pub field antecedent_validate::StalenessPolicy::max_extreme_fraction: f64
+pub field antecedent_validate::StalenessPolicy::max_implications: usize
 pub field antecedent_validate::StalenessPolicy::min_complete_fraction: f64
 pub field antecedent_validate::StalenessPolicy::min_ess_ratio_change: f64
 pub field antecedent_validate::StalenessPolicy::min_level_rows: u64
@@ -3378,6 +3407,9 @@ pub field antecedent_validate::predictive_assessment::ScoreSummary::kind: antece
 pub field antecedent_validate::predictive_assessment::ScoreSummary::mean: f64
 pub field antecedent_validate::predictive_assessment::ScoreSummary::per_case: alloc::vec::Vec<f64>
 pub field antecedent_validate::rosenbaum::SignedRankStatistic::pairs: usize
+pub field antecedent_validate::staleness::implications::ImpliedIndependence::given: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_validate::staleness::implications::ImpliedIndependence::x: alloc::string::String
+pub field antecedent_validate::staleness::implications::ImpliedIndependence::y: alloc::string::String
 pub field antecedent_validate::target_native::DerivativeCheckPoint::reported: f64
 pub field antecedent_validate::target_native::DerivativeCheckPoint::x: f64
 pub field antecedent_validate::target_native::DerivativeConsistency::finite_difference: alloc::vec::Vec<f64>
@@ -3674,6 +3706,10 @@ pub fn <antecedent_validate::predictive_assessment::ValidationDesign>::const fn 
 pub fn <antecedent_validate::rosenbaum::SignedRankStatistic>::fn new(differences: &[f64]) -> core::result::Result<Self, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::rosenbaum::SignedRankStatistic>::fn statistic(&self) -> f64
 pub fn <antecedent_validate::rosenbaum::SignedRankStatistic>::fn upper_p_value(&self, gamma: f64, ctx: core::option::Option<&antecedent_core::execution::context::ExecutionContext>) -> core::result::Result<(f64, bool), antecedent_validate::ValidationError>
+pub fn <antecedent_validate::staleness::implications::GraphImplications>::fn from_admg(admg: &antecedent_graph::admg::Admg, name: &dyn core::ops::function::Fn(&antecedent_core::node::NodeRef) -> core::option::Option<alloc::string::String>) -> Self
+pub fn <antecedent_validate::staleness::implications::GraphImplications>::fn from_cpdag(cpdag: &antecedent_graph::cpdag::Cpdag, name: &dyn core::ops::function::Fn(&antecedent_core::node::NodeRef) -> core::option::Option<alloc::string::String>) -> Self
+pub fn <antecedent_validate::staleness::implications::GraphImplications>::fn from_dag(dag: &antecedent_graph::dag::Dag, name: &dyn core::ops::function::Fn(&antecedent_core::node::NodeRef) -> core::option::Option<alloc::string::String>) -> Self
+pub fn <antecedent_validate::staleness::implications::GraphImplications>::fn from_pag(pag: &antecedent_graph::pag::Pag, name: &dyn core::ops::function::Fn(&antecedent_core::node::NodeRef) -> core::option::Option<alloc::string::String>) -> Self
 pub fn <antecedent_validate::target_native::DerivativeConsistency>::fn max_standardized(&self) -> f64
 pub fn <antecedent_validate::target_native::DerivativeConsistency>::fn passed(&self) -> bool
 pub fn <antecedent_validate::target_native::DerivativeConsistency>::fn to_report(&self, target: &antecedent_validate::RefutationTarget) -> core::result::Result<antecedent_validate::TargetRefutationReport, antecedent_validate::ValidationError>
@@ -3812,6 +3848,7 @@ pub mod antecedent_validate::rosenbaum
 pub mod antecedent_validate::sensitivity
 pub mod antecedent_validate::stability
 pub mod antecedent_validate::staleness
+pub mod antecedent_validate::staleness::implications
 pub mod antecedent_validate::suite
 pub mod antecedent_validate::target_native
 pub mod antecedent_validate::unobserved_common_cause
@@ -3983,6 +4020,7 @@ pub struct antecedent_validate::predictive_assessment::ScoreIntervalRequest
 pub struct antecedent_validate::predictive_assessment::ScoreSummary
 pub struct antecedent_validate::rosenbaum::SignedRankStatistic
 pub struct antecedent_validate::rosenbaum::SignedRankStatistic has private fields
+pub struct antecedent_validate::staleness::implications::ImpliedIndependence
 pub struct antecedent_validate::target_native::DerivativeCheckPoint
 pub struct antecedent_validate::target_native::DerivativeConsistency
 pub struct antecedent_validate::target_native::JointStatistic
@@ -4239,6 +4277,7 @@ pub variant antecedent_validate::EffectScale::RiskRatio
 pub variant antecedent_validate::EffectScale::StandardizedMeanDifference
 pub variant antecedent_validate::FindingKind::AssumptionRegression
 pub variant antecedent_validate::FindingKind::CovariateShift
+pub variant antecedent_validate::FindingKind::ImpliedIndependence
 pub variant antecedent_validate::FindingKind::InsufficientData
 pub variant antecedent_validate::FindingKind::JointShift
 pub variant antecedent_validate::FindingKind::LevelChange
@@ -4454,6 +4493,8 @@ pub variant antecedent_validate::predictive_assessment::ValidationDesign::Blocke
 pub variant antecedent_validate::predictive_assessment::ValidationDesign::HeldOutSplit
 pub variant antecedent_validate::predictive_assessment::ValidationDesign::RollingOrigin { origins: alloc::vec::Vec<u64>, horizon_steps: u32 }
 pub variant antecedent_validate::predictive_assessment::ValidationDesign::SimulationStream { stream: alloc::string::String }
+pub variant antecedent_validate::staleness::implications::GraphImplications::Listed(alloc::vec::Vec<antecedent_validate::staleness::implications::ImpliedIndependence>)
+pub variant antecedent_validate::staleness::implications::GraphImplications::Unavailable(alloc::string::String)
 pub variant antecedent_validate::target_native::JointStatisticKind::BreakEven
 pub variant antecedent_validate::target_native::JointStatisticKind::MahalanobisChiSquare
 pub variant antecedent_validate::target_native::JointStatisticKind::MaxStandardizedDiscrepancy
