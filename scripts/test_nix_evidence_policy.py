@@ -72,6 +72,30 @@ class PolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "dependency index"):
             policy.validate_build(self.root, self.built)
 
+    def test_lock_change_with_a_current_registry_rechecks_only_the_selected_units(self):
+        result = policy.validate_build(self.root, self.built)
+        # Another package's bump, with the registry regenerated for the new lock, leaves the
+        # selection current: the record binds the packages it compiles as its own inputs.
+        lock = (self.root / "Cargo.lock").read_text(encoding="utf-8") + "\n# bumped elsewhere\n"
+        (self.root / "Cargo.lock").write_text(lock, encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "lock changed"):
+            policy.recheck_selection(self.root, result)  # registry not regenerated: stale
+        self.registry["cargo_lock_sha256"] = policy._sha(lock.encode())
+        (self.root / policy.REGISTRY).write_text(json.dumps(self.registry), encoding="utf-8")
+        policy.recheck_selection(self.root, result)
+
+    def test_locked_packages_lists_registry_packages_and_refuses_unpinned_ones(self):
+        lock = (self.root / "Cargo.lock").read_text(encoding="utf-8")
+        import tomllib
+        packages = tomllib.loads(lock)["package"]
+        registry = next(p for p in packages if p.get("source", "").startswith("registry+"))
+        workspace = next(p for p in packages if "source" not in p)
+        unit = lambda p: {"name": p["name"], "version": p["version"]}  # noqa: E731
+        graph = {"units": [unit(registry), unit(workspace), unit(registry)]}
+        self.assertEqual(policy.locked_packages(self.root, graph), [f"{registry['name']} {registry['version']}"])
+        graph["units"].append({"name": "not-locked", "version": "0.0.1"})
+        self.assertIsNone(policy.locked_packages(self.root, graph))
+
     def test_missing_compile_time_graph_refuses(self):
         self.unit["mode"] = "build"
         self.unit["target_kind"] = ["lib"]

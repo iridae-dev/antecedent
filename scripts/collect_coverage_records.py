@@ -812,6 +812,13 @@ def require_frozen_collection_decisions(logs: list[Path]) -> None:
     Named boundary records are diagnostic and cannot establish a passing range.
     The current family protocol has no independent confirmation allocation, so
     confirmations cannot be collected as passing evidence under that protocol.
+
+    A pass/fail group (Type I error, power, uniformity, SBC, posterior agreement,
+    precision, a reported-only or probe cell) measures no coverage record and makes
+    no coverage decision. Its log is collected as a gate-ledger row when it carries
+    the one frozen context (which `audit_logs` checks against the family at the
+    measured commit) and its tests passed, at least one and none failing; it never
+    becomes a coverage record.
     """
     for log in logs:
         if is_confirmation_log(log):
@@ -824,7 +831,12 @@ def require_frozen_collection_decisions(logs: list[Path]) -> None:
         if len(contexts) != 1:
             raise SystemExit(f"{log.name}: collection requires one frozen decision context")
         if not records and not decisions:
-            raise SystemExit(f"{log.name}: collection requires allocated decision evidence")
+            results = CARGO_RESULT.findall(text)
+            passed = sum(int(n) for _, n, _ in results)
+            failed = sum(int(f) for _, _, f in results)
+            if not results or passed == 0 or failed:
+                raise SystemExit(f"{log.name}: collection requires allocated decision evidence")
+            continue
         for record in records:
             if record.get("role") == "named_boundary":
                 continue
@@ -920,7 +932,6 @@ def stamp_fingerprints(records: dict[str, dict], sha: str, log_dir: Path = LOG_D
     from calibration_runner import record_runs, run_evidence
     from evidence_earning import Snapshot, measurement_binding, publish_executed
     from evidence_fingerprint import coverage_row
-    from scientific_records import _remember_nix_output
 
     fp = calibration_status.tree_fingerprinter()
     fingerprints = calibration_status.identity_fingerprints(list(records.values()), fp)
@@ -1164,10 +1175,17 @@ def resolved_record_validation(record: dict) -> str | None:
     )
 
 
+def supported_record_structure(cell: dict, record: dict) -> str:
+    """The `structure` a record of `cell` carries: a runtime-stamped record of an accepted
+    cell says `accepted`; an earlier record of one was keyed as the fixed graph it estimates."""
+    if cell.get("structure") == "accepted" and record.get("validation_schema") == 2:
+        return "accepted"
+    return "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed"
+
+
 def supported_record_matches(cell: dict, record: dict) -> bool:
     """Exact support coordinates and declared estimator ownership, never axes alone."""
-    structure = ("accepted" if cell.get("structure") == "accepted" and record.get("validation_schema") == 2
-                 else "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed")
+    structure = supported_record_structure(cell, record)
     validation = resolved_record_validation(record)
     if validation not in {"none", "cheap", "full"} or cell.get("validation") != validation:
         return False
@@ -1242,7 +1260,6 @@ def sync_supported_cells(
             raise SystemExit(
                 f"supported cell {cell_key}: invalid scientific ownership: {evidence_errors}"
             )
-        structures = ["graph_posterior"] if cell["structure"] == "graph_posterior" else ["fixed"]
         if only_cells is None:
             ids = list(cell.get("calibration", []))
             missing = [rid for rid in ids if rid not in records]
@@ -1269,7 +1286,12 @@ def sync_supported_cells(
                     rec["graph_class"],
                     rec["inference"],
                     rec["structure"],
-                ) != (cell["query"], cell["graph_class"], cell["inference"], structures[0]):
+                ) != (
+                    cell["query"],
+                    cell["graph_class"],
+                    cell["inference"],
+                    supported_record_structure(cell, rec),
+                ):
                     raise SystemExit(f"--only-cell {cell_key}: incompatible or absent record {rid}")
                 if not supported_record_matches(cell, rec):
                     raise SystemExit(

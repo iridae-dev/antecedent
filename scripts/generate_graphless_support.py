@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 from pathlib import Path
@@ -59,6 +60,16 @@ def defining_file(source: Path, function: str) -> Path | None:
     return None
 
 
+@functools.cache
+def calibration_simulations() -> set[tuple[str, str]]:
+    """Registered repeated-sampling calibration simulations, as (test path, function)."""
+    return {
+        (row["path"], name)
+        for row in load_toml(ROOT / "parity/test_registry.toml").get("test", [])
+        for name in row.get("calibration_simulation_assertions", [])
+    }
+
+
 def load_rows() -> list[dict]:
     rows = load_toml(SOURCE)["support"]
     seen: set[tuple[str, ...]] = set()
@@ -106,102 +117,14 @@ def load_rows() -> list[dict]:
             source = defining_file(ROOT / path, function)
             if source is None:
                 raise ValueError(f"{key}: missing {evidence} function")
-            if evidence == "known_truth_test" and (
-                "95_normal_interval" in row["inference_claim"]
-                or "95_student_interval" in row["inference_claim"]
-                or "95_percentile_intervals" in row["inference_claim"]
-            ):
-                body = re.search(
-                    rf"\bfn\s+{function}\s*\(\)\s*\{{(.*?)(?=\n\s*#\[test\]|\Z)",
-                    source.read_text(encoding="utf-8"),
-                    re.DOTALL,
+            # Known truth is a deterministic software-lane check. A repeated-sampling coverage
+            # simulation is calibration evidence: it annotates the row's intervals through the
+            # coverage records and never decides whether the row runs.
+            if evidence == "known_truth_test" and (path, function) in calibration_simulations():
+                raise ValueError(
+                    f"{key}: known_truth_test {row[evidence]} is a calibration simulation; "
+                    "cite a deterministic known-truth check"
                 )
-                legacy_evidence = body is not None and all(
-                    token in body.group(1)
-                    for token in (
-                        "REPLICATES: usize = 2_000",
-                        "0.93..=0.985",
-                        "covered",
-                        "interval_95",
-                    )
-                )
-                policy_evidence = (
-                    row["family"] == "policy_value"
-                    and body is not None
-                    and all(token in body.group(1) for token in ("2_000", "coverage"))
-                    and any(token in body.group(1) for token in ("interval_95", "intervals_95"))
-                )
-                did_evidence = (
-                    row["family"] == "difference_in_differences"
-                    and body is not None
-                    and "const REPLICATIONS: usize = 2_000" in source.read_text(encoding="utf-8")
-                    and all(
-                        token in body.group(1)
-                        for token in ("covered", "interval_95", "0.925..=0.975")
-                    )
-                )
-                switchback_evidence = (
-                    row["design"] == "switchback"
-                    and body is not None
-                    and all(
-                        token in body.group(1)
-                        for token in ("2_000", "covered", "assert_eq!(rejected, 0")
-                    )
-                    and all(
-                        token in source.read_text(encoding="utf-8")
-                        for token in ("const TRUTH", "fit.interval_95", "fn unconditional_coverage")
-                    )
-                )
-                survival_evidence = (
-                    row["family"] == "survival"
-                    and body is not None
-                    and all(
-                        token in body.group(1)
-                        for token in (
-                            "const REPLICATIONS: usize = 2_000",
-                            "covered_rmst",
-                            "covered_tau",
-                            "1_860..=1_970",
-                            "rmst_difference",
-                            "difference_at_tau",
-                        )
-                    )
-                )
-                longitudinal_evidence = (
-                    row["family"] == "longitudinal_regime"
-                    and body is not None
-                    and all(
-                        token in body.group(1)
-                        for token in (
-                            "simulations = 2_000",
-                            "truth",
-                            "covered",
-                            "coverage",
-                            "bounds",
-                        )
-                    )
-                )
-                if (
-                    body is None
-                    or not (
-                        legacy_evidence
-                        or policy_evidence
-                        or did_evidence
-                        or switchback_evidence
-                        or survival_evidence
-                        or longitudinal_evidence
-                    )
-                    or not (
-                        switchback_evidence
-                        or any(
-                            token in body.group(1)
-                            for token in ("truth", "target", "truths", "TRUTH")
-                        )
-                    )
-                ):
-                    raise ValueError(
-                        f"{key}: interval evidence must run the 2,000-allocation known-truth coverage gate"
-                    )
     return sorted(rows, key=lambda row: tuple(row[field] for field in KEYS))
 
 

@@ -30,7 +30,6 @@ import os
 import re
 import shutil
 import subprocess
-import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -177,7 +176,9 @@ def all_scientific_rows(root: Path) -> list[dict]:
 
 PASSED_ONE = re.compile(r"test result: ok\. 1 passed")
 
-from evidence_capture import region_coverage  # noqa: E402  (shared with calibration)
+from evidence_capture import (  # noqa: E402  (shared with calibration)
+    region_coverage,  # noqa: F401  (re-exported)
+)
 
 
 def llvm_tool(name: str) -> str:

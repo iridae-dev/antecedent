@@ -6,7 +6,6 @@ The caller must have explicit authorization before executing selected tests.
 """
 from __future__ import annotations
 
-import os
 import subprocess
 import tempfile
 import threading
@@ -14,7 +13,6 @@ import types
 from pathlib import Path
 
 import evidence_capture
-
 from nix_artifact_identity import recheck_artifact, target_binary
 from nix_evidence_build import build_committed_target
 from nix_evidence_source import (

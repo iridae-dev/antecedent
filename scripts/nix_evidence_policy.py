@@ -214,14 +214,20 @@ def _selection_digest(registry: dict, selected: dict[str, dict]) -> str:
 
 
 def recheck_selection(root: Path, receipt: dict) -> None:
-    """Portably recheck the selected audit rows without depending on other rows."""
+    """Portably recheck the selected audit rows without depending on other rows.
+
+    The registry must cover the current lock. The record's own compile-time units are
+    rechecked through their selected rows, which carry each package's version and
+    checksum; the packages its binary compiles are bound one by one as `locked_package`
+    inputs (or, for a manifest written before those, by the whole Cargo.lock as an
+    input), so the receipt does not also bind the whole lock.
+    """
     try:
         registry = json.loads((root / REGISTRY).read_bytes())
         lock = (root / "Cargo.lock").read_bytes()
         if (registry.get("schema") != 1 or registry.get("policy") != POLICY
                 or receipt.get("id") != POLICY or registry.get("target") != receipt.get("target")
-                or registry.get("cargo_lock_sha256") != _sha(lock)
-                or receipt.get("cargo_lock_sha256") != _sha(lock)):
+                or registry.get("cargo_lock_sha256") != _sha(lock)):
             raise ValueError("Nix audit policy or lock changed")
         ids = receipt["selected_unit_ids"]
         if (not isinstance(ids, list) or not ids or len(ids) != len(set(ids))
@@ -244,3 +250,30 @@ def recheck_selection(root: Path, receipt: dict) -> None:
             raise ValueError("Nix source projection review status changed")
     except (OSError, KeyError, TypeError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError("invalid or incomplete selected Nix audit") from error
+
+
+def locked_packages(root: Path, graph: dict) -> list[str] | None:
+    """`<name> <version>` of every registry package the compiler graph builds, sorted.
+
+    Workspace (path) packages are bound by their sources, not here. `None` when a unit's
+    package is neither a checksummed registry package nor a workspace member of the lock
+    (a git or unlocked source): the caller then keeps the whole lock bound.
+    """
+    lock = tomllib.loads((root / "Cargo.lock").read_text(encoding="utf-8"))
+    registry: set[str] = set()
+    workspace: set[str] = set()
+    for package in lock.get("package", []):
+        key = f"{package['name']} {package['version']}"
+        source = package.get("source")
+        if source is None:
+            workspace.add(key)
+        elif source.startswith("registry+") and re.fullmatch(r"[0-9a-f]{64}", package.get("checksum", "")):
+            registry.add(key)
+    found: set[str] = set()
+    for unit in graph.get("units", []):
+        key = f"{unit.get('name')} {unit.get('version')}"
+        if key in registry:
+            found.add(key)
+        elif key not in workspace:
+            return None
+    return sorted(found)

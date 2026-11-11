@@ -36,9 +36,9 @@ from evidence_kinds import (
     KNOWN_TRUTH_KINDS,
     evidence_roles,
     fixture_review_problems,
-    load_fixture,
     inline_reference_problems,
     kind_problems,
+    load_fixture,
     software_only_roles,
 )
 from provenance_links import method_review_problems, non_algorithm_review_problems

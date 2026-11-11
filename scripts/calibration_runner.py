@@ -41,8 +41,12 @@ _REPLICATED = {"replicated_interval", "replicated_statistical_test"}
 # Replicates the instrumented binary runs, single-threaded, beside a release-binary measurement.
 SLICE_NSIM = 16
 # Test targets whose outer replicate map has a fixed budget, the acceptance count, at
-# every grid point: a first pass of any other size is not the look they report.
-FIXED_BUDGET_TARGETS = frozenset({"adaptive_whole_procedure_calibration"})
+# every grid point: a first pass of any other size is not the look they report. The
+# treatment-inference diagnostics measure at least 2,000 attempts, the registered look
+# their error-rate decisions are made at.
+FIXED_BUDGET_TARGETS = frozenset(
+    {"adaptive_whole_procedure_calibration", "treatment_inference_calibration"}
+)
 
 
 @dataclass(frozen=True)
@@ -82,7 +86,7 @@ class Acceptance:
     point_tests: frozenset[tuple[str, int]]  # bound at an explicit non-base grid point
 
     @classmethod
-    def load(cls, root: Path) -> "Acceptance":
+    def load(cls, root: Path) -> Acceptance:
         cases = tomllib.loads((root / ACCEPTANCE).read_text(encoding="utf-8"))["case"]
         bound = [c for c in cases
                  if c["expected"]["kind"] in _REPLICATED and c["evidence"]["status"] == "bound"]

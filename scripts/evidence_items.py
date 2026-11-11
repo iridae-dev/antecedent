@@ -84,7 +84,7 @@ class Names:
         self.data = bytearray(data)
 
     @classmethod
-    def of(cls, names: set[str]) -> "Names":
+    def of(cls, names: set[str]) -> Names:
         bits = max(1024, 12 * len(names))
         bits += (-bits) % 8
         filter_ = cls(bits, bytes(bits // 8))
@@ -94,7 +94,7 @@ class Names:
         return filter_
 
     @classmethod
-    def load(cls, entry: dict) -> "Names":
+    def load(cls, entry: dict) -> Names:
         return cls(int(entry["bits"]), bytes.fromhex(entry["filter"]))
 
     def _indices(self, name: str):
@@ -121,7 +121,7 @@ class Inventory:
     node_index: dict[str, tuple] = field(default_factory=dict)
 
     @classmethod
-    def read(cls, lines) -> "Inventory":
+    def read(cls, lines) -> Inventory:
         inventory = cls()
         for line in lines:
             if not line.strip():

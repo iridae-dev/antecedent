@@ -34,7 +34,7 @@ class ManifestTests(unittest.TestCase):
         inventory = ei.Inventory.read([json.dumps({"t": "mod", "key": "r#", "file": rel, "chain": [],
                                                    "parent": None, "name": ""})])
         selection = ei.Selection(self.root, inventory)
-        file = selection.file(rel)
+        selection.file(rel)
         for offset in executed:
             selection.execute(rel, offset)
         entries, tables = selection.entries(em.Checker(self.root, {}), ["src"], "src")
@@ -82,6 +82,26 @@ class ManifestTests(unittest.TestCase):
         result = self.check(self.manifest())
         self.assertTrue(result["current"])
         self.assertEqual(result["reasons"], [])
+
+    def test_a_locked_package_binds_its_lock_entry_only(self):
+        lock = ('version = 4\n\n[[package]]\nname = "dep"\nversion = "1.0.0"\n'
+                'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+                f'checksum = "{"a" * 64}"\n\n[[package]]\nname = "other"\nversion = "2.0.0"\n'
+                'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+                f'checksum = "{"b" * 64}"\n')
+        self.write("Cargo.lock", lock)
+        manifest = self.manifest()
+        manifest["inputs"].append({"kind": "locked_package", "name": "dep 1.0.0", "digest": "a" * 64,
+                                   "role": "compile"})
+        self.assertTrue(self.check(manifest)["current"])
+        # Another package's bump does not owe the record.
+        self.write("Cargo.lock", lock.replace('"2.0.0"', '"2.1.0"').replace("b" * 64, "c" * 64))
+        self.assertTrue(self.check(manifest)["current"])
+        # Its own package's bump does.
+        self.write("Cargo.lock", lock.replace('"1.0.0"', '"1.0.1"'))
+        self.assertEqual(self.check(manifest)["reasons"], ["input_changed:locked_package:dep 1.0.0"])
+        manifest["inputs"][-1]["name"] = "no version"
+        self.assertFalse(self.check(manifest)["current"])
 
     def test_nix_build_claim_is_not_silently_accepted(self):
         for receipt in (None, {}, {"sandbox_verified": True, "binary_sha256": "a" * 64}):

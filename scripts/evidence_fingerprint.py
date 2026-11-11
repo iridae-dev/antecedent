@@ -129,7 +129,7 @@ def _sha(*parts: str | bytes) -> str:
     return h.hexdigest()
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def normalized_rust(text: str) -> str:
     """Comments blanked, literals kept, trailing blanks and empty lines dropped."""
     import _rust_source

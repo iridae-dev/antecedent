@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 import json
-import os
 import re
-import subprocess
 import sys
+import tomllib as _tomllib
 from pathlib import Path
 
 from _repo import ensure_scripts_on_path, load_toml_binary
@@ -206,8 +205,6 @@ for _fixture, _cited_by in sorted(_kt_cited.items()):
 # by a group of the gate (parity/calibration_groups.toml): a whole-file group of its
 # suite, or an exact test name of a group. An orphan is silently never measured while
 # the diagnostics and registries describe the coverage in the present tense.
-import tomllib as _tomllib
-
 _groups = []
 for _row in _tomllib.loads((root / "parity/calibration_groups.toml").read_text(encoding="utf-8"))["group"]:
     # The file a group runs: its test target, or for a library group its package.

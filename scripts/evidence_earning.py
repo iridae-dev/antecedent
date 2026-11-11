@@ -530,7 +530,27 @@ def publish_executed(snapshot: Snapshot, built: dict, coverage: dict[str, set[tu
     # measured code calls is bound whole even if the slice never entered it.
     select_items(snapshot, Path(built["artifact"]["output"]) / "compiler-inventory", coverage,
                  source_root=Path(built["source"]["store_path"]), callee_bodies=sliced)
+    if isinstance(built.get("compiler_graph"), dict):
+        bind_locked_packages(snapshot, built["compiler_graph"])
     return snapshot.publish()
+
+
+def bind_locked_packages(snapshot: Snapshot, graph: dict) -> None:
+    """Bind the registry packages the executable compiled, each by its Cargo.lock entry,
+    in place of the whole Cargo.lock: a dependency bump then owes only the records whose
+    binaries build that package. A graph with a package the lock cannot pin by checksum
+    keeps the whole lock bound."""
+    from nix_evidence_policy import locked_packages
+    packages = locked_packages(snapshot.root, graph)
+    if packages is None:
+        return
+    checker = Checker(snapshot.root)
+    inputs = [i for i in snapshot.manifest['inputs']
+              if not (i['kind'] == 'evidence_file' and i.get('path') == 'Cargo.lock')
+              and i['kind'] != 'locked_package']
+    inputs.extend(dict(kind='locked_package', name=name, digest=checker.input_digest('locked_package', name),
+                       role='compile') for name in packages)
+    snapshot.manifest['inputs'] = inputs
 
 
 def select_items(snapshot: Snapshot, directory: Path, coverage: dict[str, set[tuple[int, int]]],

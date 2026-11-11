@@ -68,8 +68,8 @@ def _selected_spans(tree: Path, inputs: list[dict], tables) -> tuple[dict[str, l
 def refine(root: Path, tree: Path, manifest: dict, row: dict, fingerprinter) -> list[dict] | None:
     """Refined inputs for `manifest`, computed in `tree` (a checkout of its build commit);
     `None` when no input changes."""
-    from evidence_manifests import Checker, declarations_digest, rust_text_digest
     from evidence_items import load_inventory
+    from evidence_manifests import Checker, declarations_digest, rust_text_digest
     checker = Checker(root)
     inputs = manifest["inputs"]
     with fingerprinter.tracking() as used:

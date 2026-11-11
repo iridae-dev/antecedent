@@ -64,8 +64,24 @@ NORMALIZATION = "raw-bytes-v1"
 ANALYZER = "compiler-items-v1"
 HEX = re.compile(r"[0-9a-f]{64}\Z")
 KINDS = ("file", "tree", "env", "membership", "evidence_file", "glob", "build_env",
-         "rust_items", "rust_names", "rust_guards", "declarations")
+         "rust_items", "rust_names", "rust_guards", "declarations", "locked_package")
+# Inputs keyed by a name rather than a repository path.
+NAMED_KINDS = ("env", "build_env", "locked_package")
+# A locked registry package, `<name> <version>`; its digest is the Cargo.lock checksum.
+LOCKED_PACKAGE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]* [0-9A-Za-z.+-]+\Z")
 DECLARATIONS = "parity/fingerprint_inputs.toml"
+
+
+def locked_checksums(lock_bytes: bytes) -> dict[str, str]:
+    """`<name> <version>` to checksum of each registry package in a Cargo.lock."""
+    import tomllib
+    found: dict[str, str] = {}
+    for package in tomllib.loads(lock_bytes.decode("utf-8")).get("package", []):
+        checksum = package.get("checksum")
+        if package.get("source", "").startswith("registry+") and isinstance(checksum, str) \
+                and HEX.fullmatch(checksum):
+            found[f"{package['name']} {package['version']}"] = checksum
+    return found
 
 
 def declarations_digest(root: Path, sources: list[str]) -> str:
@@ -91,7 +107,7 @@ LINT_FLAG = re.compile(r"-[DWAF]\S+|--(?:deny|warn|allow|forbid|force-warn)=\S+"
 LINT_OPTION = {"-D", "-W", "-A", "-F", "--deny", "--warn", "--allow", "--forbid", "--force-warn"}
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def rust_text_digest(text: str) -> str:
     """Digest of a Rust source as code: comments (doc comments included) blanked, literals
     kept, blank lines dropped. A comment or layout edit leaves it unchanged."""
@@ -188,9 +204,11 @@ def validate(manifest: dict, binding: dict) -> None:
         if not isinstance(entry, dict) or entry.get("kind") not in KINDS:
             raise InvalidManifest("unsupported dependency kind")
         kind = entry["kind"]
-        key = entry.get("name") if kind in ("env", "build_env") else relative_path(entry.get("path"))
+        key = entry.get("name") if kind in NAMED_KINDS else relative_path(entry.get("path"))
         if not isinstance(key, str) or not key:
             raise InvalidManifest("missing input name")
+        if kind == "locked_package" and not LOCKED_PACKAGE.fullmatch(key):
+            raise InvalidManifest("invalid locked package")
         if (kind, key) in seen:
             raise InvalidManifest("duplicate dependency")
         seen.add((kind, key))
@@ -424,6 +442,14 @@ class Checker:
             inputs.extend(self.groups[address])
         return {**{k: v for k, v in manifest.items() if k != "input_groups"}, "inputs": inputs}
 
+    def locked_checksums(self) -> dict[str, str]:
+        """`<name> <version>` to Cargo.lock checksum, for every registry package."""
+        path = self.path("Cargo.lock")
+        signature = _stat_signature(path)
+        if getattr(self, "_locked", (None, None))[0] != signature or signature is None:
+            self._locked = (signature, locked_checksums(path.read_bytes()))
+        return self._locked[1]
+
     def rust_text(self, key: str) -> str:
         """`rust_text_digest` of a checkout file ("missing-input" when absent)."""
         path = self.path(key)
@@ -458,6 +484,8 @@ class Checker:
             value = env_digest(self.environ, key)
         elif kind == "build_env":
             value = digest(canonical(effective_build_env(self.environ)[key]))
+        elif kind == "locked_package":
+            value = self.locked_checksums().get(key, digest(b"missing-input"))
         elif kind == "file":
             path = self.path(key)
             signature = _stat_signature(path)
@@ -535,7 +563,7 @@ class Checker:
             names = next((e for e in manifest["inputs"] if e["kind"] == "rust_names"), None)
             for entry in manifest["inputs"]:
                 kind = entry["kind"]
-                key = entry["name"] if kind in ("env", "build_env") else entry["path"]
+                key = entry["name"] if kind in NAMED_KINDS else entry["path"]
                 self.reverse[f"{kind}:{key}"].add(label)
                 if kind == "rust_items":
                     unchanged = self.items.items_current(entry, names)

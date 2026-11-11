@@ -160,6 +160,40 @@ class AppendAttestedRecordsTest(unittest.TestCase):
         ):
             collector.main()
 
+    def test_selected_accepted_cell_binds_its_stamped_record_and_no_fixed_one(self) -> None:
+        source = (
+            '[[cell]]\nquery = "Elasticity"\ngraph_class = "Dag"\n'
+            'structure = "accepted"\ninference = "Frequentist"\nvalidation = "none"\n'
+            'estimators = ["elasticity.plugin"]\n'
+            'calibration_reason = "estimator_grid_not_measured"\n'
+        )
+        coordinate = ("Elasticity", "Dag", "accepted", "Frequentist", "none")
+        record = {
+            "id": "new.v2_validation_none.v2_structure_accepted",
+            "validation_schema": 2,
+            "validation": "none",
+            "query": "Elasticity",
+            "graph_class": "Dag",
+            "inference": "Frequentist",
+            "structure": "accepted",
+            "nominal": 0.95,
+            "boundary": False,
+            "estimator": "elasticity.plugin",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "supported.toml"
+            path.write_text(source, encoding="utf-8", newline="\n")
+            with patch.object(collector, "SUPPORTED", path):
+                with self.assertRaisesRegex(SystemExit, "incompatible or absent record"):
+                    collector.sync_supported_cells(
+                        {"fixed": {**record, "structure": "fixed"}}, {coordinate: ["fixed"]}
+                    )
+                self.assertEqual(path.read_text(encoding="utf-8"), source)
+                self.assertEqual(
+                    collector.sync_supported_cells({record["id"]: record}, {coordinate: [record["id"]]}), 1
+                )
+            self.assertIn(f'calibration = ["{record["id"]}"]', path.read_text(encoding="utf-8"))
+
     def test_selected_cell_sync_leaves_other_cells_byte_identical(self) -> None:
         source = (
             '[[cell]]\nquery = "Elasticity"\ngraph_class = "Dag"\n'

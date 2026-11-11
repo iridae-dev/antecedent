@@ -62,9 +62,9 @@ class Node:
     end: int
     head_end: int
     attrs: list[tuple[int, int]] = field(default_factory=list)
-    children: list["Node"] = field(default_factory=list)
+    children: list[Node] = field(default_factory=list)
     inner: list[tuple[int, int]] = field(default_factory=list)
-    parent: "Node | None" = None
+    parent: Node | None = None
     locator: str = ""
 
 
@@ -223,9 +223,7 @@ class File:
             word, after = self._word(p)
         while True:
             nxt, nxt_after = self._word(self._ws(after, hi))
-            if word in ("default", "async", "unsafe", "safe", "auto") and nxt:
-                p, (word, after) = self._ws(after, hi), (nxt, nxt_after)
-            elif word == "const" and nxt in ("fn", "unsafe", "async", "extern"):
+            if word in ("default", "async", "unsafe", "safe", "auto") and nxt or word == "const" and nxt in ("fn", "unsafe", "async", "extern"):
                 p, (word, after) = self._ws(after, hi), (nxt, nxt_after)
             elif word == "extern" and nxt != "crate":
                 q = self._ws(after, hi)
