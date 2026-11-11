@@ -547,8 +547,10 @@ class PreparedGraphImputation:
 
     ``treatment_root_direct_effect`` declares a parentless treatment with a direct arrow to the
     outcome; ``treatment_direct_effect`` also lets the treatment have parents, so the adjustment
-    set varies between graphs. The support is a substantive causal assumption; it is not
-    established by the source data.
+    set varies between graphs; ``pre_treatment_covariates`` further declares that no other
+    variable is a descendant of the treatment, which excludes the mediator and collider
+    orientations a confounder graph is Markov equivalent to. The support is a substantive
+    causal assumption; it is not established by the source data.
     """
 
     def __init__(
@@ -557,7 +559,9 @@ class PreparedGraphImputation:
         *,
         treatment: str,
         outcome: str,
-        graph_support: Literal["treatment_root_direct_effect", "treatment_direct_effect"],
+        graph_support: Literal[
+            "treatment_root_direct_effect", "treatment_direct_effect", "pre_treatment_covariates"
+        ],
         domains: Mapping[str, str],
         imputations: int = 8,
         iterations: int = 10,

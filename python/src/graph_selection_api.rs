@@ -295,8 +295,8 @@ impl PyCompiledGraphImputation {
         let outcome = position(&outcome).ok_or_else(|| compiled_py_error("unknown outcome"))?;
         let support = GraphImputationSupport::from_label(&graph_support).ok_or_else(|| {
             compiled_py_error(
-                "unknown graph support; declare `treatment_root_direct_effect` or \
-                 `treatment_direct_effect`",
+                "unknown graph support; declare `treatment_root_direct_effect`, \
+                 `treatment_direct_effect` or `pre_treatment_covariates`",
             )
         })?;
         let domains = domains

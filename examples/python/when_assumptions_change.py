@@ -54,9 +54,7 @@ ESTIMATE = {
     "execution": EXEC,
 }
 FALSIFY = {"alpha": 0.01, "n_permutations": 500, "permutation_seed": 7}
-record: list[
-    tuple[str, str, str]
-] = []  # the host's history: (month, step, what came back)
+record: list[tuple[str, str, str]] = []  # the host's history: (month, step, what came back)
 
 
 def customers(
@@ -135,9 +133,7 @@ first = require_success(ant.estimate(study))
 print(f"January effect {first.answer.value:.3f} (simulated truth {TRUE_EFFECT})")
 print("calibration:", first.calibration.status)
 assert abs(first.answer.value - TRUE_EFFECT) < 0.1
-record.append(
-    ("January", "estimate under the reviewed graph", f"{first.answer.value:.2f}")
-)
+record.append(("January", "estimate under the reviewed graph", f"{first.answer.value:.2f}"))
 
 # %% [markdown]
 # ## April: the same analysis, a different number
@@ -174,9 +170,7 @@ print(stale.next_attempt)
 assert steady.recommendation == "reuse" and not steady.findings
 assert stale.recommendation == "reidentify"
 assert {finding.kind for finding in stale.findings} == {"implied_independence"}
-assert "engagement _||_ support | price" in {
-    finding.subject for finding in stale.findings
-}
+assert "engagement _||_ support | price" in {finding.subject for finding in stale.findings}
 record.append(("April", "staleness diagnostic", stale.recommendation))
 
 # %% [markdown]
@@ -223,9 +217,7 @@ def joined(table, a: str, b: str) -> float:
 
 january_rate = joined(january, "engagement", "support")
 april_rate = joined(april, "engagement", "support")
-print(
-    f"engagement and support joined: January {january_rate:.3f}, April {april_rate:.3f}"
-)
+print(f"engagement and support joined: January {january_rate:.3f}, April {april_rate:.3f}")
 assert january_rate < 0.05 and april_rate > 0.9
 
 # %% [markdown]
@@ -377,13 +369,9 @@ randomized = require_success(
         **ESTIMATE,
     )
 )
-print(
-    f"2,000 randomized rows:     {randomized.answer.value:.3f} (simulated truth {TRUE_EFFECT})"
-)
+print(f"2,000 randomized rows:     {randomized.answer.value:.3f} (simulated truth {TRUE_EFFECT})")
 assert abs(randomized.answer.value - TRUE_EFFECT) < 0.1
-record.append(
-    ("Next quarter", "engagement experiment", f"{randomized.answer.value:.2f}")
-)
+record.append(("Next quarter", "engagement experiment", f"{randomized.answer.value:.2f}"))
 
 # %% [markdown]
 # ## The same change with nothing to catch it
@@ -405,9 +393,7 @@ small_january = {name: january[name] for name in KEPT}
 small_april = {name: april[name] for name in KEPT}
 small_study = ant.prepare(small_january, graph=SMALL, **ESTIMATE)
 small_before = require_success(ant.estimate(small_study)).answer.value
-small_after = require_success(
-    ant.estimate(ant.rebind(small_study, data=small_april))
-).answer.value
+small_after = require_success(ant.estimate(ant.rebind(small_study, data=small_april))).answer.value
 small_stale = require_success(drift.staleness(small_study, small_april, policy=policy))
 small_check = evaluate_graph(small_april, SMALL, **FALSIFY)
 print(f"three columns: January {small_before:.3f}, April {small_after:.3f}")
