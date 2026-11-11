@@ -786,8 +786,9 @@ impl super::Study {
         if let Some(result) = self.run_sealed_specialist_transport_and_linear(route, ctx)? {
             return Ok(*result);
         }
-        let compiled = std::sync::Arc::new(self.compile(ctx)?);
-        self.execute_shared(&compiled, None, ctx)
+        // A fresh run executes through a prepared handle, so its result carries the executed
+        // contract that attests what ran (program, data snapshot, validation mode).
+        self.prepare(ctx)?.estimate_retained(ctx)
     }
 
     /// Identify only (no estimation). Supports static DAG and ADMG average-effect
