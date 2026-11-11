@@ -417,19 +417,19 @@ fn a_measured_interval_is_reported_with_a_not_measured_calibration_slot() {
     )
     .unwrap();
     // Calibration annotates and never withholds: the interval is reported, and its slot says
-    // that no coverage record measures the estimator grid.
+    // that the coverage records of this estimator measure other sample sizes than this design's.
     let measured = Artifact::measure_interval(&bytes, &ctx()).expect("the interval is reported");
     let report = measured.report();
     assert_eq!(report.route, "choice_interval");
-    assert_eq!(report.calibration, "not_measured");
+    assert_eq!(report.calibration, "outside_measured_scope");
     assert!(!report.scalars.is_empty());
     for scalar in &report.scalars {
         assert!(scalar.lower < scalar.point && scalar.point < scalar.upper, "{}", scalar.name);
         assert!((scalar.level - 0.95).abs() < 1e-12, "{}", scalar.name);
-        assert_eq!(scalar.calibration.status, "not_measured", "{}", scalar.name);
+        assert_eq!(scalar.calibration.status, "outside_measured_scope", "{}", scalar.name);
         assert_eq!(
             scalar.calibration.reason.as_deref(),
-            Some("estimator_grid_not_measured"),
+            Some("sample_size_outside_measured_range"),
             "{}",
             scalar.name
         );
