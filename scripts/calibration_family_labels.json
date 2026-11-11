@@ -942,7 +942,7 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration.rs",
-      "sha256": "98b5e78c02d5a5d20272bc0dfd687122e63160789eb8319918dd505fe57218f5",
+      "sha256": "ab86e771a18d1867f8173bfd993c940c2a93ed2faa4bc3e298a5adfc7f9d4f5b",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources."
@@ -1566,7 +1566,7 @@
     },
     {
       "path": "crates/antecedent/tests/randomized_interval_calibration.rs",
-      "sha256": "8162f51ee3dc683ae09eb16e9a5826de8e716c5ddb7c351682ad8efbec163d82",
+      "sha256": "70266bb40aaa3fc6c7c6ae2e2a701dc73dca32e309ca4f71a901b5cc772b520c",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1585,27 +1585,27 @@
           "argument": "RecordKey {\n            test,\n            dgp: \"cluster_margin_fixed_population\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 815,
+          "line": 825,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_matched_pair_delta_interval\",\n            dgp: \"fixed_matched_pair_margin\",\n            interval: \"delta_method_student_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 907,
+          "line": 933,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_switchback_delta_interval\",\n            dgp: \"fixed_switchback_margin\",\n            interval: \"delta_method_student_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1024,
+          "line": 1050,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_lagged_excursion_delta_interval\",\n            dgp: \"fixed_lagged_excursion_margin\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1107,
+          "line": 1142,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_static_regime_bootstrap_delta_interval\",\n            dgp: \"fixed_single_period_regime_margin\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1199,
+          "line": 1246,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_adaptive_regime_jackknife_delta_interval\",\n            dgp: \"randomized_treatment_affected_binary_state\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         }
@@ -1614,11 +1614,11 @@
     },
     {
       "path": "crates/antecedent/tests/randomized_quantile_interval_calibration.rs",
-      "sha256": "90ac84e5ce6e5cb7b97daf809ec5ed78c6251aac82e537ddaa9a9af26975f825",
+      "sha256": "d39020d5b893ed5a5ceb7773a72effa92c26b014f2077c960b0a129c69d517ef",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 103,
+          "line": 105,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"randomized_quantile_median_effect_analytic_interval\",\n            dgp: \"bernoulli_half_gaussian_arms_known_median_effect\",\n            interval: \"analytic_se\",\n        },\n        REPORTED_LEVEL,"
         }

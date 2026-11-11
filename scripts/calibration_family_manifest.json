@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "9184cf0ff7a998ce42b3c57084d798516fc319a6de91821a509e064817a71840",
+  "gate_sha256": "30e55021d5d8e307b788120651b295ae6a3b5104ec6bddf967d032f7ff1d2fe7",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "9ad5753d7f7d4433b2419254f1108f9133a3b5598b0219c283b96308e9c86364",
+  "label_audit_sha256": "59ea1689b6f96c620b0edffb6a4cb3d931f0a4f5943a1353e493de8c6e36a279",
   "groups": [
     {
       "index": 1,
@@ -3736,12 +3736,12 @@
     {
       "index": 743,
       "label": "mnar_interval_calibration: mnar_compiled_shift_delta_io_interval",
-      "grid": false
+      "grid": true
     },
     {
       "index": 744,
       "label": "categorical_posterior_calibration: categorical_conjugate_contrast_prior_predictive_interval",
-      "grid": false
+      "grid": true
     },
     {
       "index": 745,
@@ -3916,12 +3916,12 @@
     {
       "index": 779,
       "label": "graph_imputation_interval_calibration: graph_imputation_mar_bic_nearest_rank_candidate",
-      "grid": false
+      "grid": true
     },
     {
       "index": 780,
       "label": "graph_imputation_interval_calibration: graph_imputation_prior_predictive_uniform_effect_candidate",
-      "grid": false
+      "grid": true
     },
     {
       "index": 781,
@@ -3931,7 +3931,7 @@
     {
       "index": 782,
       "label": "graph_imputation_interval_calibration: graph_imputation_prior_predictive_four_variable_candidate",
-      "grid": false
+      "grid": true
     },
     {
       "index": 783,
