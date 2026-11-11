@@ -488,32 +488,42 @@ fn construct_cpt_entries(
     let joint_radices: Vec<u64> = var_radices.iter().chain(cond_radices.iter()).copied().collect();
     let too_many = || EstimationError::data_msg("too many joint cells to key a CPT");
 
-    // Count (vars, cond) joint and cond marginal among complete cases.
-    let mut joint: HashMap<u64, f64> = HashMap::new();
-    let mut marg: HashMap<u64, f64> = HashMap::new();
+    // Count (vars, cond) joint and cond marginal among complete cases. The table is bounded
+    // above, so counts are held densely under the rows' mixed-radix key: every cell
+    // accumulates its rows in row order.
+    let cond_cells: usize = cond_radices.iter().map(|&radix| radix as usize).product();
+    let var_cells: usize = var_radices.iter().map(|&radix| radix as usize).product();
+    let mut joint = vec![0.0_f64; var_cells * cond_cells];
+    let mut marg = vec![0.0_f64; cond_cells];
     let mut total = 0.0;
+    // Mixed-radix key of one row over `cols`; `None` when a code is absent or missing.
+    let row_key = |cols: &[&EncodedColumn], row: usize| -> Option<usize> {
+        let mut key = 0usize;
+        for column in cols {
+            let code = *column.codes.get(row)?;
+            if code == DiscreteColumn::MISSING {
+                return None;
+            }
+            key = key * column.levels.len() + code as usize;
+        }
+        Some(key)
+    };
     for row in 0..n {
         let weight = weights.map_or(1.0, |w| w.get(row).copied().unwrap_or(0.0));
         if weight <= 0.0 {
             continue;
         }
-        let code_at = |c: &&EncodedColumn| c.codes.get(row).copied();
-        let cond_codes: Option<Vec<u32>> = cond_cols.iter().map(code_at).collect();
-        let var_codes: Option<Vec<u32>> = var_cols.iter().map(code_at).collect();
-        let (Some(cond_codes), Some(var_codes)) = (cond_codes, var_codes) else {
+        let (Some(cond_key), Some(var_key)) = (row_key(&cond_cols, row), row_key(&var_cols, row))
+        else {
             continue;
         };
-        if cond_codes.iter().chain(&var_codes).any(|&c| c == DiscreteColumn::MISSING) {
-            continue;
-        }
-        let cond_key =
-            pack_codes(&cond_radices, cond_codes.iter().copied()).ok_or_else(too_many)?;
-        let joint_key = pack_codes(&joint_radices, var_codes.iter().chain(&cond_codes).copied())
-            .ok_or_else(too_many)?;
-        *marg.entry(cond_key).or_insert(0.0) += weight;
-        *joint.entry(joint_key).or_insert(0.0) += weight;
+        *marg.get_mut(cond_key).ok_or_else(too_many)? += weight;
+        *joint.get_mut(var_key * cond_cells + cond_key).ok_or_else(too_many)? += weight;
         total += weight;
     }
+    let count_at = |counts: &[f64], key: u64| -> f64 {
+        usize::try_from(key).ok().and_then(|key| counts.get(key)).copied().unwrap_or(0.0)
+    };
 
     let level_of = |cols: &[&EncodedColumn], k: usize, code: u32| -> Value {
         cols[k].levels[code as usize].clone()
@@ -527,7 +537,7 @@ fn construct_cpt_entries(
         }
         for var_codes in &var_rows {
             let key = pack_codes(&var_radices, var_codes.iter().copied()).ok_or_else(too_many)?;
-            let count = joint.get(&key).copied().unwrap_or(0.0);
+            let count = count_at(&joint, key);
             let assign = Assignment::from_pairs(
                 vars.iter()
                     .copied()
@@ -540,7 +550,7 @@ fn construct_cpt_entries(
         for cond_codes in &cond_rows {
             let cond_key =
                 pack_codes(&cond_radices, cond_codes.iter().copied()).ok_or_else(too_many)?;
-            let cond_count = marg.get(&cond_key).copied().unwrap_or(0.0);
+            let cond_count = count_at(&marg, cond_key);
             // An unobserved conditioning cell is not P=0. Leave it absent so
             // `probability()` returns `MissingTableEntry` — the evaluator's
             // existing "can I evaluate this cell?" contract.
@@ -551,7 +561,7 @@ fn construct_cpt_entries(
                 let joint_key =
                     pack_codes(&joint_radices, var_codes.iter().chain(cond_codes).copied())
                         .ok_or_else(too_many)?;
-                let count = joint.get(&joint_key).copied().unwrap_or(0.0);
+                let count = count_at(&joint, joint_key);
                 let p = count / cond_count;
                 let assign = Assignment::from_pairs(
                     vars.iter()
