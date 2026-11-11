@@ -787,8 +787,16 @@ impl super::Study {
             return Ok(*result);
         }
         // A fresh run executes through a prepared handle, so its result carries the executed
-        // contract that attests what ran (program, data snapshot, validation mode).
-        self.prepare(ctx)?.estimate_retained(ctx)
+        // contract that attests what ran (program, data snapshot, validation mode). A route whose
+        // preparation refuses what a fresh compile runs (a per-node dose schedule, which the
+        // joint-schedule certificate cannot express) still runs as before, without that stamp.
+        match self.prepare(ctx).and_then(|prepared| prepared.estimate_retained(ctx)) {
+            Ok(result) => Ok(result),
+            Err(_) => {
+                let compiled = std::sync::Arc::new(self.compile(ctx)?);
+                self.execute_shared(&compiled, None, ctx)
+            }
+        }
     }
 
     /// Identify only (no estimation). Supports static DAG and ADMG average-effect
