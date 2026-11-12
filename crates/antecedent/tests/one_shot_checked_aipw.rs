@@ -93,12 +93,12 @@ fn one_shot_aipw_matches_prepared_and_nearby_linear_stays_supported() {
 /// ordinary study dispatcher computed for this seed and data before the trim
 /// rule was lowered into the checked procedure. The sealed route must agree
 /// with that dispatcher bit for bit, bootstrap included. The standard-error
-/// pins are the same historical values compared as magnitudes: glibc and the
-/// macOS libm move this logistic fit by a few ulps.
+/// pins are compared as magnitudes: glibc and the macOS libm move this logistic
+/// fit by a few ulps. The analytic pin is the leverage-corrected score's.
 #[test]
 fn one_shot_trimmed_aipw_is_sealed_and_matches_the_ordinary_dispatcher_bitwise() {
     const LEGACY_ATE_BITS: u64 = 0x3fff_e021_1571_42a3;
-    const LEGACY_SE_BITS: u64 = 0x3fa6_00b0_1a9f_2da1;
+    const LEGACY_SE_BITS: u64 = 0x3fa6_5926_c213_19db;
     const LEGACY_SE_BOOTSTRAP_BITS_8_REPLICATES: u64 = 4_588_854_293_953_141_936;
     let overlap = antecedent_estimate::OverlapPolicy::RequireDiagnostics {
         clip: Some(0.01),
