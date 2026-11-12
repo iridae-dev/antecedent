@@ -582,10 +582,19 @@ pub(super) fn point_posterior_draws(
             let fits: Vec<SlopeFit> = posteriors
                 [offsets[index]..offsets[index] + atom.designs.len()]
                 .iter()
-                .map(|posterior| SlopeFit {
-                    coefficients: posterior.draws[d].clone(),
-                    modifier_mean: posterior.modifier_mean,
-                    modifier_means: posterior.modifier_means.clone(),
+                .map(|posterior| {
+                    // The modifier means are drawn with the coefficients: the functional
+                    // averages over the modifier distribution, which the sample estimates.
+                    let modifier_means = posterior
+                        .modifier_mean_draws
+                        .get(d)
+                        .unwrap_or(&posterior.modifier_means)
+                        .clone();
+                    SlopeFit {
+                        coefficients: posterior.draws[d].clone(),
+                        modifier_mean: modifier_means.first().copied().unwrap_or(f64::NAN),
+                        modifier_means,
+                    }
                 })
                 .collect();
             let Ok(values) = evaluate(index, &atom.source(&fits)) else {

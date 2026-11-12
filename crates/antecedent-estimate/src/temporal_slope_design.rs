@@ -125,6 +125,12 @@ pub struct SlopePosterior {
     pub modifier_mean: f64,
     /// Mean of every modifier over the full sample (conditional layout), else empty.
     pub modifier_means: Vec<f64>,
+    /// `modifier_mean_draws[d]` is draw `d` of every modifier's population mean (conditional
+    /// layout), else empty. The effect over the modifier distribution averages the interaction
+    /// at the population mean, which the sample only estimates: its posterior under a flat
+    /// prior is Gaussian at the sample mean with the modifiers' sample covariance over the
+    /// rows, widened for serial dependence like the coefficients.
+    pub modifier_mean_draws: Vec<Vec<f64>>,
 }
 
 /// The inputs of [`TemporalSlopeDesign::posterior`].
@@ -654,6 +660,10 @@ impl TemporalSlopeDesign {
                 "the temporal slope posterior covariance is not positive definite",
             )
         })?;
+        let modifier_means = self.modifier_means_over(0..self.rows);
+        let modifier_factor = self.modifier_mean_factor(&modifier_means)?;
+        let mut modifier_mean_draws =
+            Vec::with_capacity(if modifier_means.is_empty() { 0 } else { draws });
         let mut out = Vec::with_capacity(draws);
         let mut z = vec![0.0; p];
         for d in 0..draws {
@@ -668,6 +678,13 @@ impl TemporalSlopeDesign {
                 .map(|i| mean[i] + (0..=i).map(|j| factor[i * p + j] * z[j]).sum::<f64>())
                 .collect();
             out.push(draw);
+            if !modifier_means.is_empty() {
+                modifier_mean_draws.push(Self::draw_modifier_means(
+                    &modifier_means,
+                    &modifier_factor,
+                    &mut stream_rng,
+                ));
+            }
         }
         let adjustment_means = self.adjustment_means_over(0..self.rows);
         let mut mean = mean;
@@ -675,7 +692,6 @@ impl TemporalSlopeDesign {
         for draw in &mut out {
             Self::marginalize_adjustment(draw, &adjustment_means);
         }
-        let modifier_means = self.modifier_means_over(0..self.rows);
         Ok(SlopePosterior {
             mean,
             draws: out,
@@ -683,7 +699,82 @@ impl TemporalSlopeDesign {
             effective_rows,
             modifier_mean: modifier_means.first().copied().unwrap_or(f64::NAN),
             modifier_means,
+            modifier_mean_draws,
         })
+    }
+
+    /// Lower Cholesky factor (row-major `q × q`) of the posterior covariance of the modifier
+    /// means about `means` (conditional layout), else empty.
+    ///
+    /// The covariance of a mean of `n` rows is the modifiers' sample covariance over `n`, each
+    /// modifier's standard deviation scaled by the square root of its long-run to plain
+    /// variance ratio: the Bartlett long-run variance of the centred modifier at the block
+    /// length its own autocorrelation asks for. The ratio is not floored at one. A floored
+    /// ratio is biased upward on an independent modifier (a binary modifier at 240 rows read
+    /// 1.2 through the floored effective rows of the coefficient scores, and the 0.90 interval
+    /// covered 0.918); the unfloored ratio centres on one there and follows a persistent or an
+    /// alternating modifier in either direction.
+    fn modifier_mean_factor(&self, means: &[f64]) -> Result<Vec<f64>, EstimationError> {
+        let q = means.len();
+        if q == 0 {
+            return Ok(Vec::new());
+        }
+        let n = self.rows;
+        let nf = n as f64;
+        let centred: Vec<Vec<f64>> = means
+            .iter()
+            .enumerate()
+            .map(|(j, mean)| {
+                self.matrix[(2 + j) * n..(3 + j) * n].iter().map(|w| w - mean).collect()
+            })
+            .collect();
+        let widen: Vec<f64> = centred
+            .iter()
+            .map(|series| {
+                let block = crate::temporal_block::testing_block_length(n, &[series.as_slice()])
+                    .min(n / 3)
+                    .max(1);
+                let autocov = |k: usize| -> f64 {
+                    series[..n - k].iter().zip(&series[k..]).map(|(a, b)| a * b).sum::<f64>() / nf
+                };
+                let gamma0 = autocov(0);
+                let long_run = gamma0
+                    + 2.0
+                        * (1..block)
+                            .map(|k| (1.0 - k as f64 / block as f64) * autocov(k))
+                            .sum::<f64>();
+                if gamma0 > 0.0 && long_run.is_finite() && long_run > 0.0 {
+                    (long_run / gamma0).sqrt()
+                } else {
+                    1.0
+                }
+            })
+            .collect();
+        let scale = 1.0 / (nf * (nf - 1.0).max(1.0));
+        let mut covariance = vec![0.0; q * q];
+        for i in 0..q {
+            for j in i..q {
+                let value: f64 =
+                    centred[i].iter().zip(&centred[j]).map(|(a, b)| a * b).sum::<f64>()
+                        * scale
+                        * widen[i]
+                        * widen[j];
+                covariance[i * q + j] = value;
+                covariance[j * q + i] = value;
+            }
+        }
+        antecedent_stats::cholesky_spd(&covariance, q).ok_or_else(|| {
+            EstimationError::stats_msg(
+                "the effect modifiers do not vary independently over the fitted rows",
+            )
+        })
+    }
+
+    /// Draw of the modifier means about `means` from the next `means.len()` normals of `rng`.
+    fn draw_modifier_means(means: &[f64], factor: &[f64], rng: &mut CausalRng) -> Vec<f64> {
+        let q = means.len();
+        let z: Vec<f64> = (0..q).map(|_| antecedent_kernels::standard_normal(rng)).collect();
+        (0..q).map(|i| means[i] + (0..=i).map(|j| factor[i * q + j] * z[j]).sum::<f64>()).collect()
     }
 
     /// Series time of each design row (the intact windows in time order).
@@ -738,6 +829,8 @@ impl TemporalSlopeDesign {
             effective_rows: f64,
             scores: Vec<Vec<f64>>,
             times: Vec<usize>,
+            modifier_means: Vec<f64>,
+            modifier_factor: Vec<f64>,
         }
         let SlopePosteriorSpec { prior_scale, draws, structural_span } = spec;
         if draws < 2 {
@@ -787,7 +880,11 @@ impl TemporalSlopeDesign {
                         "the temporal slope posterior covariance is not positive definite",
                     )
                 })?;
+            let modifier_means = design.modifier_means_over(0..design.rows);
+            let modifier_factor = design.modifier_mean_factor(&modifier_means)?;
             parts.push(Part {
+                modifier_means,
+                modifier_factor,
                 mean,
                 inverse,
                 marginal_factor,
@@ -818,6 +915,7 @@ impl TemporalSlopeDesign {
         let (joint_factor, block) = joint_dependence_factor(&dependence, structural_span)?;
         let mut out: Vec<Vec<Vec<f64>>> =
             designs.iter().map(|_| Vec::with_capacity(draws)).collect();
+        let mut modifier_out: Vec<Vec<Vec<f64>>> = designs.iter().map(|_| Vec::new()).collect();
         let mut z = vec![0.0; total];
         for d in 0..draws {
             let mut stream_rng: CausalRng = rng.stream_for(
@@ -842,18 +940,28 @@ impl TemporalSlopeDesign {
                     .collect();
                 out[k].push(draw);
             }
+            for (k, part) in parts.iter().enumerate() {
+                if !part.modifier_means.is_empty() {
+                    modifier_out[k].push(Self::draw_modifier_means(
+                        &part.modifier_means,
+                        &part.modifier_factor,
+                        &mut stream_rng,
+                    ));
+                }
+            }
         }
         let posteriors = parts
             .into_iter()
             .zip(out)
+            .zip(modifier_out)
             .zip(designs)
-            .map(|((mut part, mut draws), design)| {
+            .map(|(((mut part, mut draws), modifier_mean_draws), design)| {
                 let adjustment_means = design.adjustment_means_over(0..design.rows);
                 Self::marginalize_adjustment(&mut part.mean, &adjustment_means);
                 for draw in &mut draws {
                     Self::marginalize_adjustment(draw, &adjustment_means);
                 }
-                let modifier_means = design.modifier_means_over(0..design.rows);
+                let modifier_means = part.modifier_means;
                 SlopePosterior {
                     mean: part.mean,
                     draws,
@@ -861,6 +969,7 @@ impl TemporalSlopeDesign {
                     effective_rows: part.effective_rows,
                     modifier_mean: modifier_means.first().copied().unwrap_or(f64::NAN),
                     modifier_means,
+                    modifier_mean_draws,
                 }
             })
             .collect();
@@ -1325,6 +1434,67 @@ mod tests {
         let rng = antecedent_core::RngFactory::from_seed(7);
         let spec = SlopePosteriorSpec { prior_scale: 10.0, draws: 1, structural_span: 1 };
         assert!(design.posterior(spec, 0, &rng).is_err());
+    }
+
+    #[test]
+    fn posterior_draws_carry_the_sampling_variability_of_the_modifier_means() {
+        // [1, T, W, T·W] with a binary modifier: the population mean of W is known only to
+        // sqrt(p(1 - p) / n), and the averaged slope's draws must carry it. The slope layout
+        // has no modifier and draws none.
+        let rows = 400;
+        let t = noise(21, rows);
+        let w: Vec<f64> = noise(22, rows).iter().map(|v| f64::from(u8::from(*v > 0.25))).collect();
+        let e = noise(23, rows);
+        let y: Vec<f64> =
+            (0..rows).map(|i| 1.5 * t[i] + 0.2 * w[i] + 0.8 * t[i] * w[i] + 0.5 * e[i]).collect();
+        let mut matrix = vec![1.0; rows * 4];
+        matrix[rows..2 * rows].copy_from_slice(&t);
+        matrix[2 * rows..3 * rows].copy_from_slice(&w);
+        for i in 0..rows {
+            matrix[3 * rows + i] = t[i] * w[i];
+        }
+        let conditional = TemporalSlopeDesign {
+            matrix,
+            outcome: y,
+            rows,
+            cols: 4,
+            layout: SlopeLayout::Conditional { modifiers: 1 },
+            windows: GappedAlignedRows { first_time: 2, complete: vec![true; rows] },
+            row_weights: None,
+        };
+        let rng = antecedent_core::RngFactory::from_seed(3);
+        let spec = SlopePosteriorSpec { prior_scale: 1_000.0, draws: 4000, structural_span: 1 };
+        let w_bar = w.iter().sum::<f64>() / rows as f64;
+        let exact = (w_bar * (1.0 - w_bar) / rows as f64).sqrt();
+        let single = conditional.posterior(spec, 4, &rng).unwrap();
+        let (joint, _) =
+            TemporalSlopeDesign::joint_posterior(&[&conditional], spec, 4, &rng).unwrap();
+        for posterior in [&single, &joint[0]] {
+            assert_eq!(posterior.modifier_mean_draws.len(), 4000);
+            let draws: Vec<f64> = posterior.modifier_mean_draws.iter().map(|d| d[0]).collect();
+            let mean = draws.iter().sum::<f64>() / 4000.0;
+            let sd = (draws.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / 3999.0).sqrt();
+            assert!((mean - w_bar).abs() < 0.1 * exact, "{mean} vs {w_bar}");
+            assert!((0.8..1.25).contains(&(sd / exact)), "{sd} vs {exact}");
+            // The averaged slope is wider than at the sample mean held fixed.
+            let spread = |values: Vec<f64>| {
+                let m = values.iter().sum::<f64>() / values.len() as f64;
+                values.iter().map(|v| (v - m) * (v - m)).sum::<f64>() / values.len() as f64
+            };
+            let fixed = spread(posterior.draws.iter().map(|d| d[1] + d[3] * w_bar).collect());
+            let drawn = spread(
+                posterior
+                    .draws
+                    .iter()
+                    .zip(&posterior.modifier_mean_draws)
+                    .map(|(d, m)| d[1] + d[3] * m[0])
+                    .collect(),
+            );
+            let added = (0.8 * exact).powi(2);
+            assert!(((drawn - fixed) / added - 1.0).abs() < 0.5, "{drawn} {fixed} {added}");
+        }
+        let plain = design(80).posterior(spec, 4, &rng).unwrap();
+        assert!(plain.modifier_mean_draws.is_empty());
     }
 
     #[test]

@@ -15,6 +15,18 @@ import calibration_key_aliases as aliases
 from _repo import REPO_ROOT as ROOT
 
 
+def original_record() -> dict:
+    """The original recovery record as it was collected; the registry no longer holds it."""
+    text = subprocess.run(
+        ["git", "show", f"{aliases.COLLECTION_SHA}:parity/coverage_records.toml"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    return next(row for row in tomllib.loads(text)["record"] if row["id"] == aliases.RECORD_ID)
+
+
 class CalibrationIdentityAliasTests(unittest.TestCase):
     def pending_metadata(self) -> str:
         fields = {
@@ -132,8 +144,7 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
     def test_verified_receipts_require_exact_native_protocol_and_all_replayed_values(self) -> None:
         import collect_coverage_records
 
-        records = tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))
-        original = next(record for record in records["record"] if record["id"] == aliases.RECORD_ID)
+        original = original_record()
         source = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True, capture_output=True, text=True
         ).stdout.strip()
@@ -282,8 +293,7 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
 
     def test_original_record_values_axes_and_provenance_are_immutable(self) -> None:
         metadata = self.pending_metadata()
-        records = tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))
-        record = next(row for row in records["record"] if row["id"] == aliases.RECORD_ID)
+        record = original_record()
         for field in ("observed", "estimator", "functional", "calibration_sha", "n_min"):
             changed = dict(record)
             changed[field] = "tampered" if isinstance(changed[field], str) else -1

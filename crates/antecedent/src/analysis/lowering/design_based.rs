@@ -185,7 +185,17 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
     let identifier =
         record.identifier.as_deref().and_then(|name| name.parse::<IdentifierId>().ok());
     let estimator = record.estimator.as_deref().and_then(|name| name.parse::<EstimatorId>().ok());
-    let caches = study.identify_caches(plan, cx.ctx)?;
+    // A plan offered the program of an earlier compile of the same identification inputs
+    // (a one-shot run stamping its executed contract) reads that program's products and
+    // does not identify again.
+    let offered = plan
+        .lowered()
+        .and_then(LoweredProgram::retained_identification)
+        .filter(|retained| retained.key.is_some() && retained.key == super::retention_key(study));
+    let caches = match offered {
+        Some(retained) => retained.caches.to_vec(),
+        None => study.identify_caches(plan, cx.ctx)?,
+    };
     let cell = design_cell(cx, input, &caches)?;
     let identification =
         if matches!(estimator, Some(EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear)) {

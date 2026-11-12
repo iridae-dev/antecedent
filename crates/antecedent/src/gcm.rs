@@ -107,7 +107,7 @@ pub use counterfactual_operations::{
     CheckedCounterfactualOperation, NestedCounterfactualOperation, NestedOutcomeMechanism,
 };
 pub(crate) use counterfactual_operations::{
-    ContrastTarget, TreatmentLevels, fit_nested_mechanisms_polled, world_levels,
+    ContrastTarget, SelectedFamilies, TreatmentLevels, fit_nested_mechanisms_polled, world_levels,
 };
 
 mod counterfactual_engine;

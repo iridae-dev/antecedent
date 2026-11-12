@@ -13867,6 +13867,7 @@ pub fn <antecedent::EstimatorSpec>::fn bind_sampling_design(&mut self, design: a
 pub fn <antecedent::EstimatorSpec>::fn bootstrap_interval(&self) -> core::option::Option<antecedent_estimate::util::bootstrap::IntervalRequest>
 pub fn <antecedent::EstimatorSpec>::fn bootstrap_interval_calibration_label(&self) -> core::option::Option<&'static str>
 pub fn <antecedent::EstimatorSpec>::fn bootstrap_replicates(&self) -> core::option::Option<u32>
+pub fn <antecedent::EstimatorSpec>::fn default_stratification_calibration_label(id: antecedent::EstimatorId) -> core::option::Option<&'static str>
 pub fn <antecedent::EstimatorSpec>::fn excludes_undeclared_levels(&self) -> bool
 pub fn <antecedent::EstimatorSpec>::fn id(&self) -> antecedent::EstimatorId
 pub fn <antecedent::EstimatorSpec>::fn inference_spec(&self) -> core::option::Option<&antecedent_estimate::inference::InferenceSpec>

@@ -615,6 +615,10 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let operation =
             crate::gcm::CheckedCounterfactualOperation::compile(graph.clone(), query.clone())?;
+        let operation = match &self.counterfactual_selection {
+            Some(selected) => operation.conditional_on(std::sync::Arc::clone(selected)),
+            None => operation,
+        };
         self.execute_counterfactual_checked(data, physical, ctx, &operation)
     }
 

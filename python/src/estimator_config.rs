@@ -1026,6 +1026,9 @@ fn build_configured_spec(
             if let Some(n) = get_u32(dict, "n_strata")? {
                 est = est.with_n_strata(n);
             }
+            if let Some(adjusted) = get_bool(dict, "regression_adjustment")? {
+                est = est.with_regression_adjustment(adjusted);
+            }
             if let Some(policy) = overlap {
                 est = est.with_overlap(policy);
             }

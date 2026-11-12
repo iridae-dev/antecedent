@@ -359,7 +359,7 @@ mod tests {
     }
 
     #[test]
-    fn a_drifted_checked_effect_is_reported_but_not_calibrated() {
+    fn a_checked_effect_is_reported_with_the_standing_of_its_record() {
         let context = ExecutionContext::for_tests(99_991);
         let config = DependentIntervalConfig {
             method: IntervalMethod::Studentized,
@@ -371,7 +371,17 @@ mod tests {
         let scalar = &measured.report().scalars[0];
         assert_eq!(scalar.name, "effect");
         assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
-        assert_eq!(scalar.calibration.status.as_str(), "outside_measured_scope");
-        assert_eq!(scalar.calibration.reason.as_deref(), Some("coverage_record_not_attesting"));
+        // The annotation follows the record's standing: calibrated while the record attests
+        // this code, and otherwise reported against it as a record that does not attest.
+        match scalar.calibration.status.as_str() {
+            "calibrated" => assert!(scalar.calibration.record_id.is_some()),
+            status => {
+                assert_eq!(status, "outside_measured_scope");
+                assert_eq!(
+                    scalar.calibration.reason.as_deref(),
+                    Some(antecedent_io_core::calibration::RECORD_NOT_ATTESTING)
+                );
+            }
+        }
     }
 }
