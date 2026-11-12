@@ -73,12 +73,16 @@ use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, response_normal_pair, response_posterior_pairs,
 };
 use common::static_dgp::response_data;
-use grid_cell::{Cell, IntervalPair, Target, measure, sharing_base};
+use grid_cell::{Cell, IntervalPair, Target, measure_refusable, sharing_base};
 
 /// Base sample size of the derivative designs.
 const N_DERIVATIVE: usize = 1000;
 /// Base sample size of the mean-curve designs.
 const N_CURVE: usize = 500;
+/// The estimator's refusal of a log-outcome scale on data whose posterior does not keep the
+/// fitted response positive; a refused replicate is a skipped one.
+const POSITIVE_RESPONSE_REFUSAL: &str =
+    "log-outcome derivative scale requires a positive fitted response";
 /// Fixed bandwidth of the local-polynomial point derivative.
 const BANDWIDTH: f64 = 0.35;
 /// Evaluation dose of the point derivative, the Jacobian's first treatment and the class
@@ -748,7 +752,7 @@ fn execute(
     data: &TabularData,
     seed: u64,
     level: f64,
-) -> (Study, StudyResult) {
+) -> Option<(Study, StudyResult)> {
     // The stability resamples belong to the derivative refuters; the curve refuters
     // take none.
     let replicates =
@@ -767,10 +771,16 @@ fn execute(
         .bootstrap_replicates(replicates)
         .build()
         .unwrap_or_else(|e| panic!("{} {via:?} {suite:?}: {e}", design.dgp));
-    let result = study
-        .run(&ExecutionContext::for_tests(seed))
-        .unwrap_or_else(|e| panic!("{} {via:?} {suite:?}: {e}", design.dgp));
-    (study, result)
+    match study.run(&ExecutionContext::for_tests(seed)) {
+        Ok(result) => Some((study, result)),
+        // The one documented refusal: a log-outcome scale whose posterior puts more mass at
+        // a non-positive fitted response than a tail of the interval holds.
+        Err(e) if e.to_string().contains(POSITIVE_RESPONSE_REFUSAL) => {
+            eprintln!("{} {via:?} {suite:?}: replicate refused: {e}", design.dgp);
+            None
+        }
+        Err(e) => panic!("{} {via:?} {suite:?}: {e}", design.dgp),
+    }
 }
 
 /// Every reported coordinate of a point-identified response.
@@ -877,18 +887,20 @@ fn measure_coordinate(
         estimator: design.estimator,
         variants: variants.len(),
     };
-    measure(
+    measure_refusable(
         cell,
         &design.targets,
         |rep, variant| {
             let seed = stream_seed(family, rep);
             let data = (design.data)(grid_n(design.base_n), seed);
             let (study, result) =
-                execute(&design, mode, variants[variant], &data, seed, REPORTED_LEVEL);
+                execute(&design, mode, variants[variant], &data, seed, REPORTED_LEVEL)?;
             if variant == 0 && derived(&result).is_none() {
                 // The level enters only the interval quantile, so the same data and seed
-                // at the gate level give the gate-level interval of this execution.
-                let (_, at_gate) = execute(&design, mode, variants[0], &data, seed, GATE_LEVEL);
+                // at the gate level give the gate-level interval of this execution. A
+                // posterior the reported level answers, the wider tails of the gate level do.
+                let (_, at_gate) = execute(&design, mode, variants[0], &data, seed, GATE_LEVEL)
+                    .unwrap_or_else(|| panic!("{test}: refused at the gate level only"));
                 assert_eq!(
                     values(&at_gate),
                     values(&result),
@@ -899,7 +911,7 @@ fn measure_coordinate(
                     .unwrap()
                     .insert(fingerprint(&result), bounds(&at_gate, GATE_LEVEL));
             }
-            (study, result)
+            Some((study, result))
         },
         |result| score(result, &design.scored),
     );
