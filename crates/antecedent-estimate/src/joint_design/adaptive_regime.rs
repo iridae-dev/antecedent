@@ -220,8 +220,12 @@ pub fn joint_adaptive_regime(
         return Err("invalid adaptive regime source or scientific premises".into());
     }
     let max_rules = recipe.policies.iter().map(|p| p.rules.len()).max().unwrap_or(0);
+    // One evaluation visits at most one history per rule of a policy (a visited history
+    // needs its rule, and rules are distinct); each visit scans the episodes and the rules
+    // once, comparing prefixes of at most `h` entries. The jackknife repeats the evaluation
+    // once per subject.
     let work_bound = n
-        .checked_mul(n)
+        .checked_mul(max_rules.max(1))
         .and_then(|v| v.checked_mul(h))
         .and_then(|v| v.checked_mul(n.saturating_add(max_rules)));
     if work_bound.is_none_or(|v| v > 100_000_000) {
@@ -357,6 +361,20 @@ mod tests {
             joint_adaptive_regime(&invalid, &antecedent_core::ExecutionContext::for_tests(1))
                 .is_err()
         );
+        // The work of the jackknife grows with the rules a policy can visit, not with the
+        // square of the subjects: a few rules over many subjects are admitted.
+        let mut large = r.clone();
+        large.episodes = (0..40)
+            .flat_map(|copy| {
+                r.episodes
+                    .iter()
+                    .map(move |e| AdaptiveEpisode { id: format!("{copy}/{}", e.id), ..e.clone() })
+            })
+            .collect();
+        assert_eq!(large.episodes.len(), 1280);
+        let law = joint_adaptive_regime(&large, &antecedent_core::ExecutionContext::for_tests(1))
+            .unwrap();
+        assert_eq!(law.means, vec![8.0, 16.0, 1.0, 2.0]);
         let mut sparse = r;
         // The policy remains supported in the full sample; one deletion loses a necessary cell.
         sparse
