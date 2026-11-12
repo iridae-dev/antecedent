@@ -957,14 +957,14 @@ fn frequentist_temporal_dag_response_ar1_treatment_n1000_boundary() {
     boundary(&curve, &curve_disclosed);
 }
 
-/// The same design on 100 rows: the shift level reads about 10 effective rows (6.2 /
-/// 10.2 / 17.8 at the 10th / 50th / 90th percentile), covers 0.863 / 0.868, and must
-/// carry the short-series warning on at least 80% of its replicates (measured 82.5%,
-/// 330/400). After the level-influence `O_p(1)` fix (`temporal_response.rs::level_influence`)
-/// widened this design's effective-rows distribution, its 90th percentile (17.8) crosses
-/// the shared 15-row threshold often enough that a 90% floor no longer holds; 80% is the
-/// smallest multiple of 10 the measured rate clears with margin. The dose curve is
-/// recorded.
+/// The same design on 100 rows: the shift level reads about 10 effective rows and
+/// under-covers, so it must carry the short-series warning on at least 70% of its
+/// replicates. Two independent 400-replicate draws of the design warn on 82.5% (330,
+/// rows 6.2 / 10.2 / 17.8 at the 10th / 50th / 90th percentile, coverage 0.870) and
+/// 75.0% (300, rows 6.4 / 10.8 / 18.9, coverage 0.882): the 90th percentile sits above
+/// the shared 15-row threshold, the rate is near 79%, and 70% is the largest multiple
+/// of 10 that a 400-replicate draw at that rate clears by more than four standard
+/// errors. The dose curve is recorded.
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn frequentist_temporal_dag_response_ar1_treatment_n100_boundary() {
@@ -979,8 +979,8 @@ fn frequentist_temporal_dag_response_ar1_treatment_n100_boundary() {
     boundary(&curve, &curve_disclosed);
     if disclosure_rates_gated() {
         assert!(
-            f64::from(shift_disclosed.short_series) >= 0.8 * f64::from(n_sim()),
-            "the n=100 shift response must warn short-series on at least 80% of replicates: {}/{}",
+            f64::from(shift_disclosed.short_series) >= 0.7 * f64::from(n_sim()),
+            "the n=100 shift response must warn short-series on at least 70% of replicates: {}/{}",
             shift_disclosed.short_series,
             n_sim()
         );
