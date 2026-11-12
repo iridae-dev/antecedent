@@ -995,17 +995,17 @@
     },
     {
       "path": "crates/antecedent/tests/common/grid_cell.rs",
-      "sha256": "bfba890dfdba48ed029eca72f3fe98a2656c41d7100477a8be754dde882a6034",
+      "sha256": "8427d0349dfe86b9bbee4b0d6138ee93fbf98563717a5c4000fd560b3d8832eb",
       "labelled_calls": [
         {
-          "line": 374,
+          "line": 395,
           "call": ".labelled(",
           "argument": "label.clone()"
         }
       ],
       "constructor_calls": [
         {
-          "line": 369,
+          "line": 390,
           "call": "CoverageTally::for_record(",
           "argument": "key, level"
         }

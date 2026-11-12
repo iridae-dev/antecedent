@@ -32,7 +32,7 @@ use antecedent::{Study, StudyResult};
 
 use crate::common::calibration::{
     Construction, CoverageTally, GRID_POINTS, RecordKey, ScopeFacts, map_replicates,
-    map_replicates_from, n_sim,
+    map_replicates_from, n_sim, replicate_start,
 };
 use crate::common::calibration_bind::constructions;
 use crate::common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate_at};
@@ -88,6 +88,7 @@ fn reported(study: &Study, result: &StudyResult) -> Reported {
 }
 
 /// One replicate of a base execution.
+#[derive(Clone)]
 struct Replicate {
     /// The base execution's match key, scope and validation mode.
     base: (Construction, ScopeFacts, &'static str),
@@ -99,7 +100,12 @@ struct Replicate {
 struct Base {
     test: &'static str,
     labels: Vec<Option<String>>,
+    /// The replicates this run measures: all of them, or, in a recheck by extension, the
+    /// ones after the first run's.
     replicates: Vec<Replicate>,
+    /// Replicates `0..SIBLING_REPLICATES`, on which every sibling is executed; executed
+    /// again in a recheck by extension, whose own replicates start later.
+    head: Vec<Replicate>,
 }
 
 /// The measurements of one [`sharing_base`] scope.
@@ -261,7 +267,7 @@ fn measure_inner(
     // `executed[replicate]`: the match key of each variant from `first_executed` on.
     let (base, first_executed, executed) = match shared {
         None => {
-            let runs = map_replicates(n_sim(), |rep| {
+            let one = |rep: u64, with_siblings: bool| {
                 let (study, result) = run(rep, 0);
                 let intervals = score(&result);
                 assert_eq!(
@@ -285,7 +291,7 @@ fn measure_inner(
                 }
                 let base = pick(&reported(&study, &result));
                 drop((study, result));
-                let siblings: Vec<_> = if rep < u64::from(SIBLING_REPLICATES) {
+                let siblings: Vec<_> = if with_siblings {
                     (1..cell.variants).map(|variant| sibling(rep, variant, &intervals)).collect()
                 } else {
                     Vec::new()
@@ -293,12 +299,27 @@ fn measure_inner(
                 let truth = truths(rep);
                 assert_eq!(truth.len(), targets.len(), "{}: one truth per target", cell.test);
                 (Replicate { base, intervals, truth }, siblings)
-            });
-            let (replicates, executed): (Vec<_>, Vec<_>) = runs.into_iter().unzip();
+            };
+            let head_len = n_sim().min(SIBLING_REPLICATES);
+            let extending = replicate_start() > 0;
+            let runs =
+                map_replicates(n_sim(), |rep| one(rep, !extending && rep < u64::from(head_len)));
+            let (replicates, mut executed): (Vec<_>, Vec<_>) = runs.into_iter().unzip();
+            let head = if extending {
+                // The siblings' match keys come from their own executions, which a run that
+                // starts after the head replicates has to make itself.
+                let (head, keys): (Vec<_>, Vec<_>) =
+                    map_replicates_from(0, head_len, |rep| one(rep, true)).into_iter().unzip();
+                executed = keys;
+                head
+            } else {
+                replicates[..usize::try_from(head_len).expect("replicate count")].to_vec()
+            };
             let base = Rc::new(Base {
                 test: cell.test,
                 labels: targets.iter().map(|target| target.label.clone()).collect(),
                 replicates,
+                head,
             });
             (base, 1, executed)
         }
@@ -309,7 +330,7 @@ fn measure_inner(
                 "{}: the coordinates of a shared base score the same targets",
                 cell.test
             );
-            let replicates = base.replicates.as_slice();
+            let replicates = base.head.as_slice();
             let executed = map_replicates_from(0, n_sim().min(SIBLING_REPLICATES), |rep| {
                 let shared = &replicates[usize::try_from(rep).expect("replicate index")];
                 assert_eq!(
