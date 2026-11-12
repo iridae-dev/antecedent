@@ -785,11 +785,12 @@ fn model_slots(
         }
         EstimatorId::PropensityStratification => {
             let mut slots = vec![slot(ModelRole::Propensity, "glm.logit", z.to_vec(), treatment)];
-            let adjusted = matches!(
+            // An id-only request runs the default configuration, which is regression adjusted.
+            let raw = matches!(
                 spec,
-                Some(EstimatorSpec::PropensityStratification(config)) if config.regression_adjustment
+                Some(EstimatorSpec::PropensityStratification(config)) if !config.regression_adjustment
             );
-            if adjusted {
+            if !raw {
                 slots.push(slot(ModelRole::Outcome, "ols", tz, y));
             }
             slots

@@ -90,8 +90,9 @@ fn reported(study: &Study, result: &StudyResult) -> Reported {
 /// One replicate of a base execution.
 #[derive(Clone)]
 struct Replicate {
-    /// The base execution's match key, scope and validation mode.
-    base: (Construction, ScopeFacts, &'static str),
+    /// The base execution's match key, scope and validation mode; `None` when the estimator
+    /// declined the replicate's data, which every record of the base counts as a skip.
+    base: Option<(Construction, ScopeFacts, &'static str)>,
     intervals: Vec<IntervalPair>,
     truth: Vec<f64>,
 }
@@ -168,6 +169,21 @@ pub fn measure(
     measure_at(cell, targets, run, score, &vec![[[None; GRID_POINTS]; 2]; targets.len()]);
 }
 
+/// [`measure`] for an estimator that may decline a replicate's data with a documented
+/// refusal: `run` returns `None` for such a replicate, which every record counts as a
+/// skipped replicate (a miss, under the skip cap of the gate).
+#[track_caller]
+pub fn measure_refusable(
+    cell: Cell,
+    targets: &[Target],
+    run: impl Fn(u64, usize) -> Option<(Study, StudyResult)> + Sync,
+    score: impl Fn(&StudyResult) -> Vec<IntervalPair> + Sync,
+) {
+    let fixed: Vec<f64> = targets.iter().map(|target| target.truth).collect();
+    let measured = vec![[[None; GRID_POINTS]; 2]; targets.len()];
+    measure_inner(cell, targets, run, score, &measured, |_| fixed.clone(), 0);
+}
+
 /// [`measure`] with named boundaries: `measured[target][level][grid point]` is
 /// `Some(m)` where that record is a boundary held to its measured coverage `m`.
 #[track_caller]
@@ -179,7 +195,15 @@ pub fn measure_at(
     measured: &[[[Option<f64>; GRID_POINTS]; 2]],
 ) {
     let fixed: Vec<f64> = targets.iter().map(|target| target.truth).collect();
-    measure_inner(cell, targets, run, score, measured, |_| fixed.clone(), 0);
+    measure_inner(
+        cell,
+        targets,
+        |rep, variant| Some(run(rep, variant)),
+        score,
+        measured,
+        |_| fixed.clone(),
+        0,
+    );
 }
 
 /// [`measure`] whose base execution is measured but not recorded.
@@ -206,7 +230,15 @@ pub fn measure_from_unrecorded_base(
     assert!(cell.variants >= 2, "{}: an unrecorded base needs a recorded sibling", cell.test);
     let fixed: Vec<f64> = targets.iter().map(|target| target.truth).collect();
     let measured = vec![[[None; GRID_POINTS]; 2]; targets.len()];
-    measure_inner(cell, targets, run, score, &measured, |_| fixed.clone(), 1);
+    measure_inner(
+        cell,
+        targets,
+        |rep, variant| Some(run(rep, variant)),
+        score,
+        &measured,
+        |_| fixed.clone(),
+        1,
+    );
 }
 
 /// [`measure`] for a functional whose true value depends on the replicate's sample (a
@@ -221,14 +253,22 @@ pub fn measure_sample_truths(
     score: impl Fn(&StudyResult) -> Vec<IntervalPair> + Sync,
 ) {
     let measured = vec![[[None; GRID_POINTS]; 2]; targets.len()];
-    measure_inner(cell, targets, run, score, &measured, truths, 0);
+    measure_inner(
+        cell,
+        targets,
+        |rep, variant| Some(run(rep, variant)),
+        score,
+        &measured,
+        truths,
+        0,
+    );
 }
 
 #[track_caller]
 fn measure_inner(
     cell: Cell,
     targets: &[Target],
-    run: impl Fn(u64, usize) -> (Study, StudyResult) + Sync,
+    run: impl Fn(u64, usize) -> Option<(Study, StudyResult)> + Sync,
     score: impl Fn(&StudyResult) -> Vec<IntervalPair> + Sync,
     measured: &[[[Option<f64>; GRID_POINTS]; 2]],
     truths: impl Fn(u64) -> Vec<f64> + Sync,
@@ -246,7 +286,12 @@ fn measure_inner(
     };
     // One execution of a variant that must report `intervals`.
     let sibling = |rep: u64, variant: usize, intervals: &[IntervalPair]| {
-        let (study, result) = run(rep, variant);
+        let (study, result) = run(rep, variant).unwrap_or_else(|| {
+            panic!(
+                "{}: variant {variant} declined replicate {rep}, which the base answered",
+                cell.test
+            )
+        });
         assert_eq!(
             result.logical_plan.estimator.as_deref(),
             Some(cell.estimator),
@@ -268,7 +313,12 @@ fn measure_inner(
     let (base, first_executed, executed) = match shared {
         None => {
             let one = |rep: u64, with_siblings: bool| {
-                let (study, result) = run(rep, 0);
+                let truth = truths(rep);
+                assert_eq!(truth.len(), targets.len(), "{}: one truth per target", cell.test);
+                let Some((study, result)) = run(rep, 0) else {
+                    let intervals = vec![[None; 2]; targets.len()];
+                    return (Replicate { base: None, intervals, truth }, Vec::new());
+                };
                 let intervals = score(&result);
                 assert_eq!(
                     intervals.len(),
@@ -276,13 +326,13 @@ fn measure_inner(
                     "{}: one interval pair per target",
                     cell.test
                 );
+                assert_eq!(
+                    result.logical_plan.estimator.as_deref(),
+                    Some(cell.estimator),
+                    "{}: estimator target",
+                    cell.test
+                );
                 if rep == 0 {
-                    assert_eq!(
-                        result.logical_plan.estimator.as_deref(),
-                        Some(cell.estimator),
-                        "{}: estimator target",
-                        cell.test
-                    );
                     assert!(
                         intervals.iter().all(|pair| pair[0].is_some()),
                         "{}: the base execution must publish every scored interval",
@@ -296,9 +346,7 @@ fn measure_inner(
                 } else {
                     Vec::new()
                 };
-                let truth = truths(rep);
-                assert_eq!(truth.len(), targets.len(), "{}: one truth per target", cell.test);
-                (Replicate { base, intervals, truth }, siblings)
+                (Replicate { base: Some(base), intervals, truth }, siblings)
             };
             let head_len = n_sim().min(SIBLING_REPLICATES);
             let extending = replicate_start() > 0;
@@ -339,11 +387,14 @@ fn measure_inner(
                     "{}: a shared base has one truth per target",
                     cell.test
                 );
+                let Some(answered) = &shared.base else {
+                    return Vec::new();
+                };
                 (first_recorded..cell.variants)
                     .map(|variant| {
                         let found = sibling(rep, variant, &shared.intervals);
                         assert_eq!(
-                            found.1, shared.base.1,
+                            found.1, answered.1,
                             "{}: variant {variant} does not report the base scope on replicate {rep}",
                             cell.test
                         );
@@ -395,7 +446,10 @@ fn measure_inner(
                     tally = tally.labelled(label.clone());
                 }
                 for replicate in &base.replicates {
-                    let (construction, scope, validation) = &replicate.base;
+                    let Some((construction, scope, validation)) = &replicate.base else {
+                        tally.skip();
+                        continue;
+                    };
                     if variant < first_executed {
                         tally.bind_validation(construction, *scope, validation);
                     } else {

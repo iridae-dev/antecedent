@@ -75,6 +75,7 @@ fn pooled_effect_and_standard_error_match_the_reference() {
                 AverageEffectQuery::binary_ate(id(0), id(1)).with_target_population(population);
             let mut estimator = PropensityStratification::new()
                 .with_n_strata(strata)
+                .with_regression_adjustment(false)
                 .with_bootstrap_replicates(0)
                 .with_overlap(overlap);
             if !case["weights"].is_null() {

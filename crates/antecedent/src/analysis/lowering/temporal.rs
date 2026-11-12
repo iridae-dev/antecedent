@@ -513,14 +513,27 @@ fn lower_mediation(
 }
 
 /// Identification of the window, retained with the program when it identifies at compile.
+/// A proof the plan was offered from an earlier compile of the same study is kept, not derived again.
 /// A window that does not identify is left to execution, which reports the refusal.
 fn window_identification(cx: &LoweringContext<'_>) -> Result<IdentificationLayer, CausalError> {
-    let retained =
-        cx.study.retain_window_mediation_identification(cx.plan, cx.ctx)?.and_then(|window| {
-            super::RetainedIdentification::new(None, Vec::new(), super::retention_key(cx.study))
-                .ok()
-                .map(|retained| retained.with_execution_proof(window))
-        });
+    let offered = super::plan_retained_execution_proof(cx.study, cx.plan)
+        .filter(|proof| {
+            matches!(
+                proof,
+                crate::planner::lowered::RetainedExecutionProof::Admg(_)
+                    | crate::planner::lowered::RetainedExecutionProof::Pag { .. }
+            )
+        })
+        .cloned();
+    let window = match offered {
+        Some(window) => Some(window),
+        None => cx.study.retain_window_mediation_identification(cx.plan, cx.ctx)?,
+    };
+    let retained = window.and_then(|window| {
+        super::RetainedIdentification::new(None, Vec::new(), super::retention_key(cx.study))
+            .ok()
+            .map(|retained| retained.with_execution_proof(window))
+    });
     Ok(match retained {
         Some(retained) => IdentificationLayer::Retained(Arc::new(retained)),
         None => {
@@ -530,11 +543,24 @@ fn window_identification(cx: &LoweringContext<'_>) -> Result<IdentificationLayer
 }
 
 /// Identification of the cross-world probe, retained with the program when it identifies at
-/// compile. A probe that does not identify is left to execution, which reports the refusal.
+/// compile; a proof offered from an earlier compile of the same study is kept, not derived again. A probe that does not identify is left to execution, which reports the refusal.
 fn cross_world_identification(
     cx: &LoweringContext<'_>,
 ) -> Result<IdentificationLayer, CausalError> {
-    let retained = cx.study.retain_cross_world_identification(cx.plan, cx.ctx)?.and_then(|proof| {
+    let offered = super::plan_retained_execution_proof(cx.study, cx.plan)
+        .filter(|proof| {
+            matches!(
+                proof,
+                crate::planner::lowered::RetainedExecutionProof::CrossWorld { .. }
+                    | crate::planner::lowered::RetainedExecutionProof::CrossWorldClass { .. }
+            )
+        })
+        .cloned();
+    let proof = match offered {
+        Some(proof) => Some(proof),
+        None => cx.study.retain_cross_world_identification(cx.plan, cx.ctx)?,
+    };
+    let retained = proof.and_then(|proof| {
         super::RetainedIdentification::new(None, Vec::new(), super::retention_key(cx.study))
             .ok()
             .map(|retained| retained.with_execution_proof(proof))

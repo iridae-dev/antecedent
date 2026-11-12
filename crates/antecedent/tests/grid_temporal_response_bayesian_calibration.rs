@@ -38,9 +38,10 @@
 //! - surface laws (columns `t, y` and a covariate `z` on the class graphs):
 //!   `y(t) = 1 + 2 t(t-1) + .5 e` on the `TemporalDag` (level `1 + 2a`, no covariate);
 //!   `y(t) = 1 + 2 t(t-1) + 1.5 z(t-1) + .5 e` with independent `t`, `z` on the
-//!   `TemporalCpdag` (level `1 + 2a + 1.5 z̄`, `z̄` the mean of `z(t-1)` over the rows);
-//!   `t = .6 z + e`, `y(t) = 1 + 2 t(t-1) + 1.5 z(t) + .5 e` on the `TemporalPag` (level
-//!   `1 + 2a + 1.5 z̄`, `z̄` the mean of `z(t)` over the rows).
+//!   `TemporalCpdag`; `t = .6 z + e`, `y(t) = 1 + 2 t(t-1) + 1.5 z(t) + .5 e` on the
+//!   `TemporalPag`. On both class laws `z` is mean zero and independent of `t(t-1)`,
+//!   and the route does not adjust for it: the level is the population `1 + 2a` and the
+//!   interval's width carries the variance `z` adds to the outcome.
 //!
 //! The class graphs are fully oriented (one completion), so the class routes publish
 //! the completion's interval; the graph posteriors carry all mass on one atom.
@@ -199,13 +200,6 @@ fn mean(values: &[f64]) -> f64 {
 fn lagged_row_mean(data: &TimeSeriesData, variable: u32) -> f64 {
     let values = data_column(data, variable);
     mean(&values[..values.len() - 1])
-}
-
-/// Mean of `variable` read at the outcome's own period over the lag-aligned rows
-/// (anchors `s = 1..n`).
-fn contemporaneous_row_mean(data: &TimeSeriesData, variable: u32) -> f64 {
-    let values = data_column(data, variable);
-    mean(&values[1..])
 }
 
 fn lag_bit(n: usize, from: usize, to: usize) -> u64 {
@@ -698,17 +692,6 @@ fn surface_series(class: Class, seed: u64) -> TimeSeriesData {
     }
 }
 
-/// The covariate's contribution to the class laws' level conditional on the rows'
-/// covariate average: `1.5 z̄`, with `z(t-1)` on the `TemporalCpdag` and `z(t)` on the
-/// `TemporalPag`.
-fn surface_covariate_level(class: Class, data: &TimeSeriesData) -> f64 {
-    match class {
-        Class::Dag => 0.0,
-        Class::Cpdag => 1.5 * lagged_row_mean(data, 2),
-        Class::Pag => 1.5 * contemporaneous_row_mean(data, 2),
-    }
-}
-
 fn surface_variables() -> Vec<VariableId> {
     vec![var(0), var(1), var(2)]
 }
@@ -794,8 +777,10 @@ fn surface_study(class: Class, seed: u64, structure: Structure) -> StudyBuilder 
     }
 }
 
-/// A surface cell. The `TemporalDag` law has no covariate, so its levels are constants;
-/// the class laws' levels carry the replicate's covariate average.
+/// A surface cell. The `TemporalDag` law has no covariate. On the class laws the
+/// covariate is independent of the lagged treatment and the route does not adjust for
+/// it, so the interval is for the population level (the covariate has mean zero) and
+/// its width carries the covariate's variance: every level is a constant.
 fn surface_cell(
     test: &'static str,
     surface: Surface,
@@ -803,10 +788,6 @@ fn surface_cell(
     variants: &'static [Variant],
     seed: u64,
 ) {
-    let doses: &'static [f64] = match surface {
-        Surface::Curve => &DOSES,
-        Surface::Level => &[SET_DOSE],
-    };
     let (functional, targets) = match surface {
         Surface::Curve => (
             ResponseFunctional::MeanCurve {
@@ -832,21 +813,9 @@ fn surface_cell(
         Class::Cpdag => "surface_series_cpdag",
         Class::Pag => "surface_series_pag",
     };
-    let truths = move |replicate: u64| -> Vec<f64> {
-        let shift = surface_covariate_level(class, &surface_series(class, replicate));
-        doses.iter().map(|&dose| level(dose) + shift).collect()
-    };
-    measure_cell(
-        test,
-        dgp,
-        seed,
-        variants,
-        &targets,
-        (!matches!(class, Class::Dag)).then_some(&truths as &(dyn Fn(u64) -> Vec<f64> + Sync)),
-        &query,
-        0,
-        |replicate, structure| surface_study(class, replicate, structure),
-    );
+    measure_cell(test, dgp, seed, variants, &targets, None, &query, 0, |replicate, structure| {
+        surface_study(class, replicate, structure)
+    });
 }
 
 // ------------------------------------------------------------------------ cells

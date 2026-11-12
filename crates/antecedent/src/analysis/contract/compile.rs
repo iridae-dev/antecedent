@@ -688,6 +688,14 @@ pub(super) fn contract_functional_label(study: &Study, resolved_estimator: Optio
         {
             functional = format!("{functional}+{label}");
         }
+    } else if let Some(label) = study
+        .declared
+        .estimator
+        .or_else(|| resolved_estimator.and_then(|name| name.parse().ok()))
+        .and_then(crate::estimator_spec::EstimatorSpec::default_stratification_calibration_label)
+    {
+        // An estimator requested by id runs its default configuration.
+        functional = format!("{functional}+{label}");
     }
     // Sampling weights change the estimand and the variance: an interval measured on unweighted
     // rows must not bind to a weighted-population estimate. A series' weights reach a result

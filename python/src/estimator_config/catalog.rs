@@ -60,6 +60,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "bootstrap_interval",
             "glm_options",
             "n_strata",
+            "regression_adjustment",
             "overlap",
             "other_levels",
             "cluster_ids",

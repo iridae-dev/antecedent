@@ -332,7 +332,7 @@ pub fn distribution_change_blocks(
     )?;
 
     let n_nodes = graph_model.n_nodes();
-    let n_samples = options.n_samples;
+    let n_samples = options.n_samples.max(4 * baseline_units.max(comparison_units));
     let mut is_player = vec![false; n_nodes];
     for node in &players_dense {
         is_player[node.as_usize()] = true;
@@ -348,34 +348,54 @@ pub fn distribution_change_blocks(
         .unzip();
 
     // One row of each population per block per draw, shared by every coalition. Under a refit the
-    // rows are drawn in proportion to the weights the mechanisms were fitted under (the Bayesian
+    // rows are taken in proportion to the weights the mechanisms were fitted under (the Bayesian
     // bootstrap weights, or the counts of a resample), so the sampled population is the weighted
-    // one and a row of weight zero is never drawn; unweighted draws would reproduce the
+    // one and a row of weight zero is never taken; unweighted rows would reproduce the
     // unweighted population whatever the weights and collapse the spread of a posterior.
+    //
+    // The rows of a block are an evenly spaced pass through the population's cumulative weight,
+    // so each row is taken in proportion to its weight to within one draw, and the draws are
+    // then put in a random order that pairs the blocks independently. Independent draws per
+    // row would instead add a sampling error of the order of the outcome's spread over the
+    // square root of the draw count to every evaluation: redrawn under each set of refit
+    // weights, that error does not cancel across them and widens an interval built from the
+    // refits by an amount that does not shrink with the population. The draw count is at
+    // least four passes through the larger population, which keeps the rounding of the
+    // proportions well inside the sampling error of the population itself.
     let mut rng = attribution_stream(ctx, DISTRIBUTION_STREAM, options.seed);
     let mut draw_rows = |units: usize, weights: Option<&[f64]>| -> Vec<usize> {
-        let cumulative: Option<Vec<f64>> = weights.map(|weights| {
-            let mut total = 0.0;
-            weights
-                .iter()
-                .map(|weight| {
-                    total += weight.max(0.0);
-                    total
-                })
-                .collect()
-        });
-        (0..components.len() * n_samples)
-            .map(|_| {
-                let u = rng.next_f64();
+        let cumulative: Option<Vec<f64>> = weights
+            .map(|weights| {
+                let mut total = 0.0;
+                weights
+                    .iter()
+                    .map(|weight| {
+                        total += weight.max(0.0);
+                        total
+                    })
+                    .collect::<Vec<f64>>()
+            })
+            .filter(|cumulative| cumulative.last().is_some_and(|total| *total > 0.0));
+        let mut rows = Vec::with_capacity(components.len() * n_samples);
+        for _ in 0..components.len() {
+            let offset = rng.next_f64();
+            let start = rows.len();
+            rows.extend((0..n_samples).map(|draw| {
+                let u = evenly_spaced(draw, offset, n_samples);
                 match cumulative.as_deref() {
-                    Some(cumulative) if cumulative.last().is_some_and(|total| *total > 0.0) => {
+                    Some(cumulative) => {
                         let target = u * cumulative[cumulative.len() - 1];
                         cumulative.partition_point(|held| *held <= target).min(units - 1)
                     }
-                    _ => row_below(u, units),
+                    None => row_below(u, units),
                 }
-            })
-            .collect()
+            }));
+            let block = &mut rows[start..];
+            for last in (1..block.len()).rev() {
+                block.swap(last, row_below(rng.next_f64(), last + 1));
+            }
+        }
+        rows
     };
     let baseline_rows =
         draw_rows(baseline_units, refit.map(super::distribution_change::PopulationRefit::baseline));
@@ -419,6 +439,12 @@ pub fn distribution_change_blocks(
         model_for_paths: None,
     };
     run_change_allocation(&request, &mut payoff, total, Arc::from([]), ctx)
+}
+
+/// The `draw`-th of `count` evenly spaced points in `[0, 1)`, shifted by `offset` in `[0, 1)`.
+#[allow(clippy::cast_precision_loss, reason = "draw counts are far below 2^53")]
+fn evenly_spaced(draw: usize, offset: f64, count: usize) -> f64 {
+    ((draw as f64 + offset) / count as f64).min(1.0 - f64::EPSILON)
 }
 
 /// The row a uniform draw `u` in `[0, 1)` selects among `units` rows.
