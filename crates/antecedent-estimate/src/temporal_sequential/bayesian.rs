@@ -48,9 +48,15 @@ impl BayesianComposition<'_> {
         // g-formula. Their sampling error is a first-order (delta-method) shift of the
         // level: the score of the root means combined by their gradient, whose long-run
         // variance sets the shift's standard deviation.
+        // A contrast with effect modifiers reads the sample means of those modifiers the
+        // same way, so their score enters by the same shift. At most one of the two
+        // scores exists: a contrast cancels every root mean, and a level reads no
+        // modifier mean.
         let root_mean_se = ols_base
             .as_ref()
-            .and_then(|base| setup.root_mean_scores(base))
+            .and_then(|base| {
+                setup.root_mean_scores(base).or_else(|| setup.modifier_mean_scores(base))
+            })
             .map_or(0.0, |scores| crate::serial_dependence::mean_standard_error(&scores));
         let fitted = self.fit_mechanisms(contrast_gradient.as_ref(), validation)?;
         let mut posterior = self.compose_posterior(&fitted, root_mean_se)?;
@@ -64,6 +70,8 @@ impl BayesianComposition<'_> {
         }
         if matches!(self.eval, SequentialEval::Level) {
             posterior.assumptions.entries.push(level_posterior_assumption());
+        } else if root_mean_se > 0.0 {
+            posterior.assumptions.entries.push(modifier_mean_posterior_assumption());
         }
         posterior.assumptions.entries.extend(assumptions.entries);
         let effect = EffectEstimate::new(
@@ -269,7 +277,8 @@ impl BayesianComposition<'_> {
     }
 
     /// The joint posterior of the target: each retained draw evaluates the target at that draw
-    /// of every mechanism's coefficients, and a level adds the root-mean shift.
+    /// of every mechanism's coefficients, and a level adds the root-mean shift, a
+    /// contrast with effect modifiers the modifier-mean shift.
     fn compose_posterior(
         &self,
         fitted: &FittedMechanisms,
@@ -381,6 +390,24 @@ fn level_posterior_assumption() -> AssumptionRecord {
                 long-run-variance ratio of the level's own gradient (rows are \
                 time-ordered), and the sample means of exogenous root nodes the level \
                 reads enter as a first-order (delta-method) normal shift whose \
+                variance is the long-run variance of their gradient-weighted scores"
+                .into(),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: "temporal.sequential.linear_sem".into(),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    }
+}
+
+/// The assumption a Sustained contrast with effect modifiers adds over the plain contrast's.
+fn modifier_mean_posterior_assumption() -> AssumptionRecord {
+    AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: "temporal.sequential.modifier_mean_posterior".into(),
+            description: "the sample means of the effect modifiers the contrast is \
+                evaluated at enter as a first-order (delta-method) normal shift whose \
                 variance is the long-run variance of their gradient-weighted scores"
                 .into(),
         }),
