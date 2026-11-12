@@ -618,8 +618,10 @@ fn instrument_anderson_rubin(n: usize, seed: u64, level: f64) -> Option<(f64, f6
     .map(|(lower, upper, _)| (lower, upper))
 }
 
-/// Columns `t, y, z`: `z ~ Bern(1/2)`, `t = z + v`, `y = 1 + 2t + v + e` with `v` the
-/// shared disturbance; the structural effect is `2`.
+/// Columns `t, y, z`: `z ~ Bern(1/2)`, `t = 2z + v`, `y = 1 + 2t + v + e` with `v` the
+/// shared disturbance; the structural effect is `2`. The first-stage `F` is about `n`, so
+/// the smallest grid point stays clear of the estimator's weak-instrument refusal
+/// (`F < 10`), which a first stage of `z + v` crosses on about one sample in twenty there.
 fn joint_instrument_data(n: usize, seed: u64) -> TabularData {
     let mut g = gaussian(seed);
     let mut u = uniform(seed);
@@ -627,7 +629,7 @@ fn joint_instrument_data(n: usize, seed: u64) -> TabularData {
     for i in 0..n {
         let shared = g();
         z[i] = bernoulli(&mut u, 0.5);
-        t[i] = z[i] + shared;
+        t[i] = 2.0 * z[i] + shared;
         y[i] = 1.0 + 2.0 * t[i] + shared + g();
     }
     table(&[("t", &t), ("y", &y), ("z", &z)])
