@@ -21,7 +21,7 @@
   ],
   "gate_sha256": "ed1400318203d342c0f7a4c16dde8e86a2a55d72697055d321e28d7e9b9bf91e",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "6090ff4d99dfb24496d64432602b23f157570744ff178d3841169863d9543a39",
+  "label_audit_sha256": "a1375a53318525fb4b09676ae5eb941e5cd0a755a4c1a1c2d1dcc7dfd0b10565",
   "groups": [
     {
       "index": 1,

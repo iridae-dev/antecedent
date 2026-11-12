@@ -281,22 +281,6 @@ class SupportedCellSyncTest(unittest.TestCase):
         self.assertFalse(collector.supported_record_matches(cell, missing))
         self.assertFalse(collector.supported_record_matches({**cell, "validation": "full"}, record))
 
-    def test_reviewed_legacy_binding_is_exact_and_never_transfers_modes(self) -> None:
-        import coverage_validation_bindings
-        cell = collector.tomllib.loads(self.source())["cell"][0]
-        legacy = self.record("functional.effect")
-        legacy.update(id="legacy", calibration_sha="a" * 40, test="crates/x/tests/t.rs::case")
-        legacy.pop("validation")
-        legacy.pop("validation_schema")
-        key = (legacy["id"], legacy["calibration_sha"], legacy["test"])
-        with patch.object(coverage_validation_bindings, "binding_map", return_value={key: "none"}), \
-             patch.object(coverage_validation_bindings, "structure_map", return_value={key: "explicit"}):
-            self.assertTrue(collector.supported_record_matches(cell, legacy))
-            self.assertFalse(collector.supported_record_matches({**cell, "validation": "cheap"}, legacy))
-            self.assertFalse(collector.supported_record_matches(cell, {**legacy, "calibration_sha": "b" * 40}))
-            self.assertFalse(collector.supported_record_matches(cell, {**legacy, "test": "other"}))
-            self.assertFalse(collector.supported_record_matches(cell, {**legacy, "id": "other"}))
-
     def test_new_accepted_measurement_requires_its_own_identity(self) -> None:
         cell = collector.tomllib.loads(self.source())["cell"][0]
         record = self.record("functional.effect")
@@ -315,17 +299,10 @@ class SupportedCellSyncTest(unittest.TestCase):
         self.assertIsNotNone(collector.validation_record_problem({**named, "structure": "fixed"}))
 
     def test_explicit_measurement_does_not_bind_an_accepted_cell(self) -> None:
-        import coverage_validation_bindings
         cell = collector.tomllib.loads(self.source())["cell"][0]
-        legacy = self.record("functional.effect")
-        legacy.update(id="legacy", calibration_sha="a" * 40, test="crates/x/tests/t.rs::case")
-        legacy.pop("validation")
-        legacy.pop("validation_schema")
-        key = (legacy["id"], legacy["calibration_sha"], legacy["test"])
-        with patch.object(coverage_validation_bindings, "binding_map", return_value={key: "none"}), \
-             patch.object(coverage_validation_bindings, "structure_map", return_value={key: "explicit"}):
-            self.assertTrue(collector.supported_record_matches(cell, legacy))
-            self.assertFalse(collector.supported_record_matches({**cell, "structure": "accepted"}, legacy))
+        record = self.record("functional.effect")
+        self.assertTrue(collector.supported_record_matches(cell, record))
+        self.assertFalse(collector.supported_record_matches({**cell, "structure": "accepted"}, record))
 
     def test_only_cell_rejects_other_validation_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -573,7 +550,9 @@ class SupportedCellSyncTest(unittest.TestCase):
 def _point(k: int, observed: float, role: str, **extra) -> dict:
     """One grid point's `calibration-record` payload, as the harness emits it."""
     payload = {
-        "id": "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.t",
+        "id": "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.t.v2_validation_none",
+        "validation_schema": 2,
+        "validation": "none",
         "query": "ClassicalTransport",
         "nominal": 0.95,
         "n_min": 200 * 2**k,

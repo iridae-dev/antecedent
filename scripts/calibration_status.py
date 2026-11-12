@@ -565,11 +565,16 @@ def _sanitize(label: str) -> str:
 
 
 def _resolves(root: Path, spec: str, collector) -> bool:
-    """Does `<file>::<item>` name a function (or a macro-table entry, or a dgp label) that file defines?"""
+    """Does `<file>::<item>` name a function (or a macro-table entry, or a dgp label) that file defines, or
+    `<fixture dir>::<table>` a table of that conformance fixture's expected values?"""
     if "::" not in spec:
         return False
     rel, fn = spec.rsplit("::", 1)
     path = root / rel
+    if path.is_dir():
+        # A conformance fixture: the item is a table of its expected values.
+        expected = path / "expected.json"
+        return expected.is_file() and f'"{fn}"' in expected.read_text(encoding="utf-8")
     if not path.is_file():
         return False
     text = path.read_text(errors="ignore", encoding="utf-8")

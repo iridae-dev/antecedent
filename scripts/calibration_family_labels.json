@@ -475,14 +475,14 @@
     },
     {
       "path": "crates/antecedent-io-core/src/calibration.rs",
-      "sha256": "d60e6cb85c5cb57a64b80d6f5d955b75068681bf720b86beb378adf2daf15bc9",
+      "sha256": "36c297dacc38e01c10f2311fa5a064383d0d67d10d28cdf4598bc1fc345a5906",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Runtime calibration lookup and its test fixtures; no Monte Carlo family producer."
     },
     {
       "path": "crates/antecedent-io-core/src/coverage_records_data.rs",
-      "sha256": "05e3e9cebaebab1f664f84af218698da99ea7fae09f7b65a941fe409ea6a1810",
+      "sha256": "def24b0db54d2146786fe493d8449a6ee1acac98fa04f61d13d324c7636bb9fe",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Embedded registry consumer/tests only; no calibration hypothesis constructor."

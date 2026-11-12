@@ -499,7 +499,6 @@ class CycleGuardTests(_InputCase):
         super().setUp()
         self.coverage = {
             "records": [{"id": "cov.a", "observed": "0.95", "mcse": "0.01", "calibration_sha": "a" * 40}],
-            "historical_validation_bindings": [],
             "attesting_record_ids": ["cov.a"],
         }
         self.support = {

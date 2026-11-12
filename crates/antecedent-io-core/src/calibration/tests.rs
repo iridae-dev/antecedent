@@ -55,30 +55,10 @@ fn structure_and_inference_spell_their_keys() {
 
 fn key_from(record: &CoverageRecord) -> CalibrationKeyWire {
     CalibrationKeyWire {
-        validation: if record.validation_schema == 2 {
-            record.validation.to_owned()
-        } else {
-            HISTORICAL_VALIDATION_BINDINGS
-                .iter()
-                .find(|binding| {
-                    binding.record_id == record.id
-                        && binding.calibration_sha == record.calibration_sha
-                        && binding.test == record.test
-                })
-                .map_or_else(String::new, |binding| binding.validation.to_owned())
-        },
+        validation: record.validation.to_owned(),
         query: record.query.to_owned(),
         graph_class: record.graph_class.to_owned(),
-        structure: if HISTORICAL_VALIDATION_BINDINGS.iter().any(|binding| {
-            binding.record_id == record.id
-                && binding.calibration_sha == record.calibration_sha
-                && binding.test == record.test
-                && binding.source_structure == "accepted"
-        }) {
-            "accepted".to_owned()
-        } else {
-            record.structure.to_owned()
-        },
+        structure: record.structure.to_owned(),
         modality: record.modality.to_owned(),
         inference: record.inference.to_owned(),
         estimator: record.estimator.to_owned(),
@@ -311,45 +291,6 @@ fn validation_coordinate_refuses_legacy_unknown_and_other_modes() {
     posterior.id = "cov.fixture.v2_validation_none.v2_structure_graph_posterior";
     assert!(posterior_basis.key.same_construction(&posterior));
     assert!(!accepted_basis.key.same_construction(&posterior));
-}
-
-#[test]
-fn reviewed_historical_validation_is_bound_to_exact_measurement() {
-    let basis = basis();
-    let mut legacy = record("historical");
-    legacy.validation_schema = 0;
-    legacy.validation = "";
-    let proof = HistoricalValidationBinding {
-        record_id: legacy.id,
-        calibration_sha: legacy.calibration_sha,
-        test: legacy.test,
-        validation: "none",
-        source_structure: "explicit",
-    };
-    assert!(validation_matches_with_bindings(&basis.key, &legacy, &[proof]));
-    let mut changed = legacy;
-    changed.calibration_sha = "different";
-    assert!(!validation_matches_with_bindings(&basis.key, &changed, &[proof]));
-    changed = legacy;
-    changed.test = "different";
-    assert!(!validation_matches_with_bindings(&basis.key, &changed, &[proof]));
-    changed = legacy;
-    changed.id = "different";
-    assert!(!validation_matches_with_bindings(&basis.key, &changed, &[proof]));
-    let mut other = basis;
-    other.key.validation = "cheap".into();
-    assert!(!validation_matches_with_bindings(&other.key, &legacy, &[proof]));
-    let mut explicit = proof;
-    explicit.source_structure = "explicit";
-    other.key.validation = "none".into();
-    other.key.structure = "accepted".into();
-    assert!(!validation_matches_with_bindings(&other.key, &legacy, &[explicit]));
-    let mut unresolved = proof;
-    unresolved.source_structure = "";
-    assert!(!validation_matches_with_bindings(&other.key, &legacy, &[unresolved]));
-    let mut accepted_proof = proof;
-    accepted_proof.source_structure = "accepted";
-    assert!(validation_matches_with_bindings(&other.key, &legacy, &[accepted_proof]));
 }
 
 fn basis() -> CalibrationBasisWire {

@@ -46,7 +46,7 @@ use serde::{Deserialize, Serialize};
 use crate::contract_section::{CalibrationSlotWire, CalibrationStatus};
 use crate::coverage_records_data::{
     ATTESTING_RECORD_IDS, CoverageGridPoint, CoverageRecord, FUNCTIONAL_IDENTITY_ALIASES,
-    FunctionalIdentityAlias, HISTORICAL_VALIDATION_BINDINGS, HistoricalValidationBinding, RECORDS,
+    FunctionalIdentityAlias, RECORDS,
 };
 
 mod ranges;
@@ -306,51 +306,25 @@ impl CalibrationInference {
     }
 }
 
-fn validation_matches_with_bindings(
-    key: &CalibrationKeyWire,
-    record: &CoverageRecord,
-    bindings: &[HistoricalValidationBinding],
-) -> bool {
+fn validation_matches(key: &CalibrationKeyWire, record: &CoverageRecord) -> bool {
     if !matches!(key.validation.as_str(), "none" | "cheap" | "full" | "not_applicable") {
         return false;
     }
-    if record.validation_schema == 2 {
-        let mut markers =
-            record.id.split('.').filter_map(|part| part.strip_prefix("v2_validation_"));
-        let mut structures =
-            record.id.split('.').filter_map(|part| part.strip_prefix("v2_structure_"));
-        // A structure that shares a test with the fixed graph is named in the id.
-        let named =
-            matches!(record.structure, "accepted" | "graph_posterior").then_some(record.structure);
-        let source_ok = (record.structure == "accepted") == (key.structure == "accepted")
-            && structures.next() == named
-            && structures.next().is_none();
-        return source_ok
-            && record.validation == key.validation
-            && markers.next() == Some(record.validation)
-            && markers.next().is_none();
-    }
-    if record.validation_schema != 0 || !record.validation.is_empty() {
+    if record.validation_schema != 2 {
         return false;
     }
-    bindings.iter().any(|binding| {
-        binding.record_id == record.id
-            && binding.calibration_sha == record.calibration_sha
-            && binding.test == record.test
-            && binding.validation == key.validation
-            && (key.validation == "not_applicable"
-                || binding.source_structure
-                    == match key.structure.as_str() {
-                        "fixed" => "explicit",
-                        "accepted" => "accepted",
-                        "graph_posterior" => "graph_posterior",
-                        _ => "",
-                    })
-    })
-}
-
-fn validation_matches(key: &CalibrationKeyWire, record: &CoverageRecord) -> bool {
-    validation_matches_with_bindings(key, record, &HISTORICAL_VALIDATION_BINDINGS)
+    let mut markers = record.id.split('.').filter_map(|part| part.strip_prefix("v2_validation_"));
+    let mut structures = record.id.split('.').filter_map(|part| part.strip_prefix("v2_structure_"));
+    // A structure that shares a test with the fixed graph is named in the id.
+    let named =
+        matches!(record.structure, "accepted" | "graph_posterior").then_some(record.structure);
+    let source_ok = (record.structure == "accepted") == (key.structure == "accepted")
+        && structures.next() == named
+        && structures.next().is_none();
+    source_ok
+        && record.validation == key.validation
+        && markers.next() == Some(record.validation)
+        && markers.next().is_none()
 }
 
 impl CalibrationKeyWire {

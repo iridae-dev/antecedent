@@ -86,7 +86,7 @@ class Place:
     """A file and how to read one integer from it."""
 
     path: str
-    kind: str  # "const", "regex", "snapshot_bound", or "reporting_scale_kinds"
+    kind: str  # "const", "regex", or "reporting_scale_kinds"
     pattern: str
 
 
@@ -96,12 +96,6 @@ def C(path: str, name: str) -> Place:
 
 def L(path: str, regex: str) -> Place:
     return Place(path, "regex", regex)
-
-
-def S(record: str, key: str) -> Place:
-    return Place(
-        "parity/release_snapshots/v2.2.0.toml", "snapshot_bound", f"{record}:{key}"
-    )
 
 
 @dataclass(frozen=True)
@@ -166,18 +160,6 @@ MAPPING: tuple[Bound, ...] = (
     ),
     Bound(
         "estimate.penalized_propensity_aipw",
-        "historical_evidence_max_grid",
-        rust=(S("estimate.penalized_propensity_aipw", "max_grid"),),
-        note="prior recorded scope; the per-declaration configuration cap is separate",
-    ),
-    Bound(
-        "estimate.penalized_propensity_aipw",
-        "historical_evidence_max_inner_folds",
-        rust=(S("estimate.penalized_propensity_aipw", "max_inner_folds"),),
-        note="prior recorded scope; the fold plan enforces its row and index limits",
-    ),
-    Bound(
-        "estimate.penalized_propensity_aipw",
         "runtime_min_inner_folds",
         rust=(L(PENALIZED, r"if inner_folds < (\d+)"),),
     ),
@@ -226,12 +208,6 @@ MAPPING: tuple[Bound, ...] = (
         "estimate.factorized_joint_cells",
         "runtime_fold_index_capacity",
         rust=(Place(FOLD_PLAN, "fold_plan_capacity", "assign_folds"),),
-    ),
-    Bound(
-        "estimate.factorized_joint_cells",
-        "historical_evidence_max_folds",
-        rust=(S("estimate.factorized_joint_cells", "max_folds"),),
-        note="prior recorded scope; the fold plan enforces its row and index limits",
     ),
     Bound(
         "estimate.factorized_joint_cells",
@@ -589,31 +565,13 @@ MAPPING: tuple[Bound, ...] = (
     ),
     Bound(
         "sensitivity.joint_mechanism",
-        "historical_evidence_max_parent_levels",
-        rust=(S("sensitivity.joint_mechanism", "max_parent_levels"),),
-        note="historical evidence scope, not a current runtime ceiling",
-    ),
-    Bound(
-        "sensitivity.joint_mechanism",
         "runtime_max_parent_levels",
         rust=(C(JOINT, "JOINT_SENSITIVITY_MAX_PARENT_LEVELS"),),
     ),
     Bound(
         "sensitivity.joint_mechanism",
-        "historical_evidence_max_outcome_categories",
-        rust=(S("sensitivity.joint_mechanism", "max_outcome_categories"),),
-        note="historical evidence scope, not a current runtime ceiling",
-    ),
-    Bound(
-        "sensitivity.joint_mechanism",
         "runtime_max_outcome_categories",
         rust=(C(JOINT, "JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES"),),
-    ),
-    Bound(
-        "sensitivity.joint_mechanism",
-        "historical_evidence_max_frontier_points",
-        rust=(S("sensitivity.joint_mechanism", "max_frontier_points"),),
-        note="historical evidence scope, not a current runtime ceiling",
     ),
     Bound(
         "sensitivity.joint_mechanism",
@@ -772,19 +730,6 @@ def read_place(rd: Reader, place: Place) -> tuple[list[int | float], str | None]
             return [], f"{place.path}: fold-plan capacity or row guard not found"
         bits, extra = capacity[0]
         return [(1 << int(bits)) - 1 + int(extra)], None
-    if place.kind == "snapshot_bound":
-        record, _, key = place.pattern.partition(":")
-        try:
-            records = tomllib.loads(text).get("record", [])
-        except tomllib.TOMLDecodeError as error:
-            return [], f"{place.path}: invalid snapshot: {error}"
-        matches = [item for item in records if item.get("id") == record]
-        if len(matches) != 1:
-            return [], f"{place.path}: snapshot must contain exactly one {record}"
-        value = matches[0].get("bounds", {}).get(key)
-        if not _is_int(value):
-            return [], f"{place.path}: {record} has no integer bound {key}"
-        return [value], None
     if place.kind == "reporting_scale_kinds":
         # Count the public enum and independently verify that its parser names
         # exactly the same cases. Duplicates in a request are not a new kind.
@@ -1006,21 +951,6 @@ def check(
         short = rec["id"]
         short_ids.add(short)
         bounds = rec.get("bounds", {})
-        if short == "sensitivity.joint_mechanism":
-            for dimension in ("parent_levels", "outcome_categories", "frontier_points"):
-                historical = bounds.get(f"historical_evidence_max_{dimension}")
-                runtime = bounds.get(f"runtime_max_{dimension}")
-                if (
-                    not _is_int(historical)
-                    or not _is_int(runtime)
-                    or historical < 1
-                    or runtime < 1
-                    or historical > runtime
-                ):
-                    errors.append(
-                        f"{short}: historical evidence bound "
-                        f"for {dimension} must be an integer no larger than the runtime ceiling"
-                    )
         numeric = {k: v for k, v in bounds.items() if _is_int(v)}
         label = rec["id"]
         planned = rec.get("status") == "not_supported"
@@ -1185,73 +1115,6 @@ def _syn_tree(dest: Path) -> None:
 def self_test() -> int:
     failures: list[str] = []
 
-    # The old evidence scope and the wider runtime caps are different claims.
-    # Both sources and their ordering must fail closed.
-    joint_id = "sensitivity.joint_mechanism"
-    joint_rows = tuple(
-        row for row in MAPPING
-        if row.record == joint_id
-        and row.key.startswith(("historical_evidence_max_", "runtime_max_"))
-    )
-    if len(joint_rows) != 6:
-        failures.append("joint sensitivity must map all six historical and runtime limits")
-    else:
-        with tempfile.TemporaryDirectory() as joint_root:
-            root = Path(joint_root)
-            record_path = root / RECORDS
-            snapshot_path = root / "parity/release_snapshots/v2.2.0.toml"
-            rust_path = root / JOINT
-            for path in (record_path, snapshot_path, rust_path):
-                path.parent.mkdir(parents=True, exist_ok=True)
-            record = '''[[record]]
-id = "sensitivity.joint_mechanism"
-status = "supported"
-bounds = { historical_evidence_max_parent_levels = 64, historical_evidence_max_outcome_categories = 32, historical_evidence_max_frontier_points = 33, runtime_max_parent_levels = 4096, runtime_max_outcome_categories = 1024, runtime_max_frontier_points = 257 }
-'''
-            snapshot = '''[[record]]
-id = "sensitivity.joint_mechanism"
-bounds = { max_parent_levels = 64, max_outcome_categories = 32, max_frontier_points = 33 }
-'''
-            rust = '''pub const JOINT_SENSITIVITY_MAX_PARENT_LEVELS: usize = 4096;
-pub const JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES: usize = 1024;
-pub const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS: usize = 257;
-'''
-            record_path.write_text(record, encoding="utf-8")
-            snapshot_path.write_text(snapshot, encoding="utf-8")
-            rust_path.write_text(rust, encoding="utf-8")
-            def joint_errors() -> list[str]:
-                return check(root, mapping=joint_rows, cells=frozenset({joint_id}))[0]
-
-            if joint_errors():
-                failures.append("valid separate historical and runtime joint limits must pass")
-            for dimension, historical, runtime in (
-                ("parent_levels", 64, 4096),
-                ("outcome_categories", 32, 1024),
-                ("frontier_points", 33, 257),
-            ):
-                mutations = (
-                    (record_path, f"historical_evidence_max_{dimension} = {historical}", f"historical_evidence_max_{dimension} = {historical + 1}", "historical evidence"),
-                    (record_path, f"runtime_max_{dimension} = {runtime}", f"runtime_max_{dimension} = {runtime + 1}", "runtime record"),
-                    (rust_path, f"JOINT_SENSITIVITY_MAX_{dimension.upper()}: usize = {runtime}", f"JOINT_SENSITIVITY_MAX_{dimension.upper()}: usize = {runtime + 1}", "runtime constant"),
-                    (snapshot_path, f"max_{dimension} = {historical}", f"max_{dimension} = {historical + 1}", "historical snapshot"),
-                )
-                for path, before, after, label in mutations:
-                    original = path.read_text(encoding="utf-8")
-                    if before not in original:
-                        failures.append(f"{label} mutation fixture for {dimension} is missing")
-                        continue
-                    path.write_text(original.replace(before, after), encoding="utf-8")
-                    if not joint_errors():
-                        failures.append(f"{label} mutation for {dimension} must fail closed")
-                    path.write_text(original, encoding="utf-8")
-                record_path.write_text(
-                    record.replace(f"runtime_max_{dimension} = {runtime}", f"runtime_max_{dimension} = {historical - 1}"),
-                    encoding="utf-8",
-                )
-                if not any("no larger than the runtime ceiling" in error for error in joint_errors()):
-                    failures.append(f"historical {dimension} above the runtime ceiling must fail closed")
-                record_path.write_text(record, encoding="utf-8")
-
     # The path-specific route requires exactly two worlds even though the
     # reusable query representation permits more. Detect changes to the route
     # check instead of reading the unrelated representation capacity.
@@ -1333,26 +1196,6 @@ pub const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS: usize = 257;
         _, error = read_place(Reader(scale_dir), fold_place)
         if error is None:
             failures.append("missing fold-plan row guard must be rejected")
-
-        snapshot_path = scale_dir / "snapshot.toml"
-        snapshot_place = Place("snapshot.toml", "snapshot_bound", "example:max_folds")
-        snapshot = '[[record]]\nid = "example"\nbounds = { max_folds = 20 }\n'
-        snapshot_path.write_text(snapshot, encoding="utf-8")
-        values, error = read_place(Reader(scale_dir), snapshot_place)
-        if error or values != [20]:
-            failures.append(
-                "historical scope must be read from the named snapshot bound"
-            )
-        snapshot_path.write_text(snapshot + snapshot, encoding="utf-8")
-        _, error = read_place(Reader(scale_dir), snapshot_place)
-        if error is None:
-            failures.append("ambiguous historical snapshot records must be refused")
-        snapshot_path.write_text(
-            snapshot.replace("max_folds", "other"), encoding="utf-8"
-        )
-        _, error = read_place(Reader(scale_dir), snapshot_place)
-        if error is None:
-            failures.append("missing historical snapshot bounds must be refused")
 
     def run(d: Path, **kw: object) -> tuple[list[str], list[str], list[str]]:
         return check(

@@ -12,14 +12,15 @@ class DuplicateRecords(unittest.TestCase):
             root = Path(tmp)
             first, second = root / "a.p0.log", root / "b.p0.log"
             def line(n):
-                return "calibration-record " + json.dumps({"id":"x", "grid_point":0, "test":"t", "replicates":n}) + "\n"
+                return "calibration-record " + json.dumps({"id":"x.v2_validation_none", "grid_point":0, "test":"t", "replicates":n,
+                                                                 "validation_schema":2, "validation":"none"}) + "\n"
             first.write_text(line(100), encoding="utf-8")
             second.write_text(line(200), encoding="utf-8")
             with self.assertRaisesRegex(SystemExit, "duplicate record"):
                 collector.record_lines([first, second])
             recheck = root / "a.p0.recheck.log"
             recheck.write_text(line(200), encoding="utf-8")
-            self.assertEqual(collector.record_lines([first, recheck])["x"][0]["replicates"], 200)
+            self.assertEqual(collector.record_lines([first, recheck])["x.v2_validation_none"][0]["replicates"], 200)
             recheck.write_text(line(100) + line(200), encoding="utf-8")
             with self.assertRaisesRegex(SystemExit, "duplicate record"):
                 collector.record_lines([first, recheck])

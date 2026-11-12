@@ -138,23 +138,6 @@ const fn table<T: 'static>(load: fn() -> &'static [T]) -> StaticTable<T> {
 
 pub static RECORDS: StaticTable<CoverageRecord> = table(records);
 
-/// Reviewed source-proven validation of a historical, unchanged measurement.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct HistoricalValidationBinding {
-    pub(crate) record_id: &'static str,
-    pub(crate) calibration_sha: &'static str,
-    pub(crate) test: &'static str,
-    pub(crate) validation: &'static str,
-    pub(crate) source_structure: &'static str,
-}
-
-pub(crate) static HISTORICAL_VALIDATION_BINDINGS: StaticTable<HistoricalValidationBinding> =
-    table(historical_validation_bindings);
-
-fn historical_validation_bindings() -> &'static [HistoricalValidationBinding] {
-    registry().historical_validation_bindings
-}
-
 /// Exact identity-only migrations with reviewed original-engine replay evidence.
 /// All other construction axes, measured bounds and attestation remain mandatory.
 #[derive(Clone, Copy, Debug)]
@@ -197,7 +180,6 @@ fn interval_method_reasons() -> &'static [(IntervalMethod, Option<&'static str>)
 struct Registry {
     records: &'static [CoverageRecord],
     aliases: &'static [FunctionalIdentityAlias],
-    historical_validation_bindings: &'static [HistoricalValidationBinding],
     attesting: &'static [&'static str],
     reasons: &'static [(IntervalMethod, Option<&'static str>)],
 }
@@ -214,18 +196,6 @@ fn registry() -> &'static Registry {
                     .map(FunctionalIdentityAlias::from_raw)
                     .collect(),
             ),
-            historical_validation_bindings: leak_slice(
-                raw.historical_validation_bindings
-                    .into_iter()
-                    .map(|row| HistoricalValidationBinding {
-                        record_id: leak_str(row.record_id),
-                        calibration_sha: leak_str(row.calibration_sha),
-                        test: leak_str(row.test),
-                        validation: leak_str(row.validation),
-                        source_structure: leak_str(row.source_structure),
-                    })
-                    .collect(),
-            ),
             attesting: leak_strs(raw.attesting_record_ids),
             reasons: leak_slice(
                 raw.interval_method_reasons.into_iter().map(RawReason::into_pair).collect(),
@@ -238,28 +208,14 @@ fn registry() -> &'static Registry {
 struct RawRegistry {
     records: Vec<RawRecord>,
     functional_identity_aliases: Vec<RawAlias>,
-    #[serde(default)]
-    historical_validation_bindings: Vec<RawHistoricalValidationBinding>,
     attesting_record_ids: Vec<String>,
     interval_method_reasons: Vec<RawReason>,
 }
 
 #[derive(Deserialize)]
-struct RawHistoricalValidationBinding {
-    record_id: String,
-    calibration_sha: String,
-    test: String,
-    validation: String,
-    #[serde(default)]
-    source_structure: String,
-}
-
-#[derive(Deserialize)]
 struct RawRecord {
     id: String,
-    #[serde(default)]
     validation_schema: u8,
-    #[serde(default)]
     validation: String,
     query: String,
     graph_class: String,

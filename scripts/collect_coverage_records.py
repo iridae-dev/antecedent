@@ -1148,11 +1148,9 @@ def scientific_calibration_estimators(cell: dict) -> set[str]:
 
 
 def validation_record_problem(record: dict) -> str | None:
-    """Legacy is readable but unqualified; v2 binds its mode into its identity."""
+    """A record binds its validation mode and a shared-test structure into its identity."""
     schema, validation = record.get("validation_schema"), record.get("validation")
-    if schema is None and validation is None:
-        return None
-    if schema != 2 or validation not in {"unknown", "not_applicable", "none", "cheap", "full"}:
+    if schema != 2 or validation not in {"not_applicable", "none", "cheap", "full"}:
         return "invalid validation schema or mode"
     markers = [part.removeprefix("v2_validation_") for part in str(record.get("id", "")).split(".") if part.startswith("v2_validation_")]
     if markers != [validation]:
@@ -1166,23 +1164,14 @@ def validation_record_problem(record: dict) -> str | None:
 
 
 def resolved_record_validation(record: dict) -> str | None:
-    """Use v2 metadata or an exact reviewed historical proof; never guess."""
-    if record.get("validation_schema") == 2 and not validation_record_problem(record):
-        return record.get("validation")
-    if record.get("validation_schema") is not None or record.get("validation") is not None:
-        return None
-    import coverage_validation_bindings
-    return coverage_validation_bindings.binding_map().get(
-        (record.get("id"), record.get("calibration_sha"), record.get("test"))
-    )
+    """The validation a well-formed record stamps; never guessed."""
+    return None if validation_record_problem(record) else record.get("validation")
 
 
 def supported_record_structure(cell: dict, record: dict) -> str:
-    """The `structure` a record of `cell` carries: a runtime-stamped record of an accepted
-    cell says `accepted`; an earlier record of one was keyed as the fixed graph it estimates."""
-    if cell.get("structure") == "accepted" and record.get("validation_schema") == 2:
-        return "accepted"
-    return "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed"
+    """The `structure` a record of `cell` carries (an explicit graph is keyed `fixed`)."""
+    structure = cell.get("structure")
+    return structure if structure in ("accepted", "graph_posterior") else "fixed"
 
 
 def supported_record_matches(cell: dict, record: dict) -> bool:
@@ -1191,12 +1180,6 @@ def supported_record_matches(cell: dict, record: dict) -> bool:
     validation = resolved_record_validation(record)
     if validation not in {"none", "cheap", "full"} or cell.get("validation") != validation:
         return False
-    if record.get("validation_schema") != 2:
-        import coverage_validation_bindings
-        origin = coverage_validation_bindings.structure_map().get(
-            (record.get("id"), record.get("calibration_sha"), record.get("test")), "")
-        if origin != cell.get("structure"):
-            return False
     return (
         record.get("query"),
         record.get("graph_class"),

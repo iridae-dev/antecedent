@@ -50,7 +50,7 @@ a frontier grid of 1 to {{bound:sensitivity.joint_mechanism.runtime_max_frontier
 64 MiB). The public interval admits 2 to {{bound:sensitivity.joint_uncertainty.max_bootstrap_internal}} bootstrap replicates and any level strictly inside (0, 1); the measured setting (level 0.95, at least 199 replicates) decides only the interval's calibration status, never whether it is reported. A request outside the public bounds refuses as
 `joint_sensitivity.bounds_exceeded`.
 
-The numerical evidence covers up to {{bound:sensitivity.joint_mechanism.historical_evidence_max_parent_levels}} parent levels, {{bound:sensitivity.joint_mechanism.historical_evidence_max_outcome_categories}} outcome categories, and {{bound:sensitivity.joint_mechanism.historical_evidence_max_frontier_points}} frontier points. It does not establish numerical verification or calibration up to the wider runtime ceilings.
+The runtime ceilings bound what is admitted and do not establish numerical verification or calibration up to those ceilings.
 
 The parent-level and outcome-category bounds are checked on the law's shape,
 after the proof, formula and provider checks and before any cell of the law is
