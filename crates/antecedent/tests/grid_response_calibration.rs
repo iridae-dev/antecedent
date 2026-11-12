@@ -81,8 +81,7 @@ const N_DERIVATIVE: usize = 1000;
 const N_CURVE: usize = 500;
 /// The estimator's refusal of a log-outcome scale on data whose posterior does not keep the
 /// fitted response positive; a refused replicate is a skipped one.
-const POSITIVE_RESPONSE_REFUSAL: &str =
-    "log-outcome derivative scale requires a positive fitted response";
+const POSITIVE_RESPONSE_REFUSAL: &str = "requires a positive fitted response";
 /// Fixed bandwidth of the local-polynomial point derivative.
 const BANDWIDTH: f64 = 0.35;
 /// Evaluation dose of the point derivative, the Jacobian's first treatment and the class
