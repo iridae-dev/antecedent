@@ -2170,3 +2170,18 @@ coverage_tests! {
     average_effect_dag_bayesian_given_functional_effect: 0x57A7_006F, functional_effect(Bayesian),
         [(Accepted, None)];
 }
+
+// The graph-posterior intervention response under a full validation: the whole-procedure
+// stability check reruns the posterior, so each coordinate is measured on its own.
+coverage_tests! {
+    intervention_response_dag_frequentist_graph_posterior_full_validation: 0x57A7_0070, intervention_response(OnDag, Frequentist, true),
+        [(Posterior, Full)];
+    intervention_response_cpdag_frequentist_graph_posterior_full_validation: 0x57A7_0071, intervention_response(OnCpdag, Frequentist, true),
+        [(Posterior, Full)];
+    intervention_response_cpdag_bayesian_graph_posterior_full_validation: 0x57A7_0072, intervention_response(OnCpdag, Bayesian, true),
+        [(Posterior, Full)];
+    intervention_response_pag_frequentist_graph_posterior_full_validation: 0x57A7_0073, intervention_response(OnPag, Frequentist, true),
+        [(Posterior, Full)];
+    intervention_response_pag_bayesian_graph_posterior_full_validation: 0x57A7_0074, intervention_response(OnPag, Bayesian, true),
+        [(Posterior, Full)];
+}
