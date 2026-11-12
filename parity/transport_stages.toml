@@ -95,10 +95,10 @@ observation = "shared_dataset_replicates_with_failure_accounting"
 guarantee = "joint_outer_bootstrap_or_explicitly_unavailable"
 limits = "IID independent studies only. Unknown, linked-unit, and clustered dependence keep identification and withhold the interval. Failed replicates are counted; fail_frac>0.5 or <2 successes withhold the interval. Intervals are nominal and pointwise, not simultaneous. Recorded calibration is limited to named 95% mean-interval designs; unbound executions make no execution-specific coverage claim."
 coverage = [
-  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.recursive_frontdoor_nominal_coverage",
-  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.shared_factor_target_observational_nominal_coverage",
-  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.source_target_imbalance_standardize_nominal_coverage",
-  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.weak_overlap_near_empty_conditioner_boundary",
+  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.recursive_frontdoor_nominal_coverage.v2_validation_not_applicable",
+  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.shared_factor_target_observational_nominal_coverage.v2_validation_not_applicable",
+  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.source_target_imbalance_standardize_nominal_coverage.v2_validation_not_applicable",
+  "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.weak_overlap_near_empty_conditioner_boundary.v2_validation_not_applicable",
 ]
 evidence_test = "python/tests/test_transport_statistical.py"
 evidence_assertion = "test_iid_bootstrap_interval_executes_from_retained_plan_after_builder_disposal"
@@ -10179,7 +10179,7 @@ notes = "Only the exact allocated measured constructions with current attestatio
 [[routes]]
 route = "antecedent_estimate.propensity.PropensityWeighting.population_linear_score_interval"
 graph = "exact_method_record_scope"
-evidence = "cov.average_effect.dag.frequentist.balanced_population_linear_score.l95.weighted_ipw_hajek_interval"
+evidence = "cov.average_effect.dag.frequentist.balanced_population_linear_score.l95.weighted_ipw_hajek_interval.v2_validation_not_applicable"
 functional = "all_observed.mean+weighting=balanced_linear_hc3+weights=sampling+interval_variance=homoskedastic_gaussian_arm_linear_population"
 guarantee = "measured_exact_native_model_interval_current_attestation_required"
 evidence_test = "crates/antecedent-estimate/tests/sampling_weights.rs"
@@ -10190,7 +10190,7 @@ notes = "Independent homoskedastic Gaussian arm-linear outcomes; covariate-balan
 [[routes]]
 route = "antecedent_estimate.propensity.PropensityWeighting.population_score_interval"
 graph = "exact_method_record_scope"
-evidence = "cov.average_effect.dag.frequentist.balanced_population_score.l95.weighted_ipw_hajek_cluster_interval"
+evidence = "cov.average_effect.dag.frequentist.balanced_population_score.l95.weighted_ipw_hajek_cluster_interval.v2_validation_not_applicable"
 functional = "all_observed.mean+weighting=balanced_linear_hc3+weights=sampling"
 guarantee = "measured_exact_native_model_interval_current_attestation_required"
 evidence_test = "crates/antecedent-estimate/tests/sampling_weights.rs"
@@ -10201,7 +10201,7 @@ notes = "Exact published calibrated-weight population score construction, cluste
 [[routes]]
 route = "antecedent_estimate.AipwAte.population_linear_interval"
 graph = "exact_method_record_scope"
-evidence = "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_aipw_population_linear_interval"
+evidence = "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_aipw_population_linear_interval.v2_validation_not_applicable"
 functional = "all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population+point_correction=arm_linear_projection+weights=sampling"
 guarantee = "measured_exact_native_model_interval_current_attestation_required"
 evidence_test = "crates/antecedent-estimate/tests/sampling_weights.rs"
@@ -10212,7 +10212,7 @@ notes = "Independent homoskedastic Gaussian arm-linear outcomes; full training-f
 [[routes]]
 route = "antecedent_estimate.DmlAte.population_linear_interval"
 graph = "exact_method_record_scope"
-evidence = "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_dml_aipw_population_linear_interval"
+evidence = "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_dml_aipw_population_linear_interval.v2_validation_not_applicable"
 functional = "all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population+point_correction=arm_linear_projection+weights=sampling"
 guarantee = "measured_exact_native_model_interval_current_attestation_required"
 evidence_test = "crates/antecedent-estimate/tests/sampling_weights.rs"
@@ -10223,7 +10223,7 @@ notes = "Independent homoskedastic Gaussian arm-linear outcomes with supported l
 [[routes]]
 route = "antecedent_estimate.DrLearner.population_linear_interval"
 graph = "exact_method_record_scope"
-evidence = "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_dr_learner_population_linear_interval"
+evidence = "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_dr_learner_population_linear_interval.v2_validation_not_applicable"
 functional = "all_observed.mean+interval_variance=homoskedastic_gaussian_arm_linear_population+point_correction=arm_linear_projection+weights=sampling"
 guarantee = "measured_exact_native_model_interval_current_attestation_required"
 evidence_test = "crates/antecedent-estimate/tests/sampling_weights.rs"
@@ -10234,7 +10234,7 @@ notes = "Independent homoskedastic Gaussian arm-linear outcomes; supported linea
 [[routes]]
 route = "antecedent_estimate.AipwAte.population_linear_atc_interval"
 graph = "exact_method_record_scope"
-evidence = "cov.average_effect.dag.frequentist.population_linear_atc_hc3.l95.weighted_aipw_atc_interval"
+evidence = "cov.average_effect.dag.frequentist.population_linear_atc_hc3.l95.weighted_aipw_atc_interval.v2_validation_not_applicable"
 functional = "untreated.mean+overlap=clip:none,trim:none+interval_variance=heteroskedastic_arm_linear_training_hc3+weights=sampling"
 guarantee = "measured_exact_native_model_interval_current_attestation_required"
 evidence_test = "crates/antecedent-estimate/tests/sampling_weights.rs"
