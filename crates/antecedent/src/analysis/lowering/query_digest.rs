@@ -234,6 +234,7 @@ fn audit_identification_inputs(study: &Study) {
         // Operational evidence capture does not change the statistical program.
         retain_response_witnesses: _,
         temporal_validation_budget: _,
+        counterfactual_selection: _,
         // The product of identification, not an input to it.
         identification: _,
     } = study;

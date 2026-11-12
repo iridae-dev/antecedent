@@ -197,6 +197,8 @@ pub struct Study {
     pub(crate) retain_response_witnesses: bool,
     /// Shared operational work budget of the checked temporal validation.
     pub(crate) temporal_validation_budget: Option<antecedent_core::TemporalBudget>,
+    /// Mechanism selections a counterfactual refit on resampled rows conditions on.
+    pub(crate) counterfactual_selection: Option<Arc<crate::gcm::SelectedFamilies>>,
     /// Per-click declarations a rebinding may replace.
     pub(crate) declared: StudyDeclarations,
     /// Inference, refutation and resampling choices of this analysis.

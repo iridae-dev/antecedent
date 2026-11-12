@@ -2001,6 +2001,7 @@ fn into_study(exposure: BoundExposure) -> Study {
         shared_batch_design: None,
         retain_response_witnesses: false,
         temporal_validation_budget: None,
+        counterfactual_selection: None,
         interference,
     }
 }

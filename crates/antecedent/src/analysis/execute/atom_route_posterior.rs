@@ -890,10 +890,31 @@ impl super::Study {
         if !total.is_finite() || total <= 0.0 {
             return Ok(unavailable("the contributing atoms carry no posterior mass"));
         }
+        // A counterfactual selects each mechanism's family by validation score. The replicates
+        // condition on the families selected on the observed table, as the row bootstrap of a
+        // supplied graph does: selecting again on a table that repeats rows scores a repeated
+        // row with a model that trained on it.
+        let selection = matches!(kind, AtomQuery::Counterfactual(_))
+            .then(|| Arc::new(crate::gcm::SelectedFamilies::default()));
         let quiet: Vec<_> = atoms
             .iter()
-            .map(|(weight, study, graph)| (*weight, quiet_bootstrap_study(study), *graph))
+            .map(|(weight, study, graph)| {
+                let mut study = quiet_bootstrap_study(study);
+                study.counterfactual_selection.clone_from(&selection);
+                (*weight, study, *graph)
+            })
             .collect();
+        if let Some(selection) = &selection {
+            for (_, study, graph) in &quiet {
+                match answer_on_atom(study, graph, data, kind, physical, ctx) {
+                    Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
+                        return Err(error);
+                    }
+                    _ => {}
+                }
+            }
+            selection.seal();
+        }
         let mut values: Vec<f64> = Vec::new();
         let mut failed = 0_u32;
         'replicates: for replicate in 0..requested {

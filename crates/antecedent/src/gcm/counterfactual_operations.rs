@@ -4,8 +4,75 @@ use super::{
     ExecutionContext, FittedGcm, Intervention, IteResult, MechanismFamily, MechanismRegistry,
     MechanismWorkspace, ModelError, NestedCounterfactualQuery, SelectionPolicy, TableView,
     TabularData, Value, VariableId, contrast_outcome_nodes, contrasts_from_abduction,
-    fit_gcm_counterfactual, ite_from_abduction, map_mechanism_fit, nested_counterfactual_with_exo,
+    fit_gcm_counterfactual, fit_gcm_with, ite_from_abduction, map_mechanism_fit,
+    nested_counterfactual_with_exo,
 };
+
+/// The mechanism families selected on one table, by graph, kept so that refits on resamples
+/// of that table condition on the selection instead of repeating it. A resample repeats rows,
+/// and a repeated row on both sides of a validation fold favours the flexible families.
+#[derive(Debug, Default)]
+pub(crate) struct SelectedFamilies {
+    /// Whether the selections are final: a graph met afterwards selects for itself and is
+    /// not recorded.
+    sealed: std::sync::atomic::AtomicBool,
+    by_graph: std::sync::Mutex<SelectionsByGraph>,
+}
+
+type SelectionsByGraph =
+    std::collections::HashMap<Vec<(u32, u32)>, Arc<[(VariableId, MechanismFamily)]>>;
+
+impl SelectedFamilies {
+    /// Stop recording: every later fit either reuses a recorded selection or selects anew.
+    pub(crate) fn seal(&self) {
+        self.sealed.store(true, std::sync::atomic::Ordering::Release);
+    }
+
+    /// Fit `graph` to `data` with the families recorded for the graph, or select them (and
+    /// record the selection while unsealed).
+    fn fit(&self, graph: &Arc<Dag>, data: &TabularData) -> Result<FittedGcm, CausalError> {
+        let key = graph.directed_edge_pairs_sorted();
+        let known = self
+            .by_graph
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&key)
+            .cloned();
+        if let Some(families) = known {
+            let constraints = families
+                .iter()
+                .map(|&(variable, family)| {
+                    let only = super::NodeFamilyConstraint {
+                        allowed: Some(Arc::from([family])),
+                        excluded: Arc::from([]),
+                        required: Some(family),
+                    };
+                    (variable, only)
+                })
+                .collect();
+            let options = super::SelectionOptions { constraints, ..Default::default() };
+            return fit_gcm_with(
+                (**graph).clone(),
+                data,
+                &MechanismRegistry::with_heterogeneity_families(),
+                &options,
+            );
+        }
+        let fitted = fit_gcm_counterfactual(graph, data)?;
+        if !self.sealed.load(std::sync::atomic::Ordering::Acquire) {
+            let families = fitted
+                .assignments
+                .iter()
+                .map(|chosen| (chosen.variable, chosen.selected))
+                .collect();
+            self.by_graph
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .insert(key, families);
+        }
+        Ok(fitted)
+    }
+}
 
 /// One intervened variable of a contrast set with the level it takes in each world.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -129,9 +196,25 @@ pub struct CheckedCounterfactualOperation {
     active: f64,
     control: f64,
     contrast: Option<Arc<ContrastTarget>>,
+    /// Selections the mechanism fit conditions on, when the operation refits resamples.
+    selected: Option<Arc<SelectedFamilies>>,
 }
 
 impl CheckedCounterfactualOperation {
+    /// Condition the mechanism fit on `selected`: a graph it holds is fitted with its
+    /// recorded families.
+    pub(crate) fn conditional_on(mut self, selected: Arc<SelectedFamilies>) -> Self {
+        self.selected = Some(selected);
+        self
+    }
+
+    fn fit(&self, data: &TabularData) -> Result<FittedGcm, CausalError> {
+        match &self.selected {
+            Some(selected) => selected.fit(&self.graph, data),
+            None => fit_gcm_counterfactual(&self.graph, data),
+        }
+    }
+
     /// Check and freeze the counterfactual: the one-outcome, one-hard-set ITE, or a contrast
     /// set over several outcomes, simultaneous interventions or nested interventions.
     pub(crate) fn compile(graph: Dag, query: CounterfactualQuery) -> Result<Self, CausalError> {
@@ -189,6 +272,7 @@ impl CheckedCounterfactualOperation {
             active,
             control,
             contrast: None,
+            selected: None,
         })
     }
 
@@ -245,6 +329,7 @@ impl CheckedCounterfactualOperation {
             control: levels[0].control,
             query,
             contrast: Some(Arc::new(target)),
+            selected: None,
         })
     }
 
@@ -280,7 +365,7 @@ impl CheckedCounterfactualOperation {
                 message: "a counterfactual contrast set is executed with execute_contrasts".into(),
             });
         }
-        let FittedGcm { model, assignments } = fit_gcm_counterfactual(&self.graph, data)?;
+        let FittedGcm { model, assignments } = self.fit(data)?;
         // The engine shares the model through an `Arc`; once it is dropped the fitted model
         // is moved back out without a copy.
         let model = Arc::new(model);
@@ -309,7 +394,7 @@ impl CheckedCounterfactualOperation {
         let target = self.contrast.as_deref().ok_or_else(|| CausalError::Compile {
             message: "the single-outcome counterfactual is executed with execute".into(),
         })?;
-        let FittedGcm { model, assignments } = fit_gcm_counterfactual(&self.graph, data)?;
+        let FittedGcm { model, assignments } = self.fit(data)?;
         let nodes = contrast_outcome_nodes(&model, &target.outcomes)?;
         let model = Arc::new(model);
         let engine = CounterfactualEngine::shared(Arc::clone(&model));
