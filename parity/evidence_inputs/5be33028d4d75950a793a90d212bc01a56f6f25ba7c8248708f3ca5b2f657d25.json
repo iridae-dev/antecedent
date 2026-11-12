@@ -1,0 +1,1 @@
+[{"digest":"9d73aa4a454d5903c5101290ce1b395d712cae660d628aaec750d2308cd177cc","file":"3f62306eb7ac770b4730262fb7157cf88d0f00624a099ed0794324dda07c9bfd","kind":"rust_items","path":"crates/antecedent-validate/src/staleness/mod.rs","role":"compile","scopes":[[[],false]],"select":{"sig":[15]},"table":"2911ad058e67496761d8f397df94755511466ce2bc90f53530625c9d4a7845df"}]
