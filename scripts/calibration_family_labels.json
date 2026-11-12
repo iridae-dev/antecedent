@@ -475,7 +475,7 @@
     },
     {
       "path": "crates/antecedent-io-core/src/calibration.rs",
-      "sha256": "3e28486240b749ce7729ba1ab154d0b8e07d7b8085a1738350a7ddb08e856c09",
+      "sha256": "d60e6cb85c5cb57a64b80d6f5d955b75068681bf720b86beb378adf2daf15bc9",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Runtime calibration lookup and its test fixtures; no Monte Carlo family producer."
@@ -717,7 +717,7 @@
     },
     {
       "path": "crates/antecedent/tests/calibration_binding.rs",
-      "sha256": "65f144d12e64f4bc76aa3ee3ac0a1dc5124cd95ac4b81ea4fb40baaaf9a4af86",
+      "sha256": "eeb53d47a431b65352198e6a5a13042e2ffb39ff62f954c8b38264561798d0ec",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -741,7 +741,12 @@
           "argument": "key, 0.95"
         },
         {
-          "line": 574,
+          "line": 570,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, 0.95"
+        },
+        {
+          "line": 580,
           "call": "CoverageTally::for_record(",
           "argument": "key, 0.95"
         }
@@ -931,22 +936,22 @@
     },
     {
       "path": "crates/antecedent/tests/categorical_posterior_calibration.rs",
-      "sha256": "31cb272092082d42b088a16283072560bb3259508f8888e1456b6b45fe52f8fb",
+      "sha256": "330625daebe594a949281489aefea7075d2c0307f7fa221dd37dcee70b3f1f70",
       "labelled_calls": [
         {
-          "line": 156,
+          "line": 164,
           "call": ".labelled(",
-          "argument": "format!(\"k{levels}\")"
+          "argument": "format!(\"k{levels}_r{factor}\")"
         }
       ],
       "constructor_calls": [
         {
-          "line": 148,
+          "line": 156,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n                test: \"categorical_conjugate_contrast_prior_predictive_interval\",\n                dgp: \"declared_levels_normal_inverse_gamma_prior_predictive_imbalance_grid\",\n                interval: \"posterior_quantile\",\n            },\n            0.95,"
         }
       ],
-      "review": "Level-count labels k2 to k8 from a finite source loop; the nine settings cycled inside a record are fixed multipliers and imbalances, not outcomes."
+      "review": "Level-count and row-multiplier labels k2_r1 to k8_r16 from finite source loops; the three imbalances cycled inside a record are fixed settings, not outcomes."
     },
     {
       "path": "crates/antecedent/tests/class_posterior_calibration.rs",
@@ -981,7 +986,7 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration.rs",
-      "sha256": "f3368a57ec1e8e78cf1123310a28808603f704d143fcc7214fe5c458e1d03fed",
+      "sha256": "cbbc18d477126905c3886909666ff178f217d30065ac45e0c1885ee472593c9f",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources."

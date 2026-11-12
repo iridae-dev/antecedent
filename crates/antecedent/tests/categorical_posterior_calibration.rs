@@ -4,11 +4,12 @@
 //! drawn from the declared Normal-Inverse-Gamma prior, then a homoskedastic Gaussian
 //! sample is drawn conditionally. It makes no causal or misspecification guarantee.
 //!
-//! One record is measured for every level count from two to eight. Each record's replicates
-//! cycle through nine settings, three row-count multipliers crossed with three arm
-//! imbalances, on top of the run's sample-size grid point, so a record covers the row range
-//! the three grid points span and the arm shapes in it. A record is keyed by its level count
-//! because the runtime never extrapolates across level counts.
+//! One record is measured for every level count from two to eight at each of three row
+//! multipliers. A record's replicates cycle through three arm imbalances on top of the run's
+//! sample-size grid point, so a record covers the row range its three grid points span and
+//! the arm shapes in it, and the three multipliers' ranges meet end to end. A record is keyed
+//! by its level count because the runtime never extrapolates across level counts, and by its
+//! multiplier because each grid point of a record measures one row count.
 
 #![cfg(feature = "calibration-internal")]
 
@@ -37,8 +38,8 @@ use calibration::{
 
 /// Base row count; the run's grid point halves or doubles it.
 const BASE_ROWS: usize = 128;
-/// Row multipliers cycled across replicates. Together with the grid point they span 64 to
-/// 4096 rows, the row counts a record covers.
+/// Row multipliers, one record each. With the grid point they cover 64 to 256, 256 to 1024
+/// and 1024 to 4096 rows.
 const ROW_FACTORS: [usize; 3] = [1, 4, 16];
 const IMBALANCES: usize = 3;
 /// Most level counts measured; a record covers only the level counts it measured.
@@ -71,13 +72,14 @@ fn arm_sizes(rows: usize, levels: usize, imbalance: usize) -> Vec<usize> {
 
 type Replicate = Option<(String, [f64; 2], CalibrationBasis, f64)>;
 
-/// One prior-predictive dataset with `levels` levels; scores one non-reference contrast.
-fn replicate(rep: u64, levels: usize) -> Replicate {
-    let seed = stream_seed(grid_seed(0x6361_7400 + rep), levels as u64);
+/// One prior-predictive dataset with `levels` levels at row multiplier `factor`; scores one
+/// non-reference contrast.
+fn replicate(rep: u64, levels: usize, factor: usize) -> Replicate {
+    let seed = stream_seed(grid_seed(0x6361_7400 + rep), (levels * 32 + factor) as u64);
     let setting = usize::try_from(rep).ok()?;
-    let rows = grid_n(BASE_ROWS) * ROW_FACTORS[setting % ROW_FACTORS.len()];
-    let imbalance = (setting / ROW_FACTORS.len()) % IMBALANCES;
-    let target = 1 + (setting / (ROW_FACTORS.len() * IMBALANCES)) % (levels - 1);
+    let rows = grid_n(BASE_ROWS) * factor;
+    let imbalance = setting % IMBALANCES;
+    let target = 1 + (setting / IMBALANCES) % (levels - 1);
     let mut uniform = uniform(seed, 19);
     let mut normal = gaussian(seed ^ 0x7e11);
     // The shape is two, so G, a sum of two Exp(1), is Gamma(2, 1) and scale / G is InvGamma(2, scale).
@@ -138,13 +140,19 @@ fn replicate(rep: u64, levels: usize) -> Replicate {
     Some((declared[target].clone(), *interval, basis, effects[target]))
 }
 
+/// Every measured level count at every row multiplier.
+fn designs() -> impl Iterator<Item = (usize, usize)> {
+    (MIN_LEVELS..=MAX_LEVELS)
+        .flat_map(|levels| ROW_FACTORS.into_iter().map(move |factor| (levels, factor)))
+}
+
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn categorical_conjugate_contrast_prior_predictive_interval() {
     let runs: Vec<Vec<Replicate>> = map_replicates(n_sim(), |rep| {
-        (MIN_LEVELS..=MAX_LEVELS).map(|levels| replicate(rep, levels)).collect()
+        designs().map(|(levels, factor)| replicate(rep, levels, factor)).collect()
     });
-    for (offset, levels) in (MIN_LEVELS..=MAX_LEVELS).enumerate() {
+    for (offset, (levels, factor)) in designs().enumerate() {
         let mut tally = CoverageTally::for_record(
             RecordKey {
                 test: "categorical_conjugate_contrast_prior_predictive_interval",
@@ -153,7 +161,7 @@ fn categorical_conjugate_contrast_prior_predictive_interval() {
             },
             0.95,
         )
-        .labelled(format!("k{levels}"));
+        .labelled(format!("k{levels}_r{factor}"));
         for run in &runs {
             let Some((_, interval, basis, truth)) = &run[offset] else {
                 tally.skip();
@@ -166,7 +174,7 @@ fn categorical_conjugate_contrast_prior_predictive_interval() {
             tally.record_id().as_deref(),
             Some(
                 format!(
-                    "cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k{levels}"
+                    "cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k{levels}_r{factor}"
                 )
                 .as_str()
             )
