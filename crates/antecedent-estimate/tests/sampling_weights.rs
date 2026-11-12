@@ -328,6 +328,7 @@ fn unweighted_weighting(study: &Study) -> EffectEstimate {
 fn stratification(study: &Study, strata: u32, weighted: bool) -> EffectEstimate {
     let (data, estimand) = study.data();
     let mut estimator = PropensityStratification::new()
+        .with_regression_adjustment(false)
         .with_bootstrap_replicates(0)
         .with_overlap(no_clip())
         .with_n_strata(strata);
@@ -1069,6 +1070,7 @@ fn stratification_cluster_se_sums_the_stratified_influence_within_clusters() {
     let groups: Vec<u32> = (0..study.len()).map(|i| (i / 10) as u32).collect();
     let (data, estimand) = study.data();
     let estimator = PropensityStratification::new()
+        .with_regression_adjustment(false)
         .with_bootstrap_replicates(0)
         .with_overlap(no_clip())
         .with_n_strata(5)

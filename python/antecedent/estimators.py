@@ -816,6 +816,12 @@ class PropensityMatching:
 class PropensityStratification:
     """``propensity.stratification`` — propensity-score strata (default 5 strata).
 
+    Within each arm a linear outcome model with stratum intercepts is fit and standardized
+    over the target population, which removes the confounding left inside finite propensity
+    bins when those outcome models are correct. ``regression_adjustment=False`` pools the raw
+    stratum means instead; their bias does not shrink with the sample, so that interval is a
+    separate, unmeasured construction.
+
     ``cluster="site"`` names the data column of cluster labels: the analytic SE is the cluster
     sandwich of the stratified influence values given the strata, and ``bootstrap`` resamples
     whole clusters, refitting the propensity and re-cutting the strata on each replicate (the
@@ -827,6 +833,7 @@ class PropensityStratification:
     bootstrap: int | None = None
     glm_options: GlmOptions | None = None
     n_strata: int | None = None
+    regression_adjustment: bool = True
     overlap: Overlap | None = None
     other_levels: OtherLevelsName = "refuse"
     cluster: str | None = None
@@ -850,6 +857,8 @@ class PropensityStratification:
         out.update(_wire_glm_options(self.glm_options))
         if self.n_strata is not None:
             out["n_strata"] = self.n_strata
+        if not self.regression_adjustment:
+            out["regression_adjustment"] = False
         out.update(_wire_overlap(self.overlap))
         out.update(_wire_other_levels(self.other_levels))
         if self.cluster is not None:

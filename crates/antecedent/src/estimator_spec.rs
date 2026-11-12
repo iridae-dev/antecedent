@@ -316,12 +316,26 @@ impl EstimatorSpec {
         }
     }
 
-    /// Distinguish declared regression-standardized strata from raw stratum means.
+    /// Distinguish regression-standardized strata (the default configuration, so also what
+    /// an id-only request runs) from raw stratum means.
     #[must_use]
     pub fn stratification_calibration_label(&self) -> Option<&'static str> {
         match self {
             Self::PropensityStratification(cfg) if cfg.regression_adjustment => {
                 Some("stratification=regression_linear_hc3")
+            }
+            Self::Default(id) => Self::default_stratification_calibration_label(*id),
+            _ => None,
+        }
+    }
+
+    /// [`Self::stratification_calibration_label`] of the default configuration `id` runs.
+    #[must_use]
+    pub fn default_stratification_calibration_label(id: EstimatorId) -> Option<&'static str> {
+        match id {
+            EstimatorId::PropensityStratification => {
+                EstimatorSpec::from(PropensityStratification::new())
+                    .stratification_calibration_label()
             }
             _ => None,
         }
