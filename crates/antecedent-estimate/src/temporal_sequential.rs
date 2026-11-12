@@ -1106,6 +1106,47 @@ impl SequentialSetup {
         slope
     }
 
+    /// Per-row score of the modifier means a `Contrast` reads:
+    /// `Σ_{i,m} ∂contrast/∂w̄_{i,m} · (w_{i,m,t} − w̄_{i,m})` over fitted nodes `i` and
+    /// modifiers `m`. The contrast evaluates every interaction at the sample mean of its
+    /// modifier, so the mean's sampling error moves the contrast even with the
+    /// coefficients held fixed. The contrast is linear in each single mean, so the
+    /// gradient is the exact change from replacing that mean's interaction slots with a
+    /// unit step. `None` for a `Level` and for a contrast that reads no modifier mean.
+    fn modifier_mean_scores(&self, base: &[Vec<f64>]) -> Option<Vec<f64>> {
+        if self.modifiers.is_empty() || !matches!(self.eval, SequentialEval::Contrast { .. }) {
+            return None;
+        }
+        let value = self.propagate(base, &self.factual, None);
+        let mut score = vec![0.0; self.n];
+        let mut any = false;
+        for &i in &self.order {
+            if base[i].is_empty() {
+                continue;
+            }
+            for (modifier, column) in self.node_modifier_values[i].iter().enumerate() {
+                // A unit step in this mean adds each parent's interaction coefficient to
+                // that parent's main slope.
+                let mut stepped = base.to_vec();
+                for (parent, slots) in self.interaction_at[i].iter().enumerate() {
+                    if let Some(&slot) = slots.get(modifier) {
+                        stepped[i][parent + 1] += base[i][slot];
+                    }
+                }
+                let slope = self.propagate(&stepped, &self.factual, None) - value;
+                if !slope.is_finite() || slope == 0.0 {
+                    continue;
+                }
+                let mean = self.modifier_mean(i, modifier, None);
+                for (s, w) in score.iter_mut().zip(column) {
+                    *s += slope * (w - mean);
+                }
+                any = true;
+            }
+        }
+        any.then_some(score)
+    }
+
     fn propagate(&self, coefficients: &[Vec<f64>], factual: &[f64], rows: Option<&[usize]>) -> f64 {
         match self.eval {
             SequentialEval::Contrast { delta } => {
