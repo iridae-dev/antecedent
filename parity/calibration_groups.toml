@@ -6320,7 +6320,7 @@ target = "graph_imputation_interval_calibration"
 features = ["calibration-internal"]
 tests = ["graph_imputation_prior_predictive_confounded_candidate"]
 ignored = true
-grid = false
+grid = true
 
 [[group]]
 label = "graph_imputation_interval_calibration: graph_imputation_prior_predictive_four_variable_candidate"
@@ -6338,7 +6338,7 @@ target = "graph_imputation_interval_calibration"
 features = ["calibration-internal"]
 tests = ["graph_imputation_prior_predictive_four_variable_confounded_candidate"]
 ignored = true
-grid = false
+grid = true
 
 [[group]]
 label = "randomized_quantile_interval_calibration: randomized_quantile_median_effect_analytic_interval"
