@@ -34,10 +34,9 @@ use crate::temporal_block::score_effective_rows;
 /// multiple of 5 at which every design covering below the gate band warns on most of
 /// its replicates. The shift response under an AR(1) φ = 0.9 treatment reads the
 /// treatment mean; its influence reads 6.2 / 10.2 / 17.8 effective rows (10th / 50th /
-/// 90th percentile) at n = 100, where the band covers 0.863 pointwise and 0.868
-/// simultaneous, so it warns on 82.5% of replicates here (see the `_n100_boundary` test:
-/// after the level-influence `O_p(1)` fix, this design's tail crosses the threshold often
-/// enough that a 90% floor no longer holds, so that test asserts 80% instead). The same
+/// 90th percentile) at n = 100, where the band covers about 0.87, so it warns on about
+/// 79% of replicates here (82.5% and 75.0% on two independent 400-replicate draws; the
+/// `_n100_boundary` test asserts 70%). The same
 /// design at n = 160 reads 8.7 / 14.6 / 23.6 rows and covers 0.931 / 0.935 (gated), so it
 /// still warns on about half its replicates; at n = 400 it reads 21.2 / 31.9 / 47.1 rows
 /// and is nearly quiet. The dose cells of the same design read 22.6 / 32.7 / 45.3 rows at
