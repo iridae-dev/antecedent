@@ -14564,6 +14564,7 @@ pub field antecedent_estimate::SlopePosterior::draws: alloc::vec::Vec<alloc::vec
 pub field antecedent_estimate::SlopePosterior::effective_rows: f64
 pub field antecedent_estimate::SlopePosterior::mean: alloc::vec::Vec<f64>
 pub field antecedent_estimate::SlopePosterior::modifier_mean: f64
+pub field antecedent_estimate::SlopePosterior::modifier_mean_draws: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_estimate::SlopePosterior::modifier_means: alloc::vec::Vec<f64>
 pub field antecedent_estimate::SlopePosterior::tempering: f64
 pub field antecedent_estimate::SlopePosteriorSpec::draws: usize
