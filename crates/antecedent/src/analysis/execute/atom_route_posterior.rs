@@ -461,6 +461,19 @@ pub(super) fn is_query_refusal(error: &CausalError) -> bool {
     ) && !error.is_identification_refusal()
 }
 
+/// Whether an error is an estimator declining the atom's data (a scale or design the fitted
+/// values do not support): the atom identifies the query, so when no atom evaluates, this is
+/// the reason the study has no answer.
+pub(super) fn is_estimator_refusal(error: &CausalError) -> bool {
+    matches!(
+        error.peeled(),
+        CausalError::Estimate(
+            antecedent_estimate::EstimationError::Unsupported { .. }
+                | antecedent_estimate::EstimationError::UnsupportedWithFields { .. }
+        )
+    )
+}
+
 /// Draw `d` of the mixture of the atoms' scalar response draws: the posterior-weighted sum of
 /// draw `d` of every atom. `None` when an atom retains no draws or the counts differ, so the
 /// atoms are not draws of one shared run.
@@ -782,6 +795,7 @@ impl super::Study {
         let mut records: Vec<AtomRecord> = Vec::new();
         let mut seen: std::collections::HashSet<u64> = std::collections::HashSet::new();
         let mut refusal: Option<CausalError> = None;
+        let mut declined: Option<CausalError> = None;
         for index in 0..gp.n_graphs() {
             let key = gp.graph_keys()[index];
             if !seen.insert(key) {
@@ -809,6 +823,8 @@ impl super::Study {
                         Err(error) => {
                             if refusal.is_none() && is_query_refusal(&error) {
                                 refusal = Some(error);
+                            } else if declined.is_none() && is_estimator_refusal(&error) {
+                                declined = Some(error);
                             }
                             AtomRun::Unevaluable
                         }
@@ -819,7 +835,9 @@ impl super::Study {
             records.push(AtomRecord { key, graph, study, run });
         }
         let fitted = records.iter().any(|record| matches!(record.run, AtomRun::Fit(_)));
-        if !fitted && let Some(error) = refusal {
+        // With no atom evaluated the study has no answer; an estimator that declined an
+        // identifying atom is why, and "not identified" would misstate it.
+        if !fitted && let Some(error) = refusal.or(declined) {
             return Err(error);
         }
         Ok(records)
@@ -1432,5 +1450,15 @@ mod query_refusal_tests {
             "no identification"
         )));
         assert!(!is_query_refusal(&CausalError::Cancelled { stage: "test" }));
+    }
+
+    #[test]
+    fn estimator_refusal_is_an_unsupported_estimate_and_not_a_query_refusal() {
+        let declined = CausalError::Estimate(antecedent_estimate::EstimationError::unsupported(
+            "the fitted values do not support the scale",
+        ));
+        assert!(super::is_estimator_refusal(&declined));
+        assert!(!is_query_refusal(&declined));
+        assert!(!super::is_estimator_refusal(&CausalError::Unsupported { message: "unsupported" }));
     }
 }
