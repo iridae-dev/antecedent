@@ -108,7 +108,7 @@ fn recovery_bca_original_measurement_identity_receipt() {
     let original_row = include_str!("../../../parity/coverage_records.toml")
         .split("[[record]]")
         .find(|row| row.contains(
-            "id = \"cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95\""
+            "test = \"crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_missingness_whole_row_recovery_bca_l95\""
         )).unwrap();
     let functional_literal =
         original_row.lines().find_map(|line| line.strip_prefix("functional = ")).unwrap();
