@@ -21,12 +21,16 @@ is not a smoke run, ran fewer than `recheck_nsim` replicates and printed
 only the replicates the first pass did not and folds them onto its tallies
 (crates/antecedent/tests/common/calibration.rs), so the recheck's lines equal a fresh
 run's. A group that names no exact tests rechecks only the tests that asked, and names
-them in `calibration-rechecked-test` lines.
+them in `calibration-rechecked-test` lines. A recheck the first pass's duration projects past
+RECHECK_TARGET_SECONDS runs on more worker threads (`recheck_threads`).
 """
 from __future__ import annotations
 
 import collections
+import math
+import os
 import re
+import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,6 +44,12 @@ _RECHECK_TEST = re.compile(r"^calibration-recheck-test (\S+)", re.M)
 _REPLICATED = {"replicated_interval", "replicated_statistical_test"}
 # Replicates the instrumented binary runs, single-threaded, beside a release-binary measurement.
 SLICE_NSIM = 16
+# A recheck the first pass projects to run longer than this many seconds gets more
+# `map_replicates` workers, at most RECHECK_MAX_THREADS: the recheck is several times the
+# first pass, runs after most of the queue has drained, and replicate results do not
+# depend on the worker count.
+RECHECK_TARGET_SECONDS = 900
+RECHECK_MAX_THREADS = 8
 # Test targets whose outer replicate map has a fixed budget, the acceptance count, at
 # every grid point: a first pass of any other size is not the look they report. The
 # treatment-inference diagnostics measure at least 2,000 attempts, the registered look
@@ -161,6 +171,13 @@ def stem_of(log_dir: Path, group: GroupSpec, point: int | None, confirm: bool) -
     return log_dir / f"{group.safe}{suffix}{'.confirm' if confirm else ''}"
 
 
+def recheck_threads(first_seconds: float, first_nsim: int, recheck_nsim: int, threads: int) -> int:
+    """Worker threads for a recheck whose first pass took `first_seconds` on `threads`."""
+    projected = first_seconds * (recheck_nsim - first_nsim) / max(first_nsim, 1)
+    wanted = math.ceil(threads * projected / RECHECK_TARGET_SECONDS)
+    return max(threads, min(wanted, RECHECK_MAX_THREADS, os.cpu_count() or 1))
+
+
 def measure(spec: dict) -> dict:
     """One (group, grid point): first pass, recheck when asked. Runs in a worker process.
 
@@ -198,7 +215,9 @@ def measure(spec: dict) -> dict:
 
     first = spec["first_nsim"]
     env = {**base_env, "ANTECEDENT_CALIBRATION_NSIM": str(first), "ANTECEDENT_CALIBRATION_TALLY_OUT": str(tallies)}
+    started = time.monotonic()
     status, output, regions, problem = measured_run(libtest_args(group), env)
+    first_seconds = time.monotonic() - started
     problems = []
     if status == 0 and passed_tests(output) < 1:
         problems.append(f"no test ran for this group (renamed or filtered away): {log}")
@@ -212,7 +231,10 @@ def measure(spec: dict) -> dict:
     if (status == 0 and not spec["smoke"] and first < spec["recheck_nsim"] and _RECHECK.search(output)):
         rechecked = True
         tests = sorted(set(_RECHECK_TEST.findall(output))) if group.tests is None else []
+        threads = int(base_env.get("ANTECEDENT_CALIBRATION_THREADS", "1"))
         env = {**base_env, "ANTECEDENT_CALIBRATION_NSIM": str(spec["recheck_nsim"]),
+               "ANTECEDENT_CALIBRATION_THREADS": str(
+                   recheck_threads(first_seconds, first, spec["recheck_nsim"], threads)),
                "ANTECEDENT_CALIBRATION_REPLICATE_START": str(first),
                "ANTECEDENT_CALIBRATION_PRIOR_TALLIES": str(tallies),
                "ANTECEDENT_CALIBRATION_TALLY_OUT": str(recheck_tallies)}
