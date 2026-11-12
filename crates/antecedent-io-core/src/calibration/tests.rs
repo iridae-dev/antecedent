@@ -303,6 +303,14 @@ fn validation_coordinate_refuses_legacy_unknown_and_other_modes() {
     assert!(!basis.key.same_construction(&accepted));
     accepted.id = "cov.fixture.v2_validation_none";
     assert!(!accepted_basis.key.same_construction(&accepted));
+    let mut posterior = accepted;
+    posterior.structure = "graph_posterior";
+    let mut posterior_basis = basis.clone();
+    posterior_basis.key.structure = "graph_posterior".into();
+    assert!(!posterior_basis.key.same_construction(&posterior));
+    posterior.id = "cov.fixture.v2_validation_none.v2_structure_graph_posterior";
+    assert!(posterior_basis.key.same_construction(&posterior));
+    assert!(!accepted_basis.key.same_construction(&posterior));
 }
 
 #[test]

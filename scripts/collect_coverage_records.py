@@ -1158,8 +1158,10 @@ def validation_record_problem(record: dict) -> str | None:
     if markers != [validation]:
         return "validation mode does not match versioned record identity"
     structures = [part.removeprefix("v2_structure_") for part in str(record.get("id", "")).split(".") if part.startswith("v2_structure_")]
-    if structures != (["accepted"] if record.get("structure") == "accepted" else []):
-        return "accepted structure does not match versioned record identity"
+    # A structure that shares a test with the fixed graph is named in the id.
+    named = [record["structure"]] if record.get("structure") in ("accepted", "graph_posterior") else []
+    if structures != named:
+        return "structure does not match versioned record identity"
     return None
 
 

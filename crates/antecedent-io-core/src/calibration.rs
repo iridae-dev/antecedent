@@ -319,13 +319,12 @@ fn validation_matches_with_bindings(
             record.id.split('.').filter_map(|part| part.strip_prefix("v2_validation_"));
         let mut structures =
             record.id.split('.').filter_map(|part| part.strip_prefix("v2_structure_"));
-        let source_ok = if record.structure == "accepted" {
-            key.structure == "accepted"
-                && structures.next() == Some("accepted")
-                && structures.next().is_none()
-        } else {
-            key.structure != "accepted" && structures.next().is_none()
-        };
+        // A structure that shares a test with the fixed graph is named in the id.
+        let named =
+            matches!(record.structure, "accepted" | "graph_posterior").then_some(record.structure);
+        let source_ok = (record.structure == "accepted") == (key.structure == "accepted")
+            && structures.next() == named
+            && structures.next().is_none();
         return source_ok
             && record.validation == key.validation
             && markers.next() == Some(record.validation)

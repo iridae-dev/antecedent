@@ -629,7 +629,7 @@ def record_shape_problems(rec: dict, collector, root: Path) -> list[str]:
     )
     if rid != expected and not rid.startswith(expected + "."):
         problems.append(f"{label}: id does not match its fields ({expected}[.<label>])")
-    # A schema-2 id carries its validation mode (and an accepted structure) as segments of their
+    # A schema-2 id carries its validation mode (and a structure named beside the fixed graph) as segments of their
     # own (`.v2_<mode>`) ahead of any label; the label after them is sanitized like any other.
     suffix = rid[len(expected) + 1 :] if rid.startswith(expected + ".") else ""
     suffix = re.sub(r"^(?:v2_[a-z_]+(?:\.|$))+", "", suffix)

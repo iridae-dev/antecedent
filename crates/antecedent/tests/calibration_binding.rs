@@ -565,6 +565,12 @@ fn coverage_tally_versions_validation_and_rejects_mixed_replicates() {
     let accepted_id = accepted.record_id().unwrap();
     assert!(accepted_id.contains(".v2_validation_none.v2_structure_accepted"));
     assert_ne!(none_id, accepted_id);
+    let mut posterior_construction = construction.clone();
+    posterior_construction.structure = "graph_posterior".into();
+    let mut posterior = CoverageTally::for_record(key, 0.95);
+    posterior.bind_validation(&posterior_construction, scope, "none");
+    let posterior_id = posterior.record_id().unwrap();
+    assert!(posterior_id.contains(".v2_validation_none.v2_structure_graph_posterior"));
     assert!(
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             none.bind_validation(&construction, scope, "full");

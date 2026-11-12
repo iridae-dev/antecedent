@@ -21357,10 +21357,10 @@ inference_claim = "none"
 inference_notes = "The V3 candidate measures coverage averaged over a declared Uniform(-1,1) direct-effect distribution, in randomized and confounded cells on three and four variables; it does not measure pointwise or uniform coverage, does not support inference on its own, and the measured route is supported only where a current attesting record covers the construction and row count. It is not supported pending independent scientific review and applicable records."
 coverage_records = []
 candidate_coverage_records = [
-  "cov.average_effect.dag.graphimputationcompositev2.nearest_rank_95.l95.graph_imputation_mar_bic_nearest_rank_candidate.v2_validation_none",
-  "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_uniform_effect_candidate.v2_validation_none",
+  "cov.average_effect.dag.graphimputationcompositev2.nearest_rank_95.l95.graph_imputation_mar_bic_nearest_rank_candidate.v2_validation_none.v2_structure_graph_posterior",
+  "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_uniform_effect_candidate.v2_validation_none.v2_structure_graph_posterior",
   "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_confounded_candidate.v2_validation_none",
-  "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_four_variable_candidate.v2_validation_none",
+  "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_four_variable_candidate.v2_validation_none.v2_structure_graph_posterior",
   "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_four_variable_confounded_candidate.v2_validation_none",
 ]
 owners = ["antecedent-discovery", "antecedent", "antecedent-py", "python/antecedent"]

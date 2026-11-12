@@ -150,7 +150,7 @@ def audit_logs(
                     f"{log.name}: decision differs from complete fixed-attempt sidecar"
                 )
             if row["record_id"] is not None:
-                if row["record_id"] in bound and bound[row["record_id"]] != value:
+                if row["record_id"] in bound and bound[row["record_id"]] != row["decision_protocol"]:
                     raise ValueError(f"{log.name}: conflicting record decision identity")
                 bound[row["record_id"]] = row["decision_protocol"]
         for record in records:

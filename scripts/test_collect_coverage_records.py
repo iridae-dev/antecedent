@@ -305,6 +305,15 @@ class SupportedCellSyncTest(unittest.TestCase):
         self.assertFalse(collector.supported_record_matches(cell, accepted))
         self.assertFalse(collector.supported_record_matches({**cell, "structure": "accepted"}, {**accepted, "id": record["id"]}))
 
+    def test_a_graph_posterior_measurement_names_its_structure(self) -> None:
+        record = {**self.record("functional.effect"), "validation_schema": 2, "validation": "none",
+                  "structure": "graph_posterior"}
+        bare = {**record, "id": "cov.test.v2_validation_none"}
+        named = {**record, "id": "cov.test.v2_validation_none.v2_structure_graph_posterior"}
+        self.assertIsNotNone(collector.validation_record_problem(bare))
+        self.assertIsNone(collector.validation_record_problem(named))
+        self.assertIsNotNone(collector.validation_record_problem({**named, "structure": "fixed"}))
+
     def test_explicit_measurement_does_not_bind_an_accepted_cell(self) -> None:
         import coverage_validation_bindings
         cell = collector.tomllib.loads(self.source())["cell"][0]

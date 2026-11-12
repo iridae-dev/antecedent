@@ -1423,8 +1423,10 @@ impl CoverageTally {
         );
         id.push_str(".v2_validation_");
         id.push_str(record.validation.as_deref().unwrap_or("unknown"));
-        if construction.structure == "accepted" {
-            id.push_str(".v2_structure_accepted");
+        // The structures a test may measure beside the fixed graph on one base.
+        if matches!(construction.structure.as_str(), "accepted" | "graph_posterior") {
+            id.push_str(".v2_structure_");
+            id.push_str(&construction.structure);
         }
         if let Some(label) = &record.label {
             id.push('.');
