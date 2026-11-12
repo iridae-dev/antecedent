@@ -100,7 +100,7 @@ fn matching_ids(key: &CalibrationKeyWire) -> Vec<&'static str> {
 fn versioned_graph_imputation_key_matches_only_its_exact_construction() {
     // Synthetic in-memory record: this does not assert that measurement exists.
     let mut record = RECORDS[0];
-    record.id = "test.graph_imputation.v2_validation_none";
+    record.id = "test.graph_imputation.v2_validation_none.v2_structure_graph_posterior";
     record.validation_schema = 2;
     record.validation = "none";
     record.structure = "graph_posterior";
@@ -125,7 +125,7 @@ fn versioned_graph_imputation_key_matches_only_its_exact_construction() {
 #[test]
 fn prior_predictive_graph_scope_never_borrows_fixed_effect_record() {
     let mut record = RECORDS[0];
-    record.id = "test.graph_imputation.v2_validation_none";
+    record.id = "test.graph_imputation.v2_validation_none.v2_structure_graph_posterior";
     record.validation_schema = 2;
     record.validation = "none";
     record.structure = "graph_posterior";
