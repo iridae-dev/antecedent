@@ -177,6 +177,17 @@ decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cell
 coverage_decisions = []
 
 [[gate]]
+group = "antecedent-discovery__order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps"
+passed = 1
+calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 996864, family_digest = "9b46d5c68b8af5b31b5d0d5dcb41253c48bca61cdb324e8e79b1e4bbecbd2f5b", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+
+[[gate]]
 group = "antecedent-discovery__order_mcmc_marginals_match_the_exact_posterior_at_ten_variables"
 passed = 1
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
@@ -1129,52 +1140,52 @@ calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 [[gate]]
 group = "knn_matching_calibration__knn_matching_interval_ci_coverage.p0"
 passed = 1
-calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 996864, family_digest = "a593c5061c2dd4544f4a898009b3c33f67c549b8fc4daaaaa9ad1fc53e0b04f4", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 996864, family_digest = "9b46d5c68b8af5b31b5d0d5dcb41253c48bca61cdb324e8e79b1e4bbecbd2f5b", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
 ], validation_domain = "coverage_measurement" }
 coverage_decisions = [
-  { log = "knn_matching_calibration__knn_matching_interval_ci_coverage.p0.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 380, family_alpha = 0.05, family_cells = 996864, family_digest = "a593c5061c2dd4544f4a898009b3c33f67c549b8fc4daaaaa9ad1fc53e0b04f4", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { log = "knn_matching_calibration__knn_matching_interval_ci_coverage.p0.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 380, family_alpha = 0.05, family_cells = 996864, family_digest = "9b46d5c68b8af5b31b5d0d5dcb41253c48bca61cdb324e8e79b1e4bbecbd2f5b", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
-], lower_only = false, p_value = 1.0, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 0, measured_at = "f8ace1a6396250cc0f335a0b366e95ef926b5a80", name = "knn_matching_interval", nominal = 0.95, record_id = "", test = "knn_matching_interval_ci_coverage" },
+], lower_only = false, p_value = 1.0, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 0, measured_at = "935d928b7b2812a14ef79ee21833c3955d133949", name = "knn_matching_interval", nominal = 0.95, record_id = "", test = "knn_matching_interval_ci_coverage" },
 ]
 
 [[gate]]
 group = "knn_matching_calibration__knn_matching_interval_ci_coverage.p1"
 passed = 1
-calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 996864, family_digest = "a593c5061c2dd4544f4a898009b3c33f67c549b8fc4daaaaa9ad1fc53e0b04f4", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 996864, family_digest = "9b46d5c68b8af5b31b5d0d5dcb41253c48bca61cdb324e8e79b1e4bbecbd2f5b", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
 ], validation_domain = "coverage_measurement" }
 coverage_decisions = [
-  { log = "knn_matching_calibration__knn_matching_interval_ci_coverage.p1.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1923, family_alpha = 0.05, family_cells = 996864, family_digest = "a593c5061c2dd4544f4a898009b3c33f67c549b8fc4daaaaa9ad1fc53e0b04f4", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { log = "knn_matching_calibration__knn_matching_interval_ci_coverage.p1.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1923, family_alpha = 0.05, family_cells = 996864, family_digest = "9b46d5c68b8af5b31b5d0d5dcb41253c48bca61cdb324e8e79b1e4bbecbd2f5b", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
-], lower_only = false, p_value = 0.017159790641138956, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }, grid_point = 1, measured_at = "f8ace1a6396250cc0f335a0b366e95ef926b5a80", name = "knn_matching_interval", nominal = 0.95, record_id = "", test = "knn_matching_interval_ci_coverage" },
+], lower_only = false, p_value = 0.017159790641138956, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }, grid_point = 1, measured_at = "935d928b7b2812a14ef79ee21833c3955d133949", name = "knn_matching_interval", nominal = 0.95, record_id = "", test = "knn_matching_interval_ci_coverage" },
 ]
 
 [[gate]]
 group = "knn_matching_calibration__knn_matching_interval_ci_coverage.p2"
 passed = 1
-calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 996864, family_digest = "a593c5061c2dd4544f4a898009b3c33f67c549b8fc4daaaaa9ad1fc53e0b04f4", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 996864, family_digest = "9b46d5c68b8af5b31b5d0d5dcb41253c48bca61cdb324e8e79b1e4bbecbd2f5b", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
 ], validation_domain = "coverage_measurement" }
 coverage_decisions = [
-  { log = "knn_matching_calibration__knn_matching_interval_ci_coverage.p2.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 996864, family_digest = "a593c5061c2dd4544f4a898009b3c33f67c549b8fc4daaaaa9ad1fc53e0b04f4", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { log = "knn_matching_calibration__knn_matching_interval_ci_coverage.p2.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 996864, family_digest = "9b46d5c68b8af5b31b5d0d5dcb41253c48bca61cdb324e8e79b1e4bbecbd2f5b", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
-], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 2, measured_at = "f8ace1a6396250cc0f335a0b366e95ef926b5a80", name = "knn_matching_interval", nominal = 0.95, record_id = "", test = "knn_matching_interval_ci_coverage" },
+], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 2, measured_at = "935d928b7b2812a14ef79ee21833c3955d133949", name = "knn_matching_interval", nominal = 0.95, record_id = "", test = "knn_matching_interval_ci_coverage" },
 ]
 
 [[gate]]
