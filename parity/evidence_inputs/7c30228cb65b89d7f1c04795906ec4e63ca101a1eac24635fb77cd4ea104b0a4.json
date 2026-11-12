@@ -1,1 +1,0 @@
-[{"digest":"b15084fd570b5c73148b9ef57cfdcd2cb02ffb42d7b42458ab46b7d02dc167da","file":"174ce37660b66256f016b8f14a11641c1b56f2518985004aa9a8b35eff9a779d","kind":"rust_items","path":"crates/antecedent/src/gcm/counterfactual_operations.rs","role":"compile","scopes":[[[],true]],"select":{"full":[17,32,34]},"table":"22f1bcf2b196a68161eaf2a9cac45c9d5948214b46c7d37e2d0694fd5c5fedc2"}]
