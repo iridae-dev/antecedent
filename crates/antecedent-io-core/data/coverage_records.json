@@ -53219,7 +53219,7 @@
       "calibration_sha": "935d928b7b2812a14ef79ee21833c3955d133949"
     },
     {
-      "id": "cov.average_effect.dag.frequentist.analytic_se.l95.causal_forest_analytic_ci_coverage.v2_validation_unknown",
+      "id": "cov.average_effect.dag.frequentist.analytic_se.l95.causal_forest_analytic_ci_coverage.v2_validation_not_applicable",
       "query": "AverageEffect",
       "graph_class": "Dag",
       "structure": "fixed",
@@ -53272,7 +53272,7 @@
         }
       ],
       "validation_schema": 2,
-      "validation": "unknown",
+      "validation": "not_applicable",
       "dgp": "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm",
       "test": "crates/antecedent-estimate/src/calibration_coverage.rs::causal_forest_analytic_ci_coverage",
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
@@ -53335,7 +53335,7 @@
       "calibration_sha": "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
     },
     {
-      "id": "cov.average_effect.dag.frequentist.analytic_se.l95.cluster_dml_t_wald_interval.v2_validation_unknown",
+      "id": "cov.average_effect.dag.frequentist.analytic_se.l95.cluster_dml_t_wald_interval.v2_validation_not_applicable",
       "query": "AverageEffect",
       "graph_class": "Dag",
       "structure": "fixed",
@@ -53388,13 +53388,13 @@
         }
       ],
       "validation_schema": 2,
-      "validation": "unknown",
+      "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/cluster_dml_calibration.rs::cluster_random_effect",
       "test": "crates/antecedent/tests/cluster_dml_calibration.rs::cluster_dml_t_wald_interval",
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
     },
     {
-      "id": "cov.average_effect.dag.frequentist.analytic_se.l95.dml_analytic_ci_coverage.v2_validation_unknown",
+      "id": "cov.average_effect.dag.frequentist.analytic_se.l95.dml_analytic_ci_coverage.v2_validation_not_applicable",
       "query": "AverageEffect",
       "graph_class": "Dag",
       "structure": "fixed",
@@ -53447,13 +53447,13 @@
         }
       ],
       "validation_schema": 2,
-      "validation": "unknown",
+      "validation": "not_applicable",
       "dgp": "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm",
       "test": "crates/antecedent-estimate/src/calibration_coverage.rs::dml_analytic_ci_coverage",
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
     },
     {
-      "id": "cov.average_effect.dag.frequentist.analytic_se.l95.dr_learner_analytic_ci_coverage.v2_validation_unknown",
+      "id": "cov.average_effect.dag.frequentist.analytic_se.l95.dr_learner_analytic_ci_coverage.v2_validation_not_applicable",
       "query": "AverageEffect",
       "graph_class": "Dag",
       "structure": "fixed",
@@ -53506,7 +53506,7 @@
         }
       ],
       "validation_schema": 2,
-      "validation": "unknown",
+      "validation": "not_applicable",
       "dgp": "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm",
       "test": "crates/antecedent-estimate/src/calibration_coverage.rs::dr_learner_analytic_ci_coverage",
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
@@ -307480,7 +307480,7 @@
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
     },
     {
-      "id": "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.complete_randomization_neyman_interval.v2_validation_unknown",
+      "id": "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.complete_randomization_neyman_interval.v2_validation_not_applicable",
       "query": "RandomizedEffect",
       "graph_class": "RandomizedTrial",
       "structure": "design",
@@ -307533,13 +307533,13 @@
         }
       ],
       "validation_schema": 2,
-      "validation": "unknown",
+      "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/randomized_interval_calibration.rs::complete_randomization_half_treated_known_finite_population_effect",
       "test": "crates/antecedent/tests/randomized_interval_calibration.rs::complete_randomization_neyman_interval",
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
     },
     {
-      "id": "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_ancova_balanced_interval.v2_validation_unknown",
+      "id": "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_ancova_balanced_interval.v2_validation_not_applicable",
       "query": "RandomizedEffect",
       "graph_class": "RandomizedTrial",
       "structure": "design",
@@ -307592,13 +307592,13 @@
         }
       ],
       "validation_schema": 2,
-      "validation": "unknown",
+      "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/randomized_interval_calibration.rs::bernoulli_trial_balanced_known_finite_population_effect",
       "test": "crates/antecedent/tests/randomized_interval_calibration.rs::randomized_ancova_balanced_interval",
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
     },
     {
-      "id": "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_ancova_two_to_one_interval.v2_validation_unknown",
+      "id": "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_ancova_two_to_one_interval.v2_validation_not_applicable",
       "query": "RandomizedEffect",
       "graph_class": "RandomizedTrial",
       "structure": "design",
@@ -307651,13 +307651,13 @@
         }
       ],
       "validation_schema": 2,
-      "validation": "unknown",
+      "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/randomized_interval_calibration.rs::bernoulli_trial_two_to_one_known_finite_population_effect",
       "test": "crates/antecedent/tests/randomized_interval_calibration.rs::randomized_ancova_two_to_one_interval",
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
     },
     {
-      "id": "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_score_balanced_interval.v2_validation_unknown",
+      "id": "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_score_balanced_interval.v2_validation_not_applicable",
       "query": "RandomizedEffect",
       "graph_class": "RandomizedTrial",
       "structure": "design",
@@ -307710,13 +307710,13 @@
         }
       ],
       "validation_schema": 2,
-      "validation": "unknown",
+      "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/randomized_interval_calibration.rs::bernoulli_trial_balanced_known_finite_population_effect",
       "test": "crates/antecedent/tests/randomized_interval_calibration.rs::randomized_score_balanced_interval",
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
     },
     {
-      "id": "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_score_two_to_one_interval.v2_validation_unknown",
+      "id": "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_score_two_to_one_interval.v2_validation_not_applicable",
       "query": "RandomizedEffect",
       "graph_class": "RandomizedTrial",
       "structure": "design",
@@ -307769,7 +307769,7 @@
         }
       ],
       "validation_schema": 2,
-      "validation": "unknown",
+      "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/randomized_interval_calibration.rs::bernoulli_trial_two_to_one_known_finite_population_effect",
       "test": "crates/antecedent/tests/randomized_interval_calibration.rs::randomized_score_two_to_one_interval",
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
@@ -469991,7 +469991,7 @@
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
     },
     {
-      "id": "cov.unknown.randomized_trial.frequentist.analytic_se.l95.weak_arm_ancova_hc2_student_interval.v2_validation_unknown",
+      "id": "cov.unknown.randomized_trial.frequentist.analytic_se.l95.weak_arm_ancova_hc2_student_interval.v2_validation_not_applicable",
       "query": "Unknown",
       "graph_class": "RandomizedTrial",
       "structure": "fixed",
@@ -470044,13 +470044,13 @@
         }
       ],
       "validation_schema": 2,
-      "validation": "unknown",
+      "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/randomized_interval_calibration.rs::bernoulli_trial_twenty_treated_known_finite_population_effect",
       "test": "crates/antecedent/tests/randomized_interval_calibration.rs::weak_arm_ancova_hc2_student_interval",
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
     },
     {
-      "id": "cov.unknown.randomized_trial.frequentist.analytic_se.l95.weak_arm_difference_in_means_hc2_student_interval.v2_validation_unknown",
+      "id": "cov.unknown.randomized_trial.frequentist.analytic_se.l95.weak_arm_difference_in_means_hc2_student_interval.v2_validation_not_applicable",
       "query": "Unknown",
       "graph_class": "RandomizedTrial",
       "structure": "fixed",
@@ -470103,7 +470103,7 @@
         }
       ],
       "validation_schema": 2,
-      "validation": "unknown",
+      "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/randomized_interval_calibration.rs::complete_randomization_twenty_treated_known_finite_population_effect",
       "test": "crates/antecedent/tests/randomized_interval_calibration.rs::weak_arm_difference_in_means_hc2_student_interval",
       "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
@@ -471855,10 +471855,10 @@
     "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_rd_sharp.v2_validation_none.v2_structure_accepted",
     "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior",
     "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_graph_posterior.v2_validation_full.v2_structure_graph_posterior",
-    "cov.average_effect.dag.frequentist.analytic_se.l95.causal_forest_analytic_ci_coverage.v2_validation_unknown",
-    "cov.average_effect.dag.frequentist.analytic_se.l95.cluster_dml_t_wald_interval.v2_validation_unknown",
-    "cov.average_effect.dag.frequentist.analytic_se.l95.dml_analytic_ci_coverage.v2_validation_unknown",
-    "cov.average_effect.dag.frequentist.analytic_se.l95.dr_learner_analytic_ci_coverage.v2_validation_unknown",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.causal_forest_analytic_ci_coverage.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.cluster_dml_t_wald_interval.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.dml_analytic_ci_coverage.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.dr_learner_analytic_ci_coverage.v2_validation_not_applicable",
     "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_functional_arm_linear_ci_coverage.v2_validation_not_applicable",
     "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_functional_saturated_ci_coverage.v2_validation_not_applicable",
     "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc0_ci_coverage.v2_validation_not_applicable",
@@ -476122,11 +476122,11 @@
     "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
     "cov.pulse_effect.temporal_pag.frequentist.identified_set.l90.frequentist_temporal_pag_identified_set_interval_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
     "cov.pulse_effect.temporal_pag.frequentist.identified_set.l90.frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
-    "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.complete_randomization_neyman_interval.v2_validation_unknown",
-    "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_ancova_balanced_interval.v2_validation_unknown",
-    "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_ancova_two_to_one_interval.v2_validation_unknown",
-    "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_score_balanced_interval.v2_validation_unknown",
-    "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_score_two_to_one_interval.v2_validation_unknown",
+    "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.complete_randomization_neyman_interval.v2_validation_not_applicable",
+    "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_ancova_balanced_interval.v2_validation_not_applicable",
+    "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_ancova_two_to_one_interval.v2_validation_not_applicable",
+    "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_score_balanced_interval.v2_validation_not_applicable",
+    "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_score_two_to_one_interval.v2_validation_not_applicable",
     "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.responder_complete_case_mcar_interval.v2_validation_not_applicable",
     "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.responder_weighted_mar_interval.v2_validation_not_applicable",
     "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.weighted_randomized_itt_interval.v2_validation_not_applicable",
@@ -478803,8 +478803,8 @@
     "cov.transport_query.temporal_admg.frequentist.analytic_se.l95.transport_temporal_admg_given_frequentist_coverage.v2_validation_none.v2_structure_graph_posterior",
     "cov.transported_mechanism_contrast.dag.frequentist.delta_method_wald.l95.transported_linear_gaussian_mechanisms_first_order_interval.v2_validation_not_applicable",
     "cov.typed_transported_mechanism_contrast.dag.frequentist.delta_method_wald.l95.typed_transported_poisson_mechanism_first_order_interval.v2_validation_not_applicable",
-    "cov.unknown.randomized_trial.frequentist.analytic_se.l95.weak_arm_ancova_hc2_student_interval.v2_validation_unknown",
-    "cov.unknown.randomized_trial.frequentist.analytic_se.l95.weak_arm_difference_in_means_hc2_student_interval.v2_validation_unknown"
+    "cov.unknown.randomized_trial.frequentist.analytic_se.l95.weak_arm_ancova_hc2_student_interval.v2_validation_not_applicable",
+    "cov.unknown.randomized_trial.frequentist.analytic_se.l95.weak_arm_difference_in_means_hc2_student_interval.v2_validation_not_applicable"
   ],
   "interval_method_reasons": [
     {

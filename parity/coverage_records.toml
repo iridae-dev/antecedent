@@ -50338,7 +50338,7 @@ fingerprint = "db00c0a83f8ac87e07dc516e48ad0d400f10369bca7b2bda5bd9d792503b6d22"
 dependency_manifest = "a7278e9400db4d63e5ac774e1d5429bcd4417696c22c117ff7f7deb5171cc0de"
 
 [[record]]
-id = "cov.average_effect.dag.frequentist.analytic_se.l95.causal_forest_analytic_ci_coverage.v2_validation_unknown"
+id = "cov.average_effect.dag.frequentist.analytic_se.l95.causal_forest_analytic_ci_coverage.v2_validation_not_applicable"
 query = "AverageEffect"
 graph_class = "Dag"
 structure = "fixed"
@@ -50363,7 +50363,7 @@ replicates = 400
 boundary = false
 role = "reported_level"
 validation_schema = 2
-validation = "unknown"
+validation = "not_applicable"
 decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 380, family_alpha = 0.05, family_cells = 611328, family_digest = "c7d9916987e7292092bac71d1b2623fffd9a3d6e86dfd14f0cfcb98c484b43e3", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
@@ -50391,7 +50391,7 @@ dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::causal_forest_analytic_ci_coverage"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "aa9a147a66202c075bb21eb20d7129cba967df26aeca94ab7ce2fd572505bd79"
-dependency_manifest = "0cd6fbda00667257c3d42d15b3923edb2b825fb7ec8483ce3429f0aace09ef10"
+dependency_manifest = "4a9e3ddd3376f3680ee02f534671e8e63afe29f9ea33169699264281241db39b"
 
 [[record]]
 id = "cov.average_effect.dag.frequentist.analytic_se.l95.cluster_dml_t_wald_interval"
@@ -50428,7 +50428,7 @@ test = "crates/antecedent/tests/cluster_dml_calibration.rs::cluster_dml_t_wald_i
 calibration_sha = "c30e10304f4bd85a01ad81dd133a360ddc95c2f1"
 
 [[record]]
-id = "cov.average_effect.dag.frequentist.analytic_se.l95.cluster_dml_t_wald_interval.v2_validation_unknown"
+id = "cov.average_effect.dag.frequentist.analytic_se.l95.cluster_dml_t_wald_interval.v2_validation_not_applicable"
 query = "AverageEffect"
 graph_class = "Dag"
 structure = "fixed"
@@ -50453,7 +50453,7 @@ replicates = 400
 boundary = false
 role = "gated"
 validation_schema = 2
-validation = "unknown"
+validation = "not_applicable"
 decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 374, family_alpha = 0.05, family_cells = 611328, family_digest = "c7d9916987e7292092bac71d1b2623fffd9a3d6e86dfd14f0cfcb98c484b43e3", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
@@ -50481,10 +50481,10 @@ dgp = "crates/antecedent/tests/cluster_dml_calibration.rs::cluster_random_effect
 test = "crates/antecedent/tests/cluster_dml_calibration.rs::cluster_dml_t_wald_interval"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "83250b7cee46940e1e2a7af5abfc8e354d6a7c88e50c59bbe2e936a091400649"
-dependency_manifest = "86741a79d2626bc491efb8724eacdd7127a985db2ab0e0011b9d06d5baeeb81b"
+dependency_manifest = "f32c726af8a0d708a011ba417cce87e5fcaf3f69464185deda6f2848aa5c6db1"
 
 [[record]]
-id = "cov.average_effect.dag.frequentist.analytic_se.l95.dml_analytic_ci_coverage.v2_validation_unknown"
+id = "cov.average_effect.dag.frequentist.analytic_se.l95.dml_analytic_ci_coverage.v2_validation_not_applicable"
 query = "AverageEffect"
 graph_class = "Dag"
 structure = "fixed"
@@ -50509,7 +50509,7 @@ replicates = 400
 boundary = false
 role = "reported_level"
 validation_schema = 2
-validation = "unknown"
+validation = "not_applicable"
 decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 377, family_alpha = 0.05, family_cells = 611328, family_digest = "c7d9916987e7292092bac71d1b2623fffd9a3d6e86dfd14f0cfcb98c484b43e3", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
@@ -50537,10 +50537,10 @@ dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::dml_analytic_ci_coverage"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "aa9a147a66202c075bb21eb20d7129cba967df26aeca94ab7ce2fd572505bd79"
-dependency_manifest = "6f6d841e4d67e6232463fabcaf07da0abce9e621425b8af20e7c52decdd4c25e"
+dependency_manifest = "a20d4e3af22fe9f968a14a4ca29aa0879f4d0e0a46ed318b0462afb3df392c97"
 
 [[record]]
-id = "cov.average_effect.dag.frequentist.analytic_se.l95.dr_learner_analytic_ci_coverage.v2_validation_unknown"
+id = "cov.average_effect.dag.frequentist.analytic_se.l95.dr_learner_analytic_ci_coverage.v2_validation_not_applicable"
 query = "AverageEffect"
 graph_class = "Dag"
 structure = "fixed"
@@ -50565,7 +50565,7 @@ replicates = 400
 boundary = false
 role = "reported_level"
 validation_schema = 2
-validation = "unknown"
+validation = "not_applicable"
 decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 377, family_alpha = 0.05, family_cells = 611328, family_digest = "c7d9916987e7292092bac71d1b2623fffd9a3d6e86dfd14f0cfcb98c484b43e3", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
@@ -50593,7 +50593,7 @@ dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::dr_learner_analytic_ci_coverage"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "aa9a147a66202c075bb21eb20d7129cba967df26aeca94ab7ce2fd572505bd79"
-dependency_manifest = "6ff0402abda60fd3d01d03b05dc622304c3e24856f3bbf96bfd33914ce4253b7"
+dependency_manifest = "4add803125a5ba0fab17190e6660aee41f723a503165c27cb11016fc4d96cb9d"
 
 [[record]]
 id = "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_functional_arm_linear_ci_coverage.v2_validation_not_applicable"
@@ -288507,7 +288507,7 @@ fingerprint = "bc8429cb467bdb0b6899ed97167347ce08b288c20acf97a85db3245e2a7135e1"
 dependency_manifest = "ef8c904cebaf4f3b3d9e46a0e832724394e9cd467e990e33f23ea9f9542607ff"
 
 [[record]]
-id = "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.complete_randomization_neyman_interval.v2_validation_unknown"
+id = "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.complete_randomization_neyman_interval.v2_validation_not_applicable"
 query = "RandomizedEffect"
 graph_class = "RandomizedTrial"
 structure = "design"
@@ -288532,7 +288532,7 @@ replicates = 400
 boundary = false
 role = "gated"
 validation_schema = 2
-validation = "unknown"
+validation = "not_applicable"
 decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 374, family_alpha = 0.05, family_cells = 611328, family_digest = "c7d9916987e7292092bac71d1b2623fffd9a3d6e86dfd14f0cfcb98c484b43e3", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
@@ -288560,10 +288560,10 @@ dgp = "crates/antecedent/tests/randomized_interval_calibration.rs::complete_rand
 test = "crates/antecedent/tests/randomized_interval_calibration.rs::complete_randomization_neyman_interval"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "5e70a46d98da21f9004462f34858494823295a80d6e93271ac66c2c8ef21f6a7"
-dependency_manifest = "21ad21d3d2e994ed93a13f6e071a19a81a1f96a8aa69eb42ce6d31655a030eb6"
+dependency_manifest = "52c7e0d0e08258eb547e17db58a1c622c230b647826f37f40656660ca1832cf2"
 
 [[record]]
-id = "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_ancova_balanced_interval.v2_validation_unknown"
+id = "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_ancova_balanced_interval.v2_validation_not_applicable"
 query = "RandomizedEffect"
 graph_class = "RandomizedTrial"
 structure = "design"
@@ -288588,7 +288588,7 @@ replicates = 400
 boundary = false
 role = "gated"
 validation_schema = 2
-validation = "unknown"
+validation = "not_applicable"
 decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 380, family_alpha = 0.05, family_cells = 611328, family_digest = "c7d9916987e7292092bac71d1b2623fffd9a3d6e86dfd14f0cfcb98c484b43e3", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
@@ -288616,10 +288616,10 @@ dgp = "crates/antecedent/tests/randomized_interval_calibration.rs::bernoulli_tri
 test = "crates/antecedent/tests/randomized_interval_calibration.rs::randomized_ancova_balanced_interval"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "5e70a46d98da21f9004462f34858494823295a80d6e93271ac66c2c8ef21f6a7"
-dependency_manifest = "3f5d9f7feeb9f15520d0d9855ae0e8acf29f3488e28bc4db85309db0ebfae6eb"
+dependency_manifest = "17ad98bec5a820924f3b2d17fc64eae7edb11058bf952b59476c192345f4d6bf"
 
 [[record]]
-id = "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_ancova_two_to_one_interval.v2_validation_unknown"
+id = "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_ancova_two_to_one_interval.v2_validation_not_applicable"
 query = "RandomizedEffect"
 graph_class = "RandomizedTrial"
 structure = "design"
@@ -288644,7 +288644,7 @@ replicates = 2000
 boundary = false
 role = "gated"
 validation_schema = 2
-validation = "unknown"
+validation = "not_applicable"
 decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1901, family_alpha = 0.05, family_cells = 611328, family_digest = "c7d9916987e7292092bac71d1b2623fffd9a3d6e86dfd14f0cfcb98c484b43e3", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
@@ -288672,10 +288672,10 @@ dgp = "crates/antecedent/tests/randomized_interval_calibration.rs::bernoulli_tri
 test = "crates/antecedent/tests/randomized_interval_calibration.rs::randomized_ancova_two_to_one_interval"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "5e70a46d98da21f9004462f34858494823295a80d6e93271ac66c2c8ef21f6a7"
-dependency_manifest = "c8cea1db8c95c9c171c4c136f01ec5757407859cee8abb841d2de4c47d57107b"
+dependency_manifest = "8ea92545f3a89c545520e76021b6fc238c7909b9a5ce72cc4d2b3bb1710c564b"
 
 [[record]]
-id = "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_score_balanced_interval.v2_validation_unknown"
+id = "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_score_balanced_interval.v2_validation_not_applicable"
 query = "RandomizedEffect"
 graph_class = "RandomizedTrial"
 structure = "design"
@@ -288700,7 +288700,7 @@ replicates = 2000
 boundary = false
 role = "gated"
 validation_schema = 2
-validation = "unknown"
+validation = "not_applicable"
 decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1888, family_alpha = 0.05, family_cells = 611328, family_digest = "c7d9916987e7292092bac71d1b2623fffd9a3d6e86dfd14f0cfcb98c484b43e3", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
@@ -288728,10 +288728,10 @@ dgp = "crates/antecedent/tests/randomized_interval_calibration.rs::bernoulli_tri
 test = "crates/antecedent/tests/randomized_interval_calibration.rs::randomized_score_balanced_interval"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "5e70a46d98da21f9004462f34858494823295a80d6e93271ac66c2c8ef21f6a7"
-dependency_manifest = "0e54c9d56e5f66a2e80f8ececed0174c93737a42f11bb6cabd75c5660c705ce2"
+dependency_manifest = "6e9c1a9d70b09a939b09af56a75a581b1c5eabb1301c654ba7760b7d8d2a7ef1"
 
 [[record]]
-id = "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_score_two_to_one_interval.v2_validation_unknown"
+id = "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.randomized_score_two_to_one_interval.v2_validation_not_applicable"
 query = "RandomizedEffect"
 graph_class = "RandomizedTrial"
 structure = "design"
@@ -288756,7 +288756,7 @@ replicates = 400
 boundary = false
 role = "gated"
 validation_schema = 2
-validation = "unknown"
+validation = "not_applicable"
 decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 372, family_alpha = 0.05, family_cells = 611328, family_digest = "c7d9916987e7292092bac71d1b2623fffd9a3d6e86dfd14f0cfcb98c484b43e3", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
@@ -288784,7 +288784,7 @@ dgp = "crates/antecedent/tests/randomized_interval_calibration.rs::bernoulli_tri
 test = "crates/antecedent/tests/randomized_interval_calibration.rs::randomized_score_two_to_one_interval"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "5e70a46d98da21f9004462f34858494823295a80d6e93271ac66c2c8ef21f6a7"
-dependency_manifest = "0705504896f992aca378e70a93326c45d0fa7b76fdc069348239d5cd1d49736e"
+dependency_manifest = "ac2b07b3a1e0277e30d3d94690d7d529d18d78ccd46b8400e6910dae52ed82ec"
 
 [[record]]
 id = "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.responder_complete_case_mcar_interval.v2_validation_not_applicable"
@@ -440508,7 +440508,7 @@ fingerprint = "3f7e56bf735354f6b202a84bed50b97a227541cd80c505fcc54e9cd51de1d2e5"
 dependency_manifest = "2ca2b9e924f54c8f87bcab1d6c45b02652cac5a0dfbcc4626134e8bb032fd2bf"
 
 [[record]]
-id = "cov.unknown.randomized_trial.frequentist.analytic_se.l95.weak_arm_ancova_hc2_student_interval.v2_validation_unknown"
+id = "cov.unknown.randomized_trial.frequentist.analytic_se.l95.weak_arm_ancova_hc2_student_interval.v2_validation_not_applicable"
 query = "Unknown"
 graph_class = "RandomizedTrial"
 structure = "fixed"
@@ -440533,7 +440533,7 @@ replicates = 2000
 boundary = false
 role = "gated"
 validation_schema = 2
-validation = "unknown"
+validation = "not_applicable"
 decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1897, family_alpha = 0.05, family_cells = 611328, family_digest = "c7d9916987e7292092bac71d1b2623fffd9a3d6e86dfd14f0cfcb98c484b43e3", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
@@ -440561,10 +440561,10 @@ dgp = "crates/antecedent/tests/randomized_interval_calibration.rs::bernoulli_tri
 test = "crates/antecedent/tests/randomized_interval_calibration.rs::weak_arm_ancova_hc2_student_interval"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "5e70a46d98da21f9004462f34858494823295a80d6e93271ac66c2c8ef21f6a7"
-dependency_manifest = "a2e988a09663e9da321ea797a688ad75161415ab1347b493abc8d223f018743b"
+dependency_manifest = "949d175fbfc0d783f77691588a474451844639073585e81f7325657c8c69041b"
 
 [[record]]
-id = "cov.unknown.randomized_trial.frequentist.analytic_se.l95.weak_arm_difference_in_means_hc2_student_interval.v2_validation_unknown"
+id = "cov.unknown.randomized_trial.frequentist.analytic_se.l95.weak_arm_difference_in_means_hc2_student_interval.v2_validation_not_applicable"
 query = "Unknown"
 graph_class = "RandomizedTrial"
 structure = "fixed"
@@ -440589,7 +440589,7 @@ replicates = 400
 boundary = false
 role = "gated"
 validation_schema = 2
-validation = "unknown"
+validation = "not_applicable"
 decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 374, family_alpha = 0.05, family_cells = 611328, family_digest = "c7d9916987e7292092bac71d1b2623fffd9a3d6e86dfd14f0cfcb98c484b43e3", family_grid_points = 3, family_groups = 796, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
@@ -440617,4 +440617,4 @@ dgp = "crates/antecedent/tests/randomized_interval_calibration.rs::complete_rand
 test = "crates/antecedent/tests/randomized_interval_calibration.rs::weak_arm_difference_in_means_hc2_student_interval"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "5e70a46d98da21f9004462f34858494823295a80d6e93271ac66c2c8ef21f6a7"
-dependency_manifest = "a350ce1c1882f00194f9dd11977672b9daab8280d52b3e606133cc37bc738338"
+dependency_manifest = "17565c45aa3e82debb966d00a32c50b7ce23b253f6c98ff74a4186269501d4e8"
