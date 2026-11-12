@@ -10961,3 +10961,48 @@ features = ["calibration-internal"]
 tests = ["interference_temporal_admg_graph_posterior_cluster_neyman_coverage"]
 ignored = true
 grid = true
+
+[[group]]
+label = "grid_static_calibration: intervention_response_dag_frequentist_graph_posterior_full_validation"
+package = "antecedent"
+target = "grid_static_calibration"
+features = ["calibration-internal"]
+tests = ["intervention_response_dag_frequentist_graph_posterior_full_validation"]
+ignored = true
+grid = true
+
+[[group]]
+label = "grid_static_calibration: intervention_response_cpdag_frequentist_graph_posterior_full_validation"
+package = "antecedent"
+target = "grid_static_calibration"
+features = ["calibration-internal"]
+tests = ["intervention_response_cpdag_frequentist_graph_posterior_full_validation"]
+ignored = true
+grid = true
+
+[[group]]
+label = "grid_static_calibration: intervention_response_cpdag_bayesian_graph_posterior_full_validation"
+package = "antecedent"
+target = "grid_static_calibration"
+features = ["calibration-internal"]
+tests = ["intervention_response_cpdag_bayesian_graph_posterior_full_validation"]
+ignored = true
+grid = true
+
+[[group]]
+label = "grid_static_calibration: intervention_response_pag_frequentist_graph_posterior_full_validation"
+package = "antecedent"
+target = "grid_static_calibration"
+features = ["calibration-internal"]
+tests = ["intervention_response_pag_frequentist_graph_posterior_full_validation"]
+ignored = true
+grid = true
+
+[[group]]
+label = "grid_static_calibration: intervention_response_pag_bayesian_graph_posterior_full_validation"
+package = "antecedent"
+target = "grid_static_calibration"
+features = ["calibration-internal"]
+tests = ["intervention_response_pag_bayesian_graph_posterior_full_validation"]
+ignored = true
+grid = true

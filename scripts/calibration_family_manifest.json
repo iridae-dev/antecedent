@@ -19,7 +19,7 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "9d5359f92b0ad5434d6c0fafa3fbae9f21c41c7c89cf5f28306f5f495d863ca6",
+  "gate_sha256": "758cfc209d5c7112e9580beadd3568bfe831ace44019108b65641f40df90e80b",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
   "label_audit_sha256": "a888cfc2f0ada9523f12ff81a3afa56fc53b2ae664dee3349b810463261a1ccf",
   "groups": [
@@ -6511,6 +6511,31 @@
     {
       "index": 1298,
       "label": "grid_mechanism_design_calibration: interference_temporal_admg_graph_posterior_cluster_neyman_coverage",
+      "grid": true
+    },
+    {
+      "index": 1299,
+      "label": "grid_static_calibration: intervention_response_dag_frequentist_graph_posterior_full_validation",
+      "grid": true
+    },
+    {
+      "index": 1300,
+      "label": "grid_static_calibration: intervention_response_cpdag_frequentist_graph_posterior_full_validation",
+      "grid": true
+    },
+    {
+      "index": 1301,
+      "label": "grid_static_calibration: intervention_response_cpdag_bayesian_graph_posterior_full_validation",
+      "grid": true
+    },
+    {
+      "index": 1302,
+      "label": "grid_static_calibration: intervention_response_pag_frequentist_graph_posterior_full_validation",
+      "grid": true
+    },
+    {
+      "index": 1303,
+      "label": "grid_static_calibration: intervention_response_pag_bayesian_graph_posterior_full_validation",
       "grid": true
     }
   ],
