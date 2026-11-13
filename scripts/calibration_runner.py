@@ -321,8 +321,11 @@ def execute(root: Path, tasks: list[Task], *, env: dict[str, str], log_dir: Path
         from calibration_preflight import validate_inherited
         validate_inherited(decision_context, calibration_family.current_config(root))
     sha, _ = _clean_head(root)
-    targets = sorted({t.group.build_target for t in tasks})
-    features = {t.group.build_target: list(t.group.features) for t in tasks if t.group.features}
+    # The build is one derivation over its target set, so every run asks for the gate's
+    # whole set: a run of a few tasks reuses the build any other run made.
+    specs = {g.build_target: g for g in (*load_groups(root), *(t.group for t in tasks))}
+    targets = sorted(specs)
+    features = {target: list(g.features) for target, g in specs.items() if g.features}
     built = build_committed_targets(root, targets, features=features)
     for record in built.values():
         validate_build(root, record)
