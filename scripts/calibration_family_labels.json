@@ -1642,7 +1642,7 @@
     },
     {
       "path": "crates/antecedent/tests/randomized_interval_calibration.rs",
-      "sha256": "1a3ace7f5923b7c6d0db23219df18b38a7635e1bb88396761a638d66f498102f",
+      "sha256": "5fb6bb88f5daec6de6b21a28327c15054a07261e1ce9f29b837017909611166e",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1651,37 +1651,37 @@
           "argument": "RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL"
         },
         {
-          "line": 540,
+          "line": 542,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL"
         },
         {
-          "line": 668,
+          "line": 673,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test,\n            dgp: \"cluster_margin_fixed_population\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 826,
+          "line": 831,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_matched_pair_delta_interval\",\n            dgp: \"fixed_matched_pair_margin\",\n            interval: \"delta_method_student_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 934,
+          "line": 939,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_switchback_delta_interval\",\n            dgp: \"fixed_switchback_margin\",\n            interval: \"delta_method_student_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1051,
+          "line": 1056,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_lagged_excursion_delta_interval\",\n            dgp: \"fixed_lagged_excursion_margin\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1143,
+          "line": 1148,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_static_regime_bootstrap_delta_interval\",\n            dgp: \"fixed_single_period_regime_margin\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1247,
+          "line": 1252,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"decision_margin_adaptive_regime_jackknife_delta_interval\",\n            dgp: \"randomized_treatment_affected_binary_state\",\n            interval: \"delta_method_normal_95\",\n        },\n        REPORTED_LEVEL,"
         }
