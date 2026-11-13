@@ -189,6 +189,22 @@ class RecordBindingTests(unittest.TestCase):
             (d / "g.p1.log").write_text('calibration-record {"id": "r1"}\ncalibration-record {"id": "r2"}\n')
             self.assertEqual(cr.record_runs(d), {"r1": {"g.p0", "g.p1"}, "r2": {"g.p1"}})
 
+    def test_executed_regions_are_reported_at_checkout_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d, root, store = Path(tmp) / "logs", Path(tmp).resolve() / "root", Path(tmp).resolve() / "store"
+            for base in (root, store):
+                (base / "crates/a/src").mkdir(parents=True)
+                (base / "crates/a/src/lib.rs").write_text("fn f() {}\n")
+            d.mkdir()
+            group = cr.GroupSpec(index=1, label="l", package="a", target="lib", features=(), tests=None,
+                                 ignored=True, grid=True)
+            (d / f"{group.safe}.p0.coverage.json").write_text('{"/antecedent-source/crates/a/src/lib.rs": [[1, 1]]}')
+            (d / cr.BUILDS).write_text('{"a|lib|": {"source": {"store_path": "%s"}}}' % store)
+            with patch.object(cr, "load_groups", return_value=[group]):
+                built, regions = cr.run_evidence(root, d, {f"{group.safe}.p0"})
+            self.assertEqual(regions, {str(root / "crates/a/src/lib.rs"): {(1, 1)}})
+            self.assertEqual(built["source"]["store_path"], str(store))
+
 
 if __name__ == "__main__":
     unittest.main()

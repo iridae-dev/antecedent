@@ -584,6 +584,7 @@ def select_items(snapshot: Snapshot, directory: Path, coverage: dict[str, set[tu
         return
     root = snapshot.root.resolve()
     selection = Selection(root, inventory, callee_bodies=callee_bodies)
+    executed = 0
     for path, positions in sorted(coverage.items()):
         try:
             rel = Path(path).resolve().relative_to(root).as_posix()
@@ -596,6 +597,11 @@ def select_items(snapshot: Snapshot, directory: Path, coverage: dict[str, set[tu
             continue
         for line, column in sorted(positions):
             selection.execute(rel, file.offset(line, column))
+            executed += 1
+    if source_root is not None and not executed:
+        # Regions reported under another root select nothing; the record would then be
+        # bound to no code and stay current through any change.
+        raise RuntimeError('Nix precision requires executed regions in checkout sources')
     for path in snapshot.source_consumers:
         if path.suffix == '.rs' and path.is_relative_to(root):
             selection.keep_whole(path.relative_to(root).as_posix(), 'read as data')
