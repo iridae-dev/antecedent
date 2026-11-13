@@ -108,25 +108,25 @@ Do not edit this block by hand.
 | DirectionalDerivative | 144 | 36 | 0 |
 | Elasticity | 144 | 36 | 0 |
 | InterventionalDistribution | 144 | 36 | 0 |
-| InterventionResponse | 144 | 34 | 2 |
+| InterventionResponse | 146 | 34 | 0 |
 | MediationEffect | 90 | 90 | 0 |
 | NestedCounterfactualEffect | 142 | 36 | 2 |
 | PathSpecificEffect | 144 | 36 | 0 |
 | PointDerivative | 144 | 36 | 0 |
 | PulseEffect | 72 | 108 | 0 |
-| ResponseCurve | 142 | 36 | 2 |
+| ResponseCurve | 144 | 36 | 0 |
 | ResponseJacobian | 144 | 36 | 0 |
 | SemiElasticity | 144 | 36 | 0 |
-| SustainedEffect | 66 | 108 | 6 |
+| SustainedEffect | 72 | 108 | 0 |
 | TemporalConditionalPulse | 72 | 108 | 0 |
 | TemporalConditionalSustained | 72 | 108 | 0 |
 | TemporalMediationEffect | 72 | 108 | 0 |
 | TransportQuery | 90 | 90 | 0 |
 | InterferenceQuery | 90 | 90 | 0 |
 
-**Supported units: 3074 (matrix cells 2766, graphless rows 41, capabilities outside the matrix 267); not supported: 10 (owed records only 10, other 0).**
+**Supported units: 3084 (matrix cells 2776, graphless rows 41, capabilities outside the matrix 267); not supported: 0 (owed records only 0, other 0).**
 
-The 2766 matrix cells below are the matrix part of that count; graphless rows (`parity/support_graphless.toml`) and capabilities outside the matrix (`parity/capability_records.toml`) make up the rest. Entry-point routes are not counted.
+The 2776 matrix cells below are the matrix part of that count; graphless rows (`parity/support_graphless.toml`) and capabilities outside the matrix (`parity/capability_records.toml`) make up the rest. Entry-point routes are not counted.
 
 | Query | Graph class | Structures | Inferences | Validations | Cells |
 |---|---|---|---|---|---:|
@@ -205,17 +205,7 @@ The 2766 matrix cells below are the matrix part of that count; graphless rows (`
 | InterventionResponse | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | InterventionResponse | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | InterventionResponse | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
-| InterventionResponse | TemporalDag | explicit | Frequentist | none | 1 |
-| InterventionResponse | TemporalDag | explicit | Frequentist | cheap | 1 |
-| InterventionResponse | TemporalDag | explicit | Frequentist | full | 1 |
-| InterventionResponse | TemporalDag | explicit | Bayesian | cheap | 1 |
-| InterventionResponse | TemporalDag | explicit | Bayesian | full | 1 |
-| InterventionResponse | TemporalDag | accepted | Frequentist | none | 1 |
-| InterventionResponse | TemporalDag | accepted | Frequentist | cheap | 1 |
-| InterventionResponse | TemporalDag | accepted | Frequentist | full | 1 |
-| InterventionResponse | TemporalDag | accepted | Bayesian | cheap | 1 |
-| InterventionResponse | TemporalDag | accepted | Bayesian | full | 1 |
-| InterventionResponse | TemporalDag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| InterventionResponse | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | InterventionResponse | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | InterventionResponse | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | InterventionResponse | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
@@ -259,17 +249,7 @@ The 2766 matrix cells below are the matrix part of that count; graphless rows (`
 | ResponseCurve | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | ResponseCurve | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | ResponseCurve | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
-| ResponseCurve | TemporalDag | explicit | Frequentist | none | 1 |
-| ResponseCurve | TemporalDag | explicit | Frequentist | cheap | 1 |
-| ResponseCurve | TemporalDag | explicit | Frequentist | full | 1 |
-| ResponseCurve | TemporalDag | explicit | Bayesian | cheap | 1 |
-| ResponseCurve | TemporalDag | explicit | Bayesian | full | 1 |
-| ResponseCurve | TemporalDag | accepted | Frequentist | none | 1 |
-| ResponseCurve | TemporalDag | accepted | Frequentist | cheap | 1 |
-| ResponseCurve | TemporalDag | accepted | Frequentist | full | 1 |
-| ResponseCurve | TemporalDag | accepted | Bayesian | cheap | 1 |
-| ResponseCurve | TemporalDag | accepted | Bayesian | full | 1 |
-| ResponseCurve | TemporalDag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| ResponseCurve | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | ResponseCurve | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | ResponseCurve | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | ResponseCurve | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
@@ -290,9 +270,7 @@ The 2766 matrix cells below are the matrix part of that count; graphless rows (`
 | SemiElasticity | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | SemiElasticity | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | SustainedEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
-| SustainedEffect | TemporalCpdag | explicit | Frequentist | none, cheap, full | 3 |
-| SustainedEffect | TemporalCpdag | accepted | Frequentist | none, cheap, full | 3 |
-| SustainedEffect | TemporalCpdag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| SustainedEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | SustainedEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | SustainedEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | TemporalConditionalPulse | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
