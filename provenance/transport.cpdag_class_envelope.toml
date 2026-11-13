@@ -47,7 +47,7 @@ rationale = "Transport under graph uncertainty: the structural transport verdict
 no_independent_algorithm = "Each member verdict is the transport identifier's; the module's own steps are copying directed and bidirected edges of a completion into an ADMG, adding a bidirected edge for each edge the generalized-adjustment code reports invisible, sorting members, counting identified members and comparing formula texts. Probability, weights and intervals are not produced."
 covered_by = ["identify.transport_sid", "transport.cpdag_completion", "graph.completion", "identify.generalized_adjustment"]
 inline_tests = true
-record_sha256 = "2cb45c6498cebbc7f73797b6839ac98e28f3b3c58a1ecf59add0e93abd1dc432"
+record_sha256 = "d319d68fea94f122a9c7e144b7f9468b8ec6f266f2b5602e0e86f0b1809983b2"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

@@ -11,8 +11,9 @@ papers = [
 
 implementation_deviations = [
  "Uses a fixed main-effects logistic propensity model with clipping and optional trimming rather than a flexible or balance-selected score model.",
- "Constructs a fixed number of pooled empirical propensity-score quantile strata, five by default, and collapses unusable strata; it does not iteratively subclassify until balance criteria are met.",
- "The analytic variance treats estimated propensity scores and data-dependent stratum boundaries as fixed and combines within-stratum sample-mean variances only.",
+ "Constructs a fixed number of pooled empirical propensity-score quantile strata, five by default, joins a stratum that holds a single row of one arm to its neighbour, and collapses the strata that remain unusable; it does not iteratively subclassify until balance criteria are met.",
+ "The analytic variance treats estimated propensity scores and data-dependent stratum boundaries as fixed; the raw construction combines within-stratum sample-mean variances and the variation of the pooling shares, and the regression-adjusted construction uses the sandwich of its outcome normal equations and target-population mean.",
+ "By default the pooled contrast is regression adjusted: arm-specific linear outcome models with stratum intercepts and covariate slopes common within an arm, standardized over the target population, keeping only covariates that vary within both arms of a stratum; the raw pooled stratum means are selected with `with_regression_adjustment(false)`. The adjusted outcome models are assumed correct, which balance within each stratum alone would not require.",
  "Trimming changes the retained target population, while the reported estimand remains represented by the original ATE, ATT, or ATC result type.",
 ]
 
@@ -21,33 +22,33 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "crates/antecedent-estimate/tests/stratification_reference.rs (60-digit logistic refit, type-1 empirical quantile strata and case-mass derivative of the pooled contrast, with clip ties, trim, offset and sampling weights)",
+ "crates/antecedent-estimate/tests/stratification_reference.rs (run with regression adjustment off; 60-digit logistic refit, type-1 empirical quantile strata and case-mass derivative of the pooled contrast, with clip ties, trim, offset and sampling weights)",
  "independently generated synthetic confounded SCM with known ATE",
  "conformance/estimate/propensity_stratification (known-truth recovery fixture carrying an unasserted recorded DoWhy run from the pinned baseline in parity/baselines/dowhy.toml)",
 ]
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "PropensityStratification::fit in crates/antecedent-estimate/src/propensity/stratification.rs without regression adjustment: the empirical-quantile strata of the clipped propensity (assign_strata), the pooled within-stratum contrast of arm means for the ATE, ATT and ATC, the dropping of strata that lack an arm, trimming on the raw score, sampling-weighted arm means and shares, and the analytic standard error that adds the variation of the pooling shares (stratified_ate). Not the regression-adjusted variant, clusters, or the bootstrap."
+scope = "PropensityStratification::fit in crates/antecedent-estimate/src/propensity/stratification.rs with regression adjustment off, the setting the reference tests pin: the empirical-quantile strata of the clipped propensity (assign_strata), the pooled within-stratum contrast of arm means for the ATE, ATT and ATC, the dropping of strata that lack an arm, trimming on the raw score, sampling-weighted arm means and shares, and the analytic standard error that adds the variation of the pooling shares (stratified_ate). Not the regression-adjusted construction that is the default (regression_stratified_ate and identified_covariates), the joining of strata with a single row of an arm (merge_sparse_strata, covered by a unit test and not by the reference), clusters, or the bootstrap."
 assumptions = ["Unconfoundedness given the adjustment set and positivity are identification assumptions taken as given; strata boundaries are data dependent and held fixed in the variance, as the record states.", "Each retained stratum holds at least two treated and two control rows; otherwise the fit refuses with stratum_too_sparse.", "Independent rows."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
 redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
-limitations = "Eight finite tables of 60 to 150 rows with one or two covariates and 2, 3 or 5 strata: 100 rows in five strata of exactly twenty, a remainder of two, a clip that ties sixty scores into one stratum and leaves another empty, a trim, an outcome offset of 1e8 and declared sampling weights. Effects are asserted to 1e-8 and standard errors to 1e-6 relative; the retained row count is asserted. The reference reads both pieces of the influence off case-mass derivatives and combines them with the within-arm variances the product states (the n/(n-1) divisors within a stratum and the n(n-1) divisor of the share term); those conventions are the product's, not derived here. Nothing here bears on coverage or on the choice of the number of strata. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
+limitations = "Eight finite tables of 60 to 150 rows with one or two covariates and 2, 3 or 5 strata: 100 rows in five strata of exactly twenty, a remainder of two, a clip that ties sixty scores into one stratum and leaves another empty, a trim, an outcome offset of 1e8 and declared sampling weights. Effects are asserted to 1e-8 and standard errors to 1e-6 relative; the retained row count is asserted. The reference reads both pieces of the influence off case-mass derivatives and combines them with the within-arm variances the product states (the n/(n-1) divisors within a stratum and the n(n-1) divisor of the share term); those conventions are the product's, not derived here. Nothing here bears on the regression-adjusted default, on coverage or on the choice of the number of strata. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
 sources = ["https://doi.org/10.1515/9781400829828", "https://mpmath.org/"]
 findings_resolved = ["Defect repaired: the stratum cuts used the order statistic x_(floor(s n / k) + 1), one past the type-1 empirical quantile x_(ceil(s n / k)). When n was a multiple of k the first stratum held n/k + 1 rows and the last n/k - 1 (21, 20, 20, 20, 19 for n = 100), so a sparse last stratum could be refused or dropped that quantile strata would have kept. The cut is now the ceil order statistic; equal scores still share a stratum and the fit equals the reference in every table, including declared sampling weights, a clip that ties scores and a trim.", "The pooled effect, the retained row count and the standard error (arm-mean variances pooled by squared shares plus the share-variation term from the case-mass derivative) equal the multiprecision reference for the ATE, ATT and ATC."]
-record_sha256 = "441744184bce0d31eb0d406b4981921a74bae1fa262a41cfffcbc19c2849fa2d"
+record_sha256 = "347b7ae80cc119d889229d98120743c44a4f1a40d47e24abcaa1a964ab79ff03"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/stratification.rs"
-items = ["fn assign_strata", "fn attach_bootstrap", "fn bootstrap_se", "fn checked_strata", "fn clusters", "fn default", "fn fit", "fn fit_point", "fn new", "fn prepare", "fn regression_stratified_ate", "fn replicate_ate", "fn stratified_ate", "fn variance_of_mean", "fn with_n_strata", "fn with_overlap", "fn with_sampling_weights", "struct ArmCell", "struct PropensityStratification", "struct StratificationReplicate", "struct StratifiedResult"]
-sha256 = "79408bced661041a21941870ff5b7ab2a31ffe1d43587b7352e5cb450b0ed2b4"
+items = ["fn assign_strata", "fn attach_bootstrap", "fn bootstrap_se", "fn checked_strata", "fn clusters", "fn default", "fn fit", "fn fit_point", "fn identified_covariates", "fn merge_sparse_strata", "fn new", "fn prepare", "fn regression_stratified_ate", "fn replicate_ate", "fn stratified_ate", "fn variance_of_mean", "fn with_n_strata", "fn with_overlap", "fn with_sampling_weights", "struct ArmCell", "struct PropensityStratification", "struct StratificationReplicate", "struct StratifiedResult"]
+sha256 = "349ffda493f9bbd1369c8e8435f68abe73549f743a5202e5a9b21122dd40b344"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/stratification_reference.rs"
 items = ["fn cases", "fn close", "fn floats", "fn pooled_effect_and_standard_error_match_the_reference"]
-sha256 = "8d696d5fbaec9cf7df2ec8063ac08a0cbe6d9db72e3dbd265f725797992a8e1c"
+sha256 = "52b32213f26b0e10031514d091955f3b92877aa60c7ad1fe810ab775e33651a6"
 
 [[method_review.artifacts]]
 role = "reference"
