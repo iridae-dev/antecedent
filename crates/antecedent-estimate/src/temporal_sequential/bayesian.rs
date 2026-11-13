@@ -317,7 +317,22 @@ impl BayesianComposition<'_> {
                 .collect::<Result<Vec<_>, _>>()?;
             coefficients[i].resize(design.ncols, 0.0);
         }
-        let mut root_rng = CausalRng::from_seed(self.estimator.seed ^ ROOT_MEAN_STREAM);
+        // The shift is zero-mean by construction, so its draws are centred: the posterior
+        // mean stays the mean of the propagated levels exactly, free of the Monte Carlo
+        // error of the shift, and only the spread carries the sampling error of the means.
+        let shifts = if root_mean_se > 0.0 {
+            let mut root_rng = CausalRng::from_seed(self.estimator.seed ^ ROOT_MEAN_STREAM);
+            let mut shifts: Vec<f64> =
+                (0..count).map(|_| antecedent_kernels::standard_normal(&mut root_rng)).collect();
+            #[allow(clippy::cast_precision_loss, reason = "draw counts are far below 2^53")]
+            let mean = shifts.iter().sum::<f64>() / count.max(1) as f64;
+            for shift in &mut shifts {
+                *shift = root_mean_se * (*shift - mean);
+            }
+            shifts
+        } else {
+            Vec::new()
+        };
         let mut values = Vec::with_capacity(count);
         for draw in 0..count {
             for &i in &setup.order {
@@ -332,11 +347,7 @@ impl BayesianComposition<'_> {
                 }
             }
             let level = setup.propagate(&coefficients, &setup.factual, None);
-            values.push(if root_mean_se > 0.0 {
-                level + root_mean_se * antecedent_kernels::standard_normal(&mut root_rng)
-            } else {
-                level
-            });
+            values.push(level + shifts.get(draw).copied().unwrap_or(0.0));
         }
         let draws = PosteriorDraws::from_column_major(
             PosteriorSchema {
