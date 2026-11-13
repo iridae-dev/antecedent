@@ -834,7 +834,7 @@ mod tests {
     // An attesting record keyed exactly as the route's own basis is, covering a row range.
     fn record(functional: String, n_min: u64, n_max: u64) -> CoverageRecord {
         CoverageRecord {
-            id: "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.fixture.v2_validation_none",
+            id: "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.fixture.v2_validation_none.v2_structure_graph_posterior",
             validation_schema: 2,
             validation: "none",
             query: "AverageEffect",
