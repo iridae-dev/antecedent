@@ -418,4 +418,8 @@ def run_evidence(root: Path, log_dir: Path, stems: set[str]) -> tuple[dict, dict
             regions.setdefault(source, set()).update(tuple(p) for p in points)
     if len(targets) != 1:
         raise RuntimeError(f"a record is measured by several test binaries: {sorted(targets)}")
-    return builds["|".join(targets.pop())], regions
+    built = builds["|".join(targets.pop())]
+    # The instrumented binary reports the sandbox's source paths; the items a record is
+    # bound to are selected in the checkout, whose files must equal that source.
+    from nix_evidence_source import map_coverage_sources
+    return built, map_coverage_sources(regions, Path(built["source"]["store_path"]), root)
