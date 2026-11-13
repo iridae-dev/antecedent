@@ -1,4 +1,4 @@
-# 3.0 test registration. Scaffold Q01 immediately; register each new test as it lands.
+# Test registration. Register each new test as it lands.
 #
 # Route-level evidence for checked_execution, support, evidence, composition,
 # transport, and decision is not claimed here. Those gates already require a
@@ -4863,7 +4863,7 @@ crate = "antecedent"
 cargo_target = "calibration_attribution_bayesian"
 path = "crates/antecedent/tests/calibration_attribution_bayesian.rs"
 gates = ["inventory"]
-# Numerical measurement tests remain ignored until Q08; shared ordinary controls moved to calibration_decision_contract.
+# Numerical measurement tests remain ignored; shared ordinary controls moved to calibration_decision_contract.
 
 [[test]]
 id = "calibration-backlog"
@@ -4878,7 +4878,7 @@ crate = "antecedent"
 cargo_target = "calibration_bayesian_static"
 path = "crates/antecedent/tests/calibration_bayesian_static.rs"
 gates = ["inventory"]
-# Numerical measurement tests remain ignored until Q08; shared ordinary controls moved to calibration_decision_contract.
+# Numerical measurement tests remain ignored; shared ordinary controls moved to calibration_decision_contract.
 
 [[test]]
 id = "calibration-binding"
@@ -4908,7 +4908,7 @@ crate = "antecedent"
 cargo_target = "calibration_design_bayesian"
 path = "crates/antecedent/tests/calibration_design_bayesian.rs"
 gates = ["inventory"]
-# Numerical measurement tests remain ignored until Q08; shared ordinary controls moved to calibration_decision_contract.
+# Numerical measurement tests remain ignored; shared ordinary controls moved to calibration_decision_contract.
 
 [[test]]
 id = "calibration-distribution-admg"
@@ -7761,10 +7761,10 @@ path = "python/tests/test_attribution_uncertainty.py"
 gates = ["inventory"]
 
 [[test]]
-id = "audit-j-correctness-python"
+id = "refresh-rollback-and-canonical-json-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_audit_j_correctness.py"
+path = "python/tests/test_refresh_rollback_and_canonical_json.py"
 gates = ["inventory"]
 
 [[test]]
@@ -8804,45 +8804,45 @@ path = "python/tests/test_inverse_sources.py"
 gates = ["inventory"]
 
 [[test]]
-id = "issue10-dowhy-handoff-python"
+id = "dowhy-handoff-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_issue10_dowhy_handoff.py"
+path = "python/tests/test_dowhy_handoff.py"
 gates = ["inventory"]
 
 [[test]]
-id = "issue13-bench-overhead-python"
+id = "bench-python-overhead-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_issue13_bench_overhead.py"
+path = "python/tests/test_bench_python_overhead.py"
 gates = ["inventory"]
 
 [[test]]
-id = "issue14-graph-uncertainty-doc-python"
+id = "graph-uncertainty-unidentified-mass-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_issue14_graph_uncertainty_doc.py"
+path = "python/tests/test_graph_uncertainty_unidentified_mass.py"
 gates = ["inventory"]
 
 [[test]]
-id = "issue15-econml-handoff-python"
+id = "econml-cate-handoff-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_issue15_econml_handoff.py"
+path = "python/tests/test_econml_cate_handoff.py"
 gates = ["inventory"]
 
 [[test]]
-id = "issue8-ihdp-propensity-e2e-python"
+id = "ihdp-propensity-e2e-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_issue8_ihdp_propensity_e2e.py"
+path = "python/tests/test_ihdp_propensity_e2e.py"
 gates = ["inventory"]
 
 [[test]]
-id = "issue9-pcmci-pulse-benchmark-python"
+id = "pcmci-pulse-benchmark-python"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_issue9_pcmci_pulse_benchmark.py"
+path = "python/tests/test_pcmci_pulse_benchmark.py"
 gates = ["inventory"]
 
 [[test]]
@@ -21698,10 +21698,10 @@ path = "python/src/estimator_config.rs"
 gates = ["inventory"]
 
 [[test]]
-id = "inventory-python-tests-test-audit-small-items-py"
+id = "inventory-python-tests-test-identifiers-survival-tau-and-raw-config-py"
 crate = "python"
 cargo_target = "script"
-path = "python/tests/test_audit_small_items.py"
+path = "python/tests/test_identifiers_survival_tau_and_raw_config.py"
 gates = ["inventory"]
 
 [[test]]

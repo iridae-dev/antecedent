@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 """Measure complete Python first answers and prepared estimates; retain every repeat.
 
-This diagnostic probe is not the full N20 hardware/control/capacity grid.
+This diagnostic probe is not a full hardware/control/capacity grid.
 An import failure or incomplete uncertainty is an error, never a skipped lane.
 """
 

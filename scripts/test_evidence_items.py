@@ -1,7 +1,7 @@
 """Item-level evidence: the Rust item parser, selection from an inventory, and currency.
 
 The inventories here are written by hand in the compiler driver's format, so these
-checks need no compiler; `evidence_analyzer_probe.py` runs the real driver.
+checks need no compiler.
 """
 from __future__ import annotations
 

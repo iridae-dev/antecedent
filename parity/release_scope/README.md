@@ -1,4 +1,4 @@
-# Release scope (B05)
+# Release scope
 
 `scope.toml` is schema 1. Checking that file records the mandatory list and the research list. Later attempts write the claim they earned, or the adjusted claim after the named attempts are exhausted, back into the matching row. An unresolved mandatory row blocks release. A public claim changes only after those named attempts are exhausted. Changing either list takes an explicit reviewed release decision and the matching claim change.
 

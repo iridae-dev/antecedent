@@ -1,5 +1,7 @@
-"""Small audit items: integral identifiers, tau-indexed survival contrasts, raw estimator-config
-companions, (PAG circle counts are covered in test_discover_pcmci)."""
+"""Integral identifiers, tau-indexed survival contrasts and raw estimator-config companions.
+
+PAG circle counts are covered in test_discover_pcmci.
+"""
 
 from __future__ import annotations
 

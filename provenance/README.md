@@ -164,14 +164,12 @@ rule holds for `[[method_review.artifacts]]` and `oracle.reference_review.artifa
   record that lists papers, a record that also carries `method_review`, or a derivation or closed
   variant with no executing assertion.
 - Before mapping, read the module: a file that contains its own square roots, logarithms,
-  exponentials, solves or sampling is a method and needs `papers` and a `[method_review]`, or a
-  `candidate: ..., not verified` entry in `parity/provenance_review_triage.toml` while the source is
-  unconfirmed. Do not map such a record to quiet it.
+  exponentials, solves or sampling is a method and needs `papers` and a `[method_review]`.
+  Do not map such a record to quiet it.
 - A mapping states that no independent source is owed. It is not an implementation review of a
   primary source and the evidence report counts it separately from `method_review`.
 - After editing the record or a mapped file, run
-  `scripts/bind_review_digests.py mapping provenance/<id>.toml`, then
-  `scripts/provenance_review_triage.py --write`.
+  `scripts/bind_review_digests.py mapping provenance/<id>.toml`.
 
 ## Records that name the modules they cover
 

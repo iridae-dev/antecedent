@@ -1,4 +1,4 @@
-"""Earning test for issue #15: EconML adjustment-set handoff example."""
+"""The EconML adjustment-set handoff example runs."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from _repo_text import REPO_ROOT
 EXAMPLE = REPO_ROOT / "examples" / "python" / "econml_cate_handoff.py"
 
 
-def test_issue15_econml_cate_handoff_example() -> None:
+def test_econml_cate_handoff_example() -> None:
     """Run the example via runpy; EconML fitting is optional."""
     ns = runpy.run_path(str(EXAMPLE), run_name="__main__")
     handoff = ns["LAST_HANDOFF"]

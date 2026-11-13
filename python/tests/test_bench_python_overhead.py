@@ -1,4 +1,4 @@
-"""Earn issue #13: Python↔Rust ingest overhead bench script exists and smokes.
+"""The Python↔Rust ingest overhead bench script exists and smokes.
 
 Absence of ``examples/python/bench_python_overhead.py`` (or a broken smoke
 mode / missing table columns) fails this test. Absolute timings are not
@@ -42,7 +42,7 @@ def _load_bench():
     return mod
 
 
-def test_issue13_bench_overhead_smoke_table():
+def test_bench_overhead_smoke_table():
     mod = _load_bench()
     buf = io.StringIO()
     with redirect_stdout(buf):

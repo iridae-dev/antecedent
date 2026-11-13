@@ -28,6 +28,4 @@ Engineering checks:
 
 ```sh
 PYTHONPATH=scripts python3 -m unittest test_evidence_items test_evidence_manifests test_evidence_earning test_scientific_records
-python3 scripts/evidence_analyzer_probe.py   # the real driver on a disposable fixture; needs rustc-dev
-python3 scripts/benchmark_evidence_manifests.py
 ```

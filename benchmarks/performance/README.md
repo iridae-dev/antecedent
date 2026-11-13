@@ -1,6 +1,6 @@
 # Focused performance investigation
 
-These probes diagnose N20 results. They do not complete its full control,
+These probes diagnose performance results. They are not a full control,
 hardware, row-capacity or exact-capacity grid. Generated measurements, timing
 dumps and local reports belong under `benchmarks/performance/investigations/`,
 which is ignored by Git; retain the reusable harness and tests in the repository.
@@ -98,22 +98,11 @@ floor. Cold, prepared, refresh, replay and process-startup cells are separate;
 the prepared cyclic lanes can reuse fitted/precomputed products. Artifact
 creation and Python result construction belong to their complete public calls.
 
-This is an initial diagnostic matrix, not full performance acceptance for every
-3.0 family. The existing `user_path` and `transport` Rust benches remain separate
+This is a diagnostic matrix, not full performance acceptance for every
+family. The existing `user_path` and `transport` Rust benches remain separate
 controls; temporal/panel inference, transport, matching, mediation and posterior
 response grids need their own representative workload sizes. No aggregate score
 substitutes for a capability's own correctness and effort checks.
-
-
-`classic_workflows.py` adds direct preparation, worker-controlled dose grids,
-PC at explicit worker counts, and bulk cyclic disturbances. `transport_buffers.py`
-compares the default and retained JSON routes for trial, continuous and smoothed
-transport through prepare, cold, prepared and refresh calls. Both default to
-untimed scientific validation; `--measure --repeats 9 --output <ignored-path>`
-explicitly enables sample retention. Run each package in an isolated process
-using its own `PYTHONPATH`. Alternate baseline/candidate order across three rounds.
-Process peak RSS includes fixture construction, preparation and execution; it is
-not a measurement of scratch allocation alone.
 
 The ignored Rust `prepare::design_measurement::measure_direct_design` test
 provides an isolated preparation comparison. Compile before running it. The

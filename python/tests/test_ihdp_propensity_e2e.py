@@ -1,11 +1,11 @@
-"""Earning test: IHDP-style propensity / AIPW example (GitHub issue #8)."""
+"""The IHDP-style propensity / AIPW example runs end to end."""
 
 from __future__ import annotations
 
 from _repo_text import REPO_ROOT
 
 
-def test_issue8_ihdp_propensity_e2e():
+def test_ihdp_propensity_e2e():
     """Running the example asserts identification + estimate + refuter succeed."""
     import runpy
 

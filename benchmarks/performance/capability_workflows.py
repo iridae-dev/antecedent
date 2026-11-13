@@ -3,7 +3,7 @@
 """Capability-specific workflow probes. No timings without explicit --measure.
 
 Fixture construction, scientific checks and profiles are separate from timed
-complete calls. This is a diagnostic matrix, not full N20 or calibration.
+complete calls. This is a diagnostic matrix, not performance acceptance or calibration.
 """
 
 from __future__ import annotations
@@ -594,7 +594,7 @@ def main() -> None:
                     cell["median_ns"] = statistics.median(s["elapsed_ns"] for s in samples)
                 cells.append(cell)
     report = {
-        "scope": "diagnostic_capability_matrix_not_full_N20_or_calibration",
+        "scope": "diagnostic_capability_matrix_not_acceptance_or_calibration",
         "timed": args.measure,
         "warmups": 1 if args.measure else 0,
         "package": ant.__file__,

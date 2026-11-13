@@ -3,7 +3,7 @@
 # scripts/gate_support.py requires every staged row of
 # parity/support_cells.toml to name its executing evidence
 # (evidence_test + evidence_assertion). Rows listed here were supported before
-# that rule (1.9, R-13) and are exempt until someone names their test. The list
+# that rule and are exempt until someone names their test. The list
 # only shrinks: a row that gains evidence must be deleted here in the same
 # change, and new rows may not be added. Format: query|graph_class|structure|
 # inference|validation.

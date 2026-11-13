@@ -1,4 +1,4 @@
-"""Issue #10: DoWhy ↔ Antecedent handoff on a backdoor ATE toy SCM."""
+"""DoWhy ↔ Antecedent handoff on a backdoor ATE toy SCM."""
 
 from __future__ import annotations
 

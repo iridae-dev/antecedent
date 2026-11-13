@@ -20,19 +20,19 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-from _repo import REPO_ROOT, ensure_scripts_on_path
+from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
-sys.path.insert(0, str(REPO_ROOT / "parity" / "performance_lanes"))
 import bench_regression as bench  # noqa: E402
-import measure  # noqa: E402
 
 ESTIMATE = {
     "mean": {
@@ -43,6 +43,36 @@ ESTIMATE = {
 MIB = 1 << 20
 NATIVE_DIR = os.environ.get("ANTECEDENT_MEASUREMENT_OUT")
 REQUIRE_NATIVE = os.environ.get("ANTECEDENT_REQUIRE_NATIVE_MEASUREMENT") == "1"
+# ru_maxrss is bytes on macOS and KiB elsewhere.
+RSS_SCALE = 1 if sys.platform == "darwin" else 1024
+
+
+def run_measured(code: str) -> dict:
+    """Run `code` in a child interpreter; return what the kernel measured for it.
+
+    `os.wait4` reports the child's resource usage, so the peak resident set is the
+    operating system's figure and owes nothing to a Python-side trace.
+    """
+    started = time.perf_counter_ns()
+    proc = subprocess.Popen(
+        [sys.executable, "-c", code],
+        env={"PATH": "/usr/bin:/bin"},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.DEVNULL,
+    )
+    stderr = proc.stderr.read()
+    _, status, usage = os.wait4(proc.pid, 0)
+    wall_ns = time.perf_counter_ns() - started
+    proc.stderr.close()
+    # wait4 reaped the child; tell Popen so it does not wait again.
+    proc.returncode = os.waitstatus_to_exitcode(status)
+    return {
+        "returncode": proc.returncode,
+        "wall_ns": wall_ns,
+        "peak_rss_bytes": int(usage.ru_maxrss) * RSS_SCALE,
+        "stderr_tail": stderr[-4000:].decode("utf-8", errors="replace"),
+    }
 
 
 def touch_in_child(megabytes: int) -> dict:
@@ -52,17 +82,8 @@ def touch_in_child(megabytes: int) -> dict:
         "for i in range(0, len(buf), 4096):\n"
         "    buf[i] = 1\n"
     )
-    with tempfile.TemporaryDirectory() as scratch:
-        root = Path(scratch)
-        run = measure.run_measured(
-            [sys.executable, "-c", code],
-            env={"PATH": "/usr/bin:/bin"},
-            cwd=root,
-            stdout_path=root / "out",
-            stderr_path=root / "err",
-            timeout=120,
-        )
-    if run["outcome"] != "completed":
+    run = run_measured(code)
+    if run["returncode"] != 0:
         raise AssertionError(run["stderr_tail"])
     return run
 
@@ -99,15 +120,7 @@ class ObservedWorkTest(unittest.TestCase):
         self.assertNotIn("peak_rss_unsupported", large_fields)
 
     def test_a_failed_run_is_attached_as_failed_not_dropped(self) -> None:
-        with tempfile.TemporaryDirectory() as scratch:
-            root = Path(scratch)
-            run = measure.run_measured(
-                [sys.executable, "-c", "raise SystemExit(2)"],
-                env={"PATH": "/usr/bin:/bin"},
-                cwd=root,
-                stdout_path=root / "out",
-                stderr_path=root / "err",
-            )
+        run = run_measured("raise SystemExit(2)")
         fields = bench.comparison_result(ESTIMATE, "touch", payload_from(run))["measurement"]
         self.assertTrue(fields["failed"])
         self.assertGreater(fields["peak_rss_bytes"], 0)
