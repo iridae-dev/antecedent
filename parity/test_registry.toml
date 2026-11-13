@@ -21027,6 +21027,13 @@ path = "scripts/test_support_snapshot_roles.py"
 gates = ["inventory"]
 
 [[test]]
+id = "audit-support-calibration-lines"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_support_calibration.py"
+gates = ["inventory"]
+
+[[test]]
 id = "audit-facade-fit-lock"
 crate = "antecedent"
 cargo_target = "lib"
