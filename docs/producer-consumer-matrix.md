@@ -418,7 +418,7 @@ Prepared fitted-mean retargeting uses a distinct producer/consumer contract:
 
 | Producer | Consumer | Standing and refusals |
 | --- | --- | --- |
-| `JointSensitivityIntervalArtifact::checked`; Python `transport.advanced.export_joint_sensitivity_interval` on an executed z baseline | Rust `consume` / `consume_with_limits`; Python artifact `replay` / `consume_joint_sensitivity_interval` | Separate v1 interval: range v3 is unchanged. Replays the exact stored seed, box, count-table procedure and numbers. Current calibration is derived independently of stored historical annotation. Excess limits, unsupported versions/procedures and resealed numerical edits refuse. Broader MNAR/MSM sampling composition remains deferred. |
+| `JointSensitivityIntervalArtifact::checked`; Python `transport.advanced.export_joint_sensitivity_interval` on an executed z baseline | Rust `consume` / `consume_with_limits`; Python artifact `replay` / `consume_joint_sensitivity_interval` | Separate v1 interval: range v3 is unchanged. Replays the exact stored seed, box, count-table procedure and numbers. Current calibration is derived independently of stored historical annotation. Excess limits, unsupported versions/procedures and resealed numerical edits refuse. Broader MNAR/MSM sampling composition is not provided. |
 
 The compiled robust slice uses an explicit joint scenario source. Rust
 `JointScenarioCarrier::consume` checks an independently retained source digest;

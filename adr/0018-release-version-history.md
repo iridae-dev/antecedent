@@ -42,8 +42,8 @@ independently needed correction to match reality.
   (2026-07-25, second correctness cut + facade/binding maintainability) →
   **0.4.0** (2026-07-30, Python API-surface freeze + algorithmic correctness
   pass: 25 confirmed defects fixed across identification, discovery,
-  estimation, attribution, and diagnostics — see the 0.4.0 `CHANGELOG.md`
-  entry's *Correctness* section and `docs/release-notes/v0.4.0.md`) →
+  estimation, attribution, and diagnostics — see the changelog and release
+  notes at the `v0.4.0` tag) →
   **0.4.1** (2026-07-30, patch: identify-only accepts an `Admg`).
 - Record the historical artifact format at this decision: `FormatVersion {
   major: 0, minor: 2 }`, unchanged from 0.2.0 through 0.4.1. ADR 0019 later

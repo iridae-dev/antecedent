@@ -673,7 +673,7 @@ catalog search is sound and incomplete.
   treatment dimensions; a query over two or more treatments is identified jointly,
   by one adjustment set valid for all treatments at once, on a Dag, Admg, Cpdag or Pag,
   and is not identified when no such common set exists, since joint identification
-  through the general ID algorithm is not wired);
+  through the general ID algorithm is not provided);
 * additive-GAM g-computation for numeric hard, shift, and stochastic
   intervention responses;
 * selected-outcome IPW and cross-fitted AIPW, plus marginal right/left Kaplan–Meier
