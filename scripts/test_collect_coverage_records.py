@@ -1054,6 +1054,13 @@ class GateProtocolTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(SystemExit, "conflicting"):
                 collector.gate_ledger([new], "a" * 40)
+            new.write_text(
+                "test knn_interval ... CALIBRATION_GATE_PROTOCOL population_linear\n" + passed,
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                collector.gate_ledger([new], "a" * 40)["new"]["protocol"], "population_linear"
+            )
 
 
 class FamilyDecisionRecordTest(unittest.TestCase):

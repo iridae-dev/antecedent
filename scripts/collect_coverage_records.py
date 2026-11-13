@@ -745,10 +745,12 @@ def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
         if contexts:
             rows[log.name.removesuffix(".log")]["coverage_decisions"] = raw
             rows[log.name.removesuffix(".log")]["decision_protocol"] = contexts[0]
+        # A test that prints while libtest shows its output shares the line libtest opened
+        # with `test <name> ... `, so the marker is read after that prefix too.
         protocols = {
-            line.removeprefix("CALIBRATION_GATE_PROTOCOL ").strip()
+            marker.group(1).strip()
             for line in text.splitlines()
-            if line.startswith("CALIBRATION_GATE_PROTOCOL ")
+            if (marker := re.match(r"(?:test \S+ \.\.\. )?CALIBRATION_GATE_PROTOCOL (.*)", line))
         }
         if protocols:
             if len(protocols) != 1 or not re.fullmatch(r"[a-z][a-z0-9_]*", next(iter(protocols))):
