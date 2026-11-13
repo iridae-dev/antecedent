@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Public retained execution on the independent X06 panel; no calibration claim.
+//! Public retained execution on the independent panel; no calibration claim.
 #[path = "joint_panel_experiment_chain.rs"]
 mod experiment_chain;
 #[path = "../../../examples/rust/joint_panel_fixture.rs"]

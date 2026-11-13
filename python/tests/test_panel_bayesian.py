@@ -1,4 +1,4 @@
-"""PanelFrame Bayesian pulse through the prepared panel route (P2)."""
+"""PanelFrame Bayesian pulse through the prepared panel route."""
 
 from __future__ import annotations
 

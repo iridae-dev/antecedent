@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Transport gate: parity/transport_stages.toml drives every invocation.
 #
-# The registry contract (supported routes resolve to collected tests; each T10
+# The registry contract (supported routes resolve to collected tests; each
 # fixture family has a positive and a counterexample) is checked statically,
 # then every [[fixture_evidence]] and route row is resolved by the shared row runner
 # (--static) to an exact, non-ignored test. The engineering lane runs the ordinary
@@ -59,7 +59,7 @@ fi
 echo "== transport stage and fixture-family contracts =="
 python3 scripts/gate_support.py --transport "$REGISTRY"
 
-echo "== T10 fixture families: positive and counterexample rows =="
+echo "== Fixture families: positive and counterexample rows =="
 python3 scripts/run_evidence_rows.py "$ROOT" "$REGISTRY" "$ROOT" fixture_evidence gate_transport --static
 
 echo "== supported stage routes: consuming evidence assertions =="

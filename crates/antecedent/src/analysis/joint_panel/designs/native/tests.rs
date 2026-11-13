@@ -836,7 +836,7 @@ fn native_local_iv_preserves_complier_target_and_refuses_missing_monotonicity() 
     );
 }
 
-/// Registered Q08/E14 procedure. This reports measurements; execution grants no release support.
+/// Registered joint-response procedure. This reports measurements; execution grants no release support.
 #[test]
 #[ignore = "400 independent original-data repetitions per design; run only on the stable candidate"]
 #[allow(

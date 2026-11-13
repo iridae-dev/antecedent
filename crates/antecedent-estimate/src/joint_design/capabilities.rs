@@ -1,10 +1,10 @@
 //! Machine-readable implementation inventory, including unfinished promised obligations.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-/// One required X07 design capability. Missing implementations remain visible and
+/// One required design capability. Missing implementations remain visible and
 /// must never be converted into a scientific-boundary refusal in acceptance matrices.
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct JointDesignCapability {
-    /// Stable X07 design family.
+    /// Stable design family.
     pub design: &'static str,
     /// Actual frequentist method owner, when implemented.
     pub frequentist_owner: Option<&'static str>,

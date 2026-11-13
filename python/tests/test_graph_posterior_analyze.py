@@ -1,4 +1,4 @@
-"""P1-D: graph-posterior × Bayesian effect mixture via analyze."""
+"""Graph-posterior × Bayesian effect mixture via analyze."""
 
 from __future__ import annotations
 

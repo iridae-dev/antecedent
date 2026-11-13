@@ -1108,7 +1108,7 @@ mod tests {
     /// Complete data-generation, design identification, native F/B fitting and hybrid
     /// decomposition measurement. Execution does not grant a release calibration support.
     #[test]
-    #[ignore = "Q08/E14 stable-candidate measurement; execute explicitly"]
+    #[ignore = "measurement: stable candidate; execute explicitly"]
     #[allow(
         clippy::too_many_lines,
         reason = "the reference fixture keeps its full scientific procedure together"

@@ -833,7 +833,7 @@ mod tests {
             x[n + r] = xi;
             let p = antecedent_kernels::sigmoid(1.2 * xi);
             // Overlapping labels — hard p>0.5 assignment is complete separation
-            // and Laplace must refuse that posterior (M12).
+            // and Laplace must refuse that posterior.
             y[r] = if deterministic_unit(r) < p { 1.0 } else { 0.0 };
         }
         let prior = PriorSet::weakly_informative(2);

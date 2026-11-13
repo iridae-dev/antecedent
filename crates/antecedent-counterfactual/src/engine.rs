@@ -1826,7 +1826,7 @@ mod tests {
         assert!(fast.to_bits() == reference.to_bits(), "fast={fast:?} reference={reference:?}");
     }
 
-    /// P1 regression: the historical per-unit fallback froze every non-inner
+    /// Regression: the historical per-unit fallback froze every non-inner
     /// node to unit u's value across *all* rows and evaluated full columns, so
     /// a state-space outcome rolled its recursion over a fabricated constant
     /// history with every unit's noise. That path must refuse, not return a

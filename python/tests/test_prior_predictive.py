@@ -1,4 +1,4 @@
-"""Prior / posterior predictive checks on the Bayesian analyze path (P1-A/B)."""
+"""Prior / posterior predictive checks on the Bayesian analyze path."""
 
 from __future__ import annotations
 

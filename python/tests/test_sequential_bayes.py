@@ -1,4 +1,4 @@
-"""Sequential Bayes: posterior artifact → next prior (P1-C)."""
+"""Sequential Bayes: posterior artifact → next prior."""
 
 from __future__ import annotations
 

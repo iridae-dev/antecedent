@@ -343,7 +343,7 @@ pub(crate) fn hydrate_prior_from_posterior(
 /// cycle). Convert at the facade.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum HydrateMapping {
-    /// Identical coefficient subspace (P1-C sequential Bayes).
+    /// Identical coefficient subspace (sequential Bayes).
     IdenticalCoefficientSubspace,
     /// Effect-functional transfer via a named source quantity (e.g. `"ate"`).
     EffectFunctional {

@@ -153,7 +153,7 @@ impl DesignVariableSummary {
 #[serde(rename_all = "snake_case", tag = "kind")]
 #[serde(deny_unknown_fields)]
 pub enum PriorMapping {
-    /// Identical coefficient subspace (P1-C sequential Bayes).
+    /// Identical coefficient subspace (sequential Bayes).
     IdenticalCoefficientSubspace,
     /// Effect-functional transfer via a named source quantity.
     EffectFunctional {

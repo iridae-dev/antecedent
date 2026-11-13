@@ -41,7 +41,7 @@ from test_evidence import libtest_name, rust_items, target_files
 
 REGISTRY = "parity/slow_correctness_tests.toml"
 RULES = (
-    ("calibration", re.compile(r"^(calibration|coverage:|measurement|probe:|diagnostic:|Q08/E14|\d+ independent original-data)")),
+    ("calibration", re.compile(r"^(calibration|coverage:|measurement|probe:|diagnostic:|\d+ independent original-data)")),
     ("writer", re.compile(r"^(writes |run explicitly with UPDATE_\w+=1)")),
     ("timing", re.compile(r"^(timing harness|explicit performance measurement|prints bootstrap|ADR 0011 )")),
 )

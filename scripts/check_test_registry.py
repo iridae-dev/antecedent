@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed on the 3.0 test registry.
+"""Fail closed on the test registry.
 
 Every row in parity/test_registry.toml must name a source file that exists.
 A crate with autotests = false compiles only src/ unit tests, [[test]] paths,

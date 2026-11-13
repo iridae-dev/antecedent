@@ -5,7 +5,7 @@ requires_stable_candidate = true
 grants_release_support = false
 
 # These are executable procedures, not measurements or inherited supports from
-# the frozen 2.4.1 family. Q08/E14 run them against the final stable candidate.
+# an earlier measured family. They run against the final stable candidate.
 [[procedure]]
 id = "continuous_structural_selected_program_value"
 owner = "X04.3"

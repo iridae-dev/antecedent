@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Execute X05 acceptance procedures and collect source-bound per-row evidence."""
+"""Execute joint-panel experiment acceptance procedures and collect source-bound per-row evidence."""
 
 from __future__ import annotations
 

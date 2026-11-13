@@ -1336,7 +1336,7 @@ class DbnPosterior:
 
     Standalone: ``DbnPosterior(...).run(...)`` returns a ``GraphPosterior``.
     Composed: pass ``discovery=DbnPosterior(...)`` with ``inference=Bayesian(...)``
-    and ``PulseEffect``/``SustainedEffect`` to mix temporal effect draws (P1-D), or
+    and ``PulseEffect``/``SustainedEffect`` to mix temporal effect draws, or
     with ``inference=Frequentist()`` to mix atom estimates under a shared
     circular-block SE whose replicate count follows ``bootstrap`` / the latency tier.
     """

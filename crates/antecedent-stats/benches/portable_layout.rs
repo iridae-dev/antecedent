@@ -1,4 +1,4 @@
-//! Portable-layout measurement of the four N15 kernels.
+//! Portable-layout measurement of four dense kernels.
 //!
 //! This is not the mixed `reductions` or `linalg` bench. Each function times one
 //! kernel on borrowed vector/bitmap views or `ColumnMajorDesign`.

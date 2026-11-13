@@ -630,7 +630,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Q08/E14: execute only on the stable candidate; no implementation-stage calibration support"]
+    #[ignore = "measurement: execute only on the stable candidate; no implementation-stage calibration support"]
     fn whole_procedure_randomized_selected_value_calibration_l95() {
         let repetitions = std::env::var("ANTECEDENT_CALIBRATION_NSIM")
             .ok()

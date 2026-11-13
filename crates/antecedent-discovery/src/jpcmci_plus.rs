@@ -892,7 +892,7 @@ mod tests {
         );
     }
 
-    /// P1 regression: lagged time-context edges were silently dropped from the
+    /// Regression: lagged time-context edges were silently dropped from the
     /// CPDAG (`evidence.links` listed them; `evidence.graph` did not), and the
     /// exogenous flip zeroed the *system* endpoint's lag.
     #[test]

@@ -1257,7 +1257,7 @@ fn longitudinal_treatment_affected_history_executes_the_full_experiment_chain() 
 /// chain. Its finite empirical posterior error is included in the measurement;
 /// implementation runs do not authorize a release calibration claim.
 #[test]
-#[ignore = "Q08/E14 stable-candidate full experiment-chain measurement"]
+#[ignore = "measurement: stable-candidate full experiment chain"]
 #[allow(
     clippy::map_unwrap_or,
     clippy::too_many_lines,

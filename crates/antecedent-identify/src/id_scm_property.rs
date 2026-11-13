@@ -217,7 +217,7 @@ fn id_scm_nonbinary_levels_still_identify() {
     assert!(res.estimands.iter().any(|e| e.adjustment_set.as_ref() == [v(2)]));
 }
 
-/// P0 regression (Shpitser–Pearl line 7): the front-door **ADMG** functional.
+/// Regression (Shpitser–Pearl line 7): the front-door **ADMG** functional.
 ///
 /// `t → m → y` with `t ↔ y` routes through general ID line 7: the recursion
 /// must carry `Q[{T,Y}]`, whose Y-factor conditions on the topological

@@ -40,7 +40,7 @@ pub struct JointExperimentAcceptanceMatrix {
     /// Every required row; no filtering to existing passing combinations.
     pub rows: Vec<JointExperimentAcceptanceRow>,
 }
-/// Generate machine-readable acceptance obligations from the authoritative X07 catalogue.
+/// Generate machine-readable acceptance obligations from the authoritative design catalogue.
 ///
 /// A missing implementation remains in the matrix with its original promise. A
 /// frequentist sampling law used as a Bayesian prior is a scientific refusal;

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""List or measure the registered Q08/E14 joint-response procedures on a stable SHA.
+"""List or measure the registered joint-response procedures on a stable SHA.
 
 This runner emits candidate-bound execution logs. It never updates coverage
 supports or borrows a risk allocation from the frozen historical family.

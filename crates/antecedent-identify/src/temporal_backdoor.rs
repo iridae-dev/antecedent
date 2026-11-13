@@ -1639,7 +1639,7 @@ mod tests {
         assert!(res.result.derivation.steps.iter().any(|s| s.rule.as_ref() == "temporal.schedule"));
     }
 
-    /// P1 regression: the sustained/dynamic path identified only the *active*
+    /// Regression: the sustained/dynamic path identified only the *active*
     /// level and relabeled the one-sided distribution as a temporal effect.
     /// The functional must be the two-sided contrast: evaluated on a provider
     /// with E[Y|do(T=1)] = 0.9 and E[Y|do(T=0)] = 0.2 it returns 0.7 — the

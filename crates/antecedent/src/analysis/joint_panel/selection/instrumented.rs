@@ -650,7 +650,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Q08/E14: measure only on a stable candidate; implementation simulations grant no support"]
+    #[ignore = "measurement: only on a stable candidate; implementation simulations grant no support"]
     fn whole_procedure_continuous_structural_selection_calibration_l95() {
         let n = std::env::var("ANTECEDENT_CALIBRATION_NSIM")
             .ok()

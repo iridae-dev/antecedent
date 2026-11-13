@@ -1,4 +1,4 @@
-"""Manufacturing-style Bayesian temporal pulse dual (P0)."""
+"""Manufacturing-style Bayesian temporal pulse dual."""
 
 from __future__ import annotations
 
