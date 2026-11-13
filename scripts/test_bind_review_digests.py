@@ -44,17 +44,17 @@ class FixtureReviews(unittest.TestCase):
             root = Path(tmp).resolve()
             fixture = root / "conformance/family/case/expected.json"
             fixture.parent.mkdir(parents=True)
-            (root / "conformance/family/case/reference.py").write_text("print(1)\n")
+            (root / "conformance/family/case/reference.py").write_text("print(1)\n", encoding="utf-8")
             review = {"artifacts": [{"path": "conformance/family/case/reference.py", "role": "generator",
                                      "sha256": "0" * 64}], "fixture_payload_sha256": "0" * 64}
             data = {"case": {"x": 1}, "oracle": {"kind": "enumeration", "reference_review": review}}
-            fixture.write_text(json.dumps(data, indent=2) + "\n")
+            fixture.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
             with patch.object(bind, "REPO_ROOT", root):
                 bind.bind_fixture(fixture)
-            stored = json.loads(fixture.read_text())
+            stored = json.loads(fixture.read_text(encoding="utf-8"))
             self.assertNotIn("reference_review", stored["oracle"])
             self.assertEqual(stored["case"], {"x": 1})
-            moved = json.loads((root / "parity/fixture_reviews/family/case.json").read_text())
+            moved = json.loads((root / "parity/fixture_reviews/family/case.json").read_text(encoding="utf-8"))
             self.assertEqual(moved["fixture_payload_sha256"], evidence_kinds.fixture_payload_digest(stored))
             self.assertNotEqual(moved["artifacts"][0]["sha256"], "0" * 64)
             loaded = evidence_kinds.load_fixture(root, fixture)
@@ -70,9 +70,9 @@ class FixtureReviews(unittest.TestCase):
             root = Path(tmp).resolve()
             fixture = root / "conformance/family/case/expected.json"
             fixture.parent.mkdir(parents=True)
-            fixture.write_text(json.dumps({"oracle": {"reference_review": {}}}))
+            fixture.write_text(json.dumps({"oracle": {"reference_review": {}}}), encoding="utf-8")
             (root / "parity/fixture_reviews/family").mkdir(parents=True)
-            (root / "parity/fixture_reviews/family/case.json").write_text("{}")
+            (root / "parity/fixture_reviews/family/case.json").write_text("{}", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "both embedded"):
                 evidence_kinds.load_fixture(root, fixture)
 

@@ -16,7 +16,7 @@ class SchedulingTests(unittest.TestCase):
             path = Path(tmp) / "t" / "timings.tsv"
             ec.record_duration(path, "x", 1.0)
             ec.record_duration(path, "x", 9.0)
-            path.open("a").write("malformed\n")
+            path.open("a", encoding="utf-8").write("malformed\n")
             self.assertEqual(ec.last_durations(path), {"x": 9.0})
 
     def test_coverage_of_several_runs_is_their_union(self):

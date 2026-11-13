@@ -100,9 +100,9 @@ class MeasureTests(MeasureFixture):
         self.assertEqual(recheck[1]["ANTECEDENT_CALIBRATION_PRIOR_TALLIES"],
                          str(self.dir / "suite_one.p1.tallies.jsonl"))
         self.assertEqual(recheck[0][:2], ["t2", "--exact"])  # only the test that asked
-        log = (self.dir / "suite_one.p1.log").read_text()
+        log = (self.dir / "suite_one.p1.log").read_text(encoding="utf-8")
         self.assertTrue(log.endswith(f"calibration-measured-at {'a' * 40}\ncalibration-decision-context {{}}\n"))
-        again = (self.dir / "suite_one.p1.recheck.log").read_text()
+        again = (self.dir / "suite_one.p1.recheck.log").read_text(encoding="utf-8")
         self.assertIn("calibration-rechecked-test t2\n", again)
 
     def test_a_run_with_no_passed_test_fails_and_is_not_rechecked(self):
@@ -185,9 +185,9 @@ class RecordBindingTests(unittest.TestCase):
     def test_records_map_to_the_stems_that_emitted_them(self):
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
-            (d / "g.p0.log").write_text('calibration-record {"id": "r1"}\n')
-            (d / "g.p0.recheck.log").write_text('calibration-record {"id": "r1"}\n')
-            (d / "g.p1.log").write_text('calibration-record {"id": "r1"}\ncalibration-record {"id": "r2"}\n')
+            (d / "g.p0.log").write_text('calibration-record {"id": "r1"}\n', encoding="utf-8")
+            (d / "g.p0.recheck.log").write_text('calibration-record {"id": "r1"}\n', encoding="utf-8")
+            (d / "g.p1.log").write_text('calibration-record {"id": "r1"}\ncalibration-record {"id": "r2"}\n', encoding="utf-8")
             self.assertEqual(cr.record_runs(d), {"r1": {"g.p0", "g.p1"}, "r2": {"g.p1"}})
 
     def test_executed_regions_are_reported_at_checkout_paths(self):
@@ -195,12 +195,12 @@ class RecordBindingTests(unittest.TestCase):
             d, root, store = Path(tmp) / "logs", Path(tmp).resolve() / "root", Path(tmp).resolve() / "store"
             for base in (root, store):
                 (base / "crates/a/src").mkdir(parents=True)
-                (base / "crates/a/src/lib.rs").write_text("fn f() {}\n")
+                (base / "crates/a/src/lib.rs").write_text("fn f() {}\n", encoding="utf-8")
             d.mkdir()
             group = cr.GroupSpec(index=1, label="l", package="a", target="lib", features=(), tests=None,
                                  ignored=True, grid=True)
-            (d / f"{group.safe}.p0.coverage.json").write_text('{"/antecedent-source/crates/a/src/lib.rs": [[1, 1]]}')
-            (d / cr.BUILDS).write_text(json.dumps({"a|lib|": {"source": {"store_path": str(store)}}}))
+            (d / f"{group.safe}.p0.coverage.json").write_text('{"/antecedent-source/crates/a/src/lib.rs": [[1, 1]]}', encoding="utf-8")
+            (d / cr.BUILDS).write_text(json.dumps({"a|lib|": {"source": {"store_path": str(store)}}}), encoding="utf-8")
             with patch.object(cr, "load_groups", return_value=[group]):
                 built, regions = cr.run_evidence(root, d, {f"{group.safe}.p0"})
             self.assertEqual(regions, {str(root / "crates/a/src/lib.rs"): {(1, 1)}})

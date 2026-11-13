@@ -19,7 +19,7 @@
 
 ## Claim
 
-- **Claim id:** ea534785f7bae9201d1d7173746e56d31d849c519200705ea1c6788e7c08f662
+- **Claim id:** 031d588123791229945b59d0b6ae4bab6b10e22abe4bc40e6099277d69e5307d
 - **Kind:** point
 - **Value:** 2
 - **Outcome units:** none
@@ -83,14 +83,14 @@
 ### Calibration
 
 - **Calibration status:** outside\_measured\_scope
-- **Governing record:** cov.average\_effect.dag.frequentist.analytic\_se.l95.practitioner\_linear\_adjustment\_analytic\_interval
+- **Governing record:** cov.average\_effect.dag.frequentist.analytic\_se.l95.practitioner\_linear\_adjustment\_analytic\_interval.v2\_validation\_none
 - **Reason:** sample\_size\_outside\_measured\_range
 - **Measured rows (smallest):** 1000
 - **Measured rows (largest):** 100000
 - **Record dependence:** iid
-- **Measured at:** c30e10304f4bd85a01ad81dd133a360ddc95c2f1
+- **Measured at:** 434787cc9d8b641f42d9970eb052eb69cc8cf772
 - **Nominal level:** 0.95
-- **Observed coverage:** 0.947
+- **Observed coverage:** 0.945
 - **Basis query:** AverageEffect
 - **Basis graph class:** Dag
 - **Basis structure:** fixed

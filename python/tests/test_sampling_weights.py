@@ -153,6 +153,37 @@ def _stratified_effect(data, strata, mass, k) -> float:
     return pooled / total
 
 
+def _regression_stratified(data, strata, mass, k) -> tuple[float, np.ndarray]:
+    """The regression-standardized stratified effect (the default construction) and its
+    centred per-row scores, strata fixed, from the definition.
+
+    Each arm's outcome is fit by weighted least squares on the ``k`` stratum indicators and
+    ``z``; the effect is the difference of the two fits at the mass-weighted mean design row
+    ``xbar``. A row's score is its outcome-model term ``+-m_i e_i (x_i' A_a^-1 xbar) /
+    (1 - h_i)`` (``A_a`` the arm's weighted Gram matrix, ``h_i = m_i x_i' A_a^-1 x_i`` its
+    leverage, so ``e_i / (1 - h_i)`` is the case-deleted residual) plus its population term
+    ``m_i / sum(m) (contrast_i - effect)``, centred at the mean score. Every stratum here
+    holds at least two rows of each arm and ``z`` varies within all of them, so no stratum is
+    joined or dropped and ``z`` keeps its coefficient.
+    """
+    x = np.column_stack([(strata == s).astype(float) for s in range(k)] + [data["z"]])
+    xbar = (mass[:, None] * x).sum(axis=0) / mass.sum()
+    scores = np.zeros(len(mass))
+    fits = []
+    for arm, sign in ((0.0, -1.0), (1.0, 1.0)):
+        rows = data["t"] == arm
+        xa, ma, ya = x[rows], mass[rows], data["y"][rows]
+        gram_inverse = np.linalg.inv(xa.T @ (ma[:, None] * xa))
+        beta = gram_inverse @ (xa.T @ (ma * ya))
+        leverage = ma * np.einsum("ij,jk,ik->i", xa, gram_inverse, xa)
+        scores[rows] = sign * ma * (ya - xa @ beta) * (xa @ gram_inverse @ xbar) / (1 - leverage)
+        fits.append(beta)
+    contrast = x @ (fits[1] - fits[0])
+    effect = float(xbar @ (fits[1] - fits[0]))
+    scores += mass / mass.sum() * (contrast - effect)
+    return effect, scores - scores.mean()
+
+
 def _strata_of(data, mass, k) -> np.ndarray:
     """Cut the weighted-logistic propensity at its sample quantiles; assign by ``score <= cut``."""
     n = len(mass)
@@ -300,25 +331,34 @@ def test_clusters_on_propensity_weighting_and_stratification_are_valid():
     # Weighting: the cluster sandwich of the case-mass scores of the whole estimator (the
     # propensity refit included), computed here from the definition.
     weighting_scores = _case_mass_scores(lambda m: _hajek_of_mass(data, m), mass)
-    # Stratification: the same sandwich of the pooled stratified point's scores, strata fixed.
+    # Stratification, raw stratum means (``regression_adjustment=False``): the same sandwich
+    # of the pooled stratified point's scores, strata fixed.
     strata = _strata_of(data, mass, 5)
     strata_scores = _case_mass_scores(lambda m: _stratified_effect(data, strata, m, 5), mass)
+    # Stratification, default: arm-specific outcome regressions with stratum intercepts,
+    # standardized over the weighted population; its scores carry the case-deleted residual,
+    # which the case-mass derivative does not, so they are written out in closed form.
+    adjusted_point, adjusted_scores = _regression_stratified(data, strata, mass, 5)
     cases = (
-        (PropensityWeighting, weighting_scores, _hajek(data)),
+        (PropensityWeighting, {}, weighting_scores, _hajek(data)),
         (
             PropensityStratification,
+            {"regression_adjustment": False},
             strata_scores,
             _stratified_effect(data, strata, mass, 5),
         ),
+        (PropensityStratification, {}, adjusted_scores, adjusted_point),
     )
-    for estimator, scores, point in cases:
-        clustered = _run(data, estimator(cluster="site", weights="w", bootstrap=0))
-        flat = _run(data, estimator(weights="w", bootstrap=0))
+    for estimator, options, scores, point in cases:
+        clustered = _run(data, estimator(cluster="site", weights="w", bootstrap=0, **options))
+        flat = _run(data, estimator(weights="w", bootstrap=0, **options))
         assert clustered.estimate.ate == pytest.approx(flat.estimate.ate, rel=1e-12)
         assert clustered.estimate.ate == pytest.approx(point, rel=1e-7)
         expected = _cluster_sandwich(scores, data["site"])
         assert clustered.estimate.se_analytic == pytest.approx(expected, rel=1e-5), estimator
         assert clustered.estimate.se_analytic != pytest.approx(flat.estimate.se_analytic, rel=1e-9)
+    # The two stratified constructions are different estimators of the same effect.
+    assert abs(adjusted_point - _stratified_effect(data, strata, mass, 5)) > 1e-3
 
 
 def test_the_cluster_bootstrap_resamples_whole_clusters():

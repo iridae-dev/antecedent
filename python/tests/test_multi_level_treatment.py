@@ -128,9 +128,16 @@ def test_the_interval_is_reported_with_its_calibration_status() -> None:
         data["y"], data["t"], target="full_population", levels=[0.0, 1.0, 2.0], **common
     )
     z = 1.959963984540054
-    # The interval is the published normal one; the calibration status annotates it.
-    assert full.interval_status == "outside_measured_scope"
-    assert full.calibration != "calibrated"
+    # The interval is the published normal one; the calibration status annotates it. Three
+    # declared levels at the default folds and 2000 rows is the construction the
+    # full-population record measured, between 1500 and 6000 rows.
+    assert full.interval_status == "calibrated"
+    assert full.interval_reason is None
+    assert full.calibration == "calibrated"
+    assert full.interval.coverage_record == (
+        "cov.multi_level_contrast.not_applicable.frequentist.analytic_se.l95."
+        "multilevel_generalized_propensity_interval.v2_validation_not_applicable"
+    )
     assert full.interval.level == 0.95
     assert full.interval.lower == pytest.approx(full.effect - z * full.se_analytic)
     assert full.interval.upper == pytest.approx(full.effect + z * full.se_analytic)

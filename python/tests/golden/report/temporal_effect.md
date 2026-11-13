@@ -14,12 +14,11 @@
 
 - The claim publishes a value of kind point; the sections below state what it rests on and where it stops.
 - The route is a supported support-matrix cell.
-- Calibration status is outside\_measured\_scope: the reported uncertainty carries no measured-coverage record.
 - Identification status is nonparametrically\_identified.
 
 ## Claim
 
-- **Claim id:** 45f237d6e34f67e3db4602345a2348fa7361280921f1b97b1f53fa1536ab93a7
+- **Claim id:** d1803f71b503e931964618b9d564dee96c24443b348f2dd6b4d25ddeb43adc9b
 - **Kind:** point
 - **Value:** 0.8976448135
 - **Outcome units:** none
@@ -87,15 +86,15 @@
 
 ### Calibration
 
-- **Calibration status:** outside\_measured\_scope
-- **Governing record:** cov.pulse\_effect.temporal\_dag.frequentist.circular\_block\_se.l95.practitioner\_temporal\_pulse\_h1\_interval
-- **Reason:** coverage\_record\_not\_attesting
+- **Calibration status:** calibrated
+- **Governing record:** cov.pulse\_effect.temporal\_dag.frequentist.circular\_block\_se.l95.practitioner\_temporal\_pulse\_h1\_interval.v2\_validation\_none
+- **Reason:** none
 - **Measured rows (smallest):** 319
 - **Measured rows (largest):** 4159
 - **Record dependence:** circular\_block:single\_window
-- **Measured at:** 70a71dd33bc55cbc2398b0f91c4a2c797afad618
+- **Measured at:** 434787cc9d8b641f42d9970eb052eb69cc8cf772
 - **Nominal level:** 0.95
-- **Observed coverage:** 0.938
+- **Observed coverage:** 0.937
 - **Basis query:** PulseEffect
 - **Basis graph class:** TemporalDag
 - **Basis structure:** fixed
@@ -140,9 +139,7 @@
 - **Readiness:** executable
 - **Coordinate:** PulseEffect:TemporalDag:explicit:Frequentist:none
 
-### Limits
-
-- Calibration is outside\_measured\_scope (coverage\_record\_not\_attesting).
+No limit is recorded beyond the blockers below.
 
 ### Blockers and refusals
 

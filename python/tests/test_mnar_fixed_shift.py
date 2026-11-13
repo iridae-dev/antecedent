@@ -33,7 +33,10 @@ def test_interval_is_released_only_under_a_covering_record() -> None:
     # shift, mean 1.625. The variance is the sum of the observed-mean variances s^2 / n_obs
     # (sample variances of the observed outcomes) plus the variance of the treated missing
     # fraction times the squared shift, p (1 - p) / n * 0.8^2 with p = 12/40. The interval is
-    # the Wald interval with z = 1.959964; the calibration status only annotates it.
+    # the Wald interval with z = 1.959964; the calibration status only annotates it. This
+    # execution has 70 rows, a declared shift of 0.73 pooled standard deviations and a largest
+    # arm missingness of 0.30, so it falls in the cell measured for shifts of 0.5 to 1.0
+    # standard deviations and missingness of 0.250 to 0.375 at 50 to 10000 rows.
     ids, arm, outcome = _design()
     treated = [v for a, v in zip(arm, outcome, strict=True) if a == 1.0 and v is not None]
     control = [v for a, v in zip(arm, outcome, strict=True) if a == 0.0 and v is not None]
@@ -56,8 +59,13 @@ def test_interval_is_released_only_under_a_covering_record() -> None:
     assert scalar.level == 0.95
     assert scalar.interval[0] == pytest.approx(point - half, abs=1e-4)
     assert scalar.interval[1] == pytest.approx(point + half, abs=1e-4)
-    assert scalar.calibration == "not_measured"
-    assert scalar.calibration_reason == "estimator_grid_not_measured"
+    assert scalar.calibration == "calibrated"
+    assert scalar.calibration_reason is None
+    assert scalar.record_id == (
+        "cov.average_effect.not_applicable.frequentist.delta_normal.l95."
+        "mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable."
+        "mnar_treated_shift_sd_0p5_1p0_missing_0p250_0p375"
+    )
 
 
 @pytest.mark.parametrize("shift", [-50.0, -1.5, 0.0, 0.8, 1.9, 40.0])
