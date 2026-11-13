@@ -77513,7 +77513,7 @@ dgp = "crates/antecedent/tests/joint_sensitivity_calibration.rs::z_joint_surroga
 test = "crates/antecedent/tests/joint_sensitivity_calibration.rs::z_joint_sensitivity_positive_box"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "97bf1a533cb45c2e75f8b60d97bb2577dad626d04ba3686d0919ad5a3ad4db63"
-dependency_manifest = "884e6797cd4e8b74b897050347a07e0db522b5446c9495622084f7f3cf887754"
+dependency_manifest = "e7bd2e76c02b80599cd75cfcc00cf84681680743934b33362d7a2fc3af9c5024"
 
 [[record]]
 id = "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box.v2_validation_not_applicable"
@@ -77569,7 +77569,7 @@ dgp = "crates/antecedent/tests/joint_sensitivity_calibration.rs::z_joint_surroga
 test = "crates/antecedent/tests/joint_sensitivity_calibration.rs::z_joint_sensitivity_zero_box"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "97bf1a533cb45c2e75f8b60d97bb2577dad626d04ba3686d0919ad5a3ad4db63"
-dependency_manifest = "f1865f5b9e6797df31b8b6335e3f513c9d7d0694f2fd2c5b78f39194b00f761d"
+dependency_manifest = "9fa957d92f27af698bcba5aab5ac42277406c197628a0b6d122483cdb283854b"
 
 [[record]]
 id = "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_one_source_intercept_l95.v2_validation_not_applicable"
@@ -233452,7 +233452,7 @@ dgp = "crates/antecedent/tests/multilevel_interval_calibration.rs::confounded_th
 test = "crates/antecedent/tests/multilevel_interval_calibration.rs::multilevel_generalized_propensity_interval"
 calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
 fingerprint = "85e413cdec11824974f38d1554f3aa26b3775603f309da4fe2c557fbedd935b2"
-dependency_manifest = "62dd2a75f1a008baee746e1a0ea73fb2bc90611ab366af94f3405f10e7260b4b"
+dependency_manifest = "24bedbaec066d41bf92d575fa0f294ad0f5006df9e61bc45ce985f7d2e3c8611"
 
 [[record]]
 id = "cov.nested_counterfactual_effect.admg.bayesian.posterior_quantile.l90.nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage.v2_validation_cheap"

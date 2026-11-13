@@ -85,7 +85,25 @@ INPUT_DECLARATIONS = "parity/fingerprint_inputs.toml"
 # any new derived registry here (the cycle-guard test pins this behaviour).
 DERIVED_STATUS_FIELDS: dict[str, tuple[str, ...]] = {
     # attesting_record_ids is the `current` set of calibration_status, regenerated from the ledger.
-    "crates/antecedent-io-core/data/coverage_records.json": ("attesting_record_ids",),
+    # The rest are a record's measured numbers and the commit they were measured at. Code that
+    # embeds the snapshot looks a record up by its key and measured range and reads its verdict
+    # (`boundary`, per record and per grid point); those stay hashed. Repeating a measurement
+    # changes only the numbers, so it owes nothing to a record that reads the snapshot; a record
+    # added, removed, re-keyed, re-ranged or with a changed verdict still does.
+    "crates/antecedent-io-core/data/coverage_records.json": (
+        "attesting_record_ids",
+        "records[].calibration_sha",
+        "records[].observed",
+        "records[].mcse",
+        "records[].replicates",
+        "records[].grid[].observed",
+        "records[].grid[].mcse",
+        "records[].grid[].replicates",
+        "records[].confirmation[].observed",
+        "records[].confirmation[].mcse",
+        "records[].confirmation[].replicates",
+        "functional_identity_aliases[].measurement_sha",
+    ),
     # Every support cell: the derived status and what evidence it lacks.
     "crates/antecedent/data/support_matrix.json": (
         "supported[].status",

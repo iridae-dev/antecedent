@@ -541,9 +541,29 @@ class CycleGuardTests(_InputCase):
         self.write_json()
         self.assertEqual(before, self.closure_fp())
 
+    def test_a_repeated_measurement_leaves_fingerprints_unchanged(self):
+        before = self.closure_fp()
+        self.coverage["records"][0].update(
+            observed="0.90", mcse="0.02", replicates=7, calibration_sha="other",
+            grid=[{"point": 0, "n_min": 1, "n_max": 1, "observed": "0.90", "mcse": "0.02",
+                   "replicates": 7, "boundary": False}],
+        )
+        self.write_json()
+        moved = self.closure_fp()
+        self.coverage["records"][0]["grid"][0].update(observed="0.5", mcse="0.1", replicates=9)
+        self.write_json()
+        self.assertEqual(moved, self.closure_fp())
+        self.coverage["records"][0]["grid"][0].update(boundary=True)
+        self.write_json()
+        self.assertNotEqual(moved, self.closure_fp())
+        del self.coverage["records"][0]["grid"]
+        self.write_json()
+        self.assertEqual(before, self.closure_fp())
+
     def test_evidence_changes_change_fingerprints(self):
         for mutate in (
-            lambda: self.coverage["records"][0].update(observed="0.90"),
+            lambda: self.coverage["records"][0].update(boundary=True),
+            lambda: self.coverage["records"][0].update(n_max=9),
             lambda: self.coverage["records"][0].update(id="cov.b"),
             lambda: self.support["supported"][0].update(estimators=["ols"]),
             lambda: self.support["supported"].append({"query": "Q"}),
