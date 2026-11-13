@@ -38997,7 +38997,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_knowledge_forbidden_edges_confounded_direct_and_mediated_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -39056,7 +39056,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_knowledge_forbidden_edges_hub_confounded_multi_path_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_forbidden_edges_layered_multi_mediator_nuisance_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -39174,7 +39174,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_knowledge_parent_limits_hub_confounded_multi_path_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_knowledge_parent_limits_layered_multi_mediator_nuisance_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -39646,7 +39646,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -39705,7 +39705,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -39882,7 +39882,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -39941,7 +39941,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -40000,7 +40000,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -40059,7 +40059,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -40118,7 +40118,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -40177,7 +40177,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate_log_linear",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_10_variables_confounded_direct_and_mediated_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -40236,7 +40236,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate_log_linear",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_10_variables_layered_multi_mediator_nuisance_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -40413,7 +40413,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate_log_linear",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_15_variables_hub_confounded_multi_path_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -40472,7 +40472,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate_log_linear",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_15_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -40531,7 +40531,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate_log_linear",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_20_variables_confounded_direct_and_mediated_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -40590,7 +40590,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate_log_linear",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_20_variables_hub_confounded_multi_path_nominal_95_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage.v2_validation_not_applicable.discovery_fraction_0_75",
@@ -40649,7 +40649,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/common/sparse_scm.rs::simulate_log_linear",
       "test": "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs::parent_set_log_linear_20_variables_layered_multi_mediator_nuisance_nominal_95_coverage",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.parent_set_misspecified_test_boundary_95.v2_validation_not_applicable.discovery_fraction_0_75_whole_procedure",
@@ -41003,7 +41003,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/sample_split_effect_calibration.rs::misspecified_test_family_data",
       "test": "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_misspecified_test_boundary_95",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_weak_edges_boundary_95.v2_validation_not_applicable",
@@ -41062,7 +41062,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/sample_split_effect_calibration.rs::weak_edge_family_data",
       "test": "crates/antecedent/tests/sample_split_effect_calibration.rs::sample_split_weak_edges_boundary_95",
-      "calibration_sha": "4780fb33393b367ae722d9a137116d8dda5911df"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.cpdag.frequentist.analytic_se.l95.static_cpdag_ate_envelope_frequentist_nominal_90_coverage.v2_validation_none",
@@ -54536,8 +54536,8 @@
       "replicates_min": 0,
       "posterior_draws_min": 0,
       "unidentified_mass_max": "0.0",
-      "observed": "0.945",
-      "mcse": "0.011399013115178002",
+      "observed": "0.9475",
+      "mcse": "0.01115165346484547",
       "replicates": 400,
       "boundary": false,
       "grid": [
@@ -54545,8 +54545,8 @@
           "point": 0,
           "n_min": 600,
           "n_max": 600,
-          "observed": "0.945",
-          "mcse": "0.011399013115178002",
+          "observed": "0.9475",
+          "mcse": "0.01115165346484547",
           "replicates": 400,
           "boundary": false
         },
@@ -54554,8 +54554,8 @@
           "point": 1,
           "n_min": 1200,
           "n_max": 1200,
-          "observed": "0.955",
-          "mcse": "0.010365206220813944",
+          "observed": "0.96",
+          "mcse": "0.009797958971132717",
           "replicates": 400,
           "boundary": false
         },
@@ -54563,8 +54563,8 @@
           "point": 2,
           "n_min": 2400,
           "n_max": 2400,
-          "observed": "0.95",
-          "mcse": "0.010897247358851688",
+          "observed": "0.9525",
+          "mcse": "0.010635289135702893",
           "replicates": 400,
           "boundary": false
         }
@@ -54573,7 +54573,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/weighted_interval_calibration.rs::informative_sampling_constant_effect",
       "test": "crates/antecedent/tests/weighted_interval_calibration.rs::weighted_aipw_att_interval",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_interval.v2_validation_not_applicable",
@@ -214522,7 +214522,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::agreeing_temporal_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_cpdag_intervention_response_bayesian_accepted_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.intervention_response.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_cpdag_intervention_response_bayesian_nominal_coverage.v2_validation_none",
@@ -299777,7 +299777,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_tyz",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l90.bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -300367,7 +300367,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_temporal_class.rs::pulse_series",
       "test": "crates/antecedent/tests/calibration_temporal_class.rs::pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l95.bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -300426,7 +300426,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_tyz",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l95.bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -301016,7 +301016,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_temporal_class.rs::pulse_series",
       "test": "crates/antecedent/tests/calibration_temporal_class.rs::pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -302668,7 +302668,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::confounded_series",
       "test": "crates/antecedent/tests/mixture_interval_calibration.rs::bayesian_dbn_posterior_pulse_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_dag_pulse_staged_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -302727,7 +302727,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/mixture_interval_calibration.rs::noisy_xy",
       "test": "crates/antecedent/tests/mixture_interval_calibration.rs::bayesian_temporal_dag_pulse_staged_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -302786,7 +302786,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar1_rho05_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -302845,7 +302845,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar1_rho05_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar1_rho09_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -302904,7 +302904,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar1_rho09_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar2_n100_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -302963,7 +302963,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar2_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -303022,7 +303022,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar2_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -303081,7 +303081,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar2_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -303103,8 +303103,8 @@
       "replicates_min": 0,
       "posterior_draws_min": 400,
       "unidentified_mass_max": "0.0",
-      "observed": "0.8515",
-      "mcse": "0.007951344225978397",
+      "observed": "0.852",
+      "mcse": "0.007940277073251286",
       "replicates": 2000,
       "boundary": true,
       "grid": [
@@ -303112,8 +303112,8 @@
           "point": 0,
           "n_min": 44,
           "n_max": 44,
-          "observed": "0.8515",
-          "mcse": "0.007951344225978397",
+          "observed": "0.852",
+          "mcse": "0.007940277073251286",
           "replicates": 2000,
           "boundary": true
         },
@@ -303140,7 +303140,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_arma11_n100_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -303199,7 +303199,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_arma11_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -303258,7 +303258,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_arma11_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -303317,7 +303317,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_arma11_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -303376,7 +303376,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -303494,7 +303494,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ma2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ma2_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -303553,7 +303553,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ma2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.practitioner_temporal_bayesian_pulse_interval.v2_validation_none",
@@ -303612,7 +303612,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
       "test": "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_temporal_bayesian_pulse_interval",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.pulse_effect_temporal_dag_bayesian_default_nominal_coverage.v2_validation_none",
@@ -304792,7 +304792,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::confounded_series",
       "test": "crates/antecedent/tests/mixture_interval_calibration.rs::bayesian_dbn_posterior_pulse_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_pulse_staged_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -304851,7 +304851,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/mixture_interval_calibration.rs::noisy_xy",
       "test": "crates/antecedent/tests/mixture_interval_calibration.rs::bayesian_temporal_dag_pulse_staged_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -304910,7 +304910,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar1_rho05_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -304969,7 +304969,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar1_rho05_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar1_rho09_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -305028,7 +305028,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar1_rho09_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar2_n100_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -305087,7 +305087,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar2_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -305146,7 +305146,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar2_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -305205,7 +305205,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar2_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -305264,7 +305264,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_arma11_n100_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -305323,7 +305323,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_arma11_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -305382,7 +305382,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_arma11_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -305441,7 +305441,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_arma11_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -305500,7 +305500,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_iid_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -305618,7 +305618,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ma2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ma2_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -305677,7 +305677,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_pulse_ma2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.practitioner_temporal_bayesian_pulse_interval.v2_validation_none",
@@ -305736,7 +305736,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
       "test": "crates/antecedent/tests/practitioner_scale_calibration.rs::practitioner_temporal_bayesian_pulse_interval",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.pulse_effect_temporal_dag_bayesian_default_nominal_coverage.v2_validation_none",
@@ -311282,7 +311282,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
       "test": "crates/antecedent/tests/temporal_class_calibration.rs::bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l90.bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -311341,7 +311341,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
       "test": "crates/antecedent/tests/temporal_class_calibration.rs::bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l90.bayesian_temporal_pag_pulse_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -311400,7 +311400,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::pag_series",
       "test": "crates/antecedent/tests/mixture_interval_calibration.rs::bayesian_temporal_pag_pulse_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l90.pulse_effect_temporal_pag_bayesian_given_coverage.v2_validation_cheap",
@@ -311931,7 +311931,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
       "test": "crates/antecedent/tests/temporal_class_calibration.rs::bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l95.bayesian_temporal_pag_pulse_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -311990,7 +311990,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::pag_series",
       "test": "crates/antecedent/tests/mixture_interval_calibration.rs::bayesian_temporal_pag_pulse_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l95.pulse_effect_temporal_pag_bayesian_given_coverage.v2_validation_cheap",
@@ -350871,7 +350871,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::agreeing_temporal_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::response_curve_temporal_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.response_curve.temporal_cpdag.bayesian.posterior_quantile.l95.response_curve_temporal_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage.v2_validation_none.v2_structure_graph_posterior.a_1",
@@ -350930,7 +350930,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::agreeing_temporal_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::response_curve_temporal_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.response_curve.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_cpdag_response_curve_bayesian_accepted_pointwise_nominal_coverage.v2_validation_none.v2_structure_accepted.a_0",
@@ -365975,7 +365975,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::agreeing_temporal_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_pag_response_curve_bayesian_pointwise_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.response_curve.temporal_pag.bayesian.posterior_quantile.l95.temporal_pag_response_curve_bayesian_pointwise_nominal_coverage.v2_validation_none.a_1",
@@ -366034,7 +366034,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::agreeing_temporal_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_pag_response_curve_bayesian_pointwise_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.response_curve.temporal_pag.frequentist.circular_block_se.l90.gcomp_response_curve_temporal_pag_given.v2_validation_cheap.a_0",
@@ -427866,7 +427866,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::confounded_series",
       "test": "crates/antecedent/tests/mixture_interval_calibration.rs::bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l90.sustained_effect_temporal_cpdag_bayesian_given_coverage.v2_validation_cheap",
@@ -428810,7 +428810,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::confounded_series",
       "test": "crates/antecedent/tests/mixture_interval_calibration.rs::bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l95.sustained_effect_temporal_cpdag_bayesian_given_coverage.v2_validation_cheap",
@@ -431996,7 +431996,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432055,7 +432055,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432114,7 +432114,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432173,7 +432173,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432232,7 +432232,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432291,7 +432291,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432313,8 +432313,8 @@
       "replicates_min": 0,
       "posterior_draws_min": 400,
       "unidentified_mass_max": "0.0",
-      "observed": "0.849",
-      "mcse": "0.008006216334823835",
+      "observed": "0.85",
+      "mcse": "0.007984359711335657",
       "replicates": 2000,
       "boundary": true,
       "grid": [
@@ -432322,8 +432322,8 @@
           "point": 0,
           "n_min": 45,
           "n_max": 45,
-          "observed": "0.849",
-          "mcse": "0.008006216334823835",
+          "observed": "0.85",
+          "mcse": "0.007984359711335657",
           "replicates": 2000,
           "boundary": true
         },
@@ -432350,7 +432350,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432409,7 +432409,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432468,7 +432468,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432527,7 +432527,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432586,7 +432586,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_iid_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432704,7 +432704,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar1_rho05_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432763,7 +432763,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar1_rho05_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar1_rho09_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432822,7 +432822,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar1_rho09_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar2_n100_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432881,7 +432881,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar2_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432940,7 +432940,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar2_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -432999,7 +432999,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar2_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -433021,8 +433021,8 @@
       "replicates_min": 0,
       "posterior_draws_min": 400,
       "unidentified_mass_max": "0.0",
-      "observed": "0.8515",
-      "mcse": "0.007951344225978397",
+      "observed": "0.852",
+      "mcse": "0.007940277073251286",
       "replicates": 2000,
       "boundary": true,
       "grid": [
@@ -433030,8 +433030,8 @@
           "point": 0,
           "n_min": 44,
           "n_max": 44,
-          "observed": "0.8515",
-          "mcse": "0.007951344225978397",
+          "observed": "0.852",
+          "mcse": "0.007940277073251286",
           "replicates": 2000,
           "boundary": true
         },
@@ -433058,7 +433058,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_arma11_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -433117,7 +433117,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_arma11_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_arma11_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -433176,7 +433176,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_arma11_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_iid_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435123,7 +435123,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435182,7 +435182,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435241,7 +435241,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435300,7 +435300,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435359,7 +435359,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435418,7 +435418,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435440,8 +435440,8 @@
       "replicates_min": 0,
       "posterior_draws_min": 400,
       "unidentified_mass_max": "0.0",
-      "observed": "0.9035",
-      "mcse": "0.006602565789145914",
+      "observed": "0.9045",
+      "mcse": "0.006571900410079265",
       "replicates": 2000,
       "boundary": true,
       "grid": [
@@ -435449,8 +435449,8 @@
           "point": 0,
           "n_min": 45,
           "n_max": 45,
-          "observed": "0.9035",
-          "mcse": "0.006602565789145914",
+          "observed": "0.9045",
+          "mcse": "0.006571900410079265",
           "replicates": 2000,
           "boundary": true
         },
@@ -435477,7 +435477,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435536,7 +435536,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435595,7 +435595,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435654,7 +435654,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435713,7 +435713,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_iid_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435831,7 +435831,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar1_rho05_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435890,7 +435890,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar1_rho05_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar1_rho09_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -435949,7 +435949,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar1_rho09_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar2_n100_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -436008,7 +436008,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar2_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -436067,7 +436067,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar2_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -436126,7 +436126,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar2_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -436185,7 +436185,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_arma11_n400_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -436244,7 +436244,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_arma11_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_arma11_n60_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -436303,7 +436303,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_xy",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_sustained_single_arma11_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_iid_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -442498,7 +442498,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
       "test": "crates/antecedent/tests/temporal_class_calibration.rs::bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_pag.bayesian.posterior_quantile.l90.bayesian_temporal_pag_sustained_class_prior_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -442557,7 +442557,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
       "test": "crates/antecedent/tests/temporal_class_calibration.rs::bayesian_temporal_pag_sustained_class_prior_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_pag.bayesian.posterior_quantile.l90.bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -442616,7 +442616,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
       "test": "crates/antecedent/tests/temporal_class_calibration.rs::bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_pag.bayesian.posterior_quantile.l90.sustained_effect_temporal_pag_bayesian_given_coverage.v2_validation_cheap",
@@ -443560,7 +443560,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
       "test": "crates/antecedent/tests/temporal_class_calibration.rs::bayesian_temporal_pag_sustained_class_prior_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_pag.bayesian.posterior_quantile.l95.bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
@@ -443619,7 +443619,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
       "test": "crates/antecedent/tests/temporal_class_calibration.rs::bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.sustained_effect.temporal_pag.bayesian.posterior_quantile.l95.sustained_effect_temporal_pag_bayesian_given_coverage.v2_validation_cheap",
@@ -460198,7 +460198,7 @@
       "validation": "cheap",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::conditional_series_with_lag_two",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp",
-      "calibration_sha": "1b9da5c42c36b07fac46763930c590921f8c17db"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l90.temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp.v2_validation_cheap.v2_structure_accepted",
@@ -460257,7 +460257,7 @@
       "validation": "cheap",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::conditional_series_with_lag_two",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp",
-      "calibration_sha": "1b9da5c42c36b07fac46763930c590921f8c17db"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l90.temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp.v2_validation_full",
@@ -460316,7 +460316,7 @@
       "validation": "full",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::conditional_series_with_lag_two",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp",
-      "calibration_sha": "1b9da5c42c36b07fac46763930c590921f8c17db"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l90.temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp.v2_validation_full.v2_structure_accepted",
@@ -460375,7 +460375,7 @@
       "validation": "full",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::conditional_series_with_lag_two",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp",
-      "calibration_sha": "1b9da5c42c36b07fac46763930c590921f8c17db"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l90.temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp.v2_validation_none",
@@ -460434,7 +460434,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::conditional_series_with_lag_two",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp",
-      "calibration_sha": "1b9da5c42c36b07fac46763930c590921f8c17db"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l90.temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp.v2_validation_none.v2_structure_accepted",
@@ -460493,7 +460493,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::conditional_series_with_lag_two",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp",
-      "calibration_sha": "1b9da5c42c36b07fac46763930c590921f8c17db"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l90.temporal_conditional_sustained_temporal_dag_bayesian_graph_posterior_coverage.v2_validation_cheap.v2_structure_graph_posterior",
@@ -461073,8 +461073,8 @@
           "point": 2,
           "n_min": 480,
           "n_max": 480,
-          "observed": "0.965",
-          "mcse": "0.009188987974744557",
+          "observed": "0.9675",
+          "mcse": "0.008866192813152663",
           "replicates": 400,
           "boundary": false
         }
@@ -461083,7 +461083,7 @@
       "validation": "cheap",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::conditional_series_with_lag_two",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp",
-      "calibration_sha": "1b9da5c42c36b07fac46763930c590921f8c17db"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l95.temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp.v2_validation_cheap.v2_structure_accepted",
@@ -461132,8 +461132,8 @@
           "point": 2,
           "n_min": 480,
           "n_max": 480,
-          "observed": "0.965",
-          "mcse": "0.009188987974744557",
+          "observed": "0.9675",
+          "mcse": "0.008866192813152663",
           "replicates": 400,
           "boundary": false
         }
@@ -461142,7 +461142,7 @@
       "validation": "cheap",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::conditional_series_with_lag_two",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp",
-      "calibration_sha": "1b9da5c42c36b07fac46763930c590921f8c17db"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l95.temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp.v2_validation_full",
@@ -461191,8 +461191,8 @@
           "point": 2,
           "n_min": 480,
           "n_max": 480,
-          "observed": "0.965",
-          "mcse": "0.009188987974744557",
+          "observed": "0.9675",
+          "mcse": "0.008866192813152663",
           "replicates": 400,
           "boundary": false
         }
@@ -461201,7 +461201,7 @@
       "validation": "full",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::conditional_series_with_lag_two",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp",
-      "calibration_sha": "1b9da5c42c36b07fac46763930c590921f8c17db"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l95.temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp.v2_validation_full.v2_structure_accepted",
@@ -461250,8 +461250,8 @@
           "point": 2,
           "n_min": 480,
           "n_max": 480,
-          "observed": "0.965",
-          "mcse": "0.009188987974744557",
+          "observed": "0.9675",
+          "mcse": "0.008866192813152663",
           "replicates": 400,
           "boundary": false
         }
@@ -461260,7 +461260,7 @@
       "validation": "full",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::conditional_series_with_lag_two",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp",
-      "calibration_sha": "1b9da5c42c36b07fac46763930c590921f8c17db"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l95.temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp.v2_validation_none",
@@ -461309,8 +461309,8 @@
           "point": 2,
           "n_min": 480,
           "n_max": 480,
-          "observed": "0.965",
-          "mcse": "0.009188987974744557",
+          "observed": "0.9675",
+          "mcse": "0.008866192813152663",
           "replicates": 400,
           "boundary": false
         }
@@ -461319,7 +461319,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::conditional_series_with_lag_two",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp",
-      "calibration_sha": "1b9da5c42c36b07fac46763930c590921f8c17db"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l95.temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp.v2_validation_none.v2_structure_accepted",
@@ -461368,8 +461368,8 @@
           "point": 2,
           "n_min": 480,
           "n_max": 480,
-          "observed": "0.965",
-          "mcse": "0.009188987974744557",
+          "observed": "0.9675",
+          "mcse": "0.008866192813152663",
           "replicates": 400,
           "boundary": false
         }
@@ -461378,7 +461378,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::conditional_series_with_lag_two",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::temporal_conditional_sustained_temporal_dag_bayesian_given_sequential_gcomp",
-      "calibration_sha": "1b9da5c42c36b07fac46763930c590921f8c17db"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l95.temporal_conditional_sustained_temporal_dag_bayesian_graph_posterior_coverage.v2_validation_cheap.v2_structure_graph_posterior",
@@ -467632,7 +467632,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage.v2_validation_none.v2_structure_accepted.direct",
@@ -467691,7 +467691,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage.v2_validation_none.v2_structure_accepted.total",
@@ -467750,7 +467750,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_cpdag_bayesian_confounded_nominal_coverage.v2_validation_none",
@@ -468340,7 +468340,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage.v2_validation_none.direct",
@@ -468399,7 +468399,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage.v2_validation_none.total",
@@ -468458,7 +468458,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
@@ -468517,7 +468517,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_temporal_class.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_temporal_class.rs::temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage.v2_validation_none.v2_structure_graph_posterior.direct",
@@ -468576,7 +468576,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_temporal_class.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_temporal_class.rs::temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage.v2_validation_none.v2_structure_graph_posterior.total",
@@ -468635,7 +468635,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_temporal_class.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_temporal_class.rs::temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage.v2_validation_none.v2_structure_accepted",
@@ -468694,7 +468694,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage.v2_validation_none.v2_structure_accepted.direct",
@@ -468753,7 +468753,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage.v2_validation_none.v2_structure_accepted.total",
@@ -468812,7 +468812,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_cpdag_bayesian_confounded_nominal_coverage.v2_validation_none",
@@ -469402,7 +469402,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage.v2_validation_none.direct",
@@ -469461,7 +469461,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage.v2_validation_none.total",
@@ -469520,7 +469520,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_backlog.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_backlog.rs::temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
@@ -469579,7 +469579,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_temporal_class.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_temporal_class.rs::temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage.v2_validation_none.v2_structure_graph_posterior.direct",
@@ -469638,7 +469638,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_temporal_class.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_temporal_class.rs::temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage.v2_validation_none.v2_structure_graph_posterior.total",
@@ -469697,7 +469697,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/calibration_temporal_class.rs::mediation_series",
       "test": "crates/antecedent/tests/calibration_temporal_class.rs::temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
-      "calibration_sha": "231107b020975e4371285ae46c4e5c7bfb27858a"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.v2_validation_none.kappa_med_kappa",
@@ -471998,7 +471998,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.mediated",
@@ -472057,7 +472057,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.total",
@@ -472116,7 +472116,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage.v2_validation_none.direct",
@@ -472175,7 +472175,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage.v2_validation_none.mediated",
@@ -472234,7 +472234,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage.v2_validation_none.total",
@@ -472293,7 +472293,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n100_nominal_90_coverage.v2_validation_none.direct",
@@ -472352,7 +472352,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n100_nominal_90_coverage.v2_validation_none.mediated",
@@ -472411,7 +472411,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n100_nominal_90_coverage.v2_validation_none.total",
@@ -472470,7 +472470,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n160_nominal_90_coverage.v2_validation_none.direct",
@@ -472529,7 +472529,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n160_nominal_90_coverage.v2_validation_none.mediated",
@@ -472588,7 +472588,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n160_nominal_90_coverage.v2_validation_none.total",
@@ -472647,7 +472647,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n400_nominal_90_coverage.v2_validation_none.direct",
@@ -472706,7 +472706,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n400_nominal_90_coverage.v2_validation_none.mediated",
@@ -472765,7 +472765,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n400_nominal_90_coverage.v2_validation_none.total",
@@ -472824,7 +472824,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n60_nominal_90_coverage.v2_validation_none.direct",
@@ -472855,8 +472855,8 @@
           "point": 0,
           "n_min": 45,
           "n_max": 45,
-          "observed": "0.9125",
-          "mcse": "0.014128318194321646",
+          "observed": "0.915",
+          "mcse": "0.013944084767384337",
           "replicates": 400,
           "boundary": false
         },
@@ -472883,7 +472883,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n60_nominal_90_coverage.v2_validation_none.mediated",
@@ -472942,7 +472942,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n60_nominal_90_coverage.v2_validation_none.total",
@@ -472973,8 +472973,8 @@
           "point": 0,
           "n_min": 45,
           "n_max": 45,
-          "observed": "0.8825",
-          "mcse": "0.016100756969782512",
+          "observed": "0.885",
+          "mcse": "0.01595109714094927",
           "replicates": 400,
           "boundary": false
         },
@@ -473001,7 +473001,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n160_nominal_90_coverage.v2_validation_none.direct",
@@ -473060,7 +473060,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n160_nominal_90_coverage.v2_validation_none.mediated",
@@ -473119,7 +473119,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n160_nominal_90_coverage.v2_validation_none.total",
@@ -473178,7 +473178,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n400_nominal_90_coverage.v2_validation_none.direct",
@@ -473237,7 +473237,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n400_nominal_90_coverage.v2_validation_none.mediated",
@@ -473296,7 +473296,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n400_nominal_90_coverage.v2_validation_none.total",
@@ -473355,7 +473355,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.v2_validation_none.direct",
@@ -473414,7 +473414,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.v2_validation_none.mediated",
@@ -473473,7 +473473,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.v2_validation_none.total",
@@ -473532,7 +473532,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_iid_nominal_90_coverage.v2_validation_none.direct",
@@ -473591,7 +473591,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_iid_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_iid_nominal_90_coverage.v2_validation_none.mediated",
@@ -473650,7 +473650,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_iid_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_iid_nominal_90_coverage.v2_validation_none.total",
@@ -473709,7 +473709,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_iid_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.practitioner_temporal_bayesian_mediation_interval.v2_validation_none.direct",
@@ -474712,7 +474712,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.mediated",
@@ -474771,7 +474771,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.total",
@@ -474830,7 +474830,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage.v2_validation_none.direct",
@@ -474889,7 +474889,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage.v2_validation_none.mediated",
@@ -474948,7 +474948,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage.v2_validation_none.total",
@@ -475007,7 +475007,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n100_nominal_90_coverage.v2_validation_none.direct",
@@ -475066,7 +475066,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n100_nominal_90_coverage.v2_validation_none.mediated",
@@ -475125,7 +475125,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n100_nominal_90_coverage.v2_validation_none.total",
@@ -475184,7 +475184,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n100_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n160_nominal_90_coverage.v2_validation_none.direct",
@@ -475243,7 +475243,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n160_nominal_90_coverage.v2_validation_none.mediated",
@@ -475302,7 +475302,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n160_nominal_90_coverage.v2_validation_none.total",
@@ -475361,7 +475361,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n400_nominal_90_coverage.v2_validation_none.direct",
@@ -475420,7 +475420,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n400_nominal_90_coverage.v2_validation_none.mediated",
@@ -475479,7 +475479,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n400_nominal_90_coverage.v2_validation_none.total",
@@ -475538,7 +475538,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n60_nominal_90_coverage.v2_validation_none.direct",
@@ -475597,7 +475597,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n60_nominal_90_coverage.v2_validation_none.mediated",
@@ -475656,7 +475656,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n60_nominal_90_coverage.v2_validation_none.total",
@@ -475715,7 +475715,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_arma11_n160_nominal_90_coverage.v2_validation_none.direct",
@@ -475774,7 +475774,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_arma11_n160_nominal_90_coverage.v2_validation_none.mediated",
@@ -475833,7 +475833,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_arma11_n160_nominal_90_coverage.v2_validation_none.total",
@@ -475892,7 +475892,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n160_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_arma11_n400_nominal_90_coverage.v2_validation_none.direct",
@@ -475951,7 +475951,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_arma11_n400_nominal_90_coverage.v2_validation_none.mediated",
@@ -476010,7 +476010,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_arma11_n400_nominal_90_coverage.v2_validation_none.total",
@@ -476069,7 +476069,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n400_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.v2_validation_none.direct",
@@ -476128,7 +476128,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.v2_validation_none.mediated",
@@ -476187,7 +476187,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.v2_validation_none.total",
@@ -476246,7 +476246,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n60_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_iid_nominal_90_coverage.v2_validation_none.direct",
@@ -476305,7 +476305,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_iid_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_iid_nominal_90_coverage.v2_validation_none.mediated",
@@ -476364,7 +476364,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_iid_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_iid_nominal_90_coverage.v2_validation_none.total",
@@ -476423,7 +476423,7 @@
       "validation": "none",
       "dgp": "crates/antecedent/tests/bayesian_temporal.rs::series_mediation",
       "test": "crates/antecedent/tests/bayesian_temporal.rs::bayesian_temporal_mediation_iid_nominal_90_coverage",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
     },
     {
       "id": "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.practitioner_temporal_bayesian_mediation_interval.v2_validation_none.direct",
@@ -494339,8 +494339,6 @@
     "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.smoothed_dose_transport_nested_cohort_psi_h.v2_validation_not_applicable",
     "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.source_target_imbalance_standardize_nominal_coverage.v2_validation_not_applicable",
     "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.weak_overlap_near_empty_conditioner_boundary.v2_validation_not_applicable",
-    "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_positive_box.v2_validation_not_applicable",
-    "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box.v2_validation_not_applicable",
     "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_one_source_intercept_l95.v2_validation_not_applicable",
     "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_two_independent_intercepts_l95.v2_validation_not_applicable",
     "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_two_shared_intercepts_l95.v2_validation_not_applicable",
@@ -497160,7 +497158,6 @@
     "cov.mediation_effect.temporal_admg.frequentist.circular_block_se.l95.mediation_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior",
     "cov.mediation_effect.temporal_admg.frequentist.circular_block_se.l95.mediation_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_full.v2_structure_graph_posterior",
     "cov.mediation_effect.temporal_admg.frequentist.circular_block_se.l95.mediation_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_none.v2_structure_graph_posterior",
-    "cov.multi_level_contrast.not_applicable.frequentist.analytic_se.l95.multilevel_generalized_propensity_interval.v2_validation_not_applicable",
     "cov.nested_counterfactual_effect.admg.bayesian.posterior_quantile.l90.nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage.v2_validation_cheap",
     "cov.nested_counterfactual_effect.admg.bayesian.posterior_quantile.l90.nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted",
     "cov.nested_counterfactual_effect.admg.bayesian.posterior_quantile.l90.nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior",
