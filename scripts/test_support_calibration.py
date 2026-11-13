@@ -7,7 +7,7 @@ import unittest
 from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
-import support_calibration
+import support_calibration  # noqa: E402
 
 CELL = {
     "query": "InterventionalDistribution",

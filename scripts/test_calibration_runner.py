@@ -2,6 +2,7 @@
 (group, grid point) measurement with its recheck."""
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -199,7 +200,7 @@ class RecordBindingTests(unittest.TestCase):
             group = cr.GroupSpec(index=1, label="l", package="a", target="lib", features=(), tests=None,
                                  ignored=True, grid=True)
             (d / f"{group.safe}.p0.coverage.json").write_text('{"/antecedent-source/crates/a/src/lib.rs": [[1, 1]]}')
-            (d / cr.BUILDS).write_text('{"a|lib|": {"source": {"store_path": "%s"}}}' % store)
+            (d / cr.BUILDS).write_text(json.dumps({"a|lib|": {"source": {"store_path": str(store)}}}))
             with patch.object(cr, "load_groups", return_value=[group]):
                 built, regions = cr.run_evidence(root, d, {f"{group.safe}.p0"})
             self.assertEqual(regions, {str(root / "crates/a/src/lib.rs"): {(1, 1)}})
