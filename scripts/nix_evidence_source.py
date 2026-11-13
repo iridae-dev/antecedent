@@ -257,9 +257,16 @@ def map_coverage_sources(coverage: dict[str, set[int]], source: Path, checkout: 
             if not virtual_relative.parts or '..' in virtual_relative.parts:
                 raise ValueError("invalid virtual coverage source path")
             reported = source / virtual_relative
-        if reported.is_symlink():
-            raise ValueError(f"symlink coverage source: {filename}")
-        path = reported.resolve()
+        try:
+            if reported.is_symlink():
+                raise ValueError(f"symlink coverage source: {filename}")
+            path = reported.resolve()
+        except PermissionError:
+            # A dependency's generated source in another build's private directory: it
+            # is outside the snapshot, as every unreadable path is.
+            if virtual_relative is not None:
+                raise
+            continue
         try:
             relative = path.relative_to(source)
         except ValueError as error:

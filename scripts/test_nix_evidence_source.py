@@ -169,6 +169,19 @@ class SnapshotTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "differs"):
             map_coverage_sources(coverage, self.destination, self.root)
 
+    def test_unreadable_external_coverage_path_is_outside_the_snapshot(self):
+        materialize_committed_source(self.root, self.destination)
+        locked = self.root.parent / f"{self.root.name}-locked"
+        locked.mkdir()
+        try:
+            locked.chmod(0)
+            coverage = {str(self.destination / "sub/source.rs"): {3}, str(locked / "out/codegen.rs"): {1}}
+            self.assertEqual(map_coverage_sources(coverage, self.destination, self.root),
+                             {str((self.root / "sub/source.rs").resolve()): {3}})
+        finally:
+            locked.chmod(0o700)
+            locked.rmdir()
+
     def test_virtual_coverage_maps_only_verified_snapshot_bytes(self):
         materialize_committed_source(self.root, self.destination)
         target = self.root / "sub/source.rs"
