@@ -1,0 +1,1 @@
+["use:super::panel_path::PanelClusters;#0","use:super::{CausalError,ExecutionContext,PanelData,PhysicalExecutionPlan,StudyResult,TemporalDag,TemporalEffectQuery,};#0","impl:super::Study#0","impl:super::Study#0/fn:execute_multi_env_temporal#0"]

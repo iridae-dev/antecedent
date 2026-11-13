@@ -1,0 +1,1 @@
+["use:super::{AdjustmentKind,AdjustmentVerdict,ComponentAdjustment,EvidenceRefusal,Exposure,OutcomeComponent,};#0","use:antecedent_core::CanonicalWriter;#0","struct:CompiledObligation#0","struct:JointExperimentSpec#0","struct:CompiledJointExperiment#0","fn:adjustment_verdicts#0","fn:compile_joint_experiment#0"]
