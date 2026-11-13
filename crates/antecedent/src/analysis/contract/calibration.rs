@@ -182,7 +182,9 @@ impl StudyResult {
         let (query, structure) = if validation == "not_applicable" {
             let query = match &self.payload {
                 ResultPayload::PanelDid(_) => "PanelDid",
-                ResultPayload::PosteriorRow(_) => "RandomizedEffect",
+                ResultPayload::RandomizedEffect(_) | ResultPayload::PosteriorRow(_) => {
+                    "RandomizedEffect"
+                }
                 _ => unreachable!("graphless validation was established only for these routes"),
             };
             (query.to_owned(), "design".to_owned())

@@ -526,8 +526,10 @@ fn complete_randomization_neyman_interval() {
     );
 }
 
-/// Coverage of the small-arm interval: every replicate's construction and scope facts come from
-/// the runtime's own calibration key, so the record is keyed by what the facade reports.
+/// Coverage of the small-arm interval: every replicate's estimator, standard error and scope
+/// facts come from the runtime's own calibration key, so the record is keyed by what the facade
+/// reports. The design axes are the ones every interval of this route is recorded under: the
+/// route refuses a validation suite at preparation, so none applies.
 fn measure_small_arm(
     test: &'static str,
     dgp: &'static str,
@@ -549,12 +551,15 @@ fn measure_small_arm(
     });
     for (interval, truth, bound) in runs {
         // A replicate that publishes no interval is a skip (a miss), never a free pass.
-        let (Some([lower, upper]), Some((construction, scope, validation))) = (interval, bound)
-        else {
+        let (Some([lower, upper]), Some((construction, scope, _))) = (interval, bound) else {
             tally.skip();
             continue;
         };
-        tally.bind_validation(&construction, scope, validation);
+        tally.bind_validation(
+            &self::construction(&construction.estimator, &construction.se_kind),
+            scope,
+            "not_applicable",
+        );
         tally.record(Some((lower, upper)), truth);
     }
     tally.assert();
