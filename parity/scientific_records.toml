@@ -4838,11 +4838,11 @@ dependency_manifest = "4bab39b2e52fd7ec1ab81ca1705bff844a078917413e03b690ce44a71
 test = "antecedent::checked_bayesian_temporal_class_effect_route_evidence::all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_proofs"
 roles = ["scientific"]
 passed = true
-commit = "90184587dfe221f35221c4cc9d2fdc06a0cde79d"
+commit = "ebcbf623ccb83d47d2460ef5fbab37bfcbf2cfa6"
 dirty = false
-fingerprint = "381e2579baf3b807146df08b9fffea0cfbd10d7137c5d318c5aa90ff684c6b38"
-recorded_at = "2026-11-12T02:34:13Z"
-dependency_manifest = "413592f8eb659ff270d50eaf01575847ace79fb49b083e51bbaece4459f76386"
+fingerprint = "bed3b65f03133014a27178f975c02880a169ccdd3d635ff235119b4cd12d8509"
+recorded_at = "2026-11-13T02:23:30Z"
+dependency_manifest = "1e907488c3f0a36af3afeb73f7390035deed8be71488fb399581e0ddb19f824a"
 
 [[record]]
 test = "antecedent::checked_temporal_class_effect_route_evidence::all_frequentist_temporal_class_effect_coordinates_execute_from_retained_source_proofs"
@@ -4858,11 +4858,11 @@ dependency_manifest = "fe451e49410f82ab3b2543b5d1c69fc999f5f288a11a24b240daf5582
 test = "antecedent::checked_temporal_graph_posterior_effect_route_evidence::all_temporal_graph_posterior_effect_coordinates_execute_from_retained_atom_proofs"
 roles = ["scientific"]
 passed = true
-commit = "2904e3b0f2178cdc4acd693805d33050b21cba51"
+commit = "ebcbf623ccb83d47d2460ef5fbab37bfcbf2cfa6"
 dirty = false
-fingerprint = "88cd20d26160c93be9b3f71498ba0270196fabd2b11cc4a7f507b51f647e1858"
-recorded_at = "2026-11-13T00:20:11Z"
-dependency_manifest = "75ce5c7fd48379f18486550846e720aeb55a6fb15404b4871319c11cc9f316fa"
+fingerprint = "fb4bf36f3029347f0fda3e8e77c1c909e55d95d582c5efec643a77b912a5f3ea"
+recorded_at = "2026-11-13T02:09:19Z"
+dependency_manifest = "661a33b2a40c2d30ea0f332672b75f1ea08488b1a3e7ee610e4284cb2c55acc7"
 
 [[record]]
 test = "antecedent::class_attribution_known_truth::class_anomaly_attribution_known_truth"
@@ -8908,11 +8908,11 @@ dependency_manifest = "45582ff9c1672c7b39ab02f1b56a6e63825d53663c757738bdc70403e
 test = "antecedent::suite_07::temporal_class_bayesian_envelope::temporal_class_multi_step_is_not_last_step_collapse"
 roles = ["scientific", "software"]
 passed = true
-commit = "90184587dfe221f35221c4cc9d2fdc06a0cde79d"
+commit = "ebcbf623ccb83d47d2460ef5fbab37bfcbf2cfa6"
 dirty = false
-fingerprint = "e1877fdcf08a92eaa3d05f2e65725134f8a596ed3580857d9dd497b8d9b4a137"
-recorded_at = "2026-11-12T03:25:00Z"
-dependency_manifest = "97c740d15fa83d567f5bf64f63d2dd047c47e64dc366e97614b7c061b514d02a"
+fingerprint = "409035851146e12ae014f8409a5b98f1f620e954db40448b75d69a95cab8aa8a"
+recorded_at = "2026-11-13T02:09:08Z"
+dependency_manifest = "f70e781374a4190cb16645155e43c933a4d1c7d47a8b4bc612e5307371c4d7ba"
 
 [[record]]
 test = "antecedent::suite_07::temporal_class_bayesian_envelope::temporal_pag_bayesian_pulse_and_sustained_all_structures_and_suites"
@@ -9378,11 +9378,11 @@ dependency_manifest = "1f06cef9a4e7bc70169c4b136c689d3d2be8c26b528c127bea299af95
 test = "antecedent::temporal_graph_posterior_product_routes::sustained_on_event_data_recovers_the_atom_weighted_truth_and_the_series_answer"
 roles = ["scientific"]
 passed = true
-commit = "90184587dfe221f35221c4cc9d2fdc06a0cde79d"
+commit = "ebcbf623ccb83d47d2460ef5fbab37bfcbf2cfa6"
 dirty = false
-fingerprint = "46f62bf017f4dd5a44b0f8fe6ec6250d56f08fc1d8783be456cee799523f6a4b"
-recorded_at = "2026-11-12T02:32:18Z"
-dependency_manifest = "cc4b555e2b6296b337a0f0535d33aa8ddef0f040b3cbc8337abc73830d923ed7"
+fingerprint = "1ff79ce55e16575b04acd22c7d6e9d3487a0c453bc748925469028eb6619bc2e"
+recorded_at = "2026-11-13T02:08:40Z"
+dependency_manifest = "6a6743c1b6b8d8e583b1b79bedc76b029811c2245758a42ed7fa4c45e9c1f9cb"
 
 [[record]]
 test = "antecedent::temporal_graph_posterior_product_routes::temporal_mediation_on_event_data_recovers_the_mediated_truth_and_the_series_answer"
@@ -9408,11 +9408,11 @@ dependency_manifest = "dbcb4c4f7e7fc300d0b463c6c8a39bba9f3258f37b764fa940cd8b7c3
 test = "antecedent::temporal_response_facade::bayesian_temporal_response_and_sustained_window_known_truth"
 roles = ["scientific", "software"]
 passed = true
-commit = "90184587dfe221f35221c4cc9d2fdc06a0cde79d"
+commit = "ebcbf623ccb83d47d2460ef5fbab37bfcbf2cfa6"
 dirty = false
-fingerprint = "90cacf66017de8f4160a665c48ece278c075365a759acc61f74d112115d7424f"
-recorded_at = "2026-11-12T02:36:53Z"
-dependency_manifest = "e4a0da982ebe42dbced9d17832b45ab2292e203938fa703f49c69430e0748051"
+fingerprint = "3adb6dd942e3ec06d703815cb938defb10e0a5744975a14d2815fa93a89cb2b7"
+recorded_at = "2026-11-13T02:08:54Z"
+dependency_manifest = "bb53b2424c002d455fd5da15edc13d05a223c6ebb8e51ac21e44326c2eca66d5"
 
 [[record]]
 test = "antecedent::temporal_response_facade::multi_step_sequence_matches_two_step_truth_and_does_not_collapse"
@@ -9448,11 +9448,21 @@ dependency_manifest = "5eb2f7a423fa13e5c2bc712448f22d5c7cf6f713476d05ab66b08baf3
 test = "antecedent::temporal_sequential_gcomp_multistep_known_truth::sequential_gcomp_recovers_the_multi_step_effect_for_bayesian_plain_and_conditional_contrasts"
 roles = ["scientific"]
 passed = true
-commit = "2904e3b0f2178cdc4acd693805d33050b21cba51"
+commit = "ebcbf623ccb83d47d2460ef5fbab37bfcbf2cfa6"
 dirty = false
-fingerprint = "c62fb14db893c2a769e145910b1690a9ebe22134eaf8ecebc80ec942a7a4e48e"
-recorded_at = "2026-11-13T00:29:50Z"
-dependency_manifest = "3e54541fa7432b735fcf2fc1828cb4b5e5244d79636621f4be61732453f4c4ae"
+fingerprint = "695fc9f342e43371c77f21e70792be34ad09ebcb1360fe5bfa1f289b2f710363"
+recorded_at = "2026-11-13T02:16:46Z"
+dependency_manifest = "53955bf579daa1e44989a2291d745c42f5627ea47f33086a7ccb4beb666730e0"
+
+[[record]]
+test = "antecedent::temporal_sequential_gcomp_multistep_known_truth::sequential_gcomp_returns_the_modifier_averaged_effect_on_a_fixed_dag"
+roles = ["scientific"]
+passed = true
+commit = "ebcbf623ccb83d47d2460ef5fbab37bfcbf2cfa6"
+dirty = false
+fingerprint = "695fc9f342e43371c77f21e70792be34ad09ebcb1360fe5bfa1f289b2f710363"
+recorded_at = "2026-11-13T02:16:46Z"
+dependency_manifest = "3e031b818c5310114caa24c64da52b9e577b21b5fea8222977a73ca5340298d0"
 
 [[record]]
 test = "antecedent::temporal_window_route_evidence::temporal_admg_window_contrasts_match_the_enumerated_truth_on_both_inferences"
