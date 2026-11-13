@@ -20,6 +20,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from support_calibration import calibration_lines
+
 ROOT = Path(__file__).resolve().parents[1]
 SUPPORTED = ROOT / "parity" / "support_cells.toml"
 SELF = "scripts/support_mixed_graph_functional_rows.py"
@@ -251,6 +253,14 @@ def block_rows(
         for structure in STRUCTURES:
             for inference, validation in [(i, v) for i in INFERENCES for v in validations]:
                 test = f"{stem}_{short}_{structure}_{inference.lower()}_{validation}"
+                cell = {
+                    "query": query,
+                    "graph_class": klass,
+                    "structure": structure,
+                    "inference": inference,
+                    "validation": validation,
+                    "estimators": [estimator],
+                }
                 out.append(
                     "[[cell]]\n"
                     f'query = "{query}"\n'
@@ -268,7 +278,7 @@ def block_rows(
                     f'  {{ estimator = "{estimator}", test = "{test_file}", assertion = "{test}" }},\n'
                     "]\n"
                     f'limitations = "{limitations(klass, inference, validation)}"\n'
-                    'calibration_reason = "estimator_grid_not_measured"\n'
+                    + calibration_lines(cell)
                 )
     return "\n".join(out)
 

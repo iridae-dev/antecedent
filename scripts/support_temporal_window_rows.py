@@ -21,6 +21,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from support_calibration import calibration_lines
+
 ROOT = Path(__file__).resolve().parents[1]
 SUPPORTED = ROOT / "parity" / "support_cells.toml"
 SELF = "scripts/support_temporal_window_rows.py"
@@ -218,6 +220,14 @@ def row(
     checked: str,
     limitations: str,
 ) -> str:
+    cell = {
+        "query": query,
+        "graph_class": klass,
+        "structure": structure,
+        "inference": inference,
+        "validation": validation,
+        "estimators": [ESTIMATOR],
+    }
     return (
         "[[cell]]\n"
         f'query = "{query}"\n'
@@ -235,7 +245,7 @@ def row(
         f'  {{ estimator = "{ESTIMATOR}", test = "{TEST}", assertion = "{checked}" }},\n'
         "]\n"
         f'limitations = "{limitations}"\n'
-        'calibration_reason = "estimator_grid_not_measured"\n'
+        + calibration_lines(cell)
     )
 
 

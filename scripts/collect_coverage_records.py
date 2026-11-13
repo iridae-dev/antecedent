@@ -1039,8 +1039,15 @@ def replace_pair(
         for line in block.splitlines()
         if not line.startswith("calibration = ") and not line.startswith("calibration_reason = ")
     ]
-    while kept and not kept[-1].strip():
-        kept.pop()
+    # The last cell of a generated region is followed in the same chunk by that
+    # region's end marker and the next region's begin marker: the pair belongs
+    # to the cell, so it goes before those comment lines, never after them.
+    tail: list[str] = []
+    while kept and (not kept[-1].strip() or kept[-1].startswith("#")):
+        tail.append(kept.pop())
+    tail.reverse()
+    while tail and not tail[-1].strip():
+        tail.pop()
     if calibration:
         ids = ", ".join(f'"{rid}"' for rid in calibration)
         kept.append(f"calibration = [{ids}]")
@@ -1048,6 +1055,7 @@ def replace_pair(
             kept.append('calibration_reason = "boundary_record"')
     else:
         kept.append(f'calibration_reason = "{reason}"')
+    kept.extend(tail)
     return "\n".join(kept) + "\n\n"
 
 

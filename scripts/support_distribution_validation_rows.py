@@ -18,6 +18,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from support_calibration import calibration_lines
+
 ROOT = Path(__file__).resolve().parents[1]
 SUPPORTED = ROOT / "parity" / "support_cells.toml"
 SELF = "scripts/support_distribution_validation_rows.py"
@@ -111,6 +113,14 @@ def rows() -> str:
             for inference in INFERENCES:
                 for validation in VALIDATIONS:
                     test = f"distribution_{short}_{structure}_{inference.lower()}_{validation}"
+                    cell = {
+                        "query": "InterventionalDistribution",
+                        "graph_class": klass,
+                        "structure": structure,
+                        "inference": inference,
+                        "validation": validation,
+                        "estimators": ["functional.distribution"],
+                    }
                     out.append(
                         "[[cell]]\n"
                         'query = "InterventionalDistribution"\n'
@@ -129,7 +139,7 @@ def rows() -> str:
                         f'assertion = "{test}" }},\n'
                         "]\n"
                         f'limitations = "{limitations(klass, inference, validation)}"\n'
-                        'calibration_reason = "estimator_grid_not_measured"\n'
+                        + calibration_lines(cell)
                     )
     return "\n".join(out)
 

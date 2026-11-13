@@ -19,6 +19,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from support_calibration import calibration_lines
+
 ROOT = Path(__file__).resolve().parents[1]
 SUPPORTED = ROOT / "parity" / "support_cells.toml"
 SELF = "scripts/support_functional_graph_posterior_rows.py"
@@ -132,6 +134,14 @@ def rows() -> str:
             for inference in INFERENCES:
                 for validation in VALIDATIONS:
                     est = estimator(query, klass)
+                    cell = {
+                        "query": query,
+                        "graph_class": klass,
+                        "structure": "graph_posterior",
+                        "inference": inference,
+                        "validation": validation,
+                        "estimators": [est],
+                    }
                     out.append(
                         "[[cell]]\n"
                         f'query = "{query}"\n'
@@ -149,7 +159,7 @@ def rows() -> str:
                         f'  {{ estimator = "{est}", test = "{TEST}", assertion = "{test}" }},\n'
                         "]\n"
                         f'limitations = "{limitations(query, klass, inference, validation)}"\n'
-                        'calibration_reason = "estimator_grid_not_measured"\n'
+                        + calibration_lines(cell)
                     )
     return "\n".join(out)
 

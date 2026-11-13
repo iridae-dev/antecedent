@@ -1116,5 +1116,23 @@ class FamilyDecisionRecordTest(unittest.TestCase):
         self.assertEqual(decoded, record["grid"])
 
 
+class ReplacePairTest(unittest.TestCase):
+    def test_the_pair_stays_with_its_cell_before_trailing_region_markers(self) -> None:
+        block = (
+            '\nquery = "Q"\nlimitations = "x"\n'
+            "# generated:a:end\n\n# generated:b:begin (scripts/b.py)\n\n"
+        )
+        out = collector.replace_pair(block, ["cov.one"], None)
+        self.assertEqual(
+            out,
+            '\nquery = "Q"\nlimitations = "x"\ncalibration = ["cov.one"]\n'
+            "# generated:a:end\n\n# generated:b:begin (scripts/b.py)\n\n",
+        )
+
+    def test_a_plain_block_keeps_the_pair_last(self) -> None:
+        out = collector.replace_pair('\nquery = "Q"\ncalibration_reason = "old"\n\n', [], "new")
+        self.assertEqual(out, '\nquery = "Q"\ncalibration_reason = "new"\n\n')
+
+
 if __name__ == "__main__":
     unittest.main()
