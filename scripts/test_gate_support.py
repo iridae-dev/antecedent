@@ -172,9 +172,8 @@ class CitationsResolveToTheirDefiningFile(unittest.TestCase):
             self.assertIsNone(test_evidence.rust_defining_file(parent, "absent"))
 
     def test_the_generator_refuses_a_simulation_cited_by_its_module_file(self):
-        import test_evidence
-
         import generate_graphless_support as graphless
+        import test_evidence
 
         simulation = next(
             r for r in test_evidence.registered_calibration_simulations()
@@ -185,9 +184,11 @@ class CitationsResolveToTheirDefiningFile(unittest.TestCase):
         self.assertEqual(source, (simulation["evidence_test"], simulation["evidence_assertion"]))
         self.assertIn(source, graphless.calibration_simulations())
         row = next(r for r in graphless.load_rows() if r["family"] == "policy_value")
-        with patch.object(graphless, "load_toml", return_value={"support": [{**row, "known_truth_test": citation}]}):
-            with self.assertRaisesRegex(ValueError, "is a calibration simulation"):
-                graphless.load_rows()
+        with (
+            patch.object(graphless, "load_toml", return_value={"support": [{**row, "known_truth_test": citation}]}),
+            self.assertRaisesRegex(ValueError, "is a calibration simulation"),
+        ):
+            graphless.load_rows()
 
     def test_the_gate_resolves_and_excludes_by_the_defining_file(self):
         import generate_graphless_support as graphless

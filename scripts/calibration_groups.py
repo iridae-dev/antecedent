@@ -52,13 +52,13 @@ Selection without `--all` or `--owed`:
 
 from __future__ import annotations
 
-import subprocess  # noqa: F401  (tests patch calibration_groups.subprocess)
 import argparse
 import fnmatch
 import math
 import os
 import re
 import shutil
+import subprocess  # noqa: F401  (tests patch calibration_groups.subprocess)
 import sys
 import threading
 import time
