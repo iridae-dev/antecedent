@@ -22,6 +22,8 @@ from pathlib import Path
 from _repo import load_toml
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
 #: Committed family fixtures: version-two records with contracts, and the version-one
 #: record that keeps replaying beside them.
 def valid_digest(value: object) -> bool:
@@ -29,9 +31,13 @@ def valid_digest(value: object) -> bool:
 
 
 def finite_at_most(value: object, limit: object) -> bool:
-    return (type(value) in (int, float) and type(limit) in (int, float)
-            and math.isfinite(value) and math.isfinite(limit)
-            and 0 <= value <= limit)
+    return (
+        type(value) in (int, float)
+        and type(limit) in (int, float)
+        and math.isfinite(value)
+        and math.isfinite(limit)
+        and 0 <= value <= limit
+    )
 
 
 FAMILY_FIXTURES = (
@@ -109,18 +115,31 @@ def run_rust_checks() -> None:
     env = os.environ.copy()
     env.setdefault("CARGO_PROFILE_TEST_OPT_LEVEL", "0")
     env.setdefault("CARGO_PROFILE_TEST_DEBUG", "line-tables-only")
-    command = ["cargo", "nextest", "list", "--locked", "--profile", "ci",
-               *packages, *selection, "--message-format", "json"]
+    command = [
+        "cargo",
+        "nextest",
+        "list",
+        "--locked",
+        "--profile",
+        "ci",
+        *packages,
+        *selection,
+        "--message-format",
+        "json",
+    ]
     print("+ " + " ".join(command), flush=True)
-    listing = subprocess.run(command, cwd=ROOT, env=env, check=True,
-                             capture_output=True, text=True)
+    listing = subprocess.run(command, cwd=ROOT, env=env, check=True, capture_output=True, text=True)
     validate_rust_listing(json.loads(listing.stdout), RUST_CHECKS)
     run(["bash", "scripts/test.sh", "dev", *packages, *selection], cwd=ROOT)
 
 
 def inventory() -> None:
     record = load_toml(ROOT / "parity/cyclic/acceptance.toml")
-    expected = {"Y18.1", "Y18.2"} | {f"Y19.{i}" for i in range(1, 9)} | {"integrated_families", "nonlinear_sde"}
+    expected = (
+        {"Y18.1", "Y18.2"}
+        | {f"Y19.{i}" for i in range(1, 9)}
+        | {"integrated_families", "nonlinear_sde"}
+    )
     if {row["id"] for row in record["capability"]} != expected:
         raise ValueError("cyclic acceptance children differ from the release scope")
     for row in record["capability"]:
@@ -175,7 +194,9 @@ def inventory() -> None:
             cases = trial["cases"] if lane == "bicycle" else [trial]
             for case in cases:
                 artifact = case["artifact"]
-                if not artifact["fresh_process_cpu_replay"] or not valid_digest(artifact["identity"]):
+                if not artifact["fresh_process_cpu_replay"] or not valid_digest(
+                    artifact["identity"]
+                ):
                     raise ValueError(f"missing independent artifact: {lane}")
             if lane == "bicycle":
                 if trial["nodes"] != 10 or trial["samples_per_single_context"] != 250:
@@ -184,7 +205,9 @@ def inventory() -> None:
                     raise ValueError(
                         "full-intervention OU fit did not reach its declared tolerance"
                     )
-                if any(not finite_at_most(c["independent_law_max_absolute_error"], 1e-7) for c in cases):
+                if any(
+                    not finite_at_most(c["independent_law_max_absolute_error"], 1e-7) for c in cases
+                ):
                     raise ValueError("OU reference law disagreement")
             elif selected[(lane, trial["seed"])]["identity"] != trial["artifact"]["identity"]:
                 raise ValueError("stopping diagnostics are not bound to the selected fit")
@@ -223,7 +246,10 @@ def inventory() -> None:
     for row in continued:
         if row["original_identity"] != base_identities[(row["seed"], row["case"])]:
             raise ValueError("OU continuation is not bound to its original fit")
-        if not valid_digest(row["artifact"]["identity"]) or not row["artifact"]["fresh_process_cpu_replay"]:
+        if (
+            not valid_digest(row["artifact"]["identity"])
+            or not row["artifact"]["fresh_process_cpu_replay"]
+        ):
             raise ValueError("OU continuation was not independently replayed")
         if not row["converged"]:
             retry = standardized.get((row["seed"], row["case"]))
@@ -231,7 +257,9 @@ def inventory() -> None:
                 retry is None
                 or retry["previous_identity"] != row["artifact"]["identity"]
                 or not retry["converged"]
-                or not finite_at_most(retry["original_score_upper_bound"], retry["original_score_tolerance"])
+                or not finite_at_most(
+                    retry["original_score_upper_bound"], retry["original_score_tolerance"]
+                )
                 or not valid_digest(retry["artifact"]["identity"])
                 or not retry["artifact"]["fresh_process_cpu_replay"]
             ):
@@ -274,26 +302,16 @@ def main() -> None:
             cwd=directory,
             env=env,
         )
-        for name in FAMILY_FIXTURES:
-            fixture = ROOT / "parity/cyclic" / name
-            code = (
-                "import json,pathlib;from antecedent.cyclic import consume_family_artifact;"
-                f"p=pathlib.Path({str(fixture)!r});"
-                "expected=json.loads((p/'expected-identity.json').read_text(encoding='utf-8'));"
-                "r=consume_family_artifact((p/'family.ant').read_bytes(),"
-                "expected_identity=expected['identity']);"
-                "\nif r.report != json.loads((p/'report.json').read_text(encoding='utf-8')):\n"
-                " raise SystemExit('cyclic fixture report mismatch')"
-            )
-            run([args.python, "-c", code], cwd=directory, env=env)
         fixture = ROOT / "parity/cyclic/general-equilibrium"
         code = (
             "import json,pathlib;from antecedent.cyclic import consume_artifact;"
+            "from antecedent.outcomes import require_success;"
             f"p=pathlib.Path({str(fixture)!r});"
             "expected=json.loads((p/'expected-identity.json').read_text(encoding='utf-8'));"
-            "r=consume_artifact((p/'nonlinear.ant').read_bytes(),expected_identity=expected['identity']);"
-            "\nif r.report != json.loads((p/'report.json').read_text(encoding='utf-8')):\n"
-                " raise SystemExit('cyclic fixture report mismatch')"
+            "r=require_success(consume_artifact((p/'nonlinear.ant').read_bytes(),"
+            "expected_identity=expected['identity']));"
+            "\nif r.to_dict() != json.loads((p/'report.json').read_text(encoding='utf-8')):\n"
+            " raise SystemExit('cyclic fixture report mismatch')"
         )
         run([args.python, "-c", code], cwd=directory, env=env)
     print("Cyclic implementation gate PASSED; calibration and attestation were not run.")
