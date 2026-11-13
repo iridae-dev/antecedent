@@ -383,14 +383,12 @@ except ImportError:  # pragma: no cover - extension not built
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------
 #
-# ``CHANGELOG.md``'s "[0.4.0]" entry documents the migration policy as a
-# "silent hard break: there are no deprecated aliases and no shims for the
-# old spellings." This hook does not violate that — every branch below ends
-# in a raise, never a returned value, so a retired name is exactly as broken
-# as it would be without this function. It only replaces Python's generic
-# "module 'antecedent' has no attribute ..." with a message naming the 0.4.0
-# replacement, for the name families the changelog documents as large,
-# mechanical, and easy to hit from muscle memory / an old example:
+# Retired names have no deprecated aliases and no shims. This hook keeps that:
+# every branch below ends in a raise, never a returned value, so a retired name
+# is exactly as broken as it would be without this function. It only replaces
+# Python's generic "module 'antecedent' has no attribute ..." with a message
+# naming the replacement, for the name families that are large, mechanical, and
+# easy to hit from muscle memory or an old example:
 #
 # - the 16 free ``discover_*`` functions -> methods on ``antecedent.discovery``
 #   config dataclasses (``.run()`` / ``.accept()``);
