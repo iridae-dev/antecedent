@@ -403,14 +403,25 @@ const TIME_JUMP_AR2: Cell = Cell {
 };
 
 /// A sharp discontinuity in time under AR(2) errors, which the first-order prewhitening
-/// leaves dependent; only the blocks carry the rest.
+/// leaves dependent. The cubic trend of the window absorbs the low-frequency variance of the
+/// errors from the residuals, so the interval, which rests on the AR(1) fit of those residuals,
+/// fell short of its level (observed 0.8875 at 0.95); the route now screens the innovations
+/// for the dependence an AR(1) error does not leave and withholds the interval when the screen
+/// rejects. The statement is withdrawn: nothing is published to score, so this asserts the
+/// withdrawal instead of a coverage.
 #[test]
-#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
-fn temporal_fuzzy_rd_block_bootstrap_interval_covers_the_jump_under_ar2_errors() {
-    measure_design(TIME_JUMP_AR2, 1.0, 0x1D_000A, |seed| {
+fn temporal_fuzzy_rd_withholds_the_interval_under_ar2_errors() {
+    for rep in 0..4_u64 {
+        let seed = stream_seed(0x1D_000A, rep);
         let (data, query, _) = time_jump_ar2_rows(seed);
-        (data, query)
-    });
+        let scored = score_design(TIME_JUMP_AR2, data, query, seed, rep == 0)
+            .expect("the route runs and keeps its point estimate");
+        assert!(
+            scored.interval.is_none(),
+            "replicate {rep} published an interval under AR(2) errors: {:?}",
+            scored.interval
+        );
+    }
 }
 // ------------------------------------------------------------------ Bayesian
 

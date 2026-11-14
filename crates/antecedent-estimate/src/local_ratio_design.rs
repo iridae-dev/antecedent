@@ -136,6 +136,9 @@ pub struct TemporalBlockRecord {
     /// Satterthwaite degrees of freedom of the Student-t interval; `None` when the interval is
     /// the normal interval of the standard error.
     pub reference_degrees_of_freedom: Option<f64>,
+    /// The p-value of the screen of the innovations for serial dependence the AR(1) error
+    /// model leaves, when it rejected the model: the interval is then withheld.
+    pub serial_dependence_rejected: Option<f64>,
 }
 
 /// The local ratio with its design layer.
@@ -843,6 +846,116 @@ impl TemporalErrors {
     }
 }
 
+/// The ratio refit on a structural and a treatment shift of the window's errors.
+fn ratio_with_shifts(fit: &LocalPolynomialRatioFit, structural: f64, treatment: f64) -> f64 {
+    (fit.reduced_form + structural + fit.estimate * treatment) / (fit.first_stage + treatment)
+}
+
+/// The draws of the structural and treatment shifts centered at their means over the finite
+/// draws.
+///
+/// A redrawn error series is the observed innovations in whole blocks, so the mean of a
+/// shift over the resampling law is the loading-weighted mean of the observed innovations by
+/// position in the block, not zero: with a few dozen blocks per side it is a fixed offset of
+/// the order of a fifth of the shift's spread. The refit ratio is a pivot of the redrawn
+/// errors about their resampling mean (the observed errors are what the fit already carries),
+/// so the offset is removed; left in, it moves every draw, and the credible interval with
+/// it, by an amount unrelated to the estimate's error.
+fn center_shifts(raw: &[Option<Vec<f64>>]) -> Vec<Option<[f64; 2]>> {
+    let shifts: Vec<Option<[f64; 2]>> = raw
+        .iter()
+        .map(|draw| match draw.as_deref() {
+            Some([structural, treatment]) if structural.is_finite() && treatment.is_finite() => {
+                Some([*structural, *treatment])
+            }
+            _ => None,
+        })
+        .collect();
+    let finite: Vec<[f64; 2]> = shifts.iter().flatten().copied().collect();
+    if finite.is_empty() {
+        return shifts;
+    }
+    let count = finite.len() as f64;
+    let means = [
+        finite.iter().map(|shift| shift[0]).sum::<f64>() / count,
+        finite.iter().map(|shift| shift[1]).sum::<f64>() / count,
+    ];
+    shifts
+        .into_iter()
+        .map(|shift| {
+            shift.map(|[structural, treatment]| [structural - means[0], treatment - means[1]])
+        })
+        .collect()
+}
+
+impl TemporalErrors {
+    /// The structural and treatment shifts of the refit numerator and denominator from the
+    /// errors redrawn from window rows `sources`; `0` for a series without error.
+    fn redrawn_shifts(&self, sources: &[usize], loadings: &[Option<Vec<f64>>; 2]) -> [f64; 2] {
+        let shift = |index: usize| -> f64 {
+            match (&self.series[index], &loadings[index]) {
+                (Some(series), Some(loadings)) => loadings
+                    .iter()
+                    .zip(sources)
+                    .map(|(loading, source)| loading * series.innovations[*source])
+                    .sum(),
+                _ => 0.0,
+            }
+        };
+        [shift(0), shift(1)]
+    }
+}
+
+/// Level of the screen of the innovations for serial dependence beyond the AR(1) model.
+const SCREEN_LEVEL: f64 = 0.01;
+
+/// Highest lag of the screen; the lag-one autocorrelation is removed by the prewhitening.
+const SCREEN_LAGS: usize = 6;
+
+/// Ljung-Box p-value for serial dependence at lags `2..=SCREEN_LAGS` in innovations that
+/// follow each other within the two sides (`split` rows on the first, the rest on the second).
+///
+/// The innovations are prewhitened by the observed lag-one ratio, so under an AR(1) error their
+/// autocorrelations at the other lags are zero up to the trend fit. The statistic
+/// `N (N + 2) Σ r_k² / (N − k)` over the `SCREEN_LAGS − 1` remaining lags is then
+/// asymptotically chi-square with that many degrees of freedom. `None` when the innovations
+/// carry no variation.
+fn innovation_dependence_p_value(innovations: &[f64], split: usize) -> Option<f64> {
+    let n = innovations.len();
+    let sum_of_squares: f64 = innovations.iter().map(|e| e * e).sum();
+    if n <= 2 * SCREEN_LAGS || !sum_of_squares.is_finite() || sum_of_squares <= 0.0 {
+        return None;
+    }
+    let sides = [&innovations[..split], &innovations[split..]];
+    let total = n as f64;
+    let mut statistic = 0.0;
+    for lag in 2..=SCREEN_LAGS {
+        let cross: f64 = sides
+            .iter()
+            .filter(|side| side.len() > lag)
+            .map(|side| side.iter().zip(&side[lag..]).map(|(a, b)| a * b).sum::<f64>())
+            .sum();
+        let correlation = cross / sum_of_squares;
+        statistic += correlation * correlation / (total - lag as f64);
+    }
+    statistic *= total * (total + 2.0);
+    Some(antecedent_stats::special::chi_square_sf(statistic, SCREEN_LAGS - 1))
+}
+
+impl TemporalErrors {
+    /// The screen's p-value on the structural innovations. The interval rests on an AR(1)
+    /// error model with blocks carrying only what that fit leaves within a block of rows;
+    /// serial dependence that persists past the AR(1) fit (an AR(2) error, say) moves the
+    /// low-frequency variance of the local fit, which the cubic trend absorbs from the
+    /// residuals and no resampling of those residuals recovers, so a rejected model leaves
+    /// the interval short of its level and none is published. `None` for a series without
+    /// error.
+    fn unmodelled_dependence_p_value(&self) -> Option<f64> {
+        let series = self.series[0].as_ref()?;
+        innovation_dependence_p_value(&series.innovations, self.split)
+    }
+}
+
 /// Appends the `len` redrawn source rows of the side that starts at window row `offset`:
 /// whole blocks of `block` consecutive rows from `next_start` until the side is filled.
 fn fill_side(
@@ -892,7 +1005,17 @@ fn temporal_block_bootstrap(
              error; next attempt: a wider bandwidth or more replicates",
         ));
     };
-    let reference_degrees_of_freedom = errors.reference_degrees_of_freedom(summary.replicates_ok);
+    // An error model the innovations contradict publishes no interval: see
+    // `TemporalErrors::unmodelled_dependence_p_value`.
+    let serial_dependence_rejected =
+        errors.unmodelled_dependence_p_value().filter(|p| *p < SCREEN_LEVEL);
+    let reference_degrees_of_freedom = if serial_dependence_rejected.is_some() {
+        ratio.interval = None;
+        ratio.band = None;
+        None
+    } else {
+        errors.reference_degrees_of_freedom(summary.replicates_ok)
+    };
     if let Some(degrees) = reference_degrees_of_freedom {
         let critical = antecedent_stats::special::student_t_ppf(0.5 + ROLLOUT_LEVEL / 2.0, degrees);
         let interval =
@@ -907,6 +1030,7 @@ fn temporal_block_bootstrap(
         replicates_failed: summary.replicates_failed,
         ratio,
         reference_degrees_of_freedom,
+        serial_dependence_rejected,
     })
 }
 
@@ -944,7 +1068,8 @@ fn standard_normal(rng: &mut CausalRng) -> f64 {
 /// puts flat-Dirichlet weights on a side's blocks, redraws the side's innovations in whole
 /// blocks from that weighted block distribution, draws each prewhitening coefficient from its
 /// large-sample posterior, recolors the innovations through the cutoff and refits the robust
-/// bias-corrected ratio on the redrawn series. Dependence the AR(1) fit leaves within a block
+/// bias-corrected ratio on the redrawn series, the redrawn errors centered at their mean over
+/// the draws (see `center_shifts`). Dependence the AR(1) fit leaves within a block
 /// is kept; across block boundaries only the AR(1) part is. The design's continuity
 /// assumptions stay declared.
 ///
@@ -970,7 +1095,7 @@ pub fn posterior_temporal_local_ratio(
     )
     .map_err(|message| refused(format!("{message}; next attempt: a wider bandwidth")))?;
     let errors = TemporalErrors::new(columns, cutoff, bandwidth, kink, fit.estimate)?;
-    let raw = resample_draws(ctx, BLOCK_POSTERIOR_OPERATION, draws, 1, |rng| {
+    let raw = resample_draws(ctx, BLOCK_POSTERIOR_OPERATION, draws, 2, |rng| {
         let loadings = errors.series.each_ref().map(|series| {
             series.as_ref().map(|series| {
                 let coefficient = (series.coefficient
@@ -998,8 +1123,15 @@ pub fn posterior_temporal_local_ratio(
                 chosen * block
             });
         }
-        Some(vec![errors.redrawn_ratio(&fit, &sources, &loadings)])
+        Some(errors.redrawn_shifts(&sources, &loadings).to_vec())
     })?;
+    let raw = center_shifts(&raw)
+        .into_iter()
+        .map(|shifts| {
+            shifts
+                .map(|[structural, treatment]| vec![ratio_with_shifts(&fit, structural, treatment)])
+        })
+        .collect::<Vec<_>>();
     let summary = crate::rollout_resampling::summarize_posterior(&raw, 1, draws);
     let Some(quantity) = summary.quantities[0] else {
         return Err(refused(
