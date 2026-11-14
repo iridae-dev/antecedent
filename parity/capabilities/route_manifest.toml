@@ -17909,8 +17909,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_synthetic_control.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_synthetic_control.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/synthetic_control_route.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/synthetic_control_route.rs"]
+evidence = ["crates/antecedent/tests/synthetic_control_route.rs::synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim", "crates/antecedent/tests/synthetic_control_route.rs"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/synthetic_control_route.rs::synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim"]
 
 [[method]]
 id = "method.quasi.staggered_heterogeneity_robust"
@@ -19645,7 +19645,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_temporal_design.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_temporal_design.rs"]
 provenance = ["estimate.temporal_regime_survival", "estimate.temporal_regime_survival"]
-evidence = ["crates/antecedent/tests/temporal_design_routes.rs::supported_regime_survival_bootstrap_interval_round_trips_and_refuses_forgery", "crates/antecedent/tests/temporal_design_routes.rs"]
+evidence = ["crates/antecedent/tests/temporal_design_routes.rs::supported_regime_survival_bootstrap_interval_round_trips_and_refuses_forgery", "crates/antecedent/tests/temporal_design_routes.rs::regime_survival_recovers_the_contrast_with_both_procedures"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_design_routes.rs::supported_regime_survival_bootstrap_interval_round_trips_and_refuses_forgery"]
 
 [[method]]
@@ -19701,7 +19701,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/measurement_model.rs"
 implementation = ["crates/antecedent/src/analysis/measurement_model.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/composition_facade.rs", "crates/antecedent/tests/composed_uncertainty_facade.rs", "crates/antecedent/tests/joint_law_composed_interval_calibration.rs"]
+evidence = ["crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_interval_is_reported_with_its_calibration_at_its_coordinate", "crates/antecedent/tests/composition_facade.rs", "crates/antecedent/tests/composed_uncertainty_facade.rs", "crates/antecedent/tests/joint_law_composed_interval_calibration.rs"]
 artifact_consumer = ["crates/antecedent-io-core/src/measurement_model_wire.rs", "crates/antecedent-estimate/tests/measurement_models.rs::artifact_replays_independently_and_refuses_semantic_mutation"]
 
 [[method]]
@@ -19729,7 +19729,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/measurement/posterior.rs"
 implementation = ["crates/antecedent-estimate/src/measurement/posterior.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/composition_facade.rs", "crates/antecedent/tests/joint_law_propagation_facade.rs"]
+evidence = ["crates/antecedent/tests/joint_law_propagation_facade.rs::an_aligned_nonlinear_functional_matches_the_joint_moment_truth", "crates/antecedent/tests/composition_facade.rs", "crates/antecedent/tests/joint_law_propagation_facade.rs"]
 artifact_consumer = ["crates/antecedent-io-core/src/measurement_model_wire.rs", "crates/antecedent-estimate/tests/measurement_models.rs::artifact_replays_independently_and_refuses_semantic_mutation"]
 
 [[method]]
@@ -20401,7 +20401,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/augmented_panel_did.rs"
 implementation = ["crates/antecedent-estimate/src/augmented_panel_did.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/augmented_panel_did_route.rs"]
+evidence = ["crates/antecedent/tests/rollout_design_support_rows.rs::supported_augmented_panel_interval_round_trips_and_refuses_forgery", "crates/antecedent/tests/augmented_panel_did_route.rs"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/augmented_panel_did_route.rs"]
 
 [[method]]

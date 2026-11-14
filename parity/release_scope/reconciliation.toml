@@ -1204,7 +1204,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_design/survival.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/temporal_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/temporal_design_routes.rs::regime_survival_recovers_the_contrast_with_both_procedures", "crates/antecedent/tests/temporal_design_routes.rs::supported_regime_survival_bootstrap_interval_round_trips_and_refuses_forgery"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"]
 
 [[row]]
@@ -1240,7 +1240,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/augmented_panel_did.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/augmented_panel_did_route.rs"]
+fixtures = ["crates/antecedent/tests/rollout_design_support_rows.rs::supported_augmented_panel_interval_round_trips_and_refuses_forgery", "crates/antecedent/tests/augmented_panel_did_route.rs"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/augmented_panel_did_route.rs"]
 
 [[row]]
@@ -1267,7 +1267,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/synthetic_control.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/synthetic_control_route.rs"]
+fixtures = ["crates/antecedent/tests/synthetic_control_route.rs::synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim", "crates/antecedent/tests/synthetic_control_route.rs"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/synthetic_control_route.rs"]
 
 [[row]]
@@ -1366,7 +1366,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-attribution/src/anomaly.rs", "crates/antecedent-attribution"]
-fixtures = ["crates/antecedent/tests/calibration_anomaly_bayesian.rs", "crates/antecedent/tests/target_native_validation.rs::an_attribution_vector_is_refuted_by_refits_of_its_own_attribution_program"]
+fixtures = ["crates/antecedent/tests/checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused", "crates/antecedent/tests/calibration_anomaly_bayesian.rs", "crates/antecedent/tests/target_native_validation.rs::an_attribution_vector_is_refuted_by_refits_of_its_own_attribution_program"]
 consumer = ["crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target"]
 
 [[row]]
@@ -1375,7 +1375,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-attribution/src/anomaly.rs", "crates/antecedent-attribution"]
-fixtures = ["crates/antecedent/tests/temporal_attribution_block_bootstrap.rs", "crates/antecedent/tests/target_native_validation.rs::an_attribution_vector_is_refuted_by_refits_of_its_own_attribution_program"]
+fixtures = ["crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth", "crates/antecedent/tests/temporal_attribution_block_bootstrap.rs", "crates/antecedent/tests/target_native_validation.rs::an_attribution_vector_is_refuted_by_refits_of_its_own_attribution_program"]
 consumer = ["crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target"]
 
 [[row]]
@@ -1456,7 +1456,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/composition.rs", "crates/antecedent-contract"]
-fixtures = ["crates/antecedent/tests/composition_facade.rs", "crates/antecedent/tests/composed_uncertainty_facade.rs", "crates/antecedent/tests/joint_law_composed_interval_calibration.rs"]
+fixtures = ["crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_interval_is_reported_with_its_calibration_at_its_coordinate", "crates/antecedent/tests/composition_facade.rs", "crates/antecedent/tests/composed_uncertainty_facade.rs", "crates/antecedent/tests/joint_law_composed_interval_calibration.rs"]
 consumer = ["crates/antecedent-design/src/composition_bundle.rs::consume"]
 
 [[row]]
@@ -1465,7 +1465,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/composition.rs", "crates/antecedent-contract"]
-fixtures = ["crates/antecedent/tests/composition_facade.rs", "crates/antecedent/tests/joint_law_propagation_facade.rs"]
+fixtures = ["crates/antecedent/tests/joint_law_propagation_facade.rs::an_aligned_nonlinear_functional_matches_the_joint_moment_truth", "crates/antecedent/tests/composition_facade.rs", "crates/antecedent/tests/joint_law_propagation_facade.rs"]
 consumer = ["crates/antecedent-design/src/composition_bundle.rs::consume"]
 
 [[row]]
@@ -1474,7 +1474,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_design/misclassification.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/temporal_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/temporal_design_routes.rs::supported_misclassified_two_arm_interval_round_trips_and_refuses_forgery", "crates/antecedent/tests/temporal_design_routes.rs"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"]
 
 [[row]]
@@ -1483,7 +1483,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_design/misclassification.rs", "crates/antecedent-contract"]
-fixtures = ["crates/antecedent/tests/temporal_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/temporal_design_routes.rs::supported_misclassified_two_arm_posterior_round_trips_and_refuses_forgery", "crates/antecedent/tests/temporal_design_routes.rs"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"]
 
 [[row]]

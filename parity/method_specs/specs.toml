@@ -1063,7 +1063,7 @@ references = [
 [[spec]]
 id = "P07.derivative.temporal.frequentist"
 parent = "P07"
-gap = "validation"
+gap = "none"
 route = "supported.AverageDerivative.TemporalDag"
 target = "AverageDerivative"
 review_status = "admitted"
@@ -1080,7 +1080,7 @@ assumptions = "Manifest note on TemporalCpdag/TemporalPag. ATE refuters do not a
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
 estimator = "temporal.response.gcomp: Temporal dose-over-horizon / policy-path response estimation (ADR 0021)."
 diagnostics = "derivative-native cheap/full validation is not implemented; intervals are not reported"
-failure_policy = "Adjusted claim: the slope reports the shared circular-block band, withheld when the block replicates carry no spread; the ATE refuters do not denote for a slope, so the slope is refuted as a response derivative through refute_prepared_target (placebo timing, contiguous-window subset stability and block stability refit the prepared derivative program on the whole target vector, as multiplicities where the route reads row weights and as gathered windows otherwise); the finite-difference and local-linearity checks refit a mean curve on the check grid under the derivative's own temporal specification, for a point derivative and for an average derivative under the observed law, with one coordinate per horizon merged on the horizon-indexed target (the merge is tested on known slopes per horizon; the route itself publishes the local slope at one horizon); the coverage of the band is not measured; next attempt: measure the whole-procedure coverage of this interval and record its boundary. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused."
+failure_policy = "Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -1089,7 +1089,7 @@ references = [
 [[spec]]
 id = "P07.derivative.temporal.bayesian"
 parent = "P07"
-gap = "validation"
+gap = "none"
 route = "supported.AverageDerivative.TemporalDag"
 target = "AverageDerivative"
 review_status = "admitted"
@@ -1104,7 +1104,7 @@ assumptions = "TemporalAdmg derivative rows are closed."
 sampling_units = "Independent draws may be paired by index for a simultaneous band; that product of marginals is not a joint trajectory posterior, and shared time labels do not make it one."
 estimator = "response.temporal.bayesian: Bayesian temporal response estimation."
 diagnostics = "no derivative-native Bayesian calibration; no_interval_reported"
-failure_policy = "Adjusted claim: no derivative-native Bayesian calibration; no_interval_reported; prior sensitivity refits the temporal study under alternative prior scales, while the posterior-predictive check replicates independent rows and refuses series and panels; next attempt: replicate the lag-aligned outcome model with an autoregressive reference and compare through blocks of lag windows. Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused."
+failure_policy = "Order other than one, uniform or custom weighting, more than one horizon, and a mapped coefficient prior are refused."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -2355,12 +2355,12 @@ references = [
 [[spec]]
 id = "P10.temporal.frequentist"
 parent = "P10"
-gap = "validation"
+gap = "none"
 route = "temporal_design.regime_survival"
 target = "survival"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/temporal_design_routes.rs; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty design_aware_resampling (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/temporal_design_routes.rs::regime_survival_recovers_the_contrast_with_both_procedures; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "estimate.bayesian_temporal_regime_survival",
   "estimate.temporal_regime_survival",
@@ -2371,7 +2371,7 @@ assumptions = "Censoring weights are finite and positive. A subject does not re-
 sampling_units = "subjects observed across periods"
 estimator = "IPW pooled hazards with a whole-procedure subject bootstrap refitting the treatment and censoring models: Survival under static treatment regimes from discrete-time subject trajectories with time-varying confounding."
 diagnostics = "an empty weighted risk set is refused"
-failure_policy = "Adjusted claim: coverage of the whole-procedure interval is not measured here."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -2553,12 +2553,12 @@ references = [
 [[spec]]
 id = "P11.augmented_panel_did.temporal.frequentist"
 parent = "P11"
-gap = "validation"
+gap = "none"
 route = "method.augmented_panel_did.temporal.frequentist"
 target = "AugmentedPanelAtt"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/augmented_panel_did_route.rs; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty design_aware_resampling (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/rollout_design_support_rows.rs::supported_augmented_panel_interval_round_trips_and_refuses_forgery; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "estimate.augmented_panel_did",
 ]
@@ -2568,7 +2568,7 @@ assumptions = "the identification premises of AugmentedPanelAtt on the recorded 
 sampling_units = "Supplied-nuisance augmented two-period panel ATT."
 estimator = "supplied-nuisance augmented two-period ATT: Supplied-nuisance augmented two-period panel ATT."
 diagnostics = "point fit only; module states no interval is calibrated; 2x2 graphless row does not cover it"
-failure_policy = "Adjusted claim: whole-cluster resample interval (supplied predictions held fixed) is unsupported with calibration not_measured; 2x2 graphless row does not cover it."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -2748,14 +2748,14 @@ references = [
 [[spec]]
 id = "P11.synthetic_control.temporal.frequentist"
 parent = "P11"
-gap = "validation"
+gap = "none"
 route = "quasi.synthetic_control"
 target = "SyntheticControl"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/synthetic_control_route.rs; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/synthetic_control_route.rs::synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty none (declared_and_corroborated)"
 provenance = [
-  "estimate.bayesian_synthetic_control",
+  "quasi.synthetic_control",
 ]
 api_review = "parity/public_api/antecedent-estimate.txt: 12 of 12 public items reviewed"
 identifying_result = "SyntheticControl"
@@ -2763,7 +2763,7 @@ assumptions = "Checked path crates/antecedent/src/analysis/execute/checked_synth
 sampling_units = "graphless balanced panel; method=Control|DifferenceInDifferences"
 estimator = "simplex donor weights: Deterministic simplex synthetic control shared by direct and retained routes."
 diagnostics = "execution_only point estimate; no support_graphless interval support"
-failure_policy = "Adjusted claim: conformal and placebo-variance intervals execute unsupported (routes quasi.synthetic_control_conformal, quasi.multi_unit_synthetic_placebo); no support_graphless interval support or coverage record."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3583,12 +3583,12 @@ references = [
 [[spec]]
 id = "P13.attribution.static.bayesian"
 parent = "P13"
-gap = "validation"
+gap = "none"
 route = "supported.AnomalyAttribution.Dag"
 target = "AnomalyAttribution"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/calibration_anomaly_bayesian.rs; consumer crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused; consumer crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target; uncertainty posterior (construction_fixture)"
 provenance = [
   "attribution.basic",
 ]
@@ -3598,7 +3598,7 @@ assumptions = "the identification premises of AnomalyAttribution on the recorded
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
 estimator = "gcm.fit.bayesian: Anomaly attribution via ancestor-noise Shapley (Budhathoki, Minorics, Bloebaum & Janzing 2022)."
 diagnostics = "no attribution interval; validation none"
-failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior). A non-finite target or reconstructed coalition value is an error, never a score of 0 (\"perfectly ordinary\")."
+failure_policy = "A non-finite target or reconstructed coalition value is an error, never a score of 0 (\"perfectly ordinary\")."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3608,12 +3608,12 @@ references = [
 [[spec]]
 id = "P13.attribution.temporal.frequentist"
 parent = "P13"
-gap = "validation"
+gap = "none"
 route = "supported.AnomalyAttribution.TemporalDag"
 target = "AnomalyAttribution"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_attribution_block_bootstrap.rs; consumer crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target; uncertainty posterior (asserted_in_test)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth; consumer crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target; uncertainty posterior (asserted_in_test)"
 provenance = [
   "attribution.basic",
 ]
@@ -3623,7 +3623,7 @@ assumptions = "Closed Admg/Cpdag/Pag/TemporalAdmg: engine has no lagged latent s
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
 estimator = "gcm.fit: Anomaly attribution via ancestor-noise Shapley (Budhathoki, Minorics, Bloebaum & Janzing 2022)."
 diagnostics = "temporal attribution has no native refuter and no interval"
-failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured. Identification is parametric (gcm.parametric); estimator gcm.fit. cheap/full, accepted, graph-posterior, and temporal class graphs remain refused. A declared independent-subject or clustered design refuses the block resample."
+failure_policy = "Identification is parametric (gcm.parametric); estimator gcm.fit. cheap/full, accepted, graph-posterior, and temporal class graphs remain refused. A declared independent-subject or clustered design refuses the block resample."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3633,7 +3633,7 @@ references = [
 [[spec]]
 id = "P13.attribution.temporal.bayesian"
 parent = "P13"
-gap = "validation"
+gap = "none"
 route = "supported.AnomalyAttribution.TemporalDag"
 target = "AnomalyAttribution"
 review_status = "admitted"
@@ -3648,7 +3648,7 @@ assumptions = "the identification premises of AnomalyAttribution on the recorded
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
 estimator = "gcm.fit.bayesian: Anomaly attribution via ancestor-noise Shapley (Budhathoki, Minorics, Bloebaum & Janzing 2022)."
 diagnostics = "no temporal Bayesian attribution interval"
-failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior). A non-finite target or reconstructed coalition value is an error, never a score of 0 (\"perfectly ordinary\")."
+failure_policy = "A non-finite target or reconstructed coalition value is an error, never a score of 0 (\"perfectly ordinary\")."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -4305,12 +4305,12 @@ references = [
 [[spec]]
 id = "P16.static.frequentist"
 parent = "P16"
-gap = "validation"
+gap = "none"
 route = "measurement.static.frequentist"
 target = "ComposedQuantity"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/composition_facade.rs; consumer crates/antecedent-design/src/composition_bundle.rs::consume; uncertainty analytic (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_interval_is_reported_with_its_calibration_at_its_coordinate; consumer crates/antecedent-design/src/composition_bundle.rs::consume; uncertainty analytic (declared_and_corroborated)"
 provenance = [
   "composition.multi_source",
 ]
@@ -4320,7 +4320,7 @@ assumptions = "Also crates/antecedent-contract/src/measurement.rs and crates/ant
 sampling_units = "declared measurement model (population, regime, arm, representation, error structure) prepared with StudyBuilder::measurement_model; binary sensitivity-specificity (Rogan-Gladen), categorical confusion matrix, classical linear moment, repeated measurements, continuous regression calibration and SIMEX"
 estimator = "composed interval: Composition facade: build, export and independently consume a portable composed result."
 diagnostics = "A reference node is never claimed replayed, a decision resting on an external mean is labelled point-only attested, and a decision that needs an aligned joint law is refused over an upstream mean-only claim."
-failure_policy = "Adjusted claim: no coverage record; composition rows are composition.static.frequentist."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -4330,12 +4330,12 @@ references = [
 [[spec]]
 id = "P16.static.bayesian"
 parent = "P16"
-gap = "validation"
+gap = "none"
 route = "measurement.static.bayesian"
 target = "ComposedQuantity"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/composition_facade.rs; consumer crates/antecedent-design/src/composition_bundle.rs::consume; uncertainty posterior (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/joint_law_propagation_facade.rs::an_aligned_nonlinear_functional_matches_the_joint_moment_truth; consumer crates/antecedent-design/src/composition_bundle.rs::consume; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "composition.multi_source",
 ]
@@ -4345,7 +4345,7 @@ assumptions = "A BundleBuilder collects the parts of a composed decision as node
 sampling_units = "external latent posterior of the construct bound to its source snapshot, combined with the linear outcome functional"
 estimator = "composed posterior: Composition facade: build, export and independently consume a portable composed result."
 diagnostics = "A reference node is never claimed replayed, a decision resting on an external mean is labelled point-only attested, and a decision that needs an aligned joint law is refused over an upstream mean-only claim."
-failure_policy = "Adjusted claim: posterior composition is not validated as a route; rows measurement.static.bayesian and composition.static.bayesian."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -4355,12 +4355,12 @@ references = [
 [[spec]]
 id = "P16.temporal.frequentist"
 parent = "P16"
-gap = "validation"
+gap = "none"
 route = "measurement.temporal.frequentist"
 target = "MeasurementCorrectedFunctional"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/temporal_design_routes.rs; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty analytic (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/temporal_design_routes.rs::supported_misclassified_two_arm_interval_round_trips_and_refuses_forgery; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty analytic (declared_and_corroborated)"
 provenance = [
   "measurement.binary_misclassification",
 ]
@@ -4370,7 +4370,7 @@ assumptions = "X05 experimental bridges are a separate later-release candidate."
 sampling_units = "sequentially randomized unit-period panel (two-arm, multi-arm, categorical, factorial or interference design) with a misclassified binary outcome and an independent validation sample of sensitivity and specificity"
 estimator = "misclassification-corrected excursion with validation delta method: Excursion contrasts of a misclassified binary outcome."
 diagnostics = "A Youden index J near zero leaves the true outcome unidentified, and the correction refuses it."
-failure_policy = "Adjusted claim: temporal composition executes over the joint block-bootstrap replicates the compiled temporal response retains under StudyBuilder::retain_joint_horizons (composition.temporal.frequentist, a horizon-indexed composed coordinate, linear and nonlinear); the composed interval is closed until a coverage record is measured at the coordinate."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -4381,12 +4381,12 @@ references = [
 [[spec]]
 id = "P16.temporal.bayesian"
 parent = "P16"
-gap = "validation"
+gap = "none"
 route = "measurement.temporal.bayesian"
 target = "MeasurementCorrectedFunctional"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/temporal_design_routes.rs; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty posterior (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/temporal_design_routes.rs::supported_misclassified_two_arm_posterior_round_trips_and_refuses_forgery; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "measurement.binary_misclassification",
 ]
@@ -4396,7 +4396,7 @@ assumptions = "the identification premises of MeasurementCorrectedFunctional on 
 sampling_units = "sequentially randomized unit-period panel with a misclassified binary outcome and an independent validation sample"
 estimator = "Bayesian bootstrap with Beta validation draws: Excursion contrasts of a misclassified binary outcome."
 diagnostics = "A Youden index J near zero leaves the true outcome unidentified, and the correction refuses it."
-failure_policy = "Adjusted claim: temporal Bayesian composition executes over the joint block-weight draws the compiled temporal response retains under StudyBuilder::retain_joint_horizons (composition.temporal.bayesian); the composed posterior statement is closed until calibrated at the coordinate."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -5225,7 +5225,7 @@ references = [
 [[spec]]
 id = "X04.1.static.frequentist"
 parent = "X04.1"
-gap = "validation"
+gap = "none"
 route = "gcm.model.intervention_programs"
 target = "PolicyProgramValue"
 review_status = "admitted"
@@ -5240,7 +5240,7 @@ assumptions = "Controllable variables, permissible schedules, bounds, resource l
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source.: Exhaustive bounded program search over checked response quantities."
 diagnostics = "This owner checks operational feasibility and delegates every statistical functional to the existing decision engine. Failed or unsupported source coordinates refuse a complete certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5279,7 +5279,7 @@ references = [
 [[spec]]
 id = "X04.1.static.bayesian"
 parent = "X04.1"
-gap = "validation"
+gap = "none"
 route = "gcm.model.intervention_programs"
 target = "PolicyProgramValue"
 review_status = "admitted"
@@ -5294,7 +5294,7 @@ assumptions = "Controllable variables, permissible schedules, bounds, resource l
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source.: Exhaustive bounded program search over checked response quantities."
 diagnostics = "This owner checks operational feasibility and delegates every statistical functional to the existing decision engine. Failed or unsupported source coordinates refuse a complete certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5333,7 +5333,7 @@ references = [
 [[spec]]
 id = "X04.1.temporal.frequentist"
 parent = "X04.1"
-gap = "validation"
+gap = "none"
 route = "gcm.model.intervention_programs"
 target = "PolicyProgramValue"
 review_status = "admitted"
@@ -5348,7 +5348,7 @@ assumptions = "Controllable variables, permissible schedules, bounds, resource l
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source.: Exhaustive bounded program search over checked response quantities."
 diagnostics = "This owner checks operational feasibility and delegates every statistical functional to the existing decision engine. Failed or unsupported source coordinates refuse a complete certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5387,7 +5387,7 @@ references = [
 [[spec]]
 id = "X04.1.temporal.bayesian"
 parent = "X04.1"
-gap = "validation"
+gap = "none"
 route = "gcm.model.intervention_programs"
 target = "PolicyProgramValue"
 review_status = "admitted"
@@ -5402,7 +5402,7 @@ assumptions = "Controllable variables, permissible schedules, bounds, resource l
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source.: Exhaustive bounded program search over checked response quantities."
 diagnostics = "This owner checks operational feasibility and delegates every statistical functional to the existing decision engine. Failed or unsupported source coordinates refuse a complete certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
