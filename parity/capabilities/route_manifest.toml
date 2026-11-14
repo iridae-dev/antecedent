@@ -3132,6 +3132,7 @@ capability_record = "measurement.model_contract"
 capability_claim = "interval"
 owning_module = "crates/antecedent-estimate/src/measurement_transport_pooled.rs"
 notes = "transport_pooled_differential_prevalence, re-exported by crates/antecedent/src/analysis/transported_measurement.rs. Propagates the uncertainty of the invariance premise (a between-population variance of zero is the invariant special case) and pools differential error instead of refusing it. Fewer than two sources, or more than five percent of draws with a non-positive Youden index, refuse with differential_error_not_pooled naming target validation as the next attempt; with two or three heterogeneous sources and no target validation the interval is close to [0, 1]. Independent check: crates/antecedent/tests/transported_measurement_facade.rs::pooled_differential_rates_equal_the_two_population_paule_mandel_closed_form. Python: antecedent.measurement_models.transport_pooled_differential. Support unit (status capability): capability record measurement.model_contract, whose pooled route is mapped to the three measurement_pooled_differential coverage groups in parity/calibration_routes.toml; the groups are registered and not yet measured, and the record itself lists the pooled interval as implemented, not measured. No sealed operation, no support-matrix cell."
+counterpart_design = "static"
 
 [[route]]
 id = "composition.static.frequentist"
@@ -16559,7 +16560,7 @@ validations = []
 coordinates = 0
 uncertainty = "posterior"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "estimator_records|estimator:bayesian.gcomp:Bayesian:static:explicit"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
@@ -17826,7 +17827,7 @@ owning_module = "crates/antecedent/src/analysis/execute/checked_attribution.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_attribution.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/fitted_model_support_routes.rs::a_row_weight_change_posterior_runs_retained_and_states_its_measured_scope"]
-artifact_consumer = []
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
 
 [[method]]
 id = "method.gcm.attribute.temporal.frequentist"
@@ -17993,7 +17994,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_panel_did.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_panel_did.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/rollout_design_support_rows.rs::supported_augmented_panel_interval_round_trips_and_refuses_forgery", "crates/antecedent/tests/augmented_panel_did_route.rs::augmented_panel_did_retains_known_truth_and_point_only_semantics"]
+evidence = ["crates/antecedent/tests/rollout_design_support_rows.rs::supported_augmented_panel_interval_round_trips_and_refuses_forgery", "crates/antecedent/tests/augmented_panel_did_route.rs", "crates/antecedent/tests/augmented_panel_did_route.rs::augmented_panel_did_retains_known_truth_and_point_only_semantics"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/rollout_design_support_rows.rs::supported_augmented_panel_interval_round_trips_and_refuses_forgery"]
 
 [[method]]
@@ -18217,7 +18218,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_panel_did/bayesian.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_panel_did/bayesian.rs"]
 provenance = ["estimate.bayesian_panel_did", "estimate.bayesian_panel_did"]
-evidence = ["crates/antecedent/tests/rollout_design_support_rows.rs::supported_two_period_posterior_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/rollout_design_support_rows.rs::supported_two_period_posterior_round_trips_and_refuses_forgery", "crates/antecedent/tests/bayesian_design_routes.rs::panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared", "crates/antecedent/tests/augmented_panel_did_bayesian.rs::the_bayesian_augmented_panel_posterior_matches_the_arm_regression_reference_and_the_truth", "crates/antecedent-estimate/src/bayesian_staggered_event_study/tests.rs::event_time_posteriors_match_the_analytic_group_coefficient_posterior"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/rollout_design_support_rows.rs::supported_two_period_posterior_round_trips_and_refuses_forgery"]
 
 [[method]]
@@ -18245,7 +18246,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_synthetic_control/bayesian.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_synthetic_control/bayesian.rs"]
 provenance = ["estimate.bayesian_synthetic_control", "estimate.bayesian_synthetic_control"]
-evidence = ["crates/antecedent/tests/rollout_design_support_rows.rs::supported_synthetic_posterior_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/rollout_design_support_rows.rs::supported_synthetic_posterior_round_trips_and_refuses_forgery", "crates/antecedent/tests/bayesian_design_routes.rs::synthetic_control_posterior_recovers_the_effect_and_records_convergence"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/rollout_design_support_rows.rs::supported_synthetic_posterior_round_trips_and_refuses_forgery"]
 
 [[method]]
@@ -18273,7 +18274,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/bayesian.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/bayesian.rs"]
 provenance = ["estimate.bayesian_local_ratio", "estimate.bayesian_local_ratio"]
-evidence = ["crates/antecedent/tests/local_design_support_routes.rs::supported_bayesian_fuzzy_rd_posterior_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/local_design_support_routes.rs::supported_bayesian_fuzzy_rd_posterior_round_trips_and_refuses_forgery", "crates/antecedent/tests/bayesian_design_routes.rs::local_ratio_recovers_the_known_ratio_and_withholds_the_interval_when_weak"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/local_design_support_routes.rs::supported_bayesian_fuzzy_rd_posterior_round_trips_and_refuses_forgery"]
 
 [[method]]
@@ -18323,7 +18324,7 @@ validations = []
 coordinates = 0
 uncertainty = "posterior"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "estimator_records|estimator:bayesian.temporal.white_innovation_linear:Bayesian:temporal:explicit"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/temporal_effect_core.rs"
@@ -18351,7 +18352,7 @@ validations = []
 coordinates = 0
 uncertainty = "analytic"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "estimator_records|estimator:temporal.glm_link_contrast:Frequentist:temporal:explicit"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/panel_link_path.rs"
@@ -18379,7 +18380,7 @@ validations = []
 coordinates = 0
 uncertainty = "posterior"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "estimator_records|estimator:bayesian.temporal.glm_link_contrast:Bayesian:temporal:explicit"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/panel_link_path.rs"
@@ -18407,7 +18408,7 @@ validations = []
 coordinates = 0
 uncertainty = "analytic"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "estimator_records|estimator:temporal.lagged_instrument:Frequentist:temporal:explicit"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/temporal_iv_path.rs"
@@ -18435,7 +18436,7 @@ validations = []
 coordinates = 0
 uncertainty = "posterior"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "estimator_records|estimator:bayesian.temporal.lagged_instrument:Bayesian:temporal:explicit"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/temporal_iv_path.rs"
@@ -18469,7 +18470,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_policy.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_randomized/bayesian_policy.rs"]
 provenance = ["estimate.bayesian_binary_policy_value", "estimate.bayesian_binary_policy_value"]
-evidence = ["crates/antecedent/tests/temporal_route_support_rows.rs::supported_binary_policy_posterior_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/temporal_route_support_rows.rs::supported_binary_policy_posterior_round_trips_and_refuses_forgery", "crates/antecedent/tests/bayesian_policy_regime_routes.rs::binary_policy_posterior_runs_through_the_study_flow_and_matches_hand_scores"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_route_support_rows.rs::supported_binary_policy_posterior_round_trips_and_refuses_forgery"]
 
 [[method]]
@@ -18497,7 +18498,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_longitudinal_regime/bayesian_regime.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_longitudinal_regime/bayesian_regime.rs"]
 provenance = ["estimate.bayesian_sequential_regime_value", "estimate.bayesian_sequential_regime_value"]
-evidence = ["crates/antecedent/tests/temporal_route_support_rows.rs::supported_sequential_regime_posterior_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/temporal_route_support_rows.rs::supported_sequential_regime_posterior_round_trips_and_refuses_forgery", "crates/antecedent/tests/bayesian_policy_regime_routes.rs::sequential_regime_posterior_runs_through_the_study_flow_and_matches_hand_scores"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_route_support_rows.rs::supported_sequential_regime_posterior_round_trips_and_refuses_forgery"]
 
 [[method]]
@@ -18525,7 +18526,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_sequential_contrast.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_sequential_contrast.rs"]
 provenance = ["estimate.sequential_crossfit_contrast_wald", "estimate.sequential_crossfit_contrast_wald"]
-evidence = ["crates/antecedent/tests/temporal_route_support_rows.rs::supported_sequential_contrast_wald_interval_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/temporal_route_support_rows.rs::supported_sequential_contrast_wald_interval_round_trips_and_refuses_forgery", "crates/antecedent/tests/unsupported_design_routes.rs::sequential_contrast_wald_matches_the_pinned_reference_and_round_trips"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_route_support_rows.rs::supported_sequential_contrast_wald_interval_round_trips_and_refuses_forgery"]
 
 [[method]]
@@ -18553,7 +18554,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_sequential_contrast.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_sequential_contrast.rs"]
 provenance = ["estimate.bayesian_sequential_crossfit_contrast", "estimate.bayesian_sequential_crossfit_contrast"]
-evidence = ["crates/antecedent/tests/temporal_route_support_rows.rs::supported_sequential_contrast_posterior_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/temporal_route_support_rows.rs::supported_sequential_contrast_posterior_round_trips_and_refuses_forgery", "crates/antecedent/tests/unsupported_design_routes.rs::sequential_contrast_posterior_is_the_modular_dirichlet_posterior"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_route_support_rows.rs::supported_sequential_contrast_posterior_round_trips_and_refuses_forgery"]
 
 [[method]]
@@ -18581,7 +18582,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_history_match.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_history_match.rs"]
 provenance = ["estimate.period_history_matching", "estimate.period_history_matching"]
-evidence = ["crates/antecedent/tests/temporal_route_support_rows.rs::supported_period_history_interval_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/temporal_route_support_rows.rs::supported_period_history_interval_round_trips_and_refuses_forgery", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::the_serial_interval_equals_the_period_series_long_run_variance_of_the_matched_pairs", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::a_three_period_hand_case_pins_the_newey_west_arithmetic", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::a_missing_period_does_not_invent_an_adjacency"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/temporal_route_support_rows.rs::supported_period_history_interval_round_trips_and_refuses_forgery"]
 
 [[method]]
@@ -18805,8 +18806,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"]
 provenance = ["estimate.bayesian_randomized_arm_contrast", "estimate.bayesian_randomized_arm_contrast"]
-evidence = ["crates/antecedent/tests/bayesian_design_support_rows.rs::supported_finite_population_posterior_round_trips_and_refuses_forgery"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/bayesian_design_support_rows.rs::supported_finite_population_posterior_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/bayesian_design_support_rows.rs::supported_finite_population_posterior_round_trips_and_refuses_forgery", "crates/antecedent/tests/bayesian_randomized_routes.rs::the_default_bayesian_route_is_the_finite_population_posterior_of_the_design_based_target"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/bayesian_randomized_routes.rs::the_default_bayesian_route_is_the_finite_population_posterior_of_the_design_based_target"]
 
 [[method]]
 id = "method.bayesian.randomized_superpopulation"
@@ -18833,8 +18834,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"]
 provenance = ["estimate.bayesian_randomized_arm_contrast", "estimate.bayesian_randomized_arm_contrast"]
-evidence = ["crates/antecedent/tests/bayesian_design_support_rows.rs::supported_superpopulation_posterior_round_trips_and_refuses_forgery"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/bayesian_design_support_rows.rs::supported_superpopulation_posterior_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/bayesian_design_support_rows.rs::supported_superpopulation_posterior_round_trips_and_refuses_forgery", "crates/antecedent/tests/bayesian_randomized_routes.rs::many_arms_report_every_arm_against_the_reference", "crates/antecedent/tests/bayesian_randomized_routes.rs::the_factorial_main_effects_and_interaction_match_the_exact_moments"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/bayesian_randomized_routes.rs::many_arms_report_every_arm_against_the_reference"]
 
 [[method]]
 id = "method.bayesian.switchback_effect"
@@ -18861,8 +18862,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"]
 provenance = ["estimate.bayesian_switchback_effect", "estimate.bayesian_switchback_effect"]
-evidence = ["crates/antecedent/tests/bayesian_design_support_rows.rs::supported_switchback_posterior_round_trips_and_refuses_forgery"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/bayesian_design_support_rows.rs::supported_switchback_posterior_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/bayesian_design_support_rows.rs::supported_switchback_posterior_round_trips_and_refuses_forgery", "crates/antecedent/tests/bayesian_randomized_routes.rs::the_switchback_posterior_matches_the_whitened_least_squares_reference"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/bayesian_randomized_routes.rs::the_switchback_posterior_matches_the_whitened_least_squares_reference"]
 
 [[method]]
 id = "method.bayesian.piecewise_survival"
@@ -18889,8 +18890,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_survival.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_survival.rs"]
 provenance = ["estimate.bayesian_piecewise_survival", "estimate.bayesian_piecewise_survival"]
-evidence = ["crates/antecedent/tests/bayesian_design_support_rows.rs::supported_piecewise_survival_posterior_round_trips_and_refuses_forgery"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/bayesian_design_support_rows.rs::supported_piecewise_survival_posterior_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/bayesian_design_support_rows.rs::supported_piecewise_survival_posterior_round_trips_and_refuses_forgery", "crates/antecedent/tests/bayesian_design_posterior_routes.rs::survival_posterior_matches_the_gamma_hazard_reference_and_keeps_joint_draws"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/bayesian_design_posterior_routes.rs::survival_posterior_matches_the_gamma_hazard_reference_and_keeps_joint_draws"]
 
 [[method]]
 id = "method.bayesian.continuous_dose_policy"
@@ -18917,8 +18918,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_continuous_dose.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_continuous_dose.rs"]
 provenance = ["estimate.bayesian_continuous_dose_policy", "estimate.bayesian_continuous_dose_policy"]
-evidence = ["crates/antecedent/tests/bayesian_design_support_rows.rs::supported_dose_policy_posterior_round_trips_and_refuses_forgery"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/bayesian_design_support_rows.rs::supported_dose_policy_posterior_round_trips_and_refuses_forgery"]
+evidence = ["crates/antecedent/tests/bayesian_design_support_rows.rs::supported_dose_policy_posterior_round_trips_and_refuses_forgery", "crates/antecedent/tests/bayesian_design_posterior_routes.rs::dose_policy_posterior_matches_the_per_group_conjugate_reference"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/bayesian_design_posterior_routes.rs::dose_policy_posterior_matches_the_per_group_conjugate_reference"]
 
 [[method]]
 id = "method.bayesian.randomized_quantile"
@@ -18939,7 +18940,7 @@ validations = []
 coordinates = 0
 uncertainty = "posterior"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "estimator_records|estimator:bayesian.randomized_quantile:Bayesian:static:explicit"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/bayesian_quantile_path.rs"
@@ -20377,62 +20378,6 @@ evidence = ["crates/antecedent/tests/repeated_measures_posterior_facade.rs::the_
 artifact_consumer = ["crates/antecedent/src/analysis/repeated_measures_posterior_report.rs::load_repeated_measures_posterior_report", "crates/antecedent/tests/repeated_measures_posterior_facade.rs"]
 
 [[method]]
-id = "method.augmented_panel_did.temporal.frequentist"
-kind = "facade_method"
-route = "unlisted"
-child = "P11.augmented_panel_did.temporal.frequentist"
-target = "AugmentedPanelAtt"
-graph_class = "unlisted"
-design = "temporal"
-estimator = "unlisted"
-identifier = []
-lowering = []
-inference = "frequentist"
-design_time_model = "unlisted"
-status = "execution_only"
-structures = []
-validations = []
-coordinates = 0
-uncertainty = "design_aware_resampling"
-uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
-uncertainty_by_structure = []
-decision_ports = "unlisted"
-owning_module = "crates/antecedent-estimate/src/augmented_panel_did.rs"
-implementation = ["crates/antecedent-estimate/src/augmented_panel_did.rs"]
-provenance = []
-evidence = ["crates/antecedent/tests/augmented_panel_did_route.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/augmented_panel_did_route.rs"]
-
-[[method]]
-id = "method.bayesian_staggered_event_study.temporal.bayesian"
-kind = "facade_method"
-route = "unlisted"
-child = "P11.staggered.temporal.bayesian"
-target = "difference_in_differences"
-graph_class = "unlisted"
-design = "temporal"
-estimator = "unlisted"
-identifier = []
-lowering = []
-inference = "bayesian"
-design_time_model = "unlisted"
-status = "execution_only"
-structures = []
-validations = []
-coordinates = 0
-uncertainty = "posterior"
-uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
-uncertainty_by_structure = []
-decision_ports = "unlisted"
-owning_module = "crates/antecedent-estimate/src/bayesian_staggered_event_study.rs"
-implementation = ["crates/antecedent-estimate/src/bayesian_staggered_event_study.rs"]
-provenance = []
-evidence = ["crates/antecedent-estimate/src/bayesian_staggered_event_study/tests.rs::event_time_posteriors_match_the_analytic_group_coefficient_posterior"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/bayesian_design_routes.rs"]
-
-[[method]]
 id = "method.target_native.static.frequentist"
 kind = "facade_method"
 route = "unlisted"
@@ -21437,7 +21382,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/joint_panel.rs"
 implementation = ["crates/antecedent/src/analysis/joint_panel.rs"]
 provenance = []
-evidence = ["conformance/response/joint_panel", "scripts/test_joint_panel_reference.py", "crates/antecedent/tests/joint_panel_workflow.rs", "parity/fixtures/joint_panel_procedures.toml"]
+evidence = ["crates/antecedent/tests/joint_panel_workflow.rs", "conformance/response/joint_panel", "scripts/test_joint_panel_reference.py", "parity/fixtures/joint_panel_procedures.toml"]
 artifact_consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit", "crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"]
 
 [[method]]
@@ -21465,6 +21410,6 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/joint_panel.rs"
 implementation = ["crates/antecedent/src/analysis/joint_panel.rs"]
 provenance = []
-evidence = ["conformance/response/joint_panel", "scripts/test_joint_panel_reference.py", "crates/antecedent/tests/joint_panel_workflow.rs", "parity/fixtures/joint_panel_procedures.toml"]
+evidence = ["crates/antecedent/tests/joint_panel_workflow.rs", "conformance/response/joint_panel", "scripts/test_joint_panel_reference.py", "parity/fixtures/joint_panel_procedures.toml"]
 artifact_consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit", "crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"]
 

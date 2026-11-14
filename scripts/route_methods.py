@@ -41,7 +41,7 @@ from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
 import provenance_links  # noqa: E402
-from route_closure import owns_method_record  # noqa: E402
+from route_closure import is_estimator_route, owns_method_record, route_estimator  # noqa: E402
 from method_evidence import (  # noqa: E402
     INTERVAL_KIND,
     INTERVAL_REF,
@@ -428,6 +428,11 @@ CONSUMER_OVERRIDE = {
         ANALYSIS_CONSUME,
         T
         + "checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused",
+    ],
+    "gcm.attribute.bayesian": [
+        ANALYSIS_CONSUME,
+        T
+        + "checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused",
     ],
     "attribution.mechanism_change_detection": [
         ANALYSIS_CONSUME,
@@ -896,7 +901,40 @@ def implementation_files(src: Sources, estimator: str, variant: str) -> list[str
     return [rel for _, rel in hits[:3]]
 
 
-def route_methods(src: Sources) -> list[dict]:
+def estimator_route_uncertainty(
+    route: dict, supported: list[dict], declared: str
+) -> tuple[str, str] | None:
+    """The uncertainty of a supported estimator route, from the estimator's own cell records.
+
+    Such a route describes one estimator of support-matrix cells, so its procedure is the one a
+    construction fixture stands behind on a cell of the route's graph class and inference side.
+    Returns the kind with an `estimator_records` basis naming that record, or None when no cell
+    record of the estimator constructs the declared kind.
+    """
+    if not is_estimator_route(route):
+        return None
+    estimator = route_estimator(route, {m["estimator"] for m in supported})
+    side = route["inference"].split(",")[0].split(";")[0].strip()
+    for method in supported:
+        if (
+            method["estimator"] != estimator
+            or method["graph_class"] != route["graph_class"]
+            or method["inference"] != side.lower()
+        ):
+            continue
+        for entry in method["uncertainty_by_structure"]:
+            structure, _, rest = entry.partition("=")
+            kinds, label = (rest.split("|") + [""])[:2]
+            if label == "construction_fixture" and declared in kinds.split(","):
+                design = design_of(route["graph_class"])
+                return (
+                    declared,
+                    f"estimator_records|estimator:{estimator}:{side}:{design}:{structure}",
+                )
+    return None
+
+
+def route_methods(src: Sources, supported: list[dict] | None = None) -> list[dict]:
     ev = src.ev
     by_route: dict[str, list[dict]] = defaultdict(list)
     for child in src.children:
@@ -957,7 +995,9 @@ def route_methods(src: Sources) -> list[dict]:
                 uncertainty = GRAPHLESS_CLAIM_KIND[match[0]["inference_claim"]]
                 basis = f"graphless_claim:{match[0]['inference_claim']}"
         elif rid in DECLARED_KIND:
-            uncertainty, basis = DECLARED_KIND[rid], "declared_and_corroborated"
+            uncertainty, basis = estimator_route_uncertainty(
+                route, supported or [], DECLARED_KIND[rid]
+            ) or (DECLARED_KIND[rid], "declared_and_corroborated")
         info = src.estimators.get(estimator)
         override = CONSUMER_OVERRIDE.get(rid, [])
         methods.append(
@@ -1119,7 +1159,8 @@ def render(methods: list[dict]) -> str:
 
 
 def build(src: Sources) -> list[dict]:
-    methods = supported_methods(src) + route_methods(src)
+    supported = supported_methods(src)
+    methods = supported + route_methods(src, supported)
     return methods + facade_methods(src, methods)
 
 
@@ -1178,11 +1219,11 @@ def verify(src: Sources, methods: list[dict]) -> list[str]:
             out.extend(f"{mid}: {p}" for p in ev.consumer_findings(token))
         if consumer and not any(not ev.is_test_path(ev.split(t)[0]) for t in consumer):
             out.append(f"{mid}: every consumer is a test")
-        out.extend(verify_uncertainty(src, m))
+        out.extend(verify_uncertainty(src, m, methods))
     return out
 
 
-def verify_uncertainty(src: Sources, m: dict) -> list[str]:
+def verify_uncertainty(src: Sources, m: dict, methods: list[dict] | None = None) -> list[str]:
     ev = src.ev
     mid = m["id"]
     kind, basis = m["uncertainty"], m["uncertainty_basis"]
@@ -1228,6 +1269,20 @@ def verify_uncertainty(src: Sources, m: dict) -> list[str]:
         claim = label.removeprefix("graphless_claim:")
         if GRAPHLESS_CLAIM_KIND.get(claim) != kind:
             return [f"{mid}: graphless claim {claim} is not a {kind} procedure"]
+        return []
+    if label == "estimator_records":
+        route = src.routes.get(m["route"])
+        supported = [x for x in methods or [] if x["kind"] == "supported_estimator"]
+        derived = (
+            estimator_route_uncertainty(route, supported, DECLARED_KIND.get(m["route"], ""))
+            if route
+            else None
+        )
+        if derived != (kind, basis):
+            return [
+                f"{mid}: no cell record of the route's estimator constructs {kind} on a "
+                f"{m['graph_class']} {m['inference']} cell"
+            ]
         return []
     if label != "declared_and_corroborated":
         return [f"{mid}: uncertainty basis {label!r} is outside the vocabulary"]
