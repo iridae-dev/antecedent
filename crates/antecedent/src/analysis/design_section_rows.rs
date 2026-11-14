@@ -131,6 +131,26 @@ pub(crate) fn association_slope_row(query: &AssociationQuery, fit: &AssociationE
     )
 }
 
+/// Prior scale the conjugate slope row was measured with: the built-in scale.
+pub(crate) const CONJUGATE_SLOPE_ROW_PRIOR_SCALE: f64 = 10.0;
+
+/// Whether a fit's prior is the one its association row was measured with. Only the conjugate
+/// Normal-Inverse-Gamma posterior reads the prior scale: its row was measured at the built-in
+/// scale [`CONJUGATE_SLOPE_ROW_PRIOR_SCALE`], and a fit at any other scale states no row, however
+/// little that prior moves the slope. `prior_scale` is the scale of the study's Bayesian
+/// inference, absent under frequentist inference. The stored result does not carry the scale,
+/// so this condition is the executor's alone; the artifact check keeps the bound on the
+/// prior's pull that [`association_slope_row`] also applies.
+pub(crate) fn conjugate_slope_row_prior(
+    prior_scale: Option<f64>,
+    fit: &AssociationEstimate,
+) -> bool {
+    let conjugate =
+        fit.posterior.is_some_and(|record| record.method == "conjugate_normal_inverse_gamma");
+    !conjugate
+        || prior_scale.is_some_and(|scale| (scale - CONJUGATE_SLOPE_ROW_PRIOR_SCALE).abs() <= 1e-9)
+}
+
 /// Whether the fit runs under a row of the graphless support table. The key and the observed
 /// support are read from the query and the published estimate alone, so the artifact check
 /// recomputes the same answer. Rows and resamples are thresholds of the row; the measured
