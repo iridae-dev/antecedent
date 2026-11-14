@@ -192,7 +192,8 @@ pub enum CorrectionMethod {
 }
 
 impl CorrectionMethod {
-    /// SIMEX on the default grid `0.5, 1, 1.5, 2` with a quadratic extrapolant.
+    /// SIMEX on the default grid `0.5, 1, 1.5, 2` with the extrapolant chosen by the outcome
+    /// link: rational for a linear outcome model (exact for it), quadratic for a logistic one.
     #[must_use]
     pub fn default_simex() -> Self {
         let config = SimexConfig::default();
@@ -203,16 +204,18 @@ impl CorrectionMethod {
         }
     }
 
-    /// SIMEX on the default grid with the rational extrapolant, which is exact for a linear
-    /// outcome model under classical error (the quadratic default is biased there).
-    #[must_use]
-    pub fn rational_simex() -> Self {
-        let config = SimexConfig::default();
-        Self::Simex {
-            lambdas: config.lambdas,
-            replicates: config.replicates,
-            extrapolant: SimexExtrapolant::Rational,
-        }
+    /// Whether an explicitly chosen extrapolant is known to be biased for a linear outcome model
+    /// under classical error, whose path is exactly rational: a polynomial then leaves a bias
+    /// that no variance of the procedure accounts for, so no interval is published for it.
+    fn extrapolant_biased_for(&self, link: OutcomeLink) -> bool {
+        matches!(link, OutcomeLink::Identity)
+            && matches!(
+                self,
+                Self::Simex {
+                    extrapolant: SimexExtrapolant::Linear | SimexExtrapolant::Quadratic,
+                    ..
+                }
+            )
     }
 
     fn simex_config(&self) -> Option<SimexConfig> {
@@ -1034,7 +1037,9 @@ fn bootstrapped(
         functional_id: &functional_id,
         point: point.coefficients[index],
         naive_point: Some(point.naive[index]),
-        variance: Some(total),
+        // A polynomial extrapolant of a linear model's exactly rational path is biased; the
+        // point is returned and the interval is withheld (`route_not_supported`).
+        variance: (!spec.method.extrapolant_biased_for(spec.link)).then_some(total),
         components,
         rows: cols.n as u64,
         data_identity: data_identity(cols),

@@ -582,6 +582,8 @@ fn parse_continuous_method(value: &Json) -> PyResult<CorrectionMethod> {
             extrapolant: match text(map, "extrapolant")?.as_str() {
                 "linear" => SimexExtrapolant::Linear,
                 "quadratic" => SimexExtrapolant::Quadratic,
+                "rational" => SimexExtrapolant::Rational,
+                "automatic" => SimexExtrapolant::Automatic,
                 other => {
                     return Err(crate::value_err(format!("unknown SIMEX extrapolant `{other}`")));
                 }

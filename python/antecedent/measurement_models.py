@@ -917,7 +917,7 @@ class LatentPosteriorData:
 _LOCATIONS = ("treatment", "covariate", "outcome")
 _LINKS = ("identity", "logit")
 _METHODS = ("regression_calibration", "simex")
-_EXTRAPOLANTS = ("quadratic", "linear")
+_EXTRAPOLANTS = ("automatic", "quadratic", "linear", "rational")
 
 
 @dataclass(frozen=True, slots=True)
@@ -934,8 +934,10 @@ class ContinuousErrorData:
 
     ``link`` is ``"identity"`` (linear) or ``"logit"`` (0/1 outcome). ``method`` is
     ``"regression_calibration"`` or ``"simex"`` (grid ``simex_lambdas`` plus ``0``,
-    ``simex_replicates`` remeasurements per value, ``"quadratic"`` or ``"linear"``
-    ``extrapolant``). Logistic calibration and SIMEX report a bootstrap standard error over
+    ``simex_replicates`` remeasurements per value, ``extrapolant`` ``"automatic"`` (rational for
+    ``"identity"``, quadratic for ``"logit"``), ``"rational"``, ``"quadratic"`` or ``"linear"``; a
+    quadratic or linear choice on an identity link returns the point without an interval).
+    Logistic calibration and SIMEX report a bootstrap standard error over
     ``bootstrap_replicates`` (at least 50) resamples of the whole procedure, keyed by ``seed``.
 
     Logistic regression calibration is a first-order approximation and SIMEX retains
@@ -955,7 +957,7 @@ class ContinuousErrorData:
     method: str = "regression_calibration"
     simex_lambdas: tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
     simex_replicates: int = 50
-    extrapolant: str = "quadratic"
+    extrapolant: str = "automatic"
     bootstrap_replicates: int = 200
     seed: int = 0
 

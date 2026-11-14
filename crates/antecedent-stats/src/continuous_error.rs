@@ -27,7 +27,8 @@
 //! [`simex`] (Cook and Stefanski 1994, doi:10.1080/01621459.1994.10476871)
 //! adds further error of variance `lambda sigma_u^2 / k_i` to each row, refits
 //! the outcome model `B` times per `lambda`, averages the coefficients, fits
-//! the averages as a function of `lambda` (quadratic by default, linear, or rational) by
+//! the averages as a function of `lambda` (rational for a linear model and quadratic for a logistic one by default, or an explicit
+//! linear, quadratic or rational choice) by
 //! least squares over the grid including `lambda = 0`, and evaluates the fit
 //! at `lambda = -1`, the error-free point. The extrapolant is an
 //! approximation: for a linear model the exact curve is rational in `lambda`,
@@ -89,14 +90,28 @@ impl OutcomeFamily {
 pub enum SimexExtrapolant {
     /// `a + b lambda`.
     Linear,
-    /// `a + b lambda + c lambda^2` (the default).
+    /// `a + b lambda + c lambda^2`.
     Quadratic,
     /// `b + k / (c + lambda)` with `c > 1`: the exact path of a linear outcome model under
     /// classical error, fitted by least squares over the grid.
     Rational,
+    /// The default: [`Self::Rational`] for a linear outcome model, whose path it fits exactly, and
+    /// [`Self::Quadratic`] for a logistic one, whose path has no closed form. A fit reports the
+    /// extrapolant it resolved to, never this variant.
+    Automatic,
 }
 
 impl SimexExtrapolant {
+    /// The extrapolant a fit of `family` uses: itself unless [`Self::Automatic`].
+    #[must_use]
+    pub const fn resolve(self, family: OutcomeFamily) -> Self {
+        match (self, family) {
+            (Self::Automatic, OutcomeFamily::Linear) => Self::Rational,
+            (Self::Automatic, OutcomeFamily::Logistic) => Self::Quadratic,
+            (explicit, _) => explicit,
+        }
+    }
+
     /// Stable `snake_case` name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -104,13 +119,14 @@ impl SimexExtrapolant {
             Self::Linear => "linear",
             Self::Quadratic => "quadratic",
             Self::Rational => "rational",
+            Self::Automatic => "automatic",
         }
     }
 
     const fn width(self) -> usize {
         match self {
             Self::Linear => 2,
-            Self::Quadratic | Self::Rational => 3,
+            Self::Quadratic | Self::Rational | Self::Automatic => 3,
         }
     }
 }
@@ -131,7 +147,7 @@ impl Default for SimexConfig {
         Self {
             lambdas: DEFAULT_SIMEX_LAMBDAS.to_vec(),
             replicates: DEFAULT_SIMEX_REPLICATES,
-            extrapolant: SimexExtrapolant::Quadratic,
+            extrapolant: SimexExtrapolant::Automatic,
         }
     }
 }
@@ -659,7 +675,8 @@ pub fn simex(
         lambdas.push(lambda);
         lambda_means.push(sum.into_iter().map(|s| s / replicates).collect());
     }
-    let coefficients = match config.extrapolant {
+    let extrapolant = config.extrapolant.resolve(family);
+    let coefficients = match extrapolant {
         SimexExtrapolant::Rational => extrapolate_rational(&lambdas, &lambda_means, d)?,
         polynomial => extrapolate(&lambdas, &lambda_means, polynomial, d)?,
     };
@@ -669,7 +686,7 @@ pub fn simex(
         naive_coefficients,
         lambdas,
         lambda_means,
-        extrapolant: config.extrapolant,
+        extrapolant,
         replicates: config.replicates,
         reliability,
         error_variance,

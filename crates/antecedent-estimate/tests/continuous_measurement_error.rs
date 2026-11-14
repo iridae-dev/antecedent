@@ -103,7 +103,7 @@ fn simex(replicates: u32) -> CorrectionMethod {
     CorrectionMethod::Simex {
         lambdas: vec![0.5, 1.0, 1.5, 2.0],
         replicates,
-        extrapolant: SimexExtrapolant::Quadratic,
+        extrapolant: SimexExtrapolant::Automatic,
     }
 }
 
@@ -200,9 +200,10 @@ fn linear_simex_recovers_the_attenuated_slope() {
         &ctx(),
     )
     .unwrap();
-    // The quadratic extrapolant under-corrects a rational path: at
-    // reliability 0.8 its large-sample limit is 1.94, not 2 (observed 1.960).
+    // The default resolves to the rational extrapolant, exact for the linear path; a quadratic
+    // would under-correct (large-sample limit 1.94 at reliability 0.8).
     assert_recovers(&effect, 2.0, 0.08);
+    assert_eq!(effect.simex.as_ref().unwrap().extrapolant, SimexExtrapolant::Rational);
     assert_eq!(effect.record.functional_id, "linear_coefficient.simex");
     let path = effect.simex.as_ref().unwrap();
     assert_eq!(path.lambdas, vec![0.0, 0.5, 1.0, 1.5, 2.0]);
@@ -582,6 +583,34 @@ fn repeated_measurements_identify_the_error_variance() {
         run(&m, &data, &spec(ErrorLocation::Treatment, OutcomeLink::Identity, simex(10)), &ctx())
             .unwrap();
     assert_recovers(&sx, 2.0, 0.06);
+}
+
+#[test]
+fn an_explicit_polynomial_extrapolant_on_a_linear_model_returns_the_point_without_an_interval() {
+    let sim = simulate(2000, 12, false);
+    for extrapolant in [SimexExtrapolant::Quadratic, SimexExtrapolant::Linear] {
+        let method = CorrectionMethod::Simex {
+            lambdas: vec![0.5, 1.0, 1.5, 2.0],
+            replicates: 10,
+            extrapolant,
+        };
+        let effect = run(
+            &classical(0.25, 0.0),
+            &data(&sim),
+            &spec(ErrorLocation::Treatment, OutcomeLink::Identity, method),
+            &ctx(),
+        )
+        .unwrap();
+        assert!(effect.record.point.is_finite());
+        assert!(effect.record.standard_error.is_none());
+        assert!(!effect.record.has_interval());
+        assert_eq!(
+            antecedent_estimate::measurement::corrected_functional_interval(&effect.record, 0.95)
+                .unwrap_err()
+                .reason_code(),
+            antecedent_core::reason_code!("route_not_supported")
+        );
+    }
 }
 
 #[test]
