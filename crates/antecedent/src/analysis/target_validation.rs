@@ -1313,6 +1313,20 @@ impl TargetRefit for PreparedRefit<'_> {
         }
     }
 
+    fn independent_resampling_units(&self) -> Option<usize> {
+        match self.data {
+            // An iid row resample is built from the rows.
+            PreparedTargetData::Tabular(data) => Some(data.row_count()),
+            // A circular block resample of a series is built from about `n / b` blocks.
+            PreparedTargetData::Series(data) => {
+                let n = data.row_count();
+                let span = max_graph_lag(self.study()) + 1;
+                Some(n / antecedent_data::circular_block_length(span, n))
+            }
+            PreparedTargetData::Panel(_) | PreparedTargetData::MultiEnv(_) => None,
+        }
+    }
+
     fn native_check(
         &self,
         kind: TargetRefuterKind,

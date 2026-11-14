@@ -17,7 +17,8 @@ use antecedent_core::{
     SemanticOperation,
 };
 
-use super::joint::joint_mahalanobis_with_bias;
+use super::joint::{JointStatisticKind, joint_mahalanobis_with_bias};
+use super::reference::replicate_reference_tail;
 use super::{
     RefutationTarget, RefuterExpectation, TargetFamily, TargetRefutationPlan,
     TargetRefutationReport, TargetRefuterKind,
@@ -137,6 +138,16 @@ pub trait TargetRefit {
         ctx: &ExecutionContext,
     ) -> Result<Vec<f64>, TargetRefitError>;
 
+    /// Number of independent units the route's resamples are built from: the rows of an iid row
+    /// resample, about `n / b` blocks of a circular block resample with blocks of `b` periods,
+    /// the units of a unit resample. The replicate covariance of a refuter is itself an
+    /// estimate whose resampling noise shrinks only with this count (see `replicate_reference_tail`).
+    /// `None` (the default) declares no such limit, so only the replicate count enters the
+    /// reference.
+    fn independent_resampling_units(&self) -> Option<usize> {
+        None
+    }
+
     /// A refuter with a statistic of its own (mediation sensitivity, derivative diagnostics,
     /// Bayesian prior sensitivity and posterior-predictive checks).
     ///
@@ -163,9 +174,11 @@ pub trait TargetRefit {
 pub struct TargetRefutationConfig {
     /// Refits per replicate-based refuter.
     pub replicates: u32,
-    /// Tolerance level: a replicate refuter passes when the reference tail of its joint
-    /// discrepancy is at least this. It sets a fixed yardstick on a diagnostic, not the size of
-    /// a hypothesis test (see [`super::joint`]).
+    /// Tolerance level: a replicate refuter passes when the finite-resampling Hotelling tail of
+    /// its joint discrepancy (see `replicate_reference_tail`) is at least this. For a resampling
+    /// refuter whose expectation is the data's own estimate it is the rejection rate under a
+    /// sound procedure, up to the accuracy of the resampling covariance; for placebo and
+    /// stability refuters it is a conservative yardstick (see [`super::joint`]).
     pub alpha: f64,
     /// Fraction of units each subset refit keeps.
     pub subset_fraction: f64,
@@ -381,7 +394,7 @@ fn replicate_check(
         }
         rows.extend_from_slice(&vector);
     }
-    let (statistic, standardised_bias) = match joint_statistic(
+    let (mut statistic, standardised_bias) = match joint_statistic(
         expectation,
         target,
         refit.original(),
@@ -401,6 +414,30 @@ fn replicate_check(
         }
         Err(error) => return Err(TargetRefitError::Failed(error)),
     };
+    // The replicate covariance is estimated from `replicates` draws of a resample with a limited
+    // number of independent units, so the reference is the finite-resampling Hotelling tail,
+    // not the `χ²` tail of an exactly known covariance.
+    let Some(tail) = replicate_reference_tail(
+        statistic.value,
+        statistic.df,
+        replicates as usize,
+        refit.independent_resampling_units(),
+    ) else {
+        return Err(TargetRefitError::Unsupported {
+            reason: Arc::from(format!(
+                "`{}`: too few independent resampling units to estimate the covariance of a \
+                 {}-coordinate target",
+                kind.as_str(),
+                statistic.df
+            )),
+            next_attempt: Arc::from(
+                "supply more data (more independent blocks or rows), or a target with fewer \
+                 coordinates",
+            ),
+        });
+    };
+    statistic.kind = JointStatisticKind::MahalanobisHotelling;
+    statistic.p_value = Some(tail);
     let mut refuted = vec![0.0; k];
     for row in rows.chunks_exact(k) {
         for (m, v) in refuted.iter_mut().zip(row) {

@@ -44,6 +44,10 @@ pub enum JointStatisticKind {
     /// replicate covariance, with the `χ²_k` tail as a fixed yardstick (not a calibrated
     /// test; see the module documentation).
     MahalanobisChiSquare,
+    /// The same squared Mahalanobis distance with the finite-resampling Hotelling reference of
+    /// `replicate_reference_tail` (the replicate covariance is itself estimated), used by the
+    /// replicate refuters of [`super::run_target_plan`].
+    MahalanobisHotelling,
     /// Squared Mahalanobis shift under the baseline posterior covariance (no reference law;
     /// compared with a declared tolerance).
     PosteriorShift,
@@ -61,6 +65,7 @@ impl JointStatisticKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::MahalanobisChiSquare => "mahalanobis_chi_square",
+            Self::MahalanobisHotelling => "mahalanobis_hotelling",
             Self::PosteriorShift => "posterior_shift",
             Self::PredictiveTail => "predictive_tail",
             Self::MaxStandardizedDiscrepancy => "max_standardized_discrepancy",

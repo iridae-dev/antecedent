@@ -15,16 +15,21 @@
 //! requirement is stated for these verdicts, and none is invented here.
 //!
 //! What each verdict is, and why the null rate is bounded by `alpha` (see
-//! `antecedent_validate::target_native::joint`): a replicate refuter passes when the `chi^2_k`
+//! `antecedent_validate::target_native::joint`): a replicate refuter passes when the Hotelling
 //! tail of `D^2 = (e - m)' S^-1 (e - m)` is at least `alpha`, `e` the expected vector, `m` the
-//! replicate mean and `S` the covariance of one replicate.
+//! replicate mean and `S` the covariance of one replicate estimated from the replicates. The
+//! tail has `1 / (1 / (R - 1) + 1 / (g - 1))` covariance degrees of freedom: `R` replicates of
+//! a resample built from `g` independent units (rows, or blocks of a block resample), which the
+//! refit declares.
 //!
 //! * Placebo refuters (permutation on rows, circular shift on series) have `e = 0` and replicates
 //!   centred at zero when the procedure is sound, so `m` is a mean of `R` replicates and
 //!   `R * D^2` is a Hotelling `T^2`; `D^2` is about `k / R` and the rejection rate is far below
 //!   `alpha`.
 //! * Stability refuters (random common cause, subset, bootstrap) have `e` the original estimate
-//!   and replicates centred at it (unbiased procedure): the same bound.
+//!   and replicates centred at it (unbiased procedure): the same bound. A subset window must
+//!   keep that centring, so series windows are circular (every period equally often); a window
+//!   confined to the series over-weights the middle and is not centred on the original.
 //! * Negative-control and pre-trend refuters have `e = 0` and replicates that are resamples of
 //!   the data. `m` is then the sample estimate of a truly zero effect and `S` the resampling
 //!   spread of one replicate, so `D^2` is the squared standardised estimate on `k` degrees of
@@ -306,6 +311,11 @@ impl TargetRefit for StaticRefit {
         &self.target
     }
 
+    fn independent_resampling_units(&self) -> Option<usize> {
+        // Rows resampled independently.
+        Some(self.data.x.len())
+    }
+
     fn original(&self) -> &[f64] {
         &self.original
     }
@@ -475,6 +485,11 @@ impl TargetRefit for SeriesRefit {
         &self.target
     }
 
+    fn independent_resampling_units(&self) -> Option<usize> {
+        // Circular blocks of `BLOCK` periods over the usable periods.
+        Some(periods(self.data.len(), 0).len() / BLOCK)
+    }
+
     fn original(&self) -> &[f64] {
         &self.original
     }
@@ -502,10 +517,16 @@ impl TargetRefit for SeriesRefit {
                 d.effects(&times, 0, &d.treatment, &d.outcome, Some(&cause))
             }
             TargetPerturbation::Subset { fraction, .. } => {
-                // A contiguous window of periods.
-                let len = (fraction * times.len() as f64) as usize;
-                let start = 1 + unbiased_index(rng, n - len);
-                let window: Vec<usize> = (start..start + len).collect();
+                // A circular window of design rows, each keeping its own lag history: the
+                // construction of a route that reads row weights (zero weight outside the
+                // window). Every period lies in a window with the same probability, so the
+                // window estimates centre on the full-series estimate; a window that must lie
+                // inside the series over-weights the middle periods, and its replicate mean
+                // then differs from the original by about one replicate spread.
+                let m = times.len();
+                let len = (fraction * m as f64) as usize;
+                let start = unbiased_index(rng, m);
+                let window: Vec<usize> = (0..len).map(|j| times[(start + j) % m]).collect();
                 d.effects(&window, 0, &d.treatment, &d.outcome, None)
             }
             TargetPerturbation::Bootstrap { .. } => {
@@ -977,7 +998,7 @@ fn static_frequentist_refuters_power_against_a_misreported_target() {
 // which is unbiased. Circular shifts of at least one block (10 periods) leave the shifted
 // series independent of the rest; a lead of two periods puts the pre-trend regression at lags
 // -2 and -1 where the true effect is zero. Refits are circular block resamples (length 10) or
-// contiguous windows. Anticipation needs a declared onset and the series has none, so it is
+// circular windows of design rows. Anticipation needs a declared onset and the series has none, so it is
 // refused and not measured.
 
 #[test]

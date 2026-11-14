@@ -27,6 +27,7 @@ mod bayesian;
 mod derivative;
 mod engine;
 mod joint;
+mod reference;
 
 use std::fmt;
 use std::sync::Arc;
@@ -50,6 +51,7 @@ pub use engine::{
 pub use joint::{
     JointStatistic, JointStatisticKind, joint_mahalanobis, joint_mahalanobis_with_bias,
 };
+pub use reference::{effective_covariance_df, replicate_reference_tail};
 
 /// Family of the quantity a claim reports.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
