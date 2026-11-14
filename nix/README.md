@@ -11,7 +11,9 @@ current, so CI only checks that records are up to date.
 
 This page describes the Apple-silicon policy. `scripts/evidence_platforms.py` holds every
 platform a record can be earned on, each with its own policy, recipes (`nix/linux/` for Linux)
-and reviewed registry; `docs/development.md` ("Earning platforms") has the Linux bring-up.
+and reviewed registry; `linux/compile-time-audit.md` is the Linux review and
+`docs/development.md` ("Earning platforms") the procedure. `evidence-inputs.nix` is what a host
+realises before its first offline build.
 
 ## What is pinned and checked
 

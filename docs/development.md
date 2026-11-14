@@ -581,10 +581,38 @@ policy id, Nix system, build recipes, sandbox rule and reviewed compile-time reg
 | `aarch64-unknown-linux-gnu` | `aarch64-linux` | `nix-linux-sandbox-audit-v1` | `nix/compile-time-reviewed.aarch64-unknown-linux-gnu.json` |
 
 **Earning.** The commands are the same on every platform (`bash scripts/test.sh`,
-`bash scripts/measure_calibration.sh`, `python3 scripts/calibration_probe.py`). Earning selects
-the policy of the host it runs on and refuses, before building, on a host with no reviewed policy
-or with an incomplete bring-up. `python3 scripts/evidence_platforms.py status` prints the host's
-policy and anything it still lacks. On Apple silicon nothing changes.
+`bash scripts/measure_calibration.sh`, `python3 scripts/calibration_probe.py`), and the tree holds
+each platform's whole policy: pinned toolchain archives, recipes and reviewed registry. Earning
+selects the policy of the host it runs on and refuses, before building, on a host with no
+reviewed policy. `python3 scripts/evidence_platforms.py status` prints the host's policy and
+whether it can earn. On Apple silicon nothing changes.
+
+**On Linux** (`x86_64` or `aarch64`, glibc, a multi-user Nix), run the earning command. Its first
+run prepares the host, as `python3 scripts/evidence_platforms.py prepare` does on its own:
+
+- It checks the daemon's sandbox: `/etc/nix/nix.conf` is root-owned, has no include line and sets
+  `sandbox = true` and `sandbox-fallback = false`; the daemon reports the same and exposes no host
+  path but `/bin/sh` mapped into the store. NixOS writes this by default. Elsewhere only root can
+  change the file, so the refusal prints the command:
+  `printf 'sandbox = true\nsandbox-fallback = false\n' | sudo tee -a /etc/nix/nix.conf && sudo systemctl restart nix-daemon`.
+- It checks that the reviewed registry licenses every compile-time unit the host's Cargo
+  resolves, and names any that it does not.
+- It realises what an evidence build reads besides the source (`nix/evidence-inputs.nix`: the
+  toolchain archives by their pinned SHA-256, the build tools of the locked nixpkgs and the crates
+  of `Cargo.lock`), online. Evidence builds themselves stay offline and without substitutes.
+
+This is repeated when the recipes, the registry or `Cargo.lock` change. The first build under a
+new recipe set or lock is also rebuilt and compared bit for bit, as `--check-reproducible` asks
+for on Apple silicon.
+
+**Registries after a `Cargo.lock` change.** Each registry is bound to the lock's hash, so a
+changed lock owes every platform's registry, and a record is rechecked against the registry of
+the platform it names. `python3 scripts/evidence_platforms.py draft-registry --all` rebinds them
+from any host: it resolves each platform's unit graphs as that platform's Cargo would, keeps every
+reviewed row and adds each new build-script or procedural-macro unit (and what it depends on) as
+`unresolved`. Earning refuses an `unresolved` unit. Read what the unit reads on that platform
+(`nix/compile-time-audit.md`, `nix/linux/compile-time-audit.md`), set its `source_projection` to
+`reviewed-safe` or `complete-source`, and commit the registries with the lock.
 
 **Which platform earned a record.** A record's dependency manifest
 (`parity/evidence_manifests/<dependency_manifest>.json`) names it in `nix_build.policy.target`.
@@ -601,30 +629,6 @@ coverage record's replicate digests are bit-exact and depend on the platform's m
 `earned on <platform>; this host (<host>) cannot replay its digests`, never a mismatch; a probe
 attestation covers only a measurement of its own platform. A record that a change makes owed is
 re-earned on the platform of whoever makes the change, and then names that platform.
-
-**Linux bring-up (once per Linux platform, on a Linux host).** Until every step is done, earning
-on Linux refuses and lists what is missing:
-
-1. Toolchain hashes. In `nix/linux/evidence-toolchain.json`, replace each `null` of the host's
-   target with the SHA-256 published beside the archive
-   (`https://static.rust-lang.org/dist/<date>/<component>-<release>-<target>.tar.xz.sha256`), then
-   `nix build .#evidence-fixture`. A `null` fails evaluation; it is never built from.
-2. Build recipes. Add `nix/linux/evidence-common.nix`, `evidence-deps.nix`, `evidence-driver.nix`,
-   `evidence-target.nix` and `calibration-release.nix`, the Linux forms of the recipes in `nix/`:
-   build for `builtins.currentSystem`, import `./evidence-toolchain.nix`, name the toolchain's
-   `rustlib/<target>` directory, and drop the Mach-O linker flag `-oso_prefix`. The Apple-silicon
-   recipes are bound by content in every existing record, so they are not edited.
-3. Sandbox. `/etc/nix/nix.conf` must set `sandbox = true` and `sandbox-fallback = false`
-   explicitly. The policy also requires that the daemon reports the same, that `sandbox` is not
-   `relaxed`, and that `sandbox-paths` exposes nothing but `/bin/sh` mapped into the store.
-4. Compile-time registry. `python3 scripts/evidence_platforms.py draft-registry` writes the host's
-   registry with every build-script and procedural-macro unit (and what each depends on) marked
-   `unresolved`. Review what each unit reads on Linux, as `nix/compile-time-audit.md` does for
-   Apple silicon, set its `source_projection` to `reviewed-safe` or `complete-source`, list the
-   review documents under `audit_documents`, and commit it. Earning refuses an `unresolved` unit.
-   After a `Cargo.lock` change, run the command again: unchanged reviewed rows are kept.
-5. `python3 scripts/evidence_platforms.py status` reports that records can be earned; run
-   `python3 scripts/scientific_records.py run --only <one test> --check-reproducible` once.
 
 ## Tests that matter
 
