@@ -50,6 +50,33 @@ def load_toml(path: Path | str) -> dict[str, Any]:
     return tomllib.loads(read_text(path))
 
 
+REPOSITORY_URL = "https://github.com/iridae-dev/antecedent"
+
+
+def documented_ref(root: Path | str = REPO_ROOT) -> str:
+    """The Git ref the documentation in this tree describes: the release tag.
+
+    `v<target_version>` from the optional `docs/release-notes/preparation.toml`,
+    else the workspace version. Published pages link repository sources at this
+    ref, so a released page keeps naming the evidence it shipped with. The tag
+    is created from the release commit, so until then the ref names nothing on
+    GitHub; `scripts/check_doc_links.py` checks every such link against the
+    working tree instead, which is the tree the tag will carry.
+    """
+    root = Path(root)
+    preparation = root / "docs/release-notes/preparation.toml"
+    if preparation.is_file():
+        target = load_toml(preparation).get("target_version")
+        if isinstance(target, str):
+            return f"v{target}"
+    return "v" + load_toml(root / "Cargo.toml")["workspace"]["package"]["version"]
+
+
+def source_url(path: str, root: Path | str = REPO_ROOT) -> str:
+    """Link to a repository file as it is in the documented release."""
+    return f"{REPOSITORY_URL}/blob/{documented_ref(root)}/{path}"
+
+
 def load_toml_binary(path: Path | str) -> dict[str, Any]:
     """Parse a binary TOML file without universal-newline translation."""
     with Path(path).open("rb") as handle:

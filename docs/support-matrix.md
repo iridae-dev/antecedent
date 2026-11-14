@@ -11,7 +11,7 @@ Do not edit this page by hand.
 
 This page is the public **support**. `docs/capabilities.md` is an inventory
 of what exists in the codebase; it does not support a cell.
-See [ADR 0020](https://github.com/iridae-dev/antecedent/blob/main/adr/0020-support-matrix-and-prepared-workflow.md).
+See [ADR 0020](https://github.com/iridae-dev/antecedent/blob/v3.0.0/adr/0020-support-matrix-and-prepared-workflow.md).
 
 The Cartesian product (query × graph class × structure source × inference ×
 validation) is **4320** cells. That denominator is not a feature count.

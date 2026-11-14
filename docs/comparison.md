@@ -188,7 +188,7 @@ black-box outputs from pinned external packages:
 
 Each external claim has an immutable record under `parity/baselines`, a frozen
 fixture, and an executing conformance test. See
-[ADR 0009](https://github.com/iridae-dev/antecedent/blob/main/adr/0009-parity-baselines.md), the parity manifests, and each
+[ADR 0009](https://github.com/iridae-dev/antecedent/blob/v3.0.0/adr/0009-parity-baselines.md), the parity manifests, and each
 supported row's evidence kind and limitations. A shared algorithm name is not
 evidence of equivalent behavior.
 

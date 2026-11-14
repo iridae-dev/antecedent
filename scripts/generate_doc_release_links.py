@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Refresh live narrative example and Rust API links from the documentation version.
+"""Refresh live repository-source and Rust API links from the documentation version.
+
+Every published page links repository sources (evidence records, tests,
+examples, ADRs) at the documented release (`_repo.documented_ref`), so a
+released page keeps naming the files it shipped with. This pass is the one
+place that pins them: it rewrites a `main` or release-tag link to that ref, and
+`scripts/check_doc_links.py` fails a published page that still names another.
+The tag exists only once the release commit is tagged; until then the links
+name nothing on GitHub and are checked against the working tree.
 
 Historical release notes, evidence-linked excluded sources, and the primary
 README are intentionally outside this pass.
@@ -8,8 +16,13 @@ README are intentionally outside this pass.
 import argparse
 import re
 
+from _repo import REPOSITORY_URL, documented_ref
 from docs_hooks import publication_exclusions
 from generate_example_catalog import ROOT, version
+
+SOURCE_LINK = re.compile(
+    "(" + re.escape(REPOSITORY_URL) + r"/(?:blob|tree)/)(?:main|v\d+\.\d+\.\d+)(?=/)"
+)
 
 
 def main():
@@ -18,17 +31,14 @@ def main():
     args = parser.parse_args()
     errors = []
     release = version()
+    ref = documented_ref(ROOT)
     excluded = set(publication_exclusions())
     for path in (ROOT / "docs").rglob("*.md"):
         uri = str(path.relative_to(ROOT / "docs"))
         if uri in excluded or uri.startswith("release-notes/") or uri == "examples.md":
             continue
         text = path.read_text(encoding="utf-8")
-        expected = re.sub(
-            r"(https://github.com/iridae-dev/antecedent/blob/)(?:main|v[0-9.]+)(/examples/)",
-            lambda m: m[1] + "v" + release + m[2],
-            text,
-        )
+        expected = SOURCE_LINK.sub(lambda m: m[1] + ref, text)
         expected = re.sub(
             r"https://docs\.rs/antecedent(?:/[0-9.]+/antecedent/)?(?=[)\s])",
             "https://docs.rs/antecedent/" + release + "/antecedent/",

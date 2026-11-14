@@ -9,7 +9,7 @@ import re
 
 import test_evidence
 from _repo import REPO_ROOT as ROOT
-from _repo import load_toml
+from _repo import load_toml, source_url
 
 SOURCE = ROOT / "parity/support_graphless.toml"
 RUST = ROOT / "crates/antecedent-io-core/src/support_graphless_data.rs"
@@ -48,7 +48,6 @@ BOOLEAN_REQUIREMENTS = (
     "requires_balanced_sequences",
     "requires_known_density",
 )
-
 
 
 def citation_source(citation: str) -> tuple[str, str] | None:
@@ -193,7 +192,7 @@ def docs(rows: list[dict]) -> str:
     ]
     for row in rows:
         evidence = ", ".join(
-            f"[`{row[field].split('::')[-1]}`](https://github.com/iridae-dev/antecedent/blob/main/{row[field].split('::')[0]})"
+            f"[`{row[field].split('::')[-1]}`]({source_url(row[field].split('::')[0])})"
             for field in ("known_truth_test", "retained_route_test")
         )
         lines.append(

@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-"""Published-docs link check: relative links and repository blob links must resolve.
+"""Published-docs link check: relative links and repository source links must resolve.
 
-Two kinds of link are checked in the user-facing Markdown:
+Three things are checked in the user-facing Markdown:
 
 * a relative link (`](path)`) must name a file that exists next to the page;
-* a GitHub `blob/<ref>/<path>` link into this repository must name a file that
-  exists in the working tree when `<ref>` is the release being documented
-  (`v<target_version>` from optional `docs/release-notes/preparation.toml`, else
-  the workspace version; a missing file is that fallback, not an error) or
-  `main`. Links pinned to any other ref are a frozen
-  reference to a shipped snapshot and are not checked.
+* a GitHub `blob/<ref>/<path>` or `tree/<ref>/<path>` link into this repository
+  must name a path that exists in the working tree when `<ref>` is the release
+  being documented (`_repo.documented_ref`) or `main`. Links pinned to any other
+  ref are a frozen reference to a shipped snapshot and are not checked;
+* a page of the published site (`docs/`, less the publication exclusions) must
+  link repository sources at the documented release, never at `main` or another
+  release tag: a released page would otherwise come to describe another
+  version's evidence. `scripts/generate_doc_release_links.py` rewrites such
+  links; a deliberately frozen reference names a commit.
+
+The release tag does not exist until the release commit is tagged, so before
+then a pinned link names nothing on GitHub. The existence check above runs
+against the working tree, which is the tree the tag will carry.
 
 `--anchors` also resolves a `#fragment` against the target page's headings
 (GitHub's slug: lowercase, punctuation dropped, spaces to hyphens, duplicates
@@ -31,7 +38,7 @@ import sys
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
-from _repo import load_toml
+from _repo import documented_ref, load_toml
 
 PAGES = (
     ["README.md", "CONTRIBUTING.md", "SECURITY.md", "ROADMAP.md", "examples/README.md"]
@@ -41,7 +48,22 @@ PAGES = (
 SKIPPED_PREFIXES = ("docs/release-notes/",)
 
 LINK = re.compile(r"\]\(([^)\s]+)\)")
-REPO_BLOB = re.compile(r"^https://github\.com/iridae-dev/antecedent/blob/([^/]+)/(.+)$")
+REPO_BLOB = re.compile(r"^https://github\.com/iridae-dev/antecedent/(?:blob|tree)/([^/]+)/(.+)$")
+RELEASE_TAG = re.compile(r"v\d+\.\d+\.\d+")
+PUBLICATION = "scripts/docs_publication.toml"
+
+
+def published_pages(root: Path, pages: list[str]) -> set[str]:
+    """The pages that ship in the versioned documentation site."""
+    manifest = root / PUBLICATION
+    excluded = set(load_toml(manifest)["excluded"]) if manifest.is_file() else set()
+    return {
+        rel
+        for rel in pages
+        if rel.startswith("docs/")
+        and not rel.startswith(SKIPPED_PREFIXES)
+        and rel.removeprefix("docs/") not in excluded
+    }
 
 
 def heading_slug(heading: str) -> str:
@@ -72,18 +94,10 @@ def heading_anchors(text: str) -> set[str]:
     return anchors
 
 
-def documented_ref(root: Path = ROOT) -> str:
-    prep = root / "docs/release-notes/preparation.toml"
-    if prep.is_file():
-        target = load_toml(prep).get("target_version")
-        if isinstance(target, str):
-            return f"v{target}"
-    cargo = load_toml(root / "Cargo.toml")
-    return "v" + cargo["workspace"]["package"]["version"]
-
-
 def check_pages(root: Path, pages: list[str], *, anchors: bool) -> list[str]:
-    live_refs = {documented_ref(root), "main"}
+    release = documented_ref(root)
+    live_refs = {release, "main"}
+    published = published_pages(root, pages)
     fail: list[str] = []
     cache: dict[Path, set[str]] = {}
 
@@ -111,7 +125,17 @@ def check_pages(root: Path, pages: list[str], *, anchors: bool) -> list[str]:
                 if blob:
                     ref, blob_path = blob.group(1), blob.group(2)
                     path, _, frag = blob_path.partition("#")
-                    if ref in live_refs and not (root / path).exists():
+                    if (
+                        rel in published
+                        and ref != release
+                        and (ref == "main" or RELEASE_TAG.fullmatch(ref))
+                    ):
+                        fail.append(
+                            f"{rel}:{number}: links {path} at {ref}; published pages pin "
+                            f"repository sources to {release} "
+                            "(run scripts/generate_doc_release_links.py)"
+                        )
+                    elif ref in live_refs and not (root / path).exists():
                         fail.append(f"{rel}:{number}: blob/{ref}/{path} does not exist")
                     elif (
                         anchors
@@ -189,6 +213,27 @@ def self_test() -> int:
             failures.append(f"reworded heading did not break its anchor: {moved}")
         if check_pages(root, pages, anchors=False):
             failures.append("reworded heading failed the check with anchors off")
+        # A published page names repository sources at the documented release only.
+        (root / "scripts").mkdir()
+        (root / PUBLICATION).write_text(
+            'excluded = ["internal.md"]\n', encoding="utf-8", newline="\n"
+        )
+        (root / "README.md").write_text("# Readme\n", encoding="utf-8", newline="\n")
+        repo = "https://github.com/iridae-dev/antecedent"
+        refs = ["blob/v9.9.9", "blob/main", "tree/main", "blob/v9.9.8", "blob/0123abc"]
+        evidence = "".join(f"[r]({repo}/{ref}/README.md)\n" for ref in refs)
+        for name in ("evidence.md", "internal.md"):
+            (root / "docs" / name).write_text(evidence, encoding="utf-8", newline="\n")
+        (root / "CONTRIBUTING.md").write_text(evidence, encoding="utf-8", newline="\n")
+        pinned = check_pages(
+            root, ["docs/evidence.md", "docs/internal.md", "CONTRIBUTING.md"], anchors=False
+        )
+        if sorted(item.split(": ")[0] for item in pinned) != [
+            "docs/evidence.md:2",
+            "docs/evidence.md:3",
+            "docs/evidence.md:4",
+        ]:
+            failures.append(f"only unpinned links of a published page are refused: {pinned}")
     if failures:
         print("check_doc_links self-test FAILED:")
         for item in failures:
@@ -212,7 +257,8 @@ def main(argv: list[str] | None = None) -> int:
     suffix = ", anchors" if anchors else ""
     print(
         "Doc link check OK (blob refs checked: "
-        f"{', '.join(sorted({documented_ref(), 'main'}))}{suffix})"
+        f"{', '.join(sorted({documented_ref(), 'main'}))}{suffix}; "
+        f"published pages pin repository sources to {documented_ref()})"
     )
     return 0
 

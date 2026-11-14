@@ -23,7 +23,7 @@ import calibration_key_aliases
 import external_evidence
 import gate_support
 from _repo import REPO_ROOT as ROOT
-from _repo import load_toml, read_text
+from _repo import load_toml, read_text, source_url
 
 OUT = ROOT / "docs" / "support-matrix.md"
 SUPPORT_SNAPSHOT = ROOT / "crates" / "antecedent" / "data" / "support_matrix.json"
@@ -37,7 +37,9 @@ FROZEN_BEGIN = "<!-- frozen:support-matrix:supported:begin -->"
 FROZEN_END = "<!-- frozen:support-matrix:supported:end -->"
 
 
-STALE_OUTPUTS: list[str] | None = None  # set by --check: outputs that differ are recorded, never written
+STALE_OUTPUTS: list[str] | None = (
+    None  # set by --check: outputs that differ are recorded, never written
+)
 
 
 def write_text(path: Path | str, data: str) -> int:
@@ -269,7 +271,7 @@ Do not edit this page by hand.
 
 This page is the public **support**. `docs/capabilities.md` is an inventory
 of what exists in the codebase; it does not support a cell.
-See [ADR 0020](https://github.com/iridae-dev/antecedent/blob/main/adr/0020-support-matrix-and-prepared-workflow.md).
+See [ADR 0020]({source_url("adr/0020-support-matrix-and-prepared-workflow.md")}).
 
 The Cartesian product (query × graph class × structure source × inference ×
 validation) is **{cartesian}** cells. That denominator is not a feature count.
@@ -419,7 +421,9 @@ that class came from that discovery strategy.
     write_snapshot(SUPPORT_SNAPSHOT, support_snapshot(na_rules, closed_rules, cells, statuses))
     write_snapshot(UNIT_STATUS_SNAPSHOT, unit_status_snapshot(result))
     if release:
-        print(f"Wrote {SUPPORT_SNAPSHOT.relative_to(ROOT)} and {UNIT_STATUS_SNAPSHOT.relative_to(ROOT)} (release status)")
+        print(
+            f"Wrote {SUPPORT_SNAPSHOT.relative_to(ROOT)} and {UNIT_STATUS_SNAPSHOT.relative_to(ROOT)} (release status)"
+        )
         print(headline)
         return 0
     write_snapshot(COVERAGE_SNAPSHOT, coverage_snapshot())
@@ -468,8 +472,7 @@ def calibration_summary(cells: list[dict]) -> str:
     other = total - recorded - not_measured - no_interval
     if other:
         raise AssertionError(
-            f"{other} matrix cells have neither calibration records nor a known "
-            "calibration_reason"
+            f"{other} matrix cells have neither calibration records nor a known calibration_reason"
         )
     return (
         f"Interval calibration of the {total} matrix cells: {recorded} cite coverage "
@@ -790,7 +793,9 @@ def estimators_from_calibration(
     but it never supports the estimator it measures.
     """
     if roles is None:
-        roles = {r["id"]: r["role"] for r in load("parity/coverage_records.toml").get("record") or []}
+        roles = {
+            r["id"]: r["role"] for r in load("parity/coverage_records.toml").get("record") or []
+        }
     found: set[str] = set()
     for cid in record_ids:
         if not isinstance(cid, str) or roles.get(cid) == "reported_level":
@@ -867,8 +872,7 @@ def support_snapshot(
     # The registry is immutable during this generation pass. Parse it once,
     # rather than once per geometric cell.
     calibration_roles = {
-        row["id"]: row["role"]
-        for row in load("parity/coverage_records.toml").get("record") or []
+        row["id"]: row["role"] for row in load("parity/coverage_records.toml").get("record") or []
     }
     supported = []
     for row in cells:
@@ -906,7 +910,9 @@ def unit_status_snapshot(result: dict) -> dict:
         }
         for row, unit in zip(rows, result["graphless"], strict=True)
     ]
-    capabilities = [{"id": u.ident, **gate_support.derived_status(u)} for u in result["capabilities"]]
+    capabilities = [
+        {"id": u.ident, **gate_support.derived_status(u)} for u in result["capabilities"]
+    ]
     return {"graphless": graphless, "capabilities": capabilities}
 
 
@@ -931,10 +937,16 @@ if __name__ == "__main__":
         STALE_OUTPUTS = []
         main()
         if STALE_OUTPUTS:
-            print("stale (regenerate with generate_support_matrix_docs.py): " + ", ".join(STALE_OUTPUTS))
+            print(
+                "stale (regenerate with generate_support_matrix_docs.py): "
+                + ", ".join(STALE_OUTPUTS)
+            )
             sys.exit(1)
         sys.exit(0)
     if len(sys.argv) > 1:
-        print("usage: generate_support_matrix_docs.py [--release | --check | --freeze X.Y.Z]", file=sys.stderr)
+        print(
+            "usage: generate_support_matrix_docs.py [--release | --check | --freeze X.Y.Z]",
+            file=sys.stderr,
+        )
         sys.exit(2)
     sys.exit(main())

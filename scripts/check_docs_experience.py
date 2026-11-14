@@ -39,7 +39,7 @@ def check():
             errors.append(f"{uri}: {error}")
         if not uri.startswith("release-notes/"):
             for ref in re.findall(r"github.com/iridae-dev/antecedent/blob/([^/]+)/examples/", text):
-                if ref not in (current, "main"):
+                if ref != current:
                     errors.append(f"{uri}: example link pins {ref}, expected {current}")
             for target in re.findall(r"\]\(([^)]+)\)", text):
                 pathpart = target.split("#")[0]
