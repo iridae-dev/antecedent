@@ -5,8 +5,11 @@
 //!   under alternative priors. The shift of each alternative's posterior mean from the
 //!   baseline posterior mean is measured as the Mahalanobis length under the baseline
 //!   posterior covariance, `sqrt((m_a − m_0)ᵀ Σ_0⁻¹ (m_a − m_0))`: a shift in posterior
-//!   standard deviations that accounts for the correlation between coordinates. The check
-//!   passes when the largest shift is at most the declared tolerance.
+//!   standard deviations that accounts for the correlation between coordinates. The report
+//!   publishes the largest shift as its statistic and whether it is within the tolerance the
+//!   caller declared. That is a plain comparison with a declared bound: there is no reference
+//!   law and no error level, and `passed` here means only "within the declared tolerance", not
+//!   that a test failed to reject.
 //! * [`posterior_predictive_target_check`] compares the target computed on the observed data
 //!   with the target recomputed on data replicated from each posterior draw. For draw `s`
 //!   with target value `θ_s`, the discrepancy is `D(T, θ_s) = (T − θ_s)ᵀ V⁻¹ (T − θ_s)`, `V`
@@ -36,11 +39,17 @@ pub struct PriorSensitivityTarget<'a> {
     /// Posterior draws of the target under each alternative prior, with the alternative's
     /// label (each `s_a × k`).
     pub alternatives: &'a [(Arc<str>, Vec<f64>)],
-    /// Largest acceptable shift, in baseline posterior standard deviations.
+    /// Largest shift the caller accepts, in baseline posterior standard deviations. A declared
+    /// bound the measured shift is compared with; it carries no error level.
     pub tolerance: f64,
 }
 
 /// Prior sensitivity of the whole target vector.
+///
+/// Publishes the largest measured shift (`statistic.value`, in baseline posterior standard
+/// deviations) and whether it is within the declared tolerance (`passed`). This is a comparison
+/// with a bound the caller chose, not a hypothesis test or a refutation verdict with an error
+/// level.
 ///
 /// # Errors
 ///
@@ -91,7 +100,8 @@ pub fn prior_sensitivity_target_check(
         failure: (!passed).then(|| {
             Arc::from(format!(
                 "under prior `{}` the posterior of the target moves by {worst:.3} posterior \
-                 standard deviations (tolerance {})",
+                 standard deviations, beyond the declared tolerance of {} (a comparison with a \
+                 bound the caller declared; no error level is attached)",
                 worst_label.as_deref().unwrap_or("?"),
                 input.tolerance
             ))
