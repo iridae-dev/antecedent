@@ -33,6 +33,11 @@ with logs in `target/calibration-probe/`. Results go to
     fingerprint (the record's dependency fingerprint at HEAD,
     `scripts/evidence_fingerprint.py`), k, bound = 3/k, result = "pass" | "mismatch"
 
+The digests are bit-exact and depend on the platform's math library, so a probe
+replays a record only on the platform that earned it (`scripts/evidence_platforms.py`).
+On any other host the record is reported as earned elsewhere and is not run: a
+different digest there would say nothing about the code.
+
 `scripts/calibration_status.py` counts a record as current when a passing row
 covers it (`covers`) and its fingerprint equals the tree's. Commit the attestation
 file with the change it attests. A real run needs a
@@ -343,6 +348,27 @@ def plan(records: list[dict], mode: str) -> list[Probe]:
     return out
 
 
+def replayable(records: list[dict], host: str | None = None,
+               platform_of=None) -> tuple[list[dict], dict[str, str]]:
+    """The records whose digests this host can replay, and why each other one cannot be.
+
+    A record's earning platform is the one its dependency manifest names; a record
+    that names none is replayed as before."""
+    import evidence_platforms
+
+    if platform_of is None:
+        def platform_of(rec: dict) -> str | None:
+            return evidence_platforms.stored_platform(ROOT, rec.get("dependency_manifest"))
+    local, foreign = [], {}
+    for rec in records:
+        refusal = evidence_platforms.replay_refusal(platform_of(rec), host)
+        if refusal is None:
+            local.append(rec)
+        else:
+            foreign[str(rec["id"])] = refusal
+    return local, foreign
+
+
 # --------------------------------------------------------------------------
 # Running probes through the gate.
 # --------------------------------------------------------------------------
@@ -541,6 +567,13 @@ def main(argv: list[str] | None = None) -> int:
     records = select_records(args.record)
     if not records:
         print("nothing to probe: no record owes a run")
+        return 0
+    # Never run a record earned on another platform: its digests cannot match here.
+    records, foreign = replayable(records)
+    for rid in sorted(foreign):
+        print(f"{rid}: not probed: {foreign[rid]}")
+    if not records:
+        print(f"nothing to probe on this host: {len(foreign)} record(s) were earned on another platform")
         return 0
     probes = plan(records, args.mode)
     import calibration_groups

@@ -18,6 +18,7 @@ class ArtifactIdentityError(ValueError):
 
 
 # Every file that defines the evidence derivations; each is bound into an artifact identity.
+# The Apple-silicon set; `evidence_platforms` holds each platform's, its build recipe first.
 RECIPE_FILES = ('nix/evidence-target.nix', 'nix/evidence-deps.nix', 'nix/evidence-common.nix',
                 'nix/evidence-driver.nix',
                 'nix/evidence-toolchain.nix', 'flake.lock')
@@ -119,7 +120,8 @@ def inspect_artifact(root: Path, output: str, source: str, crate: str,
                      target_kind: str, target_name: str, features: list[str],
                      *, build_targets: list[dict] | None = None, deps_source: str,
                      deps_targets: list[dict] | None = None,
-                     store: Path = Path('/nix/store')) -> dict:
+                     store: Path = Path('/nix/store'),
+                     recipes: tuple[str, ...] = RECIPE_FILES) -> dict:
     """Bind requested inputs to an existing store result and its executable.
 
     The derivation is evaluated independently from the tracked recipe and the
@@ -145,8 +147,8 @@ def inspect_artifact(root: Path, output: str, source: str, crate: str,
     if {'crate': crate, 'kind': target_kind, 'name': target_name, 'features': features} not in build_targets:
         raise ArtifactIdentityError('the target is not one the evidence build compiled')
     deps_targets = canonical_targets(deps_targets if deps_targets is not None else build_targets)
-    recipe = root / 'nix/evidence-target.nix'
-    recipe_files = [root / rel for rel in RECIPE_FILES]
+    recipe = root / recipes[0]
+    recipe_files = [root / rel for rel in recipes]
     recipe_hashes = {str(p.relative_to(root)): _file_hash(p) for p in recipe_files}
     expr = f'builtins.storePath {json.dumps(source)}'
     arguments, deps_arguments = targets_json(build_targets), targets_json(deps_targets)
@@ -203,11 +205,17 @@ def inspect_artifact(root: Path, output: str, source: str, crate: str,
 
 def recheck_artifact(root: Path, identity: dict, *, store: Path = Path('/nix/store')) -> None:
     """Refuse a change to the recorded inputs, metadata, or executable bytes."""
+    from evidence_platforms import recipes_named
+    try:
+        # The recipes of the platform the artifact was built on.
+        recipes = recipes_named(identity['recipe_sha256'])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ArtifactIdentityError('invalid recorded artifact identity') from error
     try:
         current = inspect_artifact(root, identity['output'], identity['source'], identity['crate'],
                                    identity['target_kind'], identity['target_name'], identity['features'],
                                    build_targets=identity['build_targets'], deps_source=identity['deps_source'],
-                                   deps_targets=identity['deps_targets'], store=store)
+                                   deps_targets=identity['deps_targets'], store=store, recipes=recipes)
     except (KeyError, TypeError) as error:
         raise ArtifactIdentityError('invalid recorded artifact identity') from error
     if current != identity:

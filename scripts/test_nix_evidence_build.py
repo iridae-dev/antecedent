@@ -25,6 +25,8 @@ class BuildOnlyTest(unittest.TestCase):
             version.write_text("release: 1.85.1\ncommit-hash: abc\nhost: aarch64-apple-darwin\n", encoding="utf-8")
             self.assertEqual(build._versions(root, out)["host"], "aarch64-apple-darwin")
             version.write_text("release: 1.85.1\ncommit-hash: abc\nhost: x86_64-unknown-linux-gnu\n", encoding="utf-8")
+            self.assertEqual(build._versions(root, out)["host"], "x86_64-unknown-linux-gnu")
+            version.write_text("release: 1.85.1\ncommit-hash: abc\nhost: x86_64-apple-darwin\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "compiler"):
                 build._versions(root, out)
 
@@ -111,6 +113,7 @@ class BuildOnlyTest(unittest.TestCase):
         source = {"commit": "abc", "store_path": "/nix/store/source", "nar_hash": "nar"}
         artifact = {"source_nar_hash": "nar", "sandbox_verified": False}
         with patch.object(build, "_target_features", return_value=[]), \
+             patch.object(build, "earning_platform", return_value=build.PLATFORMS["aarch64-apple-darwin"]), \
              patch.object(build, "materialize_committed_source", return_value={"commit": "abc"}), \
              patch.object(build, "import_committed_snapshot", return_value=source), \
              patch.object(build, "verify_committed_snapshot") as verify, \
@@ -132,12 +135,14 @@ class BuildOnlyTest(unittest.TestCase):
         source = {"commit": "abc", "store_path": "/nix/store/source", "nar_hash": "nar"}
 
         def artifact(root, output, source_path, crate, kind, name, features, build_targets,
-                     deps_source, deps_targets):
+                     deps_source, deps_targets, recipes):
+            self.assertEqual(recipes, build.RECIPE_FILES)
             self.assertEqual(len(build_targets), 2)
             self.assertEqual(deps_source, "/nix/store/deps")
             self.assertEqual(len(deps_targets), 3)
             return {"source_nar_hash": "nar", "sandbox_verified": False, "crate": crate}
         with patch.object(build, "_target_features", return_value=[]), \
+             patch.object(build, "earning_platform", return_value=build.PLATFORMS["aarch64-apple-darwin"]), \
              patch.object(build, "materialize_committed_source", return_value={"commit": "abc"}), \
              patch.object(build, "import_committed_snapshot", return_value=source), \
              patch.object(build, "verify_committed_snapshot"), \

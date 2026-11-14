@@ -5,25 +5,33 @@
 
   outputs = { nixpkgs, ... }:
     let
-      system = "aarch64-darwin";
-      pkgs = import nixpkgs { inherit system; };
-      rust = import ./nix/evidence-toolchain.nix { inherit pkgs; };
-      # An ordinary engineering fixture: builds and runs only this tiny program.
-      fixture = pkgs.runCommand "antecedent-evidence-boundary-fixture" {
-        nativeBuildInputs = [ rust pkgs.stdenv.cc ];
-      } ''
-        cat > fixture.rs <<'RS'
-        fn main() { assert_eq!(2 + 2, 4); }
-        RS
-        rustc fixture.rs -o fixture
-        ./fixture
-        mkdir -p "$out"
-        rustc -vV > "$out/rustc-version"
-      '';
+      # The platforms with a reviewed evidence policy (scripts/evidence_platforms.py).
+      systems = [ "aarch64-darwin" "x86_64-linux" "aarch64-linux" ];
+      packagesFor = system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+          rust = import
+            (if pkgs.stdenv.hostPlatform.isDarwin
+            then ./nix/evidence-toolchain.nix
+            else ./nix/linux/evidence-toolchain.nix)
+            { inherit pkgs; };
+          # An ordinary engineering fixture: builds and runs only this tiny program.
+          fixture = pkgs.runCommand "antecedent-evidence-boundary-fixture" {
+            nativeBuildInputs = [ rust pkgs.stdenv.cc ];
+          } ''
+            cat > fixture.rs <<'RS'
+            fn main() { assert_eq!(2 + 2, 4); }
+            RS
+            rustc fixture.rs -o fixture
+            ./fixture
+            mkdir -p "$out"
+            rustc -vV > "$out/rustc-version"
+          '';
+        in {
+          evidence-rust = rust;
+          evidence-fixture = fixture;
+        };
     in {
-      packages.${system} = {
-        evidence-rust = rust;
-        evidence-fixture = fixture;
-      };
+      packages = nixpkgs.lib.genAttrs systems packagesFor;
     };
 }

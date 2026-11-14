@@ -7,6 +7,12 @@ boundary: a change to code a claim executed (or to anything that can affect
 its build) makes the claim owed again, while an unrelated change leaves it
 current, so CI only checks that records are up to date.
 
+## Platforms
+
+This page describes the Apple-silicon policy. `scripts/evidence_platforms.py` holds every
+platform a record can be earned on, each with its own policy, recipes (`nix/linux/` for Linux)
+and reviewed registry; `docs/development.md` ("Earning platforms") has the Linux bring-up.
+
 ## What is pinned and checked
 
 - `flake.lock` pins nixpkgs; `evidence-toolchain.nix` pins Rust 1.97.1, its LLVM

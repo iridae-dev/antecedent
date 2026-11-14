@@ -159,12 +159,14 @@ class EarningTests(Fixture):
 
     def test_reviewed_registry_assesses_the_host_compile_time_graph(self):
         import evidence_earning
+        import evidence_platforms
         import nix_evidence_policy
         graph = {'leaf': set(), 'mid': set(), 'top': {'reader'}}
         self.write('nix/compile-time-reviewed.json', '{}')
         self.write('Cargo.lock', '')
         with patch.dict(evidence_earning._COMPILE_TIME, {self.root: graph}), \
              patch.dict(evidence_earning._HOST_UNITS, clear=True), \
+             patch.object(evidence_platforms, 'host_target', return_value='aarch64-apple-darwin'), \
              patch.object(nix_evidence_policy, 'host_compiler_graph', return_value={}), \
              patch.object(nix_evidence_policy, 'validate_units', return_value={}) as validate:
             snapshot = self.snapshot()

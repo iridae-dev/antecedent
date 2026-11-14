@@ -131,11 +131,21 @@ def tree_fingerprints(records: list[dict], root: Path = ROOT) -> dict[str, str |
             now = "manifest:" + rec["dependency_manifest"]
         else:
             for row in attestation_rows:
-                if probe.covers(rec, row) and checker.check(probe_binding(row), row["dependency_manifest"])["current"]:
+                if (probe.covers(rec, row) and _same_platform(root, rec, row)
+                        and checker.check(probe_binding(row), row["dependency_manifest"])["current"]):
                     now = "manifest:" + row["dependency_manifest"]
                     break
         out[str(rec.get("id"))] = now
     return out
+
+
+def _same_platform(root: Path, rec: dict, row: dict) -> bool:
+    """A probe replays digests, so it speaks for a measurement of its own platform only."""
+    from evidence_platforms import stored_platform
+
+    earned = stored_platform(root, rec.get("dependency_manifest"))
+    probed = stored_platform(root, row.get("dependency_manifest"))
+    return earned is None or probed is None or earned == probed
 
 
 def covered_by_probe(rec: dict, rows: list[dict], now: str | None) -> bool:

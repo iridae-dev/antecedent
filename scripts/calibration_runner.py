@@ -308,8 +308,8 @@ def execute(root: Path, tasks: list[Task], *, env: dict[str, str], log_dir: Path
     from dataclasses import asdict
 
     import evidence_capture
+    from evidence_platforms import validate_build
     from nix_evidence_build import build_committed_targets
-    from nix_evidence_policy import validate_build
     from nix_evidence_source import _clean_head
 
     root = root.resolve()

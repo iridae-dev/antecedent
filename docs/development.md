@@ -562,6 +562,65 @@ The runner proves the exact assertion executed and was not ignored; failures are
 recorded. A recorded pass is evidence for support only; it is never a calibration measurement or
 coverage record.
 
+## Earning platforms
+
+A record is earned on the machine of the developer who implemented its feature, whatever its
+platform, and committed with the change. Every other machine, CI included, only checks that the
+record is current. `scripts/evidence_platforms.py` holds the reviewed platforms; each has its own
+policy id, Nix system, build recipes, sandbox rule and reviewed compile-time registry:
+
+| platform (Rust host triple) | Nix system | policy | compile-time registry |
+| --- | --- | --- | --- |
+| `aarch64-apple-darwin` | `aarch64-darwin` | `nix-darwin-private-tmp-audit-v1` | `nix/compile-time-reviewed.json` |
+| `x86_64-unknown-linux-gnu` | `x86_64-linux` | `nix-linux-sandbox-audit-v1` | `nix/compile-time-reviewed.x86_64-unknown-linux-gnu.json` |
+| `aarch64-unknown-linux-gnu` | `aarch64-linux` | `nix-linux-sandbox-audit-v1` | `nix/compile-time-reviewed.aarch64-unknown-linux-gnu.json` |
+
+**Earning.** The commands are the same on every platform (`bash scripts/test.sh`,
+`bash scripts/measure_calibration.sh`, `python3 scripts/calibration_probe.py`). Earning selects
+the policy of the host it runs on and refuses, before building, on a host with no reviewed policy
+or with an incomplete bring-up. `python3 scripts/evidence_platforms.py status` prints the host's
+policy and anything it still lacks. On Apple silicon nothing changes.
+
+**Which platform earned a record.** A record's dependency manifest
+(`parity/evidence_manifests/<dependency_manifest>.json`) names it in `nix_build.policy.target`.
+`nix_build.policy.id` and `nix_build.tools.host` (the compiler's host triple) must be that
+platform's, and its recipe digests must be of that platform's recipes; the manifest checker
+refuses a receipt whose fields disagree.
+
+**On a machine of another platform.** You can check that the record is current: currency compares
+source fingerprints, the compiler pin, `Cargo.lock` and the record's own platform registry, all
+read from the repository, so the answer is the same on every host
+(`scientific_records.py status --check`, `calibration_status.py --check`). You cannot replay it. A
+coverage record's replicate digests are bit-exact and depend on the platform's math library, so
+`calibration_probe.py` does not run a record earned elsewhere and reports
+`earned on <platform>; this host (<host>) cannot replay its digests`, never a mismatch; a probe
+attestation covers only a measurement of its own platform. A record that a change makes owed is
+re-earned on the platform of whoever makes the change, and then names that platform.
+
+**Linux bring-up (once per Linux platform, on a Linux host).** Until every step is done, earning
+on Linux refuses and lists what is missing:
+
+1. Toolchain hashes. In `nix/linux/evidence-toolchain.json`, replace each `null` of the host's
+   target with the SHA-256 published beside the archive
+   (`https://static.rust-lang.org/dist/<date>/<component>-<release>-<target>.tar.xz.sha256`), then
+   `nix build .#evidence-fixture`. A `null` fails evaluation; it is never built from.
+2. Build recipes. Add `nix/linux/evidence-common.nix`, `evidence-deps.nix`, `evidence-driver.nix`,
+   `evidence-target.nix` and `calibration-release.nix`, the Linux forms of the recipes in `nix/`:
+   build for `builtins.currentSystem`, import `./evidence-toolchain.nix`, name the toolchain's
+   `rustlib/<target>` directory, and drop the Mach-O linker flag `-oso_prefix`. The Apple-silicon
+   recipes are bound by content in every existing record, so they are not edited.
+3. Sandbox. `/etc/nix/nix.conf` must set `sandbox = true` and `sandbox-fallback = false`
+   explicitly. The policy also requires that the daemon reports the same, that `sandbox` is not
+   `relaxed`, and that `sandbox-paths` exposes nothing but `/bin/sh` mapped into the store.
+4. Compile-time registry. `python3 scripts/evidence_platforms.py draft-registry` writes the host's
+   registry with every build-script and procedural-macro unit (and what each depends on) marked
+   `unresolved`. Review what each unit reads on Linux, as `nix/compile-time-audit.md` does for
+   Apple silicon, set its `source_projection` to `reviewed-safe` or `complete-source`, list the
+   review documents under `audit_documents`, and commit it. Earning refuses an `unresolved` unit.
+   After a `Cargo.lock` change, run the command again: unchanged reviewed rows are kept.
+5. `python3 scripts/evidence_platforms.py status` reports that records can be earned; run
+   `python3 scripts/scientific_records.py run --only <one test> --check-reproducible` once.
+
 ## Tests that matter
 
 | Kind | Role |

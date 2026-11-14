@@ -6,10 +6,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 import evidence_earning
+import evidence_platforms
 import nix_evidence_build
 import nix_evidence_capture
 import nix_evidence_engineering_fixture
-import nix_evidence_policy
 import nix_evidence_source
 import scientific_records as scientific
 
@@ -70,7 +70,8 @@ class NixRustEarning(unittest.TestCase):
                  patch.object(nix_evidence_build, "build_committed_targets", side_effect=build), \
                  patch.object(scientific, "all_scientific_rows", return_value=rows), \
                  patch.object(nix_evidence_capture, "capture_built_target", side_effect=capture), \
-                 patch.object(nix_evidence_policy, "validate_build"), \
+                 patch.object(evidence_platforms, "earning_platform"), \
+                 patch.object(evidence_platforms, "validate_build"), \
                  patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")):
                 self.assertEqual(scientific.earn_rust(root, rows, backend="nix"), 0)
             # The boundary preflight runs once, before the derivation is built.
@@ -94,7 +95,8 @@ class NixRustEarning(unittest.TestCase):
             patch.object(nix_evidence_build, "build_committed_targets", return_value={("a", "lib", ""): {}}),
             patch.object(scientific, "all_scientific_rows", return_value=[{}]),
             patch.object(nix_evidence_capture, "capture_built_target") as capture,
-            patch.object(nix_evidence_policy, "validate_build", side_effect=RuntimeError("unreviewed")),
+            patch.object(evidence_platforms, "earning_platform"),
+            patch.object(evidence_platforms, "validate_build", side_effect=RuntimeError("unreviewed")),
             patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")),
             self.assertRaisesRegex(RuntimeError, "unreviewed"),
         ):
