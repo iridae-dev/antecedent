@@ -359,3 +359,113 @@ fn the_trend_correction_recovers_the_autocorrelation_of_a_persistent_error() {
     assert!(raw < corrected - 0.015, "{raw} vs {corrected}");
     assert!((corrected - 0.7).abs() < 0.02, "{corrected}");
 }
+
+/// A level shift of 1 at period 1000 with AR(2) errors (`0.5`, `0.3`, marginal standard
+/// deviation `0.7`): dependence the AR(1) error model of the interval does not carry.
+fn in_time_ar2(seed: u64) -> Sample {
+    let mut rng = FixtureRng::new(seed);
+    let mut sample = Sample {
+        running: Vec::new(),
+        outcome: Vec::new(),
+        treatment: Vec::new(),
+        covariate: Vec::new(),
+    };
+    let (phi1, phi2): (f64, f64) = (0.5, 0.3);
+    let marginal = 0.7;
+    let innovation =
+        marginal * ((1.0 + phi2) * ((1.0 - phi2).powi(2) - phi1 * phi1) / (1.0 - phi2)).sqrt();
+    let (mut previous, mut before) = (0.0, 0.0);
+    for period in 1..=2500_u32 {
+        let error = phi1 * previous + phi2 * before + innovation * normal(&mut rng);
+        before = previous;
+        previous = error;
+        if period <= 500 {
+            continue;
+        }
+        let time = f64::from(period - 500);
+        let treated = if time >= 1000.0 { 1.0 } else { 0.0 };
+        sample.running.push(time);
+        sample.treatment.push(treated);
+        sample.outcome.push(0.001 * time + treated + error);
+    }
+    sample
+}
+
+fn temporal_design() -> LocalRatioDesign {
+    LocalRatioDesign {
+        select_bandwidth: false,
+        temporal_replicates: Some(199),
+        density_test: false,
+    }
+}
+
+#[test]
+fn centered_shifts_have_zero_mean_and_skip_unusable_draws() {
+    let raw = vec![
+        Some(vec![1.0, 0.5]),
+        Some(vec![3.0, 1.5]),
+        None,
+        Some(vec![f64::NAN, 0.0]),
+        Some(vec![5.0, 2.5]),
+    ];
+    let centered = super::center_shifts(&raw);
+    assert_eq!(centered[0], Some([-2.0, -1.0]));
+    assert_eq!(centered[1], Some([0.0, 0.0]));
+    assert_eq!(centered[4], Some([2.0, 1.0]));
+    assert!(centered[2].is_none() && centered[3].is_none());
+}
+
+#[test]
+fn the_innovation_screen_separates_white_noise_from_lagged_dependence() {
+    let mut rng = FixtureRng::new(11);
+    let white: Vec<f64> = (0..600).map(|_| normal(&mut rng)).collect();
+    let p_white = super::innovation_dependence_p_value(&white, 300).unwrap();
+    assert!(p_white > super::SCREEN_LEVEL, "{p_white}");
+    // `z_t + 0.5 z_{t-2}` has a lag-two autocorrelation of 0.4 within each side.
+    let shocks: Vec<f64> = (0..604).map(|_| normal(&mut rng)).collect();
+    let mut dependent = Vec::with_capacity(600);
+    for side in 0..2 {
+        for i in 0..300 {
+            let at = side * 302 + i + 2;
+            dependent.push(shocks[at] + 0.5 * shocks[at - 2]);
+        }
+    }
+    let p_dependent = super::innovation_dependence_p_value(&dependent, 300).unwrap();
+    assert!(p_dependent < 1e-6, "{p_dependent}");
+    assert!(super::innovation_dependence_p_value(&[0.0; 40], 20).is_none());
+}
+
+#[test]
+fn an_ar2_error_withholds_the_interval_and_an_ar1_error_keeps_it() {
+    let ar2 = in_time_ar2(46);
+    let rejected = fit_local_ratio_design(
+        &ar2.columns(),
+        &[],
+        1000.0,
+        300.0,
+        false,
+        temporal_design(),
+        &ExecutionContext::for_tests(7),
+    )
+    .unwrap();
+    let record = rejected.temporal.unwrap();
+    assert!(record.serial_dependence_rejected.is_some_and(|p| p < super::SCREEN_LEVEL));
+    assert!(record.ratio.interval.is_none() && record.ratio.band.is_none());
+    assert!(record.reference_degrees_of_freedom.is_none());
+    // The point estimate is untouched by the withdrawal.
+    assert!(rejected.fit.estimate.is_finite());
+    let ar1 = in_time(45);
+    let kept = fit_local_ratio_design(
+        &ar1.columns(),
+        &[],
+        1000.0,
+        300.0,
+        false,
+        temporal_design(),
+        &ExecutionContext::for_tests(7),
+    )
+    .unwrap();
+    let record = kept.temporal.unwrap();
+    assert!(record.serial_dependence_rejected.is_none());
+    assert!(record.ratio.interval.is_some());
+}
