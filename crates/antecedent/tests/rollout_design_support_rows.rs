@@ -35,6 +35,8 @@ mod retained_graphless;
 const POSTERIOR_ROW: &str = antecedent_io::graphless_support::DESIGN_POSTERIOR_ROW_CODE;
 /// What the loader says of a rollout section whose support claim no row admits.
 const NO_ROW: &str = "claims no support";
+/// What the loader says of a stated count that is not the one its query and payload give.
+const RECOUNTED: &str = "states support on a count";
 /// What the loader says of a design posterior whose stated row does not admit it.
 const NO_POSTERIOR_ROW: &str = "states a graphless support row that does not admit it";
 const OUTCOME: VariableId = VariableId::from_raw(0);
@@ -416,6 +418,9 @@ fn supported_staggered_rollout_interval_round_trips_and_refuses_forgery() {
     // Too few never-treated units, too few clusters, and a refit count below the row.
     assert!(forged_section(&names, &body, "never_treated_units", 20.0).contains(NO_ROW));
     assert!(forged_section(&names, &body, "clusters", 100.0).contains(NO_ROW));
+    // A count restated above the query's still meets the row; the loader recounts it.
+    assert!(forged_section(&names, &body, "never_treated_units", 4000.0).contains(RECOUNTED));
+    assert!(forged_section(&names, &body, "treated_units", 4000.0).contains(RECOUNTED));
     let mut forged = body.clone();
     let section = forged.quasi_rollout.as_mut().unwrap();
     (section.replicates_ok, section.replicates_failed) = (100, 99);
@@ -625,6 +630,9 @@ fn supported_conformal_sets_round_trip_and_refuse_forgery() {
     assert!(forged_section(&names, &body, "pre_periods", 20.0).contains(NO_ROW));
     assert!(forged_section(&names, &body, "donors", 4.0).contains(NO_ROW));
     assert!(forged_section(&names, &body, "unbounded_intervals", 1.0).contains(NO_ROW));
+    // Counts restated above the query's still meet the row; the loader recounts them.
+    assert!(forged_section(&names, &body, "pre_periods", 159.0).contains(RECOUNTED));
+    assert!(forged_section(&names, &body, "donors", 40.0).contains(RECOUNTED));
 
     // A shorter pre-period runs and states no support.
     let (short, query) = one_treated(62, 25);
@@ -650,6 +658,8 @@ fn supported_placebo_interval_round_trips_and_refuses_forgery() {
     assert!(forged_section(&names, &body, "never_treated_donors", 6.0).contains(NO_ROW));
     assert!(forged_section(&names, &body, "adopting_units", 2.0).contains(NO_ROW));
     assert!(forged_section(&names, &body, "fewest_pre_periods", 10.0).contains(NO_ROW));
+    assert!(forged_section(&names, &body, "never_treated_donors", 60.0).contains(RECOUNTED));
+    assert!(forged_section(&names, &body, "fewest_pre_periods", 25.0).contains(RECOUNTED));
 
     // Fewer donors run and state no support.
     let (small, query) = staggered_synthetic(72, 8);
@@ -672,8 +682,16 @@ fn supported_synthetic_posterior_round_trips_and_refuses_forgery() {
     assert!(forged_posterior_row(&names, &body, "rows", "12").contains(NO_POSTERIOR_ROW));
     assert!(forged_posterior_row(&names, &body, "blocks", "3").contains(NO_POSTERIOR_ROW));
 
-    // Fewer draws, and a shorter pre-period, run and state no row.
-    assert!(!states_posterior_row(&fit_synthetic(&data, query, bayes(None, 800), 10).1));
+    // Fewer draws, and a shorter pre-period, run and state no row; the supported fit's
+    // statement beside the smaller posterior is refused, because the loader counts the draws
+    // in the stored posterior.
+    let (few_prepared, few, few_ctx) = fit_synthetic(&data, query, bayes(None, 800), 10);
+    assert!(!states_posterior_row(&few));
+    let (_, few_body) = artifact(&few_prepared, &few, &few_ctx, label);
+    let mut thinned = body.clone();
+    thinned.posterior_artifact = few_body.posterior_artifact;
+    antecedent_io::encode_analysis_result_artifact(&thinned, names.clone(), "thinned-posterior")
+        .expect_err("a row stated on fewer draws than it was measured with is refused");
     let (short, query) = one_treated(82, 20);
     assert!(!states_posterior_row(&fit_synthetic(&short, query, bayes(None, 2_000), 10).1));
 }
