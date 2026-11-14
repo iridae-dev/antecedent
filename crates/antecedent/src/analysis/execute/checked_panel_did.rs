@@ -841,6 +841,19 @@ impl CheckedPanelDidOperation {
             .as_ref()
             .and_then(|summary| summary.quantities.first().copied())
             .filter(|quantity| quantity.interval.is_some());
+        // The interval is the point with the resample standard error and a Student reference
+        // on the completed refit count, which accounts for the standard error being estimated
+        // from finitely many refits.
+        let resampled_interval = resampled_quantity
+            .zip(resampled.as_ref())
+            .and_then(|(quantity, summary)| {
+                antecedent_estimate::augmented_panel_did::resample_interval_95(
+                    fit.effect,
+                    quantity.standard_error?,
+                    summary.replicates_ok,
+                )
+            })
+            .or(resampled_quantity.and_then(|quantity| quantity.interval));
         let estimate = EffectEstimate::new(
             fit.effect,
             f64::NAN,
@@ -869,7 +882,7 @@ impl CheckedPanelDidOperation {
             standard_error: resampled_quantity
                 .and_then(|quantity| quantity.standard_error)
                 .unwrap_or(0.0),
-            interval_95: resampled_quantity.and_then(|quantity| quantity.interval),
+            interval_95: resampled_interval,
             treated_subjects: fit.treated_subjects,
             comparison_subjects: fit.control_subjects,
             clusters: pick(&self.query.clusters, &keep).iter().collect::<BTreeSet<_>>().len(),
