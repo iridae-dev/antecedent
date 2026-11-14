@@ -79,6 +79,7 @@ jobs:
           python -m pip install -r requirements-docs.txt
           pip install "python/dist/"*.whl
           python scripts/check_docs_experience.py
+          python scripts/example_coverage.py --check
           python scripts/run_doc_examples.py
           python scripts/render_notebooks.py
           python scripts/test_docs_publication.py

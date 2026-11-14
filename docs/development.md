@@ -11,6 +11,7 @@ python -m pip install -r requirements-docs.txt
 python scripts/generate_example_catalog.py --check
 python scripts/generate_doc_release_links.py --check
 python scripts/check_docs_experience.py
+python scripts/example_coverage.py --check
 python scripts/render_notebooks.py
 mkdocs build --strict
 python scripts/build_python_api_docs.py site/python
@@ -18,6 +19,8 @@ mkdocs serve
 ```
 
 Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest (`scripts/docs_publication.toml`) keeps evidence-linked sources at their paths and out of the published site. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/v3.0.0/docs/README.md) for editorial conventions.
+
+`scripts/example_coverage.py` prints, for every example-catalog entry, whether each of its Python, Rust and notebook sources is executed, compiled only, or skipped and why. It reads what the runners select (the Python suite, the documentation build and the Rust example suite) and runs nothing; `--check` fails on a source no runner selects unless its catalog entry states the reason in an `unexecuted` table.
 
 Published pages link repository sources (provenance and parity records, tests, examples, ADRs) at the tag of the release they document, so a released page keeps naming the evidence it shipped with. Write such a link against any ref and run `python scripts/generate_doc_release_links.py`, which pins it; the link check fails a published page that names `main` or another release tag. The tag is created from the release commit, so before then a pinned link names nothing on GitHub and is checked against the working tree instead.
 
