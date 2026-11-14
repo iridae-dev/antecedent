@@ -96,6 +96,7 @@ pub mod heterogeneity_robust_did;
 pub(crate) mod interference;
 pub(crate) mod interference_observational;
 pub(crate) mod interference_saturation;
+pub(crate) mod interference_small_arm;
 pub mod iv;
 pub mod iv_bounds;
 pub mod joint_bayesian_transport;
@@ -348,17 +349,19 @@ pub use identified_set::{
 };
 pub use inference::InferenceSpec;
 pub use interference::{
-    BayesianInterferenceEstimate, CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS, ClusterTotalInterval,
-    InterferenceEstimate, estimate_cluster_interference_bayesian_bootstrap,
-    estimate_cluster_interference_total, estimate_cluster_interference_total_with_inference,
-    estimate_interference, estimate_interference_bayesian, estimate_interference_with_context,
-    own_treatment_level,
+    BayesianInterferenceEstimate, ClusterTotalInterval, InterferenceEstimate,
+    estimate_cluster_interference_bayesian_bootstrap, estimate_cluster_interference_total,
+    estimate_cluster_interference_total_with_inference, estimate_interference,
+    estimate_interference_bayesian, estimate_interference_with_context, own_treatment_level,
 };
 pub use interference_observational::{
     ObservationalExposureEstimate, ObservationalExposureSpec, estimate_observational_exposure,
 };
 pub use interference_saturation::{
     SaturationInterferenceEstimate, estimate_saturation_interference,
+};
+pub use interference_small_arm::{
+    CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS, estimate_cluster_interference_small_arm_posterior,
 };
 pub use iv::{
     CheckedIvLowering, CheckedIvPreparation, CheckedIvProcedure, PreparedIvProblem,

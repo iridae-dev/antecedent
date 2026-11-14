@@ -715,14 +715,25 @@ impl CheckedInterferenceOperation {
     ) -> Result<InterferenceArm, CausalError> {
         let options =
             antecedent_estimate::score_posterior::ScorePosteriorOptions { draws, coverage: 0.95 };
-        let (_, summary) = antecedent_estimate::estimate_cluster_interference_bayesian_bootstrap(
+        // An arm of few clusters publishes the reference law; otherwise the Dirichlet-weight law.
+        let small_arm = antecedent_estimate::estimate_cluster_interference_small_arm_posterior(
             &self.query,
             network,
             &self.assignment,
             options,
-            ctx,
         )
         .map_err(CausalError::from)?;
+        let (_, summary) = match small_arm {
+            Some(reference) => reference,
+            None => antecedent_estimate::estimate_cluster_interference_bayesian_bootstrap(
+                &self.query,
+                network,
+                &self.assignment,
+                options,
+                ctx,
+            )
+            .map_err(CausalError::from)?,
+        };
         let schema = antecedent_prob::PosteriorSchema {
             quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
                 name: Arc::from("cluster_total_exposure_contrast"),
