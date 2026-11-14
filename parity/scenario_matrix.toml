@@ -4132,3 +4132,43 @@ value = "held_out_intervention"
 status = "unavailable"
 test = "crates/antecedent/tests/cells_01_pulse_refuter_boundaries.rs::cells_01_a_pulse_far_outside_the_observed_range_is_flagged_then_refused_beyond_the_bound"
 reason = "a pulse beyond the configured number of observed treatment ranges is refused as positivity_violated and a smaller extrapolation carries a Support warning; the control level is never refused"
+
+[[cell]]
+family = "P11.synthetic_control"
+axis = "uncertainty"
+value = "temporal.frequentist"
+status = "unavailable"
+reason = "the route publishes the point effect and no interval or standard error (its placebo rank is descriptive, and the sharp-null tail fraction under declared uniform unit randomization is exact by enumeration); the conformal sets and the placebo-variance interval are published by the routes quasi.synthetic_control_conformal and quasi.multi_unit_synthetic_placebo"
+test = "crates/antecedent/tests/synthetic_control_route.rs::synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim"
+
+[[cell]]
+family = "X04.1"
+axis = "uncertainty"
+value = "static.frequentist"
+status = "unavailable"
+reason = "the search publishes each candidate's objective value under the retained source law and the best feasible programs, and no interval, optimality probability or selected-decision reliability figure; the uncertainty of a value belongs to the source law the search reads"
+test = "crates/antecedent-design/src/program_search.rs::finite_program_search_checks_budget_and_reuses_outputs_for_utility_changes"
+
+[[cell]]
+family = "X04.1"
+axis = "uncertainty"
+value = "static.bayesian"
+status = "unavailable"
+reason = "the search publishes each candidate's objective value under the retained source law and the best feasible programs, and no interval, optimality probability or selected-decision reliability figure; the uncertainty of a value belongs to the source law the search reads"
+test = "crates/antecedent-design/src/program_search.rs::finite_program_search_checks_budget_and_reuses_outputs_for_utility_changes"
+
+[[cell]]
+family = "X04.1"
+axis = "uncertainty"
+value = "temporal.frequentist"
+status = "unavailable"
+reason = "the search publishes each candidate's objective value under the retained source law and the best feasible programs, and no interval, optimality probability or selected-decision reliability figure; the uncertainty of a value belongs to the source law the search reads"
+test = "crates/antecedent-design/src/program_search.rs::finite_program_search_checks_budget_and_reuses_outputs_for_utility_changes"
+
+[[cell]]
+family = "X04.1"
+axis = "uncertainty"
+value = "temporal.bayesian"
+status = "unavailable"
+reason = "the search publishes each candidate's objective value under the retained source law and the best feasible programs, and no interval, optimality probability or selected-decision reliability figure; the uncertainty of a value belongs to the source law the search reads"
+test = "crates/antecedent-design/src/program_search.rs::finite_program_search_checks_budget_and_reuses_outputs_for_utility_changes"

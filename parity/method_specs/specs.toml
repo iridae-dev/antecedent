@@ -2748,14 +2748,14 @@ references = [
 [[spec]]
 id = "P11.synthetic_control.temporal.frequentist"
 parent = "P11"
-gap = "validation"
+gap = "none"
 route = "quasi.synthetic_control"
 target = "SyntheticControl"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/synthetic_control_route.rs; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/synthetic_control_route.rs::synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty none (declared_and_corroborated)"
 provenance = [
-  "estimate.bayesian_synthetic_control",
+  "quasi.synthetic_control",
 ]
 api_review = "parity/public_api/antecedent-estimate.txt: 12 of 12 public items reviewed"
 identifying_result = "SyntheticControl"
@@ -2763,7 +2763,7 @@ assumptions = "Checked path crates/antecedent/src/analysis/execute/checked_synth
 sampling_units = "graphless balanced panel; method=Control|DifferenceInDifferences"
 estimator = "simplex donor weights: Deterministic simplex synthetic control shared by direct and retained routes."
 diagnostics = "execution_only point estimate; no support_graphless interval support"
-failure_policy = "Adjusted claim: conformal and placebo-variance intervals execute unsupported (routes quasi.synthetic_control_conformal, quasi.multi_unit_synthetic_placebo); no support_graphless interval support or coverage record."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3583,12 +3583,12 @@ references = [
 [[spec]]
 id = "P13.attribution.static.bayesian"
 parent = "P13"
-gap = "validation"
+gap = "none"
 route = "supported.AnomalyAttribution.Dag"
 target = "AnomalyAttribution"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/calibration_anomaly_bayesian.rs; consumer crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused; consumer crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target; uncertainty posterior (construction_fixture)"
 provenance = [
   "attribution.basic",
 ]
@@ -3598,7 +3598,7 @@ assumptions = "the identification premises of AnomalyAttribution on the recorded
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
 estimator = "gcm.fit.bayesian: Anomaly attribution via ancestor-noise Shapley (Budhathoki, Minorics, Bloebaum & Janzing 2022)."
 diagnostics = "no attribution interval; validation none"
-failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior). A non-finite target or reconstructed coalition value is an error, never a score of 0 (\"perfectly ordinary\")."
+failure_policy = "A non-finite target or reconstructed coalition value is an error, never a score of 0 (\"perfectly ordinary\")."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -3633,7 +3633,7 @@ references = [
 [[spec]]
 id = "P13.attribution.temporal.bayesian"
 parent = "P13"
-gap = "validation"
+gap = "none"
 route = "supported.AnomalyAttribution.TemporalDag"
 target = "AnomalyAttribution"
 review_status = "admitted"
@@ -3648,7 +3648,7 @@ assumptions = "the identification premises of AnomalyAttribution on the recorded
 sampling_units = "A density is not a probability: it is unbounded, it carries the units of 1/y, and it moves under any rescaling of the target."
 estimator = "gcm.fit.bayesian: Anomaly attribution via ancestor-noise Shapley (Budhathoki, Minorics, Bloebaum & Janzing 2022)."
 diagnostics = "no temporal Bayesian attribution interval"
-failure_policy = "Adjusted claim: executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior). A non-finite target or reconstructed coalition value is an error, never a score of 0 (\"perfectly ordinary\")."
+failure_policy = "A non-finite target or reconstructed coalition value is an error, never a score of 0 (\"perfectly ordinary\")."
 references = [
   "Static and temporal parity",
   "Frequentist and Bayesian parity",
@@ -5225,7 +5225,7 @@ references = [
 [[spec]]
 id = "X04.1.static.frequentist"
 parent = "X04.1"
-gap = "validation"
+gap = "none"
 route = "gcm.model.intervention_programs"
 target = "PolicyProgramValue"
 review_status = "admitted"
@@ -5240,7 +5240,7 @@ assumptions = "Controllable variables, permissible schedules, bounds, resource l
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source.: Exhaustive bounded program search over checked response quantities."
 diagnostics = "This owner checks operational feasibility and delegates every statistical functional to the existing decision engine. Failed or unsupported source coordinates refuse a complete certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5279,7 +5279,7 @@ references = [
 [[spec]]
 id = "X04.1.static.bayesian"
 parent = "X04.1"
-gap = "validation"
+gap = "none"
 route = "gcm.model.intervention_programs"
 target = "PolicyProgramValue"
 review_status = "admitted"
@@ -5294,7 +5294,7 @@ assumptions = "Controllable variables, permissible schedules, bounds, resource l
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source.: Exhaustive bounded program search over checked response quantities."
 diagnostics = "This owner checks operational feasibility and delegates every statistical functional to the existing decision engine. Failed or unsupported source coordinates refuse a complete certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5333,7 +5333,7 @@ references = [
 [[spec]]
 id = "X04.1.temporal.frequentist"
 parent = "X04.1"
-gap = "validation"
+gap = "none"
 route = "gcm.model.intervention_programs"
 target = "PolicyProgramValue"
 review_status = "admitted"
@@ -5348,7 +5348,7 @@ assumptions = "Controllable variables, permissible schedules, bounds, resource l
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source.: Exhaustive bounded program search over checked response quantities."
 diagnostics = "This owner checks operational feasibility and delegates every statistical functional to the existing decision engine. Failed or unsupported source coordinates refuse a complete certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",
@@ -5387,7 +5387,7 @@ references = [
 [[spec]]
 id = "X04.1.temporal.bayesian"
 parent = "X04.1"
-gap = "validation"
+gap = "none"
 route = "gcm.model.intervention_programs"
 target = "PolicyProgramValue"
 review_status = "admitted"
@@ -5402,7 +5402,7 @@ assumptions = "Controllable variables, permissible schedules, bounds, resource l
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
 estimator = "Exhaustive evaluation of declared feasible finite candidates through the original decision functional engine and one retained compiler source.: Exhaustive bounded program search over checked response quantities."
 diagnostics = "This owner checks operational feasibility and delegates every statistical functional to the existing decision engine. Failed or unsupported source coordinates refuse a complete certificate."
-failure_policy = "Adjusted claim: Whole-search Q09/E14 selected-decision reliability remains not_measured.."
+failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "parity/fixtures/joint_panel_search.toml (X04.3 compiler-derived global bounds, actual held-out selection and complete-procedure replay)",
   "Release scope and gates",

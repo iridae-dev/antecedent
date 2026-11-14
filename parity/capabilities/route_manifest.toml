@@ -17909,8 +17909,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_synthetic_control.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_synthetic_control.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/synthetic_control_route.rs"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/synthetic_control_route.rs"]
+evidence = ["crates/antecedent/tests/synthetic_control_route.rs::synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim", "crates/antecedent/tests/synthetic_control_route.rs"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/synthetic_control_route.rs::synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim"]
 
 [[method]]
 id = "method.quasi.staggered_heterogeneity_robust"

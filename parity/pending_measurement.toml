@@ -19,33 +19,15 @@ owed = "band_coverage"
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]
-row = "P11.synthetic_control.temporal.frequentist"
-facet = "suite.panel_calibration"
-owed = "interval_coverage"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
 row = "P12.counterfactual.static.frequentist"
 facet = "suite.calibration_counterfactual"
 owed = "interval_coverage"
 axes = ["uncertainty"]
 
 [[pending]]
-row = "P13.attribution.static.bayesian"
-facet = "suite.calibration_attribution_bayesian"
-owed = "posterior_calibration"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
 row = "P13.attribution.static.frequentist"
 facet = "suite.calibration_estimate"
 owed = "interval_coverage"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P13.attribution.temporal.bayesian"
-facet = "suite.calibration_attribution_bayesian"
-owed = "posterior_calibration"
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]
@@ -142,30 +124,6 @@ axes = ["design_inference", "uncertainty"]
 row = "X03.temporal.frequentist"
 facet = "suite.temporal_frequentist"
 owed = "interval_coverage"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "X04.1.static.bayesian"
-facet = "suite.decision_reliability_calibration"
-owed = "selected_decision_reliability"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "X04.1.static.frequentist"
-facet = "suite.decision_reliability_calibration"
-owed = "selected_decision_reliability"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "X04.1.temporal.bayesian"
-facet = "suite.decision_reliability_calibration"
-owed = "selected_decision_reliability"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "X04.1.temporal.frequentist"
-facet = "suite.decision_reliability_calibration"
-owed = "selected_decision_reliability"
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]

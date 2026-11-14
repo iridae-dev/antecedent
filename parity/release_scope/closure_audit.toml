@@ -6,7 +6,7 @@
 schema = 1
 missing_attempts = 0
 missing_consumers = 0
-adjusted_claims = 64
+adjusted_claims = 57
 unresolved_mandatorys = 0
 families = 28
 
@@ -74,7 +74,7 @@ gaps = "none = 4"
 id = "P11"
 children = 24
 unresolved_evidence = 0
-gaps = "none = 17, target = 6, validation = 1"
+gaps = "none = 18, target = 6"
 
 [[family]]
 id = "P12"
@@ -86,7 +86,7 @@ gaps = "none = 8"
 id = "P13"
 children = 8
 unresolved_evidence = 0
-gaps = "none = 1, validation = 7"
+gaps = "none = 3, validation = 5"
 
 [[family]]
 id = "P14"
@@ -158,7 +158,7 @@ gaps = "target = 2, validation = 2"
 id = "X04.1"
 children = 4
 unresolved_evidence = 0
-gaps = "validation = 4"
+gaps = "none = 4"
 
 [[family]]
 id = "X04.2"
@@ -187,36 +187,12 @@ reason = "the bias-aware intervals and simultaneous band (estimate_dose_grid_bia
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "P11.synthetic_control.temporal.frequentist"
-method = "P11.synthetic_control"
-side = "temporal.frequentist"
-status = "not_supported"
-reason = "conformal and placebo-variance intervals execute unsupported (routes quasi.synthetic_control_conformal, quasi.multi_unit_synthetic_placebo); no support_graphless interval support or coverage record"
-next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
-
-[[adjusted_claim]]
 id = "P13.attribution.static.frequentist"
 method = "P13.attribution"
 side = "static.frequentist"
 status = "supported"
 reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured"
 next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
-
-[[adjusted_claim]]
-id = "P13.attribution.static.bayesian"
-method = "P13.attribution"
-side = "static.bayesian"
-status = "supported"
-reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P13.attribution.temporal.bayesian"
-method = "P13.attribution"
-side = "temporal.bayesian"
-status = "supported"
-reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "P13.refuter.static.frequentist"
@@ -345,38 +321,6 @@ side = "temporal.bayesian"
 status = "not_supported"
 reason = "Whole-procedure calibration of the selection-and-decomposition law is not_measured, and a unique causal change attribution is not claimed: where the design proves no block the typed coarser contrast executes instead."
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "X04.1.static.frequentist"
-method = "X04.1"
-side = "static.frequentist"
-status = "not_supported"
-reason = "Whole-search Q09/E14 selected-decision reliability remains not_measured."
-next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
-
-[[adjusted_claim]]
-id = "X04.1.static.bayesian"
-method = "X04.1"
-side = "static.bayesian"
-status = "not_supported"
-reason = "Whole-search Q09/E14 selected-decision reliability remains not_measured."
-next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
-
-[[adjusted_claim]]
-id = "X04.1.temporal.frequentist"
-method = "X04.1"
-side = "temporal.frequentist"
-status = "not_supported"
-reason = "Whole-search Q09/E14 selected-decision reliability remains not_measured."
-next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
-
-[[adjusted_claim]]
-id = "X04.1.temporal.bayesian"
-method = "X04.1"
-side = "temporal.bayesian"
-status = "not_supported"
-reason = "Whole-search Q09/E14 selected-decision reliability remains not_measured."
-next_attempt = "derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin"
 
 [[adjusted_claim]]
 id = "X04.2.static.frequentist"
