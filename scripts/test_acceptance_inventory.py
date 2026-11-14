@@ -192,7 +192,62 @@ class AcceptanceInventoryTest(unittest.TestCase):
         self.fx.sources["obligations"] = []
         row = self.fx.rows()[0]
         self.assertEqual(row["acceptance"], "incomplete")
-        self.assertTrue(any("claimed uncertainty" in r for r in row["incomplete_reasons"]), row)
+        self.assertTrue(any("no uncertainty" in r for r in row["incomplete_reasons"]), row)
+
+    def test_a_point_only_route_rests_only_on_a_test_asserting_no_interval(self):
+        self.fx.sources["obligations"] = []
+        self.fx.sources["families"][0]["routes"].append("design.point")
+        outcomes = {}
+        for basis in (
+            "asserted_no_interval",
+            "point_only_cell",
+            "declared_and_corroborated",
+            "declared_not_measured",
+        ):
+            self.fx.sources["counterparts"] = [
+                counterpart(
+                    route="design.point",
+                    status="not_supported",
+                    uncertainty="none",
+                    uncertainty_basis=basis,
+                )
+            ]
+            outcomes[basis] = self.fx.rows()[0]["acceptance"]
+        self.assertEqual(
+            outcomes,
+            {
+                "asserted_no_interval": "complete",
+                "point_only_cell": "incomplete",
+                "declared_and_corroborated": "incomplete",
+                "declared_not_measured": "incomplete",
+            },
+        )
+
+    def test_an_asserted_point_only_route_still_owes_its_execution_and_consumer(self):
+        self.fx.sources["obligations"] = []
+        self.fx.sources["families"][0]["routes"].append("design.point")
+        self.fx.sources["counterparts"] = [
+            counterpart(
+                route="design.point",
+                status="not_supported",
+                uncertainty="none",
+                uncertainty_basis="asserted_no_interval",
+                artifact="unlisted",
+            )
+        ]
+        self.assertEqual(self.fx.rows()[0]["acceptance"], "incomplete")
+        self.fx.sources["counterparts"] = [
+            counterpart(
+                route="design.point",
+                status="not_supported",
+                uncertainty="none",
+                uncertainty_basis="asserted_no_interval",
+                closure="narrowed_promise",
+                next_attempt="measure it",
+                reason="reduced",
+            )
+        ]
+        self.assertEqual(self.fx.rows()[0]["acceptance"], "incomplete")
 
     def test_executing_route_without_a_resolvable_consumer_is_incomplete(self):
         for artifact, needle in (

@@ -155,7 +155,8 @@ DECLARED_KIND = {
     "measurement.temporal.frequentist": "analytic",
     "measurement.temporal.bayesian": "posterior",
     "measurement.transport.pooled_differential": "analytic",
-    "composition.static.frequentist": "none",
+    # The normal-approximation interval of a composed linear contrast (check_composed_interval).
+    "composition.static.frequentist": "analytic",
     "composition.static.bayesian": "posterior",
     "composition.temporal.frequentist": "none",
     "composition.temporal.bayesian": "posterior",
@@ -266,6 +267,44 @@ CORROBORATION = {
     ),
     "enclosure": ("bound", "identified_set", "IdentifiedSet", "partial"),
 }
+# How a test states that a result publishes nothing inferential: the interval binding is the
+# `None` method, the result has no interval, or the calibration slot carries the run-time reason.
+NO_INTERVAL = re.compile(
+    r"\bIntervalMethod::None\b"
+    r"|\.interval\(\)(?:\.as_ref\(\))?\.is_none\(\)"
+    r"|\bno_interval_reported\b|\bNO_INTERVAL_REPORTED\b"
+)
+NO_INTERVAL_NEGATED = re.compile(
+    r"assert_ne!|!=|\|\s*(?:\w+::)*IntervalMethod::None\b|\bIntervalMethod::None\s*\|"
+)
+
+
+def asserts_no_interval(span: str) -> bool:
+    """Whether a test body asserts that the result carries no interval.
+
+    A line that negates the statement, or offers `None` as one of several accepted methods, is
+    not such an assertion, and a body that also names an interval method asserts a mixture.
+    """
+    if INTERVAL_REF.search(span):
+        return False
+    return any(
+        NO_INTERVAL.search(line) and not NO_INTERVAL_NEGATED.search(line)
+        for line in span.split("\n")
+    )
+
+
+def no_interval_test(ev: Evidence, tokens: list[str]) -> str:
+    """The first named test among `tokens` whose own body asserts no interval, or ''."""
+    for token in tokens:
+        path, _, name = token.partition("::")
+        if not name or not path.endswith(".rs") or ev.fixture_findings(token):
+            continue
+        for found, block in split_tests(path, ev.text(path)):
+            if found == name and asserts_no_interval(block):
+                return token
+    return ""
+
+
 # Sibling coordinates of an estimator whose cells carry no record of their own: the Bayesian
 # cells that publish the linear-mechanism point on each identified completion.
 DECLARED_NOT_MEASURED = {
@@ -736,6 +775,18 @@ def _consumer(src: Sources, tests: list[str]) -> list[str]:
     return []
 
 
+def cell_tests(cells: list[dict], estimator: str) -> list[str]:
+    """The tests a cell cites for an estimator: its checked executions and its own evidence."""
+    out: list[str] = []
+    for cell in cells:
+        for ck in cell.get("checked_execution", []):
+            if ck["estimator"] == estimator:
+                out.append(f"{ck['test']}::{ck['assertion']}")
+        if cell.get("evidence_test") and cell.get("evidence_assertion"):
+            out.append(f"{cell['evidence_test']}::{cell['evidence_assertion']}")
+    return list(dict.fromkeys(out))
+
+
 def supported_methods(src: Sources) -> list[dict]:
     ev = src.ev
     groups: dict[tuple[str, str, str, str], list[dict]] = defaultdict(list)
@@ -780,7 +831,13 @@ def supported_methods(src: Sources) -> list[dict]:
                 basis = "construction_fixture"
                 sources_ = [f"test:{construction_fixture(src, members, kinds)}"]
             elif all(c.get("interval") == ["none"] for c in members):
-                kinds, basis, sources_ = {"none"}, "point_only_cell", ["cell:interval_none"]
+                asserted = no_interval_test(ev, cell_tests(members, estimator))
+                kinds = {"none"}
+                basis, sources_ = (
+                    ("asserted_no_interval", [f"test:{asserted}"])
+                    if asserted
+                    else ("point_only_cell", ["cell:interval_none"])
+                )
             else:
                 asserted = set()
                 for c in members:
@@ -998,6 +1055,10 @@ def route_methods(src: Sources, supported: list[dict] | None = None) -> list[dic
             uncertainty, basis = estimator_route_uncertainty(
                 route, supported or [], DECLARED_KIND[rid]
             ) or (DECLARED_KIND[rid], "declared_and_corroborated")
+        if uncertainty == "none" and basis == "declared_and_corroborated":
+            asserted = no_interval_test(ev, evidence)
+            if asserted:
+                basis = f"asserted_no_interval|test:{asserted}"
         info = src.estimators.get(estimator)
         override = CONSUMER_OVERRIDE.get(rid, [])
         methods.append(
@@ -1073,6 +1134,7 @@ def facade_methods(src: Sources, methods: list[dict]) -> list[dict]:
         evidence = [t for t in ev.tokens(child["fixtures"]) if ev.fixture_findings(t) == []]
         consumers = ev.tokens(child["consumer"])
         kind = FACADE_KIND.get(f"{module}|{parts[-2]}.{parts[-1]}", "unresolved")
+        asserted = no_interval_test(ev, evidence) if kind == "none" else ""
         out.append(
             {
                 "id": f"method.{stem}.{parts[-2]}.{parts[-1]}",
@@ -1093,7 +1155,9 @@ def facade_methods(src: Sources, methods: list[dict]) -> list[dict]:
                 "coordinates": 0,
                 "uncertainty": kind,
                 "uncertainty_structure": "none",
-                "uncertainty_basis": "declared_and_corroborated",
+                "uncertainty_basis": f"asserted_no_interval|test:{asserted}"
+                if asserted
+                else "declared_and_corroborated",
                 "uncertainty_by_structure": [],
                 "decision_ports": "unlisted",
                 "owning_module": module,
@@ -1232,6 +1296,29 @@ def verify_uncertainty(src: Sources, m: dict, methods: list[dict] | None = None)
             f"{mid}: uncertainty is not derived ({kind!r}); no construction fixture, asserted interval, point-only cell, sibling record or declared procedure supports it"
         ]
     label, _, detail = basis.partition("|")
+    if label == "asserted_no_interval":
+        token = detail.removeprefix("test:")
+        if kind != "none":
+            return [f"{mid}: a no-interval assertion cannot stand behind a {kind} procedure"]
+        if m["kind"] == "supported_estimator":
+            cited = cell_tests(
+                [
+                    cell
+                    for cell in src.cells
+                    if cell["query"] == m["target"]
+                    and cell["graph_class"] == m["graph_class"]
+                    and m["estimator"] in cell["estimators"]
+                    and cell["inference"].lower() == m["inference"]
+                ],
+                m["estimator"],
+            )
+        else:
+            cited = m["evidence"]
+        if token not in cited:
+            return [f"{mid}: {token} is not a test the record cites for this method"]
+        if no_interval_test(ev, [token]) != token:
+            return [f"{mid}: {token} does not assert that the result carries no interval"]
+        return []
     if m["kind"] == "supported_estimator":
         if label not in (
             "construction_fixture",
@@ -1606,16 +1693,63 @@ def self_test() -> int:
         )
         is None
     )
+    # A TemporalAdmg answers through the class executor, so it declares the class behavior.
+    projected = derivative_uncertainty(
+        "ResponseJacobian", "TemporalAdmg", "response.gam_derivative", "Frequentist", "explicit"
+    )
+    assert projected is not None and projected[0] == ["analytic", "none"]
     assert (
         derivative_uncertainty(
-            "ResponseJacobian",
-            "TemporalAdmg",
-            "response.gam_derivative",
-            "Frequentist",
-            "explicit",
+            "ResponseJacobian", "TemporalDag", "response.gam_derivative", "Frequentist", "explicit"
         )
         is None
     )
+    assert asserts_no_interval("assert_eq!(r.interval().map(|b| b.method), Some(IntervalMethod::None));")
+    assert asserts_no_interval("assert!(result.interval().is_none());")
+    assert asserts_no_interval('assert_eq!(slot.reason.as_deref(), Some("no_interval_reported"));')
+    # A negation, an alternative among accepted methods, a body that also names an interval
+    # method, and a body that says nothing are not assertions that nothing is published.
+    assert not asserts_no_interval("assert_ne!(binding.method, IntervalMethod::None);")
+    assert not asserts_no_interval("assert!(binding.method != IntervalMethod::None);")
+    assert not asserts_no_interval("matches!(m, IntervalMethod::AnalyticSe | IntervalMethod::None)")
+    assert not asserts_no_interval("matches!(m, IntervalMethod::None | Other)")
+    assert not asserts_no_interval(
+        "assert_eq!(a, IntervalMethod::None);\nassert_eq!(b, IntervalMethod::PosteriorQuantile);"
+    )
+    assert not asserts_no_interval("assert!(result.estimate().is_finite());")
+    record = {
+        "estimator": "x.est",
+        "graph_class": "Dag",
+        "inference": "bayesian",
+        "uncertainty_by_structure": ["explicit=posterior|construction_fixture|test:t.rs"],
+    }
+    route = {
+        "id": "x.est",
+        "status": "supported",
+        "graph_class": "Dag",
+        "inference": "Bayesian",
+        "notes": "",
+    }
+    assert estimator_route_uncertainty(route, [record], "posterior") == (
+        "posterior",
+        "estimator_records|estimator:x.est:Bayesian:static:explicit",
+    )
+    # Not the kind the cell constructs, a cell record that is itself only declared, another
+    # graph class or side, a route that is not an estimator route: each stays declared.
+    assert estimator_route_uncertainty(route, [record], "analytic") is None
+    declared_only = record | {
+        "uncertainty_by_structure": ["explicit=posterior|declared_not_measured|test:t.rs"]
+    }
+    assert estimator_route_uncertainty(route, [declared_only], "posterior") is None
+    assert estimator_route_uncertainty(route, [record | {"graph_class": "Pag"}], "posterior") is None
+    assert (
+        estimator_route_uncertainty(route, [record | {"inference": "frequentist"}], "posterior")
+        is None
+    )
+    assert (
+        estimator_route_uncertainty(route | {"status": "graphless"}, [record], "posterior") is None
+    )
+    assert estimator_route_uncertainty(route, [], "posterior") is None
     text = (
         "pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {\n    match id {\n"
         '        IdentifierId::BackdoorAdjustment => IdentifierData {\n            name: "backdoor.adjustment",\n        },\n    }\n}\n'

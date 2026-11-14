@@ -2046,6 +2046,8 @@ status = "capability"
 capability_record = "gcm.attribution.intrinsic_influence"
 owning_module = "crates/antecedent-attribution/src/intrinsic_influence.rs"
 notes = "Executes through the compiled GcmAttributeDag route (CausalQuery::Attribute with AttributeTarget::IntrinsicInfluence; noise declaration Undeclared, Independent, or a bidirected Structure); the free function crates/antecedent/src/gcm.rs attribute_intrinsic_influence is a hidden engine. The former fitting gap (no whole-procedure uncertainty) is closed: SourceInfluence.whole_procedure reports the bootstrap spread of the entire procedure under the declared independent-rows design, unquantified without fit_bootstrap or data. Bidirected edges, latent confounding, unfitted mechanisms, and serially dependent noise are refused. Python: SourceInfluence.whole_procedure. Support unit: capability record gcm.attribution.intrinsic_influence (independent check crates/antecedent-attribution/tests/intrinsic_influence_reference.rs::contributions_match_exact_shapley_values_of_the_variance_game; route test crates/antecedent/tests/attribute_mechanism_posterior.rs::an_intrinsic_influence_has_a_posterior_over_the_mechanisms). The result states where a published interval stands against these conditions (diagnostic gcm.model.interval_scope: measured_conditions, or not_measured with the reason)."
+counterpart_method = "Attribute"
+counterpart_design = "static"
 
 [[route]]
 id = "gcm.attribute.bayesian"
@@ -2171,6 +2173,7 @@ owning_module = "crates/antecedent/src/analysis/execute/checked_synthetic_contro
 retained_operation = "synthetic_control"
 retained_route_test = "crates/antecedent/tests/rollout_design_support_rows.rs::supported_conformal_sets_round_trip_and_refuse_forgery"
 notes = "Plan id quasi.synthetic_control; estimator quasi.synthetic_control_conformal. Exact when the residual series is exchangeable over time, approximate under weak dependence. A declared clustered_panel or independent_subject_trajectories design is refused naming the next attempt. Bayesian counterpart: row bayesian.synthetic_control_predictive_path (a posterior predictive interval, a different object from the conformal set). A fit whose section the row admits states supported on the payload and the artifact check recomputes it (synthetic_rollout_row_admits); the size of the test is floor(0.05 n) / n for n permutations, so the set is conservative except where n is a multiple of twenty."
+counterpart_design = "temporal"
 
 [[route]]
 id = "quasi.multi_unit_synthetic_placebo"
@@ -2186,6 +2189,7 @@ owning_module = "crates/antecedent/src/analysis/execute/checked_synthetic_contro
 retained_operation = "synthetic_control"
 retained_route_test = "crates/antecedent/tests/rollout_design_support_rows.rs::supported_placebo_interval_round_trips_and_refuses_forgery"
 notes = "Plan id quasi.synthetic_control; estimator quasi.multi_unit_synthetic_control_placebo. Synthetic difference-in-differences is refused because its unit-weight intercept and ridge penalty are not implemented. Post-period-weighted average of per-unit effects. Needs at least two never-treated donors beyond the adopting units. The Bayesian counterpart bayesian.synthetic_control runs the per-unit simplex posteriors and averages the draws (method Control). A fit whose section the row admits states supported on the payload and the artifact check recomputes it; the per-unit intervals and band are outside the row, and exchangeability of the adopting units' untreated errors with the donors' stays declared."
+counterpart_design = "temporal"
 
 [[route]]
 id = "bayesian.staggered_heterogeneity_robust"
@@ -2216,6 +2220,7 @@ owning_module = "crates/antecedent/src/analysis/execute/checked_synthetic_contro
 retained_operation = "synthetic_control"
 retained_route_test = "crates/antecedent/tests/rollout_design_support_rows.rs::supported_predictive_path_round_trips_and_refuses_forgery"
 notes = "Plan id bayesian.synthetic_control. The Bayesian counterpart of the conformal set is a different object: a model-based predictive interval for the counterfactual path under the declared Gaussian error model, not a finite-sample permutation guarantee. A fit that matches the row states it in the diagnostic estimate.design_posterior.graphless_support, which the artifact check recomputes; estimator bayesian.synthetic_control."
+counterpart_design = "temporal"
 
 [[route]]
 id = "bayesian.temporal_local_ratio"
@@ -2291,6 +2296,7 @@ owning_module = "crates/antecedent/src/analysis/execute/checked_synthetic_contro
 retained_operation = "synthetic_control"
 retained_route_test = "crates/antecedent/tests/rollout_design_support_rows.rs::supported_synthetic_posterior_round_trips_and_refuses_forgery"
 notes = "Plan id bayesian.synthetic_control; estimator bayesian.synthetic_control; contract reason dependencies.checked_bayesian_synthetic_control_operation. Dirichlet donor-weight posterior with declared-coefficient AR(1) errors, sampled over four chains gated by split R-hat and effective sample size. The difference-in-differences synthetic variant has no posterior and is refused naming the next attempt. With staggered adoptions it fits each adopting unit's posterior against the never-treated donors and averages the draws with post-period weights (independence of the per-unit posteriors is declared); a conformal declaration runs the posterior predictive path (row bayesian.synthetic_control_predictive_path). A one-treated-unit fit that matches the row states it in the diagnostic estimate.design_posterior.graphless_support, which the artifact check recomputes; the multi-unit posterior, fewer pre-periods, donors or draws run unsupported. The prior supplies no identifying premise (the design's premises stay declared in the result's assumptions)."
+counterpart_design = "temporal"
 
 [[route]]
 id = "bayesian.fuzzy_rd"
@@ -2491,6 +2497,7 @@ owning_module = "crates/antecedent/src/analysis/execute/checked_iv_bounds.rs"
 retained_operation = "iv_bounds"
 retained_route_test = "crates/antecedent/tests/bounds_association_support.rs::supported_iv_bounds_endpoint_interval_round_trips_and_refuses_forgery"
 notes = "CausalQuery::IvBounds (append-only tag 30); plan id iv_bounds.balke_pearl; estimator iv_bounds.balke_pearl. Executes under Frequentist inference: the sharp Balke-Pearl bounds on the average effect of a binary treatment under a binary instrument, read from three 0/1 columns and an optional weight column. The result is an identified set (claim kind bounds, identification status partially_identified), never a point; bootstrap_replicates adds an Imbens-Manski interval about the set from row-bootstrap endpoint replicates, and a declared dependent-series, trajectory or clustered design refuses the row-level draw. method=imbens_manski_row_bootstrap; assignment_unit=unit. Support row iv_bounds/binary_instrument in parity/support_graphless.toml: a fit with at least 500 unweighted complete rows, at least 399 replicates none of which was left out, the 95% level and a retained set width states supported on the section; the identified set without an interval and every other fit of the route run unsupported. The claim is one-sided coverage of each sharp endpoint of the set, not an interval for a point effect; it is measured by the calibration groups bounds_association_calibration: iv_bounds_imbens_manski_interval_covers_the_lower_bound and ..._covers_the_upper_bound. No support-matrix cell, no supported_routes.toml row."
+counterpart_family = "iv_bounds"
 
 [[route]]
 id = "bayesian.iv_bounds.endpoint_bootstrap"
@@ -4044,8 +4051,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -4100,8 +4107,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -4212,8 +4219,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -4268,8 +4275,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -4324,8 +4331,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -4436,8 +4443,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -7208,8 +7215,8 @@ validations = ["none"]
 coordinates = 3
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -7264,8 +7271,8 @@ validations = ["none"]
 coordinates = 3
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -7376,8 +7383,8 @@ validations = ["none"]
 coordinates = 3
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -7432,8 +7439,8 @@ validations = ["none"]
 coordinates = 3
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -7488,8 +7495,8 @@ validations = ["none"]
 coordinates = 3
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -7600,8 +7607,8 @@ validations = ["none"]
 coordinates = 3
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -7657,7 +7664,7 @@ coordinates = 9
 uncertainty = "posterior"
 uncertainty_structure = "explicit"
 uncertainty_basis = "asserted_in_test|test:crates/antecedent/tests/admg_conditional_effect.rs"
-uncertainty_by_structure = ["explicit=posterior|asserted_in_test|test:crates/antecedent/tests/admg_conditional_effect.rs", "accepted=posterior|asserted_in_test|test:crates/antecedent/tests/admg_conditional_effect.rs", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_by_structure = ["explicit=posterior|asserted_in_test|test:crates/antecedent/tests/admg_conditional_effect.rs", "accepted=posterior|asserted_in_test|test:crates/antecedent/tests/admg_conditional_effect.rs", "graph_posterior=none|asserted_no_interval|test:crates/antecedent/tests/conditional_effect_admg_validation_truth.rs::conditional_effect_admg_cells_execute_from_the_retained_plan_with_the_builder_dropped"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
@@ -7908,8 +7915,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/conditional_effect_admg_validation_truth.rs::conditional_effect_admg_cells_execute_from_the_retained_plan_with_the_builder_dropped"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/conditional_effect_admg_validation_truth.rs::conditional_effect_admg_cells_execute_from_the_retained_plan_with_the_builder_dropped", "accepted=none|asserted_no_interval|test:crates/antecedent/tests/conditional_effect_admg_validation_truth.rs::conditional_effect_admg_cells_execute_from_the_retained_plan_with_the_builder_dropped", "graph_posterior=none|asserted_no_interval|test:crates/antecedent/tests/conditional_effect_admg_validation_truth.rs::conditional_effect_admg_cells_execute_from_the_retained_plan_with_the_builder_dropped"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
@@ -11800,8 +11807,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 6
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/nested_counterfactual_route_evidence.rs::bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interval"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/nested_counterfactual_route_evidence.rs::bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interval", "accepted=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_static_mediation.rs", "crates/antecedent/src/analysis/execute/checked_static_mediation.rs"]
@@ -11828,8 +11835,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 6
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/staged_static_kinds.rs::fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/staged_static_kinds.rs::fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs", "accepted=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_static_mediation.rs", "crates/antecedent/src/analysis/execute/checked_static_mediation.rs"]
@@ -18358,8 +18365,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/panel_link_path.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_link_path.rs"]
 provenance = ["estimate.temporal_glm_link_contrast", "estimate.temporal.glm_link_contrast"]
-evidence = ["crates/antecedent/tests/compiler_consistency.rs::checked_aipw_executes_after_builder_discard_and_rebinds_rows", "crates/antecedent/tests/panel_link_contrast_route.rs::both_link_contrast_estimators_publish_artifacts_a_consumer_recomputes_from", "crates/antecedent/tests/panel_link_contrast_route.rs::a_single_dependent_series_is_refused_with_its_next_attempt"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/compiler_consistency.rs::checked_aipw_executes_after_builder_discard_and_rebinds_rows"]
+evidence = ["crates/antecedent/tests/panel_link_contrast_route.rs::the_frequentist_contrast_matches_newton_and_the_delta_method", "crates/antecedent/tests/panel_link_contrast_route.rs::both_link_contrast_estimators_publish_artifacts_a_consumer_recomputes_from"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/panel_link_contrast_route.rs::the_frequentist_contrast_matches_newton_and_the_delta_method"]
 
 [[method]]
 id = "method.bayesian.temporal.glm_link_contrast"
@@ -18386,8 +18393,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/panel_link_path.rs"
 implementation = ["crates/antecedent/src/analysis/execute/panel_link_path.rs"]
 provenance = ["estimate.bayesian_temporal_glm_link_contrast", "estimate.bayesian.temporal.glm_link_contrast"]
-evidence = ["crates/antecedent/tests/compiler_consistency.rs::checked_aipw_executes_after_builder_discard_and_rebinds_rows", "crates/antecedent/tests/panel_link_contrast_route.rs::both_link_contrast_estimators_publish_artifacts_a_consumer_recomputes_from", "crates/antecedent/tests/panel_link_contrast_route.rs::the_bayesian_contrast_matches_the_mode_and_a_laplace_sample"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/compiler_consistency.rs::checked_aipw_executes_after_builder_discard_and_rebinds_rows"]
+evidence = ["crates/antecedent/tests/panel_link_contrast_route.rs::the_bayesian_contrast_matches_the_mode_and_a_laplace_sample", "crates/antecedent/tests/panel_link_contrast_route.rs::both_link_contrast_estimators_publish_artifacts_a_consumer_recomputes_from"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/panel_link_contrast_route.rs::the_bayesian_contrast_matches_the_mode_and_a_laplace_sample"]
 
 [[method]]
 id = "method.temporal.lagged_instrument"
@@ -18414,8 +18421,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/temporal_iv_path.rs"
 implementation = ["crates/antecedent/src/analysis/execute/temporal_iv_path.rs"]
 provenance = ["estimate.temporal_lagged_instrument", "estimate.temporal.lagged_instrument"]
-evidence = ["crates/antecedent/tests/compiler_consistency.rs::checked_aipw_executes_after_builder_discard_and_rebinds_rows", "crates/antecedent/tests/temporal_lagged_instrument_route.rs::both_lagged_instrument_estimators_publish_artifacts_a_consumer_recomputes_from", "crates/antecedent/tests/temporal_lagged_instrument_route.rs::both_temporal_iv_estimators_scale_the_declared_contrast_and_its_uncertainty"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/compiler_consistency.rs::checked_aipw_executes_after_builder_discard_and_rebinds_rows"]
+evidence = ["crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_frequentist_route_matches_the_wald_ratio_and_certifies_the_instrument_from_the_graph", "crates/antecedent/tests/temporal_lagged_instrument_route.rs::both_lagged_instrument_estimators_publish_artifacts_a_consumer_recomputes_from"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_frequentist_route_matches_the_wald_ratio_and_certifies_the_instrument_from_the_graph"]
 
 [[method]]
 id = "method.bayesian.temporal.lagged_instrument"
@@ -18442,8 +18449,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/temporal_iv_path.rs"
 implementation = ["crates/antecedent/src/analysis/execute/temporal_iv_path.rs"]
 provenance = ["estimate.bayesian_temporal_lagged_instrument", "estimate.bayesian.temporal.lagged_instrument"]
-evidence = ["crates/antecedent/tests/compiler_consistency.rs::checked_aipw_executes_after_builder_discard_and_rebinds_rows", "crates/antecedent/tests/temporal_lagged_instrument_route.rs::both_lagged_instrument_estimators_publish_artifacts_a_consumer_recomputes_from", "crates/antecedent/tests/temporal_lagged_instrument_route.rs::both_temporal_iv_estimators_scale_the_declared_contrast_and_its_uncertainty"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/compiler_consistency.rs::checked_aipw_executes_after_builder_discard_and_rebinds_rows"]
+evidence = ["crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_bayesian_route_is_a_reduced_form_ratio_posterior_not_a_penalized_wald", "crates/antecedent/tests/temporal_lagged_instrument_route.rs::both_lagged_instrument_estimators_publish_artifacts_a_consumer_recomputes_from"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_bayesian_route_is_a_reduced_form_ratio_posterior_not_a_penalized_wald"]
 
 [[method]]
 id = "method.bayesian.binary_policy_value"
@@ -19834,7 +19841,7 @@ status = "capability"
 structures = []
 validations = []
 coordinates = 0
-uncertainty = "none"
+uncertainty = "analytic"
 uncertainty_structure = "none"
 uncertainty_basis = "declared_and_corroborated"
 uncertainty_by_structure = []

@@ -91,7 +91,7 @@ notes = "Control-function linear IV posterior. Not a generic IV posterior."
 [[child]]
 id = "P01.iv.temporal.frequentist"
 parent = "P01"
-route = "unlisted"
+route = "temporal.lagged_instrument"
 target = "PulseEffect"
 module = "crates/antecedent-estimate/src/lagged_instrument.rs"
 inference = "temporal.lagged_instrument"
@@ -105,7 +105,7 @@ notes = "Do not relabel temporal.linear.adjustment as IV.; route EstimatorId tem
 [[child]]
 id = "P01.iv.temporal.bayesian"
 parent = "P01"
-route = "unlisted"
+route = "bayesian.temporal.lagged_instrument"
 target = "PulseEffect"
 module = "crates/antecedent-estimate/src/lagged_instrument.rs"
 inference = "bayesian.temporal.lagged_instrument"
@@ -147,7 +147,7 @@ notes = "Supported Bayesian AverageEffect ids are g-computation and robust ATE, 
 [[child]]
 id = "P02.glm.temporal.frequentist"
 parent = "P02"
-route = "unlisted"
+route = "temporal.glm_link_contrast"
 target = "PulseEffect"
 module = "crates/antecedent-estimate/src/temporal_link.rs"
 inference = "temporal.glm_link_contrast"
@@ -161,7 +161,7 @@ notes = "temporal.linear.adjustment is identity-link, not a GLM link.; route Est
 [[child]]
 id = "P02.glm.temporal.bayesian"
 parent = "P02"
-route = "unlisted"
+route = "bayesian.temporal.glm_link_contrast"
 target = "PulseEffect"
 module = "crates/antecedent-estimate/src/temporal_link.rs"
 inference = "bayesian.temporal.glm_link_contrast"

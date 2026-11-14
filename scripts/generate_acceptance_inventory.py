@@ -16,7 +16,10 @@ support behind it), the uncertainty it publishes, the consumers that read its ar
 closure kind. `acceptance` is `complete` only when the route executes through the compiler,
 carries the uncertainty it claims, has its consumers, is conformance-checked by its own
 representative and closes as delivered; otherwise it is `incomplete` and every reason is
-listed. `conflicts` lists records that disagree about the row (a status, a closure kind, a
+listed. A route that publishes a point and no uncertainty statement owes no calibration and is
+complete when a test asserts that its result carries no interval (basis
+`asserted_no_interval`); a point-only cell or a declared procedure without such a test is
+incomplete. `conflicts` lists records that disagree about the row (a status, a closure kind, a
 scope list, support without its evidence); the checker rejects any conflict.
 
     python3 scripts/generate_acceptance_inventory.py           # rewrite the file
@@ -37,6 +40,10 @@ from _repo import load_toml
 OUTPUT = "parity/acceptance_inventory.toml"
 CONFORMANCE_SUITE = "crates/antecedent/tests/family_contract_conformance.rs"
 UNLISTED = {"", "unlisted", "none"}
+# The basis of a method that publishes a point and no uncertainty statement, with a test that
+# asserts the result carries no interval. Such a method owes no calibration. A point-only cell
+# or a declared procedure without that test has only said so, and stays incomplete.
+POINT_ONLY_ASSERTED = "asserted_no_interval"
 FIELDS = (
     "id",
     "kind",
@@ -308,6 +315,7 @@ def counterpart_row(row: dict, ix: Index) -> dict:
             "construction_fixture",
             "estimator_records",
             "point_only_cell",
+            POINT_ONLY_ASSERTED,
         ):
             conflicts.append(
                 f"supported row without a route obligation rests on {row['uncertainty_basis']!r} (unsupported support evidence)"
@@ -341,9 +349,10 @@ def counterpart_row(row: dict, ix: Index) -> dict:
     executing = status in ("supported", "not_supported", "closed_with_next_attempt")
     if executing:
         reasons += execution_problems(root, row["execution"])
-        if row["uncertainty"] == "none" and row["uncertainty_basis"] != "point_only_cell":
+        if row["uncertainty"] == "none" and row["uncertainty_basis"] != POINT_ONLY_ASSERTED:
             reasons.append(
-                f"executes without its claimed uncertainty (basis {row['uncertainty_basis']})"
+                f"publishes no uncertainty and no test asserts that the result carries no "
+                f"interval (basis {row['uncertainty_basis']})"
             )
         if row["uncertainty_basis"] in ("no_executing_route", "refused_route", "no_method_record"):
             reasons.append(
@@ -372,8 +381,12 @@ def manifest_row(route: dict, ix: Index) -> dict:
     if route["status"] != "fitting_gap":
         reasons += execution_problems(root, execution)
         reasons += consumer_problems(root, consumers[0])
-        if uncertainty in UNLISTED:
-            reasons.append("executes without its claimed uncertainty")
+        if uncertainty in UNLISTED and not str(method.get("uncertainty_basis", "")).startswith(
+            POINT_ONLY_ASSERTED
+        ):
+            reasons.append(
+                "publishes no uncertainty and no test asserts that the result carries no interval"
+            )
     else:
         reasons.append("fitting gap: the route does not execute")
     entry = ix.scope.get(rid)

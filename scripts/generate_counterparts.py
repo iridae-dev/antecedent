@@ -52,6 +52,7 @@ UNCERTAINTY_KINDS = ("analytic", "design_aware_resampling", "posterior", "enclos
 BASES = (
     "construction_fixture",
     "point_only_cell",
+    "asserted_no_interval",
     "asserted_in_test",
     "estimator_records",
     "declared_not_measured",
@@ -87,7 +88,13 @@ CLOSED_ROUTE_NEXT = (
     "identify the target on this graph class and lower it through the compiler, or keep the "
     "typed refusal with the boundary proof"
 )
+POINT_ONLY_ASSERTED = "asserted_no_interval"
+ABSENT_QUADRANT_NEXT = (
+    "route this side of the family through the compiler under a support row of its own, or record "
+    "the boundary proof on the family axis"
+)
 SPECS = ROOT / "parity/method_specs/specs.toml"
+GRAPHLESS = ROOT / "parity/support_graphless.toml"
 TEMPORAL_MARK = re.compile(r"temporal|panel|sequential|series|period|time", re.I)
 UNCERTAINTY_RANK = {
     "unresolved": -1,
@@ -155,8 +162,23 @@ class Evidenced:
         methods = self.for_side(self.by_route.get(route_id, []), inference)
         if not methods:
             return "none", "no_method_record"
-        best = max(methods, key=lambda m: UNCERTAINTY_RANK[m["uncertainty"]])
-        return best["uncertainty"], best["uncertainty_basis"].split("|")[0].split(":")[0]
+        return best_uncertainty(methods)
+
+
+def basis_label(method: dict) -> str:
+    return method["uncertainty_basis"].split("|")[0].split(":")[0]
+
+
+def best_uncertainty(methods: list[dict]) -> tuple[str, str]:
+    """The strongest uncertainty kind among method records, with the basis it rests on.
+
+    When no record publishes an interval, the group is point-only by assertion only if every
+    record is: one record without a test asserting it keeps its own basis for the group.
+    """
+    best = max(methods, key=lambda m: UNCERTAINTY_RANK[m["uncertainty"]])
+    if best["uncertainty"] == "none":
+        best = next((m for m in methods if basis_label(m) != POINT_ONLY_ASSERTED), best)
+    return best["uncertainty"], basis_label(best)
 
 
 def child_status(child: dict, methods: list[dict], verified: bool) -> tuple[str, str]:
@@ -201,8 +223,7 @@ def child_rows(
         if status in ("closed_with_next_attempt", "not_applicable_with_theory_reason"):
             kind, basis = "none", "no_executing_route"
         elif methods:
-            best = max(methods, key=lambda m: UNCERTAINTY_RANK[m["uncertainty"]])
-            kind, basis = best["uncertainty"], best["uncertainty_basis"].split("|")[0].split(":")[0]
+            kind, basis = best_uncertainty(methods)
         else:
             kind, basis = "unresolved", "no_method_record"
         spec = evidenced.specs.get(child["id"], {})
@@ -268,6 +289,8 @@ def route_method(route: dict) -> str:
     its manifest target names, so the temporal measurement routes (whose target is the
     sequentially randomized design they correct) join the static ones.
     """
+    if "counterpart_method" in route:
+        return route["counterpart_method"]
     return (
         "MeasurementCorrectedFunctional"
         if route["id"].startswith("measurement.")
@@ -293,12 +316,138 @@ def route_inferences(route: dict) -> list[str]:
     return found
 
 
-def route_rows(routes: list[dict], lowerings: dict[str, str], evidenced: Evidenced) -> list[dict]:
+def side_inferences(route: dict, evidenced: Evidenced) -> list[str]:
+    """The inference sides a route answers on: the ones its record names, else its methods'.
+
+    A graphless support route records its interval claim where other routes record the side, so
+    its side is the one its method record carries, or the posterior side when that record's
+    uncertainty is a posterior.
+    """
+    named = route_inferences(route)
+    if named:
+        return named
+    found = []
+    for method in evidenced.by_route.get(route["id"], []):
+        if method["inference"] in INFERENCES:
+            found.append(method["inference"])
+        elif method["inference"] == "both":
+            found += list(INFERENCES)
+        elif method["uncertainty"] in UNCERTAINTY_KINDS:
+            found.append("bayesian" if method["uncertainty"] == "posterior" else "frequentist")
+    return [name for name in INFERENCES if name in found]
+
+
+def member_design(route: dict, evidenced: Evidenced) -> str:
+    """The design of a family member: declared, named in its id, else its method record's."""
+    if "counterpart_design" in route:
+        return route["counterpart_design"]
+    named = id_design(route)
+    if named is not None:
+        return named
+    for method in evidenced.by_route.get(route["id"], []):
+        if method.get("design") in DESIGNS:
+            return method["design"]
+    return route_design(route)
+
+
+def quadrant_row(
+    route: dict,
+    design: str,
+    inference: str,
+    target: str,
+    lowerings: dict[str, str],
+    evidenced: Evidenced,
+    family: bool = False,
+) -> dict:
+    """The row of one route on one quadrant, recorded under ``target``.
+
+    A ``counterpart_reason`` narrows the claim a route makes for a ``counterpart_targets``
+    entry. A family row makes no such claim (the family axis only records that the route is
+    the family's side), so the reason does not carry over to it.
+    """
+    closed = route["status"] == "closed"
+    kind, basis = (
+        evidenced.route_kind(route["id"], inference) if not closed else ("none", "refused_route")
+    )
+    methods = evidenced.for_side(evidenced.by_route.get(route["id"], []), inference)
+    status = (
+        "closed_with_next_attempt"
+        if closed
+        else "supported"
+        if (
+            any(m["status"] == "supported" for m in methods)
+            if methods
+            else route["status"] == "supported"
+        )
+        else "not_supported"
+    )
+    reason = route["notes"] if closed else ""
+    # A route that publishes a point and no uncertainty statement owes no calibration: with a
+    # test asserting that nothing inferential is published it is a resting state, not a
+    # narrowed promise. Without that test the absence is only declared, and the row stays open.
+    weak = kind == "none" and not closed and basis != POINT_ONLY_ASSERTED
+    derived = target != route_method(route)
+    reason_key = "counterpart_reason" if derived else "narrowed_reason"
+    attempt_key = "counterpart_next_attempt" if derived else "narrowed_next_attempt"
+    narrowed = reason_key in route and not (family and derived)
+    suffix = f">{target}" if derived else ""
+    return {
+        "id": f"{route['id']}#{design}.{inference}{suffix}",
+        "kind": "route",
+        "method": target,
+        "design": design,
+        "inference": inference,
+        "route": route["id"],
+        "status": status,
+        "uncertainty": kind,
+        "uncertainty_basis": basis,
+        "target": target,
+        "sampling_design": route["design_time_model"],
+        "execution": methods[0]["evidence"][0] if methods and methods[0]["evidence"] else "unlisted",
+        "reuse_key": lowerings.get(route["id"], route["id"]),
+        "decision_port": route["decision_ports"],
+        "artifact": next(
+            (
+                c
+                for m in methods
+                for c in m["artifact_consumer"]
+                if not evidenced.ev.is_test_path(evidenced.ev.split(c)[0])
+            ),
+            "unlisted",
+        ),
+        "closure": "narrowed_promise" if closed or weak or narrowed else "delivered",
+        "scope_status": "mandatory",
+        "gap": "target" if closed else ("validation" if weak or narrowed else "none"),
+        "reason": (
+            route[reason_key]
+            if narrowed
+            else reason
+            or (f"the route publishes a point value and no interval ({basis})" if weak else "")
+        ),
+        "next_attempt": (
+            route[attempt_key]
+            if narrowed
+            else CLOSED_ROUTE_NEXT
+            if closed
+            else (NEXT_ATTEMPT["validation"] if weak else "")
+        ),
+    }
+
+
+def route_rows(
+    routes: list[dict],
+    lowerings: dict[str, str],
+    evidenced: Evidenced,
+    graphless: dict | None = None,
+    named: frozenset[str] = frozenset(),
+) -> list[dict]:
     """One row per quadrant of each supported or closed route, grouped by its target.
 
     A route outside the dotted ``static``/``temporal`` id scheme is included when it declares its
     ``counterpart_design``. ``narrowed_reason`` and ``narrowed_next_attempt`` narrow the rows of
-    the route's own target the way ``counterpart_reason`` narrows a counterpart's.
+    the route's own target the way ``counterpart_reason`` narrows a counterpart's. A route that
+    is one of several entries of a wider method records its rows under that method with
+    ``counterpart_method``.
 
     A route may also be the counterpart of another target (``counterpart_targets``): the
     temporal side of mediation is the temporal mediation route, and a measurement correction on
@@ -306,13 +455,15 @@ def route_rows(routes: list[dict], lowerings: dict[str, str], evidenced: Evidenc
     functional. Each such target gets a row of its own, narrowed when the route declares a
     ``counterpart_reason`` and a ``counterpart_next_attempt`` (the reduced claim, and what to
     attempt next).
+
+    The graphless design families record their quadrants in ``[[family_axis]]``
+    (``family_rows``); ``named`` is the set of routes a method child already names.
     """
     rows = []
     for route in routes:
         if route["status"] not in ("supported", "closed", *UNIT_ROUTE_STATUSES):
             continue
         design = route_design(route)
-        closed = route["status"] == "closed"
         inferences = route_inferences(route)
         counterparts = route.get("counterpart_targets", [])
         if (
@@ -323,85 +474,112 @@ def route_rows(routes: list[dict], lowerings: dict[str, str], evidenced: Evidenc
             continue
         targets = list(dict.fromkeys([route_method(route), *counterparts]))
         for inference in inferences:
-            kind, basis = (
-                evidenced.route_kind(route["id"], inference)
-                if not closed
-                else ("none", "refused_route")
-            )
-            methods = evidenced.for_side(evidenced.by_route.get(route["id"], []), inference)
-            status = (
-                "closed_with_next_attempt"
-                if closed
-                else "supported"
-                if (
-                    any(m["status"] == "supported" for m in methods)
-                    if methods
-                    else route["status"] == "supported"
-                )
-                else "not_supported"
-            )
-            reason = route["notes"] if closed else ""
-            weak = kind == "none" and not closed
             for target in targets:
-                derived = target != route_method(route)
-                reason_key = "counterpart_reason" if derived else "narrowed_reason"
-                attempt_key = "counterpart_next_attempt" if derived else "narrowed_next_attempt"
-                narrowed = reason_key in route
-                suffix = f">{target}" if derived else ""
-                rows.append(
-                    {
-                        "id": f"{route['id']}#{design}.{inference}{suffix}",
-                        "kind": "route",
-                        "method": target,
-                        "design": design,
-                        "inference": inference,
-                        "route": route["id"],
-                        "status": status,
-                        "uncertainty": kind,
-                        "uncertainty_basis": basis,
-                        "target": target,
-                        "sampling_design": route["design_time_model"],
-                        "execution": methods[0]["evidence"][0]
-                        if methods and methods[0]["evidence"]
-                        else "unlisted",
-                        "reuse_key": lowerings.get(route["id"], route["id"]),
-                        "decision_port": route["decision_ports"],
-                        "artifact": next(
-                            (
-                                c
-                                for m in methods
-                                for c in m["artifact_consumer"]
-                                if not evidenced.ev.is_test_path(evidenced.ev.split(c)[0])
-                            ),
-                            "unlisted",
-                        ),
-                        "closure": "narrowed_promise"
-                        if closed or weak or narrowed
-                        else "delivered",
-                        "scope_status": "mandatory",
-                        "gap": "target"
-                        if closed
-                        else ("validation" if weak or narrowed else "none"),
-                        "reason": (
-                            route[reason_key]
-                            if narrowed
-                            else reason
-                            or (
-                                f"the route publishes a point value and no interval ({basis})"
-                                if weak
-                                else ""
-                            )
-                        ),
-                        "next_attempt": (
-                            route[attempt_key]
-                            if narrowed
-                            else CLOSED_ROUTE_NEXT
-                            if closed
-                            else (NEXT_ATTEMPT["validation"] if weak else "")
-                        ),
-                    }
-                )
+                rows.append(quadrant_row(route, design, inference, target, lowerings, evidenced))
+    if graphless:
+        rowed = set(named) | {row["route"] for row in rows}
+        rows += family_rows(routes, graphless, lowerings, evidenced, rowed)
     return rows + static_boundaries(rows)
+
+
+def family_rows(
+    routes: list[dict],
+    graphless: dict,
+    lowerings: dict[str, str],
+    evidenced: Evidenced,
+    rowed: set[str],
+) -> list[dict]:
+    """The quadrants of each graphless design family, from its support rows and axis records.
+
+    ``parity/support_graphless.toml`` records a family's own routes (the ``graphless.<family>.``
+    routes, and any route whose target or ``counterpart_family`` is the family) and, per
+    ``[[family_axis]]``, the routes that are its Bayesian and its temporal side. A member on the
+    temporal axis is a temporal row; any other member keeps its own design. A quadrant on which
+    the records name no route is a closed row carrying the axis record's own reason when the
+    axis is ``not_routed``, and otherwise the plain statement that no route is recorded: nothing
+    is inferred from a route's name.
+
+    A family is emitted only when it gives a row to a route that has none, so a family whose
+    routes are all recorded by a method child or by their own target adds nothing.
+    """
+    by_id = {route["id"]: route for route in routes}
+    families = sorted({support["family"] for support in graphless.get("support", [])})
+    axes: dict[tuple[str, str], dict] = {
+        (axis["family"], axis["axis"]): axis for axis in graphless.get("family_axis", [])
+    }
+    out: list[dict] = []
+    for family in families:
+        temporal = axes.get((family, "temporal"), {})
+        bayesian = axes.get((family, "bayesian"), {})
+        on_axis = [*temporal.get("routes", []), *bayesian.get("routes", [])]
+        own = [
+            route["id"]
+            for route in routes
+            if route["status"] in UNIT_ROUTE_STATUSES
+            and route["id"] not in on_axis
+            and (route["target"] == family or route.get("counterpart_family") == family)
+        ]
+        members = [rid for rid in dict.fromkeys([*own, *on_axis]) if rid in by_id]
+        if all(rid in rowed for rid in members):
+            continue
+        rows = []
+        for rid in members:
+            route = by_id[rid]
+            design = (
+                "temporal"
+                if rid in temporal.get("routes", [])
+                else member_design(route, evidenced)
+            )
+            for inference in side_inferences(route, evidenced):
+                rows.append(
+                    quadrant_row(route, design, inference, family, lowerings, evidenced, True)
+                )
+        seen = {(row["design"], row["inference"]) for row in rows}
+        if {design for design, _ in seen} != {"temporal"}:
+            for design in DESIGNS:
+                for inference in INFERENCES:
+                    if (design, inference) not in seen:
+                        rows.append(absent_row(family, design, inference, temporal, bayesian))
+        out += rows
+    return out
+
+
+def absent_row(family: str, design: str, inference: str, temporal: dict, bayesian: dict) -> dict:
+    """A family quadrant the records name no route on: closed, with the recorded reason."""
+    declined = next(
+        (
+            axis
+            for axis, applies in ((temporal, design == "temporal"), (bayesian, inference == "bayesian"))
+            if applies and axis.get("disposition") == "not_routed"
+        ),
+        None,
+    )
+    return {
+        "id": f"{family}#{design}.{inference}",
+        "kind": "route",
+        "method": family,
+        "design": design,
+        "inference": inference,
+        "route": "unlisted",
+        "status": "closed_with_next_attempt",
+        "uncertainty": "none",
+        "uncertainty_basis": "no_executing_route",
+        "target": family,
+        "sampling_design": "unlisted",
+        "execution": "unlisted",
+        "reuse_key": "unlisted",
+        "decision_port": "unlisted",
+        "artifact": "unlisted",
+        "closure": "narrowed_promise",
+        "scope_status": "mandatory",
+        "gap": "implementation",
+        "reason": (
+            declined["reason"]
+            if declined
+            else f"parity/support_graphless.toml records no {design} {inference} route for the {family} family"
+        ),
+        "next_attempt": ABSENT_QUADRANT_NEXT,
+    }
 
 
 def static_boundaries(rows: list[dict]) -> list[dict]:
@@ -458,7 +636,13 @@ def build() -> list[dict]:
     scope = scope_by_id(load(SCOPE))
     evidenced = Evidenced(manifest_data, load(SPECS)["spec"], Evidence(ROOT))
     rows = child_rows(children, routes, scope, evidenced)
-    rows += route_rows(manifest, supported_lowerings(load(SUPPORTED)), evidenced)
+    rows += route_rows(
+        manifest,
+        supported_lowerings(load(SUPPORTED)),
+        evidenced,
+        load(GRAPHLESS),
+        frozenset(row["route"] for row in rows),
+    )
     rows.sort(
         key=lambda row: (
             row["kind"],
