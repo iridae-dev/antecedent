@@ -141,7 +141,7 @@ fn simex() -> CorrectionMethod {
     CorrectionMethod::Simex {
         lambdas: vec![0.5, 1.0, 1.5, 2.0],
         replicates: 10,
-        extrapolant: SimexExtrapolant::Quadratic,
+        extrapolant: SimexExtrapolant::Automatic,
     }
 }
 

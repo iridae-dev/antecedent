@@ -529,7 +529,7 @@ fn measurement_regression_calibration_logistic_wald_l95() {
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn measurement_simex_linear_wald_l95() {
-    // Scored against the generating coefficient; the quadratic extrapolant keeps its bias.
+    // Scored against the generating coefficient; the default resolves to the rational extrapolant, exact for this model.
     measure(
         "measurement_simex_linear_wald_l95",
         "linear_outcome_classical_error_variance_0_25_declared_exactly_default_simex_coefficient_2",
